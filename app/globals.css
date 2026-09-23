@@ -1,26 +1,222 @@
 @import "tailwindcss";
+@import "dockview-react/dist/styles/dockview.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --studio-bg: #111113;
+  --studio-chrome: #1a1b1e;
+  --studio-panel: #1e1f22;
+  --studio-elevated: #25262b;
+  --studio-selected: #2b2d31;
+  --studio-tab: #3a3d44;
+  --studio-fg: #f4f4f5;
+  --studio-muted: #a1a1aa;
+  --studio-faint: #71717a;
+  --studio-disabled: #52525b;
+  --studio-border: rgb(255 255 255 / 0.1);
+  --studio-border-subtle: rgb(255 255 255 / 0.05);
+  --studio-hover: rgb(255 255 255 / 0.1);
+  --studio-hover-subtle: rgb(255 255 255 / 0.05);
+  --studio-hover-strong: rgb(255 255 255 / 0.15);
+  --studio-accent: #094771;
+  --studio-accent-move: #4b6eaf;
+  --background: var(--studio-chrome);
+  --foreground: var(--studio-fg);
+  color-scheme: dark;
+}
+
+html[data-color-scheme="light"] {
+  --studio-bg: #e4e4e7;
+  --studio-chrome: #f4f4f5;
+  --studio-panel: #fafafa;
+  --studio-elevated: #ffffff;
+  --studio-selected: #e4e4e7;
+  --studio-tab: #d4d4d8;
+  --studio-fg: #18181b;
+  --studio-muted: #52525b;
+  --studio-faint: #71717a;
+  --studio-disabled: #a1a1aa;
+  --studio-border: rgb(0 0 0 / 0.08);
+  --studio-border-subtle: rgb(0 0 0 / 0.05);
+  --studio-hover: rgb(0 0 0 / 0.06);
+  --studio-hover-subtle: rgb(0 0 0 / 0.04);
+  --studio-hover-strong: rgb(0 0 0 / 0.1);
+  --studio-accent: #094771;
+  --studio-accent-move: #4b6eaf;
+  color-scheme: light;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-studio-bg: var(--studio-bg);
+  --color-studio-chrome: var(--studio-chrome);
+  --color-studio-panel: var(--studio-panel);
+  --color-studio-elevated: var(--studio-elevated);
+  --color-studio-selected: var(--studio-selected);
+  --color-studio-tab: var(--studio-tab);
+  --color-studio-fg: var(--studio-fg);
+  --color-studio-muted: var(--studio-muted);
+  --color-studio-faint: var(--studio-faint);
+  --color-studio-disabled: var(--studio-disabled);
+  --color-studio-border: var(--studio-border);
+  --color-studio-border-subtle: var(--studio-border-subtle);
+  --color-studio-hover: var(--studio-hover);
+  --color-studio-hover-subtle: var(--studio-hover-subtle);
+  --color-studio-hover-strong: var(--studio-hover-strong);
+  --color-studio-accent: var(--studio-accent);
+  --color-studio-accent-move: var(--studio-accent-move);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html,
+body {
+  height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+#studio-print {
+  display: none;
+}
+
+@media print {
+  html,
+  body {
+    height: auto;
+    background: white !important;
+  }
+
+  .studio-screen,
+  nextjs-portal {
+    display: none !important;
+  }
+
+  #studio-print {
+    display: block !important;
+    color: #111;
+    background: white;
+    font: 16px/1.5 Georgia, serif;
+  }
+
+  #studio-print h1 {
+    margin: 0 0 16px;
+    font: 20px/1.3 system-ui, sans-serif;
+  }
+
+  #studio-print img,
+  #studio-print [data-board-image] {
+    width: 480px;
+    height: auto;
+  }
+
+  #studio-print [data-board-image] {
+    height: 480px;
+  }
+
+  #studio-print,
+  #studio-print * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  #studio-print p {
+    max-width: 40rem;
+  }
+
+  #studio-print strong {
+    background: #f3e7a1;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.dockview-theme-vs {
+  --dv-background-color: var(--studio-bg);
+  --dv-group-view-background-color: var(--studio-panel);
+  --dv-tabs-and-actions-container-background-color: var(--studio-elevated);
+  --dv-tabs-and-actions-container-height: 32px;
+  --dv-tabs-and-actions-container-font-size: 12px;
+  --dv-tab-font-size: 12px;
+  --dv-tab-margin: 4px 3px;
+  --dv-tab-border-radius: 8px;
+  --dv-activegroup-visiblepanel-tab-background-color: var(--studio-tab);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--studio-selected);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--studio-selected);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--studio-selected);
+  --dv-activegroup-visiblepanel-tab-color: var(--studio-fg);
+  --dv-activegroup-hiddenpanel-tab-color: var(--studio-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--studio-fg);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--studio-faint);
+  --dv-tab-divider-color: transparent;
+  --dv-separator-border: transparent;
+  --dv-sash-color: var(--studio-bg);
+  --dv-paneview-header-border-color: var(--studio-selected);
+  --dv-border-radius: 8px;
+}
+
+.dockview-theme-vs .dv-groupview {
+  overflow: hidden;
+  border-radius: var(--dv-border-radius);
+}
+
+.dockview-theme-vs .dv-dockview,
+.dockview-theme-vs .dv-split-view-container {
+  background-color: var(--studio-bg);
+}
+
+.dockview-theme-vs .dv-split-view-container.dv-horizontal > .dv-sash-container > .dv-sash {
+  width: 8px;
+  background-color: var(--studio-bg);
+}
+
+.dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container,
+.dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container {
+  box-sizing: border-box;
+  border-bottom: none;
+  padding: 0 6px;
+  border-top-left-radius: var(--dv-border-radius);
+  border-top-right-radius: var(--dv-border-radius);
+}
+
+.dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-active-tab,
+.dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab,
+.dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tab.dv-active-tab,
+.dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab {
+  border-top: none;
+  border-radius: var(--dv-tab-border-radius);
+}
+
+.dockview-theme-vs .dv-tab {
+  display: flex;
+  align-items: center;
+  border-radius: var(--dv-tab-border-radius);
+}
+
+.dockview-theme-vs .dv-tab .dv-default-tab {
+  min-width: 0;
+  flex: 1;
+}
+
+.dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action:hover {
+  border-radius: 999px;
+}
+
+.dockview-theme-vs .dv-tabs-overflow-dropdown-default {
+  border-radius: var(--dv-tab-border-radius);
+}
+
+.dockview-theme-vs .dv-groupview > .dv-content-container,
+.dockview-theme-vs .dv-render-overlay {
+  border-bottom-left-radius: var(--dv-border-radius);
+  border-bottom-right-radius: var(--dv-border-radius);
+}
+
+.dv-react-part,
+.dv-content-container,
+.dv-groupview,
+.dv-view {
+  height: 100%;
+}
+
+button {
+  cursor: pointer;
 }

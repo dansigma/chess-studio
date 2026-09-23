@@ -1,36 +1,36 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Studio clone
 
-## Getting Started
+Chess analysis GUI inspired by ChessMonitor Studio: board, Stockfish, notation tree, and opening explorer. It does not use ChessMonitor branding, assets, or their private Ultra Database.
 
-First, run the development server:
+## Run
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). Guest mode works without Supabase: play moves, run the engine, import/export PGN, and browse a built-in master sample book.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Explorer
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Ultra Database maps to the Lichess Masters explorer; Online Database maps to the Lichess online explorer. Those APIs currently return 401 without a token.
 
-## Learn More
+- Without `LICHESS_TOKEN`, the app uses a small built-in master sample book so the Ultra Database / Ultra Games tabs still work.
+- To use live Lichess stats, create a personal token at [lichess.org/account/oauth/token](https://lichess.org/account/oauth/token) (no scopes required) and add `LICHESS_TOKEN=...` to `.env.local`.
 
-To learn more about Next.js, take a look at the following resources:
+## Supabase (accounts + saved boards)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Create a project and run `supabase/migrations/20260317120000_init_studio.sql` in the SQL editor.
+2. Copy `.env.example` to `.env.local` and fill in the URL and anon key.
+3. Restart `npm run dev`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Saved boards, settings, and explorer cache then persist. Opening-database tables (`games`, `game_positions`, `position_stats`) are created empty for a later ingest phase.
 
-## Deploy on Vercel
+## Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js + Tailwind
+- `react-chessboard` + `chess.js`
+- Stockfish 19 lite (WASM worker in `public/engine`, GPL)
+- `dockview-react` layout
+- Lichess opening explorer (`/masters` and `/lichess`) with a local sample-book fallback
+- Optional Supabase Auth + Postgres
