@@ -38,7 +38,9 @@ import {
   type GameTree,
   type Path,
 } from "@/src/chess/tree";
-import { exportPgn, importPgn, importSans, mainlinePathForPgn, openablePgn, recentSans, titleFromHeaders, type GameHeaders } from "@/src/chess/pgn";
+import { exportPgn, importPgn, importSans, openListedFileGame, openablePgn, recentSans, titleFromHeaders, type GameHeaders } from "@/src/chess/pgn";
+import { repertoireMoves } from "@/src/chess/repertoire";
+import { trainingAttempt } from "@/src/chess/training";
 import { toggleNag } from "@/src/chess/nags";
 import { playMoveSound, shouldPlayMoveSound } from "@/src/chess/move-sound";
 import {
@@ -311,6 +313,10 @@ type StudioState = {
   toggleBoardArrowMark: (from: string, to: string, color: MarkColor) => void;
   setHeaders: (headers: GameHeaders) => void;
   skipForward: () => void;
+  training: boolean;
+  trainingStart: Path | null;
+  startTraining: () => void;
+  stopTraining: () => void;
   renameActive: (title: string) => void;
   setExplorer: (data: ExplorerResponse | null) => void;
   setExplorerLoading: (loading: boolean) => void;
@@ -414,6 +420,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   activeFileGameId: null,
   bookmarks: loadLocalBookmarks(),
   setupMode: false,
+  training: false,
+  trainingStart: null,
   active: () => {
     const state = get();
     return (
@@ -438,6 +446,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set((state) => ({
       boards: [...state.boards, board],
       activeBoardId: board.id,
+      training: false,
+      trainingStart: null,
     }));
   },
   closeBoard: (id) => {
@@ -449,7 +459,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       }
       const activeBoardId =
         state.activeBoardId === target ? boards[0].id : state.activeBoardId;
-      return { boards, activeBoardId };
+      return { boards, activeBoardId, training: false, trainingStart: null };
     });
   },
   cloneBoard: () => {
@@ -468,10 +478,42 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set((state) => ({
       boards: [...state.boards, clone],
       activeBoardId: clone.id,
+      training: false,
+      trainingStart: null,
     }));
   },
-  setActiveBoard: (id) => set({ activeBoardId: id, enginePreview: null, setupMode: false }),
+  setActiveBoard: (id) =>
+    set({
+      activeBoardId: id,
+      enginePreview: null,
+      setupMode: false,
+      training: false,
+      trainingStart: null,
+    }),
   makeUciMove: (from, to, promotion) => {
+    if (get().training) {
+      const board = get().active();
+      const uci = `${from}${to}${promotion ?? ""}`;
+      const attempt = trainingAttempt(board.tree, board.path, uci);
+      if (attempt.kind === "complete") {
+        set({ statusMessage: "Line complete." });
+        return false;
+      }
+      if (attempt.kind === "refused") {
+        set({ statusMessage: "Not in the repertoire." });
+        return false;
+      }
+      const previous = board.path;
+      set((state) => ({
+        statusMessage: repertoireMoves(board.tree, attempt.path).length === 0 ? "Line complete." : null,
+        boards: withActive(state.boards, state.activeBoardId, (active) => ({
+          ...active,
+          path: attempt.path,
+        })),
+      }));
+      soundForAdvance(previous);
+      return true;
+    }
     const board = get().active();
     const previous = board.path;
     const chess = new Chess(getFenAt(board.tree, previous));
@@ -499,6 +541,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
   },
   playUciSequence: (ucis) => {
+    if (get().training) {
+      return;
+    }
     const previous = get().active().path;
     set({ enginePreview: null });
     suppressMoveSound = true;
@@ -518,6 +563,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     soundForAdvance(previous);
   },
   goPath: (path) => {
+    if (get().training) {
+      return;
+    }
     const previous = get().active().path;
     set((state) => ({
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
@@ -536,6 +584,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }));
   },
   forward: () => {
+    if (get().training) {
+      return;
+    }
     const previous = get().active().path;
     set((state) => ({
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
@@ -546,6 +597,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     soundForAdvance(previous);
   },
   toStart: () => {
+    if (get().training) {
+      return;
+    }
     set((state) => ({
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
@@ -554,6 +608,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }));
   },
   toEnd: () => {
+    if (get().training) {
+      return;
+    }
     const previous = get().active().path;
     set((state) => ({
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
@@ -564,6 +621,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     soundForAdvance(previous);
   },
   skipForward: () => {
+    if (get().training) {
+      return;
+    }
     const previous = get().active().path;
     set((state) => ({
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
@@ -573,6 +633,32 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }));
     soundForAdvance(previous);
   },
+  startTraining: () => {
+    const state = get();
+    if (state.training && state.trainingStart) {
+      const start = state.trainingStart;
+      set((current) => ({
+        statusMessage: null,
+        boards: withActive(current.boards, current.activeBoardId, (board) => ({
+          ...board,
+          path: [...start],
+        })),
+      }));
+      const board = get().active();
+      if (repertoireMoves(board.tree, board.path).length === 0) {
+        set({ statusMessage: "Line complete." });
+      }
+      return;
+    }
+    const board = state.active();
+    const start = [...board.path];
+    set({
+      training: true,
+      trainingStart: start,
+      statusMessage: repertoireMoves(board.tree, start).length === 0 ? "Line complete." : null,
+    });
+  },
+  stopTraining: () => set({ training: false, trainingStart: null }),
   undo: () => get().back(),
   redo: () => get().forward(),
   flip: () => {
@@ -681,6 +767,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
     set((state) => ({
       statusMessage: null,
+      training: false,
+      trainingStart: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         title: title ?? imported.title,
@@ -712,6 +800,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
           return {
             enginePreview: null,
             setupMode: false,
+            training: false,
+            trainingStart: null,
             activeBoardId: existing.id,
             boards: state.boards.map((board) =>
               board.id === existing.id ? { ...board, ...content, preview: true } : board,
@@ -727,6 +817,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         return {
           enginePreview: null,
           setupMode: false,
+          training: false,
+          trainingStart: null,
           boards: [...state.boards, board],
           activeBoardId: board.id,
         };
@@ -740,6 +832,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       return {
         enginePreview: null,
         setupMode: false,
+        training: false,
+        trainingStart: null,
         boards: [...state.boards, board],
         activeBoardId: board.id,
       };
@@ -842,7 +936,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }));
   },
   insertNullMove: () => {
-    if (get().setupMode) {
+    if (get().setupMode || get().training) {
       return false;
     }
     const board = get().active();
@@ -1088,18 +1182,16 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     );
     const combined = database && database.games.length > 1;
     const pgn = combined ? database.games.map((entry) => entry.pgn).join("\n\n") : game.pgn;
-    const imported = openablePgn(pgn);
+    const imported = openListedFileGame(pgn, game.pgn);
     if (!imported) {
       set({ statusMessage: "Could not open that PGN." });
       return;
     }
-    const selected = importPgn(game.pgn);
-    if (selected.tree.startComment) {
-      imported.tree.startComment = selected.tree.startComment;
-    }
-    const path = combined ? mainlinePathForPgn(imported.tree, game.pgn) : imported.path;
+    const path = imported.path;
     set((state) => ({
       statusMessage: null,
+      training: false,
+      trainingStart: null,
       activeFileDatabaseId: database?.id ?? state.activeFileDatabaseId,
       activeFileGameId: game.id,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
@@ -1107,7 +1199,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         title: combined ? database.name : (game.title || imported.title),
         tree: imported.tree,
         path,
-        headers: selected.headers,
+        headers: imported.headers,
         dirty: true,
       })),
     }));
