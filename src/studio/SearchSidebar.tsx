@@ -5,6 +5,8 @@ import { bookmarkKey } from "@/src/lib/player-bookmarks";
 import type { PlayerColorFilter, PlayerHit } from "@/src/lib/player-types";
 import { useStudioStore } from "@/src/store/studio-store";
 import { PlayerHitRow } from "./PlayerHitRow";
+import { SearchInput } from "./ui/Controls";
+import { SidebarHint, SidebarPanel } from "./ui/Sidebar";
 
 export function SearchSidebar() {
   const [query, setQuery] = useState("");
@@ -15,11 +17,13 @@ export function SearchSidebar() {
   const bookmarks = useStudioStore((state) => state.bookmarks);
   const activeId = useStudioStore((state) => state.playerProfile?.id ?? null);
 
+  const searching = query.trim().length >= 2;
+  const visibleHits = searching ? hits : [];
+  const visibleLoading = searching && loading;
+
   useEffect(() => {
     const q = query.trim();
     if (q.length < 2) {
-      setHits([]);
-      setLoading(false);
       return;
     }
     const controller = new AbortController();
@@ -72,38 +76,36 @@ export function SearchSidebar() {
   const bookmarkedKeys = new Set(bookmarks.map((item) => bookmarkKey(item)));
 
   return (
-    <div className="flex h-full w-64 flex-col overflow-hidden rounded-lg bg-studio-panel">
-      <div className="px-3 py-3">
-        <h2 className="text-sm font-medium text-studio-fg">Search players</h2>
-        <input
+    <SidebarPanel
+      title="Search players"
+      header={
+        <SearchInput
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={setQuery}
           placeholder="Lichess, Chess.com, or book…"
-          className="mt-3 w-full rounded border border-studio-border bg-studio-selected px-2 py-1.5 text-sm text-studio-fg outline-none placeholder:text-studio-disabled focus:border-sky-700"
           autoFocus
         />
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto px-2 pb-3">
-        {loading ? <div className="px-2 py-3 text-[12px] text-studio-faint">Searching…</div> : null}
-        {!loading && query.trim().length >= 2 && hits.length === 0 ? (
-          <div className="px-2 py-3 text-[12px] text-studio-faint">No players found.</div>
-        ) : null}
-        {hits.map((player) => (
-          <PlayerHitRow
-            key={player.id}
-            player={player}
-            active={activeId === player.id || activeId === bookmarkKey(player)}
-            bookmarked={bookmarkedKeys.has(bookmarkKey(player))}
-            onOpen={(color) => open(player, color)}
-            onToggleBookmark={() => togglePlayerBookmark(player)}
-          />
-        ))}
-        {query.trim().length < 2 ? (
-          <div className="px-2 py-3 text-[12px] leading-5 text-studio-faint">
-            Type at least two letters to search Lichess, Chess.com, and the local sample book.
-          </div>
-        ) : null}
-      </div>
-    </div>
+      }
+    >
+      {visibleLoading ? <SidebarHint>Searching…</SidebarHint> : null}
+      {!visibleLoading && searching && visibleHits.length === 0 ? (
+        <SidebarHint>No players found.</SidebarHint>
+      ) : null}
+      {visibleHits.map((player) => (
+        <PlayerHitRow
+          key={player.id}
+          player={player}
+          active={activeId === player.id || activeId === bookmarkKey(player)}
+          bookmarked={bookmarkedKeys.has(bookmarkKey(player))}
+          onOpen={(color) => open(player, color)}
+          onToggleBookmark={() => togglePlayerBookmark(player)}
+        />
+      ))}
+      {!searching ? (
+        <SidebarHint>
+          Type at least two letters to search Lichess, Chess.com, and the local sample book.
+        </SidebarHint>
+      ) : null}
+    </SidebarPanel>
   );
 }

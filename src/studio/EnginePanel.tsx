@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Cpu, Minus, Pause, Play, Plus } from "lucide-react";
+import { Cpu, Pause, Play } from "lucide-react";
 import {
   ENGINE_LABEL,
   MAX_DEPTH,
@@ -21,49 +21,21 @@ import {
 import { useActiveFen, useSideToMove } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { formatSanAtPly } from "@/src/chess/move-notation";
+import { IconButton } from "./ui/Button";
+import { Badge, Stepper } from "./ui/Controls";
 
 function isInsideEnginePv(target: EventTarget | null): boolean {
   return target instanceof Element && Boolean(target.closest("[data-engine-pv]"));
 }
 
-function Stepper({
-  label,
-  value,
-  display,
-  min,
-  max,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  display: string;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <div className="flex items-center gap-1 text-[11px] text-studio-muted">
-      <button
-        type="button"
-        className="flex h-5 w-5 items-center justify-center rounded hover:bg-studio-hover disabled:opacity-30"
-        disabled={value <= min}
-        onClick={() => onChange(value - 1)}
-        aria-label={`Decrease ${label}`}
-      >
-        <Minus size={12} />
-      </button>
-      <span className="min-w-28 px-1 text-center tabular-nums text-studio-fg">{display}</span>
-      <button
-        type="button"
-        className="flex h-5 w-5 items-center justify-center rounded hover:bg-studio-hover disabled:opacity-30"
-        disabled={value >= max}
-        onClick={() => onChange(value + 1)}
-        aria-label={`Increase ${label}`}
-      >
-        <Plus size={12} />
-      </button>
-    </div>
-  );
+const PV_EMPHASIS = 8;
+
+function moveNumberLabel(fen: string, side: "w" | "b", index: number): string | null {
+  const fullmove = Number(fen.split(" ")[5]) || 1;
+  const ply = index + (side === "b" ? 1 : 0);
+  const number = fullmove + Math.floor(ply / 2);
+  if (ply % 2 === 0) return `${number}.`;
+  return index === 0 ? `${number}…` : null;
 }
 
 export function EnginePanel() {
@@ -150,13 +122,14 @@ export function EnginePanel() {
         ? `Analyzing · ${nps}`
         : "Analyzing…";
   const placeholderLines = Math.max(0, multiPv - lines.length);
+  const [engineName, engineDetail] = ENGINE_LABEL.split(" · ");
 
   return (
-    <div className="flex h-full flex-col bg-studio-panel text-[13px] text-studio-fg">
-      <div className="flex items-center gap-2 border-b border-studio-border bg-studio-elevated px-2 py-1.5">
-        <button
-          type="button"
-          className="flex h-7 w-7 items-center justify-center rounded text-studio-fg hover:bg-studio-hover"
+    <div className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
+      <div className="flex items-center gap-2 border-b border-studio-border px-2 py-1.5">
+        <IconButton
+          label={paused || !info.running ? "Start engine" : "Pause engine"}
+          active={info.running && !paused}
           onClick={() => {
             if (info.running && !paused) {
               setPaused(true);
@@ -168,17 +141,20 @@ export function EnginePanel() {
             }
             setRunId((value) => value + 1);
           }}
-          title={paused || !info.running ? "Start engine" : "Pause engine"}
         >
           {paused || !info.running ? <Play size={14} fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
-        </button>
-        <div className="flex min-w-0 flex-1 items-center rounded border border-studio-border bg-studio-panel px-2 py-1 text-[12px] text-studio-fg">
-          <span className="truncate">{ENGINE_LABEL}</span>
+        </IconButton>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="truncate font-semibold">{engineName}</span>
+          {engineDetail ? <Badge>{engineDetail}</Badge> : null}
         </div>
         <div className="relative">
           <button
             type="button"
-            className="flex items-center gap-1 rounded px-1.5 py-1 text-[12px] text-studio-fg hover:bg-studio-hover"
+            aria-expanded={coresOpen}
+            className={`flex h-7 items-center gap-1 rounded-md px-1.5 text-dense text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg ${
+              coresOpen ? "bg-studio-hover-strong text-studio-fg" : ""
+            }`}
             onClick={() => setCoresOpen((open) => !open)}
             title={`${threads} CPU cores`}
           >
@@ -186,10 +162,16 @@ export function EnginePanel() {
             <span className="tabular-nums">{threads}</span>
           </button>
           {coresOpen ? (
-            <div className="absolute right-0 top-8 z-20 w-56 rounded border border-studio-border bg-studio-selected p-3 shadow-xl">
-              <div className="mb-2 flex items-center justify-between text-[11px] text-studio-muted">
+            <>
+            <button
+              className="fixed inset-0 z-10 cursor-default"
+              aria-label="Close CPU cores"
+              onClick={() => setCoresOpen(false)}
+            />
+            <div className="absolute right-0 top-8 z-20 w-60 rounded-[9px] border border-studio-border-strong bg-studio-elevated p-3 shadow-2xl">
+              <div className="mb-2 flex items-center justify-between text-dense text-studio-muted">
                 <span>CPU cores</span>
-                <span className="text-studio-fg">{threads}</span>
+                <span className="font-semibold tabular-nums text-studio-fg">{threads}</span>
               </div>
               <input
                 type="range"
@@ -197,55 +179,57 @@ export function EnginePanel() {
                 max={maxCores}
                 value={Math.min(threads, maxCores)}
                 onChange={(event) => setEngineThreads(Number(event.target.value))}
-                className="w-full accent-sky-400"
+                className="w-full accent-studio-accent"
               />
               {!supportsEngineThreads() ? (
-                <p className="mt-2 text-[11px] leading-4 text-amber-200/80">
+                <p className="mt-2 text-caption text-studio-warning-fg">
                   This browser is not cross-origin isolated, so Stockfish can only use 1 thread.
                 </p>
               ) : (
-                <p className="mt-2 text-[11px] text-studio-faint">{maxCores} available</p>
+                <p className="mt-2 text-caption text-studio-faint">{maxCores} available</p>
               )}
             </div>
+            </>
           ) : null}
         </div>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-studio-border bg-studio-panel px-2 py-1">
+      <div className="flex items-center gap-2 border-b border-studio-border px-2 py-1.5">
         <Stepper
-          label="depth"
-          value={depthTarget}
-          display={`Depth: ${info.depth} / ${depthTarget}`}
-          min={MIN_DEPTH}
-          max={MAX_DEPTH}
-          onChange={setEngineDepth}
+          label="Depth"
+          value={
+            <span>
+              {info.depth}
+              <span className="text-studio-faint"> / {depthTarget}</span>
+            </span>
+          }
+          canDecrement={depthTarget > MIN_DEPTH}
+          canIncrement={depthTarget < MAX_DEPTH}
+          onDecrement={() => setEngineDepth(depthTarget - 1)}
+          onIncrement={() => setEngineDepth(depthTarget + 1)}
         />
-        <div className="min-w-0 flex-1 truncate text-center text-[11px] text-studio-faint">{status}</div>
-        <div className="flex items-center gap-1 text-[11px] text-studio-muted">
-          <span>Lines</span>
-          <span className="tabular-nums text-studio-fg">{multiPv}</span>
-          <button
-            type="button"
-            className="flex h-5 w-5 items-center justify-center rounded hover:bg-studio-hover disabled:opacity-30"
-            disabled={multiPv <= MIN_LINES}
-            onClick={() => setMultiPv(multiPv - 1)}
-          >
-            <Minus size={12} />
-          </button>
-          <button
-            type="button"
-            className="flex h-5 w-5 items-center justify-center rounded hover:bg-studio-hover disabled:opacity-30"
-            disabled={multiPv >= MAX_LINES}
-            onClick={() => setMultiPv(multiPv + 1)}
-          >
-            <Plus size={12} />
-          </button>
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5 truncate text-caption text-studio-faint">
+          {info.running && !paused ? (
+            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-studio-success" aria-hidden="true" />
+          ) : null}
+          <span className="truncate">{status}</span>
         </div>
+        <Stepper
+          label="Lines"
+          value={multiPv}
+          canDecrement={multiPv > MIN_LINES}
+          canIncrement={multiPv < MAX_LINES}
+          onDecrement={() => setMultiPv(multiPv - 1)}
+          onIncrement={() => setMultiPv(multiPv + 1)}
+        />
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <div className="relative w-2 shrink-0 overflow-hidden bg-zinc-900">
-          <div className="absolute bottom-0 left-0 right-0 bg-zinc-100" style={{ height: `${bar}%` }} />
+        <div className="relative w-1.5 shrink-0 overflow-hidden border-r border-studio-border-strong bg-studio-loss">
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-studio-win transition-[height] duration-300"
+            style={{ height: `${bar}%` }}
+          />
         </div>
         <div className="min-h-0 min-w-0 flex-1 overflow-auto">
           {lines.map((line) => (
@@ -254,17 +238,17 @@ export function EnginePanel() {
               className="flex w-full items-start gap-3 border-b border-studio-border-subtle px-3 py-1.5"
             >
               <span
-                className={`mt-0.5 min-w-12 rounded px-1.5 py-0.5 text-center text-xs font-semibold ${
+                className={`mt-0.5 min-w-14 rounded-[5px] border px-1.5 py-0.5 text-center text-dense font-semibold tabular-nums ${
                   scoreNumber(line, side) >= 0
-                    ? "bg-zinc-100 text-zinc-900"
-                    : "bg-zinc-900 text-zinc-100"
+                    ? "border-studio-border-strong bg-studio-win text-studio-loss"
+                    : "border-studio-border-strong bg-studio-loss text-studio-win"
                 }`}
               >
                 {formatScore(line, side)}
               </span>
               <span
                 data-engine-pv
-                className="flex-1 font-mono text-[12px] leading-5 text-studio-fg"
+                className="flex-1 font-mono text-dense leading-5 text-studio-fg"
                 onMouseLeave={(event) => {
                   if (isInsideEnginePv(event.relatedTarget)) {
                     return;
@@ -279,11 +263,16 @@ export function EnginePanel() {
                     const key = `${line.multipv}-${index}`;
                     const ucis = line.pvUci.slice(0, index + 1);
                     const hovered = previewKey === key;
+                    const number = moveNumberLabel(fen, side, index);
+                    const tone =
+                      index < PV_EMPHASIS
+                          ? "text-studio-fg"
+                          : "text-studio-muted";
                     return (
                       <button
                         key={key}
                         type="button"
-                        className={`mr-1 ${hovered ? "text-studio-fg underline" : "hover:text-studio-fg hover:underline"}`}
+                        className={`mr-1 ${index === 0 ? "font-bold" : ""} ${hovered ? "text-studio-accent-text underline" : `${tone} hover:text-studio-accent-text hover:underline`}`}
                         onMouseEnter={() => {
                           const preview = positionAfterPv(fen, ucis);
                           if (!preview) {
@@ -299,6 +288,7 @@ export function EnginePanel() {
                         }}
                         onClick={() => playUciSequence(ucis)}
                       >
+                        {number ? <span className="mr-0.5 font-normal text-studio-faint">{number}</span> : null}
                         {formatSanAtPly(san, moveNotation, side, index)}
                       </button>
                     );
@@ -310,10 +300,14 @@ export function EnginePanel() {
           {Array.from({ length: placeholderLines }, (_, index) => (
             <div
               key={`empty-${index}`}
-              className="flex items-start gap-3 border-b border-studio-border-subtle px-3 py-1.5 text-studio-faint"
+              aria-hidden="true"
+              className="flex items-center gap-3 border-b border-studio-border-subtle px-3 py-2"
             >
-              <span className="min-w-12 px-1.5">–</span>
-              <span>…</span>
+              <span className="h-5 min-w-14 animate-pulse rounded-[5px] bg-studio-hover-strong" />
+              <span
+                className="h-2.5 animate-pulse rounded bg-studio-hover-strong"
+                style={{ width: `${70 - index * 12}%` }}
+              />
             </div>
           ))}
         </div>

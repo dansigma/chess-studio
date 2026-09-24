@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronRight } from "lucide-react";
+import { Check, ChevronDown, Copy, Link2 } from "lucide-react";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { persistBoard, useStudioStore } from "@/src/store/studio-store";
 import { BOARD_THEME_IDS, BOARD_THEMES } from "@/src/chess/board-themes";
@@ -17,44 +17,59 @@ import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-
 import { printActiveBoard } from "./print-board";
 import { marksAreEmpty } from "@/src/chess/marks";
 import { OPEN_PANEL_ITEMS, openStudioPanel } from "./dock-api";
+import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
+import { BrandLockup } from "./ui/BrandLockup";
+import { Dialog } from "./ui/Dialog";
+import { Button } from "./ui/Button";
+import { SettingsDialog } from "./SettingsDialog";
 
-type MenuKey = "file" | "edit" | "view" | "help" | null;
+type MenuKey = "file" | "edit" | "view" | "help" | "account" | null;
 type ViewSubmenu = "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
 
-function Item({
-  label,
-  shortcut,
-  disabled,
-  checked,
-  submenu,
-  onClick,
-  onMouseEnter,
-}: {
-  label: string;
-  shortcut?: string;
-  disabled?: boolean;
-  checked?: boolean;
-  submenu?: boolean;
-  onClick?: () => void;
-  onMouseEnter?: () => void;
-}) {
+const TOP_MENUS = [
+  ["file", "File"],
+  ["edit", "Edit"],
+  ["view", "View"],
+  ["help", "Help"],
+] as const;
+
+function ThemeSwatch({ light, dark }: { light: string; dark: string }) {
   return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      className="flex w-full items-center justify-between px-3 py-1.5 text-left text-[13px] text-studio-fg hover:bg-studio-accent hover:text-white disabled:text-studio-disabled"
-    >
-      <span>{checked ? `✓ ${label}` : label}</span>
-      {submenu ? <ChevronRight size={14} className="ml-8 text-studio-faint" /> : null}
-      {shortcut ? <span className="ml-8 text-[11px] text-studio-faint">{shortcut}</span> : null}
-    </button>
+    <span className="inline-flex h-3 w-[22px] shrink-0 overflow-hidden rounded-[3px] outline outline-1 outline-studio-border">
+      <i className="flex-1" style={{ backgroundColor: light }} />
+      <i className="flex-1" style={{ backgroundColor: dark }} />
+    </span>
   );
 }
 
-function Divider() {
-  return <div className="my-1 border-t border-studio-border" />;
+function Submenu({
+  open,
+  label,
+  onOpen,
+  children,
+}: {
+  open: boolean;
+  label: string;
+  onOpen: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="relative">
+      <Item label={label} submenu highlighted={open} onMouseEnter={onOpen} onClick={onOpen} />
+      {open ? (
+        <MenuSurface className="absolute left-full top-[-5px] ml-1.5 max-h-80 min-w-52 overflow-auto">
+          {children}
+        </MenuSurface>
+      ) : null}
+    </div>
+  );
+}
+
+function initials(email: string): string {
+  const name = email.split("@")[0] ?? "";
+  const parts = name.split(/[._-]+/).filter(Boolean);
+  const letters = parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : name.slice(0, 2);
+  return letters.toUpperCase() || "?";
 }
 
 export function MenuBar({
@@ -66,7 +81,11 @@ export function MenuBar({
   const [viewSub, setViewSub] = useState<ViewSubmenu>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
+  const setActivity = useStudioStore((state) => state.setActivity);
+  const boardCount = useStudioStore((state) => state.boards.length);
+  const dirtyCount = useStudioStore((state) => state.boards.filter((board) => board.dirty).length);
   const user = useStudioStore((state) => state.user);
   const newBoard = useStudioStore((state) => state.newBoard);
   const cloneBoard = useStudioStore((state) => state.cloneBoard);
@@ -112,6 +131,18 @@ export function MenuBar({
     setOpen(null);
     setViewSub(null);
   }
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      setOpen(null);
+      setViewSub(null);
+    }
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [open]);
 
   async function copyPgn() {
     await navigator.clipboard.writeText(exportActivePgn());
@@ -227,315 +258,255 @@ export function MenuBar({
     close();
   }
 
-  return (
-    <div className="relative z-30 flex h-9 items-center gap-1 border-b border-studio-border bg-studio-chrome px-2 text-[13px] text-studio-fg">
-      <span className="mr-3 px-2 font-semibold tracking-tight text-studio-fg">
-        Xadrez <span className="text-[10px] font-normal text-sky-400">Digital</span>
-      </span>
-      {(
-        [
-          ["file", "File"],
-          ["edit", "Edit"],
-          ["view", "View"],
-          ["help", "Help"],
-        ] as const
-      ).map(([key, label]) => (
-        <button
-          key={key}
-          className={`rounded px-2 py-1 hover:bg-studio-hover ${open === key ? "bg-studio-hover" : ""}`}
-          onClick={() => {
-            setViewSub(null);
-            setOpen(open === key ? null : key);
-          }}
-          onMouseEnter={() => {
-            if (key !== "view") {
-              setViewSub(null);
-            }
-          }}
-        >
-          {label}
-        </button>
-      ))}
-      <div className="ml-auto pr-2 text-[12px] text-studio-faint">
-        {user?.email ? (
-          <button className="hover:text-studio-fg" onClick={() => void createBrowserSupabase()?.auth.signOut()}>
-            {user.email}
-          </button>
-        ) : (
-          <button className="hover:text-studio-fg" onClick={() => router.push("/login")}>
-            Sign in
-          </button>
-        )}
-      </div>
+  function toggleMenu(key: Exclude<MenuKey, null>) {
+    setViewSub(null);
+    setOpen(open === key ? null : key);
+  }
 
-      {open ? (
-        <button className="absolute inset-0 z-10 cursor-default" onClick={close} aria-label="Close menu" />
-      ) : null}
+  function run(action: () => void) {
+    return () => {
+      action();
+      close();
+    };
+  }
 
-      {open === "file" ? (
-        <div className="absolute left-20 top-9 z-20 w-64 rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl">
-          <Item label="New empty board" onClick={() => { newBoard(); close(); }} />
-          <Item label="Open PGN" shortcut="Ctrl+O" onClick={() => { onOpenPgn(); close(); }} />
+  const leaveSubmenu = () => setViewSub(null);
+
+  function menuContent(key: (typeof TOP_MENUS)[number][0]) {
+    if (key === "file") {
+      return (
+        <>
+          <Item label="New empty board" shortcut="Ctrl+N" onClick={run(newBoard)} />
+          <Item label="Open PGN…" shortcut="Ctrl+O" onClick={run(onOpenPgn)} />
           <Item label="Open from clipboard" onClick={() => void openClipboard()} />
           <Divider />
           <Item label="Save" shortcut="Ctrl+S" onClick={() => void saveBoard()} />
-          <Item label="Save As…" shortcut="Ctrl+Shift+S" onClick={() => downloadPgn(`${active.title}.pgn`)} />
+          <Item label="Save as…" shortcut="Ctrl+Shift+S" onClick={() => downloadPgn(`${active.title}.pgn`)} />
           <Item label="Export PGN" onClick={() => downloadPgn(`${active.title}.pgn`)} />
-          <Item label="Copy PGN to clipboard" onClick={() => void copyPgn()} />
+          <Divider />
+          <Item label="Copy PGN" onClick={() => void copyPgn()} />
           <Item label="Copy FEN" onClick={() => void copyFen()} />
-          <Item label="Share board" onClick={() => void shareBoard()} />
           <Item label="Copy board image" onClick={() => void copyBoardImage()} />
+          <Item label="Share board…" onClick={() => void shareBoard()} />
           <Item label="Print" shortcut="Ctrl+P" onClick={() => void printBoard()} />
           <Divider />
-          <Item label="Clone board" onClick={() => { cloneBoard(); close(); }} />
-          <Item label="Close board" shortcut="Ctrl+Q" onClick={() => { closeBoard(); close(); }} />
-        </div>
-      ) : null}
-
-      {open === "edit" ? (
-        <div className="absolute left-28 top-9 z-20 w-64 rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl">
-          <Item label="Undo" shortcut="Ctrl+Z" onClick={() => { undo(); close(); }} />
-          <Item label="Redo" shortcut="Ctrl+Y" onClick={() => { redo(); close(); }} />
+          <Item label="Clone board" onClick={run(cloneBoard)} />
+          <Item label="Close board" shortcut="Ctrl+Q" onClick={run(closeBoard)} />
+        </>
+      );
+    }
+    if (key === "edit") {
+      return (
+        <>
+          <Item label="Undo" shortcut="Ctrl+Z" onClick={run(undo)} />
+          <Item label="Redo" shortcut="Ctrl+Y" onClick={run(redo)} />
           <Divider />
-          <Item
-            label="Setup Board"
-            onClick={() => {
-              useStudioStore.getState().setSetupMode(true);
-              close();
-            }}
-          />
-          <Item
-            label="Game information"
-            onClick={() => { setNotationEditor("headers"); close(); }}
-          />
-          <Item
-            label="Promote variation"
-            shortcut="Ctrl+↑"
-            onClick={() => { promoteVariation(); close(); }}
-          />
-          <Item
-            label="Make mainline"
-            shortcut="Ctrl+Shift+↑"
-            onClick={() => { makeMainline(); close(); }}
-          />
-          <Item
-            label="Delete variation"
-            shortcut="Ctrl+Del"
-            onClick={() => { deleteVariation(); close(); }}
-          />
-          <Item
-            label="Text after move"
-            shortcut="Ctrl+A"
-            onClick={() => { setNotationEditor("comment"); close(); }}
-          />
+          <Item label="Setup board" onClick={run(() => useStudioStore.getState().setSetupMode(true))} />
+          <Item label="Game information" onClick={run(() => setNotationEditor("headers"))} />
+          <Divider />
+          <Item label="Promote variation" shortcut="Ctrl+↑" onClick={run(promoteVariation)} />
+          <Item label="Make mainline" shortcut="Ctrl+Shift+↑" onClick={run(makeMainline)} />
+          <Item label="Delete variation" shortcut="Ctrl+Del" onClick={run(deleteVariation)} />
+          <Item label="Delete after" shortcut="Del" onClick={run(pruneAfter)} />
+          <Divider />
+          <Item label="Text after move" shortcut="Ctrl+A" onClick={run(() => setNotationEditor("comment"))} />
           <Item
             label="Text before move"
             shortcut="Ctrl+Shift+A"
             disabled={active.path.length === 0}
-            onClick={() => { setNotationEditor("commentBefore"); close(); }}
+            disabledReason="At start"
+            onClick={run(() => setNotationEditor("commentBefore"))}
           />
           <Item
             label="Insert null move"
             disabled={setupMode}
-            onClick={() => { insertNullMove(); close(); }}
+            disabledReason="In setup mode"
+            onClick={run(insertNullMove)}
           />
-          <Item label="Delete After" shortcut="Del" onClick={() => { pruneAfter(); close(); }} />
           <Item
             label="Clear arrows & highlights"
             disabled={marksAreEmpty(getMarksAt(active.tree, active.path))}
-            onClick={() => { clearBoardMarks(); close(); }}
+            disabledReason="No marks"
+            onClick={run(clearBoardMarks)}
           />
           <Divider />
-          <Item label="Goto start" onClick={() => { toStart(); close(); }} />
-          <Item label="Goto end" onClick={() => { toEnd(); close(); }} />
-        </div>
-      ) : null}
-
-      {open === "view" ? (
-        <div className="absolute left-40 top-9 z-20 w-64 rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl">
-          <Item label="Flip Board" shortcut="Ctrl+F" onMouseEnter={() => setViewSub(null)} onClick={() => { flip(); close(); }} />
-          <Item
-            label={showCoordinates ? "✓ Show Coordinates" : "Show Coordinates"}
-            onMouseEnter={() => setViewSub(null)}
-            onClick={() => { toggleCoordinates(); close(); }}
-          />
-          <Item
-            label={showEvalBar ? "✓ Show Evaluation Bar" : "Show Evaluation Bar"}
-            onMouseEnter={() => setViewSub(null)}
-            onClick={() => { toggleEvalBar(); close(); }}
-          />
-          <Item
-            label={gamePreviewEnabled ? "✓ Game Preview Mode" : "Game Preview Mode"}
-            onMouseEnter={() => setViewSub(null)}
-            onClick={() => { toggleGamePreview(); close(); }}
-          />
-          <Item
-            label={moveSound ? "✓ Move Sound" : "Move Sound"}
-            onMouseEnter={() => setViewSub(null)}
-            onClick={() => { toggleMoveSound(); close(); }}
-          />
+          <Item label="Go to start" shortcut="Home" onClick={run(toStart)} />
+          <Item label="Go to end" shortcut="End" onClick={run(toEnd)} />
+        </>
+      );
+    }
+    if (key === "view") {
+      return (
+        <>
+          <Item label="Flip board" shortcut="Ctrl+F" onMouseEnter={leaveSubmenu} onClick={run(flip)} />
           <Divider />
-          <div className="relative">
-            <Item
-              label="Open Panel"
-              submenu
-              onMouseEnter={() => setViewSub("panel")}
-              onClick={() => setViewSub("panel")}
-            />
-            {viewSub === "panel" ? (
-              <div className="absolute left-full top-0 z-30 ml-px w-52 rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl">
-                {OPEN_PANEL_ITEMS.map((item) => (
-                  <Item
-                    key={item.id}
-                    label={item.label}
-                    onClick={() => {
-                      openStudioPanel(item.id);
-                      close();
-                    }}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <div className="relative">
-            <Item
-              label="Board Theme"
-              submenu
-              onMouseEnter={() => setViewSub("theme")}
-              onClick={() => setViewSub("theme")}
-            />
-            {viewSub === "theme" ? (
-              <div className="absolute left-full top-0 z-30 ml-px max-h-80 w-52 overflow-auto rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl">
-                {BOARD_THEME_IDS.map((id) => (
-                  <Item
-                    key={id}
-                    label={BOARD_THEMES[id].label}
-                    checked={boardTheme === id}
-                    onClick={() => {
-                      setBoardTheme(id);
-                      close();
-                    }}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <div className="relative">
-            <Item
-              label="Piece Set"
-              submenu
-              onMouseEnter={() => setViewSub("pieces")}
-              onClick={() => setViewSub("pieces")}
-            />
-            {viewSub === "pieces" ? (
-              <div className="absolute left-full top-0 z-30 ml-px max-h-80 w-52 overflow-auto rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl">
-                {PIECE_SET_IDS.map((id) => (
-                  <Item
-                    key={id}
-                    label={PIECE_SETS[id].label}
-                    checked={pieceSet === id}
-                    onClick={() => {
-                      setPieceSet(id);
-                      close();
-                    }}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <div className="relative">
-            <Item
-              label="Color Scheme"
-              submenu
-              onMouseEnter={() => setViewSub("scheme")}
-              onClick={() => setViewSub("scheme")}
-            />
-            {viewSub === "scheme" ? (
-              <div className="absolute left-full top-0 z-30 ml-px w-52 overflow-auto rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl">
-                {COLOR_SCHEME_IDS.map((id) => (
-                  <Item
-                    key={id}
-                    label={COLOR_SCHEMES[id].label}
-                    checked={colorScheme === id}
-                    onClick={() => {
-                      setColorScheme(id);
-                      close();
-                    }}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <div className="relative">
-            <Item
-              label="Move Notation"
-              submenu
-              onMouseEnter={() => setViewSub("notation")}
-              onClick={() => setViewSub("notation")}
-            />
-            {viewSub === "notation" ? (
-              <div className="absolute left-full top-0 z-30 ml-px w-52 overflow-auto rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl">
-                {MOVE_NOTATION_IDS.map((id) => (
-                  <Item
-                    key={id}
-                    label={MOVE_NOTATIONS[id].label}
-                    checked={moveNotation === id}
-                    onClick={() => {
-                      setMoveNotation(id);
-                      close();
-                    }}
-                  />
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <Item label="Reset View" onMouseEnter={() => setViewSub(null)} onClick={() => { useStudioStore.getState().resetView(); close(); }} />
-        </div>
+          <Item label="Show coordinates" checked={showCoordinates} onMouseEnter={leaveSubmenu} onClick={run(toggleCoordinates)} />
+          <Item label="Show evaluation bar" checked={showEvalBar} onMouseEnter={leaveSubmenu} onClick={run(toggleEvalBar)} />
+          <Item label="Game preview mode" checked={gamePreviewEnabled} onMouseEnter={leaveSubmenu} onClick={run(toggleGamePreview)} />
+          <Item label="Move sound" checked={moveSound} onMouseEnter={leaveSubmenu} onClick={run(toggleMoveSound)} />
+          <Divider />
+          <Submenu label="Open panel" open={viewSub === "panel"} onOpen={() => setViewSub("panel")}>
+            {OPEN_PANEL_ITEMS.map((item) => (
+              <Item key={item.id} label={item.label} onClick={run(() => openStudioPanel(item.id))} />
+            ))}
+          </Submenu>
+          <Submenu label="Board theme" open={viewSub === "theme"} onOpen={() => setViewSub("theme")}>
+            {BOARD_THEME_IDS.map((id) => (
+              <Item
+                key={id}
+                label={BOARD_THEMES[id].label}
+                leading={<ThemeSwatch light={BOARD_THEMES[id].light} dark={BOARD_THEMES[id].dark} />}
+                checked={boardTheme === id}
+                onClick={run(() => setBoardTheme(id))}
+              />
+            ))}
+          </Submenu>
+          <Submenu label="Piece set" open={viewSub === "pieces"} onOpen={() => setViewSub("pieces")}>
+            {PIECE_SET_IDS.map((id) => (
+              <Item key={id} label={PIECE_SETS[id].label} checked={pieceSet === id} onClick={run(() => setPieceSet(id))} />
+            ))}
+          </Submenu>
+          <Submenu label="Color scheme" open={viewSub === "scheme"} onOpen={() => setViewSub("scheme")}>
+            {COLOR_SCHEME_IDS.map((id) => (
+              <Item
+                key={id}
+                label={COLOR_SCHEMES[id].label}
+                checked={colorScheme === id}
+                onClick={run(() => setColorScheme(id))}
+              />
+            ))}
+          </Submenu>
+          <Submenu label="Move notation" open={viewSub === "notation"} onOpen={() => setViewSub("notation")}>
+            {MOVE_NOTATION_IDS.map((id) => (
+              <Item
+                key={id}
+                label={MOVE_NOTATIONS[id].label}
+                checked={moveNotation === id}
+                onClick={run(() => setMoveNotation(id))}
+              />
+            ))}
+          </Submenu>
+          <Divider />
+          <Item label="Settings…" onMouseEnter={leaveSubmenu} onClick={run(() => setSettingsOpen(true))} />
+          <Item
+            label="Reset view"
+            onMouseEnter={leaveSubmenu}
+            onClick={run(() => useStudioStore.getState().resetView())}
+          />
+        </>
+      );
+    }
+    return <Item label="About Xadrez Digital" onClick={run(() => setAboutOpen(true))} />;
+  }
+
+  return (
+    <div className="relative z-30 flex h-9 items-center gap-0.5 border-b border-studio-border bg-studio-chrome px-2 text-body text-studio-fg">
+      <span className="mr-3 px-1.5">
+        <BrandLockup />
+      </span>
+
+      {open ? (
+        <button className="fixed inset-0 z-10 cursor-default" onClick={close} aria-label="Close menu" />
       ) : null}
 
-      {open === "help" ? (
-        <div className="absolute left-52 top-9 z-20 w-64 rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl">
-          <Item label="About Xadrez Digital" onClick={() => { setAboutOpen(true); close(); }} />
-        </div>
-      ) : null}
-      {shareUrl ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => setShareUrl(null)}
-        >
-          <div
-            className="w-[32rem] max-w-[calc(100%-2rem)] rounded-lg border border-studio-border bg-studio-elevated p-5 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
+      {TOP_MENUS.map(([key, label]) => (
+        <div key={key} className="relative z-20">
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={open === key}
+            className={`h-[26px] rounded-md px-2.5 ${
+              open === key
+                ? "bg-studio-hover-strong text-studio-fg"
+                : "text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
+            }`}
+            onClick={() => toggleMenu(key)}
+            onMouseEnter={() => {
+              if (open && open !== key && open !== "account") {
+                setViewSub(null);
+                setOpen(key);
+              }
+            }}
           >
-            <h2 className="text-lg font-medium text-studio-fg">Share board</h2>
-            <p className="mt-2 text-sm text-studio-muted">
-              Anyone with this link opens this position.
-            </p>
-            <a
-              href={shareUrl}
-              className="mt-3 block break-all rounded border border-studio-border bg-studio-bg px-2 py-1.5 text-[13px] text-sky-400 underline"
-            >
-              {shareUrl}
-            </a>
-            <div className="mt-4 flex gap-2">
-              <button
-                type="button"
-                className="rounded bg-studio-accent px-3 py-1.5 text-sm text-white"
-                onClick={() => void copyShareUrl()}
-              >
-                {shareCopied ? "Copied" : "Copy link"}
-              </button>
-              <button
-                type="button"
-                className="rounded px-3 py-1.5 text-sm text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
-                onClick={() => setShareUrl(null)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
+            {label}
+          </button>
+          {open === key ? (
+            <MenuSurface className="absolute left-0 top-[calc(100%+5px)]">{menuContent(key)}</MenuSurface>
+          ) : null}
         </div>
+      ))}
+
+      <div className="relative z-20 ml-auto">
+        {user?.email ? (
+          <>
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={open === "account"}
+              onClick={() => toggleMenu("account")}
+              className={`inline-flex h-[26px] items-center gap-2 rounded-full border border-studio-border pl-[3px] pr-2 text-dense ${
+                open === "account" ? "bg-studio-hover text-studio-fg" : "text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
+              }`}
+            >
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-studio-accent-soft text-[10px] font-bold text-studio-accent-text">
+                {initials(user.email)}
+              </span>
+              <span className="max-w-40 truncate">{user.email}</span>
+              <ChevronDown size={13} />
+            </button>
+            {open === "account" ? (
+              <MenuSurface className="absolute right-0 top-[calc(100%+5px)] min-w-60">
+                <div className="px-2 pb-1.5 pt-2">
+                  <div className="truncate font-medium text-studio-fg">{user.email}</div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-caption text-studio-faint">
+                    <span className={`h-1.5 w-1.5 rounded-full ${dirtyCount ? "bg-studio-warning-fg" : "bg-studio-success"}`} />
+                    {dirtyCount
+                      ? `${dirtyCount} board${dirtyCount === 1 ? "" : "s"} waiting to sync`
+                      : "All boards synced"}
+                  </div>
+                </div>
+                <Divider />
+                <Item label="My boards" shortcut={String(boardCount)} onClick={run(() => setActivity("boards"))} />
+                <Item label="Settings…" onClick={run(() => setSettingsOpen(true))} />
+                <Divider />
+                <Item
+                  label="Sign out"
+                  danger
+                  onClick={run(() => void createBrowserSupabase()?.auth.signOut())}
+                />
+              </MenuSurface>
+            ) : null}
+          </>
+        ) : (
+          <Button size="sm" variant="ghost" className="border border-studio-border" onClick={() => router.push("/login")}>
+            Sign in
+          </Button>
+        )}
+      </div>
+
+      {shareUrl ? (
+        <Dialog
+          title="Share board"
+          onClose={() => setShareUrl(null)}
+          footer={<Button onClick={() => setShareUrl(null)}>Done</Button>}
+        >
+          <p className="mb-3">Anyone with this link opens this position in a new board.</p>
+          <div className="flex h-[34px] items-center gap-2 rounded-lg border border-studio-border-strong bg-studio-panel pl-2.5 pr-1 text-studio-faint">
+            <Link2 size={14} className="shrink-0" />
+            <input
+              readOnly
+              value={shareUrl}
+              onFocus={(event) => event.currentTarget.select()}
+              className="min-w-0 flex-1 bg-transparent text-dense text-studio-fg outline-none"
+            />
+            <Button size="sm" variant="primary" className="h-[26px]" onClick={() => void copyShareUrl()}>
+              {shareCopied ? <Check size={13} /> : <Copy size={13} />}
+              {shareCopied ? "Copied" : "Copy link"}
+            </Button>
+          </div>
+        </Dialog>
       ) : null}
+      {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
     </div>
   );
 }

@@ -100,8 +100,8 @@ export function PlayerGamesPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-studio-panel text-[12px] text-studio-fg">
-      <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-[11px] text-studio-faint">
+    <div className="flex h-full flex-col bg-studio-panel text-dense text-studio-fg">
+      <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-caption text-studio-faint">
         <span className="truncate">Games: {player.displayName}</span>
         <span>
           {visible.length} game{visible.length === 1 ? "" : "s"}
@@ -109,7 +109,7 @@ export function PlayerGamesPanel() {
         </span>
       </div>
       {notice ? (
-        <div className="border-b border-amber-500/20 bg-amber-500/5 px-3 py-1.5 text-[11px] text-amber-200/80">
+        <div className="border-b border-studio-border-subtle bg-studio-warning-bg px-3 py-1.5 text-caption text-studio-warning-fg">
           {notice}
         </div>
       ) : null}

@@ -20,7 +20,19 @@ import { NotationPanel } from "./NotationPanel";
 import { RepertoirePanel } from "./RepertoirePanel";
 import { PlayerExplorerPanel } from "./PlayerExplorerPanel";
 import { PlayerGamesPanel } from "./PlayerGamesPanel";
-import { ChartSpline, Cpu } from "lucide-react";
+import {
+  BookOpen,
+  ChartSpline,
+  Cpu,
+  FileText,
+  GitBranch,
+  LayoutGrid,
+  Library,
+  ListOrdered,
+  UserSearch,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { persistDockLayout, useStudioStore } from "@/src/store/studio-store";
 import { registerStudioDock, seedDefaultLayout } from "./dock-api";
 import {
@@ -33,15 +45,24 @@ import {
   type DockLayoutSnapshot,
 } from "./dock-layout";
 
+const TAB_ICONS: Record<string, LucideIcon> = {
+  board: LayoutGrid,
+  engine: Cpu,
+  evalGraph: ChartSpline,
+  notation: ListOrdered,
+  repertoire: GitBranch,
+  explorer: BookOpen,
+  games: Library,
+  fileGames: FileText,
+  "player-explorer": UserSearch,
+  "player-games": Users,
+};
+
 function StudioTab(props: IDockviewPanelHeaderProps) {
+  const Icon = TAB_ICONS[props.api.id];
   return (
     <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden">
-      {props.api.id === "engine" ? (
-        <Cpu aria-hidden="true" className="ml-0.5 shrink-0" size={13} />
-      ) : null}
-      {props.api.id === "evalGraph" ? (
-        <ChartSpline aria-hidden="true" className="ml-0.5 shrink-0" size={13} />
-      ) : null}
+      {Icon ? <Icon aria-hidden="true" className="ml-0.5 shrink-0 opacity-70" size={13} /> : null}
       <DockviewDefaultTab {...props} />
     </div>
   );

@@ -8,6 +8,7 @@ import { useActiveFen } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { BookmarkStar } from "./PlayerHitRow";
+import { ResultBar } from "./ui/ResultBar";
 
 function Chip({
   active,
@@ -22,7 +23,7 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded px-2 py-0.5 text-[11px] ${
+      className={`rounded px-2 py-0.5 text-caption ${
         active ? "bg-studio-hover-strong text-studio-fg" : "text-studio-faint hover:bg-studio-hover-subtle hover:text-studio-fg"
       }`}
     >
@@ -78,7 +79,7 @@ export function PlayerExplorerPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-studio-panel text-[13px] text-studio-fg">
+    <div className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
       <div className="flex flex-wrap items-center gap-1 border-b border-studio-border-subtle px-2 py-1.5">
         {(["all", "white", "black"] as const).map((value) => (
           <Chip key={value} active={color === value} onClick={() => setColor(value)}>
@@ -91,17 +92,17 @@ export function PlayerExplorerPanel() {
             {value === "all" ? "All" : value === "win" ? "Won" : value === "loss" ? "Lost" : "Draw"}
           </Chip>
         ))}
-        <span className="ml-auto flex items-center gap-1 pr-1 text-[11px] text-studio-faint">
+        <span className="ml-auto flex items-center gap-1 pr-1 text-caption text-studio-faint">
           <span>
             {visible.length} game{visible.length === 1 ? "" : "s"}
           </span>
           <BookmarkStar active={bookmarked} onClick={() => togglePlayerBookmark(player)} />
         </span>
       </div>
-      <div className="grid grid-cols-[72px_1fr_120px] gap-2 border-b border-studio-border-subtle px-3 py-1.5 text-[11px] uppercase text-studio-faint">
+      <div className="grid grid-cols-[64px_minmax(0,1fr)_minmax(96px,160px)] gap-3 border-b border-studio-border-subtle px-3 py-1.5 text-caption uppercase tracking-wider text-studio-faint">
         <span>Move</span>
         <span>Games</span>
-        <span>W / D / L</span>
+        <span>White · Draw · Black</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {loading ? <div className="px-3 py-4 text-studio-faint">Loading games…</div> : null}
@@ -109,11 +110,10 @@ export function PlayerExplorerPanel() {
           <div className="px-3 py-4 text-studio-faint">No games reach this position.</div>
         ) : null}
         {moves.map((row) => {
-          const total = Math.max(1, row.games);
           return (
             <button
               key={row.uci}
-              className="grid w-full grid-cols-[72px_1fr_120px] items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle"
+              className="grid w-full grid-cols-[64px_minmax(0,1fr)_minmax(96px,160px)] items-center gap-3 px-3 py-1.5 text-left hover:bg-studio-hover"
               onClick={() => {
                 const from = row.uci.slice(0, 2);
                 const to = row.uci.slice(2, 4);
@@ -123,19 +123,15 @@ export function PlayerExplorerPanel() {
             >
               <span className="font-medium">{formatSan(row.san, moveNotation, side)}</span>
               <span className="flex items-center gap-2">
-                <span className="w-10 text-right text-studio-muted">{row.games.toLocaleString()}</span>
-                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800">
+                <span className="w-10 text-right tabular-nums text-studio-fg">{row.games.toLocaleString()}</span>
+                <span className="h-1 flex-1 overflow-hidden rounded-full bg-studio-track">
                   <span
-                    className="block h-full bg-[#5b8def]"
+                    className="block h-full rounded-full bg-studio-accent"
                     style={{ width: `${(row.games / maxGames) * 100}%` }}
                   />
                 </span>
               </span>
-              <span className="flex h-2 overflow-hidden rounded-full">
-                <span className="bg-emerald-500" style={{ width: `${(row.white / total) * 100}%` }} />
-                <span className="bg-zinc-400" style={{ width: `${(row.draws / total) * 100}%` }} />
-                <span className="bg-red-500" style={{ width: `${(row.black / total) * 100}%` }} />
-              </span>
+              <ResultBar white={row.white} draws={row.draws} black={row.black} />
             </button>
           );
         })}

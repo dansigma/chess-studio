@@ -9,21 +9,52 @@ import {
   PanelLeftOpen,
   Search,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { useStudioStore, type ActivityView } from "@/src/store/studio-store";
+import { Tooltip } from "./ui/Controls";
 
 const items: { id: ActivityView; icon: typeof Search; title: string }[] = [
   { id: "search", icon: Search, title: "Search" },
-  { id: "boards", icon: LayoutGrid, title: "Open Boards" },
+  { id: "boards", icon: LayoutGrid, title: "Open boards" },
   { id: "databases", icon: Database, title: "Databases" },
   { id: "files", icon: Folder, title: "Files" },
   { id: "bookmarks", icon: Bookmark, title: "Bookmarks" },
 ];
 
-function SidebarTip({ label }: { label: string }) {
+function ActivityButton({
+  label,
+  active,
+  onClick,
+  children,
+}: {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
-    <span className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-md bg-white px-2 py-1 text-[12px] font-medium text-zinc-900 shadow-lg group-hover:block">
-      {label}
-    </span>
+    <Tooltip label={label}>
+      <button
+        type="button"
+        aria-label={label}
+        aria-pressed={active}
+        onClick={onClick}
+        className={`group relative flex h-10 w-12 items-center justify-center ${
+          active ? "text-studio-fg" : "text-studio-faint hover:text-studio-fg"
+        }`}
+      >
+        {active ? (
+          <span className="absolute inset-y-2.5 left-0 w-0.5 rounded-r bg-studio-accent" />
+        ) : null}
+        <span
+          className={`flex h-[34px] w-[34px] items-center justify-center rounded-lg ${
+            active ? "bg-studio-hover" : "group-hover:bg-studio-hover"
+          }`}
+        >
+          {children}
+        </span>
+      </button>
+    </Tooltip>
   );
 }
 
@@ -34,20 +65,17 @@ export function ActivityBar() {
   const toggleSidebar = useStudioStore((state) => state.toggleSidebar);
 
   return (
-    <div className="flex w-12 flex-col items-center gap-1 bg-studio-bg py-2 pb-12">
+    <nav className="flex w-12 shrink-0 flex-col items-center gap-0.5 bg-studio-bg py-2">
       {items.map((item) => {
         const Icon = item.icon;
         const active = item.id === activity && !sidebarCollapsed;
         return (
-          <button
+          <ActivityButton
             key={item.id}
-            type="button"
-            title={item.title}
-            className={`group relative flex h-10 w-10 items-center justify-center rounded ${
-              active ? "text-studio-fg" : "text-studio-faint hover:text-studio-fg"
-            } ${active ? "border-l-2 border-sky-400 bg-studio-hover-subtle" : "border-l-2 border-transparent"}`}
+            label={item.title}
+            active={active}
             onClick={() => {
-              if (item.id === activity && !sidebarCollapsed) {
+              if (active) {
                 toggleSidebar();
                 return;
               }
@@ -55,18 +83,17 @@ export function ActivityBar() {
             }}
           >
             <Icon size={18} />
-          </button>
+          </ActivityButton>
         );
       })}
-      <button
-        type="button"
-        className="group relative mt-auto mb-1 flex h-10 w-10 items-center justify-center rounded text-studio-faint hover:bg-studio-hover-subtle hover:text-studio-fg"
-        onClick={toggleSidebar}
-        aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-      >
-        {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-        <SidebarTip label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} />
-      </button>
-    </div>
+      <div className="mt-auto">
+        <ActivityButton
+          label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={toggleSidebar}
+        >
+          {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </ActivityButton>
+      </div>
+    </nav>
   );
 }

@@ -29,6 +29,10 @@ import { lookupChesscomExplorer, lookupFilesExplorer } from "@/src/lib/files-exp
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
 import { fenFromShareSearch } from "@/src/chess/share-board";
+import { StatusBar } from "./StatusBar";
+import { Dialog } from "./ui/Dialog";
+import { Button } from "./ui/Button";
+import { BrandLockup } from "./ui/BrandLockup";
 
 export function StudioShell() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -333,11 +337,8 @@ export function StudioShell() {
           </div>
         </div>
       </div>
-      {status ? (
-        <div className="border-t border-studio-border bg-studio-chrome px-3 py-1 text-[11px] text-studio-muted">
-          {status}
-        </div>
-      ) : null}
+      <StatusBar message={status} />
+
       <input
         ref={fileRef}
         type="file"
@@ -356,24 +357,28 @@ export function StudioShell() {
         }}
       />
       {aboutOpen ? (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-96 rounded-lg border border-studio-border bg-studio-elevated p-5 shadow-2xl">
-            <h2 className="text-lg font-medium text-studio-fg">
-              Xadrez <span className="font-normal text-sky-400">Digital</span>
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-studio-muted">
-              Analysis GUI inspired by ChessMonitor Studio. Engine runs locally
-              (Stockfish 19 lite). Opening stats come from the public Lichess
-              explorer. No ChessMonitor assets or private databases are used.
-            </p>
-            <button
-              className="mt-4 rounded bg-studio-accent px-3 py-1.5 text-sm text-white"
-              onClick={() => setAboutOpen(false)}
-            >
+        <Dialog
+          title={<BrandLockup size="lg" />}
+          onClose={() => setAboutOpen(false)}
+          footer={
+            <Button variant="primary" onClick={() => setAboutOpen(false)}>
               Close
-            </button>
-          </div>
-        </div>
+            </Button>
+          }
+        >
+          <p className="mb-3">
+            Analysis GUI inspired by ChessMonitor Studio. No ChessMonitor assets or private
+            databases are used.
+          </p>
+          <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-dense">
+            <dt className="text-studio-faint">Engine</dt>
+            <dd className="text-studio-fg">Stockfish 19 lite, runs locally</dd>
+            <dt className="text-studio-faint">Opening data</dt>
+            <dd className="text-studio-fg">Public Lichess explorer</dd>
+            <dt className="text-studio-faint">Storage</dt>
+            <dd className="text-studio-fg">Boards sync to your account when signed in</dd>
+          </dl>
+        </Dialog>
       ) : null}
     </div>
     <div id={PRINT_SHEET_ID} />

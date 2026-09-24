@@ -180,7 +180,7 @@ export function EvalGraphPanel() {
 
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-studio-panel text-studio-fg">
-      <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-1.5 text-[11px] text-studio-faint">
+      <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-1.5 text-caption text-studio-faint">
         <span>Eval Graph</span>
         <span>
           {setupMode
@@ -192,7 +192,7 @@ export function EvalGraphPanel() {
       </div>
       <div ref={wrapRef} className="relative min-h-0 flex-1">
         {points.length <= 1 ? (
-          <div className="absolute inset-0 grid place-items-center text-[12px] text-studio-faint">
+          <div className="absolute inset-0 grid place-items-center text-dense text-studio-faint">
             Make a move to plot the line.
           </div>
         ) : (
@@ -246,7 +246,7 @@ export function EvalGraphPanel() {
           </svg>
         )}
         {hoverPoint && points.length > 1 ? (
-          <div className="pointer-events-none absolute right-2 top-2 rounded bg-studio-elevated px-2 py-1 text-[11px] text-studio-fg shadow">
+          <div className="pointer-events-none absolute right-2 top-2 rounded bg-studio-elevated px-2 py-1 text-caption text-studio-fg shadow">
             {hoverPoint.san
               ? formatSan(hoverPoint.san, moveNotation)
               : "Start"}{" "}

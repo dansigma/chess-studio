@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   ArrowRightToLine,
   ArrowUp,
@@ -32,6 +32,8 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { formatMoveSuffix, formatPositionGlyphs } from "@/src/chess/nags";
 import { formatSan } from "@/src/chess/move-notation";
 import { MoveGlyphMenu, type GlyphMenuState } from "./MoveGlyphMenu";
+import { Button, IconButton } from "./ui/Button";
+import { Dialog } from "./ui/Dialog";
 
 function pathKey(path: Path): string {
   return path.join(".");
@@ -90,18 +92,9 @@ function ToolButton({
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      title={shortcut ? `${label} (${shortcut})` : label}
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className={`flex h-7 w-7 items-center justify-center rounded text-studio-fg hover:bg-studio-hover disabled:text-studio-disabled disabled:hover:bg-transparent ${
-        active ? "bg-studio-hover-strong text-studio-fg" : ""
-      }`}
-    >
+    <IconButton label={label} shortcut={shortcut} disabled={disabled} active={active} onClick={onClick}>
       {children}
-    </button>
+    </IconButton>
   );
 }
 
@@ -109,7 +102,7 @@ function CommentText({ text }: { text?: string }) {
   if (!text) {
     return null;
   }
-  return <span className="px-1 italic text-studio-muted">{text}</span>;
+  return <span className="px-1 text-studio-comment">{text}</span>;
 }
 
 function MoveToken({
@@ -140,16 +133,14 @@ function MoveToken({
           event.stopPropagation();
           onAnnotate(event);
         }}
-        className={`rounded px-1 py-0.5 font-medium ${
-          active ? "bg-studio-accent-move text-white" : "text-studio-fg hover:bg-studio-hover"
+        className={`rounded-[5px] px-1 py-0.5 font-medium leading-5 ${
+          active ? "bg-studio-accent-move text-studio-accent-fg" : "hover:bg-studio-hover-strong"
         }`}
       >
         {formatSan(san, style, color)}
         {suffix}
       </button>
-      {rest ? (
-        <span className={`pl-0.5 text-[12px] ${active ? "text-white" : "text-studio-fg"}`}>{rest}</span>
-      ) : null}
+      {rest ? <span className="pl-0.5 text-dense text-studio-muted">{rest}</span> : null}
     </span>
   );
 }
@@ -161,6 +152,7 @@ function Line({
   collapsed,
   onToggleCollapse,
   onAnnotate,
+  continuation = false,
 }: {
   nodes: TreeNode[];
   parentPath: Path;
@@ -168,6 +160,7 @@ function Line({
   collapsed: Set<string>;
   onToggleCollapse: (key: string) => void;
   onAnnotate: (path: Path, event: React.MouseEvent) => void;
+  continuation?: boolean;
 }) {
   const currentPath = useStudioStore((state) => {
     const board =
@@ -182,6 +175,7 @@ function Line({
   const items: ReactNode[] = [];
   let cursor = nodes;
   let parent = parentPath;
+  let resumeAfterVariation = false;
 
   while (cursor[0]) {
     const node = cursor[0];
@@ -199,7 +193,7 @@ function Line({
           {number}.
         </span>,
       );
-    } else if (parent.length === parentPath.length && color === "b") {
+    } else if (((parent.length === parentPath.length && !continuation) || resumeAfterVariation) && color === "b") {
       items.push(
         <span key={`n-${pathKey(nodePath)}`} className="px-0.5 text-studio-faint">
           {number}...
@@ -228,26 +222,27 @@ function Line({
           type="button"
           title={hideVariations ? "Show variations" : "Hide variations"}
           onClick={() => onToggleCollapse(collapseKey)}
-          className="mx-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-studio-hover text-[10px] text-studio-muted hover:bg-studio-hover-strong"
+          className="mx-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-studio-hover text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
         >
           {hideVariations ? <Plus size={10} /> : <Minus size={10} />}
         </button>,
       );
     }
 
+    resumeAfterVariation = !hideVariations && variations.length > 0;
     if (!hideVariations) {
       variations.forEach((variation, index) => {
         const variationPath = [...parent, index + 1];
         items.push(
           <span
             key={`${node.id}-var-${variation.id}`}
-            className="mx-1 inline-flex flex-wrap items-center gap-0.5 text-studio-muted"
+            className="my-0.5 ml-1.5 flex basis-full flex-wrap items-center gap-0.5 border-l-2 border-studio-border-strong pl-2 text-dense text-studio-muted"
           >
-            (
             <CommentText text={variation.commentBefore} />
-            {color === "b" ? (
-              <span className="px-0.5 text-studio-faint">{number}...</span>
-            ) : null}
+            <span className="px-0.5 text-studio-faint">
+              {number}
+              {color === "b" ? "..." : "."}
+            </span>
             <MoveToken
               san={variation.san}
               color={color}
@@ -265,9 +260,9 @@ function Line({
                 collapsed={collapsed}
                 onToggleCollapse={onToggleCollapse}
                 onAnnotate={onAnnotate}
+                continuation
               />
             ) : null}
-            )
           </span>,
         );
       });
@@ -277,7 +272,7 @@ function Line({
     cursor = node.children;
   }
 
-  return <span className="inline-flex flex-wrap items-center gap-0.5">{items}</span>;
+  return <>{items}</>;
 }
 
 function PlayerName({
@@ -293,10 +288,10 @@ function PlayerName({
   const muted = !name || name === "?" || name === fallback;
   return (
     <span className="inline-flex items-baseline gap-1.5">
-      <span className={`text-[15px] font-semibold tracking-tight ${muted ? "text-studio-faint" : "text-studio-fg"}`}>
+      <span className={`text-title font-semibold tracking-tight ${muted ? "text-studio-faint" : "text-studio-fg"}`}>
         {shown}
       </span>
-      {elo ? <span className="text-[13px] font-medium text-studio-muted">{elo}</span> : null}
+      {elo ? <span className="text-body font-medium tabular-nums text-studio-muted">{elo}</span> : null}
     </span>
   );
 }
@@ -327,10 +322,25 @@ function GameInfoDialog({
     setDraft((current) => ({ ...current, [key]: value }));
   }
 
+  const fieldClass =
+    "h-8 rounded-md border border-studio-border-strong bg-studio-panel px-2 text-body text-studio-fg outline-none focus:border-studio-accent";
   return (
-    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-3">
+    <Dialog
+      title="Game information"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" form="game-info-form">
+            Save
+          </Button>
+        </>
+      }
+    >
       <form
-        className="w-full max-w-md rounded-lg border border-studio-border bg-studio-elevated p-4 shadow-2xl"
+        id="game-info-form"
         onSubmit={(event) => {
           event.preventDefault();
           const next: GameHeaders = {};
@@ -342,25 +352,24 @@ function GameInfoDialog({
           onSave(next);
         }}
       >
-        <h2 className="text-sm font-semibold text-studio-fg">Game information</h2>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
           {HEADER_FIELDS.map((field) => (
-            <label key={field.key} className="flex flex-col gap-1 text-[11px] text-studio-muted">
+            <label key={field.key} className="flex flex-col gap-1 text-caption text-studio-muted">
               {field.label}
               <input
                 value={draft[field.key] ?? ""}
                 onChange={(event) => setField(field.key, event.target.value)}
-                className="rounded border border-studio-border bg-studio-panel px-2 py-1.5 text-[13px] text-studio-fg outline-none focus:border-sky-600"
+                className={fieldClass}
                 placeholder={field.key === "Date" ? "YYYY.MM.DD" : undefined}
               />
             </label>
           ))}
-          <label className="col-span-2 flex flex-col gap-1 text-[11px] text-studio-muted">
+          <label className="col-span-2 flex flex-col gap-1 text-caption text-studio-muted">
             Result
             <select
               value={draft.Result ?? "*"}
               onChange={(event) => setField("Result", event.target.value)}
-              className="rounded border border-studio-border bg-studio-panel px-2 py-1.5 text-[13px] text-studio-fg outline-none focus:border-sky-600"
+              className={fieldClass}
             >
               <option value="*">Ongoing *</option>
               <option value="1-0">White wins 1-0</option>
@@ -369,20 +378,8 @@ function GameInfoDialog({
             </select>
           </label>
         </div>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            className="rounded px-3 py-1.5 text-sm text-studio-muted hover:bg-studio-hover"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button type="submit" className="rounded bg-studio-accent px-3 py-1.5 text-sm text-white">
-            Save
-          </button>
-        </div>
       </form>
-    </div>
+    </Dialog>
   );
 }
 
@@ -421,14 +418,16 @@ export function NotationPanel() {
   const commentBeforeOpen = editor === "commentBefore";
   const headersOpen = editor === "headers";
 
-  useEffect(() => {
-    if (commentOpen) {
-      setDraftComment(currentComment);
+  const editedComment = commentOpen ? currentComment : commentBeforeOpen ? currentBefore : null;
+  const draftSource =
+    editedComment === null ? null : `${editor}|${board.id}|${pathKey(board.path)}|${editedComment}`;
+  const [syncedDraftSource, setSyncedDraftSource] = useState<string | null>(null);
+  if (syncedDraftSource !== draftSource) {
+    setSyncedDraftSource(draftSource);
+    if (editedComment !== null) {
+      setDraftComment(editedComment);
     }
-    if (commentBeforeOpen) {
-      setDraftComment(currentBefore);
-    }
-  }, [commentOpen, commentBeforeOpen, currentComment, currentBefore, board.id, pathKey(board.path)]);
+  }
 
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const moveLabel = useMemo(() => {
@@ -458,21 +457,21 @@ export function NotationPanel() {
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <PlayerName name={board.headers.White} elo={board.headers.WhiteElo} fallback="White" />
-            <span className="text-[12px] text-studio-faint">vs</span>
+            <span className="text-dense text-studio-faint">vs</span>
             <PlayerName name={board.headers.Black} elo={board.headers.BlackElo} fallback="Black" />
           </div>
-          {event ? <div className="mt-0.5 truncate text-[12px] text-studio-muted">{event}</div> : null}
+          {event ? <div className="mt-0.5 truncate text-dense text-studio-muted">{event}</div> : null}
         </div>
-        <div className="flex shrink-0 items-center gap-1.5 pt-0.5 text-[12px] text-studio-muted">
+        <div className="flex shrink-0 items-center gap-1.5 pt-0.5 text-dense text-studio-muted">
           {date ? <span className="tabular-nums">{date}</span> : <span className="text-studio-faint">No date</span>}
-          <button
-            type="button"
-            title="Edit game information"
-            className="rounded p-1 text-studio-faint hover:bg-studio-hover hover:text-studio-fg"
+          <IconButton
+            label="Edit game information"
+            size="sm"
+            className="text-studio-faint hover:text-studio-fg"
             onClick={() => setEditor("headers")}
           >
             <Pencil size={13} />
-          </button>
+          </IconButton>
         </div>
       </div>
 
@@ -495,7 +494,7 @@ export function NotationPanel() {
         <ToolButton label="Flip board" shortcut="Ctrl+F" onClick={flip}>
           <RefreshCw size={14} />
         </ToolButton>
-        <div className="mx-1 h-4 w-px bg-studio-hover" />
+        <div className="mx-1 h-4 w-px bg-studio-border-strong" />
         <ToolButton
           label="Edit annotations"
           shortcut="Ctrl+A"
@@ -533,36 +532,42 @@ export function NotationPanel() {
         </ToolButton>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto p-3 leading-7">
+      <div className="min-h-0 flex-1 overflow-auto p-3 text-body leading-6">
         {board.tree.startComment ? (
-          <div className="mb-2 italic text-studio-muted">{board.tree.startComment}</div>
+          <div className="mb-2 border-l-2 border-studio-comment/40 pl-2 text-studio-comment">
+            {board.tree.startComment}
+          </div>
         ) : null}
         {board.tree.children.length === 0 ? (
           <div className="text-studio-faint">Make a move on the board.</div>
         ) : (
-          <Line
-            nodes={board.tree.children}
-            parentPath={[]}
-            startFen={board.tree.startFen}
-            collapsed={collapsed}
-            onToggleCollapse={toggleCollapse}
-            onAnnotate={(path, event) => {
-              goPath(path);
-              setGlyphMenu({ x: event.clientX, y: event.clientY, path });
-            }}
-          />
+          <div className="flex flex-wrap items-center gap-0.5">
+            <Line
+              nodes={board.tree.children}
+              parentPath={[]}
+              startFen={board.tree.startFen}
+              collapsed={collapsed}
+              onToggleCollapse={toggleCollapse}
+              onAnnotate={(path, event) => {
+                goPath(path);
+                setGlyphMenu({ x: event.clientX, y: event.clientY, path });
+              }}
+            />
+          </div>
         )}
         {result ? (
-          <div className="mt-6 text-center">
-            <div className="text-lg font-semibold text-studio-fg">{result.mark}</div>
-            <div className="text-[12px] text-studio-faint">{result.label}</div>
+          <div className="mt-5 flex items-center justify-center gap-2 border-t border-studio-border-subtle pt-3">
+            <span className="rounded-[5px] bg-studio-hover-strong px-2 py-0.5 text-body font-semibold tabular-nums text-studio-fg">
+              {result.mark}
+            </span>
+            <span className="text-dense text-studio-faint">{result.label}</span>
           </div>
         ) : null}
       </div>
 
       {commentOpen || commentBeforeOpen ? (
         <div className="border-t border-studio-border bg-studio-chrome p-3">
-          <div className="mb-1.5 text-[11px] uppercase tracking-wide text-studio-faint">
+          <div className="mb-1.5 text-caption uppercase tracking-wider text-studio-faint">
             {commentBeforeOpen ? "Comment before" : "Comment"} · {moveLabel}
           </div>
           <textarea
@@ -585,17 +590,13 @@ export function NotationPanel() {
                 ? "Write a note that appears before this move…"
                 : "Write a note for this move or the starting position…"
             }
-            className="h-24 w-full resize-none rounded border border-studio-border bg-studio-panel px-2 py-1.5 text-[13px] text-studio-fg outline-none focus:border-sky-600"
+            className="h-24 w-full resize-none rounded-md border border-studio-border-strong bg-studio-panel px-2 py-1.5 text-body text-studio-fg outline-none focus:border-studio-accent"
             autoFocus
           />
           <div className="mt-2 flex justify-end">
-            <button
-              type="button"
-              className="rounded bg-studio-accent px-3 py-1 text-[12px] text-white"
-              onClick={() => setEditor(null)}
-            >
+            <Button size="sm" variant="primary" onClick={() => setEditor(null)}>
               Done
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}

@@ -9,13 +9,16 @@ import {
   FolderPlus,
   Plus,
   RefreshCw,
-  Search,
   Trash2,
   Upload,
 } from "lucide-react";
 import { loadRemoteFiles, type FileDatabase, type FileFolder } from "@/src/lib/user-files";
 import { useStudioStore } from "@/src/store/studio-store";
 import { openStudioPanel } from "./dock-api";
+import { Button, IconButton } from "./ui/Button";
+import { SearchInput } from "./ui/Controls";
+import { MenuItem, MenuSurface } from "./ui/Menu";
+import { SidebarHint, SidebarPanel } from "./ui/Sidebar";
 
 function matchesQuery(
   query: string,
@@ -102,110 +105,128 @@ export function FilesSidebar() {
   }
 
   return (
-    <div className="relative flex h-full w-64 flex-col overflow-hidden rounded-lg bg-studio-panel">
-      <div className="flex items-center justify-between px-3 py-3">
-        <h2 className="text-sm font-medium text-studio-fg">Files</h2>
+    <SidebarPanel
+      title="Files"
+      actions={
         <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            title="Focus search"
-            className="rounded p-1 text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
-            onClick={() => document.getElementById("files-search")?.focus()}
-          >
-            <Search size={14} />
-          </button>
-          <button
-            type="button"
-            title="Refresh"
-            className="rounded p-1 text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
-            onClick={() => void refresh()}
-          >
+          <IconButton label="Refresh" size="sm" className="text-studio-muted" onClick={() => void refresh()}>
             <RefreshCw size={14} />
-          </button>
-          <button
-            type="button"
-            title="Add"
-            className="rounded p-1 text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
+          </IconButton>
+          <IconButton
+            label="Add"
+            size="sm"
+            active={menuOpen}
+            className="text-studio-muted"
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <Plus size={16} />
-          </button>
+            <Plus size={15} />
+          </IconButton>
         </div>
-      </div>
-      <div className="px-3 pb-2">
-        <input
-          id="files-search"
-          value={query}
-          onChange={(event) => setFilesQuery(event.target.value)}
-          placeholder="Search files"
-          className="w-full rounded border border-studio-border bg-studio-selected px-2 py-1.5 text-sm text-studio-fg outline-none"
-        />
-      </div>
-      {menuOpen ? (
-        <div className="absolute right-2 top-12 z-20 w-48 rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-studio-fg hover:bg-studio-accent hover:text-white"
-            onClick={() => {
-              createFileFolder();
-              setMenuOpen(false);
-            }}
-          >
-            <FolderPlus size={14} />
-            New folder
-          </button>
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-studio-fg hover:bg-studio-accent hover:text-white"
-            onClick={() => {
-              fileRef.current?.click();
-              setMenuOpen(false);
-            }}
-          >
-            <Upload size={14} />
-            Import PGN database
-          </button>
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] text-studio-fg hover:bg-studio-accent hover:text-white"
-            onClick={() => {
-              setPasteOpen(true);
-              setMenuOpen(false);
-            }}
-          >
-            <ClipboardPaste size={14} />
-            Paste PGN
-          </button>
-        </div>
-      ) : null}
-      <div className="min-h-0 flex-1 overflow-auto px-2 pb-3">
+      }
+      header={<SearchInput id="files-search" value={query} onChange={setFilesQuery} placeholder="Search files" />}
+      overlay={
+        <>
+          {menuOpen ? (
+            <>
+              <button
+                className="fixed inset-0 z-10 cursor-default"
+                aria-label="Close menu"
+                onClick={() => setMenuOpen(false)}
+              />
+              <MenuSurface className="absolute right-2 top-11 z-20 min-w-52">
+                <MenuItem
+                  label="New folder"
+                  leading={<FolderPlus size={14} className="text-studio-faint" />}
+                  onClick={() => {
+                    createFileFolder();
+                    setMenuOpen(false);
+                  }}
+                />
+                <MenuItem
+                  label="Import PGN database…"
+                  leading={<Upload size={14} className="text-studio-faint" />}
+                  onClick={() => {
+                    fileRef.current?.click();
+                    setMenuOpen(false);
+                  }}
+                />
+                <MenuItem
+                  label="Paste PGN…"
+                  leading={<ClipboardPaste size={14} className="text-studio-faint" />}
+                  onClick={() => {
+                    setPasteOpen(true);
+                    setMenuOpen(false);
+                  }}
+                />
+              </MenuSurface>
+            </>
+          ) : null}
+          {pasteOpen ? (
+            <div className="absolute inset-0 z-30 flex flex-col bg-studio-panel p-3">
+              <h3 className="text-body font-semibold text-studio-fg">Paste PGN</h3>
+              <textarea
+                autoFocus
+                value={pasteText}
+                onChange={(event) => setPasteText(event.target.value)}
+                placeholder="[Event &quot;...&quot;]"
+                className="mt-2.5 min-h-0 flex-1 resize-none rounded-md border border-studio-border-strong bg-studio-selected p-2 font-mono text-dense text-studio-fg outline-none focus:border-studio-accent"
+              />
+              <div className="mt-2.5 flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setPasteOpen(false);
+                    setPasteText("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={!pasteText.trim()}
+                  onClick={() => {
+                    importFileDatabase("Pasted PGN", pasteText);
+                    openStudioPanel("fileGames");
+                    setPasteOpen(false);
+                    setPasteText("");
+                  }}
+                >
+                  Import
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </>
+      }
+    >
         {empty ? (
-          <p className="px-2 py-6 text-[13px] text-studio-faint">
-            No databases yet. Create one with +.
-          </p>
+          <SidebarHint>No databases yet. Use + to create a folder, import a PGN file or paste one.</SidebarHint>
         ) : null}
         {filtered.folders.map((folder) => {
           const expanded = openFolders.has(folder.id) || Boolean(query.trim());
           const nested = filtered.byFolder.get(folder.id) ?? [];
           return (
             <div key={folder.id} className="mb-1">
-              <div className="group flex items-center rounded-md hover:bg-studio-hover-subtle">
+              <div className="group flex items-center rounded-md hover:bg-studio-hover">
                 <button
                   type="button"
-                  className="flex min-w-0 flex-1 items-center gap-1 px-2 py-1.5 text-left text-[13px] text-studio-fg"
+                  className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1.5 text-left text-body text-studio-fg"
                   onClick={() => toggle(openFolders, folder.id, setOpenFolders)}
                 >
                   <ChevronRight
                     size={13}
                     className={`shrink-0 text-studio-faint transition ${expanded ? "rotate-90" : ""}`}
                   />
-                  <Folder size={14} className="shrink-0 text-studio-muted" />
+                  <Folder size={14} className="shrink-0 text-studio-faint" />
                   <span className="truncate">{folder.name}</span>
                 </button>
                 <button
                   type="button"
                   title="Delete folder"
-                  className="mr-1 hidden rounded p-1 text-studio-faint hover:text-red-300 group-hover:block"
+                  aria-label="Delete folder"
+                  className="mr-1 hidden rounded p-1 text-studio-faint hover:text-studio-danger group-hover:block"
                   onClick={() => deleteFileFolder(folder.id)}
                 >
                   <Trash2 size={12} />
@@ -254,7 +275,6 @@ export function FilesSidebar() {
             onDelete={() => deleteFileDatabase(database.id)}
           />
         ))}
-      </div>
       <input
         ref={fileRef}
         type="file"
@@ -268,43 +288,7 @@ export function FilesSidebar() {
           event.target.value = "";
         }}
       />
-      {pasteOpen ? (
-        <div className="absolute inset-0 z-30 flex flex-col bg-studio-panel p-3">
-          <h3 className="text-sm font-medium text-studio-fg">Paste PGN</h3>
-          <textarea
-            value={pasteText}
-            onChange={(event) => setPasteText(event.target.value)}
-            placeholder="[Event &quot;...&quot;]"
-            className="mt-2 min-h-0 flex-1 resize-none rounded border border-studio-border bg-studio-selected p-2 text-[12px] text-studio-fg outline-none"
-          />
-          <div className="mt-2 flex justify-end gap-2">
-            <button
-              type="button"
-              className="rounded px-2 py-1 text-[12px] text-studio-muted hover:text-studio-fg"
-              onClick={() => {
-                setPasteOpen(false);
-                setPasteText("");
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="rounded bg-studio-accent px-2 py-1 text-[12px] text-white disabled:opacity-40"
-              disabled={!pasteText.trim()}
-              onClick={() => {
-                importFileDatabase("Pasted PGN", pasteText);
-                openStudioPanel("fileGames");
-                setPasteOpen(false);
-                setPasteText("");
-              }}
-            >
-              Import
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </div>
+    </SidebarPanel>
   );
 }
 
@@ -324,27 +308,28 @@ function DatabaseRow({
   onDelete: () => void;
 }) {
   return (
-    <div className={indent ? "ml-4" : ""}>
-      <div className="group flex items-center rounded-md hover:bg-studio-hover-subtle">
+    <div className={indent ? "ml-4 border-l border-studio-border pl-1" : ""}>
+      <div className="group flex items-center rounded-md hover:bg-studio-hover">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-1 px-2 py-1.5 text-left text-[13px] text-studio-fg"
+          className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1.5 text-left text-body text-studio-fg"
           onClick={onToggle}
         >
           <ChevronRight
             size={13}
             className={`shrink-0 text-studio-faint transition ${open ? "rotate-90" : ""}`}
           />
-          <Database size={14} className="shrink-0 text-studio-muted" />
-          <span className="min-w-0 truncate">
-            {database.name}
-            <span className="ml-1 text-[11px] text-studio-faint">{database.games.length}</span>
+          <Database size={14} className="shrink-0 text-studio-faint" />
+          <span className="min-w-0 flex-1 truncate">{database.name}</span>
+          <span className="shrink-0 text-caption tabular-nums text-studio-faint group-hover:hidden">
+            {database.games.length}
           </span>
         </button>
         <button
           type="button"
           title="Delete database"
-          className="mr-1 hidden rounded p-1 text-studio-faint hover:text-red-300 group-hover:block"
+          aria-label="Delete database"
+          className="mr-1 hidden rounded p-1 text-studio-faint hover:text-studio-danger group-hover:block"
           onClick={onDelete}
         >
           <Trash2 size={12} />
@@ -355,7 +340,7 @@ function DatabaseRow({
             <button
               key={game.id}
               type="button"
-              className="flex w-full truncate rounded-md px-2 py-1 pl-8 text-left text-[12px] text-studio-fg hover:bg-studio-hover-subtle"
+              className="flex w-full truncate rounded-md px-2 py-1 pl-9 text-left text-dense text-studio-fg hover:bg-studio-hover"
               onClick={() => onOpenGame(game)}
             >
               {game.title}

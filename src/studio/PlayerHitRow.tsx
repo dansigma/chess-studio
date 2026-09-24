@@ -18,7 +18,7 @@ function ColorChip({
         event.stopPropagation();
         onClick();
       }}
-      className="flex h-6 w-6 items-center justify-center rounded border border-studio-border text-[10px] font-semibold text-studio-fg hover:bg-studio-hover"
+      className="flex h-6 w-6 items-center justify-center rounded-md border border-studio-border-strong text-[10px] font-semibold text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
     >
       {label}
     </button>
@@ -40,8 +40,10 @@ export function BookmarkStar({
         event.stopPropagation();
         onClick();
       }}
-      className={`flex h-6 w-6 items-center justify-center rounded ${
-        active ? "text-amber-300 hover:text-amber-200" : "text-studio-faint hover:bg-studio-hover hover:text-studio-fg"
+      className={`flex h-6 w-6 items-center justify-center rounded-md ${
+        active
+          ? "text-studio-warning-fg hover:bg-studio-hover-strong"
+          : "text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg"
       }`}
     >
       <Bookmark size={14} fill={active ? "currentColor" : "none"} />
@@ -64,14 +66,15 @@ export function PlayerHitRow({
 }) {
   return (
     <div
-      className={`mb-1 flex w-full items-center gap-2 rounded-md px-2 py-2 ${
-        active ? "bg-studio-selected" : "hover:bg-studio-hover-subtle"
+      className={`relative mb-px flex w-full items-center gap-2 rounded-md px-2 py-1.5 ${
+        active ? "bg-studio-accent-soft" : "hover:bg-studio-hover"
       }`}
     >
+      {active ? <span className="absolute inset-y-2 left-0 w-0.5 rounded bg-studio-accent" /> : null}
       <BookmarkStar active={bookmarked} onClick={onToggleBookmark} />
       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpen()}>
-        <div className="truncate text-sm text-studio-fg">{player.displayName}</div>
-        <div className="truncate text-[11px] text-studio-faint">{player.subtitle}</div>
+        <div className="truncate text-body text-studio-fg">{player.displayName}</div>
+        <div className="truncate text-caption text-studio-faint">{player.subtitle}</div>
       </button>
       <ColorChip label="W" onClick={() => onOpen("white")} />
       <ColorChip label="B" onClick={() => onOpen("black")} />
