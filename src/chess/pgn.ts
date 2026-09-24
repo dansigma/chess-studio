@@ -326,6 +326,33 @@ export function mainlinePathForPgn(tree: GameTree, pgn: string): Path {
   return path;
 }
 
+export function openListedFileGame(databasePgn: string, gamePgn: string): ImportedGame | null {
+  const selected = importPgn(gamePgn);
+  const hasGame =
+    selected.tree.children.length > 0 || fenKey(selected.tree.startFen) !== fenKey(START_FEN);
+  if (!hasGame) {
+    return null;
+  }
+  const merged = openablePgn(databasePgn);
+  const sameStart =
+    merged !== null && fenKey(merged.tree.startFen) === fenKey(selected.tree.startFen);
+  if (!sameStart) {
+    return {
+      ...selected,
+      path: fenKey(selected.tree.startFen) === fenKey(START_FEN) ? selected.path : [],
+    };
+  }
+  if (selected.tree.startComment) {
+    merged.tree.startComment = selected.tree.startComment;
+  }
+  return {
+    ...merged,
+    path: mainlinePathForPgn(merged.tree, gamePgn),
+    headers: selected.headers,
+    title: selected.title,
+  };
+}
+
 function importParsedPgn(trimmed: string): ImportedGame {
   try {
     const parsed = parseGame(trimmed);

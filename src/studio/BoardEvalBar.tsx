@@ -35,19 +35,20 @@ export function BoardEvalBar({
     <div
       aria-label={`Evaluation ${label}`}
       title={label}
-      className="relative w-[18px] shrink-0 overflow-hidden rounded-md bg-zinc-950"
+      className="relative w-[18px] shrink-0 overflow-hidden rounded-md bg-studio-loss ring-1 ring-studio-border-strong"
     >
       <div
-        className="absolute left-0 right-0 bg-zinc-100 transition-[height] duration-200"
+        className="absolute left-0 right-0 bg-studio-win transition-[height] duration-300 ease-out"
         style={
           whiteAtBottom
             ? { bottom: 0, height: `${whitePercent}%` }
             : { top: 0, height: `${whitePercent}%` }
         }
       />
+      <div className="absolute inset-x-0 top-1/2 h-px bg-studio-draw/60" aria-hidden="true" />
       <span
-        className={`absolute inset-x-0 px-px text-center text-[9px] font-bold leading-tight ${
-          whiteWinning ? "text-zinc-900" : "text-zinc-100"
+        className={`absolute inset-x-0 px-px text-center text-[9px] font-bold leading-tight tabular-nums ${
+          whiteWinning ? "text-studio-loss" : "text-studio-win"
         }`}
         style={
           whiteWinning === whiteAtBottom ? { bottom: 6 } : { top: 6 }

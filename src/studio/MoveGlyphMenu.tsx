@@ -76,9 +76,9 @@ export function MoveGlyphMenu({
                   role="menuitemcheckbox"
                   aria-checked={active}
                   onClick={() => onToggle(item.nag)}
-                  className={`min-w-9 rounded px-1.5 py-1 text-[13px] ${
+                  className={`min-w-9 rounded px-1.5 py-1 text-body ${
                     active
-                      ? "bg-studio-accent-move text-white"
+                      ? "bg-studio-accent-move text-studio-accent-fg"
                       : "bg-studio-hover-subtle text-studio-fg hover:bg-studio-hover"
                   }`}
                 >
@@ -92,14 +92,14 @@ export function MoveGlyphMenu({
       <div className="mt-1 border-t border-studio-border px-2 pt-1">
         <button
           type="button"
-          className="w-full rounded px-2 py-1 text-left text-[12px] text-studio-fg hover:bg-studio-hover"
+          className="w-full rounded px-2 py-1 text-left text-dense text-studio-fg hover:bg-studio-hover"
           onClick={onComment}
         >
           Comment on move…
         </button>
         <button
           type="button"
-          className="w-full rounded px-2 py-1 text-left text-[12px] text-studio-muted hover:bg-studio-hover disabled:opacity-40"
+          className="w-full rounded px-2 py-1 text-left text-dense text-studio-muted hover:bg-studio-hover disabled:opacity-40"
           disabled={nags.length === 0}
           onClick={onClear}
         >

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
 
 export type BoardMenuState = {
   x: number;
@@ -49,57 +50,40 @@ export function BoardContextMenu({
   const top = Math.max(8, Math.min(menu.y, window.innerHeight - 180));
 
   return (
-    <div
-      ref={rootRef}
-      className="fixed z-50 w-52 rounded border border-studio-border bg-studio-elevated py-1 shadow-2xl"
-      style={{ left, top }}
-      role="menu"
-    >
-      <button
-        type="button"
-        role="menuitem"
-        className="w-full px-3 py-1.5 text-left text-[13px] text-studio-fg hover:bg-studio-accent hover:text-white"
-        onClick={() => {
-          onFlip();
-          onClose();
-        }}
-      >
-        Flip board
-      </button>
-      <button
-        type="button"
-        role="menuitemcheckbox"
-        aria-checked={showEvalBar}
-        className="w-full px-3 py-1.5 text-left text-[13px] text-studio-fg hover:bg-studio-accent hover:text-white"
-        onClick={() => {
-          onToggleEvalBar();
-          onClose();
-        }}
-      >
-        {showEvalBar ? "Hide evaluation bar" : "Show evaluation bar"}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        className="w-full px-3 py-1.5 text-left text-[13px] text-studio-fg hover:bg-studio-accent hover:text-white"
-        onClick={() => {
-          onCopyFen();
-          onClose();
-        }}
-      >
-        Copy FEN
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        className="w-full px-3 py-1.5 text-left text-[13px] text-studio-fg hover:bg-studio-accent hover:text-white"
-        onClick={() => {
-          onCopyImage();
-          onClose();
-        }}
-      >
-        Copy board image
-      </button>
+    <div ref={rootRef} className="fixed z-50" style={{ left, top }}>
+      <MenuSurface className="min-w-52">
+        <MenuItem
+          label="Flip board"
+          shortcut="Ctrl+F"
+          onClick={() => {
+            onFlip();
+            onClose();
+          }}
+        />
+        <MenuItem
+          label="Show evaluation bar"
+          checked={showEvalBar}
+          onClick={() => {
+            onToggleEvalBar();
+            onClose();
+          }}
+        />
+        <MenuDivider />
+        <MenuItem
+          label="Copy FEN"
+          onClick={() => {
+            onCopyFen();
+            onClose();
+          }}
+        />
+        <MenuItem
+          label="Copy board image"
+          onClick={() => {
+            onCopyImage();
+            onClose();
+          }}
+        />
+      </MenuSurface>
     </div>
   );
 }

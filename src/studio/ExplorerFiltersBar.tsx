@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   EXPLORER_SPEEDS,
   RATING_THRESHOLDS,
@@ -30,7 +30,7 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full px-2 py-0.5 text-[11px] ${
+      className={`rounded-full px-2 py-0.5 text-caption ${
         active ? "bg-studio-selected text-studio-fg" : "text-studio-faint hover:bg-studio-hover-subtle"
       }`}
     >
@@ -90,11 +90,13 @@ function YearField({
   onCommit: (year: number | null) => void;
 }) {
   const [text, setText] = useState(value?.toString() ?? "");
-  useEffect(() => {
+  const [syncedValue, setSyncedValue] = useState(value);
+  if (syncedValue !== value) {
+    setSyncedValue(value);
     setText(value?.toString() ?? "");
-  }, [value]);
+  }
   return (
-    <label className="ml-1 flex items-center gap-1 text-[11px] text-studio-faint">
+    <label className="ml-1 flex items-center gap-1 text-caption text-studio-faint">
       {label}
       <input
         type="number"

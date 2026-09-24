@@ -54,8 +54,8 @@ export function GamesPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-studio-panel text-[12px] text-studio-fg">
-      <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-[11px] text-studio-faint">
+    <div className="flex h-full flex-col bg-studio-panel text-dense text-studio-fg">
+      <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-caption text-studio-faint">
         <span>Games · {explorerGamesTitle(source, databases)}</span>
         <span>{explorer?.games.length ?? 0} shown</span>
       </div>

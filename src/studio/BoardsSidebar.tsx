@@ -1,6 +1,9 @@
 "use client";
 
+import { Plus, X } from "lucide-react";
 import { boardPreview, useStudioStore } from "@/src/store/studio-store";
+import { IconButton } from "./ui/Button";
+import { SidebarItem, SidebarPanel } from "./ui/Sidebar";
 
 export function BoardsSidebar() {
   const boards = useStudioStore((state) => state.boards);
@@ -8,37 +11,57 @@ export function BoardsSidebar() {
   const setActiveBoard = useStudioStore((state) => state.setActiveBoard);
   const pinPreviewBoard = useStudioStore((state) => state.pinPreviewBoard);
   const newBoard = useStudioStore((state) => state.newBoard);
+  const closeBoard = useStudioStore((state) => state.closeBoard);
+  const signedIn = useStudioStore((state) => Boolean(state.user));
 
   return (
-    <div className="flex h-full w-64 flex-col overflow-hidden rounded-lg bg-studio-panel">
-      <div className="flex items-center justify-between px-3 py-3">
-        <h2 className="text-sm font-medium text-studio-fg">Open Boards</h2>
-        <button
-          className="rounded px-2 py-0.5 text-lg text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
-          onClick={newBoard}
-          title="New board"
-        >
-          +
-        </button>
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto px-2 pb-3">
-        {boards.map((board) => (
-          <button
-            key={board.id}
-            onClick={() => setActiveBoard(board.id)}
-            onDoubleClick={() => pinPreviewBoard(board.id)}
-            className={`mb-1 w-full rounded-md px-3 py-2 text-left ${
-              board.id === activeBoardId ? "bg-studio-selected" : "hover:bg-studio-hover-subtle"
-            }`}
-          >
-            <div className="truncate text-sm text-studio-fg">
+    <SidebarPanel
+      title="Open boards"
+      actions={
+        <IconButton label="New board" shortcut="Ctrl+N" size="sm" onClick={newBoard}>
+          <Plus size={15} />
+        </IconButton>
+      }
+    >
+      {boards.map((board) => (
+        <SidebarItem
+          key={board.id}
+          selected={board.id === activeBoardId}
+          title={
+            <>
               {board.title}
               {board.preview ? <span className="text-studio-faint"> · preview</span> : null}
-            </div>
-            <div className="truncate text-[11px] text-studio-faint">{boardPreview(board)}</div>
-          </button>
-        ))}
-      </div>
-    </div>
+            </>
+          }
+          description={boardPreview(board)}
+          trailing={
+            <span className="relative flex h-6 w-6 items-center justify-center">
+              {signedIn && board.dirty ? (
+                <span className="text-studio-warning-fg group-hover:hidden" title="Unsaved changes">
+                  ●
+                </span>
+              ) : null}
+              <button
+                type="button"
+                title="Close board"
+                aria-label="Close board"
+                className="absolute inset-0 hidden items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg group-hover:flex"
+                onClick={() => closeBoard(board.id)}
+              >
+                <X size={13} />
+              </button>
+            </span>
+          }
+          onClick={() => setActiveBoard(board.id)}
+          onDoubleClick={() => pinPreviewBoard(board.id)}
+          onAuxClick={(event) => {
+            if (event.button === 1) {
+              event.preventDefault();
+              closeBoard(board.id);
+            }
+          }}
+        />
+      ))}
+    </SidebarPanel>
   );
 }

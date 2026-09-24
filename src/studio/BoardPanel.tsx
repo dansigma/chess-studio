@@ -19,6 +19,14 @@ import { boardSquareStyles } from "@/src/chess/board-themes";
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { boardImageElement, fenToCopy, publishVisibleFen } from "@/src/chess/copy-board";
 import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-board-image";
+import { Button } from "./ui/Button";
+
+const PROMOTION_PIECES = [
+  { piece: "q", label: "Queen" },
+  { piece: "r", label: "Rook" },
+  { piece: "b", label: "Bishop" },
+  { piece: "n", label: "Knight" },
+] as const;
 
 type PendingDraw = {
   square: string;
@@ -52,8 +60,17 @@ export function BoardPanel() {
   const pending = useRef<PendingDraw | null>(null);
 
   const storedMarks = enginePreview ? null : getMarksAt(board.tree, board.path);
-  const squareMarks = storedMarks?.squares ?? [];
-  const arrowMarks = storedMarks?.arrows ?? [];
+  const squareMarks = useMemo(() => storedMarks?.squares ?? [], [storedMarks]);
+  const arrowMarks = useMemo(() => storedMarks?.arrows ?? [], [storedMarks]);
+  const previewing = Boolean(enginePreview);
+  const [wasPreviewing, setWasPreviewing] = useState(previewing);
+  if (wasPreviewing !== previewing) {
+    setWasPreviewing(previewing);
+    if (previewing) {
+      setSelected(null);
+      setPreview(null);
+    }
+  }
 
   useEffect(() => {
     publishVisibleFen(fen);
@@ -61,12 +78,9 @@ export function BoardPanel() {
   }, [fen]);
 
   useEffect(() => {
-    if (!enginePreview) {
-      return;
+    if (enginePreview) {
+      pending.current = null;
     }
-    setSelected(null);
-    setPreview(null);
-    pending.current = null;
   }, [enginePreview]);
 
   useEffect(() => {
@@ -191,7 +205,7 @@ export function BoardPanel() {
         ) : null}
         <div
           data-board-image=""
-          className="relative aspect-square h-full overflow-hidden rounded-lg"
+          className="relative aspect-square h-full overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong"
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -281,26 +295,25 @@ export function BoardPanel() {
           }}
         />
         {promotion ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
-            <div className="flex gap-2 rounded-md bg-studio-selected p-3 shadow-xl">
-              {(["q", "r", "b", "n"] as const).map((piece) => (
-                <button
-                  key={piece}
-                  className="rounded bg-studio-selected px-3 py-2 text-sm uppercase text-studio-fg hover:bg-studio-tab"
-                  onClick={() => {
-                    makeUciMove(promotion.from, promotion.to, piece);
-                    setPromotion(null);
-                  }}
-                >
-                  {piece}
-                </button>
-              ))}
-              <button
-                className="rounded px-3 py-2 text-sm text-studio-muted hover:text-studio-fg"
-                onClick={() => setPromotion(null)}
-              >
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-studio-scrim">
+            <div className="flex flex-col gap-2 rounded-[10px] border border-studio-border-strong bg-studio-elevated p-3 shadow-2xl">
+              <span className="text-caption uppercase tracking-wider text-studio-faint">Promote to</span>
+              <div className="flex gap-1.5">
+                {PROMOTION_PIECES.map(({ piece, label }) => (
+                  <Button
+                    key={piece}
+                    onClick={() => {
+                      makeUciMove(promotion.from, promotion.to, piece);
+                      setPromotion(null);
+                    }}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setPromotion(null)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}
