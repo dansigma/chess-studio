@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { boardPreview, useStudioStore } from "@/src/store/studio-store";
 import { IconButton } from "./ui/Button";
 import { SidebarItem, SidebarPanel } from "./ui/Sidebar";
@@ -11,6 +11,7 @@ export function BoardsSidebar() {
   const setActiveBoard = useStudioStore((state) => state.setActiveBoard);
   const pinPreviewBoard = useStudioStore((state) => state.pinPreviewBoard);
   const newBoard = useStudioStore((state) => state.newBoard);
+  const closeBoard = useStudioStore((state) => state.closeBoard);
   const signedIn = useStudioStore((state) => Boolean(state.user));
 
   return (
@@ -33,9 +34,32 @@ export function BoardsSidebar() {
             </>
           }
           description={boardPreview(board)}
-          trailing={signedIn && board.dirty ? <span className="text-studio-warning-fg" title="Unsaved changes">●</span> : undefined}
+          trailing={
+            <span className="relative flex h-6 w-6 items-center justify-center">
+              {signedIn && board.dirty ? (
+                <span className="text-studio-warning-fg group-hover:hidden" title="Unsaved changes">
+                  ●
+                </span>
+              ) : null}
+              <button
+                type="button"
+                title="Close board"
+                aria-label="Close board"
+                className="absolute inset-0 hidden items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg group-hover:flex"
+                onClick={() => closeBoard(board.id)}
+              >
+                <X size={13} />
+              </button>
+            </span>
+          }
           onClick={() => setActiveBoard(board.id)}
           onDoubleClick={() => pinPreviewBoard(board.id)}
+          onAuxClick={(event) => {
+            if (event.button === 1) {
+              event.preventDefault();
+              closeBoard(board.id);
+            }
+          }}
         />
       ))}
     </SidebarPanel>

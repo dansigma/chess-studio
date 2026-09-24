@@ -38,6 +38,7 @@ export function SidebarItem({
   trailing,
   onClick,
   onDoubleClick,
+  onAuxClick,
 }: {
   selected?: boolean;
   icon?: ReactNode;
@@ -46,33 +47,46 @@ export function SidebarItem({
   trailing?: ReactNode;
   onClick: () => void;
   onDoubleClick?: () => void;
+  onAuxClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-current={selected || undefined}
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      className={`relative mb-px flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left ${
+    <div
+      className={`group relative mb-px flex w-full items-start rounded-md ${
         selected ? "bg-studio-accent-soft" : "hover:bg-studio-hover"
       }`}
+      onAuxClick={onAuxClick}
+      onMouseDown={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
+        }
+      }}
     >
       {selected ? <span className="absolute inset-y-2 left-0 w-0.5 rounded bg-studio-accent" /> : null}
-      {icon ? (
-        <span className={`mt-px shrink-0 ${selected ? "text-studio-accent-text" : "text-studio-faint"}`}>
-          {icon}
+      <button
+        type="button"
+        aria-current={selected || undefined}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+        className="flex min-w-0 flex-1 items-start gap-2.5 px-2.5 py-2 text-left"
+      >
+        {icon ? (
+          <span className={`mt-px shrink-0 ${selected ? "text-studio-accent-text" : "text-studio-faint"}`}>
+            {icon}
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-body text-studio-fg">{title}</span>
+          {description ? (
+            <span className="block truncate text-caption text-studio-faint">{description}</span>
+          ) : null}
+        </span>
+      </button>
+      {trailing !== undefined ? (
+        <span className="mr-1 mt-0.5 flex shrink-0 items-center self-center text-caption tabular-nums text-studio-faint">
+          {trailing}
         </span>
       ) : null}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-body text-studio-fg">{title}</span>
-        {description ? (
-          <span className="block truncate text-caption text-studio-faint">{description}</span>
-        ) : null}
-      </span>
-      {trailing !== undefined ? (
-        <span className="mt-0.5 shrink-0 text-caption tabular-nums text-studio-faint">{trailing}</span>
-      ) : null}
-    </button>
+    </div>
   );
 }
 
