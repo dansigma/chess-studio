@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Cpu, Pause, Play } from "lucide-react";
 import {
-  ENGINE_LABEL,
+  ENGINE_BUILD_INFO,
+  ENGINE_BUILDS,
   MAX_DEPTH,
   MAX_LINES,
   MIN_DEPTH,
@@ -43,9 +44,11 @@ export function EnginePanel() {
   const depthTarget = useStudioStore((state) => state.settings.engineDepth);
   const multiPv = useStudioStore((state) => state.settings.multiPv);
   const threads = useStudioStore((state) => state.settings.engineThreads);
+  const engineBuild = useStudioStore((state) => state.settings.engineBuild);
   const setEngineDepth = useStudioStore((state) => state.setEngineDepth);
   const setMultiPv = useStudioStore((state) => state.setMultiPv);
   const setEngineThreads = useStudioStore((state) => state.setEngineThreads);
+  const setEngineBuild = useStudioStore((state) => state.setEngineBuild);
   const playUciSequence = useStudioStore((state) => state.playUciSequence);
   const setEnginePreview = useStudioStore((state) => state.setEnginePreview);
   const setEngineEval = useStudioStore((state) => state.setEngineEval);
@@ -57,6 +60,7 @@ export function EnginePanel() {
   const [paused, setPaused] = useState(false);
   const [runId, setRunId] = useState(0);
   const [coresOpen, setCoresOpen] = useState(false);
+  const [buildOpen, setBuildOpen] = useState(false);
   const [info, setInfo] = useState<EngineInfo>({
     depth: 0,
     running: false,
@@ -69,7 +73,7 @@ export function EnginePanel() {
   });
 
   useEffect(() => {
-    const instance = new StockfishEngine();
+    const instance = new StockfishEngine(engineBuild);
     engineRef.current = instance;
     instance.start();
     const unsubscribe = instance.subscribe(setInfo);
@@ -78,7 +82,7 @@ export function EnginePanel() {
       instance.dispose();
       engineRef.current = null;
     };
-  }, []);
+  }, [engineBuild]);
 
   useEffect(() => {
     if (paused) {
@@ -122,7 +126,7 @@ export function EnginePanel() {
         ? `Analyzing · ${nps}`
         : "Analyzing…";
   const placeholderLines = Math.max(0, multiPv - lines.length);
-  const [engineName, engineDetail] = ENGINE_LABEL.split(" · ");
+  const engineInfo = ENGINE_BUILD_INFO[engineBuild];
 
   return (
     <div className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
@@ -144,9 +148,59 @@ export function EnginePanel() {
         >
           {paused || !info.running ? <Play size={14} fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
         </IconButton>
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="truncate font-semibold">{engineName}</span>
-          {engineDetail ? <Badge>{engineDetail}</Badge> : null}
+        <div className="relative flex min-w-0 flex-1 items-center gap-2">
+          <button
+            type="button"
+            aria-expanded={buildOpen}
+            aria-haspopup="menu"
+            className="flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 hover:bg-studio-hover-strong"
+            onClick={() => setBuildOpen((open) => !open)}
+          >
+            <span className="truncate font-semibold">{engineInfo.label}</span>
+            <Badge>{engineInfo.size}</Badge>
+          </button>
+          {buildOpen ? (
+            <>
+              <button
+                className="fixed inset-0 z-10 cursor-default"
+                aria-label="Close engine menu"
+                onClick={() => setBuildOpen(false)}
+              />
+              <div
+                role="menu"
+                className="absolute left-0 top-8 z-20 w-64 rounded-[9px] border border-studio-border-strong bg-studio-elevated p-1.5 shadow-2xl"
+              >
+                {ENGINE_BUILDS.map((build) => {
+                  const item = ENGINE_BUILD_INFO[build];
+                  const selected = build === engineBuild;
+                  return (
+                    <button
+                      key={build}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={selected}
+                      className={`flex w-full flex-col rounded-md px-2 py-1.5 text-left hover:bg-studio-hover ${
+                        selected ? "bg-studio-hover" : ""
+                      }`}
+                      onClick={() => {
+                        setEngineBuild(build);
+                        setBuildOpen(false);
+                        setPaused(false);
+                      }}
+                    >
+                      <span className="text-dense font-medium text-studio-fg">{item.label}</span>
+                      <span className="text-caption text-studio-faint">
+                        {item.detail} · {item.size}
+                      </span>
+                    </button>
+                  );
+                })}
+                <p className="px-2 pb-1 pt-1.5 text-caption text-studio-faint">
+                  Standard downloads about 99 MB the first time you select it.
+                </p>
+              </div>
+            </>
+          ) : null}
         </div>
         <div className="relative">
           <button

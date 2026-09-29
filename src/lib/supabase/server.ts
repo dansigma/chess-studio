@@ -1,13 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "./database.types";
-import { getSupabasePublicKey, isSupabaseConfigured } from "./env";
+import { getSupabasePublicKey, getSupabaseUrl, isSupabaseConfigured } from "./env";
 
 export async function createServerSupabase() {
   if (!isSupabaseConfigured()) {
     return null;
   }
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = getSupabaseUrl();
   const key = getSupabasePublicKey();
   if (!url || !key) {
     return null;

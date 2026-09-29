@@ -189,6 +189,96 @@ export type Database = {
         };
         Relationships: [];
       };
+      courses: {
+        Row: {
+          id: string;
+          slug: string;
+          title: string;
+          summary: string;
+          color: "white" | "black";
+          theme: "openings" | "strategy" | "tactics" | "endgames";
+          chapters: Json;
+          cover_url: string | null;
+          video_url: string | null;
+          created_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          slug: string;
+          title: string;
+          summary?: string;
+          color: "white" | "black";
+          theme?: "openings" | "strategy" | "tactics" | "endgames";
+          chapters?: Json;
+          cover_url?: string | null;
+          video_url?: string | null;
+          created_by?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          slug?: string;
+          title?: string;
+          summary?: string;
+          color?: "white" | "black";
+          theme?: "openings" | "strategy" | "tactics" | "endgames";
+          chapters?: Json;
+          cover_url?: string | null;
+          video_url?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      course_progress: {
+        Row: {
+          user_id: string;
+          variation_id: string;
+          step: number;
+          learned: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          variation_id: string;
+          step?: number;
+          learned?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          step?: number;
+          learned?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      profiles: {
+        Row: {
+          id: string;
+          role: "student" | "admin";
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          role?: "student" | "admin";
+          created_at?: string;
+        };
+        Update: {
+          role?: "student" | "admin";
+        };
+        Relationships: [];
+      };
+      course_admins: {
+        Row: {
+          email: string;
+        };
+        Insert: {
+          email: string;
+        };
+        Update: {
+          email?: string;
+        };
+        Relationships: [];
+      };
       player_bookmarks: {
         Row: {
           id: string;

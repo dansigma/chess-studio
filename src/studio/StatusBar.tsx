@@ -1,6 +1,7 @@
 "use client";
 
 import { Cpu, Database } from "lucide-react";
+import { ENGINE_BUILD_INFO } from "@/src/engine/stockfish-client";
 import { explorerSourceTitle } from "@/src/lib/explorer-types";
 import { useStudioStore } from "@/src/store/studio-store";
 
@@ -8,6 +9,7 @@ export function StatusBar({ message }: { message: string | null }) {
   const source = useStudioStore((state) => state.databaseSource);
   const databases = useStudioStore((state) => state.files.databases);
   const threads = useStudioStore((state) => state.settings.engineThreads);
+  const engineLabel = ENGINE_BUILD_INFO[useStudioStore((state) => state.settings.engineBuild)].label;
   const signedIn = useStudioStore((state) => Boolean(state.user));
   const dirty = useStudioStore((state) => state.boards.some((board) => board.dirty));
 
@@ -29,7 +31,7 @@ export function StatusBar({ message }: { message: string | null }) {
         </span>
         <span className="flex items-center gap-1.5">
           <Cpu size={12} />
-          Stockfish 19 lite · {threads} thread{threads === 1 ? "" : "s"}
+          {engineLabel} · {threads} thread{threads === 1 ? "" : "s"}
         </span>
         <span className="flex items-center gap-1.5">
           <span className={`h-1.5 w-1.5 rounded-full ${sync.dot}`} />

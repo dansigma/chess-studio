@@ -13,6 +13,7 @@ import type { SerializedDockview } from "dockview-core";
 import { BoardPanel } from "./BoardPanel";
 import { EnginePanel } from "./EnginePanel";
 import { EvalGraphPanel } from "./EvalGraphPanel";
+import { ReviewPanel } from "./ReviewPanel";
 import { ExplorerPanel } from "./ExplorerPanel";
 import { FileGamesPanel } from "./FileGamesPanel";
 import { GamesPanel } from "./GamesPanel";
@@ -23,6 +24,7 @@ import { PlayerGamesPanel } from "./PlayerGamesPanel";
 import {
   BookOpen,
   ChartSpline,
+  ClipboardCheck,
   Cpu,
   FileText,
   GitBranch,
@@ -49,6 +51,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   board: LayoutGrid,
   engine: Cpu,
   evalGraph: ChartSpline,
+  review: ClipboardCheck,
   notation: ListOrdered,
   repertoire: GitBranch,
   explorer: BookOpen,
@@ -80,6 +83,7 @@ const components = {
   board: () => <BoardPanel />,
   engine: () => <EnginePanel />,
   evalGraph: () => <EvalGraphPanel />,
+  review: () => <ReviewPanel />,
   notation: () => <NotationPanel />,
   repertoire: () => <RepertoirePanel />,
   explorer: () => <ExplorerPanel />,
@@ -88,6 +92,20 @@ const components = {
   playerExplorer: () => <PlayerExplorerPanel />,
   playerGames: () => <PlayerGamesPanel />,
 };
+
+function ensureReviewPanel(api: DockviewReadyEvent["api"]): void {
+  if (api.getPanel("review")) {
+    return;
+  }
+  const reference = api.getPanel("evalGraph") ?? api.getPanel("engine") ?? api.getPanel("board");
+  api.addPanel({
+    id: "review",
+    component: "review",
+    title: "Game Review",
+    inactive: true,
+    position: reference ? { referencePanel: reference.id } : undefined,
+  });
+}
 
 function ensureRepertoirePanel(api: DockviewReadyEvent["api"]): void {
   if (api.getPanel("repertoire")) {
@@ -221,6 +239,7 @@ export function StudioDock() {
         }
         placePlayers(api);
         ensureRepertoirePanel(api);
+        ensureReviewPanel(api);
       });
     });
     const saved = takeQueuedDockLayout() ?? readStoredDockLayout();
@@ -230,6 +249,7 @@ export function StudioDock() {
       }
       placePlayers(api);
       ensureRepertoirePanel(api);
+      ensureReviewPanel(api);
     });
     layoutSubscription.current = api.onDidLayoutChange(() => {
       if (suppressSaves.current > 0) {

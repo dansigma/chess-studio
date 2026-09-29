@@ -4,6 +4,7 @@ export type StudioPanelId =
   | "board"
   | "engine"
   | "evalGraph"
+  | "review"
   | "notation"
   | "repertoire"
   | "explorer"
@@ -14,6 +15,7 @@ const PANEL_TITLES: Record<StudioPanelId, string> = {
   board: "Board",
   engine: "Engine",
   evalGraph: "Eval Graph",
+  review: "Game Review",
   notation: "Notation",
   repertoire: "Repertoire",
   explorer: "Ultra Database",
@@ -62,6 +64,13 @@ export function seedDefaultLayout(api: DockviewApi, boardTitle: string): void {
     position: { referencePanel: "engine" },
   });
   api.addPanel({
+    id: "review",
+    component: "review",
+    title: PANEL_TITLES.review,
+    inactive: true,
+    position: { referencePanel: "evalGraph" },
+  });
+  api.addPanel({
     id: "explorer",
     component: "explorer",
     title: PANEL_TITLES.explorer,
@@ -98,18 +107,20 @@ export function openStudioPanel(id: StudioPanelId): void {
     return;
   }
 
-  if (id === "engine" || id === "evalGraph") {
+  if (id === "engine" || id === "evalGraph" || id === "review") {
     const reference =
-      id === "evalGraph"
-        ? (dockApi.getPanel("engine") ?? dockApi.getPanel("board") ?? dockApi.getPanel("notation"))
-        : (dockApi.getPanel("board") ?? dockApi.getPanel("notation"));
+      id === "review"
+        ? (dockApi.getPanel("evalGraph") ?? dockApi.getPanel("engine") ?? dockApi.getPanel("board"))
+        : id === "evalGraph"
+          ? (dockApi.getPanel("engine") ?? dockApi.getPanel("board") ?? dockApi.getPanel("notation"))
+          : (dockApi.getPanel("board") ?? dockApi.getPanel("notation"));
     dockApi.addPanel({
       id,
       component: id,
       title: PANEL_TITLES[id],
       initialHeight: 220,
       position:
-        id === "evalGraph"
+        id === "evalGraph" || id === "review"
           ? reference
             ? { referencePanel: reference.id }
             : undefined
@@ -140,6 +151,7 @@ export const OPEN_PANEL_ITEMS: Array<{ id: StudioPanelId; label: string }> = [
   { id: "repertoire", label: "Repertoire" },
   { id: "engine", label: "Engine" },
   { id: "evalGraph", label: "Eval Graph" },
+  { id: "review", label: "Game Review" },
   { id: "explorer", label: "Ultra Database" },
   { id: "games", label: "Ultra Games" },
   { id: "fileGames", label: "Games" },

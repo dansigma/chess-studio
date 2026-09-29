@@ -9,6 +9,7 @@ import type {
 } from "@/src/lib/explorer-types";
 import { filtersAreDefault, filtersFromSearchParams, lichessFilterQuery } from "@/src/lib/explorer-filters";
 import { emptyExplorer, lookupOpeningBook } from "@/src/lib/opening-book";
+import { lookupOpeningIndex } from "@/src/lib/opening-index";
 
 const memoryCache = new Map<string, { payload: ExplorerResponse; fetchedAt: number }>();
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
@@ -196,6 +197,14 @@ export async function GET(request: NextRequest) {
         memoryCache.set(key, { payload, fetchedAt: Date.now() });
         return NextResponse.json(payload);
       }
+    }
+  }
+
+  if (sourceParam === "masters" && !filtered) {
+    const local = lookupOpeningIndex(fen);
+    if (local && local.moves.length > 0) {
+      memoryCache.set(key, { payload: local, fetchedAt: Date.now() });
+      return NextResponse.json(local);
     }
   }
 

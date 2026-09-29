@@ -37,6 +37,7 @@ export function EvalGraphPanel() {
   const evalByFen = useStudioStore((state) => state.evalByFen);
   const goPath = useStudioStore((state) => state.goPath);
   const engineDepth = useStudioStore((state) => state.settings.engineDepth);
+  const engineBuild = useStudioStore((state) => state.settings.engineBuild);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const [hover, setHover] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -73,7 +74,7 @@ export function EvalGraphPanel() {
     if (setupMode) {
       return;
     }
-    const engine = new StockfishEngine();
+    const engine = new StockfishEngine(engineBuild);
     engine.start();
     let cancelled = false;
     let unsubscribe: () => void = () => undefined;
@@ -141,7 +142,7 @@ export function EvalGraphPanel() {
       unsubscribe();
       engine.dispose();
     };
-  }, [lineKey, points, setupMode, walkDepth]);
+  }, [engineBuild, lineKey, points, setupMode, walkDepth]);
 
   const width = size.width;
   const height = size.height;

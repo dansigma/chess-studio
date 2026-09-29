@@ -1,7 +1,26 @@
 import { Chess } from "chess.js";
 
 export const ENGINE_HASH_MB = 16;
-export const ENGINE_LABEL = `Stockfish 19 · ${ENGINE_HASH_MB}MB`;
+export const ENGINE_BUILDS = ["lite", "standard"] as const;
+export type EngineBuild = (typeof ENGINE_BUILDS)[number];
+
+export const ENGINE_BUILD_INFO: Record<EngineBuild, { label: string; detail: string; size: string }> = {
+  lite: { label: "Stockfish 19 lite", detail: "Small network", size: "1.6 MB" },
+  standard: { label: "Stockfish 19", detail: "Full network", size: "99 MB" },
+};
+
+export function isEngineBuild(value: unknown): value is EngineBuild {
+  return value === "lite" || value === "standard";
+}
+
+export function engineWorkerUrl(build: EngineBuild): string {
+  const threaded = supportsEngineThreads();
+  if (build === "standard") {
+    return threaded ? "/engine/full/stockfish-19.js" : "/engine/stockfish-19-single.js";
+  }
+  return threaded ? "/engine/stockfish-lite.js" : "/engine/stockfish.js";
+}
+
 export const MIN_DEPTH = 8;
 export const MAX_DEPTH = 40;
 export const MIN_LINES = 1;
@@ -60,9 +79,6 @@ export function clampThreads(value: number): number {
   return Math.min(max, Math.max(1, Math.round(value)));
 }
 
-function workerUrl(): string {
-  return supportsEngineThreads() ? "/engine/stockfish-lite.js" : "/engine/stockfish.js";
-}
 
 function applyUci(chess: Chess, uci: string) {
   const from = uci.slice(0, 2);
@@ -129,6 +145,7 @@ function parseInfo(line: string, fen: string): EngineLine | null {
 
 export class StockfishEngine {
   private worker: Worker | null = null;
+  readonly build: EngineBuild;
   private listeners = new Set<Listener>();
   private fen = "";
   private depthTarget = 22;
@@ -143,11 +160,15 @@ export class StockfishEngine {
   private generation = 0;
   readonly threaded = supportsEngineThreads();
 
+  constructor(build: EngineBuild = "lite") {
+    this.build = build;
+  }
+
   start(): void {
     if (this.worker) {
       return;
     }
-    this.worker = new Worker(workerUrl());
+    this.worker = new Worker(engineWorkerUrl(this.build));
     this.worker.onmessage = (event: MessageEvent<string>) => {
       this.handleMessage(String(event.data));
     };
@@ -180,7 +201,7 @@ export class StockfishEngine {
     };
   }
 
-  analyze(fen: string, depth: number, multiPv: number, threads: number): void {
+  analyze(fen: string, depth: number, multiPv: number, threads: number, searchMoves?: string, fresh = true): void {
     this.start();
     this.fen = fen;
     this.depthTarget = clampDepth(depth);
@@ -202,9 +223,11 @@ export class StockfishEngine {
       this.send(`setoption name Hash value ${ENGINE_HASH_MB}`);
       this.send(`setoption name Threads value ${this.threads}`);
       this.send(`setoption name MultiPV value ${this.multiPv}`);
-      this.send("ucinewgame");
+      if (fresh) {
+        this.send("ucinewgame");
+      }
       this.send(`position fen ${fen}`);
-      this.send(`go depth ${this.depthTarget}`);
+      this.send(`go depth ${this.depthTarget}${searchMoves ? ` searchmoves ${searchMoves}` : ""}`);
       this.running = true;
       this.emit();
     }, 40);

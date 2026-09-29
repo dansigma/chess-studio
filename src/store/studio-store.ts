@@ -68,6 +68,8 @@ import {
   clampLines,
   clampThreads,
   defaultEngineThreads,
+  isEngineBuild,
+  type EngineBuild,
 } from "@/src/engine/stockfish-client";
 import { fileDatabaseId, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
 import {
@@ -142,6 +144,7 @@ export type StudioSettings = {
   engineDepth: number;
   multiPv: number;
   engineThreads: number;
+  engineBuild: EngineBuild;
   sidebarCollapsed: boolean;
   explorerFilters: ExplorerFilters;
   moveSound: boolean;
@@ -159,6 +162,7 @@ const DEFAULT_SETTINGS: StudioSettings = {
   engineDepth: 30,
   multiPv: 2,
   engineThreads: 1,
+  engineBuild: "lite",
   sidebarCollapsed: false,
   explorerFilters: DEFAULT_EXPLORER_FILTERS,
   moveSound: true,
@@ -207,6 +211,7 @@ function loadLocalSettings(): StudioSettings {
         typeof parsed.engineThreads === "number"
           ? clampThreads(parsed.engineThreads)
           : defaultEngineThreads(),
+      engineBuild: isEngineBuild(parsed.engineBuild) ? parsed.engineBuild : DEFAULT_SETTINGS.engineBuild,
       sidebarCollapsed:
         typeof parsed.sidebarCollapsed === "boolean"
           ? parsed.sidebarCollapsed
@@ -285,6 +290,7 @@ type StudioState = {
   setEngineDepth: (depth: number) => void;
   setMultiPv: (value: number) => void;
   setEngineThreads: (value: number) => void;
+  setEngineBuild: (build: EngineBuild) => void;
   setActivity: (view: ActivityView) => void;
   toggleSidebar: () => void;
   setDatabaseSource: (source: ExplorerSource) => void;
@@ -738,6 +744,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set((state) => ({
       settings: { ...state.settings, engineThreads: clampThreads(engineThreads) },
     }));
+  },
+  setEngineBuild: (engineBuild) => {
+    set((state) => ({ settings: { ...state.settings, engineBuild } }));
   },
   setActivity: (activity) =>
     set((state) => ({

@@ -289,6 +289,25 @@ button {
   }
 }
 
+@keyframes puzzle-award {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 6px) scale(0.86);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -10px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -26px) scale(1);
+  }
+}
+
 @layer base {
   :where(button, a, input, textarea, select, [tabindex]):focus-visible {
     outline: 2px solid var(--studio-accent);
