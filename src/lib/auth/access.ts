@@ -1,36 +1,5 @@
-import type { SupabaseClient, User } from "@supabase/supabase-js";
-import type { Database } from "@/src/lib/supabase/database.types";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
-
-export function courseAdminEmails(): Set<string> {
-  return new Set(
-    (process.env.COURSE_ADMINS ?? "")
-      .split(",")
-      .map((item) => item.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-export function emailIsCourseAdmin(email: string | null | undefined): boolean {
-  if (!email) {
-    return false;
-  }
-  return courseAdminEmails().has(email.toLowerCase());
-}
-
-export async function userCanPublishCourses(
-  supabase: SupabaseClient<Database>,
-  user: Pick<User, "id" | "email" | "app_metadata">,
-): Promise<boolean> {
-  if (user.app_metadata.role === "admin" || emailIsCourseAdmin(user.email)) {
-    return true;
-  }
-  const { data, error } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (error || !data) {
-    return false;
-  }
-  return data.role === "admin";
-}
+import { emailIsCourseAdmin } from "./course-permissions";
 
 async function emailIsListedAdmin(email: string): Promise<boolean> {
   if (emailIsCourseAdmin(email)) {
