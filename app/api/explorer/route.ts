@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/src/lib/supabase/server";
+import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import type { Json } from "@/src/lib/supabase/database.types";
 import type {
   CloudExplorerSource,
@@ -227,8 +228,9 @@ export async function GET(request: NextRequest) {
 
   memoryCache.set(key, { payload, fetchedAt: Date.now() });
 
-  if (supabase && !filtered && !payload.notice) {
-    await supabase.from("explorer_cache").upsert({
+  const service = filtered || payload.notice ? null : createServiceSupabase();
+  if (service) {
+    await service.from("explorer_cache").upsert({
       source: sourceParam,
       fen,
       payload: payload as unknown as Json,
