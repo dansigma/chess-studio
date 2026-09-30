@@ -1,6 +1,6 @@
 "use server";
 
-import { userCanPublishCourses } from "@/src/lib/auth/access";
+import { userCanPublishCourses } from "@/src/lib/auth/course-permissions";
 import type { Json } from "@/src/lib/supabase/database.types";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { createServerSupabase } from "@/src/lib/supabase/server";

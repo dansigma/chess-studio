@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { userCanPublishCourses } from "@/src/lib/auth/access";
+import { userCanPublishCourses } from "@/src/lib/auth/course-permissions";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { getSupabasePublicKey, getSupabaseUrl, isSupabaseConfigured } from "@/src/lib/supabase/env";
 
