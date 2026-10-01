@@ -355,6 +355,7 @@ type StudioState = {
   applySetupFen: (fen: string) => boolean;
   openSharedPosition: (fen: string) => void;
   setUser: (user: UserInfo | null) => void;
+  resetSessionState: () => void;
   hydrateSettings: (settings: Partial<StudioSettings>) => void;
   hydrateLocalSettings: () => void;
   hydrateRemoteBoard: (board: BoardSession) => void;
@@ -1361,7 +1362,47 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       }),
     }));
   },
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    const previousId = get().user?.id ?? null;
+    const nextId = user?.id ?? null;
+    set({ user });
+    if (previousId !== null && previousId !== nextId) {
+      get().resetSessionState();
+    }
+  },
+  resetSessionState: () => {
+    saveLocalFiles(EMPTY_FILES);
+    saveLocalBookmarks([]);
+    const board = emptyBoard();
+    set({
+      boards: [board],
+      activeBoardId: board.id,
+      activity: "boards",
+      databaseSource: "masters",
+      explorer: null,
+      explorerLoading: false,
+      statusMessage: null,
+      aboutOpen: false,
+      notationEditor: null,
+      enginePreview: null,
+      engineEval: null,
+      evalByFen: {},
+      playerProfile: null,
+      playerGames: [],
+      playerGamesLoading: false,
+      playerGamesNotice: null,
+      playerColorFilter: "all",
+      playerResultFilter: "all",
+      files: EMPTY_FILES,
+      filesQuery: "",
+      activeFileDatabaseId: null,
+      activeFileGameId: null,
+      bookmarks: [],
+      setupMode: false,
+      training: false,
+      trainingStart: null,
+    });
+  },
   hydrateLocalSettings: () => {
     set({ settings: loadLocalSettings() });
   },
