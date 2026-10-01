@@ -88,8 +88,12 @@ export function StudioShell() {
     if (!supabase || !user) {
       return;
     }
+    let cancelled = false;
     void (async () => {
       const remoteSettings = await loadRemoteSettings();
+      if (cancelled) {
+        return;
+      }
       if (remoteSettings) {
         hydrateSettings(remoteSettings);
       }
@@ -97,6 +101,9 @@ export function StudioShell() {
         .from("boards")
         .select("*")
         .order("updated_at", { ascending: false });
+      if (cancelled) {
+        return;
+      }
       for (const row of data ?? []) {
         const imported = importPgn(row.pgn);
         const session: BoardSession = {
@@ -110,12 +117,24 @@ export function StudioShell() {
           dirty: false,
           preview: false,
         };
+        if (cancelled) {
+          return;
+        }
         hydrateRemoteBoard(session);
       }
       const remoteFiles = await loadRemoteFiles(user.id);
+      if (cancelled) {
+        return;
+      }
       useStudioStore.getState().mergeRemoteFiles(remoteFiles);
+      if (cancelled) {
+        return;
+      }
       await useStudioStore.getState().hydrateRemoteBookmarks();
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [hydrateRemoteBoard, hydrateSettings, user]);
 
   useEffect(() => {
