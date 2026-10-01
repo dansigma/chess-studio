@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowRightToLine,
   ArrowUp,
@@ -429,6 +429,32 @@ export function NotationPanel() {
     }
   }
 
+  const commitDraftComment = useCallback(() => {
+    if (commentBeforeOpen) {
+      if (draftComment !== currentBefore) {
+        setMoveCommentBefore(draftComment);
+      }
+    } else if (commentOpen && draftComment !== currentComment) {
+      setMoveComment(draftComment);
+    }
+  }, [
+    commentBeforeOpen,
+    commentOpen,
+    currentBefore,
+    currentComment,
+    draftComment,
+    setMoveComment,
+    setMoveCommentBefore,
+  ]);
+
+  useEffect(() => {
+    if (!commentOpen && !commentBeforeOpen) {
+      return;
+    }
+    const handle = window.setTimeout(commitDraftComment, 300);
+    return () => window.clearTimeout(handle);
+  }, [commitDraftComment, commentOpen, commentBeforeOpen]);
+
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const moveLabel = useMemo(() => {
     if (!current) {
@@ -574,14 +600,11 @@ export function NotationPanel() {
             value={draftComment}
             onChange={(event) => {
               setDraftComment(event.target.value);
-              if (commentBeforeOpen) {
-                setMoveCommentBefore(event.target.value);
-              } else {
-                setMoveComment(event.target.value);
-              }
             }}
+            onBlur={commitDraftComment}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
+                commitDraftComment();
                 setEditor(null);
               }
             }}
@@ -594,7 +617,14 @@ export function NotationPanel() {
             autoFocus
           />
           <div className="mt-2 flex justify-end">
-            <Button size="sm" variant="primary" onClick={() => setEditor(null)}>
+            <Button
+              size="sm"
+              variant="primary"
+              onClick={() => {
+                commitDraftComment();
+                setEditor(null);
+              }}
+            >
               Done
             </Button>
           </div>
