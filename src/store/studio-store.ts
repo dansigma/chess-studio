@@ -355,6 +355,7 @@ type StudioState = {
   applySetupFen: (fen: string) => boolean;
   openSharedPosition: (fen: string) => void;
   setUser: (user: UserInfo | null) => void;
+  resetSessionState: () => void;
   hydrateSettings: (settings: Partial<StudioSettings>) => void;
   hydrateLocalSettings: () => void;
   hydrateRemoteBoard: (board: BoardSession) => void;
@@ -397,6 +398,19 @@ function analysisFen(state: { boards: BoardSession[]; activeBoardId: string }): 
     state.boards[0];
   return analysis ? getFenAt(analysis.tree, analysis.path) : START_FEN;
 }
+
+// Data (non-function) keys of the store; the reset payload must cover every
+// session-scoped one so a future session key cannot silently survive sign-out.
+// (Pick, not Record<..., unknown>: keeps the exact value types so the payload
+// is checked for completeness AND assignability to Partial<StudioState>.)
+type SessionDataKey = {
+  [K in keyof StudioState]: StudioState[K] extends (...args: never[]) => unknown ? never : K;
+}[keyof StudioState];
+
+type SessionResetPayload = Pick<
+  StudioState,
+  Exclude<SessionDataKey, "settings" | "user" | "layoutNonce">
+>;
 
 export const useStudioStore = create<StudioState>((set, get) => ({
   boards: [emptyBoard()],
@@ -1361,7 +1375,50 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       }),
     }));
   },
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    const previousId = get().user?.id ?? null;
+    const nextId = user?.id ?? null;
+    set({ user });
+    if (previousId !== null && previousId !== nextId) {
+      get().resetSessionState();
+    }
+  },
+  resetSessionState: () => {
+    // intentional: local-only (remoteId null) entries are expendable on account change; per-user namespacing tracked in SIG-886
+    saveLocalFiles(EMPTY_FILES);
+    saveLocalBookmarks([]);
+    const board = emptyBoard();
+    const sessionReset = {
+      boards: [board],
+      // intentional: initializer seeds "" and resolves via the boards[0] fallback; the reset assigns the id directly like the post-create block — same single empty board either way
+      activeBoardId: board.id,
+      activity: "boards",
+      databaseSource: "masters",
+      explorer: null,
+      explorerLoading: false,
+      statusMessage: null,
+      aboutOpen: false,
+      notationEditor: null,
+      enginePreview: null,
+      engineEval: null,
+      evalByFen: {},
+      playerProfile: null,
+      playerGames: [],
+      playerGamesLoading: false,
+      playerGamesNotice: null,
+      playerColorFilter: "all",
+      playerResultFilter: "all",
+      files: EMPTY_FILES,
+      filesQuery: "",
+      activeFileDatabaseId: null,
+      activeFileGameId: null,
+      bookmarks: [],
+      setupMode: false,
+      training: false,
+      trainingStart: null,
+    } satisfies SessionResetPayload;
+    set(sessionReset);
+  },
   hydrateLocalSettings: () => {
     set({ settings: loadLocalSettings() });
   },
