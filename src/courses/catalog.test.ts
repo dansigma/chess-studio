@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { courseSlugError, courseThemeLabel, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog.ts";
+import { courseSlugError, courseThemeLabel, findPublishedConflict, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog.ts";
 import { SEED_COURSES } from "./seed.ts";
 import type { Course } from "./types.ts";
 
@@ -48,5 +48,28 @@ describe("course catalog", () => {
     assert.equal(chapters.length, 1);
     assert.equal(chapters[0]?.variations.length, 1);
     assert.equal(chapters[0]?.variations[0]?.pgn, "1. e4 c6");
+  });
+
+  it("finds a published course with the same id", () => {
+    const list = [
+      { id: "11111111-1111-4111-8111-111111111111", title: "Live course" },
+      { id: "22222222-2222-4222-8222-222222222222", title: "Other course" },
+    ];
+    const found = findPublishedConflict("11111111-1111-4111-8111-111111111111", list);
+    assert.equal(found?.title, "Live course");
+  });
+
+  it("returns null when no published course shares the id", () => {
+    const list = [{ id: "11111111-1111-4111-8111-111111111111", title: "Live course" }];
+    assert.equal(findPublishedConflict("33333333-3333-4333-8333-333333333333", list), null);
+  });
+
+  it("returns null for invalid ids even on textual match", () => {
+    const list = [
+      { id: "not-a-uuid", title: "Textual match" },
+      { id: "", title: "Empty match" },
+    ];
+    assert.equal(findPublishedConflict("not-a-uuid", list), null);
+    assert.equal(findPublishedConflict("", list), null);
   });
 });

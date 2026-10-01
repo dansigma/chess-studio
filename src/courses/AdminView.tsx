@@ -9,8 +9,13 @@ import { CourseChrome } from "./CourseChrome";
 import { DescriptionField } from "./DescriptionField";
 import { moveListItem, normalizeChapters } from "./draft";
 import { currentUserCanPublish, publishCourse, removePublishedCourse } from "./publish";
-import { isCourseId, isCourseTheme, slugify } from "./catalog";
-import { clearLocalCustomCourses, fetchPublishedCourses, readLocalCustomCourses } from "./store";
+import { findPublishedConflict, isCourseId, isCourseTheme, slugify } from "./catalog";
+import {
+  clearLocalCustomCourses,
+  fetchPublishedCourses,
+  readLocalCustomCourses,
+  removeLocalCustomDraft,
+} from "./store";
 import { COURSE_THEMES, type Course, type CourseChapter, type CourseColor, type CourseTheme, type CourseVariation } from "./types";
 
 type CourseDraft = Omit<Course, "theme"> & { theme: CourseTheme | "" };
@@ -35,6 +40,8 @@ export function AdminView() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [draft, setDraft] = useState<CourseDraft>(emptyCourse);
   const [error, setError] = useState("");
+  const [localDrafts, setLocalDrafts] = useState<Course[]>([]);
+  const [importingId, setImportingId] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
   const draftRef = useRef(draft);
@@ -43,6 +50,47 @@ export function AdminView() {
   useEffect(() => {
     let cancel = false;
     void (async () => {
+    if (
+      process.env.NODE_ENV === "development" &&
+      new URLSearchParams(window.location.search).has("previewDrafts")
+    ) {
+      setAllowed(true);
+      setCourses([
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          slug: "preview-live",
+          title: "Preview live course",
+          summary: "",
+          theme: "openings",
+          color: "white",
+          chapters: [],
+        },
+      ]);
+      setLocalDrafts([
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          slug: "preview-draft-replace",
+          title: "Preview draft — replaces",
+          summary: "",
+          theme: "openings",
+          color: "black",
+          chapters: [
+            { id: "c-1", title: "One", variations: [] },
+            { id: "c-2", title: "Two", variations: [] },
+          ],
+        },
+        {
+          id: "22222222-2222-4222-8222-222222222222",
+          slug: "preview-draft-new",
+          title: "Preview draft — new",
+          summary: "",
+          theme: "strategy",
+          color: "white",
+          chapters: [{ id: "c-3", title: "Only", variations: [] }],
+        },
+      ]);
+      return;
+    }
       const allowedToPublish = await currentUserCanPublish();
       if (cancel) {
         return;
@@ -61,29 +109,8 @@ export function AdminView() {
         setCourses(published.courses);
         return;
       }
-      const local = readLocalCustomCourses();
-      const uploaded: Course[] = [];
-      const failures: string[] = [];
-      for (const course of local) {
-        const result = await publishCourse({
-          ...course,
-          id: isCourseId(course.id) ? course.id : crypto.randomUUID(),
-          theme: isCourseTheme(course.theme) ? course.theme : "openings",
-        });
-        if (result.ok) {
-          uploaded.push(result.course);
-        } else {
-          failures.push(result.error);
-        }
-      }
-      if (local.length > 0 && failures.length === 0) {
-        clearLocalCustomCourses();
-      }
-      const seen = new Set(uploaded.map((course) => course.id));
-      setCourses([...uploaded, ...published.courses.filter((course) => !seen.has(course.id))]);
-      if (failures.length > 0) {
-        setError(failures[0] ?? "");
-      }
+      setCourses(published.courses);
+      setLocalDrafts(readLocalCustomCourses());
     })();
     return () => {
       cancel = true;
@@ -206,6 +233,36 @@ export function AdminView() {
     setError("");
   }
 
+  async function importLocalDraft(course: Course) {
+    const conflict = findPublishedConflict(course.id, courses);
+    if (conflict && !window.confirm(`Replace the published course “${conflict.title}” with this browser draft?`)) {
+      return;
+    }
+    setImportingId(course.id);
+    const result = await publishCourse({
+      ...course,
+      id: isCourseId(course.id) ? course.id : crypto.randomUUID(),
+      theme: isCourseTheme(course.theme) ? course.theme : "openings",
+    });
+    setImportingId(null);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    setCourses((current) => [result.course, ...current.filter((item) => item.id !== result.course.id)]);
+    setLocalDrafts((current) => current.filter((item) => item.id !== course.id));
+    removeLocalCustomDraft(course.id);
+    setError("");
+  }
+
+  function discardLocalDrafts() {
+    if (!window.confirm("Discard the drafts saved in this browser? This cannot be undone.")) {
+      return;
+    }
+    clearLocalCustomCourses();
+    setLocalDrafts([]);
+  }
+
   if (allowed === null) {
     return <div className="min-h-full bg-studio-bg" />;
   }
@@ -231,6 +288,44 @@ export function AdminView() {
     <div className="min-h-full bg-studio-bg">
       <CourseChrome admin />
       <main className="mx-auto grid max-w-6xl gap-6 px-6 py-8 lg:grid-cols-[240px_minmax(0,1fr)]">
+        {localDrafts.length > 0 ? (
+          <section className="rounded-xl border border-studio-border p-4 lg:col-span-2">
+            <h2 className="text-body font-medium text-studio-fg">Drafts saved in this browser</h2>
+            <p className="mt-1 text-caption text-studio-muted">
+              These courses live only in this browser. Import a draft to publish it for every student. Nothing is
+              published automatically.
+            </p>
+            <ul className="mt-3 space-y-2">
+              {localDrafts.map((course, index) => {
+                const conflict = findPublishedConflict(course.id, courses);
+                const title =
+                  typeof course.title === "string" && course.title.trim() ? course.title.trim() : "Untitled course";
+                const chapterCount = Array.isArray(course.chapters) ? course.chapters.length : 0;
+                return (
+                  <li key={`${course.id}-${index}`} className="flex flex-wrap items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-body text-studio-fg">{title}</span>
+                    <span className="text-caption text-studio-muted">
+                      {chapterCount === 1 ? "1 chapter" : `${chapterCount} chapters`}
+                    </span>
+                    {conflict ? (
+                      <span className="text-caption text-studio-warning-fg">Replaces “{conflict.title}”</span>
+                    ) : null}
+                    <Button
+                      variant={conflict ? "ghost" : "primary"}
+                      disabled={importingId !== null}
+                      onClick={() => void importLocalDraft(course)}
+                    >
+                      {importingId === course.id ? "Importing…" : conflict ? "Replace" : "Import"}
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+            <Button variant="ghost" className="mt-3" disabled={importingId !== null} onClick={discardLocalDrafts}>
+              Discard all drafts
+            </Button>
+          </section>
+        ) : null}
         <aside>
           <Button
             onClick={() => {

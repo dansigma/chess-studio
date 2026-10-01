@@ -30,6 +30,16 @@ export function courseSlugError(
   return null;
 }
 
+export function findPublishedConflict(
+  id: string,
+  courses: Pick<Course, "id" | "title">[],
+): Pick<Course, "id" | "title"> | null {
+  if (!isCourseId(id)) {
+    return null;
+  }
+  return courses.find((course) => course.id === id) ?? null;
+}
+
 export function parseChapters(value: Json): CourseChapter[] {
   if (!Array.isArray(value)) {
     return [];
