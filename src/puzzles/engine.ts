@@ -100,10 +100,11 @@ export function materialFor(fen: string, color: "w" | "b"): number {
 }
 
 export function dateKey(now: number): string {
+  // UTC so the daily puzzle rolls over at the same instant for every timezone (SIG-853).
   const date = new Date(now);
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${date.getUTCFullYear()}-${month}-${day}`;
 }
 
 export function dailyPuzzle(puzzles: readonly CompiledPuzzle[], now: number): CompiledPuzzle {
