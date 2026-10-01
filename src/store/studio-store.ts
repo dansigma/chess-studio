@@ -399,6 +399,19 @@ function analysisFen(state: { boards: BoardSession[]; activeBoardId: string }): 
   return analysis ? getFenAt(analysis.tree, analysis.path) : START_FEN;
 }
 
+// Data (non-function) keys of the store; the reset payload must cover every
+// session-scoped one so a future session key cannot silently survive sign-out.
+// (Pick, not Record<..., unknown>: keeps the exact value types so the payload
+// is checked for completeness AND assignability to Partial<StudioState>.)
+type SessionDataKey = {
+  [K in keyof StudioState]: StudioState[K] extends (...args: never[]) => unknown ? never : K;
+}[keyof StudioState];
+
+type SessionResetPayload = Pick<
+  StudioState,
+  Exclude<SessionDataKey, "settings" | "user" | "layoutNonce">
+>;
+
 export const useStudioStore = create<StudioState>((set, get) => ({
   boards: [emptyBoard()],
   activeBoardId: "",
@@ -1371,11 +1384,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
   },
   resetSessionState: () => {
+    // intentional: local-only (remoteId null) entries are expendable on account change; per-user namespacing tracked in SIG-886
     saveLocalFiles(EMPTY_FILES);
     saveLocalBookmarks([]);
     const board = emptyBoard();
-    set({
+    const sessionReset = {
       boards: [board],
+      // intentional: initializer seeds "" and resolves via the boards[0] fallback; the reset assigns the id directly like the post-create block — same single empty board either way
       activeBoardId: board.id,
       activity: "boards",
       databaseSource: "masters",
@@ -1401,7 +1416,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       setupMode: false,
       training: false,
       trainingStart: null,
-    });
+    } satisfies SessionResetPayload;
+    set(sessionReset);
   },
   hydrateLocalSettings: () => {
     set({ settings: loadLocalSettings() });
