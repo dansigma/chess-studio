@@ -49,6 +49,9 @@ export function StudioShell() {
     ? (files.databases.find((item) => item.id === selectedFileId)?.games.map((game) => game.id).join(",") ?? "")
     : "";
   const status = useStudioStore((state) => state.statusMessage);
+  const dirtyRevision = useStudioStore((state) =>
+    state.boards.map((board) => `${board.id}:${board.dirty ? "1" : "0"}`).join("|"),
+  );
   const aboutOpen = useStudioStore((state) => state.aboutOpen);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
   const setExplorer = useStudioStore((state) => state.setExplorer);
@@ -145,10 +148,20 @@ export function StudioShell() {
             useStudioStore.getState().markSaved(board.id, remoteId);
           }
         })
-        .catch(() => undefined);
+        .catch(() => useStudioStore.getState().setStatus("Could not save board."));
     }, 1000);
     return () => window.clearTimeout(handle);
-  }, [fen, user]);
+  }, [dirtyRevision, user]);
+
+  useEffect(() => {
+    if (status === null) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      useStudioStore.getState().setStatus(null);
+    }, 3000);
+    return () => window.clearTimeout(handle);
+  }, [status]);
 
   useEffect(() => {
     let cancelled = false;
