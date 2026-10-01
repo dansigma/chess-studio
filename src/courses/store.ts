@@ -37,7 +37,27 @@ function writeLocalProgress(progress: Record<string, VariationProgress>): void {
 }
 
 export function readLocalCustomCourses(): Course[] {
-  return readJson<Course[]>(LOCAL_COURSES_KEY, []);
+  const value = readJson<unknown>(LOCAL_COURSES_KEY, []);
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is Course => typeof item === "object" && item !== null);
+}
+
+export function removeLocalCustomDraft(id: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const remaining = readLocalCustomCourses().filter((course) => course.id !== id);
+  if (remaining.length === 0) {
+    window.localStorage.removeItem(LOCAL_COURSES_KEY);
+    return;
+  }
+  try {
+    window.localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(remaining));
+  } catch {
+    // Keep the draft in memory; a later import retries.
+  }
 }
 
 export function clearLocalCustomCourses(): void {
