@@ -6,6 +6,7 @@ import {
   applyResult,
   compilePuzzle,
   dailyPuzzle,
+  dateKey,
   emptyProgress,
   fenAtPly,
   judgeMove,
@@ -131,6 +132,11 @@ test("the daily puzzle is stable and counts once", () => {
   assert.equal(twice.solved, 1);
   assert.equal(twice.rating, 1200);
   assert.equal(twice.daily, "2026-09-28");
+});
+
+test("dateKey uses the UTC calendar day", () => {
+  assert.equal(dateKey(Date.parse("2026-06-15T12:00:00Z")), "2026-06-15");
+  assert.equal(dateKey(Date.parse("2026-01-02T01:00:00Z")), "2026-01-02");
 });
 
 test("rush keeps the best score and leaves the rating alone", () => {

@@ -1,6 +1,7 @@
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { isCourseColor, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog";
 import { courseImageUrl } from "./media";
+import { mergeProgress } from "./progress";
 import { SEED_COURSES } from "./seed";
 import type { Course, VariationProgress } from "./types";
 
@@ -142,25 +143,24 @@ export async function hydrateProgress(userId: string | null): Promise<Record<str
   for (const row of data ?? []) {
     remote[row.variation_id] = { step: row.step, learned: row.learned };
   }
-  const missing = Object.entries(local).filter(([id]) => !remote[id]);
-  if (missing.length > 0) {
+  const { merged, toUpload } = mergeProgress(local, remote);
+  const ids = Object.keys(toUpload);
+  let uploadFailed = false;
+  if (ids.length > 0) {
     const { error: uploadError } = await supabase.from("course_progress").upsert(
-      missing.map(([variationId, progress]) => ({
+      ids.map((variationId) => ({
         user_id: userId,
         variation_id: variationId,
-        step: progress.step,
-        learned: progress.learned,
+        step: toUpload[variationId].step,
+        learned: toUpload[variationId].learned,
         updated_at: new Date().toISOString(),
       })),
     );
-    if (!uploadError) {
-      for (const [id, progress] of missing) {
-        remote[id] = progress;
-      }
-    }
+    uploadFailed = Boolean(uploadError);
   }
-  progressCache = remote;
-  progressOnAccount = true;
+  progressCache = merged;
+  progressOnAccount = !uploadFailed;
+  writeLocalProgress(merged);
   return progressCache;
 }
 
@@ -186,6 +186,7 @@ export async function saveVariationProgress(variationId: string, progress: Varia
     writeLocalProgress(progressCache);
     return "Progress stayed in this browser.";
   }
+  writeLocalProgress(progressCache);
   return null;
 }
 
