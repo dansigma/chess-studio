@@ -286,7 +286,7 @@ export function PuzzleTrainer() {
     if (!puzzle || !userTurn || !expected) {
       return false;
     }
-    const judged = judgeMove(fen, expected, from, to);
+    const judged = judgeMove(fen, expected, from, to, puzzle.themes.includes("mate"));
     if (judged.kind === "illegal") {
       return false;
     }
@@ -310,7 +310,7 @@ export function PuzzleTrainer() {
     setLast({ from: judged.from, to: judged.to });
     const nextPly = ply + 1;
     setPly(nextPly);
-    if (nextPly >= puzzle.uci.length) {
+    if (judged.mate || nextPly >= puzzle.uci.length) {
       setStatus("solved");
       commit(true, puzzle);
       if (mode === "rush" && secondsRef.current > 0) {

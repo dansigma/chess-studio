@@ -149,28 +149,64 @@ export function sessionTarget(startRating: number, solvedInSession: number, mode
 
 export type JudgedMove =
   | { kind: "illegal" }
-  | { kind: "correct" | "wrong"; fen: string; from: string; to: string; san: string; uci: string };
+  | { kind: "correct" | "wrong"; fen: string; from: string; to: string; san: string; uci: string; mate: boolean };
 
-export function judgeMove(fen: string, expected: string, from: string, to: string): JudgedMove {
+export function judgeMove(
+  fen: string,
+  expected: string,
+  from: string,
+  to: string,
+  acceptMate = false,
+): JudgedMove {
   if (!isSquare(from) || !isSquare(to)) {
     return { kind: "illegal" };
   }
   const chess = new Chess(fen);
   const piece = chess.get(from);
   const promotionRank = piece?.color === "w" ? "8" : "1";
-  const promotion = piece?.type === "p" && to[1] === promotionRank ? expected[4] || "q" : undefined;
-  let move;
-  try {
-    move = chess.move({ from, to, promotion });
-  } catch {
+  const candidates: Array<string | undefined> =
+    piece?.type === "p" && to[1] === promotionRank ? ["q", "r", "b", "n"] : [undefined];
+  let played: { fen: string; from: string; to: string; san: string; uci: string; mate: boolean } | null =
+    null;
+  let mateAlt: { fen: string; from: string; to: string; san: string; uci: string; mate: boolean } | null =
+    null;
+  for (const promotion of candidates) {
+    const probe = new Chess(fen);
+    let move;
+    try {
+      move = probe.move({ from, to, promotion });
+    } catch {
+      continue;
+    }
+    if (!move) {
+      continue;
+    }
+    const uci = `${move.from}${move.to}${move.promotion ?? ""}`;
+    const outcome = {
+      fen: probe.fen(),
+      from: move.from,
+      to: move.to,
+      san: move.san,
+      uci,
+      mate: probe.isCheckmate(),
+    };
+    if (uci === expected) {
+      return { kind: "correct", ...outcome };
+    }
+    if (!mateAlt && outcome.mate) {
+      mateAlt = outcome;
+    }
+    if (!played) {
+      played = outcome;
+    }
+  }
+  if (acceptMate && mateAlt) {
+    return { kind: "correct", ...mateAlt };
+  }
+  if (!played) {
     return { kind: "illegal" };
   }
-  if (!move) {
-    return { kind: "illegal" };
-  }
-  const uci = `${move.from}${move.to}${move.promotion ?? ""}`;
-  const played = { fen: chess.fen(), from: move.from, to: move.to, san: move.san, uci };
-  return uci === expected ? { kind: "correct", ...played } : { kind: "wrong", ...played };
+  return { kind: "wrong", ...played };
 }
 
 export function playUci(fen: string, uci: string): { fen: string; from: string; to: string; san: string } {

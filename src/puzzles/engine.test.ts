@@ -191,3 +191,26 @@ test("theme filters are real puzzle themes", () => {
   assert.ok(ranked.length >= 2);
   assert.ok(ranked.every((puzzle) => puzzle.themes.includes(theme)));
 });
+
+test("an alternate move that mates is accepted in mate puzzles", () => {
+  const puzzle = PUZZLES.find((item) => item.id === "queen-corridor");
+  assert.ok(puzzle);
+  const altMate = judgeMove(puzzle.fen, puzzle.uci[0], "f7", "e8", true);
+  assert.ok(altMate.kind === "correct");
+  assert.equal(altMate.mate, true);
+  const withoutFlag = judgeMove(puzzle.fen, puzzle.uci[0], "f7", "e8");
+  assert.equal(withoutFlag.kind, "wrong");
+  const notMate = judgeMove(puzzle.fen, puzzle.uci[0], "f7", "f4", true);
+  assert.equal(notMate.kind, "wrong");
+});
+
+test("promotion is resolved from the move, not the expected string", () => {
+  const puzzle = PUZZLES.find((item) => item.id === "promote-f");
+  assert.ok(puzzle);
+  const promoted = judgeMove(puzzle.fen, "f7f8r", "f7", "f8", false);
+  assert.ok(promoted.kind === "correct");
+  assert.equal(promoted.uci, "f7f8r");
+  const promotedWithFlag = judgeMove(puzzle.fen, "f7f8r", "f7", "f8", true);
+  assert.equal(promotedWithFlag.kind, "correct");
+  assert.equal(promotedWithFlag.uci, "f7f8r");
+});
