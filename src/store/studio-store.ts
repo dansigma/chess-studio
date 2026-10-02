@@ -596,6 +596,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     soundForAdvance(previous);
   },
   back: () => {
+    if (get().training) {
+      return;
+    }
     set((state) => ({
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
