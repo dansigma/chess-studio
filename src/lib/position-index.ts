@@ -3,6 +3,7 @@ import { positionKey } from "@/src/chess/zobrist";
 
 export type PositionRow = {
   game_id: string;
+  seq: number;
   ply: number;
   zkey: string;
   next_uci: string | null;
@@ -64,6 +65,7 @@ export function rowsForTree(tree: GameTree, gameId: string, bucket: Bucket): {
       leafPly += 1;
       positions.push({
         game_id: gameId,
+        seq: positions.length + 1,
         ply: 1_000_000 + leafPly,
         zkey: positionKey(event.fen).toString(),
         next_uci: null,
@@ -73,6 +75,7 @@ export function rowsForTree(tree: GameTree, gameId: string, bucket: Bucket): {
     const zkey = positionKey(event.fenBefore).toString();
     positions.push({
       game_id: gameId,
+      seq: positions.length + 1,
       ply: event.ply,
       zkey,
       next_uci: event.uci || null,

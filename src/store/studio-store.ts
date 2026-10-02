@@ -1169,7 +1169,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     });
     const user = get().user;
     if (user) {
-      void persistRemoteDatabase(database, user.id).then((remoteId) => {
+      void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError }) => {
+        if (indexError) {
+          set({ statusMessage: "Games imported, but the position index could not be saved." });
+        }
         if (!remoteId) {
           return;
         }
