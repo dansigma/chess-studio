@@ -11,7 +11,7 @@ import { MARK_HEX } from "@/src/chess/marks";
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button, IconButton } from "@/src/studio/ui/Button";
-import { lessonFrames, moveMatches, progressAfterStep } from "./lesson";
+import { lessonFrames, progressAfterStep, studentMoveMatches } from "./lesson";
 import { findVariation, loadProgress, saveVariationProgress } from "./store";
 import { useCourseData } from "./use-courses";
 import { CourseChrome } from "./CourseChrome";
@@ -92,15 +92,7 @@ export function LessonView({ slug, variationId }: { slug: string; variationId: s
     if (!frame?.move?.student || from === to) {
       return false;
     }
-    const chess = new Chess(frame.fen);
-    let played;
-    try {
-      played = chess.move({ from: from as Square, to: to as Square, promotion: "q" });
-    } catch {
-      return false;
-    }
-    const uci = `${played.from}${played.to}${played.promotion ?? ""}`;
-    if (!moveMatches(frame, uci)) {
+    if (!studentMoveMatches(frame, from, to)) {
       setNotice("That move is not in this line.");
       setHint(true);
       setSelected(null);
