@@ -38,16 +38,14 @@ export function visitGameTree(
       | { type: "move"; fenBefore: string; san: string; uci: string; ply: number },
   ) => void,
 ): void {
-  let ply = 0;
-  const walk = (fen: string, nodes: TreeNode[]) => {
+  const walk = (fen: string, nodes: TreeNode[], ply: number) => {
     visit({ type: "position", fen, leaf: nodes.length === 0 });
     for (const node of nodes) {
-      ply += 1;
-      visit({ type: "move", fenBefore: fen, san: node.san, uci: node.uci, ply });
-      walk(node.fen, node.children);
+      visit({ type: "move", fenBefore: fen, san: node.san, uci: node.uci, ply: ply + 1 });
+      walk(node.fen, node.children, ply + 1);
     }
   };
-  walk(tree.startFen, tree.children);
+  walk(tree.startFen, tree.children, 0);
 }
 
 export function rowsForTree(tree: GameTree, gameId: string, bucket: Bucket): {
