@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import {
@@ -78,6 +78,7 @@ export function ReviewPanel() {
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [rows, setRows] = useState<MoveRow[] | null>(null);
   const [cancelledRun, setCancelledRun] = useState(false);
+  const runIdRef = useRef(0);
 
   const points = useMemo(
     () => variationPoints(board.tree, board.path),
@@ -95,6 +96,8 @@ export function ReviewPanel() {
   }
 
   useEffect(() => {
+    runIdRef.current += 1;
+    const runId = runIdRef.current;
     if (!running || setupMode || points.length < 2) {
       return;
     }
@@ -122,6 +125,7 @@ export function ReviewPanel() {
         };
         let latest: PositionScore | null = null;
         const timer = window.setTimeout(() => finish(latest), timeoutMs);
+        engine.analyze(fen, depth, lines, threads, searchMoves, fresh);
         unsubscribe = engine.subscribe((info) => {
           if (cancelled) {
             finish(null);
@@ -138,7 +142,6 @@ export function ReviewPanel() {
             finish(score);
           }
         });
-        engine.analyze(fen, depth, lines, threads, searchMoves, fresh);
       });
     }
 
@@ -174,6 +177,9 @@ export function ReviewPanel() {
       const scores: Array<PositionScore | null> = [];
       for (let index = 0; index < points.length; index += 1) {
         if (cancelled) {
+          if (runId !== runIdRef.current) {
+            return;
+          }
           setCancelledRun(true);
           setRunning(false);
           return;
@@ -184,6 +190,9 @@ export function ReviewPanel() {
       setProgress({ done: points.length, total: points.length });
       const replies = await bookPromise;
       if (cancelled) {
+        if (runId !== runIdRef.current) {
+          return;
+        }
         setCancelledRun(true);
         setRunning(false);
         return;
