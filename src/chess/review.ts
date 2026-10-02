@@ -58,6 +58,9 @@ export function sideMaterial(fen: string, side: Color): number {
 }
 
 export function isSacrificeOn(before: Chess, after: Chess, side: Color): boolean {
+  // Detects any material decrease for `side` between the two boards, including
+  // opponent captures (inherited `isSacrifice` semantics). Callers decide
+  // whether that counts as a voluntary sacrifice.
   return sideMaterialOn(after, side) < sideMaterialOn(before, side);
 }
 
