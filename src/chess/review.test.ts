@@ -140,4 +140,8 @@ test("the board-based checks match the fen wrappers", () => {
   assert.equal(isSacrificeOn(before, after, "b"), isSacrifice(fenBefore, fenAfter, "b"));
   assert.equal(hangsPieceOn(before, after, "f6g4", "b"), true);
   assert.equal(isSacrificeOn(before, after, "b"), false);
+  const sacBefore = new Chess("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+  const sacAfter = new Chess("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R1BQKBNR w KQkq - 0 1");
+  assert.equal(isSacrificeOn(sacBefore, sacAfter, "w"), true);
+  assert.equal(isSacrifice("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R1BQKBNR w KQkq - 0 1", "w"), true);
 });
