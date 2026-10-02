@@ -3,6 +3,7 @@ import { positionKey } from "@/src/chess/zobrist";
 
 export type PositionRow = {
   game_id: string;
+  seq: number;
   ply: number;
   zkey: string;
   next_uci: string | null;
@@ -38,16 +39,14 @@ export function visitGameTree(
       | { type: "move"; fenBefore: string; san: string; uci: string; ply: number },
   ) => void,
 ): void {
-  let ply = 0;
-  const walk = (fen: string, nodes: TreeNode[]) => {
+  const walk = (fen: string, nodes: TreeNode[], ply: number) => {
     visit({ type: "position", fen, leaf: nodes.length === 0 });
     for (const node of nodes) {
-      ply += 1;
-      visit({ type: "move", fenBefore: fen, san: node.san, uci: node.uci, ply });
-      walk(node.fen, node.children);
+      visit({ type: "move", fenBefore: fen, san: node.san, uci: node.uci, ply: ply + 1 });
+      walk(node.fen, node.children, ply + 1);
     }
   };
-  walk(tree.startFen, tree.children);
+  walk(tree.startFen, tree.children, 0);
 }
 
 export function rowsForTree(tree: GameTree, gameId: string, bucket: Bucket): {
@@ -66,6 +65,7 @@ export function rowsForTree(tree: GameTree, gameId: string, bucket: Bucket): {
       leafPly += 1;
       positions.push({
         game_id: gameId,
+        seq: positions.length + 1,
         ply: 1_000_000 + leafPly,
         zkey: positionKey(event.fen).toString(),
         next_uci: null,
@@ -75,6 +75,7 @@ export function rowsForTree(tree: GameTree, gameId: string, bucket: Bucket): {
     const zkey = positionKey(event.fenBefore).toString();
     positions.push({
       game_id: gameId,
+      seq: positions.length + 1,
       ply: event.ply,
       zkey,
       next_uci: event.uci || null,

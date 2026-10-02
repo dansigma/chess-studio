@@ -2,6 +2,7 @@ import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { importPgn } from "@/src/chess/pgn";
 import { parsePgnCollection, type ParsedFileGame } from "@/src/chess/pgn-games";
 import { mergeStatRows, resultBucket, rowsForTree, type PositionRow, type StatRow } from "@/src/lib/position-index";
+import type { Database } from "@/src/lib/supabase/database.types";
 
 const FILES_KEY = "studio-clone-files";
 
@@ -113,10 +114,10 @@ export function libraryFromPgn(name: string, pgn: string, folderId: string | nul
 export async function persistRemoteDatabase(
   database: FileDatabase,
   userId: string,
-): Promise<string | null> {
+): Promise<{ remoteId: string | null; indexError: string | null }> {
   const supabase = createBrowserSupabase();
   if (!supabase) {
-    return null;
+    return { remoteId: null, indexError: null };
   }
   let remoteId = database.remoteId;
   if (!remoteId) {
@@ -131,7 +132,7 @@ export async function persistRemoteDatabase(
       .select("id")
       .single();
     if (error || !data) {
-      return null;
+      return { remoteId: null, indexError: null };
     }
     remoteId = data.id;
   } else {
@@ -168,9 +169,9 @@ export async function persistRemoteDatabase(
     });
     const { error } = await supabase.from("games").insert(prepared.map((item) => item.row));
     if (error) {
-      return remoteId;
+      return { remoteId, indexError: null };
     }
-    await writePositionIndex(
+    const indexError = await writePositionIndex(
       supabase,
       remoteId,
       prepared.map((item) => ({
@@ -179,10 +180,11 @@ export async function persistRemoteDatabase(
         result: item.row.result,
       })),
     );
+    return { remoteId, indexError };
   } else {
     await supabase.from("position_stats").delete().eq("database_id", remoteId);
   }
-  return remoteId;
+  return { remoteId, indexError: null };
 }
 
 function headerNumber(value: string | undefined): number | null {
@@ -217,10 +219,10 @@ async function writePositionIndex(
   supabase: NonNullable<ReturnType<typeof createBrowserSupabase>>,
   databaseId: string,
   games: Array<{ id: string; tree: ReturnType<typeof importPgn>["tree"]; result: string | null }>,
-): Promise<void> {
+): Promise<string | null> {
   const { error: clearError } = await supabase.from("position_stats").delete().eq("database_id", databaseId);
   if (clearError) {
-    return;
+    return clearError.message;
   }
   const positions: PositionRow[] = [];
   const contributions: Array<{ zkey: string; nextUci: string; bucket: ReturnType<typeof resultBucket> }> = [];
@@ -230,20 +232,31 @@ async function writePositionIndex(
     contributions.push(...indexed.stats.values());
   }
   const stats: StatRow[] = mergeStatRows(databaseId, contributions);
-  await insertChunks(positions, (chunk) => supabase.from("game_positions").insert(chunk));
-  await insertChunks(stats, (chunk) => supabase.from("position_stats").insert(chunk));
+  type GamePositionInsert = Database["public"]["Tables"]["game_positions"]["Insert"];
+  const positionsError = await insertChunks(positions, (chunk) =>
+    supabase.from("game_positions").insert(chunk as unknown as GamePositionInsert[]),
+  );
+  if (positionsError) {
+    return positionsError;
+  }
+  const statsError = await insertChunks(stats, (chunk) => supabase.from("position_stats").insert(chunk));
+  if (statsError) {
+    return statsError;
+  }
+  return null;
 }
 
 async function insertChunks<T extends PositionRow | StatRow>(
   rows: T[],
   insert: (chunk: T[]) => PromiseLike<{ error: { message: string } | null }>,
-): Promise<void> {
+): Promise<string | null> {
   for (let index = 0; index < rows.length; index += 400) {
     const { error } = await insert(rows.slice(index, index + 400));
     if (error) {
-      return;
+      return error.message;
     }
   }
+  return null;
 }
 
 export async function loadRemoteFiles(userId: string): Promise<FileDatabase[]> {
