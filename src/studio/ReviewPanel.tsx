@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Chess } from "chess.js";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import {
@@ -77,8 +77,6 @@ export function ReviewPanel() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [rows, setRows] = useState<MoveRow[] | null>(null);
-  const [cancelledRun, setCancelledRun] = useState(false);
-  const runIdRef = useRef(0);
 
   const points = useMemo(
     () => variationPoints(board.tree, board.path),
@@ -92,12 +90,9 @@ export function ReviewPanel() {
     setRunning(false);
     setRows(null);
     setProgress({ done: 0, total: 0 });
-    setCancelledRun(false);
   }
 
   useEffect(() => {
-    runIdRef.current += 1;
-    const runId = runIdRef.current;
     if (!running || setupMode || points.length < 2) {
       return;
     }
@@ -177,11 +172,6 @@ export function ReviewPanel() {
       const scores: Array<PositionScore | null> = [];
       for (let index = 0; index < points.length; index += 1) {
         if (cancelled) {
-          if (runId !== runIdRef.current) {
-            return;
-          }
-          setCancelledRun(true);
-          setRunning(false);
           return;
         }
         setProgress({ done: index, total: points.length });
@@ -190,11 +180,6 @@ export function ReviewPanel() {
       setProgress({ done: points.length, total: points.length });
       const replies = await bookPromise;
       if (cancelled) {
-        if (runId !== runIdRef.current) {
-          return;
-        }
-        setCancelledRun(true);
-        setRunning(false);
         return;
       }
       const played = points.slice(0, -1).map((point, index) => getNodeAt(board.tree, points[index + 1].path)?.uci ?? "");
@@ -288,7 +273,6 @@ export function ReviewPanel() {
           variant="primary"
           disabled={setupMode || points.length < 2 || running}
           onClick={() => {
-            setCancelledRun(false);
             setProgress({ done: 0, total: points.length });
             setRunning(true);
           }}
@@ -301,13 +285,10 @@ export function ReviewPanel() {
           <p className="px-3 py-4 text-dense text-studio-faint">Play or open a game to review it.</p>
         ) : null}
         {setupMode ? <p className="px-3 py-2 text-caption text-studio-warning-fg">Paused in setup.</p> : null}
-        {running ? (
+        {running && !setupMode ? (
           <p className="px-3 py-3 text-dense text-studio-muted">
             Scoring moves at depth {REVIEW_DEPTH}… {progress.done}/{progress.total}
           </p>
-        ) : null}
-        {!running && cancelledRun ? (
-          <p className="px-3 py-2 text-caption text-studio-warning-fg">Cancelled.</p>
         ) : null}
         {rows ? (
           <>
