@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Chess } from "chess.js";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import {
   REVIEW_DEPTH,
@@ -9,13 +10,15 @@ import {
   harmonicAccuracy,
   countLabels,
   gradeMove,
-  isSacrifice,
-  hangsPiece,
+  hangsPieceOn,
+  isSacrificeOn,
   lineHolds,
+  mergeBookLabel,
   type PositionScore,
   type ReviewLabel,
   type ReviewedMove,
 } from "@/src/chess/review";
+import { isNullMoveToken } from "@/src/chess/null-move";
 import { dividePhases, phaseAt, type GamePhase } from "@/src/chess/phases";
 import { getNodeAt, variationPoints, type Path } from "@/src/chess/tree";
 import { defaultEngineThreads, scoreNumber, StockfishEngine, type EngineInfo } from "@/src/engine/stockfish-client";
@@ -74,6 +77,7 @@ export function ReviewPanel() {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [rows, setRows] = useState<MoveRow[] | null>(null);
+  const [cancelledRun, setCancelledRun] = useState(false);
 
   const points = useMemo(
     () => variationPoints(board.tree, board.path),
@@ -81,11 +85,14 @@ export function ReviewPanel() {
   );
   const lineKey = `${board.id}:${points.map((point) => point.fen).join("|")}`;
 
-  useEffect(() => {
+  const [lastLineKey, setLastLineKey] = useState(lineKey);
+  if (lastLineKey !== lineKey) {
+    setLastLineKey(lineKey);
     setRunning(false);
     setRows(null);
     setProgress({ done: 0, total: 0 });
-  }, [lineKey]);
+    setCancelledRun(false);
+  }
 
   useEffect(() => {
     if (!running || setupMode || points.length < 2) {
@@ -115,7 +122,6 @@ export function ReviewPanel() {
         };
         let latest: PositionScore | null = null;
         const timer = window.setTimeout(() => finish(latest), timeoutMs);
-        let sawShallow = false;
         unsubscribe = engine.subscribe((info) => {
           if (cancelled) {
             finish(null);
@@ -124,14 +130,11 @@ export function ReviewPanel() {
           if (info.fen !== fen) {
             return;
           }
-          if (info.depth > 0 && info.depth < depth) {
-            sawShallow = true;
-          }
           const score = positionScore(fen, info);
-          if (score && sawShallow) {
+          if (score) {
             latest = score;
           }
-          if (score && sawShallow && info.depth >= depth) {
+          if (score && (!info.running || info.depth >= depth)) {
             finish(score);
           }
         });
@@ -171,6 +174,8 @@ export function ReviewPanel() {
       const scores: Array<PositionScore | null> = [];
       for (let index = 0; index < points.length; index += 1) {
         if (cancelled) {
+          setCancelledRun(true);
+          setRunning(false);
           return;
         }
         setProgress({ done: index, total: points.length });
@@ -179,6 +184,8 @@ export function ReviewPanel() {
       setProgress({ done: points.length, total: points.length });
       const replies = await bookPromise;
       if (cancelled) {
+        setCancelledRun(true);
+        setRunning(false);
         return;
       }
       const played = points.slice(0, -1).map((point, index) => getNodeAt(board.tree, points[index + 1].path)?.uci ?? "");
@@ -190,11 +197,14 @@ export function ReviewPanel() {
         const before = scores[index];
         const after = scores[index + 1];
         const node = getNodeAt(board.tree, points[index + 1].path);
-        if (!before || !after || !node || node.uci.length < 4) {
+        if (!before || !after || !node || node.uci.length < 4 || isNullMoveToken(node.uci)) {
           continue;
         }
+        const beforeBoard = new Chess(points[index].fen);
+        const afterBoard = new Chess(points[index + 1].fen);
         const side = sideFromFen(points[index].fen);
-        const sacrifice = isSacrifice(points[index].fen, points[index + 1].fen, side) || hangsPiece(points[index].fen, points[index + 1].fen, node.uci, side);
+        const hanging = hangsPieceOn(beforeBoard, afterBoard, node.uci, side);
+        const sacrifice = isSacrificeOn(beforeBoard, afterBoard, side) || hanging;
         let beforeScore = before;
         if (sacrifice && before.bestUci === node.uci && before.secondWhitePawns == null) {
           const withSecond = await analyzeFen(points[index].fen, false, REVIEW_DEPTH, 2, undefined, 8_000);
@@ -210,7 +220,7 @@ export function ReviewPanel() {
           sacrifice,
         });
         const negative = graded.label === "inaccuracy" || graded.label === "mistake" || graded.label === "blunder";
-        if (negative && (sacrifice || hangsPiece(points[index].fen, points[index + 1].fen, node.uci, side))) {
+        if (negative && (sacrifice || hanging)) {
           const deeper = await analyzeFen(points[index + 1].fen, false, REVIEW_DEPTH + 6, 1, undefined, 12_000);
           if (deeper && (deeper.depth ?? 0) >= REVIEW_DEPTH + 4 && lineHolds(side, before.whitePawns, deeper.whitePawns)) {
             graded = gradeMove({
@@ -228,7 +238,7 @@ export function ReviewPanel() {
         }
         next.push({
           ...graded,
-          label: inBook[index] ? "book" : graded.label,
+          label: mergeBookLabel(inBook[index], graded.label),
           path: points[index + 1].path,
           san: node.san,
           side,
@@ -269,6 +279,7 @@ export function ReviewPanel() {
           variant="primary"
           disabled={setupMode || points.length < 2 || running}
           onClick={() => {
+            setCancelledRun(false);
             setProgress({ done: 0, total: points.length });
             setRunning(true);
           }}
@@ -285,6 +296,9 @@ export function ReviewPanel() {
           <p className="px-3 py-3 text-dense text-studio-muted">
             Scoring moves at depth {REVIEW_DEPTH}… {progress.done}/{progress.total}
           </p>
+        ) : null}
+        {!running && cancelledRun ? (
+          <p className="px-3 py-2 text-caption text-studio-warning-fg">Cancelled.</p>
         ) : null}
         {rows ? (
           <>

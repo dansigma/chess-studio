@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { accuracyPercent, bookFlags, gradeMove, hangsPiece, harmonicAccuracy, lineHolds, winChance, type PositionScore } from "./review.ts";
+import { Chess } from "chess.js";
+import { accuracyPercent, bookFlags, gradeMove, hangsPiece, hangsPieceOn, harmonicAccuracy, isSacrifice, isSacrificeOn, lineHolds, mergeBookLabel, winChance, type PositionScore } from "./review.ts";
 
 function score(whitePawns: number, bestUci: string, secondWhitePawns: number | null = null): PositionScore {
   return { whitePawns, bestUci, secondWhitePawns };
@@ -119,4 +120,22 @@ test("accuracy stays in range and the harmonic mean punishes a bad move", () => 
   assert.ok(accuracyPercent(20, 20) <= 100);
   assert.equal(harmonicAccuracy([]), null);
   assert.ok((harmonicAccuracy([100, 100, 20]) ?? 100) < 50);
+});
+
+test("book never overrides brilliant, great, or best", () => {
+  assert.equal(mergeBookLabel(true, "brilliant"), "brilliant");
+  assert.equal(mergeBookLabel(true, "great"), "great");
+  assert.equal(mergeBookLabel(true, "best"), "best");
+  assert.equal(mergeBookLabel(true, "interesting"), "book");
+  assert.equal(mergeBookLabel(true, null), "book");
+  assert.equal(mergeBookLabel(false, "mistake"), "mistake");
+});
+
+test("the board-based checks match the fen wrappers", () => {
+  const fenBefore = "rnbqkb1r/pppppp1p/5n2/8/6P1/7P/PPPPPP2/RNBQKBNR b KQkq - 0 3";
+  const fenAfter = "rnbqkb1r/pppppp1p/8/8/6n1/7P/PPPPPP2/RNBQKBNR w KQkq - 0 4";
+  const before = new Chess(fenBefore);
+  const after = new Chess(fenAfter);
+  assert.equal(hangsPieceOn(before, after, "f6g4", "b"), hangsPiece(fenBefore, fenAfter, "f6g4", "b"));
+  assert.equal(isSacrificeOn(before, after, "b"), isSacrifice(fenBefore, fenAfter, "b"));
 });
