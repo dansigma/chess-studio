@@ -210,4 +210,7 @@ test("promotion is resolved from the move, not the expected string", () => {
   const promoted = judgeMove(puzzle.fen, "f7f8r", "f7", "f8", false);
   assert.ok(promoted.kind === "correct");
   assert.equal(promoted.uci, "f7f8r");
+  const promotedWithFlag = judgeMove(puzzle.fen, "f7f8r", "f7", "f8", true);
+  assert.equal(promotedWithFlag.kind, "correct");
+  assert.equal(promotedWithFlag.uci, "f7f8r");
 });

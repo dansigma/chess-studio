@@ -168,6 +168,8 @@ export function judgeMove(
     piece?.type === "p" && to[1] === promotionRank ? ["q", "r", "b", "n"] : [undefined];
   let played: { fen: string; from: string; to: string; san: string; uci: string; mate: boolean } | null =
     null;
+  let mateAlt: { fen: string; from: string; to: string; san: string; uci: string; mate: boolean } | null =
+    null;
   for (const promotion of candidates) {
     const probe = new Chess(fen);
     let move;
@@ -191,12 +193,15 @@ export function judgeMove(
     if (uci === expected) {
       return { kind: "correct", ...outcome };
     }
-    if (acceptMate && outcome.mate) {
-      return { kind: "correct", ...outcome };
+    if (!mateAlt && outcome.mate) {
+      mateAlt = outcome;
     }
     if (!played) {
       played = outcome;
     }
+  }
+  if (acceptMate && mateAlt) {
+    return { kind: "correct", ...mateAlt };
   }
   if (!played) {
     return { kind: "illegal" };
