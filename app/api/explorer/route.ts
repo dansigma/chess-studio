@@ -182,12 +182,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "fen is not a valid position" }, { status: 400 });
   }
 
-  const verdict = limiter.check(`explorer:${clientIp(request.headers)}`);
-  if (!verdict.ok) {
-    return NextResponse.json(
-      { error: "Too many requests — try again shortly." },
-      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-    );
+  const ip = clientIp(request.headers);
+  if (ip !== "unknown") {
+    const verdict = limiter.check(`explorer:${ip}`);
+    if (!verdict.ok) {
+      return NextResponse.json(
+        { error: "Too many requests — try again shortly." },
+        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+      );
+    }
   }
 
   const filters = filtersFromSearchParams(request.nextUrl.searchParams);

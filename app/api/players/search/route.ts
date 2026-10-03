@@ -12,17 +12,21 @@ export async function GET(request: NextRequest) {
   if (!isSearchQuery(query)) {
     return NextResponse.json({ players: [] });
   }
-  const verdict = limiter.check(`search:${clientIp(request.headers)}`);
-  if (!verdict.ok) {
-    return NextResponse.json(
-      { error: "Too many requests — try again shortly." },
-      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-    );
+  const ip = clientIp(request.headers);
+  if (ip !== "unknown") {
+    const verdict = limiter.check(`search:${ip}`);
+    if (!verdict.ok) {
+      return NextResponse.json(
+        { error: "Too many requests — try again shortly." },
+        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+      );
+    }
   }
   try {
     const players = await searchPlayers(query);
     return NextResponse.json({ players });
-  } catch {
+  } catch (error) {
+    console.error("searchPlayers route failed", { query, error });
     return NextResponse.json({ players: [] });
   }
 }

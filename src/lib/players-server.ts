@@ -621,7 +621,8 @@ export async function loadPlayerGames(
     } else {
       games = await studioGames(username);
     }
-  } catch {
+  } catch (error) {
+    console.error("loadPlayerGames failed", { source, username, error });
     notice = "Could not load games.";
   }
   games.sort((a, b) => (b.playedAt ?? 0) - (a.playedAt ?? 0));

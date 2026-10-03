@@ -10,12 +10,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "id is required" }, { status: 400 });
   }
 
-  const verdict = limiter.check(`masters-pgn:${clientIp(request.headers)}`);
-  if (!verdict.ok) {
-    return NextResponse.json(
-      { error: "Too many requests — try again shortly." },
-      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-    );
+  const ip = clientIp(request.headers);
+  if (ip !== "unknown") {
+    const verdict = limiter.check(`masters-pgn:${ip}`);
+    if (!verdict.ok) {
+      return NextResponse.json(
+        { error: "Too many requests — try again shortly." },
+        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+      );
+    }
   }
 
   const book = getBookGamePgn(id);
