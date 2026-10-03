@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { courseSlugError, courseThemeLabel, findPublishedConflict, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog.ts";
+import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog.ts";
 import { SEED_COURSES } from "./seed.ts";
 import type { Course } from "./types.ts";
 
@@ -71,5 +71,33 @@ describe("course catalog", () => {
     ];
     assert.equal(findPublishedConflict("not-a-uuid", list), null);
     assert.equal(findPublishedConflict("", list), null);
+  });
+
+  it("allows publishing a new course without an existing row", () => {
+    assert.equal(courseOwnershipError(null, "user-1", false), null);
+    assert.equal(courseOwnershipError(undefined, "user-1", false), null);
+  });
+
+  it("allows the owner to publish over their own course", () => {
+    assert.equal(courseOwnershipError({ created_by: "user-1" }, "user-1", false), null);
+  });
+
+  it("rejects a publisher overwriting another publisher's course", () => {
+    assert.equal(
+      courseOwnershipError({ created_by: "owner-1" }, "user-2", false),
+      "This course belongs to another publisher.",
+    );
+  });
+
+  it("allows a super-admin to publish over any course", () => {
+    assert.equal(courseOwnershipError({ created_by: "owner-1" }, "user-2", true), null);
+    assert.equal(courseOwnershipError({ created_by: null }, "user-2", true), null);
+  });
+
+  it("rejects a non-super-admin mutating an orphan course", () => {
+    assert.equal(
+      courseOwnershipError({ created_by: null }, "user-1", false),
+      "This course has no owner — a course admin must reclaim it.",
+    );
   });
 });

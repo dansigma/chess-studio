@@ -30,6 +30,20 @@ export function courseSlugError(
   return null;
 }
 
+export type CourseOwnership = { created_by: string | null };
+
+export function courseOwnershipError(
+  existing: CourseOwnership | null | undefined,
+  userId: string,
+  superAdmin: boolean,
+): string | null {
+  if (!existing) return null;
+  if (superAdmin) return null;
+  if (existing.created_by === userId) return null;
+  if (existing.created_by === null) return "This course has no owner — a course admin must reclaim it.";
+  return "This course belongs to another publisher.";
+}
+
 export function findPublishedConflict(
   id: string,
   courses: Pick<Course, "id" | "title">[],

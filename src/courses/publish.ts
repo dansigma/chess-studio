@@ -1,10 +1,10 @@
 "use server";
 
-import { userCanPublishCourses } from "@/src/lib/auth/course-permissions";
+import { isCourseSuperAdmin, userCanPublishCourses } from "@/src/lib/auth/course-permissions";
 import type { Json } from "@/src/lib/supabase/database.types";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { createServerSupabase } from "@/src/lib/supabase/server";
-import { courseSlugError, isCourseColor, isCourseId, isCourseTheme, parseChapters, slugify } from "./catalog";
+import { courseOwnershipError, courseSlugError, isCourseColor, isCourseId, isCourseTheme, parseChapters, slugify } from "./catalog";
 import { sanitizeCourseHtml } from "./description";
 import { normalizeChapters } from "./draft";
 import { courseImageUrl, courseVideo } from "./media";
@@ -26,7 +26,7 @@ function databaseError(error: { code?: string; message: string }): string {
 }
 
 async function requirePublisher(): Promise<
-  { ok: true; userId: string; admin: NonNullable<ReturnType<typeof serviceClient>> } | { ok: false; error: string }
+  { ok: true; userId: string; superAdmin: boolean; admin: NonNullable<ReturnType<typeof serviceClient>> } | { ok: false; error: string }
 > {
   const supabase = await createServerSupabase();
   if (!supabase) {
@@ -44,7 +44,7 @@ async function requirePublisher(): Promise<
   if (!admin) {
     return { ok: false, error: "The server cannot publish courses yet." };
   }
-  return { ok: true, userId: user.id, admin };
+  return { ok: true, userId: user.id, superAdmin: isCourseSuperAdmin(user), admin };
 }
 
 export async function currentUserCanPublish(): Promise<boolean> {
@@ -124,6 +124,20 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
   if (slugError) {
     return { ok: false, error: slugError };
   }
+  const { data: existingRow, error: ownershipReadError } = await gate.admin
+    .from("courses")
+    .select("id, created_by")
+    .eq("id", checked.course.id)
+    .maybeSingle();
+  if (ownershipReadError) {
+    return { ok: false, error: databaseError(ownershipReadError) };
+  }
+  const ownership = courseOwnershipError(existingRow, gate.userId, gate.superAdmin);
+  if (ownership) {
+    return { ok: false, error: ownership };
+  }
+  // Point-read ownership keeps the race window minimal; the residual upsert
+  // race is between trusted publishers (LOW, accepted).
   const { error } = await gate.admin.from("courses").upsert({
     id: checked.course.id,
     slug: checked.course.slug,
@@ -134,7 +148,7 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
     color: checked.course.color,
     theme: checked.course.theme,
     chapters: checked.chapters as unknown as Json,
-    created_by: gate.userId,
+    created_by: existingRow ? existingRow.created_by : gate.userId,
     updated_at: new Date().toISOString(),
   });
   if (error) {
@@ -151,9 +165,32 @@ export async function removePublishedCourse(id: string): Promise<{ ok: true } | 
   if (!gate.ok) {
     return gate;
   }
-  const { error } = await gate.admin.from("courses").delete().eq("id", id);
+  const { data: row, error: readError } = await gate.admin.from("courses").select("created_by").eq("id", id).maybeSingle();
+  if (readError) {
+    return { ok: false, error: databaseError(readError) };
+  }
+  const ownership = courseOwnershipError(row, gate.userId, gate.superAdmin);
+  if (ownership) {
+    return { ok: false, error: ownership };
+  }
+  if (gate.superAdmin) {
+    const { error } = await gate.admin.from("courses").delete().eq("id", id);
+    if (error) {
+      return { ok: false, error: databaseError(error) };
+    }
+    return { ok: true };
+  }
+  const { data: deleted, error } = await gate.admin
+    .from("courses")
+    .delete()
+    .eq("id", id)
+    .eq("created_by", gate.userId)
+    .select("id");
   if (error) {
     return { ok: false, error: databaseError(error) };
+  }
+  if (!deleted || deleted.length === 0) {
+    return { ok: false, error: "The course changed ownership — refresh and try again." };
   }
   return { ok: true };
 }

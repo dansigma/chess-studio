@@ -17,6 +17,10 @@ export function emailIsCourseAdmin(email: string | null | undefined): boolean {
   return courseAdminEmails().has(email.toLowerCase());
 }
 
+export function isCourseSuperAdmin(user: Pick<User, "email" | "app_metadata">): boolean {
+  return emailIsCourseAdmin(user.email) || user.app_metadata.role === "admin";
+}
+
 export async function userCanPublishCourses(
   supabase: SupabaseClient<Database>,
   user: Pick<User, "id" | "email" | "app_metadata">,
