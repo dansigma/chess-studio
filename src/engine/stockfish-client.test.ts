@@ -132,6 +132,89 @@ test("regression: in-flight bestmove before readyok does not stop the new search
   engine.dispose();
 });
 
+test("barrier: readyok waits for the interrupted search's bestmove (real-engine order)", () => {
+  const { engine, worker } = freshEngine();
+  handshake(worker);
+  // Search A is actively running.
+  engine.analyze(FEN_A, 22, 2, 1);
+  worker.emit("readyok");
+  worker.emit("info depth 20 seldepth 28 multipv 1 score cp 35 nodes 1000 nps 50000 pv e2e4 e7e5");
+  assert.equal(snap(engine).lines.length, 1);
+  worker.sent.length = 0;
+  // Interrupt with B while A is still searching.
+  engine.analyze(FEN_B, 22, 2, 1);
+  assert.deepEqual(worker.sent, ["stop", "isready"]);
+  // The real engine answers readyok BEFORE the interrupted search's bestmove.
+  worker.emit("readyok");
+  // The batch for B must NOT be sent yet.
+  assert.ok(!worker.sent.some((msg) => msg.startsWith("position fen")));
+  assert.ok(!worker.sent.some((msg) => msg.startsWith("go depth")));
+  assert.equal(snap(engine).running, true);
+  // The interrupted search's bestmove releases the barrier.
+  worker.emit("bestmove e2e4");
+  assert.ok(worker.sent.some((msg) => msg === `position fen ${FEN_B}`));
+  assert.ok(worker.sent.some((msg) => msg.startsWith("go depth 22")));
+  assert.equal(snap(engine).running, true);
+  // Only B's data enters the lines.
+  worker.emit("info depth 10 seldepth 12 multipv 1 score cp 15 nodes 100 nps 1000 pv e2e4 e7e5");
+  assert.equal(snap(engine).lines.length, 1);
+  assert.equal(snap(engine).lines[0]?.scoreCp, 15);
+  assert.equal(snap(engine).depth, 10);
+  engine.dispose();
+});
+
+test("barrier: stale info while the barrier waits is rejected", () => {
+  const { engine, worker } = freshEngine();
+  handshake(worker);
+  engine.analyze(FEN_A, 22, 2, 1);
+  worker.emit("readyok");
+  worker.sent.length = 0;
+  engine.analyze(FEN_B, 22, 2, 1);
+  worker.emit("readyok");
+  // Stale info from the interrupted search (old depth/score) must not enter.
+  worker.emit("info depth 21 seldepth 28 multipv 1 score cp 90 nodes 2000 nps 50000 pv e2e4 e7e5");
+  assert.equal(snap(engine).lines.length, 0);
+  assert.equal(snap(engine).depth, 0);
+  worker.emit("bestmove e2e4");
+  worker.emit("info depth 10 seldepth 12 multipv 1 score cp 15 nodes 100 nps 1000 pv e2e4 e7e5");
+  assert.equal(snap(engine).lines.length, 1);
+  assert.equal(snap(engine).lines[0]?.scoreCp, 15);
+  engine.dispose();
+});
+
+test("barrier: idle analyze starts on readyok without waiting", () => {
+  const { engine, worker } = freshEngine();
+  handshake(worker);
+  worker.sent.length = 0;
+  // No search is active, so nothing owes a bestmove.
+  engine.analyze(FEN_B, 22, 2, 1);
+  worker.emit("readyok");
+  assert.ok(worker.sent.some((msg) => msg === `position fen ${FEN_B}`));
+  assert.ok(worker.sent.some((msg) => msg.startsWith("go depth 22")));
+  assert.equal(snap(engine).running, true);
+  engine.dispose();
+});
+
+test("barrier: analyze twice while waiting starts the latest request only", () => {
+  const { engine, worker } = freshEngine();
+  handshake(worker);
+  engine.analyze(FEN_A, 22, 2, 1);
+  worker.emit("readyok");
+  worker.sent.length = 0;
+  engine.analyze(FEN_B, 22, 2, 1);
+  // A second analyze replaces the pending request; the flags persist.
+  engine.analyze(FEN_A, 22, 2, 1);
+  assert.deepEqual(worker.sent, ["stop", "isready"]);
+  worker.emit("readyok");
+  assert.ok(!worker.sent.some((msg) => msg.startsWith("go depth")));
+  worker.emit("bestmove e2e4");
+  const positions = worker.sent.filter((msg) => msg.startsWith("position fen"));
+  assert.equal(positions.length, 1);
+  assert.equal(positions[0], `position fen ${FEN_A}`);
+  assert.equal(snap(engine).running, true);
+  engine.dispose();
+});
+
 test("analyze twice before readyok starts the latest request only", () => {
   const { engine, worker } = freshEngine();
   handshake(worker);

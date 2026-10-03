@@ -177,6 +177,8 @@ export class StockfishEngine {
     fresh: boolean;
   } | null = null;
   private pendingSent = false;
+  private barrierTerminator = false;
+  private readyokForCycle = false;
   readonly threaded = supportsEngineThreads();
 
   constructor(build: EngineBuild = "lite") {
@@ -208,6 +210,8 @@ export class StockfishEngine {
     this.searching = false;
     this.pending = null;
     this.pendingSent = false;
+    this.barrierTerminator = false;
+    this.readyokForCycle = false;
     if (!this.worker) {
       return;
     }
@@ -221,6 +225,8 @@ export class StockfishEngine {
     this.searching = false;
     this.pending = null;
     this.pendingSent = false;
+    this.barrierTerminator = false;
+    this.readyokForCycle = false;
     this.listeners.clear();
     if (this.worker) {
       this.worker.onmessage = null;
@@ -242,6 +248,10 @@ export class StockfishEngine {
 
   analyze(fen: string, depth: number, multiPv: number, threads: number, searchMoves?: string, fresh = true): void {
     this.start();
+    // A search executing now still owes its bestmove; the batch must wait for it.
+    // Captured before clearing: flushPending runs after running is set, so it
+    // cannot observe the previous state itself.
+    const owesBestmove = this.searching && this.running;
     this.generation += 1;
     this.searching = false;
     this.fen = fen;
@@ -263,16 +273,40 @@ export class StockfishEngine {
       fresh,
     };
     this.emit();
-    this.flushPending();
+    this.flushPending(owesBestmove);
   }
 
-  private flushPending(): void {
+  private flushPending(owesBestmove = false): void {
     if (!this.worker || !this.pending || !this.ready || this.pendingSent) {
       return;
     }
     this.pendingSent = true;
+    this.barrierTerminator = owesBestmove;
     this.send("stop");
     this.send("isready");
+  }
+
+  private tryStart(): void {
+    if (!this.pending || !this.pendingSent || !this.readyokForCycle || this.barrierTerminator) {
+      return;
+    }
+    const p = this.pending;
+    this.pending = null;
+    this.pendingSent = false;
+    this.readyokForCycle = false;
+    if (p.gen === this.generation && this.worker) {
+      this.send(`setoption name Hash value ${ENGINE_HASH_MB}`);
+      this.send(`setoption name Threads value ${p.threads}`);
+      this.send(`setoption name MultiPV value ${p.multiPv}`);
+      if (p.fresh) {
+        this.send("ucinewgame");
+      }
+      this.send(`position fen ${p.fen}`);
+      this.send(`go depth ${p.depthTarget}${p.searchMoves ? ` searchmoves ${p.searchMoves}` : ""}`);
+      this.searching = true;
+      this.running = true;
+    }
+    this.emit();
   }
 
   private send(command: string): void {
@@ -295,27 +329,16 @@ export class StockfishEngine {
         this.flushPending();
         return;
       }
-      if (this.pending && this.pendingSent) {
-        const p = this.pending;
-        this.pending = null;
-        this.pendingSent = false;
-        if (p.gen === this.generation && this.worker) {
-          this.send(`setoption name Hash value ${ENGINE_HASH_MB}`);
-          this.send(`setoption name Threads value ${p.threads}`);
-          this.send(`setoption name MultiPV value ${p.multiPv}`);
-          if (p.fresh) {
-            this.send("ucinewgame");
-          }
-          this.send(`position fen ${p.fen}`);
-          this.send(`go depth ${p.depthTarget}${p.searchMoves ? ` searchmoves ${p.searchMoves}` : ""}`);
-          this.searching = true;
-          this.running = true;
-        }
-        this.emit();
-      }
+      this.readyokForCycle = true;
+      this.tryStart();
       return;
     }
     if (message.startsWith("bestmove")) {
+      if (this.pendingSent && this.barrierTerminator) {
+        this.barrierTerminator = false;
+        this.tryStart();
+        return;
+      }
       if (!this.searching) {
         return;
       }
