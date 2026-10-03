@@ -41,9 +41,9 @@ function playerCp(whitePawns: number, side: "w" | "b"): number {
   return side === "w" ? cp : -cp;
 }
 
-export function sideMaterial(fen: string, side: Color): number {
+export function sideMaterialOn(board: Chess, side: Color): number {
   let total = 0;
-  for (const row of new Chess(fen).board()) {
+  for (const row of board.board()) {
     for (const piece of row) {
       if (piece?.color === side) {
         total += PIECE_VALUE[piece.type];
@@ -53,25 +53,40 @@ export function sideMaterial(fen: string, side: Color): number {
   return total;
 }
 
-export function isSacrifice(fenBefore: string, fenAfter: string, side: Color): boolean {
-  return sideMaterial(fenAfter, side) < sideMaterial(fenBefore, side);
+export function sideMaterial(fen: string, side: Color): number {
+  return sideMaterialOn(new Chess(fen), side);
 }
 
-export function hangsPiece(fenBefore: string, fenAfter: string, uci: string, side: Color): boolean {
+export function isSacrificeOn(before: Chess, after: Chess, side: Color): boolean {
+  // Detects any material decrease for `side` between the two boards, including
+  // opponent captures (inherited `isSacrifice` semantics). Callers decide
+  // whether that counts as a voluntary sacrifice. Promoted pawns still count
+  // as pawns in `sideMaterialOn`, so promotions are not valued here.
+  return sideMaterialOn(after, side) < sideMaterialOn(before, side);
+}
+
+export function isSacrifice(fenBefore: string, fenAfter: string, side: Color): boolean {
+  return isSacrificeOn(new Chess(fenBefore), new Chess(fenAfter), side);
+}
+
+export function hangsPieceOn(before: Chess, after: Chess, uci: string, side: Color): boolean {
   const from = uci.slice(0, 2) as Square;
   const to = uci.slice(2, 4) as Square;
-  const moved = new Chess(fenBefore).get(from);
+  const moved = before.get(from);
   if (!moved || moved.color !== side || moved.type === "p" || moved.type === "k") {
     return false;
   }
-  const captured = new Chess(fenBefore).get(to);
+  const captured = before.get(to);
   const capturedValue = captured && captured.color !== side ? PIECE_VALUE[captured.type] : 0;
   if (capturedValue === 0 || PIECE_VALUE[moved.type] <= capturedValue) {
     return false;
   }
-  const after = new Chess(fenAfter);
   const opponent: Color = side === "w" ? "b" : "w";
   return after.isAttacked(to, opponent) && !after.isAttacked(to, side);
+}
+
+export function hangsPiece(fenBefore: string, fenAfter: string, uci: string, side: Color): boolean {
+  return hangsPieceOn(new Chess(fenBefore), new Chess(fenAfter), uci, side);
 }
 
 export function lineHolds(side: "w" | "b", bestWhitePawns: number, playedWhitePawns: number): boolean {
@@ -130,6 +145,15 @@ export function gradeMove(input: {
   }
 
   return { label, lossCp, accuracy };
+}
+
+const BOOK_KEEPS: ReadonlySet<ReviewLabel> = new Set(["brilliant", "great", "best"]);
+
+export function mergeBookLabel(inBook: boolean, label: ReviewLabel | null): ReviewLabel | null {
+  if (!inBook) {
+    return label;
+  }
+  return label && BOOK_KEEPS.has(label) ? label : "book";
 }
 
 export function bookFlags(playedUcis: string[], replies: Array<readonly string[] | null>): boolean[] {
