@@ -33,12 +33,14 @@ export type EngineLine = {
   mate: number | null;
   pvUci: string[];
   pvSan: string[];
+  bound: "upper" | "lower" | null;
 };
 
 export type EngineInfo = {
   depth: number;
   running: boolean;
   ready: boolean;
+  failed: boolean;
   lines: EngineLine[];
   nps: number;
   nodes: number;
@@ -56,7 +58,10 @@ export function maxHardwareThreads(): number {
 }
 
 export function supportsEngineThreads(): boolean {
-  return typeof SharedArrayBuffer !== "undefined";
+  return (
+    typeof SharedArrayBuffer !== "undefined" &&
+    (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated === true
+  );
 }
 
 export function defaultEngineThreads(): number {
@@ -132,6 +137,7 @@ function parseInfo(line: string, fen: string): EngineLine | null {
   if (!depthMatch || !pvMatch) {
     return null;
   }
+  const boundMatch = / (upper|lower)bound/.exec(line);
   const pvUci = pvMatch[1].split(" ").filter(Boolean);
   return {
     multipv: multiMatch ? Number(multiMatch[1]) : 1,
@@ -140,6 +146,7 @@ function parseInfo(line: string, fen: string): EngineLine | null {
     mate: mateMatch ? Number(mateMatch[1]) : null,
     pvUci,
     pvSan: pvToSan(fen, pvUci),
+    bound: boundMatch ? (boundMatch[1] as "upper" | "lower") : null,
   };
 }
 
@@ -157,8 +164,21 @@ export class StockfishEngine {
   private nodes = 0;
   private running = false;
   private ready = false;
+  private failed = false;
   private generation = 0;
   private searching = false;
+  private pending: {
+    gen: number;
+    fen: string;
+    depthTarget: number;
+    multiPv: number;
+    threads: number;
+    searchMoves?: string;
+    fresh: boolean;
+  } | null = null;
+  private pendingSent = false;
+  private barrierTerminator = false;
+  private readyokForCycle = false;
   readonly threaded = supportsEngineThreads();
 
   constructor(build: EngineBuild = "lite") {
@@ -173,12 +193,25 @@ export class StockfishEngine {
     this.worker.onmessage = (event: MessageEvent<string>) => {
       this.handleMessage(String(event.data));
     };
+    this.worker.onerror = () => {
+      this.failed = true;
+      this.ready = false;
+      this.running = false;
+      this.searching = false;
+      this.pending = null;
+      this.pendingSent = false;
+      this.emit();
+    };
     this.send("uci");
   }
 
   stopSearch(): void {
     this.generation += 1;
     this.searching = false;
+    this.pending = null;
+    this.pendingSent = false;
+    this.barrierTerminator = false;
+    this.readyokForCycle = false;
     if (!this.worker) {
       return;
     }
@@ -190,8 +223,17 @@ export class StockfishEngine {
   dispose(): void {
     this.generation += 1;
     this.searching = false;
-    this.worker?.terminate();
-    this.worker = null;
+    this.pending = null;
+    this.pendingSent = false;
+    this.barrierTerminator = false;
+    this.readyokForCycle = false;
+    this.listeners.clear();
+    if (this.worker) {
+      this.worker.onmessage = null;
+      this.worker.onerror = null;
+      this.worker.terminate();
+      this.worker = null;
+    }
     this.ready = false;
     this.running = false;
   }
@@ -206,6 +248,12 @@ export class StockfishEngine {
 
   analyze(fen: string, depth: number, multiPv: number, threads: number, searchMoves?: string, fresh = true): void {
     this.start();
+    // A search executing now still owes its bestmove; the batch must wait for it.
+    // Captured before clearing: flushPending runs after running is set, so it
+    // cannot observe the previous state itself.
+    const owesBestmove = this.searching && this.running;
+    this.generation += 1;
+    this.searching = false;
     this.fen = fen;
     this.depthTarget = clampDepth(depth);
     this.multiPv = clampLines(multiPv);
@@ -215,27 +263,50 @@ export class StockfishEngine {
     this.nps = 0;
     this.nodes = 0;
     this.running = true;
+    this.pending = {
+      gen: this.generation,
+      fen,
+      depthTarget: this.depthTarget,
+      multiPv: this.multiPv,
+      threads: this.threads,
+      searchMoves,
+      fresh,
+    };
     this.emit();
-    this.generation += 1;
-    const gen = this.generation;
-    this.searching = false;
+    this.flushPending(owesBestmove);
+  }
+
+  private flushPending(owesBestmove = false): void {
+    if (!this.worker || !this.pending || !this.ready || this.pendingSent) {
+      return;
+    }
+    this.pendingSent = true;
+    this.barrierTerminator = owesBestmove;
     this.send("stop");
-    window.setTimeout(() => {
-      if (gen !== this.generation || !this.worker) {
-        return;
-      }
+    this.send("isready");
+  }
+
+  private tryStart(): void {
+    if (!this.pending || !this.pendingSent || !this.readyokForCycle || this.barrierTerminator) {
+      return;
+    }
+    const p = this.pending;
+    this.pending = null;
+    this.pendingSent = false;
+    this.readyokForCycle = false;
+    if (p.gen === this.generation && this.worker) {
       this.send(`setoption name Hash value ${ENGINE_HASH_MB}`);
-      this.send(`setoption name Threads value ${this.threads}`);
-      this.send(`setoption name MultiPV value ${this.multiPv}`);
-      if (fresh) {
+      this.send(`setoption name Threads value ${p.threads}`);
+      this.send(`setoption name MultiPV value ${p.multiPv}`);
+      if (p.fresh) {
         this.send("ucinewgame");
       }
-      this.send(`position fen ${fen}`);
-      this.send(`go depth ${this.depthTarget}${searchMoves ? ` searchmoves ${searchMoves}` : ""}`);
+      this.send(`position fen ${p.fen}`);
+      this.send(`go depth ${p.depthTarget}${p.searchMoves ? ` searchmoves ${p.searchMoves}` : ""}`);
       this.searching = true;
       this.running = true;
-      this.emit();
-    }, 40);
+    }
+    this.emit();
   }
 
   private send(command: string): void {
@@ -243,16 +314,31 @@ export class StockfishEngine {
   }
 
   private handleMessage(message: string): void {
+    if (this.failed) {
+      return;
+    }
     if (message === "uciok") {
       this.send("isready");
       return;
     }
     if (message === "readyok") {
+      const first = !this.ready;
       this.ready = true;
-      this.emit();
+      if (first) {
+        this.emit();
+        this.flushPending();
+        return;
+      }
+      this.readyokForCycle = true;
+      this.tryStart();
       return;
     }
     if (message.startsWith("bestmove")) {
+      if (this.pendingSent && this.barrierTerminator) {
+        this.barrierTerminator = false;
+        this.tryStart();
+        return;
+      }
       if (!this.searching) {
         return;
       }
@@ -278,6 +364,12 @@ export class StockfishEngine {
       }
       return;
     }
+    const existing = this.lines.find((line) => line.multipv === parsed.multipv);
+    if (existing && existing.bound === null && parsed.bound !== null) {
+      this.depth = Math.max(this.depth, parsed.depth);
+      this.emit();
+      return;
+    }
     const next = this.lines.filter((line) => line.multipv !== parsed.multipv);
     next.push(parsed);
     next.sort((a, b) => a.multipv - b.multipv);
@@ -291,6 +383,7 @@ export class StockfishEngine {
       depth: this.depth,
       running: this.running,
       ready: this.ready,
+      failed: this.failed,
       lines: this.lines,
       nps: this.nps,
       nodes: this.nodes,
@@ -330,7 +423,9 @@ export function scoreNumber(line: EngineLine | undefined, sideToMove: "w" | "b")
   }
   const flip = sideToMove === "b" ? -1 : 1;
   if (line.mate != null) {
-    return line.mate * flip > 0 ? 10 : -10;
+    const mate = line.mate * flip;
+    const magnitude = 10000 - Math.abs(mate) * 10;
+    return mate > 0 ? magnitude : -magnitude;
   }
   return ((line.scoreCp ?? 0) * flip) / 100;
 }

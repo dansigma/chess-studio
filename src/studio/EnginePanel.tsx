@@ -65,6 +65,7 @@ export function EnginePanel() {
     depth: 0,
     running: false,
     ready: false,
+    failed: false,
     lines: [],
     nps: 0,
     nodes: 0,
@@ -90,7 +91,7 @@ export function EnginePanel() {
       return;
     }
     engineRef.current?.analyze(fen, depthTarget, multiPv, threads);
-  }, [fen, depthTarget, multiPv, threads, paused, runId]);
+  }, [fen, depthTarget, multiPv, threads, paused, runId, engineBuild]);
 
   useEffect(() => {
     setEnginePreview(null);
@@ -116,7 +117,9 @@ export function EnginePanel() {
   }, [best, evalLabel, evalValue, fen, info.depth, putEvalCache, setEngineEval]);
   const maxCores = info.threaded ? maxHardwareThreads() : 1;
   const nps = formatNps(info.nps);
-  const status = !info.ready
+  const status = info.failed
+    ? "Engine failed to load"
+    : !info.ready
     ? "Loading engine…"
     : paused || !info.running
       ? info.depth >= depthTarget && info.depth > 0
