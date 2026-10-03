@@ -1,6 +1,6 @@
 "use server";
 
-import { emailIsCourseAdmin, userCanPublishCourses } from "@/src/lib/auth/course-permissions";
+import { isCourseSuperAdmin, userCanPublishCourses } from "@/src/lib/auth/course-permissions";
 import type { Json } from "@/src/lib/supabase/database.types";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { createServerSupabase } from "@/src/lib/supabase/server";
@@ -44,7 +44,7 @@ async function requirePublisher(): Promise<
   if (!admin) {
     return { ok: false, error: "The server cannot publish courses yet." };
   }
-  return { ok: true, userId: user.id, superAdmin: emailIsCourseAdmin(user.email), admin };
+  return { ok: true, userId: user.id, superAdmin: isCourseSuperAdmin(user), admin };
 }
 
 export async function currentUserCanPublish(): Promise<boolean> {
@@ -116,19 +116,28 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
   if ("error" in checked) {
     return { ok: false, error: checked.error };
   }
-  const { data: existing, error: listError } = await gate.admin.from("courses").select("id, slug, created_by");
+  const { data: existing, error: listError } = await gate.admin.from("courses").select("id, slug");
   if (listError) {
     return { ok: false, error: databaseError(listError) };
   }
-  const existingRow = (existing ?? []).find((row) => row.id === checked.course.id);
   const slugError = courseSlugError(checked.course.slug, [...SEED_COURSES, ...(existing ?? [])], checked.course.id);
   if (slugError) {
     return { ok: false, error: slugError };
+  }
+  const { data: existingRow, error: ownershipReadError } = await gate.admin
+    .from("courses")
+    .select("id, created_by")
+    .eq("id", checked.course.id)
+    .maybeSingle();
+  if (ownershipReadError) {
+    return { ok: false, error: databaseError(ownershipReadError) };
   }
   const ownership = courseOwnershipError(existingRow, gate.userId, gate.superAdmin);
   if (ownership) {
     return { ok: false, error: ownership };
   }
+  // Point-read ownership keeps the race window minimal; the residual upsert
+  // race is between trusted publishers (LOW, accepted).
   const { error } = await gate.admin.from("courses").upsert({
     id: checked.course.id,
     slug: checked.course.slug,
@@ -164,9 +173,24 @@ export async function removePublishedCourse(id: string): Promise<{ ok: true } | 
   if (ownership) {
     return { ok: false, error: ownership };
   }
-  const { error } = await gate.admin.from("courses").delete().eq("id", id);
+  if (gate.superAdmin) {
+    const { error } = await gate.admin.from("courses").delete().eq("id", id);
+    if (error) {
+      return { ok: false, error: databaseError(error) };
+    }
+    return { ok: true };
+  }
+  const { data: deleted, error } = await gate.admin
+    .from("courses")
+    .delete()
+    .eq("id", id)
+    .eq("created_by", gate.userId)
+    .select("id");
   if (error) {
     return { ok: false, error: databaseError(error) };
+  }
+  if (!deleted || deleted.length === 0) {
+    return { ok: false, error: "The course changed ownership — refresh and try again." };
   }
   return { ok: true };
 }

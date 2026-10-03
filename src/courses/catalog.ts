@@ -40,6 +40,7 @@ export function courseOwnershipError(
   if (!existing) return null;
   if (superAdmin) return null;
   if (existing.created_by === userId) return null;
+  if (existing.created_by === null) return "This course has no owner — a course admin must reclaim it.";
   return "This course belongs to another publisher.";
 }
 

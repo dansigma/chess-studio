@@ -97,7 +97,7 @@ describe("course catalog", () => {
   it("rejects a non-super-admin mutating an orphan course", () => {
     assert.equal(
       courseOwnershipError({ created_by: null }, "user-1", false),
-      "This course belongs to another publisher.",
+      "This course has no owner — a course admin must reclaim it.",
     );
   });
 });
