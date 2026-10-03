@@ -291,8 +291,7 @@ export function StudioShell() {
         void printActiveBoard();
       }
       const ctrl = event.ctrlKey || event.metaKey;
-      const active = document.activeElement;
-      const chromeFocus = !active || active === document.body || active === document.documentElement;
+      const chromeFocus = !isEditableTarget(document.activeElement);
       if (ctrl && event.shiftKey && event.key.toLowerCase() === "a" && chromeFocus) {
         event.preventDefault();
         const board = useStudioStore.getState().active();
