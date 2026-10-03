@@ -15,12 +15,15 @@ export async function GET(request: NextRequest) {
   if (!validSource || !usernameOk) {
     return NextResponse.json({ error: "source and a valid username are required" }, { status: 400 });
   }
-  const verdict = limiter.check(`games:${clientIp(request.headers)}`);
-  if (!verdict.ok) {
-    return NextResponse.json(
-      { error: "Too many requests — try again shortly." },
-      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-    );
+  const ip = clientIp(request.headers);
+  if (ip !== "unknown") {
+    const verdict = limiter.check(`games:${ip}`);
+    if (!verdict.ok) {
+      return NextResponse.json(
+        { error: "Too many requests — try again shortly." },
+        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+      );
+    }
   }
   try {
     const payload = await loadPlayerGames(source, username, displayName, subtitle);

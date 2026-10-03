@@ -6,7 +6,8 @@ export function isPlayerUsername(value: string | null): value is string {
   return typeof value === "string" && /^[a-zA-Z0-9_-]{1,40}$/.test(value);
 }
 export function isStudioPlayerName(value: string | null): value is string {
-  return typeof value === "string" && /^[\p{L}\p{N} ,.'_-]{1,80}$/u.test(value);
+  const name = value?.trim() ?? "";
+  return name.length >= 1 && name.length <= 80 && !/[\u0000-\u001f\u007f]/.test(name);
 }
 export function isSearchQuery(value: string | null): value is string {
   const q = value?.trim() ?? "";

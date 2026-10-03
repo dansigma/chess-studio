@@ -9,9 +9,14 @@
 // LEFT-most entry is attacker-controlled under an appending proxy and must not
 // be used. Without that proxy the header is client-controlled (dev only).
 //
-// No-header case: when neither header is present the client maps to the
-// explicitly shared `"unknown"` bucket (dev/direct connections). In production
-// the proxy always sets the header, so this bucket is never hit there.
+// No-header case: when neither header is present the limiter is skipped
+// (fail-open) — all four proxy routes return `unknown` from `clientIp` and
+// bypass `check`. In production the edge proxy always sets the header, so
+// `unknown` happens only in dev/direct connections, where a shared bucket
+// would let normal studio browsing (one explorer request per move)
+// self-throttle. The right-most convention requires a single appending proxy
+// at the edge; on a multi-hop chain (CDN → app proxy) every client collapses
+// onto the last hop's IP — documented, accepted for this deployment.
 export const MAX_KEYS = 5000;
 
 type Verdict = { ok: true } | { ok: false; retryAfterSeconds: number };
