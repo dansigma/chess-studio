@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/:path*",
+        source: "/studio/:path*",
         headers: isolation,
       },
       {
