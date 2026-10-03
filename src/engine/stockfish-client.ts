@@ -158,6 +158,7 @@ export class StockfishEngine {
   private running = false;
   private ready = false;
   private generation = 0;
+  private searching = false;
   readonly threaded = supportsEngineThreads();
 
   constructor(build: EngineBuild = "lite") {
@@ -177,6 +178,7 @@ export class StockfishEngine {
 
   stopSearch(): void {
     this.generation += 1;
+    this.searching = false;
     if (!this.worker) {
       return;
     }
@@ -187,6 +189,7 @@ export class StockfishEngine {
 
   dispose(): void {
     this.generation += 1;
+    this.searching = false;
     this.worker?.terminate();
     this.worker = null;
     this.ready = false;
@@ -215,6 +218,7 @@ export class StockfishEngine {
     this.emit();
     this.generation += 1;
     const gen = this.generation;
+    this.searching = false;
     this.send("stop");
     window.setTimeout(() => {
       if (gen !== this.generation || !this.worker) {
@@ -228,6 +232,7 @@ export class StockfishEngine {
       }
       this.send(`position fen ${fen}`);
       this.send(`go depth ${this.depthTarget}${searchMoves ? ` searchmoves ${searchMoves}` : ""}`);
+      this.searching = true;
       this.running = true;
       this.emit();
     }, 40);
@@ -248,8 +253,14 @@ export class StockfishEngine {
       return;
     }
     if (message.startsWith("bestmove")) {
+      if (!this.searching) {
+        return;
+      }
       this.running = false;
       this.emit();
+      return;
+    }
+    if (!this.searching) {
       return;
     }
     const npsMatch = / nps (\d+)/.exec(message);

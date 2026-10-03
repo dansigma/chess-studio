@@ -136,7 +136,7 @@ export function ReviewPanel() {
             latest = score;
           }
           if (score && (!info.running || info.depth >= depth)) {
-            // !running is terminal (bestmove/stop); depth gate covers the live case.
+            // !running is terminal for the ACTIVE search; the client discards messages from stopped searches.
             finish(score);
           }
         });
