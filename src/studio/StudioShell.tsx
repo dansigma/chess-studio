@@ -34,6 +34,21 @@ import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { BrandLockup } from "./ui/BrandLockup";
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT" ||
+    target.isContentEditable
+  ) {
+    return true;
+  }
+  return Boolean(target.closest('[role="dialog"]'));
+}
+
 export function StudioShell() {
   const fileRef = useRef<HTMLInputElement>(null);
   const sharedFenApplied = useRef(false);
@@ -244,8 +259,10 @@ export function StudioShell() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+      if (document.querySelector("[data-promotion-open]")) {
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "o") {
@@ -274,7 +291,8 @@ export function StudioShell() {
         void printActiveBoard();
       }
       const ctrl = event.ctrlKey || event.metaKey;
-      if (ctrl && event.shiftKey && event.key.toLowerCase() === "a") {
+      const chromeFocus = !isEditableTarget(document.activeElement);
+      if (ctrl && event.shiftKey && event.key.toLowerCase() === "a" && chromeFocus) {
         event.preventDefault();
         const board = useStudioStore.getState().active();
         if (board.path.length > 0) {
@@ -282,7 +300,7 @@ export function StudioShell() {
         }
         return;
       }
-      if (ctrl && event.key.toLowerCase() === "a") {
+      if (ctrl && !event.shiftKey && event.key.toLowerCase() === "a" && chromeFocus) {
         event.preventDefault();
         useStudioStore.getState().setNotationEditor("comment");
         return;

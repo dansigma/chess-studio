@@ -97,6 +97,20 @@ export function BoardPanel() {
     return () => window.removeEventListener("mouseup", onUp);
   }, []);
 
+  useEffect(() => {
+    if (!promotion) {
+      return;
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPromotion(null);
+      }
+    }
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [promotion]);
+
   const dests = useMemo(() => {
     if (!selected) {
       return [] as string[];
@@ -295,7 +309,12 @@ export function BoardPanel() {
           }}
         />
         {promotion ? (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-studio-scrim">
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center bg-studio-scrim"
+            role="dialog"
+            aria-label="Choose promotion piece"
+            data-promotion-open
+          >
             <div className="flex flex-col gap-2 rounded-[10px] border border-studio-border-strong bg-studio-elevated p-3 shadow-2xl">
               <span className="text-caption uppercase tracking-wider text-studio-faint">Promote to</span>
               <div className="flex gap-1.5">
