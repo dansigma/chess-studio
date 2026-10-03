@@ -1,10 +1,10 @@
 "use server";
 
-import { userCanPublishCourses } from "@/src/lib/auth/course-permissions";
+import { emailIsCourseAdmin, userCanPublishCourses } from "@/src/lib/auth/course-permissions";
 import type { Json } from "@/src/lib/supabase/database.types";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { createServerSupabase } from "@/src/lib/supabase/server";
-import { courseSlugError, isCourseColor, isCourseId, isCourseTheme, parseChapters, slugify } from "./catalog";
+import { courseOwnershipError, courseSlugError, isCourseColor, isCourseId, isCourseTheme, parseChapters, slugify } from "./catalog";
 import { sanitizeCourseHtml } from "./description";
 import { normalizeChapters } from "./draft";
 import { courseImageUrl, courseVideo } from "./media";
@@ -26,7 +26,7 @@ function databaseError(error: { code?: string; message: string }): string {
 }
 
 async function requirePublisher(): Promise<
-  { ok: true; userId: string; admin: NonNullable<ReturnType<typeof serviceClient>> } | { ok: false; error: string }
+  { ok: true; userId: string; superAdmin: boolean; admin: NonNullable<ReturnType<typeof serviceClient>> } | { ok: false; error: string }
 > {
   const supabase = await createServerSupabase();
   if (!supabase) {
@@ -44,7 +44,7 @@ async function requirePublisher(): Promise<
   if (!admin) {
     return { ok: false, error: "The server cannot publish courses yet." };
   }
-  return { ok: true, userId: user.id, admin };
+  return { ok: true, userId: user.id, superAdmin: emailIsCourseAdmin(user.email), admin };
 }
 
 export async function currentUserCanPublish(): Promise<boolean> {
@@ -116,13 +116,18 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
   if ("error" in checked) {
     return { ok: false, error: checked.error };
   }
-  const { data: existing, error: listError } = await gate.admin.from("courses").select("id, slug");
+  const { data: existing, error: listError } = await gate.admin.from("courses").select("id, slug, created_by");
   if (listError) {
     return { ok: false, error: databaseError(listError) };
   }
+  const existingRow = (existing ?? []).find((row) => row.id === checked.course.id);
   const slugError = courseSlugError(checked.course.slug, [...SEED_COURSES, ...(existing ?? [])], checked.course.id);
   if (slugError) {
     return { ok: false, error: slugError };
+  }
+  const ownership = courseOwnershipError(existingRow, gate.userId, gate.superAdmin);
+  if (ownership) {
+    return { ok: false, error: ownership };
   }
   const { error } = await gate.admin.from("courses").upsert({
     id: checked.course.id,
@@ -134,7 +139,7 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
     color: checked.course.color,
     theme: checked.course.theme,
     chapters: checked.chapters as unknown as Json,
-    created_by: gate.userId,
+    created_by: existingRow ? existingRow.created_by : gate.userId,
     updated_at: new Date().toISOString(),
   });
   if (error) {
@@ -150,6 +155,14 @@ export async function removePublishedCourse(id: string): Promise<{ ok: true } | 
   const gate = await requirePublisher();
   if (!gate.ok) {
     return gate;
+  }
+  const { data: row, error: readError } = await gate.admin.from("courses").select("created_by").eq("id", id).maybeSingle();
+  if (readError) {
+    return { ok: false, error: databaseError(readError) };
+  }
+  const ownership = courseOwnershipError(row, gate.userId, gate.superAdmin);
+  if (ownership) {
+    return { ok: false, error: ownership };
   }
   const { error } = await gate.admin.from("courses").delete().eq("id", id);
   if (error) {
