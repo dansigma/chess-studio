@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isExplorerFen, isPlayerUsername, isSearchQuery } from "./request-validation.ts";
+import { isExplorerFen, isPlayerUsername, isSearchQuery, isStudioPlayerName } from "./request-validation.ts";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const START_FEN_NO_COUNTERS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
@@ -41,4 +41,13 @@ test("search query enforces length boundaries", () => {
   assert.equal(isSearchQuery("a".repeat(41)), false);
   assert.equal(isSearchQuery(null), false);
   assert.equal(isSearchQuery("  "), false);
+});
+
+test("studio names allow Last, First spellings the strict username rejects", () => {
+  assert.equal(isStudioPlayerName("Capablanca, Jose"), true);
+  assert.equal(isPlayerUsername("Capablanca, Jose"), false);
+  assert.equal(isStudioPlayerName("José Raúl Capablanca"), true);
+  assert.equal(isStudioPlayerName("a".repeat(80)), true);
+  assert.equal(isStudioPlayerName("a".repeat(81)), false);
+  assert.equal(isStudioPlayerName(null), false);
 });

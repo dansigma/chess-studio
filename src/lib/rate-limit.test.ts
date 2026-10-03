@@ -39,7 +39,7 @@ test("tracks distinct keys independently", () => {
 });
 
 test("clientIp uses the right-most forwarded entry, then x-real-ip, then unknown", () => {
-  assert.equal(clientIp(new Headers({ "x-forwarded-for": "1.2.3.4, 5.6.7.8" })), "5.6.7.8");
+  assert.equal(clientIp(new Headers({ "x-forwarded-for": "1.2.3.4, 203.0.113.7" })), "203.0.113.7");
   assert.equal(clientIp(new Headers({ "x-forwarded-for": " 1.2.3.4 , 5.6.7.8 " })), "5.6.7.8");
   assert.equal(clientIp(new Headers({ "x-forwarded-for": ", 5.6.7.8, " })), "5.6.7.8");
   assert.equal(clientIp(new Headers({ "x-real-ip": "9.9.9.9" })), "9.9.9.9");
@@ -62,4 +62,23 @@ test("keeps enforcing limits past MAX_KEYS and evicts the least-recently-touched
   assert.deepEqual(limiter.check("newcomer"), { ok: true });
   assert.equal(limiter.check("victim").ok, false);
   assert.deepEqual(limiter.check(firstOther), { ok: true });
+});
+
+test("drains expired windows past MAX_KEYS while a recent active bucket survives", () => {
+  let now = 0;
+  const limiter = createRateLimiter({ limit: 2, windowMs: 1_000, now: () => now });
+  for (let i = 0; i < MAX_KEYS - 1; i++) {
+    assert.deepEqual(limiter.check(`old-${i}`), { ok: true });
+  }
+  now = 500;
+  assert.deepEqual(limiter.check("recent"), { ok: true });
+  assert.deepEqual(limiter.check("recent"), { ok: true });
+  now = 1_100;
+  for (let i = 0; i < 200; i++) {
+    assert.deepEqual(limiter.check(`flood-${i}`), { ok: true });
+  }
+  assert.equal(limiter.check("recent").ok, false);
+  assert.deepEqual(limiter.check("old-0"), { ok: true });
+  assert.deepEqual(limiter.check("flood-0"), { ok: true });
+  assert.equal(limiter.check("flood-0").ok, false);
 });

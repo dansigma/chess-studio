@@ -5,6 +5,9 @@ export function isExplorerFen(value: string | null): value is string {
 export function isPlayerUsername(value: string | null): value is string {
   return typeof value === "string" && /^[a-zA-Z0-9_-]{1,40}$/.test(value);
 }
+export function isStudioPlayerName(value: string | null): value is string {
+  return typeof value === "string" && /^[\p{L}\p{N} ,.'_-]{1,80}$/u.test(value);
+}
 export function isSearchQuery(value: string | null): value is string {
   const q = value?.trim() ?? "";
   return q.length >= 2 && q.length <= 40;

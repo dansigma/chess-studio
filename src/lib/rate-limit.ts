@@ -1,23 +1,17 @@
-// Rate limiting is best-effort and in-process (per Node process, not global).
-// Deployments with multiple instances or serverless replicas enforce the
-// limit independently per instance.
+// Rate limiting is best-effort and in-process (per Node process, not global;
+// single host today — deployments with multiple instances or serverless
+// replicas enforce the limit independently per instance).
 //
-// Trust boundary: `x-forwarded-for` / `x-real-ip` are client-supplied unless
-// a trusted front proxy strips/overwrites inbound values and appends the real
-// client IP. This deployment assumes a single trusted proxy using the append
-// convention (`X-Forwarded-For: <client>, <proxy>`), so the client IP is the
-// RIGHT-most entry (the one the trusted hop appended). The LEFT-most entry is
-// attacker-controlled under an appending proxy and must not be used.
-// Configure the edge proxy to strip inbound `X-Forwarded-For`/`X-Real-IP` and
-// overwrite them; the app must not be directly reachable without that proxy
-// if per-IP enforcement matters.
+// Trust boundary: `x-forwarded-for` / `x-real-ip` must come from a single
+// appending proxy at the edge that strips/overwrites the inbound values and
+// appends the real client IP (`X-Forwarded-For: <client>, <proxy>`), so the
+// client IP is the RIGHT-most entry (the one the trusted hop appended). The
+// LEFT-most entry is attacker-controlled under an appending proxy and must not
+// be used. Without that proxy the header is client-controlled (dev only).
 //
-// No-header case: when neither header is present the client cannot be
-// attributed to an IP. Callers treat `"unknown"` as unattributed and skip
-// rate limiting (fail-open) rather than collapsing every such client into one
-// shared bucket, where a single loud client would 429 all the others. Without
-// a header-setting proxy, header-based limiting is bypassable by sending a
-// header, so the proxy above is required for real enforcement.
+// No-header case: when neither header is present the client maps to the
+// explicitly shared `"unknown"` bucket (dev/direct connections). In production
+// the proxy always sets the header, so this bucket is never hit there.
 export const MAX_KEYS = 5000;
 
 type Verdict = { ok: true } | { ok: false; retryAfterSeconds: number };
