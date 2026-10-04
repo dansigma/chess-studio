@@ -367,9 +367,14 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
-function emptyBoard(title = "Board"): BoardSession {
+// NOTE: id must be injectable — Workers forbids crypto.randomUUID() during
+// global-scope (module init) evaluation ("Disallowed operation called within
+// global scope... generating random values are not allowed within global
+// scope"). The initial store board passes a deterministic id; every other
+// call site runs inside handlers/effects, where newId() is allowed.
+function emptyBoard(title = "Board", id = newId()): BoardSession {
   return {
-    id: newId(),
+    id,
     remoteId: null,
     title,
     tree: createEmptyTree(),
@@ -413,7 +418,7 @@ type SessionResetPayload = Pick<
 >;
 
 export const useStudioStore = create<StudioState>((set, get) => ({
-  boards: [emptyBoard()],
+  boards: [emptyBoard("Board", "initial-board")],
   activeBoardId: "",
   activity: "boards",
   databaseSource: "masters",

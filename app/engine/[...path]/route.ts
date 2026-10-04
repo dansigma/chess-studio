@@ -1,0 +1,61 @@
+// Serve os builds "full" do engine a partir do R2.
+//
+// Contexto: os wasm full têm ~95MB cada (>75MiB, acima do limite de 25MiB por
+// asset do Workers/Pages), então NÃO viajam no bundle — vivem no bucket R2
+// `chess-studio-engine` (keys espelham os paths do app:
+// engine/full/stockfish-19.wasm e engine/stockfish-19-single.wasm) e são
+// levantados para lá por scripts/uploads manuais (ver skill do projeto).
+//
+// IMPORTANTE: os wasm ficam fora de public/ durante o build (o wrapper
+// scripts/vinext-deploy.mjs faz stash→deploy→restore). Se estiverem em public/
+// no build, o pipeline estático do vinext classifica esses paths como assets do
+// build e os drena para o binding de ASSETS (que não os contém) ANTES desta
+// rota rodar — resultado: 404 vazio.
+//
+// Mantém os headers de isolation (COOP/COEP/CORP) que o worker do engine exige
+// sob COEP, com os mesmos paths do app (nenhuma mudança no cliente).
+import { env } from "cloudflare:workers";
+
+type R2ObjectLike = {
+  body: ReadableStream;
+  httpEtag: string;
+  size: number;
+  writeHttpMetadata(headers: Headers): void;
+};
+
+type EngineBucket = {
+  get(key: string): Promise<R2ObjectLike | null>;
+};
+
+const IMMUTABLE = "public, max-age=31536000, immutable";
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ path: string[] }> },
+) {
+  const { path } = await params;
+  const key = `engine/${path.join("/")}`;
+  const bucket = (env as unknown as { ENGINE?: EngineBucket }).ENGINE;
+  if (!bucket) {
+    return new Response("Engine bucket not configured", { status: 503 });
+  }
+  const object = await bucket.get(key);
+  if (!object) {
+    return new Response("Not found", { status: 404 });
+  }
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set(
+    "Content-Type",
+    key.endsWith(".wasm")
+      ? "application/wasm"
+      : headers.get("Content-Type") ?? "application/octet-stream",
+  );
+  headers.set("Cache-Control", IMMUTABLE);
+  headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+  headers.set("Cross-Origin-Resource-Policy", "same-origin");
+  headers.set("ETag", object.httpEtag);
+  headers.set("Content-Length", String(object.size));
+  return new Response(object.body, { headers });
+}

@@ -45,3 +45,6 @@ next-env.d.ts
 
 # local chess database downloads
 /data/
+/dist/
+.vinext/
+.cloudflare/
