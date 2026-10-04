@@ -49,9 +49,12 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
   }
 
   if (mode === "reset") {
-    const verdict = limiter.check(`reset:${clientIp(await headers())}`);
-    if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
-    const base = process.env.NEXT_PUBLIC_SITE_URL ?? (await requestOrigin());
+    const ip = clientIp(await headers());
+    if (ip !== "unknown") {
+      const verdict = limiter.check(`reset:${ip}`);
+      if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
+    }
+    const base = await siteUrl();
     const redirectTo = `${base}/auth/callback?next=${encodeURIComponent("/login/update-password")}`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) {
@@ -67,8 +70,11 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
   const next = safeAuthNext(formData.get("next"));
 
   if (mode === "signup") {
-    const verdict = limiter.check(`signup:${clientIp(await headers())}`);
-    if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
+    const ip = clientIp(await headers());
+    if (ip !== "unknown") {
+      const verdict = limiter.check(`signup:${ip}`);
+      if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
+    }
     const { error } = await supabase.auth.signUp({
       email,
       password,

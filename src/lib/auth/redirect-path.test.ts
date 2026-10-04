@@ -22,6 +22,43 @@ describe("safeAuthNext", () => {
     assert.equal(safeAuthNext("https://evil.com"), "/studio");
   });
 
+  it("rejects percent-encoded traversal that escapes the allowlist", () => {
+    assert.equal(safeAuthNext("/studio/%2e%2e/admin"), "/studio");
+    assert.equal(safeAuthNext("/studio/%2E%2E/admin"), "/studio");
+    assert.equal(safeAuthNext("/courses/%2e%2e/%2e%2e/etc"), "/studio");
+  });
+
+  it("collapses encoded payloads that land inside the allowlist", () => {
+    assert.equal(safeAuthNext("/%2e%2e/studio"), "/studio");
+    assert.equal(safeAuthNext("/studio?x=1"), "/studio?x=1");
+  });
+
+  it("rejects encoded slashes that survive parsing", () => {
+    assert.equal(safeAuthNext("/studio/%2f%2fevil.com"), "/studio");
+    assert.equal(safeAuthNext("/studio/%2e%2e%2fadmin"), "/studio");
+  });
+
+  it("rejects boundary siblings of allowlisted prefixes", () => {
+    assert.equal(safeAuthNext("/studiox"), "/studio");
+    assert.equal(safeAuthNext("/coursesx"), "/studio");
+    assert.equal(safeAuthNext("/login/update-passwordx"), "/studio");
+  });
+
+  it("rejects absolute and protocol-relative off-origin URLs", () => {
+    assert.equal(safeAuthNext("https://evil.com"), "/studio");
+    assert.equal(safeAuthNext("http://evil.com/studio"), "/studio");
+    assert.equal(safeAuthNext("//evil.com/studio"), "/studio");
+  });
+
+  it("rejects backslash payloads", () => {
+    assert.equal(safeAuthNext("/studio\\evil"), "/studio");
+    assert.equal(safeAuthNext("\\/evil.com"), "/studio");
+  });
+
+  it("rejects overlong values", () => {
+    assert.equal(safeAuthNext(`/studio/${"a".repeat(512)}`), "/studio");
+  });
+
   it("rejects non-allowlisted paths and non-string values", () => {
     assert.equal(safeAuthNext("/puzzles"), "/studio");
     assert.equal(safeAuthNext(""), "/studio");
