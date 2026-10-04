@@ -13,6 +13,10 @@ const eslintConfig = defineConfig([
     "build/**",
     "public/engine/**",
     "chess-studio/**",
+    // vinext / Cloudflare build outputs (gitignored; not source):
+    ".cloudflare/**",
+    ".vinext/**",
+    "dist/**",
   ]),
 ]);
 
