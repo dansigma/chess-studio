@@ -7,7 +7,7 @@ export function isPlayerUsername(value: string | null): value is string {
 }
 export function isStudioPlayerName(value: string | null): value is string {
   const name = value?.trim() ?? "";
-  return name.length >= 1 && name.length <= 80 && !/[\u0000-\u001f\u007f]/.test(name);
+  return name.length >= 1 && name.length <= 80 && !/[\p{Cc}\p{Cf}]/u.test(name);
 }
 export function isSearchQuery(value: string | null): value is string {
   const q = value?.trim() ?? "";

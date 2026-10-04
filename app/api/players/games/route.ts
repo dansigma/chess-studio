@@ -7,7 +7,7 @@ const limiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
 
 export async function GET(request: NextRequest) {
   const source = request.nextUrl.searchParams.get("source") ?? "";
-  const username = request.nextUrl.searchParams.get("username") ?? "";
+  const username = (request.nextUrl.searchParams.get("username") ?? "").trim();
   const displayName = request.nextUrl.searchParams.get("displayName") ?? undefined;
   const subtitle = request.nextUrl.searchParams.get("subtitle") ?? undefined;
   const validSource = source === "lichess" || source === "chesscom" || source === "studio";

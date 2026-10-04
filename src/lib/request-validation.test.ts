@@ -53,4 +53,5 @@ test("studio names allow Last, First spellings the strict username rejects", () 
   assert.equal(isStudioPlayerName("Player (BRA)"), true);
   assert.equal(isStudioPlayerName("a" + String.fromCharCode(10) + "b"), false);
   assert.equal(isStudioPlayerName(String.fromCharCode(0) + "abc"), false);
+  assert.equal(isStudioPlayerName("Capablanca\u202e, Jose"), false);
 });

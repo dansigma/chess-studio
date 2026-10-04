@@ -48,6 +48,11 @@ test("clientIp uses the right-most forwarded entry, then x-real-ip, then unknown
     "1.1.1.1",
   );
   assert.equal(clientIp(new Headers()), "unknown");
+  assert.equal(clientIp(new Headers({ "x-forwarded-for": ",  , " })), "unknown");
+  assert.equal(
+    clientIp(new Headers({ "x-forwarded-for": ",  , ", "x-real-ip": "9.9.9.9" })),
+    "9.9.9.9",
+  );
 });
 
 test("keeps enforcing limits past MAX_KEYS and evicts the least-recently-touched bucket", () => {

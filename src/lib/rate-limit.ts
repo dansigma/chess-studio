@@ -4,7 +4,7 @@
 //
 // Trust boundary: `x-forwarded-for` / `x-real-ip` must come from a single
 // appending proxy at the edge that strips/overwrites the inbound values and
-// appends the real client IP (`X-Forwarded-For: <client>, <proxy>`), so the
+// appends the real client IP (`X-Forwarded-For: <spoofed-by-client>, <client>`), so the
 // client IP is the RIGHT-most entry (the one the trusted hop appended). The
 // LEFT-most entry is attacker-controlled under an appending proxy and must not
 // be used. Without that proxy the header is client-controlled (dev only).
@@ -81,6 +81,8 @@ export function createRateLimiter(options: {
   };
 }
 
+let warnedUnknownIp = false;
+
 export function clientIp(headers: Headers): string {
   const forwarded = headers.get("x-forwarded-for");
   if (forwarded) {
@@ -96,6 +98,10 @@ export function clientIp(headers: Headers): string {
   const realIp = headers.get("x-real-ip")?.trim();
   if (realIp) {
     return realIp;
+  }
+  if (!warnedUnknownIp) {
+    warnedUnknownIp = true;
+    console.warn("rate-limit: client IP unavailable (fail-open)");
   }
   return "unknown";
 }
