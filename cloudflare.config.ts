@@ -16,6 +16,7 @@ export default defineConfig({
         "/engine/stockfish-19-single.wasm",
       ],
     },
+    domains: ["xadrez.digital", "www.xadrez.digital"],
     env: {
       ASSETS: bindings.assets(),
       ENGINE: bindings.r2({ name: "chess-studio-engine" }),
