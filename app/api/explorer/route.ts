@@ -11,8 +11,12 @@ import type {
 import { filtersAreDefault, filtersFromSearchParams, lichessFilterQuery } from "@/src/lib/explorer-filters";
 import { emptyExplorer, lookupOpeningBook } from "@/src/lib/opening-book";
 import { lookupOpeningIndex } from "@/src/lib/opening-index";
+import { createLruCache } from "@/src/lib/lru";
+import { isExplorerFen } from "@/src/lib/request-validation";
+import { clientIp, createRateLimiter } from "@/src/lib/rate-limit";
 
-const memoryCache = new Map<string, { payload: ExplorerResponse; fetchedAt: number }>();
+const memoryCache = createLruCache<string, { payload: ExplorerResponse; fetchedAt: number }>(500);
+const limiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 
 type LichessPlayer = {
@@ -173,6 +177,20 @@ export async function GET(request: NextRequest) {
       { error: "fen and source=masters|lichess are required" },
       { status: 400 },
     );
+  }
+  if (!isExplorerFen(fen)) {
+    return NextResponse.json({ error: "fen is not a valid position" }, { status: 400 });
+  }
+
+  const ip = clientIp(request.headers);
+  if (ip !== "unknown") {
+    const verdict = limiter.check(`explorer:${ip}`);
+    if (!verdict.ok) {
+      return NextResponse.json(
+        { error: "Too many requests — try again shortly." },
+        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+      );
+    }
   }
 
   const filters = filtersFromSearchParams(request.nextUrl.searchParams);
