@@ -9,6 +9,12 @@ const isolation = [
 const nextConfig: NextConfig = {
   async headers() {
     return [
+      // NB: vinext's :path* matcher requires >=1 segment (Next.js matches zero+),
+      // so the exact /studio path needs its own rule for COOP/COEP to apply.
+      {
+        source: "/studio",
+        headers: isolation,
+      },
       {
         source: "/studio/:path*",
         headers: isolation,
