@@ -31,9 +31,7 @@ create policy "course_admins_no_client_access" on public.course_admins
   for select to authenticated
   using (false);
 
-insert into public.course_admins (email)
-values ('xadrez@sigmalabs.com.br'), ('danvalves@gmail.com')
-on conflict (email) do nothing;
+-- Seed via dashboard or the COURSE_ADMINS env; never commit real emails.
 
 create or replace function private.handle_new_user()
 returns trigger

@@ -4,6 +4,7 @@ import { Suspense, useActionState, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
+import { safeAuthNext } from "@/src/lib/auth/redirect-path";
 import { Button } from "@/src/studio/ui/Button";
 import { submitAuth, type AuthFormState } from "./actions";
 import { AuthField, AuthLayout, AuthMessage, authInputClass } from "./AuthLayout";
@@ -19,6 +20,7 @@ const HEADINGS: Record<Mode, { title: string; subtitle: string }> = {
 function LoginForm() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "";
+  const authError = searchParams.get("error") === "auth";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<Mode>("signin");
@@ -59,7 +61,7 @@ function LoginForm() {
 
       <form action={formAction} className="mt-6 space-y-4">
         <input type="hidden" name="mode" value={mode} />
-        <input type="hidden" name="next" value={next.startsWith("/") ? next : "/studio"} />
+        <input type="hidden" name="next" value={safeAuthNext(next)} />
         {!supabase ? (
           <AuthMessage tone="info">
             Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to enable accounts.
@@ -109,6 +111,9 @@ function LoginForm() {
               className={authInputClass}
             />
           </AuthField>
+        ) : null}
+        {authError ? (
+          <AuthMessage tone="error">The confirmation link is invalid or expired. Try again.</AuthMessage>
         ) : null}
         {state.error ? <AuthMessage tone="error">{state.error}</AuthMessage> : null}
         {state.message ? <AuthMessage tone="success">{state.message}</AuthMessage> : null}

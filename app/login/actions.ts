@@ -2,17 +2,14 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { createConfirmedUser, finishSignIn } from "@/src/lib/auth/access";
+import { finishSignIn } from "@/src/lib/auth/access";
+import { safeAuthNext } from "@/src/lib/auth/redirect-path";
+import { clientIp, createRateLimiter } from "@/src/lib/rate-limit";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 
 export type AuthFormState = { error?: string; message?: string };
 
-function safeNext(value: FormDataEntryValue | null): string {
-  if (typeof value === "string" && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\")) {
-    return value;
-  }
-  return "/studio";
-}
+const limiter = createRateLimiter({ limit: 10, windowMs: 10 * 60 * 1000 });
 
 function field(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -27,12 +24,16 @@ function signInError(message: string): string {
   if (lower.includes("email not confirmed")) {
     return "Confirm your email, then sign in.";
   }
-  return message;
+  return "Could not sign in. Try again.";
 }
 
 async function requestOrigin(): Promise<string> {
   const headerStore = await headers();
   return headerStore.get("origin") ?? "http://localhost:3000";
+}
+
+async function siteUrl(): Promise<string> {
+  return process.env.NEXT_PUBLIC_SITE_URL ?? (await requestOrigin());
 }
 
 export async function submitAuth(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -48,11 +49,16 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
   }
 
   if (mode === "reset") {
-    const origin = await requestOrigin();
-    const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent("/login/update-password")}`;
+    const ip = clientIp(await headers());
+    if (ip !== "unknown") {
+      const verdict = limiter.check(`reset:${ip}`);
+      if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
+    }
+    const base = await siteUrl();
+    const redirectTo = `${base}/auth/callback?next=${encodeURIComponent("/login/update-password")}`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) {
-      return { error: error.message };
+      return { error: "Could not send the reset link. Try again." };
     }
     return { message: "If an account exists for that email, a reset link is on its way." };
   }
@@ -61,19 +67,21 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
     return { error: "Password must be at least 6 characters." };
   }
 
-  const next = safeNext(formData.get("next"));
+  const next = safeAuthNext(formData.get("next"));
 
   if (mode === "signup") {
-    const created = await createConfirmedUser(email, password);
-    if (!created.ok) {
-      return { error: created.error };
+    const ip = clientIp(await headers());
+    if (ip !== "unknown") {
+      const verdict = limiter.check(`signup:${ip}`);
+      if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
     }
-    const signedIn = await supabase.auth.signInWithPassword({ email, password });
-    if (signedIn.error) {
-      return { error: signInError(signedIn.error.message) };
-    }
-    await finishSignIn(created.userId, email);
-    redirect(next);
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${await siteUrl()}/auth/callback?next=${encodeURIComponent(next)}` },
+    });
+    if (error) return { error: "Could not create the account. Try again." };
+    return { message: "Check your email to confirm your account, then sign in." };
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
