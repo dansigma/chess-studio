@@ -98,6 +98,7 @@ import {
   type FileGame,
   type FilesLibrary,
 } from "@/src/lib/user-files";
+import { capEvalCache } from "@/src/lib/eval-cache";
 
 export type { BoardTheme } from "@/src/chess/board-themes";
 export type { PieceSet } from "@/src/chess/piece-sets";
@@ -127,6 +128,9 @@ export type EnginePreview = {
 export type EngineEval = {
   pawns: number;
   label: string;
+  // SIG-856: carried so the held eval stays coherent with its depth readout
+  // while a fresh FEN has no live lines yet.
+  depth?: number;
 };
 
 export type CachedEval = {
@@ -1109,7 +1113,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     ) {
       return;
     }
-    set({ evalByFen: { ...get().evalByFen, [key]: value } });
+    // SIG-856: re-insert the key so the write refreshes recency, then cap the
+    // map at MAX_EVAL_CACHE_ENTRIES (oldest FENs evicted first).
+    const next = { ...get().evalByFen };
+    delete next[key];
+    next[key] = value;
+    set({ evalByFen: capEvalCache(next) });
   },
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
   setNotationEditor: (notationEditor) => set({ notationEditor }),

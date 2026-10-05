@@ -21,6 +21,8 @@ import {
 } from "@/src/engine/stockfish-client";
 import { useActiveFen, useSideToMove } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
+import { fenKey } from "@/src/chess/tree";
+import { resolveEvalDisplay } from "@/src/lib/eval-cache";
 import { formatSanAtPly } from "@/src/chess/move-notation";
 import { IconButton } from "./ui/Button";
 import { Badge, Stepper } from "./ui/Controls";
@@ -56,6 +58,10 @@ export function EnginePanel() {
   const previewKey = useStudioStore((state) => state.enginePreview?.key ?? null);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const side = useSideToMove();
+  // SIG-856: the cached eval for this FEN (shown immediately, no engine
+  // wait) and the last displayed eval (held instead of zeroed on fresh FENs).
+  const cachedForFen = useStudioStore((state) => state.evalByFen[fenKey(fen)]);
+  const heldEval = useStudioStore((state) => state.engineEval);
   const engineRef = useRef<StockfishEngine | null>(null);
   const [paused, setPaused] = useState(false);
   const [runId, setRunId] = useState(0);
@@ -93,12 +99,19 @@ export function EnginePanel() {
     engineRef.current?.analyze(fen, depthTarget, multiPv, threads);
   }, [fen, depthTarget, multiPv, threads, paused, runId, engineBuild]);
 
+  // SIG-856 choice (b): on a FEN change, show the cached eval immediately
+  // when present; otherwise hold the last displayed value — never zero the
+  // bar while the engine analyzes the new FEN. The cleanup must not clear
+  // the eval either: passive-effect cleanup runs after paint, so a
+  // clear-then-set would flash a zero frame.
   useEffect(() => {
     setEnginePreview(null);
-    setEngineEval(null);
+    const cached = useStudioStore.getState().evalByFen[fenKey(fen)];
+    if (cached) {
+      setEngineEval({ pawns: cached.pawns, label: cached.label, depth: cached.depth });
+    }
     return () => {
       setEnginePreview(null);
-      setEngineEval(null);
     };
   }, [fen, setEnginePreview, setEngineEval]);
 
@@ -106,13 +119,19 @@ export function EnginePanel() {
   const best = lines[0];
   const evalLabel = formatScore(best, side);
   const evalValue = scoreNumber(best, side);
-  const bar = evalBarPercent(evalValue);
+  const display = resolveEvalDisplay(
+    best ? { pawns: evalValue, label: evalLabel, depth: info.depth } : null,
+    cachedForFen,
+    heldEval,
+    info.depth,
+  );
+  const bar = evalBarPercent(display.pawns);
 
   useEffect(() => {
     if (!best) {
       return;
     }
-    setEngineEval({ pawns: evalValue, label: evalLabel });
+    setEngineEval({ pawns: evalValue, label: evalLabel, depth: info.depth });
     putEvalCache(fen, { pawns: evalValue, label: evalLabel, depth: info.depth });
   }, [best, evalLabel, evalValue, fen, info.depth, putEvalCache, setEngineEval]);
   const maxCores = info.threaded ? maxHardwareThreads() : 1;
@@ -256,7 +275,7 @@ export function EnginePanel() {
           label="Depth"
           value={
             <span>
-              {info.depth}
+              {display.depth}
               <span className="text-studio-faint"> / {depthTarget}</span>
             </span>
           }
@@ -369,9 +388,9 @@ export function EnginePanel() {
           ))}
         </div>
       </div>
-      {evalLabel ? (
+      {display.label ? (
         <span className="sr-only">
-          Evaluation {evalLabel}
+          Evaluation {display.label}
         </span>
       ) : null}
     </div>

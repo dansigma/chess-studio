@@ -162,6 +162,7 @@ export function StudioDock() {
   });
   const apiRef = useRef<DockviewApi | null>(null);
   const suppressSaves = useRef(0);
+  const suppressTimers = useRef<number[]>([]);
   const saveTimer = useRef<number | null>(null);
   const layoutSubscription = useRef<{ dispose: () => void } | null>(null);
 
@@ -174,9 +175,13 @@ export function StudioDock() {
     try {
       fn();
     } finally {
-      window.setTimeout(() => {
+      // SIG-856: keep the id so the timer can be cleared on unmount instead
+      // of decrementing the counter on a dead dock.
+      const id = window.setTimeout(() => {
+        suppressTimers.current = suppressTimers.current.filter((timer) => timer !== id);
         suppressSaves.current = Math.max(0, suppressSaves.current - 1);
       }, 0);
+      suppressTimers.current.push(id);
     }
   }
 
@@ -215,6 +220,10 @@ export function StudioDock() {
   useEffect(() => {
     return () => {
       layoutSubscription.current?.dispose();
+      for (const timer of suppressTimers.current) {
+        window.clearTimeout(timer);
+      }
+      suppressTimers.current = [];
       if (saveTimer.current !== null) {
         window.clearTimeout(saveTimer.current);
       }
