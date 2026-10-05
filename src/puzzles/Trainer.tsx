@@ -27,7 +27,8 @@ import {
   type CompiledPuzzle,
 } from "./engine";
 import { puzzleGoal, solvedPraise, squareAnchor } from "./feedback";
-import { loadProgress, saveProgress } from "./progress";
+import { hydratePuzzleProgress, saveProgress } from "./progress";
+import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { THEME_LABELS, type PuzzleMode, type PuzzleProgress, type PuzzleTheme } from "./types";
 
 const RUSH_SECONDS = 180;
@@ -147,7 +148,7 @@ export function PuzzleTrainer() {
     setProgress(next);
     setDelta(next.rating - current.rating);
     setGained(next.xp - current.xp);
-    saveProgress(next);
+    void saveProgress(next);
     if (!success && mode === "streak") {
       setSessionOver(true);
     }
@@ -176,9 +177,15 @@ export function PuzzleTrainer() {
   }
 
   useEffect(() => {
+    let cancel = false;
     void (async () => {
       try {
-        const loaded = loadProgress();
+        const supabase = createBrowserSupabase();
+        const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+        const loaded = await hydratePuzzleProgress(user?.id ?? null);
+        if (cancel) {
+          return;
+        }
         progressRef.current = loaded;
         sessionSolvedRef.current = 0;
         exclude.current = new Set();
@@ -211,9 +218,14 @@ export function PuzzleTrainer() {
         setLoadError(null);
       } catch (error) {
         console.error("Failed to load puzzle progress.", error);
-        setLoadError("Could not load your puzzle progress. Reload the page to try again.");
+        if (!cancel) {
+          setLoadError("Could not load your puzzle progress. Reload the page to try again.");
+        }
       }
     })();
+    return () => {
+      cancel = true;
+    };
   }, [mode, theme]);
 
   useEffect(() => {
