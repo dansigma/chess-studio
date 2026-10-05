@@ -78,6 +78,8 @@ import {
   type ExplorerFilters,
 } from "@/src/lib/explorer-filters";
 import { dropFilesExplorerIndex } from "@/src/lib/files-explorer";
+import { purgeUserLocalCaches } from "@/src/lib/local-cache";
+import { resetCourseProgressState } from "@/src/courses/store";
 import { isLegalSetupFen } from "@/src/chess/setup-fen";
 import { applyNullMoveFen, NULL_MOVE_SAN, NULL_MOVE_UCI } from "@/src/chess/null-move";
 import { isBoardTheme, type BoardTheme } from "@/src/chess/board-themes";
@@ -1395,7 +1397,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     }
   },
   resetSessionState: () => {
-    // intentional: local-only (remoteId null) entries are expendable on account change; per-user namespacing tracked in SIG-886
+    // SIG-886: the course/puzzle local caches are per-account data — purge
+    // them with the files/bookmarks so the next account never reads the
+    // previous user's rows. Anonymous trial data is safe: this reset only
+    // runs on an account change with a previous user, never on anon login.
+    purgeUserLocalCaches();
+    resetCourseProgressState();
     saveLocalFiles(EMPTY_FILES);
     saveLocalBookmarks([]);
     const board = emptyBoard();
