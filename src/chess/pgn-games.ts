@@ -1,14 +1,8 @@
 import { importPgn, titleFromHeaders } from "./pgn";
+import { pgnGameChunks } from "./pgn-clean";
 
 export function splitPgnGames(text: string): string[] {
-  const trimmed = text.replace(/^\uFEFF/, "").trim();
-  if (!trimmed) {
-    return [];
-  }
-  return trimmed
-    .split(/\r?\n(?:\r?\n)+(?=\[)/)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean);
+  return pgnGameChunks(text);
 }
 
 export type ParsedFileGame = {

@@ -59,3 +59,23 @@ test("a period where a move was expected does not throw", () => {
   assert.equal(game.tree.children[0]?.san, "e4");
   assert.equal(openablePgn("this is not. a pgn"), null);
 });
+
+test("a null move inside a variation is kept with -- SAN", () => {
+  const game = importPgn('[Event "A"]\n\n1. e4 e5 (1... -- 2. Nf3) *\n');
+  assert.equal(game.tree.children[0]?.san, "e4");
+  const variation = game.tree.children[0]?.children[1];
+  assert.ok(variation, "expected a second variation after 1... e5");
+  assert.equal(variation.san, "--");
+  assert.equal(variation.uci, "0000");
+  assert.equal(variation.children[0]?.san, "Nf3");
+});
+
+test("an illegal SAN stops the line and is recorded, keeping the parsed prefix", () => {
+  const game = importPgn('[Event "A"]\n\n1. e4 e5 2. e5 *\n');
+  assert.equal(game.tree.children[0]?.san, "e4");
+  assert.equal(game.tree.children[0]?.children[0]?.san, "e5");
+  assert.equal(game.tree.children[0]?.children[0]?.children.length, 0);
+  assert.ok(Array.isArray(game.warnings));
+  assert.equal(game.warnings.length, 1);
+  assert.match(game.warnings[0] ?? "", /e5/);
+});
