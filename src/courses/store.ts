@@ -1,12 +1,18 @@
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
+import {
+  COURSE_PROGRESS_KEY,
+  CUSTOM_COURSES_KEY,
+  isCourseProgressOwnedBy,
+  readJsonCache,
+  removeRawCache,
+  writeCourseProgressOwner,
+  writeRawCache,
+} from "../lib/local-cache";
 import { isCourseColor, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog";
 import { courseImageUrl } from "./media";
 import { mergeProgress } from "./progress";
 import { SEED_COURSES } from "./seed";
 import type { Course, VariationProgress } from "./types";
-
-const LOCAL_COURSES_KEY = "xd-custom-courses";
-const PROGRESS_KEY = "xd-course-progress";
 
 export { courseSlugError, slugify } from "./catalog";
 
@@ -14,16 +20,14 @@ let progressCache: Record<string, VariationProgress> = {};
 let accountUserId: string | null = null;
 let progressOnAccount = false;
 
+export function resetCourseProgressState(): void {
+  progressCache = {};
+  accountUserId = null;
+  progressOnAccount = false;
+}
+
 function readJson<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") {
-    return fallback;
-  }
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
+  return readJsonCache<T>(key, fallback);
 }
 
 function writeLocalProgress(progress: Record<string, VariationProgress>): void {
@@ -31,14 +35,14 @@ function writeLocalProgress(progress: Record<string, VariationProgress>): void {
     return;
   }
   try {
-    window.localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
+    writeRawCache(COURSE_PROGRESS_KEY, JSON.stringify(progress));
   } catch {
     // The account copy is the one that has to succeed.
   }
 }
 
 export function readLocalCustomCourses(): Course[] {
-  const value = readJson<unknown>(LOCAL_COURSES_KEY, []);
+  const value = readJson<unknown>(CUSTOM_COURSES_KEY, []);
   if (!Array.isArray(value)) {
     return [];
   }
@@ -51,11 +55,11 @@ export function removeLocalCustomDraft(id: string): void {
   }
   const remaining = readLocalCustomCourses().filter((course) => course.id !== id);
   if (remaining.length === 0) {
-    window.localStorage.removeItem(LOCAL_COURSES_KEY);
+    removeRawCache(CUSTOM_COURSES_KEY);
     return;
   }
   try {
-    window.localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(remaining));
+    writeRawCache(CUSTOM_COURSES_KEY, JSON.stringify(remaining));
   } catch {
     // Keep the draft in memory; a later import retries.
   }
@@ -65,7 +69,7 @@ export function clearLocalCustomCourses(): void {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.removeItem(LOCAL_COURSES_KEY);
+  removeRawCache(CUSTOM_COURSES_KEY);
 }
 
 export function progressSource(): "account" | "browser" {
@@ -119,9 +123,19 @@ export async function fetchCourses(): Promise<{ courses: Course[]; error: string
 }
 
 export async function hydrateProgress(userId: string | null): Promise<Record<string, VariationProgress>> {
-  const local = readJson<Record<string, VariationProgress>>(PROGRESS_KEY, {});
+  const stored = readJson<Record<string, VariationProgress>>(COURSE_PROGRESS_KEY, {});
+  // SIG-886: a hydrate racing ahead of the account-change purge must not
+  // merge another user's local rows into this account. Unmarked data is
+  // the anonymous trial (or legacy) and stays mergeable; marked foreign
+  // data is dropped on sight so no later hydrate can adopt it.
+  const owned = isCourseProgressOwnedBy(userId);
+  const local = owned ? stored : {};
   accountUserId = userId;
   progressOnAccount = false;
+  if (!owned) {
+    removeRawCache(COURSE_PROGRESS_KEY);
+    writeCourseProgressOwner(null);
+  }
   if (!userId) {
     progressCache = local;
     return progressCache;
@@ -129,6 +143,9 @@ export async function hydrateProgress(userId: string | null): Promise<Record<str
   const supabase = createBrowserSupabase();
   if (!supabase) {
     progressCache = local;
+    if (owned) {
+      writeCourseProgressOwner(userId);
+    }
     return progressCache;
   }
   const { data, error } = await supabase
@@ -161,18 +178,24 @@ export async function hydrateProgress(userId: string | null): Promise<Record<str
   progressCache = merged;
   progressOnAccount = !uploadFailed;
   writeLocalProgress(merged);
+  writeCourseProgressOwner(userId);
   return progressCache;
+}
+
+function persistLocalProgress(): void {
+  writeLocalProgress(progressCache);
+  writeCourseProgressOwner(accountUserId);
 }
 
 export async function saveVariationProgress(variationId: string, progress: VariationProgress): Promise<string | null> {
   progressCache = { ...progressCache, [variationId]: progress };
   if (!accountUserId) {
-    writeLocalProgress(progressCache);
+    persistLocalProgress();
     return null;
   }
   const supabase = createBrowserSupabase();
   if (!supabase) {
-    writeLocalProgress(progressCache);
+    persistLocalProgress();
     return "Progress stayed in this browser.";
   }
   const { error } = await supabase.from("course_progress").upsert({
@@ -183,10 +206,10 @@ export async function saveVariationProgress(variationId: string, progress: Varia
     updated_at: new Date().toISOString(),
   });
   if (error) {
-    writeLocalProgress(progressCache);
+    persistLocalProgress();
     return "Progress stayed in this browser.";
   }
-  writeLocalProgress(progressCache);
+  persistLocalProgress();
   return null;
 }
 
