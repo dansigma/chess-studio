@@ -261,6 +261,14 @@ function importOneGame(chunk: string): ImportedGame | null {
 }
 
 function absorbTree(dest: GameTree, source: GameTree): void {
+  // Tree-level annotations follow the same fill-empty / never-overwrite rule
+  // as node fields: a later game only fills what the first game left empty.
+  if (!dest.startComment && source.startComment) {
+    dest.startComment = source.startComment;
+  }
+  if (marksAreEmpty(dest.startMarks) && !marksAreEmpty(source.startMarks)) {
+    dest.startMarks = structuredClone(source.startMarks);
+  }
   const absorb = (siblings: TreeNode[], incoming: TreeNode[]) => {
     for (const node of incoming) {
       let existing = siblings.find((child) => child.uci === node.uci);
@@ -300,29 +308,49 @@ function absorbTree(dest: GameTree, source: GameTree): void {
 }
 
 export function openablePgn(pgn: string): ImportedGame | null {
-  const games: ImportedGame[] = [];
+  // Keep every import in chunk order so warnings from games with no playable
+  // moves still reach the caller instead of being dropped with the game.
+  const ordered: ImportedGame[] = [];
   for (const chunk of pgnGameChunks(pgn)) {
     const imported = importOneGame(chunk);
-    if (imported && imported.tree.children.length > 0) {
-      games.push(imported);
+    if (imported) {
+      ordered.push(imported);
     }
   }
+  const games = ordered.filter((game) => game.tree.children.length > 0);
   const first = games[0];
   if (!first) {
-    return null;
+    // No playable moves anywhere: return the first game's declared position
+    // (headers/FEN/start annotations) with every recorded warning, instead of
+    // silently falling back to the standard start with no warnings. Truly
+    // unparseable input still yields null (no imports at all).
+    const head = ordered[0];
+    if (!head) {
+      return null;
+    }
+    return {
+      tree: head.tree,
+      path: [],
+      headers: head.headers,
+      title: head.title,
+      warnings: ordered.flatMap((game) => game.warnings),
+    };
   }
   const start = fenKey(first.tree.startFen);
   const tree = structuredClone(first.tree);
-  const warnings = [...first.warnings];
+  const mergedGames = new Set<ImportedGame>([first]);
   let merged = 1;
   for (const game of games.slice(1)) {
     if (fenKey(game.tree.startFen) !== start) {
       continue;
     }
     absorbTree(tree, game.tree);
-    warnings.push(...game.warnings);
+    mergedGames.add(game);
     merged += 1;
   }
+  const warnings = ordered.flatMap((game) =>
+    game.tree.children.length === 0 || mergedGames.has(game) ? game.warnings : [],
+  );
   return {
     tree,
     path: merged > 1 ? [] : mainLineEnd(tree),

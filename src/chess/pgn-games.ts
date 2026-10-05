@@ -29,7 +29,10 @@ export function parsePgnCollection(text: string, limit = 500): {
       continue;
     }
     const imported = importPgn(chunk);
-    if (imported.tree.children.length === 0 && Object.keys(imported.headers).length === 0) {
+    // importPgn keeps the declared headers/FEN and warnings even when no move
+    // was playable, so playability alone decides the skip (headers no longer
+    // imply an openable game).
+    if (imported.tree.children.length === 0) {
       skipped += 1;
       continue;
     }
