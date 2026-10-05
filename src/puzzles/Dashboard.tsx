@@ -6,7 +6,8 @@ import { Crown } from "lucide-react";
 import { CourseChrome } from "@/src/courses/CourseChrome";
 import { Button } from "@/src/studio/ui/Button";
 import { dailyPuzzle, dateKey, levelFromXp, PUZZLES } from "./engine";
-import { loadProgress } from "./progress";
+import { hydratePuzzleProgress, progressSource } from "./progress";
+import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { THEME_CARDS, THEME_LABELS, type PuzzleMode, type PuzzleProgress } from "./types";
 
 const MODE_LABELS: Record<PuzzleMode, string> = {
@@ -21,18 +22,22 @@ export function PuzzleDashboard() {
   const [progress, setProgress] = useState<PuzzleProgress | null>(null);
   const [now, setNow] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [source, setSource] = useState<"account" | "browser">("browser");
 
   useEffect(() => {
     let cancel = false;
     void (async () => {
       try {
-        const loaded = loadProgress();
+        const supabase = createBrowserSupabase();
+        const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+        const loaded = await hydratePuzzleProgress(user?.id ?? null);
         const timestamp = Date.now();
         if (cancel) {
           return;
         }
         setProgress(loaded);
         setNow(timestamp);
+        setSource(progressSource());
         setLoadError(null);
       } catch (error) {
         console.error("Failed to load puzzle progress.", error);
@@ -81,6 +86,11 @@ export function PuzzleDashboard() {
             <Button className="mt-3" variant="primary" onClick={() => router.push("/puzzles/play?mode=rated")}>
               Start training
             </Button>
+            {progress ? (
+              <p className="mt-2 text-caption text-studio-muted">
+                {source === "account" ? "Saved to your account" : "Saved in this browser"}
+              </p>
+            ) : null}
             {loadError ? <p className="mt-3 text-body text-studio-warning-fg">{loadError}</p> : null}
           </div>
         </div>
