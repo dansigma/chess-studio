@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { emptyProgress } from "./engine.ts";
-import { mergePuzzleProgress } from "./progress.ts";
+import { PUZZLE_PROGRESS_KEY } from "../lib/local-cache.ts";
+import { emptyProgress, normalizeProgress } from "./engine.ts";
+import {
+  hydratePuzzleProgress,
+  mergePuzzleProgress,
+  PUZZLE_PROGRESS_OWNER_KEY,
+} from "./progress.ts";
 import type { PuzzleProgress } from "./types.ts";
 
 // SIG-887: merge harness mirrors src/lib/local-cache.test.ts — a Map-backed
@@ -89,6 +94,32 @@ describe("mergePuzzleProgress", () => {
     assert.equal(merged.daily, "2026-10-04");
   });
 
+  it("keeps a newer local daily when only the account timestamp is known", () => {
+    const local = progress({ streak: 0, daily: "2026-10-05" });
+    const remote = progress({ streak: 7, daily: "2026-10-04" });
+    const merged = mergePuzzleProgress(
+      local,
+      remote,
+      "2026-10-04T12:00:00.000Z",
+      null,
+    );
+    assert.equal(merged.streak, 7);
+    assert.equal(merged.daily, "2026-10-05");
+  });
+
+  it("takes the account streak when only the account timestamp is known", () => {
+    const local = progress({ streak: 0, daily: "2026-10-01" });
+    const remote = progress({ streak: 7, daily: "2026-10-04" });
+    const merged = mergePuzzleProgress(
+      local,
+      remote,
+      "2026-10-04T12:00:00.000Z",
+      null,
+    );
+    assert.equal(merged.streak, 7);
+    assert.equal(merged.daily, "2026-10-04");
+  });
+
   it("unions history deduped by id, sorted by at desc", () => {
     const local = progress({
       history: [
@@ -107,10 +138,11 @@ describe("mergePuzzleProgress", () => {
       merged.history.map((entry) => entry.id),
       ["c", "b", "a"],
     );
-    // The surviving "b" is the newest write for that id (at 200).
-    assert.equal(
-      merged.history.find((entry) => entry.id === "b")?.at,
-      200,
+    // The surviving "b" is the newest write for that id (at 200) — the
+    // whole winning entry, not just its timestamp.
+    assert.deepEqual(
+      merged.history.find((entry) => entry.id === "b"),
+      { id: "b", mode: "rated", success: true, at: 200, delta: 12 },
     );
   });
 
@@ -137,5 +169,103 @@ describe("mergePuzzleProgress", () => {
     );
     assert.equal(merged.history.length, 20);
     assert.equal(merged.history[0]?.at, 2019);
+  });
+
+  it("prefers the account side when both timestamps tie", () => {
+    const local = progress({ streak: 2, daily: "2026-10-01" });
+    const remote = progress({ streak: 6, daily: "2026-10-04" });
+    const merged = mergePuzzleProgress(
+      local,
+      remote,
+      "2026-10-03T12:00:00.000Z",
+      "2026-10-03T12:00:00.000Z",
+    );
+    assert.equal(merged.streak, 6);
+    assert.equal(merged.daily, "2026-10-04");
+  });
+
+  it("is idempotent on normalized progress across timestamp shapes", () => {
+    const normalized = normalizeProgress(
+      progress({
+        rating: 1500,
+        xp: 90,
+        solved: 5,
+        failed: 1,
+        streak: 4,
+        bestStreak: 6,
+        rushBest: 3,
+        daily: "2026-10-04",
+        history: [
+          { id: "c", mode: "streak", success: true, at: 300, delta: 0 },
+          { id: "b", mode: "rated", success: true, at: 200, delta: 12 },
+          { id: "a", mode: "rated", success: false, at: 100, delta: -8 },
+        ],
+      }),
+    );
+    const shapes: Array<[string | null, string | null]> = [
+      ["2026-10-04T12:00:00.000Z", "2026-10-03T12:00:00.000Z"],
+      ["2026-10-04T12:00:00.000Z", null],
+      [null, "2026-10-03T12:00:00.000Z"],
+      [null, null],
+    ];
+    for (const [remoteUpdatedAt, localUpdatedAt] of shapes) {
+      assert.deepEqual(
+        mergePuzzleProgress(normalized, normalized, remoteUpdatedAt, localUpdatedAt),
+        normalized,
+      );
+    }
+  });
+
+  it("is a fixed point: merging a merge result with itself changes nothing", () => {
+    const a = progress({
+      rating: 1400,
+      streak: 1,
+      daily: "2026-10-01",
+      history: [{ id: "a", mode: "rated", success: true, at: 100, delta: 10 }],
+    });
+    const b = progress({
+      rating: 1500,
+      streak: 6,
+      daily: "2026-10-04",
+      history: [
+        { id: "a", mode: "rated", success: false, at: 50, delta: -8 },
+        { id: "b", mode: "streak", success: true, at: 300, delta: 0 },
+      ],
+    });
+    const remoteUpdatedAt = "2026-10-04T12:00:00.000Z";
+    const localUpdatedAt = "2026-10-01T12:00:00.000Z";
+    const merged = mergePuzzleProgress(a, b, remoteUpdatedAt, localUpdatedAt);
+    assert.deepEqual(
+      mergePuzzleProgress(merged, merged, remoteUpdatedAt, localUpdatedAt),
+      merged,
+    );
+    assert.deepEqual(
+      mergePuzzleProgress(merged, merged, remoteUpdatedAt, null),
+      merged,
+    );
+  });
+});
+
+describe("hydratePuzzleProgress ownership", () => {
+  it("drops foreign-owned local data instead of adopting it", async () => {
+    storage.clear();
+    storage.set(
+      PUZZLE_PROGRESS_KEY,
+      JSON.stringify(progress({ rating: 1600, streak: 5 })),
+    );
+    storage.set(PUZZLE_PROGRESS_OWNER_KEY, "user-a");
+    const loaded = await hydratePuzzleProgress("user-b");
+    assert.deepEqual(loaded, emptyProgress());
+    assert.equal(storage.get(PUZZLE_PROGRESS_KEY) ?? null, null);
+  });
+
+  it("keeps unmarked anonymous data mergeable", async () => {
+    storage.clear();
+    storage.set(
+      PUZZLE_PROGRESS_KEY,
+      JSON.stringify(progress({ rating: 1600 })),
+    );
+    const loaded = await hydratePuzzleProgress("user-b");
+    assert.equal(loaded.rating, 1600);
   });
 });

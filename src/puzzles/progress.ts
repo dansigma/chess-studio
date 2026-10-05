@@ -1,10 +1,47 @@
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import { PUZZLE_PROGRESS_KEY, readJsonCache, writeRawCache } from "../lib/local-cache";
+import {
+  PUZZLE_PROGRESS_KEY,
+  readJsonCache,
+  readRawCache,
+  removeRawCache,
+  writeRawCache,
+} from "../lib/local-cache";
 import { emptyProgress, normalizeProgress } from "./engine";
 import type { PuzzleHistoryEntry, PuzzleProgress } from "./types";
 
 let puzzleAccountUserId: string | null = null;
 let puzzleOnAccount = false;
+
+// SIG-887: owner marker mirroring the SIG-886 course-progress guard
+// (src/lib/local-cache.ts). It lives here — not in local-cache.ts — so
+// the rework stays inside the briefed files. Unmarked (anonymous trial /
+// legacy) data stays mergeable; marked foreign data is dropped on sight
+// so a hydrate racing ahead of the account-change purge can never adopt
+// the previous account's progress into the next account's row.
+export const PUZZLE_PROGRESS_OWNER_KEY = `${PUZZLE_PROGRESS_KEY}:owner`;
+
+function readPuzzleProgressOwner(): string | null {
+  const owner = readRawCache(PUZZLE_PROGRESS_OWNER_KEY);
+  return owner === null || owner === "" ? null : owner;
+}
+
+function writePuzzleProgressOwner(userId: string | null): void {
+  if (!userId) {
+    if (readRawCache(PUZZLE_PROGRESS_OWNER_KEY) !== null) {
+      removeRawCache(PUZZLE_PROGRESS_OWNER_KEY);
+    }
+    return;
+  }
+  writeRawCache(PUZZLE_PROGRESS_OWNER_KEY, userId);
+}
+
+function isPuzzleProgressOwnedBy(userId: string | null): boolean {
+  const owner = readPuzzleProgressOwner();
+  if (owner === null) {
+    return true;
+  }
+  return owner === userId;
+}
 
 export function progressSource(): "account" | "browser" {
   return puzzleOnAccount ? "account" : "browser";
@@ -33,11 +70,16 @@ export function mergePuzzleProgress(
   if (!remote) {
     return normalizeProgress(local);
   }
+  // Idempotence holds for normalized inputs (history sorted by `at` desc
+  // with unique ids): merge outputs always satisfy this, so merging a
+  // merge result with itself is a fixed point. Raw inputs with unsorted
+  // or duplicated history land on the same fixed point on re-merge.
   const remoteTime = remoteUpdatedAt ? Date.parse(remoteUpdatedAt) : Number.NaN;
   const localTime = localUpdatedAt ? Date.parse(localUpdatedAt) : Number.NaN;
   let streak: number;
   let daily: string;
   if (Number.isFinite(remoteTime) && Number.isFinite(localTime)) {
+    // Ties resolve to the account side.
     if (remoteTime >= localTime) {
       streak = remote.streak;
       daily = remote.daily;
@@ -45,12 +87,19 @@ export function mergePuzzleProgress(
       streak = local.streak;
       daily = local.daily;
     }
+  } else if (Number.isFinite(remoteTime)) {
+    // Only the account carries a write time (the app never persists the
+    // local write time), so its streak is the fresher signal. The day
+    // marker resolves by value instead: YYYY-MM-DD sorts chronologically,
+    // which keeps a newer local daily from being rolled back by an older
+    // account row.
+    streak = remote.streak;
+    daily = local.daily > remote.daily ? local.daily : remote.daily;
   } else {
-    // No reliable local write time is stored, so a missing timestamp falls
-    // back to preferring the shared remote day marker while keeping the
-    // device-local streak for continuity.
+    // No write time on either side: keep the device-local streak for
+    // continuity and resolve the day marker by value.
     streak = local.streak;
-    daily = remote.daily;
+    daily = local.daily > remote.daily ? local.daily : remote.daily;
   }
   const byId = new Map<string, PuzzleHistoryEntry>();
   for (const entry of [...local.history, ...remote.history]) {
@@ -74,14 +123,27 @@ export function mergePuzzleProgress(
 }
 
 export async function hydratePuzzleProgress(userId: string | null): Promise<PuzzleProgress> {
-  const local = loadProgress();
+  const stored = loadProgress();
+  // A hydrate racing ahead of the account-change purge must not merge
+  // another user's local rows into this account. Unmarked data is the
+  // anonymous trial (or legacy) and stays mergeable; marked foreign data
+  // is dropped on sight so no later hydrate can adopt it.
+  const owned = isPuzzleProgressOwnedBy(userId);
+  const local = owned ? stored : emptyProgress();
   puzzleAccountUserId = userId;
   puzzleOnAccount = false;
+  if (!owned) {
+    removeRawCache(PUZZLE_PROGRESS_KEY);
+    writePuzzleProgressOwner(null);
+  }
   if (!userId) {
     return local;
   }
   const supabase = createBrowserSupabase();
   if (!supabase) {
+    if (owned) {
+      writePuzzleProgressOwner(userId);
+    }
     return local;
   }
   try {
@@ -102,6 +164,7 @@ export async function hydratePuzzleProgress(userId: string | null): Promise<Puzz
         updated_at: new Date().toISOString(),
       });
       puzzleOnAccount = !uploadError;
+      writePuzzleProgressOwner(userId);
       return merged;
     }
     const remote = normalizeProgress(data.data);
@@ -117,6 +180,7 @@ export async function hydratePuzzleProgress(userId: string | null): Promise<Puzz
     } else {
       puzzleOnAccount = true;
     }
+    writePuzzleProgressOwner(userId);
     return merged;
   } catch {
     return local;
@@ -125,6 +189,7 @@ export async function hydratePuzzleProgress(userId: string | null): Promise<Puzz
 
 export async function saveProgress(progress: PuzzleProgress): Promise<void> {
   writeLocalProgress(progress);
+  writePuzzleProgressOwner(puzzleAccountUserId);
   const userId = puzzleAccountUserId;
   if (!userId) {
     return;
