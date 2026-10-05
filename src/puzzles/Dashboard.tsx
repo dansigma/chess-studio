@@ -22,8 +22,19 @@ export function PuzzleDashboard() {
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
-    setProgress(loadProgress());
-    setNow(Date.now());
+    let cancel = false;
+    void (async () => {
+      const loaded = loadProgress();
+      const timestamp = Date.now();
+      if (cancel) {
+        return;
+      }
+      setProgress(loaded);
+      setNow(timestamp);
+    })();
+    return () => {
+      cancel = true;
+    };
   }, []);
 
   const daily = now === null ? null : dailyPuzzle(PUZZLES, now);

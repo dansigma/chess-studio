@@ -62,7 +62,10 @@ export function CourseView({ slug }: { slug: string }) {
       <main className="mx-auto max-w-3xl px-6 py-8">
         <div className="flex items-start gap-4">
           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-studio-border bg-studio-hover">
-            {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : null}
+            {cover ? (
+              // eslint-disable-next-line @next/next/no-img-element -- cover is an arbitrary user-supplied https URL; next/image would need a per-host remotePatterns allowlist
+              <img src={cover} alt="" className="h-full w-full object-cover" />
+            ) : null}
           </div>
           <div className="min-w-0">
             <p className="text-caption uppercase tracking-wide text-studio-faint">

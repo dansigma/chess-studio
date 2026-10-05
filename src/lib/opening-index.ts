@@ -35,7 +35,7 @@ function openIndex(): DatabaseSync | null {
   }
   selectMoves = database.prepare(
     "SELECT uci, san, white, draws, black FROM moves WHERE pos = ? ORDER BY (white + draws + black) DESC",
-  ) as { all: (pos: string) => IndexRow[] };
+  ) as unknown as { all: (pos: string) => IndexRow[] };
   return database;
 }
 

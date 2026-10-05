@@ -98,7 +98,9 @@ export function PuzzleTrainer() {
   const exclude = useRef(new Set<string>());
   const fenRef = useRef("");
   const advanceTimer = useRef<number | null>(null);
-  fenRef.current = fen;
+  useEffect(() => {
+    fenRef.current = fen;
+  });
 
   function clearAdvance() {
     if (advanceTimer.current !== null) {
@@ -173,6 +175,7 @@ export function PuzzleTrainer() {
   }
 
   useEffect(() => {
+    void (async () => {
     const loaded = loadProgress();
     progressRef.current = loaded;
     sessionSolvedRef.current = 0;
@@ -202,6 +205,7 @@ export function PuzzleTrainer() {
     setMiss(null);
     setDelta(null);
     setGained(0);
+    })();
   }, [mode, theme]);
 
   useEffect(() => {
@@ -255,11 +259,14 @@ export function PuzzleTrainer() {
   }, [mode, sessionOver, progress]);
 
   useEffect(() => {
-    if (mode === "rush" && secondsLeft === 0) {
+    if (sessionOver) {
       clearAdvance();
-      setSessionOver(true);
     }
-  }, [mode, secondsLeft]);
+  }, [sessionOver]);
+
+  if (mode === "rush" && secondsLeft === 0 && !sessionOver) {
+    setSessionOver(true);
+  }
 
   const orientation = puzzle && new Chess(puzzle.fen).turn() === "b" ? "black" : "white";
   const userTurn = status === "playing" && !sessionOver && ply % 2 === 0;

@@ -17,6 +17,9 @@ const eslintConfig = defineConfig([
     ".cloudflare/**",
     ".vinext/**",
     "dist/**",
+    // Nested worktrees (e.g. .worktrees/poc-vinext/.cloudflare/output) are not
+    // covered by the patterns above; never lint generated code inside them.
+    ".worktrees/**",
   ]),
 ]);
 

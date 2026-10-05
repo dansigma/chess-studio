@@ -73,7 +73,10 @@ export function CatalogView() {
                 className="overflow-hidden rounded-xl border border-studio-border bg-studio-chrome hover:border-studio-border-strong"
               >
                 <div className="aspect-video bg-studio-hover">
-                  {cover ? <img src={cover} alt="" className="h-full w-full object-cover" /> : null}
+                  {cover ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- cover is an arbitrary user-supplied https URL; next/image would need a per-host remotePatterns allowlist
+                    <img src={cover} alt="" className="h-full w-full object-cover" />
+                  ) : null}
                 </div>
                 <div className="p-5">
                   <div className="text-caption uppercase tracking-wide text-studio-accent-text">

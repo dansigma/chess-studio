@@ -45,7 +45,9 @@ export function AdminView() {
 
   const [saving, setSaving] = useState(false);
   const draftRef = useRef(draft);
-  draftRef.current = draft;
+  useEffect(() => {
+    draftRef.current = draft;
+  });
 
   useEffect(() => {
     let cancel = false;
@@ -221,6 +223,7 @@ export function AdminView() {
       title,
       slug: draft.slug.trim() || slugify(title),
       summary: draft.summary,
+      theme: isCourseTheme(draft.theme) ? draft.theme : "openings",
       chapters: normalized.chapters,
     });
     setSaving(false);
