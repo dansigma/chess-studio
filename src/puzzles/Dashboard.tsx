@@ -20,10 +20,30 @@ export function PuzzleDashboard() {
   const router = useRouter();
   const [progress, setProgress] = useState<PuzzleProgress | null>(null);
   const [now, setNow] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    setProgress(loadProgress());
-    setNow(Date.now());
+    let cancel = false;
+    void (async () => {
+      try {
+        const loaded = loadProgress();
+        const timestamp = Date.now();
+        if (cancel) {
+          return;
+        }
+        setProgress(loaded);
+        setNow(timestamp);
+        setLoadError(null);
+      } catch (error) {
+        console.error("Failed to load puzzle progress.", error);
+        if (!cancel) {
+          setLoadError("Could not load your puzzle progress.");
+        }
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
   }, []);
 
   const daily = now === null ? null : dailyPuzzle(PUZZLES, now);
@@ -61,6 +81,7 @@ export function PuzzleDashboard() {
             <Button className="mt-3" variant="primary" onClick={() => router.push("/puzzles/play?mode=rated")}>
               Start training
             </Button>
+            {loadError ? <p className="mt-3 text-body text-studio-warning-fg">{loadError}</p> : null}
           </div>
         </div>
 

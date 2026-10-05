@@ -45,7 +45,9 @@ export function AdminView() {
 
   const [saving, setSaving] = useState(false);
   const draftRef = useRef(draft);
-  draftRef.current = draft;
+  useEffect(() => {
+    draftRef.current = draft;
+  });
 
   useEffect(() => {
     let cancel = false;
@@ -206,7 +208,8 @@ export function AdminView() {
       setError("The course needs a title.");
       return;
     }
-    if (!isCourseTheme(draft.theme)) {
+    const theme = draft.theme;
+    if (!isCourseTheme(theme)) {
       setError("Choose a course theme.");
       return;
     }
@@ -221,6 +224,7 @@ export function AdminView() {
       title,
       slug: draft.slug.trim() || slugify(title),
       summary: draft.summary,
+      theme,
       chapters: normalized.chapters,
     });
     setSaving(false);

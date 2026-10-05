@@ -18,40 +18,38 @@ import { CourseChrome } from "./CourseChrome";
 import type { Course, CourseChapter, CourseVariation } from "./types";
 
 export function LessonView({ slug, variationId }: { slug: string; variationId: string }) {
-  const [loaded, setLoaded] = useState<{
-    course: Course;
-    chapter: CourseChapter;
-    variation: CourseVariation;
-  } | null>(null);
-  const [missing, setMissing] = useState(false);
   const [step, setStep] = useState(0);
   const [notice, setNotice] = useState("");
   const [hint, setHint] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [lessonKey, setLessonKey] = useState<string | null>(null);
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const library = useCourseData();
 
-  useEffect(() => {
+  const loaded: {
+    course: Course;
+    chapter: CourseChapter;
+    variation: CourseVariation;
+  } | null = useMemo(() => {
     if (!library.ready) {
-      return;
+      return null;
     }
     const course = library.courses.find((item) => item.slug === slug);
     const found = course ? findVariation(course, variationId) : null;
-    if (!course || !found) {
-      setMissing(true);
-      setLoaded(null);
-      return;
-    }
-    setMissing(false);
-    setLoaded({ course, chapter: found.chapter, variation: found.variation });
-    const saved = library.progress[variationId];
+    return course && found ? { course, chapter: found.chapter, variation: found.variation } : null;
+  }, [library.courses, library.ready, slug, variationId]);
+  const missing = library.ready && !loaded;
+  const currentLessonKey = `${slug}/${variationId}`;
+  if (lessonKey !== currentLessonKey && library.ready) {
+    setLessonKey(currentLessonKey);
+    const saved = loaded ? library.progress[variationId] : undefined;
     setStep(saved?.step ?? 0);
     setHint(false);
     setNotice("");
     setSelected(null);
-  }, [library.courses, library.progress, library.ready, slug, variationId]);
+  }
 
   const frames = useMemo(() => {
     if (!loaded) {
@@ -103,7 +101,9 @@ export function LessonView({ slug, variationId }: { slug: string; variationId: s
   }
 
   const actions = useRef({ go, playExpected, step, waiting, done, ready: Boolean(frame) });
-  actions.current = { go, playExpected, step, waiting, done, ready: Boolean(frame) };
+  useEffect(() => {
+    actions.current = { go, playExpected, step, waiting, done, ready: Boolean(frame) };
+  });
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {

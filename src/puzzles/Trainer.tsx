@@ -89,6 +89,7 @@ export function PuzzleTrainer() {
   const [secondsLeft, setSecondsLeft] = useState(RUSH_SECONDS);
   const [delta, setDelta] = useState<number | null>(null);
   const [gained, setGained] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const progressRef = useRef<PuzzleProgress | null>(null);
   const sessionSolvedRef = useRef(0);
@@ -98,7 +99,9 @@ export function PuzzleTrainer() {
   const exclude = useRef(new Set<string>());
   const fenRef = useRef("");
   const advanceTimer = useRef<number | null>(null);
-  fenRef.current = fen;
+  useEffect(() => {
+    fenRef.current = fen;
+  });
 
   function clearAdvance() {
     if (advanceTimer.current !== null) {
@@ -173,35 +176,44 @@ export function PuzzleTrainer() {
   }
 
   useEffect(() => {
-    const loaded = loadProgress();
-    progressRef.current = loaded;
-    sessionSolvedRef.current = 0;
-    exclude.current = new Set();
-    setProgress(loaded);
-    setSessionSolved(0);
-    strikesRef.current = 0;
-    setStrikes(0);
-    setSessionOver(false);
-    secondsRef.current = RUSH_SECONDS;
-    setSecondsLeft(RUSH_SECONDS);
-    const first = pickPuzzle(mode, theme, loaded, 0, exclude.current);
-    if (!first) {
-      setPuzzle(null);
-      return;
-    }
-    exclude.current.add(first.id);
-    recorded.current = false;
-    setPuzzle(first);
-    setFen(first.fen);
-    setPly(0);
-    setStatus("playing");
-    setLast(null);
-    setSelected(null);
-    setHintLevel(0);
-    setReveal(false);
-    setMiss(null);
-    setDelta(null);
-    setGained(0);
+    void (async () => {
+      try {
+        const loaded = loadProgress();
+        progressRef.current = loaded;
+        sessionSolvedRef.current = 0;
+        exclude.current = new Set();
+        setProgress(loaded);
+        setSessionSolved(0);
+        strikesRef.current = 0;
+        setStrikes(0);
+        setSessionOver(false);
+        secondsRef.current = RUSH_SECONDS;
+        setSecondsLeft(RUSH_SECONDS);
+        const first = pickPuzzle(mode, theme, loaded, 0, exclude.current);
+        if (!first) {
+          setPuzzle(null);
+          setLoadError(null);
+          return;
+        }
+        exclude.current.add(first.id);
+        recorded.current = false;
+        setPuzzle(first);
+        setFen(first.fen);
+        setPly(0);
+        setStatus("playing");
+        setLast(null);
+        setSelected(null);
+        setHintLevel(0);
+        setReveal(false);
+        setMiss(null);
+        setDelta(null);
+        setGained(0);
+        setLoadError(null);
+      } catch (error) {
+        console.error("Failed to load puzzle progress.", error);
+        setLoadError("Could not load your puzzle progress. Reload the page to try again.");
+      }
+    })();
   }, [mode, theme]);
 
   useEffect(() => {
@@ -255,11 +267,14 @@ export function PuzzleTrainer() {
   }, [mode, sessionOver, progress]);
 
   useEffect(() => {
-    if (mode === "rush" && secondsLeft === 0) {
+    if (sessionOver) {
       clearAdvance();
-      setSessionOver(true);
     }
-  }, [mode, secondsLeft]);
+  }, [sessionOver]);
+
+  if (mode === "rush" && secondsLeft === 0 && !sessionOver) {
+    setSessionOver(true);
+  }
 
   const orientation = puzzle && new Chess(puzzle.fen).turn() === "b" ? "black" : "white";
   const userTurn = status === "playing" && !sessionOver && ply % 2 === 0;
@@ -443,7 +458,9 @@ export function PuzzleTrainer() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-studio-bg">
       <CourseChrome />
-      {!progress || !puzzle || !fen ? (
+      {loadError ? (
+        <main className="px-6 py-10 text-body text-studio-warning-fg">{loadError}</main>
+      ) : !progress || !puzzle || !fen ? (
         <main className="px-6 py-10 text-body text-studio-muted">Loading puzzle…</main>
       ) : (
         <div className="mx-auto grid min-h-0 w-full max-w-5xl flex-1 grid-rows-[minmax(0,1fr)_auto] gap-3 px-4 py-3 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:grid-rows-1 lg:gap-6 lg:py-6">
