@@ -42,9 +42,9 @@ export function LessonView({ slug, variationId }: { slug: string; variationId: s
   }, [library.courses, library.ready, slug, variationId]);
   const missing = library.ready && !loaded;
   const currentLessonKey = `${slug}/${variationId}`;
-  if (lessonKey !== currentLessonKey && loaded) {
+  if (lessonKey !== currentLessonKey && library.ready) {
     setLessonKey(currentLessonKey);
-    const saved = library.progress[variationId];
+    const saved = loaded ? library.progress[variationId] : undefined;
     setStep(saved?.step ?? 0);
     setHint(false);
     setNotice("");

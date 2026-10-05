@@ -208,7 +208,8 @@ export function AdminView() {
       setError("The course needs a title.");
       return;
     }
-    if (!isCourseTheme(draft.theme)) {
+    const theme = draft.theme;
+    if (!isCourseTheme(theme)) {
       setError("Choose a course theme.");
       return;
     }
@@ -223,7 +224,7 @@ export function AdminView() {
       title,
       slug: draft.slug.trim() || slugify(title),
       summary: draft.summary,
-      theme: isCourseTheme(draft.theme) ? draft.theme : "openings",
+      theme,
       chapters: normalized.chapters,
     });
     setSaving(false);
