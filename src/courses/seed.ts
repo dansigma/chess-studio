@@ -1,3 +1,4 @@
+import "server-only";
 import type { Course } from "./types";
 
 const ADVANCE = `[Result "*"]

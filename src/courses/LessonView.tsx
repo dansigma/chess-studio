@@ -17,7 +17,7 @@ import { useCourseData } from "./use-courses";
 import { CourseChrome } from "./CourseChrome";
 import type { Course, CourseChapter, CourseVariation } from "./types";
 
-export function LessonView({ slug, variationId }: { slug: string; variationId: string }) {
+export function LessonView({ course, variationId }: { course: Course; variationId: string }) {
   const [step, setStep] = useState(0);
   const [notice, setNotice] = useState("");
   const [hint, setHint] = useState(false);
@@ -26,25 +26,20 @@ export function LessonView({ slug, variationId }: { slug: string; variationId: s
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
-  const library = useCourseData();
+  const { progress: savedProgress, admin, ready: progressReady } = useCourseData();
 
   const loaded: {
     course: Course;
     chapter: CourseChapter;
     variation: CourseVariation;
   } | null = useMemo(() => {
-    if (!library.ready) {
-      return null;
-    }
-    const course = library.courses.find((item) => item.slug === slug);
-    const found = course ? findVariation(course, variationId) : null;
-    return course && found ? { course, chapter: found.chapter, variation: found.variation } : null;
-  }, [library.courses, library.ready, slug, variationId]);
-  const missing = library.ready && !loaded;
-  const currentLessonKey = `${slug}/${variationId}`;
-  if (lessonKey !== currentLessonKey && library.ready) {
+    const found = findVariation(course, variationId);
+    return found ? { course, chapter: found.chapter, variation: found.variation } : null;
+  }, [course, variationId]);
+  const currentLessonKey = `${course.slug}/${variationId}`;
+  if (lessonKey !== currentLessonKey && progressReady) {
     setLessonKey(currentLessonKey);
-    const saved = loaded ? library.progress[variationId] : undefined;
+    const saved = loaded ? savedProgress[variationId] : undefined;
     setStep(saved?.step ?? 0);
     setHint(false);
     setNotice("");
@@ -152,15 +147,15 @@ export function LessonView({ slug, variationId }: { slug: string; variationId: s
     }
   }, [frame, selected, waiting]);
 
-  if (missing) {
+  if (!loaded) {
     return (
       <div className="min-h-full bg-studio-bg">
-        <CourseChrome admin={library.admin} />
+        <CourseChrome admin={admin} />
         <main className="px-6 py-10 text-studio-muted">Line not found.</main>
       </div>
     );
   }
-  if (!loaded || !frame) {
+  if (!frame) {
     return <div className="min-h-full bg-studio-bg" />;
   }
 
@@ -192,7 +187,7 @@ export function LessonView({ slug, variationId }: { slug: string; variationId: s
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-studio-bg">
-      <CourseChrome admin={library.admin} />
+      <CourseChrome admin={admin} />
       <div className="shrink-0 border-b border-studio-border bg-studio-chrome px-4 py-3">
         <Link href={`/courses/${loaded.course.slug}`} className="text-caption text-studio-muted hover:text-studio-fg">
           {loaded.course.title}

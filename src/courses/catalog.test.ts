@@ -1,8 +1,21 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog.ts";
-import { SEED_COURSES } from "./seed.ts";
 import type { Course } from "./types.ts";
+
+// Mirror of the built-in seed course address. `seed.ts` is server-only, so
+// node tests use this fixture instead of importing it.
+const SEED_LIKE: Course[] = [
+  {
+    id: "caro-kann",
+    slug: "caro-kann",
+    title: "The Caro-Kann Defense",
+    summary: "",
+    theme: "openings",
+    color: "black",
+    chapters: [],
+  },
+];
 
 describe("course catalog", () => {
   it("keeps the built-in course when nothing is published with its address", () => {
@@ -17,7 +30,7 @@ describe("course catalog", () => {
         chapters: [],
       },
     ];
-    const merged = mergeCourseLists(published, SEED_COURSES);
+    const merged = mergeCourseLists(published, SEED_LIKE);
     assert.deepEqual(
       merged.map((course) => course.slug),
       ["french", "caro-kann"],
@@ -31,9 +44,9 @@ describe("course catalog", () => {
   });
 
   it("rejects an address that belongs to another course", () => {
-    assert.equal(courseSlugError("caro-kann", SEED_COURSES, "other"), "That address is already used by a course.");
-    assert.equal(courseSlugError("caro-kann", SEED_COURSES, "caro-kann"), null);
-    assert.equal(courseSlugError("", SEED_COURSES), "The course needs an address.");
+    assert.equal(courseSlugError("caro-kann", SEED_LIKE, "other"), "That address is already used by a course.");
+    assert.equal(courseSlugError("caro-kann", SEED_LIKE, "caro-kann"), null);
+    assert.equal(courseSlugError("", SEED_LIKE), "The course needs an address.");
   });
 
   it("drops malformed chapters from a published course", () => {

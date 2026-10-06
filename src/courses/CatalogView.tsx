@@ -2,16 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { courseThemeLabel, isCourseTheme } from "./catalog";
+import { catalogCoursePercent, courseThemeLabel, isCourseTheme } from "./catalog";
 import { CourseChrome } from "./CourseChrome";
 import { courseSummaryText } from "./description";
 import { courseImageUrl } from "./media";
-import { coursePercent } from "./store";
-import { COURSE_THEMES, type CourseTheme } from "./types";
+import { COURSE_THEMES, type CatalogCourse, type CourseTheme } from "./types";
 import { useCourseData } from "./use-courses";
 
-export function CatalogView() {
-  const { courses, progress, admin, ready, signedIn, loadError, source } = useCourseData();
+export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
+  const { progress, admin, ready, signedIn, source } = useCourseData();
   const [theme, setTheme] = useState<CourseTheme | "">("");
   const visible = theme ? courses.filter((course) => course.theme === theme) : courses;
 
@@ -45,7 +44,6 @@ export function CatalogView() {
             </select>
           </label>
         </div>
-        {loadError ? <p className="mt-3 text-caption text-studio-warning-fg">{loadError}</p> : null}
         {ready && !signedIn ? (
           <p className="mt-3 text-caption text-studio-muted">
             <Link href="/login" className="text-studio-accent-text">
@@ -58,13 +56,13 @@ export function CatalogView() {
           <p className="mt-3 text-caption text-studio-warning-fg">Progress is saved only in this browser.</p>
         ) : null}
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          {ready && visible.length === 0 ? (
+          {courses.length === 0 ? (
+            <p className="text-body text-studio-muted">No courses yet.</p>
+          ) : visible.length === 0 ? (
             <p className="text-body text-studio-muted">No courses in this theme yet.</p>
           ) : null}
           {visible.map((course) => {
-            const percent = coursePercent(course, progress);
-            const chapters = course.chapters.filter((chapter) => chapter.variations.length > 0);
-            const lines = chapters.reduce((sum, chapter) => sum + chapter.variations.length, 0);
+            const percent = catalogCoursePercent(course, progress);
             const cover = courseImageUrl(course.coverUrl);
             return (
               <Link
@@ -85,7 +83,7 @@ export function CatalogView() {
                   <h2 className="mt-2 text-lg font-semibold text-studio-fg">{course.title}</h2>
                   <p className="mt-2 line-clamp-3 text-body text-studio-muted">{courseSummaryText(course.summary)}</p>
                   <div className="mt-4 text-caption text-studio-faint">
-                    {chapters.length} chapters · {lines} lines
+                    {course.chapterCount} chapters · {course.moveCount} lines
                   </div>
                   <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-studio-hover">
                     <div className="h-full rounded-full bg-studio-accent" style={{ width: `${percent}%` }} />

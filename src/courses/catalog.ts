@@ -1,5 +1,5 @@
 import type { Json } from "@/src/lib/supabase/database.types";
-import { COURSE_THEMES, type Course, type CourseChapter, type CourseColor, type CourseTheme, type CourseVariation } from "./types";
+import { COURSE_THEMES, type CatalogCourse, type Course, type CourseChapter, type CourseColor, type CourseTheme, type CourseVariation, type VariationProgress } from "./types";
 
 export function slugify(title: string): string {
   return title
@@ -14,6 +14,44 @@ export function slugify(title: string): string {
 export function mergeCourseLists(published: Course[], seed: Course[]): Course[] {
   const slugs = new Set(published.map((course) => course.slug));
   return [...published, ...seed.filter((course) => !slugs.has(course.slug))];
+}
+
+/**
+ * Chapters-free catalog card for one course. Empty chapters (no lines) are
+ * dropped, matching the catalog rendering.
+ */
+export function toCatalogCourse(course: Course): CatalogCourse {
+  const chapters = course.chapters.filter((chapter) => chapter.variations.length > 0);
+  const variationIds = chapters.flatMap((chapter) => chapter.variations.map((variation) => variation.id));
+  return {
+    id: course.id,
+    slug: course.slug,
+    title: course.title,
+    summary: course.summary,
+    coverUrl: course.coverUrl,
+    videoUrl: course.videoUrl,
+    theme: course.theme,
+    color: course.color,
+    chapterCount: chapters.length,
+    moveCount: variationIds.length,
+    variationIds,
+  };
+}
+
+export function toCatalogCourses(courses: Course[]): CatalogCourse[] {
+  return courses.map(toCatalogCourse);
+}
+
+/** Percent of learned lines, from the card's variation ids (no chapters needed). */
+export function catalogCoursePercent(
+  course: CatalogCourse,
+  progress: Record<string, VariationProgress>,
+): number {
+  if (course.variationIds.length === 0) {
+    return 0;
+  }
+  const learned = course.variationIds.filter((id) => progress[id]?.learned).length;
+  return Math.round((learned / course.variationIds.length) * 100);
 }
 
 export function courseSlugError(

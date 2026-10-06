@@ -8,10 +8,9 @@ import {
   writeCourseProgressOwner,
   writeRawCache,
 } from "../lib/local-cache";
-import { isCourseColor, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog";
+import { isCourseColor, isCourseTheme, parseChapters } from "./catalog";
 import { courseImageUrl } from "./media";
 import { mergeProgress } from "./progress";
-import { SEED_COURSES } from "./seed";
 import type { Course, VariationProgress } from "./types";
 
 export { courseSlugError, slugify } from "./catalog";
@@ -115,11 +114,6 @@ export async function fetchPublishedCourses(): Promise<{ courses: Course[]; erro
     });
   }
   return { courses, error: null };
-}
-
-export async function fetchCourses(): Promise<{ courses: Course[]; error: string | null }> {
-  const published = await fetchPublishedCourses();
-  return { courses: mergeCourseLists(published.courses, SEED_COURSES), error: published.error };
 }
 
 export async function hydrateProgress(userId: string | null): Promise<Record<string, VariationProgress>> {

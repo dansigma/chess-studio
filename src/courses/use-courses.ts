@@ -3,16 +3,20 @@
 import { useEffect, useState } from "react";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { currentUserCanPublish } from "./publish";
-import { fetchCourses, hydrateProgress, progressSource } from "./store";
-import type { Course, VariationProgress } from "./types";
+import { hydrateProgress, progressSource } from "./store";
+import type { VariationProgress } from "./types";
 
+/**
+ * Client progress only. The course library itself is fetched by the async
+ * server components in `app/courses/**` and passed to the views via props —
+ * this hook hydrates per-user progress (browser + account) and the publisher
+ * flag after admin mutations the page refreshes via `router.refresh()`.
+ */
 export function useCourseData() {
-  const [courses, setCourses] = useState<Course[]>([]);
   const [progress, setProgress] = useState<Record<string, VariationProgress>>({});
   const [admin, setAdmin] = useState(false);
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
-  const [loadError, setLoadError] = useState("");
   const [source, setSource] = useState<"account" | "browser">("browser");
 
   useEffect(() => {
@@ -20,17 +24,14 @@ export function useCourseData() {
     void (async () => {
       const supabase = createBrowserSupabase();
       const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-      const [library, nextProgress, canPublish] = await Promise.all([
-        fetchCourses(),
+      const [nextProgress, canPublish] = await Promise.all([
         hydrateProgress(user?.id ?? null),
         user ? currentUserCanPublish() : Promise.resolve(false),
       ]);
       if (cancel) {
         return;
       }
-      setCourses(library.courses);
       setProgress(nextProgress);
-      setLoadError(library.error ?? "");
       setSignedIn(Boolean(user));
       setAdmin(canPublish);
       setSource(progressSource());
@@ -41,5 +42,5 @@ export function useCourseData() {
     };
   }, []);
 
-  return { courses, progress, admin, ready, signedIn, loadError, source, setProgress };
+  return { progress, admin, ready, signedIn, source, setProgress };
 }
