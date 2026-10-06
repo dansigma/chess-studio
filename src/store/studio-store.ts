@@ -244,6 +244,8 @@ type StudioState = {
   user: UserInfo | null;
   explorer: ExplorerResponse | null;
   explorerLoading: boolean;
+  explorerError: string | null;
+  explorerRetry: number;
   statusMessage: string | null;
   aboutOpen: boolean;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
@@ -332,6 +334,8 @@ type StudioState = {
   renameActive: (title: string) => void;
   setExplorer: (data: ExplorerResponse | null) => void;
   setExplorerLoading: (loading: boolean) => void;
+  setExplorerError: (error: string | null) => void;
+  retryExplorer: () => void;
   setStatus: (message: string | null) => void;
   setAboutOpen: (open: boolean) => void;
   setNotationEditor: (editor: "comment" | "commentBefore" | "headers" | null) => void;
@@ -432,6 +436,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   user: null,
   explorer: null,
   explorerLoading: false,
+  explorerError: null,
+  explorerRetry: 0,
   statusMessage: null,
   aboutOpen: false,
   notationEditor: null,
@@ -1094,6 +1100,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
   setExplorer: (explorer) => set({ explorer }),
   setExplorerLoading: (explorerLoading) => set({ explorerLoading }),
+  setExplorerError: (explorerError) => set({ explorerError }),
+  retryExplorer: () => set((state) => ({ explorerRetry: state.explorerRetry + 1 })),
   setStatus: (statusMessage) => set({ statusMessage }),
   setEnginePreview: (enginePreview) => set({ enginePreview }),
   setEngineEval: (engineEval) => {
@@ -1423,6 +1431,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       databaseSource: "masters",
       explorer: null,
       explorerLoading: false,
+      explorerError: null,
+      explorerRetry: 0,
       statusMessage: null,
       aboutOpen: false,
       notationEditor: null,

@@ -1,14 +1,14 @@
 "use client";
 
 import { useStudioStore } from "@/src/store/studio-store";
+import { selectFileDatabase } from "./select-file-database";
 
 export function FileGamesPanel() {
   const databaseId = useStudioStore((state) => state.activeFileDatabaseId);
   const gameId = useStudioStore((state) => state.activeFileGameId);
   const databases = useStudioStore((state) => state.files.databases);
   const openFileGame = useStudioStore((state) => state.openFileGame);
-  const database =
-    databases.find((item) => item.id === databaseId) ?? databases[databases.length - 1] ?? null;
+  const database = selectFileDatabase(databases, databaseId);
 
   if (!database) {
     return (
