@@ -232,8 +232,12 @@ export function StudioShell() {
       return;
     }
     const filterQuery = studioFilterQuery(explorerFilters);
+    // Choice (b): loading starts synchronously with the error clear above —
+    // the 160 ms timer delays only the fetch. Otherwise the panel sits one
+    // debounce in {error: null, loading: false, explorer: null} and flashes
+    // the false "No games" before "Loading explorer…".
+    setExplorerLoading(true);
     const timer = window.setTimeout(() => {
-      setExplorerLoading(true);
       void fetch(`/api/explorer?fen=${encodeURIComponent(fen)}&source=${source}${filterQuery}`)
         .then(async (response) => {
           if (!response.ok) {
