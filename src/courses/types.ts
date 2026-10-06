@@ -38,3 +38,25 @@ export type VariationProgress = {
   step: number;
   learned: boolean;
 };
+
+/**
+ * Chapters-free catalog card. The server reads the full chapters, computes
+ * the counts, and passes this DTO to the client — the chapters JSON never
+ * reaches the browser on `/courses`.
+ */
+export type CatalogCourse = {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  coverUrl?: string;
+  videoUrl?: string;
+  theme: CourseTheme;
+  color: CourseColor;
+  /** Chapters that contain at least one line. */
+  chapterCount: number;
+  /** Total lines (variations) across chapters with lines. */
+  moveCount: number;
+  /** Variation ids, so the client derives progress without chapters. */
+  variationIds: string[];
+};

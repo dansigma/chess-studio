@@ -10,20 +10,14 @@ import { CourseSummary } from "./DescriptionField";
 import { courseImageUrl, courseVideo } from "./media";
 import { CourseChrome } from "./CourseChrome";
 import { coursePercent, courseVariationIds } from "./store";
+import type { Course } from "./types";
 import { useCourseData } from "./use-courses";
 
-export function CourseView({ slug }: { slug: string }) {
-  const library = useCourseData();
-  const course = library.courses.find((item) => item.slug === slug) ?? null;
-  const progress = library.progress;
-  const admin = library.admin;
-  const ready = library.ready;
+export function CourseView({ course }: { course: Course }) {
+  const { progress, admin, signedIn, source } = useCourseData();
 
   const frameCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    if (!course) {
-      return counts;
-    }
     for (const chapter of course.chapters) {
       for (const variation of chapter.variations) {
         counts[variation.id] = lessonFrames(importPgn(variation.pgn).tree, course.color).length;
@@ -31,23 +25,6 @@ export function CourseView({ slug }: { slug: string }) {
     }
     return counts;
   }, [course]);
-
-  if (!ready) {
-    return <div className="min-h-full bg-studio-bg" />;
-  }
-  if (!course) {
-    return (
-      <div className="min-h-full bg-studio-bg">
-        <CourseChrome admin={admin} />
-        <main className="mx-auto max-w-3xl px-6 py-10">
-          <p className="text-body text-studio-fg">Course not found.</p>
-          <Link href="/courses" className="mt-3 inline-block text-body text-studio-accent-text">
-            Back to courses
-          </Link>
-        </main>
-      </div>
-    );
-  }
 
   const percent = coursePercent(course, progress);
   const cover = courseImageUrl(course.coverUrl);
@@ -111,9 +88,9 @@ export function CourseView({ slug }: { slug: string }) {
           >
             <div className="h-full rounded-full bg-studio-accent" style={{ width: `${percent}%` }} />
           </div>
-          {library.source === "account" ? (
+          {source === "account" ? (
             <p className="mt-2 text-caption text-studio-muted">Saved to your account.</p>
-          ) : library.signedIn ? (
+          ) : signedIn ? (
             <p className="mt-2 text-caption text-studio-warning-fg">Progress is saved only in this browser.</p>
           ) : (
             <p className="mt-2 text-caption text-studio-muted">

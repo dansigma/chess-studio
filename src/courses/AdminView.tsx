@@ -235,6 +235,7 @@ export function AdminView() {
     setCourses((current) => [result.course, ...current.filter((course) => course.id !== result.course.id)]);
     setDraft(result.course);
     setError("");
+    router.refresh();
   }
 
   async function importLocalDraft(course: Course) {
@@ -257,6 +258,7 @@ export function AdminView() {
     setLocalDrafts((current) => current.filter((item) => item.id !== course.id));
     removeLocalCustomDraft(course.id);
     setError("");
+    router.refresh();
   }
 
   function discardLocalDrafts() {

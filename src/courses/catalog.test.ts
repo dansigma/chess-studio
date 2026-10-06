@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog.ts";
-import { SEED_COURSES } from "./seed.ts";
+import { SEED_COURSES } from "./seed-data.ts";
 import type { Course } from "./types.ts";
 
 describe("course catalog", () => {

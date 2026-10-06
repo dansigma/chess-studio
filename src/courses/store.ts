@@ -8,10 +8,9 @@ import {
   writeCourseProgressOwner,
   writeRawCache,
 } from "../lib/local-cache";
-import { isCourseColor, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog";
+import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isCourseColor, isCourseTheme, isMissingSchemaError, parseChapters } from "./catalog";
 import { courseImageUrl } from "./media";
 import { mergeProgress } from "./progress";
-import { SEED_COURSES } from "./seed";
 import type { Course, VariationProgress } from "./types";
 
 export { courseSlugError, slugify } from "./catalog";
@@ -87,13 +86,13 @@ export async function fetchPublishedCourses(): Promise<{ courses: Course[]; erro
   }
   const { data, error } = await supabase
     .from("courses")
-    .select("id, slug, title, summary, color, theme, chapters, cover_url, video_url")
+    .select(COURSE_SELECT_FIELDS)
     .order("updated_at", { ascending: false });
   if (error) {
-    const missing = error.code === "PGRST205" || /schema cache|does not exist/i.test(error.message);
+    const missing = isMissingSchemaError(error);
     return {
       courses: [],
-      error: missing ? "Published courses are not available yet." : "Published courses could not be loaded.",
+      error: missing ? MISSING_SCHEMA_NOTICE : "Published courses could not be loaded.",
     };
   }
   const courses: Course[] = [];
@@ -115,11 +114,6 @@ export async function fetchPublishedCourses(): Promise<{ courses: Course[]; erro
     });
   }
   return { courses, error: null };
-}
-
-export async function fetchCourses(): Promise<{ courses: Course[]; error: string | null }> {
-  const published = await fetchPublishedCourses();
-  return { courses: mergeCourseLists(published.courses, SEED_COURSES), error: published.error };
 }
 
 export async function hydrateProgress(userId: string | null): Promise<Record<string, VariationProgress>> {
