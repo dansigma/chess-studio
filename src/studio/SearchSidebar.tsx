@@ -40,16 +40,6 @@ export function SearchSidebar() {
         })
         .then((payload) => {
           setHits(payload.players);
-          const first = payload.players[0];
-          if (first) {
-            const params = new URLSearchParams({
-              source: first.source,
-              username: first.username,
-              displayName: first.displayName,
-              subtitle: first.subtitle,
-            });
-            void fetch(`/api/players/games?${params.toString()}`);
-          }
         })
         .catch((error: unknown) => {
           if (error instanceof DOMException && error.name === "AbortError") {

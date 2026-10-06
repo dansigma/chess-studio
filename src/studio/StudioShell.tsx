@@ -71,6 +71,8 @@ export function StudioShell() {
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
   const setExplorer = useStudioStore((state) => state.setExplorer);
   const setExplorerLoading = useStudioStore((state) => state.setExplorerLoading);
+  const setExplorerError = useStudioStore((state) => state.setExplorerError);
+  const explorerRetry = useStudioStore((state) => state.explorerRetry);
   const setUser = useStudioStore((state) => state.setUser);
   const hydrateRemoteBoard = useStudioStore((state) => state.hydrateRemoteBoard);
   const hydrateSettings = useStudioStore((state) => state.hydrateSettings);
@@ -199,6 +201,10 @@ export function StudioShell() {
 
   useEffect(() => {
     let cancelled = false;
+    // A new search clears the previous failure; only the network .catch below
+    // sets it again. The last-good payload stays so the panel can keep it
+    // behind the error banner instead of blanking to "No games".
+    setExplorerError(null);
     const fileId = fileDatabaseId(source);
     if (fileId) {
       const database = useStudioStore.getState().files.databases.find((item) => item.id === fileId);
@@ -242,7 +248,7 @@ export function StudioShell() {
         })
         .catch(() => {
           if (!cancelled) {
-            setExplorer(null);
+            setExplorerError("explorer request failed");
           }
         })
         .finally(() => {
@@ -255,7 +261,7 @@ export function StudioShell() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, setExplorer, setExplorerLoading]);
+  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, setExplorer, setExplorerLoading, setExplorerError, explorerRetry]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
