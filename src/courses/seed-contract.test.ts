@@ -3,11 +3,11 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { importPgn } from "../chess/pgn.ts";
 
-// `seed.ts` carries the `server-only` marker, so node tests cannot import it
-// and `catalog.test.ts` / `lesson.test.ts` assert against mirrors instead.
-// This contract test reads the seed as text: a seed change without a matching
-// fixture edit fails the suite instead of passing silently.
-const seedSource = readFileSync(new URL("./seed.ts", import.meta.url), "utf8");
+// The seed data lives boundary-free in `seed-data.ts` (`seed.ts` keeps only
+// the `server-only` marker + re-export). This contract test reads the data
+// file as text: a seed change without a matching fixture edit fails the
+// suite instead of passing silently.
+const seedSource = readFileSync(new URL("./seed-data.ts", import.meta.url), "utf8");
 
 function seedPgns(): string[] {
   const blocks: string[] = [];
@@ -22,7 +22,7 @@ function seedPgns(): string[] {
 describe("seed contract", () => {
   it("ships PGN lines that parse to moves", () => {
     const pgns = seedPgns();
-    assert.ok(pgns.length > 0, "expected PGN blocks in seed.ts");
+    assert.ok(pgns.length > 0, "expected PGN blocks in seed-data.ts");
     for (const pgn of pgns) {
       assert.ok(importPgn(pgn).tree.children.length > 0, "a shipped seed PGN parses to no moves");
     }

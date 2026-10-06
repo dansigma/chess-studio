@@ -8,7 +8,7 @@ import {
   writeCourseProgressOwner,
   writeRawCache,
 } from "../lib/local-cache";
-import { COURSE_SELECT_FIELDS, isCourseColor, isCourseTheme, isMissingSchemaError, parseChapters } from "./catalog";
+import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isCourseColor, isCourseTheme, isMissingSchemaError, parseChapters } from "./catalog";
 import { courseImageUrl } from "./media";
 import { mergeProgress } from "./progress";
 import type { Course, VariationProgress } from "./types";
@@ -92,7 +92,7 @@ export async function fetchPublishedCourses(): Promise<{ courses: Course[]; erro
     const missing = isMissingSchemaError(error);
     return {
       courses: [],
-      error: missing ? "Published courses are not available yet." : "Published courses could not be loaded.",
+      error: missing ? MISSING_SCHEMA_NOTICE : "Published courses could not be loaded.",
     };
   }
   const courses: Course[] = [];

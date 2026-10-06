@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CatalogView } from "@/src/courses/CatalogView";
-import { COURSE_SELECT_FIELDS, isMissingSchemaError, mergeCourseLists, toCatalogCourses, toCourse } from "@/src/courses/catalog";
+import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, mergeCourseLists, toCatalogCourses, toCourse } from "@/src/courses/catalog";
 import { SEED_COURSES } from "@/src/courses/seed";
 import type { Course } from "@/src/courses/types";
 import { createPublicServerSupabase } from "@/src/lib/supabase/server";
@@ -26,10 +26,10 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-async function loadCatalog(): Promise<Course[]> {
+async function loadCatalog(): Promise<{ courses: Course[]; notice: string | null }> {
   const supabase = createPublicServerSupabase();
   if (!supabase) {
-    return [...SEED_COURSES];
+    return { courses: [...SEED_COURSES], notice: null };
   }
   const { data, error } = await supabase
     .from("courses")
@@ -37,10 +37,10 @@ async function loadCatalog(): Promise<Course[]> {
     .order("updated_at", { ascending: false });
   if (error) {
     // A missing table/schema (fresh project) is not a failure: serve the
-    // built-in catalog like the pre-RSC client path does. Genuine failures
-    // reach the error boundary (HTTP 500), not an empty list.
+    // built-in catalog with a notice, like the pre-RSC client path does.
+    // Genuine failures reach the error boundary (HTTP 500), not an empty list.
     if (isMissingSchemaError(error)) {
-      return [...SEED_COURSES];
+      return { courses: [...SEED_COURSES], notice: MISSING_SCHEMA_NOTICE };
     }
     throw new Error("Published courses could not be loaded.");
   }
@@ -51,10 +51,19 @@ async function loadCatalog(): Promise<Course[]> {
       published.push(course);
     }
   }
-  return mergeCourseLists(published, SEED_COURSES);
+  return { courses: mergeCourseLists(published, SEED_COURSES), notice: null };
 }
 
 export default async function CoursesPage() {
-  const courses = await loadCatalog();
-  return <CatalogView courses={toCatalogCourses(courses)} />;
+  const { courses, notice } = await loadCatalog();
+  return (
+    <>
+      {notice ? (
+        <p className="border-b border-studio-border bg-studio-chrome px-6 py-2 text-center text-caption text-studio-warning-fg">
+          {notice}
+        </p>
+      ) : null}
+      <CatalogView courses={toCatalogCourses(courses)} />
+    </>
+  );
 }

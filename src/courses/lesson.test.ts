@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { importPgn } from "../chess/pgn.ts";
+import { SEED_COURSES } from "./seed-data.ts";
 import { lessonFrames, lineProgressLabel, moveMatches, progressAfterStep, studentMoveMatches } from "./lesson.ts";
 
-// `seed.ts` is server-only, so node tests use this fixture instead of
-// importing the built-in course.
-const CARO_PGN = `[Result "*"]
-
-{The Caro-Kann is a solid defense against 1.e4.}1. e4 {White opens the game.} c6 {Black prepares the center challenge.} 2. d4 d5`;
+// The shipped Caro-Kann line is the lesson fixture: a malformed seed PGN
+// fails this suite instead of passing silently.
+const SEED_PGN = SEED_COURSES[0]?.chapters[0]?.variations[0]?.pgn;
+assert.ok(SEED_PGN);
+assert.match(SEED_PGN, /Caro-Kann/);
 
 describe("course lessons", () => {
   it("asks the student to play the black moves of the Caro-Kann", () => {
-    const imported = importPgn(CARO_PGN);
+    const imported = importPgn(SEED_PGN);
     const frames = lessonFrames(imported.tree, "black");
     assert.equal(frames[0]?.move?.san, "e4");
     assert.equal(frames[0]?.move?.student, false);

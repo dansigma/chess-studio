@@ -177,6 +177,9 @@ export function toCourse(row: CourseRow): Course | null {
   };
 }
 
+/** User-facing copy when the courses schema is missing (fresh project): the seed ships with this notice. */
+export const MISSING_SCHEMA_NOTICE = "Published courses are not available yet.";
+
 /** True for a missing-table/schema failure (fresh project, schema lag). */
 export function isMissingSchemaError(error: { code?: string | null; message?: string } | null | undefined): boolean {
   if (!error) {

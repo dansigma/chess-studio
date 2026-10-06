@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { LessonView } from "@/src/courses/LessonView";
-import { COURSE_SELECT_FIELDS, isMissingSchemaError, mergeCourseLists, toCourse } from "@/src/courses/catalog";
+import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, mergeCourseLists, toCourse } from "@/src/courses/catalog";
 import { SEED_COURSES } from "@/src/courses/seed";
 import { findVariation } from "@/src/courses/store";
 import type { Course } from "@/src/courses/types";
@@ -13,8 +13,9 @@ import { createPublicServerSupabase } from "@/src/lib/supabase/server";
 export const revalidate = 60;
 export const dynamicParams = true;
 
-async function loadCourse(slug: string): Promise<Course | null> {
+async function loadCourse(slug: string): Promise<{ course: Course | null; notice: string | null }> {
   const supabase = createPublicServerSupabase();
+  let schemaMissing = false;
   if (supabase) {
     const { data, error } = await supabase
       .from("courses")
@@ -26,12 +27,16 @@ async function loadCourse(slug: string): Promise<Course | null> {
       // missing schema falls through to the built-in seed below.
       throw new Error("Course could not be loaded.");
     }
+    schemaMissing = isMissingSchemaError(error);
     const published = data ? toCourse(data) : null;
     if (published) {
-      return published;
+      return { course: published, notice: null };
     }
   }
-  return SEED_COURSES.find((course) => course.slug === slug) ?? null;
+  return {
+    course: SEED_COURSES.find((course) => course.slug === slug) ?? null,
+    notice: schemaMissing ? MISSING_SCHEMA_NOTICE : null,
+  };
 }
 
 async function loadAllLines(): Promise<{ slug: string; variationId: string }[]> {
@@ -72,7 +77,7 @@ export async function generateMetadata({
   const { slug, variationId } = await params;
   let course: Course | null = null;
   try {
-    course = await loadCourse(slug);
+    ({ course } = await loadCourse(slug));
   } catch {
     course = null;
   }
@@ -91,10 +96,19 @@ export default async function LessonPage({
   params: Promise<{ slug: string; variationId: string }>;
 }) {
   const { slug, variationId } = await params;
-  const course = await loadCourse(slug);
+  const { course, notice } = await loadCourse(slug);
   const found = course ? findVariation(course, variationId) : null;
   if (!course || !found) {
     notFound();
   }
-  return <LessonView course={course} variationId={variationId} />;
+  return (
+    <>
+      {notice ? (
+        <p className="border-b border-studio-border bg-studio-chrome px-6 py-2 text-center text-caption text-studio-warning-fg">
+          {notice}
+        </p>
+      ) : null}
+      <LessonView course={course} variationId={variationId} />
+    </>
+  );
 }
