@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { LessonView } from "@/src/courses/LessonView";
-import { isCourseColor, isCourseTheme, mergeCourseLists, parseChapters } from "@/src/courses/catalog";
-import { courseImageUrl } from "@/src/courses/media";
+import { COURSE_SELECT_FIELDS, isMissingSchemaError, mergeCourseLists, toCourse } from "@/src/courses/catalog";
 import { SEED_COURSES } from "@/src/courses/seed";
 import { findVariation } from "@/src/courses/store";
 import type { Course } from "@/src/courses/types";
-import type { Json } from "@/src/lib/supabase/database.types";
 import { isSupabaseConfigured } from "@/src/lib/supabase/env";
 import { createPublicServerSupabase } from "@/src/lib/supabase/server";
 
@@ -15,42 +13,19 @@ import { createPublicServerSupabase } from "@/src/lib/supabase/server";
 export const revalidate = 60;
 export const dynamicParams = true;
 
-function toCourse(row: {
-  id: string;
-  slug: string;
-  title: string;
-  summary: string;
-  cover_url: string | null;
-  video_url: string | null;
-  theme: string;
-  color: string;
-  chapters: Json;
-}): Course | null {
-  if (!isCourseColor(row.color) || !isCourseTheme(row.theme)) {
-    return null;
-  }
-  return {
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    summary: row.summary,
-    coverUrl: courseImageUrl(row.cover_url) ?? undefined,
-    videoUrl: row.video_url ?? undefined,
-    theme: row.theme,
-    color: row.color,
-    chapters: parseChapters(row.chapters),
-    builtin: false,
-  };
-}
-
 async function loadCourse(slug: string): Promise<Course | null> {
   const supabase = createPublicServerSupabase();
   if (supabase) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("courses")
-      .select("id, slug, title, summary, color, theme, chapters, cover_url, video_url")
+      .select(COURSE_SELECT_FIELDS)
       .eq("slug", slug)
       .maybeSingle();
+    if (error && !isMissingSchemaError(error)) {
+      // A genuine DB failure is a 500 (error boundary), not a 404: only a
+      // missing schema falls through to the built-in seed below.
+      throw new Error("Course could not be loaded.");
+    }
     const published = data ? toCourse(data) : null;
     if (published) {
       return published;
@@ -63,7 +38,7 @@ async function loadAllLines(): Promise<{ slug: string; variationId: string }[]> 
   const supabase = createPublicServerSupabase();
   const published: Course[] = [];
   if (supabase) {
-    const { data } = await supabase.from("courses").select("id, slug, title, summary, color, theme, chapters, cover_url, video_url");
+    const { data } = await supabase.from("courses").select(COURSE_SELECT_FIELDS);
     for (const row of data ?? []) {
       const course = toCourse(row);
       if (course) {

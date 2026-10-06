@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CourseView } from "@/src/courses/CourseView";
-import { isCourseColor, isCourseTheme, parseChapters } from "@/src/courses/catalog";
+import { COURSE_SELECT_FIELDS, isMissingSchemaError, toCourse } from "@/src/courses/catalog";
 import { courseSummaryText } from "@/src/courses/description";
-import { courseImageUrl } from "@/src/courses/media";
 import { SEED_COURSES } from "@/src/courses/seed";
 import type { Course } from "@/src/courses/types";
-import type { Json } from "@/src/lib/supabase/database.types";
 import { isSupabaseConfigured } from "@/src/lib/supabase/env";
 import { createPublicServerSupabase } from "@/src/lib/supabase/server";
 
@@ -16,40 +14,15 @@ import { createPublicServerSupabase } from "@/src/lib/supabase/server";
 export const revalidate = 60;
 export const dynamicParams = true;
 
-const COURSE_FIELDS = "id, slug, title, summary, color, theme, chapters, cover_url, video_url" as const;
-
-function toCourse(row: {
-  id: string;
-  slug: string;
-  title: string;
-  summary: string;
-  cover_url: string | null;
-  video_url: string | null;
-  theme: string;
-  color: string;
-  chapters: Json;
-}): Course | null {
-  if (!isCourseColor(row.color) || !isCourseTheme(row.theme)) {
-    return null;
-  }
-  return {
-    id: row.id,
-    slug: row.slug,
-    title: row.title,
-    summary: row.summary,
-    coverUrl: courseImageUrl(row.cover_url) ?? undefined,
-    videoUrl: row.video_url ?? undefined,
-    theme: row.theme,
-    color: row.color,
-    chapters: parseChapters(row.chapters),
-    builtin: false,
-  };
-}
-
 async function loadCourse(slug: string): Promise<Course | null> {
   const supabase = createPublicServerSupabase();
   if (supabase) {
-    const { data } = await supabase.from("courses").select(COURSE_FIELDS).eq("slug", slug).maybeSingle();
+    const { data, error } = await supabase.from("courses").select(COURSE_SELECT_FIELDS).eq("slug", slug).maybeSingle();
+    if (error && !isMissingSchemaError(error)) {
+      // A genuine DB failure is a 500 (error boundary), not a 404: only a
+      // missing schema falls through to the built-in seed below.
+      throw new Error("Course could not be loaded.");
+    }
     const published = data ? toCourse(data) : null;
     if (published) {
       return published;

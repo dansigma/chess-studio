@@ -8,7 +8,7 @@ import {
   writeCourseProgressOwner,
   writeRawCache,
 } from "../lib/local-cache";
-import { isCourseColor, isCourseTheme, parseChapters } from "./catalog";
+import { COURSE_SELECT_FIELDS, isCourseColor, isCourseTheme, isMissingSchemaError, parseChapters } from "./catalog";
 import { courseImageUrl } from "./media";
 import { mergeProgress } from "./progress";
 import type { Course, VariationProgress } from "./types";
@@ -86,10 +86,10 @@ export async function fetchPublishedCourses(): Promise<{ courses: Course[]; erro
   }
   const { data, error } = await supabase
     .from("courses")
-    .select("id, slug, title, summary, color, theme, chapters, cover_url, video_url")
+    .select(COURSE_SELECT_FIELDS)
     .order("updated_at", { ascending: false });
   if (error) {
-    const missing = error.code === "PGRST205" || /schema cache|does not exist/i.test(error.message);
+    const missing = isMissingSchemaError(error);
     return {
       courses: [],
       error: missing ? "Published courses are not available yet." : "Published courses could not be loaded.",

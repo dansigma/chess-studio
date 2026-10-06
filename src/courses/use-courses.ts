@@ -10,7 +10,8 @@ import type { VariationProgress } from "./types";
  * Client progress only. The course library itself is fetched by the async
  * server components in `app/courses/**` and passed to the views via props —
  * this hook hydrates per-user progress (browser + account) and the publisher
- * flag after admin mutations the page refreshes via `router.refresh()`.
+ * flag once on mount. Catalog freshness after admin publish/unpublish/import
+ * comes from ISR (`revalidate = 60` on the course routes), not from this hook.
  */
 export function useCourseData() {
   const [progress, setProgress] = useState<Record<string, VariationProgress>>({});

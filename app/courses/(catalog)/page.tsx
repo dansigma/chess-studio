@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { CatalogView } from "@/src/courses/CatalogView";
-import { isCourseColor, isCourseTheme, mergeCourseLists, parseChapters, toCatalogCourses } from "@/src/courses/catalog";
-import { courseImageUrl } from "@/src/courses/media";
+import { COURSE_SELECT_FIELDS, isMissingSchemaError, mergeCourseLists, toCatalogCourses, toCourse } from "@/src/courses/catalog";
 import { SEED_COURSES } from "@/src/courses/seed";
 import type { Course } from "@/src/courses/types";
 import { createPublicServerSupabase } from "@/src/lib/supabase/server";
@@ -34,28 +33,23 @@ async function loadCatalog(): Promise<Course[]> {
   }
   const { data, error } = await supabase
     .from("courses")
-    .select("id, slug, title, summary, color, theme, chapters, cover_url, video_url")
+    .select(COURSE_SELECT_FIELDS)
     .order("updated_at", { ascending: false });
   if (error) {
+    // A missing table/schema (fresh project) is not a failure: serve the
+    // built-in catalog like the pre-RSC client path does. Genuine failures
+    // reach the error boundary (HTTP 500), not an empty list.
+    if (isMissingSchemaError(error)) {
+      return [...SEED_COURSES];
+    }
     throw new Error("Published courses could not be loaded.");
   }
   const published: Course[] = [];
   for (const row of data ?? []) {
-    if (!isCourseColor(row.color) || !isCourseTheme(row.theme)) {
-      continue;
+    const course = toCourse(row);
+    if (course) {
+      published.push(course);
     }
-    published.push({
-      id: row.id,
-      slug: row.slug,
-      title: row.title,
-      summary: row.summary,
-      coverUrl: courseImageUrl(row.cover_url) ?? undefined,
-      videoUrl: row.video_url ?? undefined,
-      theme: row.theme,
-      color: row.color,
-      chapters: parseChapters(row.chapters),
-      builtin: false,
-    });
   }
   return mergeCourseLists(published, SEED_COURSES);
 }
