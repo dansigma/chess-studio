@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CatalogView } from "@/src/courses/CatalogView";
-import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, mergeCourseLists, toCatalogCourses, toCourse } from "@/src/courses/catalog";
+import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, isPublishedCourse, mergeCourseLists, toCatalogCourses, toCourse } from "@/src/courses/catalog";
 import { SEED_COURSES } from "@/src/courses/seed";
 import type { Course } from "@/src/courses/types";
 import { createPublicServerSupabase } from "@/src/lib/supabase/server";
@@ -47,7 +47,9 @@ async function loadCatalog(): Promise<{ courses: Course[]; notice: string | null
   const published: Course[] = [];
   for (const row of data ?? []) {
     const course = toCourse(row);
-    if (course) {
+    // SIG-861: RLS already returns only published rows to anon, but belt
+    // and suspenders — never merge a draft into the public catalog.
+    if (course && isPublishedCourse(course)) {
       published.push(course);
     }
   }

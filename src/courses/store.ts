@@ -9,8 +9,7 @@ import {
   writeCourseProgressOwner,
   writeRawCache,
 } from "../lib/local-cache";
-import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isCourseColor, isCourseTheme, isMissingSchemaError, parseChapters } from "./catalog";
-import { courseImageUrl } from "./media";
+import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, toCourse } from "./catalog";
 import { mergeProgress } from "./progress";
 import type { Course, VariationProgress } from "./types";
 
@@ -89,6 +88,10 @@ export async function fetchPublishedCourses(): Promise<{ courses: Course[]; erro
   if (!supabase) {
     return { courses: [], error: null };
   }
+  // SIG-861: no published_at filter here. RLS scopes visibility:
+  // anon sees published_at-not-null rows only, while an authenticated
+  // publisher also sees their own drafts via courses_select_own_drafts.
+  // The admin list needs both so an unpublished course stays editable.
   const { data, error } = await supabase
     .from("courses")
     .select(COURSE_SELECT_FIELDS)
@@ -102,21 +105,10 @@ export async function fetchPublishedCourses(): Promise<{ courses: Course[]; erro
   }
   const courses: Course[] = [];
   for (const row of data ?? []) {
-    if (!isCourseColor(row.color) || !isCourseTheme(row.theme)) {
-      continue;
+    const course = toCourse(row);
+    if (course) {
+      courses.push(course);
     }
-    courses.push({
-      id: row.id,
-      slug: row.slug,
-      title: row.title,
-      summary: row.summary,
-      coverUrl: courseImageUrl(row.cover_url) ?? undefined,
-      videoUrl: row.video_url ?? undefined,
-      theme: row.theme,
-      color: row.color,
-      chapters: parseChapters(row.chapters),
-      builtin: false,
-    });
   }
   return { courses, error: null };
 }

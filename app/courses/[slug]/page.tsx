@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CourseView } from "@/src/courses/CourseView";
-import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, toCourse } from "@/src/courses/catalog";
+import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, isPublishedCourse, toCourse } from "@/src/courses/catalog";
 import { courseSummaryText } from "@/src/courses/description";
 import { SEED_COURSES } from "@/src/courses/seed";
 import type { Course } from "@/src/courses/types";
@@ -26,7 +26,8 @@ async function loadCourse(slug: string): Promise<{ course: Course | null; notice
     }
     schemaMissing = isMissingSchemaError(error);
     const published = data ? toCourse(data) : null;
-    if (published) {
+    // SIG-861: a draft slug falls through to seed, then 404 for anon.
+    if (published && isPublishedCourse(published)) {
       return { course: published, notice: null };
     }
   }
@@ -40,7 +41,8 @@ async function loadAllSlugs(): Promise<string[]> {
   const slugs = new Set(SEED_COURSES.map((course) => course.slug));
   const supabase = createPublicServerSupabase();
   if (supabase) {
-    const { data } = await supabase.from("courses").select("slug");
+    // SIG-861: drafts never pre-render — skip null published_at rows.
+    const { data } = await supabase.from("courses").select("slug, published_at").not("published_at", "is", null);
     for (const row of data ?? []) {
       if (typeof row.slug === "string" && row.slug) {
         slugs.add(row.slug);

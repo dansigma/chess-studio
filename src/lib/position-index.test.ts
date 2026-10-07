@@ -28,6 +28,9 @@ test("rowsForTree gives every row a unique seq and ply may repeat across branche
   const seqs = positions.map((row) => row.seq);
   assert.equal(new Set(seqs).size, positions.length);
   assert.equal(positions[0].seq, 1);
+  // SIG-861: PK is (game_id, seq) — seq must rise monotonically from 1.
+  assert.deepEqual(seqs, [...seqs].sort((a, b) => a - b));
+  assert.deepEqual(seqs, Array.from({ length: seqs.length }, (_, i) => i + 1));
   const plies = positions.map((row) => row.ply);
   assert.ok(new Set(plies).size < plies.length);
 });

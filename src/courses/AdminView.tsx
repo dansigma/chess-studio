@@ -8,7 +8,7 @@ import { chapterTitleFromPgn, variationsFromChapterPgn } from "./chapter-pgn";
 import { CourseChrome } from "./CourseChrome";
 import { DescriptionField } from "./DescriptionField";
 import { moveListItem, normalizeChapters } from "./draft";
-import { currentUserCanPublish, publishCourse, removePublishedCourse } from "./publish";
+import { currentUserCanPublish, publishCourse, removePublishedCourse, unpublishCourse } from "./publish";
 import { findPublishedConflict, isCourseColor, isCourseId, isCourseTheme, slugify } from "./catalog";
 import {
   clearLocalCustomCourses,
@@ -492,10 +492,42 @@ export function AdminView() {
             Save the title and description first. Chapters can be named, reordered, and filled in afterwards.
           </p>
           {error ? <p className="text-body text-studio-warning-fg">{error}</p> : null}
+          {courses.some((course) => course.id === draft.id) ? (
+            <p className="text-caption text-studio-muted">
+              {draft.publishedAt != null ? "Published — visible to every student." : "Unpublished draft — only you can preview it."}
+            </p>
+          ) : null}
           <div className="flex gap-2">
             <Button type="submit" variant="primary" disabled={saving}>
               {saving ? "Saving…" : "Save course"}
             </Button>
+            {courses.some((course) => course.id === draft.id) && draft.publishedAt != null ? (
+              <Button
+                variant="ghost"
+                disabled={saving}
+                onClick={() => {
+                  if (!window.confirm("Unpublish this course? Students will no longer see it.")) {
+                    return;
+                  }
+                  setSaving(true);
+                  void unpublishCourse(draft.id).then((result) => {
+                    setSaving(false);
+                    if (!result.ok) {
+                      setError(result.error);
+                      return;
+                    }
+                    setCourses((current) =>
+                      current.map((course) => (course.id === draft.id ? { ...course, publishedAt: null } : course)),
+                    );
+                    setDraft((current) => ({ ...current, publishedAt: null }));
+                    setError("");
+                    router.refresh();
+                  });
+                }}
+              >
+                Unpublish
+              </Button>
+            ) : null}
             {courses.some((course) => course.id === draft.id) ? (
               <Button
                 variant="ghost"

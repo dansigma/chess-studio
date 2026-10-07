@@ -147,12 +147,16 @@ export type Database = {
       game_positions: {
         Row: {
           game_id: string;
+          seq: number;
           ply: number;
+          // pg bigint maps to string in postgrest-js (precision safety);
+          // code writes positionKey(fen).toString() and reads coerce String().
           zkey: string;
           next_uci: string | null;
         };
         Insert: {
           game_id: string;
+          seq: number;
           ply: number;
           zkey: string;
           next_uci?: string | null;
@@ -202,6 +206,10 @@ export type Database = {
           video_url: string | null;
           created_by: string | null;
           updated_at: string;
+          // SIG-861: nullable draft/published lifecycle. published_at null =
+          // draft invisible to anon (courses_select_published), non-null =
+          // visible to everyone. Backfilled from updated_at; default now().
+          published_at: string | null;
         };
         Insert: {
           id: string;
@@ -215,6 +223,7 @@ export type Database = {
           video_url?: string | null;
           created_by?: string | null;
           updated_at?: string;
+          published_at?: string | null;
         };
         Update: {
           slug?: string;
@@ -226,9 +235,13 @@ export type Database = {
           cover_url?: string | null;
           video_url?: string | null;
           updated_at?: string;
+          published_at?: string | null;
         };
         Relationships: [];
       };
+      // SIG-861: course_progress.variation_id targets variation ids embedded
+      // in courses.chapters jsonb, not a FK. Enforced by
+      // normalizeChapters/parseChapters, not by the DB.
       course_progress: {
         Row: {
           user_id: string;
@@ -279,9 +292,10 @@ export type Database = {
           role?: "student" | "admin";
           created_at?: string;
         };
-        Update: {
-          role?: "student" | "admin";
-        };
+        // SIG-861: no client-updatable columns. No update policy and no
+        // grant exist; the service-role finishSignIn path in
+        // src/lib/auth/access.ts is the only writer.
+        Update: Record<string, never>;
         Relationships: [];
       };
       course_admins: {
@@ -291,9 +305,9 @@ export type Database = {
         Insert: {
           email: string;
         };
-        Update: {
-          email?: string;
-        };
+        // SIG-861: deny-all RLS (no client select/insert/update/delete), so
+        // no client-updatable columns exist. Service-role access.ts only writer.
+        Update: Record<string, never>;
         Relationships: [];
       };
       player_bookmarks: {
