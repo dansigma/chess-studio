@@ -1,30 +1,23 @@
-const ALLOWED = new Set(["strong", "em", "u", "br", "p", "div", "ul", "ol", "li"]);
+import DOMPurify from "isomorphic-dompurify";
+
+const ALLOWED_TAGS = ["strong", "em", "u", "br", "p", "div", "ul", "ol", "li", "b", "i"];
 const RENAME: Record<string, string> = { b: "strong", i: "em" };
 
-/** Keeps a small set of formatting tags and drops every attribute. */
+/**
+ * Keeps a small set of formatting tags and drops every attribute. DOMPurify
+ * parses the markup (no regex tag-stripping), so `<` inside quoted attribute
+ * values and nested/case-variant payloads cannot smuggle tags through.
+ * `b`/`i` are allowed through the parser and renamed afterwards, when the
+ * output is attribute-free and safe to rewrite with a simple pattern.
+ */
 export function sanitizeCourseHtml(input: string): string {
-  let html = input.replace(/\u0000/g, "");
-  html = html.replace(/<!--[\s\S]*?-->/g, "");
-  for (let pass = 0; pass < 4; pass += 1) {
-    const next = html
-      .replace(/<\s*(script|style|iframe|object|embed|link|meta|svg|math)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, "")
-      .replace(/<\s*(script|style|iframe|object|embed|link|meta|svg|math)\b[^>]*\/?>/gi, "");
-    if (next === html) {
-      break;
-    }
-    html = next;
-  }
-  html = html.replace(/<\s*(\/?)\s*([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>/g, (_match, slash: string, raw: string) => {
+  const html = DOMPurify.sanitize(input.replace(/\u0000/g, ""), {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR: [],
+  }).replace(/<\s*(\/?)\s*(b|i)\s*>/gi, (_match, slash: string, raw: string) => {
     const name = RENAME[raw.toLowerCase()] ?? raw.toLowerCase();
-    if (!ALLOWED.has(name)) {
-      return "";
-    }
-    if (name === "br") {
-      return "<br>";
-    }
     return slash ? `</${name}>` : `<${name}>`;
   });
-  html = html.replace(/<(?!\/?(?:strong|em|u|br|p|div|ul|ol|li)\b)/gi, "&lt;");
   const text = html.replace(/<[^>]+>/g, "").replace(/&nbsp;/gi, " ").replace(/\s+/g, "");
   if (!text) {
     return "";

@@ -87,7 +87,7 @@ function checkedCourse(input: Course): { course: Course; chapters: CourseChapter
     return { error: "The video needs a YouTube, Vimeo, or https video file link." };
   }
   const slug = (input.slug.trim() || slugify(title)).slice(0, 60);
-  const normalized = normalizeChapters(parseChapters(input.chapters as unknown as Json));
+  const normalized = normalizeChapters(parseChapters(input.chapters));
   if ("error" in normalized) {
     return normalized;
   }
@@ -136,6 +136,9 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
   if (ownership) {
     return { ok: false, error: ownership };
   }
+  // chapters are normalizeChapters-validated above; CourseChapter is a
+  // Json-compatible shape, so this needs no cast to reach the column type.
+  const chaptersJson: Json = checked.chapters;
   // Point-read ownership keeps the race window minimal; the residual upsert
   // race is between trusted publishers (LOW, accepted).
   const { error } = await gate.admin.from("courses").upsert({
@@ -147,7 +150,7 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
     video_url: checked.course.videoUrl ?? null,
     color: checked.course.color,
     theme: checked.course.theme,
-    chapters: checked.chapters as unknown as Json,
+    chapters: chaptersJson,
     created_by: existingRow ? existingRow.created_by : gate.userId,
     updated_at: new Date().toISOString(),
   });
