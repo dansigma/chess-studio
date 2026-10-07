@@ -4,6 +4,7 @@ import {
   CUSTOM_COURSES_KEY,
   isCourseProgressOwnedBy,
   readJsonCache,
+  readRawCache,
   removeRawCache,
   writeCourseProgressOwner,
   writeRawCache,
@@ -48,20 +49,24 @@ export function readLocalCustomCourses(): Course[] {
   return value.filter((item): item is Course => typeof item === "object" && item !== null);
 }
 
-export function removeLocalCustomDraft(id: string): void {
+export function removeLocalCustomDraft(id: string): boolean {
   if (typeof window === "undefined") {
-    return;
+    return true;
   }
   const remaining = readLocalCustomCourses().filter((course) => course.id !== id);
   if (remaining.length === 0) {
     removeRawCache(CUSTOM_COURSES_KEY);
-    return;
+    return readRawCache(CUSTOM_COURSES_KEY) === null;
   }
   try {
     writeRawCache(CUSTOM_COURSES_KEY, JSON.stringify(remaining));
   } catch {
-    // Keep the draft in memory; a later import retries.
+    return false;
   }
+  // writeRawCache swallows storage errors by design, so verify by reading
+  // back rather than trusting the call.
+  const stored = readLocalCustomCourses();
+  return stored.length === remaining.length && stored.every((course) => course.id !== id);
 }
 
 export function clearLocalCustomCourses(): void {
