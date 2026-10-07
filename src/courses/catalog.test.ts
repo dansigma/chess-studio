@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseTheme, mergeCourseLists, parseChapters } from "./catalog.ts";
+import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseTheme, isPublishedCourse, mergeCourseLists, parseChapters, toCourse } from "./catalog.ts";
 import { SEED_COURSES } from "./seed-data.ts";
 import type { Course } from "./types.ts";
 
@@ -99,5 +99,25 @@ describe("course catalog", () => {
       courseOwnershipError({ created_by: null }, "user-1", false),
       "This course has no owner — a course admin must reclaim it.",
     );
+  });
+
+  it("maps published_at through toCourse and detects visibility", () => {
+    const base = {
+      id: "11111111-1111-4111-8111-111111111111",
+      slug: "french",
+      title: "French",
+      summary: "",
+      cover_url: null,
+      video_url: null,
+      theme: "openings",
+      color: "black",
+      chapters: [],
+    };
+    const published = toCourse({ ...base, published_at: "2026-10-07T00:00:00.000Z" });
+    assert.equal(published?.publishedAt, "2026-10-07T00:00:00.000Z");
+    assert.equal(isPublishedCourse({ published_at: "2026-10-07T00:00:00.000Z" }), true);
+    const draft = toCourse({ ...base, published_at: null });
+    assert.equal(draft?.publishedAt, null);
+    assert.equal(isPublishedCourse({ published_at: null }), false);
   });
 });

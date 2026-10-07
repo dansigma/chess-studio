@@ -1,0 +1,39 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
+
+const migration = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261007120000_sig861_rls_indexes_drafts.sql"),
+  "utf8",
+);
+
+describe("sig-861 rls contract", () => {
+  it("wraps every auth check as a select subquery", () => {
+    const bare = migration.match(/(?<![\w(])auth\.uid\(\)(?!\))/g) ?? [];
+    assert.equal(bare.length, 0, `found ${bare.length} unwrapped auth checks`);
+    assert.ok(migration.includes("(select auth.uid())"), "expected at least one wrapped auth check");
+  });
+
+  it("adds the two missing own-row deletes and the game_positions update", () => {
+    for (const name of ["settings_delete_own", "course_progress_delete_own", "game_positions_update_own"]) {
+      assert.ok(migration.includes(`"${name}"`), `missing policy ${name}`);
+    }
+  });
+
+  it("keeps client writes closed on courses, profiles, and course_admins", () => {
+    const lines = migration.split("\n");
+    const writeOn = (table: string) =>
+      lines.filter((line) => new RegExp(`on public\\.${table}$`).test(line.trim()) && /for (insert|update|delete)/.test(line));
+    for (const table of ["courses", "profiles", "course_admins"]) {
+      assert.deepEqual(writeOn(table), [], `client write policy on ${table}`);
+    }
+  });
+
+  it("creates the four planned indexes", () => {
+    for (const name of ["courses_created_by_idx", "courses_published_updated_idx", "games_white_trgm_idx", "games_black_trgm_idx"]) {
+      assert.ok(migration.includes(`create index if not exists ${name}`), `missing index ${name}`);
+    }
+  });
+});

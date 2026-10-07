@@ -144,7 +144,7 @@ export function courseThemeLabel(theme: CourseTheme): string {
 
 /** Select list shared by the course server components (one canonical read). */
 export const COURSE_SELECT_FIELDS =
-  "id, slug, title, summary, color, theme, chapters, cover_url, video_url" as const;
+  "id, slug, title, summary, color, theme, chapters, cover_url, video_url, published_at" as const;
 
 export type CourseRow = {
   id: string;
@@ -156,7 +156,13 @@ export type CourseRow = {
   theme: string;
   color: string;
   chapters: Json;
+  published_at: string | null;
 };
+
+/** True when the row is visible to anon (SIG-861 draft lifecycle). */
+export function isPublishedCourse(row: Pick<CourseRow, "published_at"> | Pick<Course, "publishedAt">): boolean {
+  return "published_at" in row ? row.published_at !== null : row.publishedAt !== null;
+}
 
 /** Canonical DB-row → Course mapping for the course server components. */
 export function toCourse(row: CourseRow): Course | null {
@@ -174,6 +180,7 @@ export function toCourse(row: CourseRow): Course | null {
     color: row.color,
     chapters: parseChapters(row.chapters),
     builtin: false,
+    publishedAt: row.published_at,
   };
 }
 

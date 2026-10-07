@@ -32,6 +32,12 @@ export type Course = {
   color: CourseColor;
   chapters: CourseChapter[];
   builtin?: boolean;
+  /**
+   * SIG-861: null = draft (invisible to anon), string = published at.
+   * Undefined = pre-published_at row (seed / browser-local draft), treated
+   * as always-published by the catalog merge.
+   */
+  publishedAt?: string | null;
 };
 
 export type VariationProgress = {

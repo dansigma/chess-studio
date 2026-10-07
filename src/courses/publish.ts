@@ -139,8 +139,10 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
   // chapters are normalizeChapters-validated above; CourseChapter is a
   // Json-compatible shape, so this needs no cast to reach the column type.
   const chaptersJson: Json = checked.chapters;
+  // SIG-861: publishing means visible to anon — stamp published_at.
   // Point-read ownership keeps the race window minimal; the residual upsert
   // race is between trusted publishers (LOW, accepted).
+  const publishedAt = new Date().toISOString();
   const { error } = await gate.admin.from("courses").upsert({
     id: checked.course.id,
     slug: checked.course.slug,
@@ -152,12 +154,39 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
     theme: checked.course.theme,
     chapters: chaptersJson,
     created_by: existingRow ? existingRow.created_by : gate.userId,
-    updated_at: new Date().toISOString(),
+    updated_at: publishedAt,
+    published_at: publishedAt,
   });
   if (error) {
     return { ok: false, error: databaseError(error) };
   }
-  return { ok: true, course: checked.course };
+  return { ok: true, course: { ...checked.course, publishedAt } };
+}
+
+export async function unpublishCourse(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isCourseId(id)) {
+    return { ok: false, error: "The course id is not valid." };
+  }
+  const gate = await requirePublisher();
+  if (!gate.ok) {
+    return gate;
+  }
+  const { data: row, error: readError } = await gate.admin.from("courses").select("created_by").eq("id", id).maybeSingle();
+  if (readError) {
+    return { ok: false, error: databaseError(readError) };
+  }
+  const ownership = courseOwnershipError(row, gate.userId, gate.superAdmin);
+  if (ownership) {
+    return { ok: false, error: ownership };
+  }
+  const { error } = await gate.admin
+    .from("courses")
+    .update({ published_at: null, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) {
+    return { ok: false, error: databaseError(error) };
+  }
+  return { ok: true };
 }
 
 export async function removePublishedCourse(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
