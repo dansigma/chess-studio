@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { LessonView } from "@/src/courses/LessonView";
-import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, mergeCourseLists, toCourse } from "@/src/courses/catalog";
+import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, isPublishedCourse, mergeCourseLists, toCourse } from "@/src/courses/catalog";
 import { SEED_COURSES } from "@/src/courses/seed";
 import { findVariation } from "@/src/courses/store";
 import type { Course } from "@/src/courses/types";
@@ -29,7 +29,8 @@ async function loadCourse(slug: string): Promise<{ course: Course | null; notice
     }
     schemaMissing = isMissingSchemaError(error);
     const published = data ? toCourse(data) : null;
-    if (published) {
+    // SIG-861: a draft slug falls through to seed then 404 (mirrors [slug]/page.tsx).
+    if (published && isPublishedCourse(published)) {
       return { course: published, notice: null };
     }
   }
@@ -43,10 +44,11 @@ async function loadAllLines(): Promise<{ slug: string; variationId: string }[]> 
   const supabase = createPublicServerSupabase();
   const published: Course[] = [];
   if (supabase) {
-    const { data } = await supabase.from("courses").select(COURSE_SELECT_FIELDS);
+    const { data } = await supabase.from("courses").select(COURSE_SELECT_FIELDS).not("published_at", "is", null);
     for (const row of data ?? []) {
       const course = toCourse(row);
-      if (course) {
+      // SIG-861: drafts never pre-render (mirrors [slug] loadAllSlugs).
+      if (course && isPublishedCourse(course)) {
         published.push(course);
       }
     }
