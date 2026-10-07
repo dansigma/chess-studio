@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  MAX_DEPTH,
+  MAX_LINES,
+  MIN_DEPTH,
+  MIN_LINES,
   StockfishEngine,
+  clampDepth,
+  clampLines,
+  clampThreads,
+  defaultEngineThreads,
+  engineWorkerUrl,
   formatScore,
+  isEngineBuild,
+  maxHardwareThreads,
+  positionAfterPv,
   scoreNumber,
   supportsEngineThreads,
   type EngineInfo,
@@ -312,4 +324,75 @@ test("bounded line is accepted when there is no exact line yet", () => {
 
 test("supportsEngineThreads is false in Node without cross-origin isolation", () => {
   assert.equal(supportsEngineThreads(), false);
+});
+
+test("clampDepth clamps to 8–40 and rounds", () => {
+  assert.equal(clampDepth(MIN_DEPTH - 10), MIN_DEPTH);
+  assert.equal(clampDepth(MAX_DEPTH + 10), MAX_DEPTH);
+  assert.equal(clampDepth(22), 22);
+  assert.equal(clampDepth(22.6), 23);
+  assert.equal(clampDepth(22.4), 22);
+});
+
+test("clampLines clamps to 1–5 and rounds", () => {
+  assert.equal(clampLines(MIN_LINES - 5), MIN_LINES);
+  assert.equal(clampLines(MAX_LINES + 5), MAX_LINES);
+  assert.equal(clampLines(2), 2);
+  assert.equal(clampLines(2.6), 3);
+});
+
+test("clampThreads floors at 1 and caps without thread support", () => {
+  assert.equal(supportsEngineThreads(), false);
+  assert.equal(clampThreads(0), 1);
+  assert.equal(clampThreads(-5), 1);
+  assert.equal(clampThreads(1), 1);
+  assert.equal(clampThreads(8), 1);
+});
+
+test("positionAfterPv applies UCI moves and strips the promotion suffix", () => {
+  const two = positionAfterPv(FEN_A, ["e2e4", "e7e5"]);
+  assert.ok(two);
+  assert.equal(two.lastMove, "e7e5");
+  assert.match(two.fen, / w KQkq /);
+
+  const one = positionAfterPv(FEN_A, ["e2e4"]);
+  assert.ok(one);
+  assert.equal(one.lastMove, "e2e4");
+  assert.match(one.fen, / b KQkq /);
+
+  const promo = positionAfterPv("8/4P3/8/8/8/8/8/4K2k w - - 0 1", ["e7e8q"]);
+  assert.ok(promo);
+  assert.equal(promo.lastMove, "e7e8");
+  assert.match(promo.fen, /Q/);
+});
+
+test("positionAfterPv returns null for empty or illegal PV", () => {
+  assert.equal(positionAfterPv(FEN_A, []), null);
+  assert.equal(positionAfterPv(FEN_A, ["e2e4", "e2e4"]), null);
+  assert.equal(positionAfterPv(FEN_A, ["zzzz"]), null);
+});
+
+test("engineWorkerUrl and isEngineBuild resolve per build", () => {
+  assert.equal(supportsEngineThreads(), false);
+  assert.equal(engineWorkerUrl("lite"), "/engine/stockfish.js");
+  assert.equal(engineWorkerUrl("standard"), "/engine/stockfish-19-single.js");
+  assert.equal(isEngineBuild("lite"), true);
+  assert.equal(isEngineBuild("standard"), true);
+  assert.equal(isEngineBuild("full"), false);
+  assert.equal(isEngineBuild(""), false);
+  assert.equal(isEngineBuild(null), false);
+  assert.equal(isEngineBuild(undefined), false);
+  assert.equal(isEngineBuild(123), false);
+});
+
+test("defaultEngineThreads and maxHardwareThreads stay sane", () => {
+  const max = maxHardwareThreads();
+  const fallback = defaultEngineThreads();
+  for (const value of [max, fallback]) {
+    assert.ok(Number.isInteger(value));
+    assert.ok(value >= 1);
+  }
+  assert.ok(fallback <= max);
+  // No SharedArrayBuffer cross-origin isolation in Node, so the default is single-threaded.
+  assert.equal(fallback, 1);
 });
