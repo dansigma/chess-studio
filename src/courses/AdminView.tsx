@@ -244,21 +244,27 @@ export function AdminView() {
       return;
     }
     setImportingId(course.id);
-    const result = await publishCourse({
-      ...course,
-      id: isCourseId(course.id) ? course.id : crypto.randomUUID(),
-      theme: isCourseTheme(course.theme) ? course.theme : "openings",
-    });
-    setImportingId(null);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    try {
+      const result = await publishCourse({
+        ...course,
+        id: isCourseId(course.id) ? course.id : crypto.randomUUID(),
+        theme: isCourseTheme(course.theme) ? course.theme : "openings",
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setCourses((current) => [result.course, ...current.filter((item) => item.id !== result.course.id)]);
+      setLocalDrafts((current) => current.filter((item) => item.id !== course.id));
+      if (!removeLocalCustomDraft(course.id)) {
+        setError("Published, but the browser copy could not be removed — it may reappear on reload.");
+      } else {
+        setError("");
+      }
+      router.refresh();
+    } finally {
+      setImportingId(null);
     }
-    setCourses((current) => [result.course, ...current.filter((item) => item.id !== result.course.id)]);
-    setLocalDrafts((current) => current.filter((item) => item.id !== course.id));
-    removeLocalCustomDraft(course.id);
-    setError("");
-    router.refresh();
   }
 
   function discardLocalDrafts() {
