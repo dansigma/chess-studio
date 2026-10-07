@@ -68,6 +68,8 @@ import {
   clampLines,
   clampThreads,
   defaultEngineThreads,
+  isEngineBuild,
+  type EngineBuild,
 } from "@/src/engine/stockfish-client";
 import { fileDatabaseId, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
 import {
@@ -76,6 +78,8 @@ import {
   type ExplorerFilters,
 } from "@/src/lib/explorer-filters";
 import { dropFilesExplorerIndex } from "@/src/lib/files-explorer";
+import { purgeUserLocalCaches } from "@/src/lib/local-cache";
+import { resetCourseProgressState } from "@/src/courses/store";
 import { isLegalSetupFen } from "@/src/chess/setup-fen";
 import { applyNullMoveFen, NULL_MOVE_SAN, NULL_MOVE_UCI } from "@/src/chess/null-move";
 import { isBoardTheme, type BoardTheme } from "@/src/chess/board-themes";
@@ -94,6 +98,7 @@ import {
   type FileGame,
   type FilesLibrary,
 } from "@/src/lib/user-files";
+import { capEvalCache } from "@/src/lib/eval-cache";
 
 export type { BoardTheme } from "@/src/chess/board-themes";
 export type { PieceSet } from "@/src/chess/piece-sets";
@@ -123,6 +128,9 @@ export type EnginePreview = {
 export type EngineEval = {
   pawns: number;
   label: string;
+  // SIG-856: carried so the held eval stays coherent with its depth readout
+  // while a fresh FEN has no live lines yet.
+  depth?: number;
 };
 
 export type CachedEval = {
@@ -142,6 +150,7 @@ export type StudioSettings = {
   engineDepth: number;
   multiPv: number;
   engineThreads: number;
+  engineBuild: EngineBuild;
   sidebarCollapsed: boolean;
   explorerFilters: ExplorerFilters;
   moveSound: boolean;
@@ -159,6 +168,7 @@ const DEFAULT_SETTINGS: StudioSettings = {
   engineDepth: 30,
   multiPv: 2,
   engineThreads: 1,
+  engineBuild: "lite",
   sidebarCollapsed: false,
   explorerFilters: DEFAULT_EXPLORER_FILTERS,
   moveSound: true,
@@ -207,6 +217,7 @@ function loadLocalSettings(): StudioSettings {
         typeof parsed.engineThreads === "number"
           ? clampThreads(parsed.engineThreads)
           : defaultEngineThreads(),
+      engineBuild: isEngineBuild(parsed.engineBuild) ? parsed.engineBuild : DEFAULT_SETTINGS.engineBuild,
       sidebarCollapsed:
         typeof parsed.sidebarCollapsed === "boolean"
           ? parsed.sidebarCollapsed
@@ -233,6 +244,8 @@ type StudioState = {
   user: UserInfo | null;
   explorer: ExplorerResponse | null;
   explorerLoading: boolean;
+  explorerError: string | null;
+  explorerRetry: number;
   statusMessage: string | null;
   aboutOpen: boolean;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
@@ -285,6 +298,7 @@ type StudioState = {
   setEngineDepth: (depth: number) => void;
   setMultiPv: (value: number) => void;
   setEngineThreads: (value: number) => void;
+  setEngineBuild: (build: EngineBuild) => void;
   setActivity: (view: ActivityView) => void;
   toggleSidebar: () => void;
   setDatabaseSource: (source: ExplorerSource) => void;
@@ -320,6 +334,8 @@ type StudioState = {
   renameActive: (title: string) => void;
   setExplorer: (data: ExplorerResponse | null) => void;
   setExplorerLoading: (loading: boolean) => void;
+  setExplorerError: (error: string | null) => void;
+  retryExplorer: () => void;
   setStatus: (message: string | null) => void;
   setAboutOpen: (open: boolean) => void;
   setNotationEditor: (editor: "comment" | "commentBefore" | "headers" | null) => void;
@@ -349,6 +365,7 @@ type StudioState = {
   applySetupFen: (fen: string) => boolean;
   openSharedPosition: (fen: string) => void;
   setUser: (user: UserInfo | null) => void;
+  resetSessionState: () => void;
   hydrateSettings: (settings: Partial<StudioSettings>) => void;
   hydrateLocalSettings: () => void;
   hydrateRemoteBoard: (board: BoardSession) => void;
@@ -360,9 +377,14 @@ function newId(): string {
   return crypto.randomUUID();
 }
 
-function emptyBoard(title = "Board"): BoardSession {
+// NOTE: id must be injectable — Workers forbids crypto.randomUUID() during
+// global-scope (module init) evaluation ("Disallowed operation called within
+// global scope... generating random values are not allowed within global
+// scope"). The initial store board passes a deterministic id; every other
+// call site runs inside handlers/effects, where newId() is allowed.
+function emptyBoard(title = "Board", id = newId()): BoardSession {
   return {
-    id: newId(),
+    id,
     remoteId: null,
     title,
     tree: createEmptyTree(),
@@ -392,8 +414,21 @@ function analysisFen(state: { boards: BoardSession[]; activeBoardId: string }): 
   return analysis ? getFenAt(analysis.tree, analysis.path) : START_FEN;
 }
 
+// Data (non-function) keys of the store; the reset payload must cover every
+// session-scoped one so a future session key cannot silently survive sign-out.
+// (Pick, not Record<..., unknown>: keeps the exact value types so the payload
+// is checked for completeness AND assignability to Partial<StudioState>.)
+type SessionDataKey = {
+  [K in keyof StudioState]: StudioState[K] extends (...args: never[]) => unknown ? never : K;
+}[keyof StudioState];
+
+type SessionResetPayload = Pick<
+  StudioState,
+  Exclude<SessionDataKey, "settings" | "user" | "layoutNonce">
+>;
+
 export const useStudioStore = create<StudioState>((set, get) => ({
-  boards: [emptyBoard()],
+  boards: [emptyBoard("Board", "initial-board")],
   activeBoardId: "",
   activity: "boards",
   databaseSource: "masters",
@@ -401,6 +436,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   user: null,
   explorer: null,
   explorerLoading: false,
+  explorerError: null,
+  explorerRetry: 0,
   statusMessage: null,
   aboutOpen: false,
   notationEditor: null,
@@ -576,6 +613,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     soundForAdvance(previous);
   },
   back: () => {
+    if (get().training) {
+      return;
+    }
     set((state) => ({
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
@@ -738,6 +778,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set((state) => ({
       settings: { ...state.settings, engineThreads: clampThreads(engineThreads) },
     }));
+  },
+  setEngineBuild: (engineBuild) => {
+    set((state) => ({ settings: { ...state.settings, engineBuild } }));
   },
   setActivity: (activity) =>
     set((state) => ({
@@ -1057,6 +1100,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
   setExplorer: (explorer) => set({ explorer }),
   setExplorerLoading: (explorerLoading) => set({ explorerLoading }),
+  setExplorerError: (explorerError) => set({ explorerError }),
+  retryExplorer: () => set((state) => ({ explorerRetry: state.explorerRetry + 1 })),
   setStatus: (statusMessage) => set({ statusMessage }),
   setEnginePreview: (enginePreview) => set({ enginePreview }),
   setEngineEval: (engineEval) => {
@@ -1076,7 +1121,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     ) {
       return;
     }
-    set({ evalByFen: { ...get().evalByFen, [key]: value } });
+    // SIG-856: re-insert the key so the write refreshes recency, then cap the
+    // map at MAX_EVAL_CACHE_ENTRIES (oldest FENs evicted first).
+    const next = { ...get().evalByFen };
+    delete next[key];
+    next[key] = value;
+    set({ evalByFen: capEvalCache(next) });
   },
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
   setNotationEditor: (notationEditor) => set({ notationEditor }),
@@ -1146,7 +1196,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     });
     const user = get().user;
     if (user) {
-      void persistRemoteDatabase(database, user.id).then((remoteId) => {
+      void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError }) => {
+        if (indexError) {
+          set({ statusMessage: "Games imported, but the position index could not be saved." });
+        }
         if (!remoteId) {
           return;
         }
@@ -1352,7 +1405,57 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       }),
     }));
   },
-  setUser: (user) => set({ user }),
+  setUser: (user) => {
+    const previousId = get().user?.id ?? null;
+    const nextId = user?.id ?? null;
+    set({ user });
+    if (previousId !== null && previousId !== nextId) {
+      get().resetSessionState();
+    }
+  },
+  resetSessionState: () => {
+    // SIG-886: the course/puzzle local caches are per-account data — purge
+    // them with the files/bookmarks so the next account never reads the
+    // previous user's rows. Anonymous trial data is safe: this reset only
+    // runs on an account change with a previous user, never on anon login.
+    purgeUserLocalCaches();
+    resetCourseProgressState();
+    saveLocalFiles(EMPTY_FILES);
+    saveLocalBookmarks([]);
+    const board = emptyBoard();
+    const sessionReset = {
+      boards: [board],
+      // intentional: initializer seeds "" and resolves via the boards[0] fallback; the reset assigns the id directly like the post-create block — same single empty board either way
+      activeBoardId: board.id,
+      activity: "boards",
+      databaseSource: "masters",
+      explorer: null,
+      explorerLoading: false,
+      explorerError: null,
+      explorerRetry: 0,
+      statusMessage: null,
+      aboutOpen: false,
+      notationEditor: null,
+      enginePreview: null,
+      engineEval: null,
+      evalByFen: {},
+      playerProfile: null,
+      playerGames: [],
+      playerGamesLoading: false,
+      playerGamesNotice: null,
+      playerColorFilter: "all",
+      playerResultFilter: "all",
+      files: EMPTY_FILES,
+      filesQuery: "",
+      activeFileDatabaseId: null,
+      activeFileGameId: null,
+      bookmarks: [],
+      setupMode: false,
+      training: false,
+      trainingStart: null,
+    } satisfies SessionResetPayload;
+    set(sessionReset);
+  },
   hydrateLocalSettings: () => {
     set({ settings: loadLocalSettings() });
   },

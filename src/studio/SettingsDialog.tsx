@@ -5,6 +5,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { BOARD_THEME_IDS, BOARD_THEMES, type BoardTheme } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
+import { ENGINE_BUILDS, ENGINE_BUILD_INFO } from "@/src/engine/stockfish-client";
 import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "./color-scheme";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
@@ -78,6 +79,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
   const toggleMoveSound = useStudioStore((state) => state.toggleMoveSound);
   const toggleGamePreview = useStudioStore((state) => state.toggleGamePreview);
+  const setEngineBuild = useStudioStore((state) => state.setEngineBuild);
 
   return (
     <Dialog
@@ -129,6 +131,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               label="Game preview mode"
               checked={settings.gamePreviewEnabled}
               onChange={toggleGamePreview}
+            />
+          </Row>
+        </Section>
+        <Section title="Engine">
+          <Row label="Stockfish">
+            <Select
+              value={settings.engineBuild}
+              options={ENGINE_BUILDS.map((id) => ({ id, label: ENGINE_BUILD_INFO[id].label }))}
+              onChange={setEngineBuild}
             />
           </Row>
         </Section>

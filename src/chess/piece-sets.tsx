@@ -63,6 +63,7 @@ function CdnPiece({
     return Fallback ? <Fallback svgStyle={svgStyle} /> : null;
   }
   return (
+    // eslint-disable-next-line @next/next/no-img-element -- piece SVGs stream from an external CDN at runtime; next/image has no optimizer under the vinext static runtime and the onError fallback needs a plain img
     <img
       src={pieceSrc(folder, code)}
       alt=""

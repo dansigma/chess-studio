@@ -59,3 +59,55 @@ test("a period where a move was expected does not throw", () => {
   assert.equal(game.tree.children[0]?.san, "e4");
   assert.equal(openablePgn("this is not. a pgn"), null);
 });
+
+test("a null move inside a variation is kept with -- SAN", () => {
+  const game = importPgn('[Event "A"]\n\n1. e4 e5 (1... -- 2. Nf3) *\n');
+  assert.equal(game.tree.children[0]?.san, "e4");
+  const variation = game.tree.children[0]?.children[1];
+  assert.ok(variation, "expected a second variation after 1... e5");
+  assert.equal(variation.san, "--");
+  assert.equal(variation.uci, "0000");
+  assert.equal(variation.children[0]?.san, "Nf3");
+});
+
+test("an illegal SAN stops the line and is recorded, keeping the parsed prefix", () => {
+  const game = importPgn('[Event "A"]\n\n1. e4 e5 2. e5 *\n');
+  assert.equal(game.tree.children[0]?.san, "e4");
+  assert.equal(game.tree.children[0]?.children[0]?.san, "e5");
+  assert.equal(game.tree.children[0]?.children[0]?.children.length, 0);
+  assert.ok(Array.isArray(game.warnings));
+  assert.equal(game.warnings.length, 1);
+  assert.match(game.warnings[0] ?? "", /e5/);
+});
+
+test("an unplayable first move still records a warning instead of failing silently", () => {
+  const game = importPgn('[Event "F"]\n\n1... e5 *\n');
+  assert.equal(game.tree.children.length, 0);
+  assert.ok(game.warnings.length >= 1, "expected the skipped move to be recorded");
+  assert.match(game.warnings[0] ?? "", /e5/);
+});
+
+test("an unplayable move from a declared FEN keeps the declared position", () => {
+  const fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1";
+  const game = importPgn(`[Event "F"]\n[FEN "${fen}"]\n[SetUp "1"]\n\n1. d4 *\n`);
+  assert.equal(game.tree.children.length, 0);
+  assert.ok(game.warnings.length >= 1, "expected the skipped move to be recorded");
+  assert.equal(game.tree.startFen, fen);
+});
+
+test("warnings from a dropped game survive a multi-game merge", () => {
+  const merged = openablePgn('[Event "bad"]\n\n1. Ke2 *\n\n[Event "good"]\n\n1. e4 *\n');
+  assert.ok(merged);
+  assert.equal(merged.tree.children[0]?.san, "e4");
+  assert.ok(merged.warnings.length >= 1, "expected the bad game's warning to survive the merge");
+  assert.match(merged.warnings[0] ?? "", /Ke2/);
+});
+
+test("merging games fills an empty pre-game comment but never overwrites", () => {
+  const merged = openablePgn('[Event "A"]\n\n1. e4 *\n\n[Event "B"]\n\n{startB} 1. e4 *\n');
+  assert.ok(merged);
+  assert.equal(merged.tree.startComment, "startB");
+  const keepFirst = openablePgn('[Event "A"]\n\n{startA} 1. e4 *\n\n[Event "B"]\n\n{startB} 1. e4 *\n');
+  assert.ok(keepFirst);
+  assert.equal(keepFirst.tree.startComment, "startA");
+});

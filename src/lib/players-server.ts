@@ -12,12 +12,13 @@ import type {
   PlayerHit,
   PlayerSource,
 } from "@/src/lib/player-types";
+import { createLruCache } from "@/src/lib/lru";
 
 const MAX_PLAYER_GAMES = 80;
 const GAMES_CACHE_TTL_MS = 180_000;
 const SEARCH_TIMEOUT_MS = 6_000;
 const GAMES_TIMEOUT_MS = 15_000;
-const gamesCache = new Map<string, { expires: number; payload: PlayerGamesResponse }>();
+const gamesCache = createLruCache<string, { expires: number; payload: PlayerGamesResponse }>(200);
 
 const UA = "StudioClone/0.1 (chess analysis; local development)";
 
@@ -428,10 +429,14 @@ function chesscomWinner(game: ChesscomArchiveGame): PlayerGame["winner"] {
 }
 
 async function fetchArchive(url: string): Promise<ChesscomArchiveGame[]> {
-  const monthResponse = await fetch(url, {
-    headers: chesscomHeaders(),
-    next: { revalidate: 120 },
-  });
+  const monthResponse = await fetchTimeout(
+    url,
+    {
+      headers: chesscomHeaders(),
+      next: { revalidate: 120 },
+    },
+    GAMES_TIMEOUT_MS,
+  );
   if (!monthResponse.ok) {
     return [];
   }
@@ -475,9 +480,10 @@ function compactChesscomGame(
 }
 
 async function chesscomGames(username: string): Promise<PlayerGame[]> {
-  const archivesResponse = await fetch(
+  const archivesResponse = await fetchTimeout(
     `https://api.chess.com/pub/player/${encodeURIComponent(username.toLowerCase())}/games/archives`,
     { headers: chesscomHeaders(), next: { revalidate: 300 } },
+    GAMES_TIMEOUT_MS,
   );
   if (!archivesResponse.ok) {
     throw new Error("Chess.com archives request failed");
@@ -616,7 +622,8 @@ export async function loadPlayerGames(
       games = await studioGames(username);
     }
   } catch (error) {
-    notice = error instanceof Error ? error.message : "Could not load games.";
+    console.error("loadPlayerGames failed", { source, username, error });
+    notice = "Could not load games.";
   }
   games.sort((a, b) => (b.playedAt ?? 0) - (a.playedAt ?? 0));
   const payload: PlayerGamesResponse = { player, games, truncated, notice };

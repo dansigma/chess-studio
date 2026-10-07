@@ -1,14 +1,8 @@
 import { importPgn, titleFromHeaders } from "./pgn";
+import { pgnGameChunks } from "./pgn-clean";
 
 export function splitPgnGames(text: string): string[] {
-  const trimmed = text.replace(/^\uFEFF/, "").trim();
-  if (!trimmed) {
-    return [];
-  }
-  return trimmed
-    .split(/\r?\n(?:\r?\n)+(?=\[)/)
-    .map((chunk) => chunk.trim())
-    .filter(Boolean);
+  return pgnGameChunks(text);
 }
 
 export type ParsedFileGame = {
@@ -35,7 +29,10 @@ export function parsePgnCollection(text: string, limit = 500): {
       continue;
     }
     const imported = importPgn(chunk);
-    if (imported.tree.children.length === 0 && Object.keys(imported.headers).length === 0) {
+    // importPgn keeps the declared headers/FEN and warnings even when no move
+    // was playable, so playability alone decides the skip (headers no longer
+    // imply an openable game).
+    if (imported.tree.children.length === 0) {
       skipped += 1;
       continue;
     }

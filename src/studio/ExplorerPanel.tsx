@@ -14,6 +14,8 @@ const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(96px,160px)] items-c
 export function ExplorerPanel() {
   const explorer = useStudioStore((state) => state.explorer);
   const loading = useStudioStore((state) => state.explorerLoading);
+  const error = useStudioStore((state) => state.explorerError);
+  const retryExplorer = useStudioStore((state) => state.retryExplorer);
   const source = useStudioStore((state) => state.databaseSource);
   const databases = useStudioStore((state) => state.files.databases);
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
@@ -48,6 +50,14 @@ export function ExplorerPanel() {
           {explorer.notice}
         </div>
       ) : null}
+      {error ? (
+        <div className="border-b border-studio-border-subtle bg-studio-warning-bg px-3 py-2 text-caption text-studio-warning-fg">
+          Couldn&apos;t load the explorer. Try again.{" "}
+          <button type="button" className="underline" onClick={retryExplorer}>
+            Retry
+          </button>
+        </div>
+      ) : null}
       <div
         className={`${ROW_GRID} relative border-b border-studio-border-subtle py-1.5 text-caption uppercase tracking-wider text-studio-faint`}
       >
@@ -64,7 +74,7 @@ export function ExplorerPanel() {
         {loading && !explorer ? (
           <div className="px-3 py-4 text-dense text-studio-faint">Loading explorer…</div>
         ) : null}
-        {!loading && !hasMoves ? (
+        {!loading && !error && !hasMoves ? (
           <div className="px-3 py-4 text-dense text-studio-faint">No games for this position.</div>
         ) : null}
         {explorer?.moves.map((row) => {

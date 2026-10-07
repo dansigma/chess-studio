@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/shallow";
 import {
   fenKey,
   pathsEqual,
@@ -14,9 +15,10 @@ import {
   type EngineInfo,
 } from "@/src/engine/stockfish-client";
 import { useActiveBoard } from "@/src/store/hooks";
-import { useStudioStore } from "@/src/store/studio-store";
+import { useStudioStore, type CachedEval } from "@/src/store/studio-store";
 
 export const GRAPH_WALK_DEPTH = 12;
+export const GRAPH_EVAL_THROTTLE_MS = 250;
 
 const PAD_X = 28;
 const PAD_Y = 16;
@@ -34,9 +36,9 @@ function yAt(pawns: number, height: number): number {
 export function EvalGraphPanel() {
   const board = useActiveBoard();
   const setupMode = useStudioStore((state) => state.setupMode);
-  const evalByFen = useStudioStore((state) => state.evalByFen);
   const goPath = useStudioStore((state) => state.goPath);
   const engineDepth = useStudioStore((state) => state.settings.engineDepth);
+  const engineBuild = useStudioStore((state) => state.settings.engineBuild);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const [hover, setHover] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -49,6 +51,20 @@ export function EvalGraphPanel() {
   const walkDepth = Math.min(GRAPH_WALK_DEPTH, engineDepth);
   const lineKey = `${board.id}:${points.map((point) => fenKey(point.fen)).join("|")}`;
   const currentIndex = points.findIndex((point) => pathsEqual(point.path, board.path));
+  // SIG-856: subscribe only to this line's FENs — depth ticks of other FENs
+  // keep the same entry refs, so the shallow compare skips the re-render.
+  const evalByFen = useStudioStore(
+    useShallow(
+      (state): Record<string, CachedEval | undefined> => {
+        const selected: Record<string, CachedEval | undefined> = {};
+        for (const point of points) {
+          const key = fenKey(point.fen);
+          selected[key] = state.evalByFen[key];
+        }
+        return selected;
+      },
+    ),
+  );
 
   useEffect(() => {
     const node = wrapRef.current;
@@ -73,7 +89,7 @@ export function EvalGraphPanel() {
     if (setupMode) {
       return;
     }
-    const engine = new StockfishEngine();
+    const engine = new StockfishEngine(engineBuild);
     engine.start();
     let cancelled = false;
     let unsubscribe: () => void = () => undefined;
@@ -90,6 +106,44 @@ export function EvalGraphPanel() {
         label: formatScore(best, side),
         depth: info.depth,
       });
+    }
+
+    // SIG-856: the walk emits an `info` per tick — throttle cache writes per
+    // FEN with a trailing write so the final depth is never lost.
+    const lastSent = new Map<string, number>();
+    const trailing = new Map<string, number>();
+    const latest = new Map<string, EngineInfo>();
+
+    function flush(fen: string): void {
+      const info = latest.get(fen);
+      latest.delete(fen);
+      if (!info) {
+        return;
+      }
+      lastSent.set(fen, Date.now());
+      record(fen, info);
+    }
+
+    function recordThrottled(fen: string, info: EngineInfo): void {
+      latest.set(fen, info);
+      const elapsed = Date.now() - (lastSent.get(fen) ?? 0);
+      if (elapsed >= GRAPH_EVAL_THROTTLE_MS) {
+        const timer = trailing.get(fen);
+        if (timer !== undefined) {
+          window.clearTimeout(timer);
+          trailing.delete(fen);
+        }
+        flush(fen);
+        return;
+      }
+      if (trailing.has(fen)) {
+        return;
+      }
+      const timer = window.setTimeout(() => {
+        trailing.delete(fen);
+        flush(fen);
+      }, GRAPH_EVAL_THROTTLE_MS - elapsed);
+      trailing.set(fen, timer);
     }
 
     async function walk() {
@@ -120,7 +174,7 @@ export function EvalGraphPanel() {
               finish();
               return;
             }
-            record(point.fen, info);
+            recordThrottled(point.fen, info);
             if (
               info.fen === point.fen &&
               info.lines[0] &&
@@ -139,9 +193,16 @@ export function EvalGraphPanel() {
       cancelled = true;
       settle?.();
       unsubscribe();
+      for (const timer of trailing.values()) {
+        window.clearTimeout(timer);
+      }
+      trailing.clear();
+      for (const fen of [...latest.keys()]) {
+        flush(fen);
+      }
       engine.dispose();
     };
-  }, [lineKey, points, setupMode, walkDepth]);
+  }, [engineBuild, lineKey, points, setupMode, walkDepth]);
 
   const width = size.width;
   const height = size.height;

@@ -4,15 +4,21 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "NEXT_ALIAS_WORKERD_STUB=1 next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import ./scripts/test-resolve.mjs --test \"src/**/*.test.ts\""
+    "test": "node --import ./scripts/test-resolve.mjs --test \"src/**/*.test.ts\"",
+    "dev:vinext": "vite dev --port 3001",
+    "build:vinext": "vite build",
+    "start:vinext": "vite preview",
+    "deploy:vinext": "node scripts/vinext-deploy.mjs"
   },
   "dependencies": {
     "@mliebelt/pgn-parser": "^1.4.19",
+    "@supabase/server": "^1.8.1",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.116.0",
+    "@vinext/cloudflare": "^1.0.1",
     "chess.js": "^1.4.0",
     "dockview-react": "^8.3.1",
     "html-to-image": "^1.11.13",
@@ -21,17 +27,27 @@
     "react": "19.2.8",
     "react-chessboard": "^5.12.1",
     "react-dom": "19.2.8",
+    "react-server-dom-webpack": "^19.2.8",
+    "server-only": "^0.0.1",
     "stockfish": "^19.0.0",
+    "vinext": "^1.0.1",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^2.0.0-beta.sha-52b0dc0e9",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.1.1",
+    "@vitejs/plugin-rsc": "^0.5.35",
+    "cf": "^1.0.0-beta.12",
+    "chessops": "^0.15.1",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "tailwindcss": "^4",
-    "typescript": "^5"
-  }
+    "typescript": "^5",
+    "vite": "^8.3.0"
+  },
+  "type": "module"
 }

@@ -34,6 +34,21 @@ import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { BrandLockup } from "./ui/BrandLockup";
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT" ||
+    target.isContentEditable
+  ) {
+    return true;
+  }
+  return Boolean(target.closest('[role="dialog"]'));
+}
+
 export function StudioShell() {
   const fileRef = useRef<HTMLInputElement>(null);
   const sharedFenApplied = useRef(false);
@@ -49,10 +64,15 @@ export function StudioShell() {
     ? (files.databases.find((item) => item.id === selectedFileId)?.games.map((game) => game.id).join(",") ?? "")
     : "";
   const status = useStudioStore((state) => state.statusMessage);
+  const dirtyRevision = useStudioStore((state) =>
+    state.boards.map((board) => `${board.id}:${board.dirty ? "1" : "0"}`).join("|"),
+  );
   const aboutOpen = useStudioStore((state) => state.aboutOpen);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
   const setExplorer = useStudioStore((state) => state.setExplorer);
   const setExplorerLoading = useStudioStore((state) => state.setExplorerLoading);
+  const setExplorerError = useStudioStore((state) => state.setExplorerError);
+  const explorerRetry = useStudioStore((state) => state.explorerRetry);
   const setUser = useStudioStore((state) => state.setUser);
   const hydrateRemoteBoard = useStudioStore((state) => state.hydrateRemoteBoard);
   const hydrateSettings = useStudioStore((state) => state.hydrateSettings);
@@ -85,8 +105,12 @@ export function StudioShell() {
     if (!supabase || !user) {
       return;
     }
+    let cancelled = false;
     void (async () => {
       const remoteSettings = await loadRemoteSettings();
+      if (cancelled) {
+        return;
+      }
       if (remoteSettings) {
         hydrateSettings(remoteSettings);
       }
@@ -94,6 +118,9 @@ export function StudioShell() {
         .from("boards")
         .select("*")
         .order("updated_at", { ascending: false });
+      if (cancelled) {
+        return;
+      }
       for (const row of data ?? []) {
         const imported = importPgn(row.pgn);
         const session: BoardSession = {
@@ -107,12 +134,24 @@ export function StudioShell() {
           dirty: false,
           preview: false,
         };
+        if (cancelled) {
+          return;
+        }
         hydrateRemoteBoard(session);
       }
       const remoteFiles = await loadRemoteFiles(user.id);
+      if (cancelled) {
+        return;
+      }
       useStudioStore.getState().mergeRemoteFiles(remoteFiles);
+      if (cancelled) {
+        return;
+      }
       await useStudioStore.getState().hydrateRemoteBookmarks();
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [hydrateRemoteBoard, hydrateSettings, user]);
 
   useEffect(() => {
@@ -145,13 +184,27 @@ export function StudioShell() {
             useStudioStore.getState().markSaved(board.id, remoteId);
           }
         })
-        .catch(() => undefined);
+        .catch(() => useStudioStore.getState().setStatus("Could not save board."));
     }, 1000);
     return () => window.clearTimeout(handle);
-  }, [fen, user]);
+  }, [dirtyRevision, user]);
+
+  useEffect(() => {
+    if (status === null) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      useStudioStore.getState().setStatus(null);
+    }, 3000);
+    return () => window.clearTimeout(handle);
+  }, [status]);
 
   useEffect(() => {
     let cancelled = false;
+    // A new search clears the previous failure; only the network .catch below
+    // sets it again. The last-good payload stays so the panel can keep it
+    // behind the error banner instead of blanking to "No games".
+    setExplorerError(null);
     const fileId = fileDatabaseId(source);
     if (fileId) {
       const database = useStudioStore.getState().files.databases.find((item) => item.id === fileId);
@@ -179,8 +232,12 @@ export function StudioShell() {
       return;
     }
     const filterQuery = studioFilterQuery(explorerFilters);
+    // Choice (b): loading starts synchronously with the error clear above —
+    // the 160 ms timer delays only the fetch. Otherwise the panel sits one
+    // debounce in {error: null, loading: false, explorer: null} and flashes
+    // the false "No games" before "Loading explorer…".
+    setExplorerLoading(true);
     const timer = window.setTimeout(() => {
-      setExplorerLoading(true);
       void fetch(`/api/explorer?fen=${encodeURIComponent(fen)}&source=${source}${filterQuery}`)
         .then(async (response) => {
           if (!response.ok) {
@@ -195,7 +252,7 @@ export function StudioShell() {
         })
         .catch(() => {
           if (!cancelled) {
-            setExplorer(null);
+            setExplorerError("explorer request failed");
           }
         })
         .finally(() => {
@@ -208,12 +265,14 @@ export function StudioShell() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, setExplorer, setExplorerLoading]);
+  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, setExplorer, setExplorerLoading, setExplorerError, explorerRetry]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+      if (document.querySelector("[data-promotion-open]")) {
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "o") {
@@ -242,7 +301,8 @@ export function StudioShell() {
         void printActiveBoard();
       }
       const ctrl = event.ctrlKey || event.metaKey;
-      if (ctrl && event.shiftKey && event.key.toLowerCase() === "a") {
+      const chromeFocus = !isEditableTarget(document.activeElement);
+      if (ctrl && event.shiftKey && event.key.toLowerCase() === "a" && chromeFocus) {
         event.preventDefault();
         const board = useStudioStore.getState().active();
         if (board.path.length > 0) {
@@ -250,7 +310,7 @@ export function StudioShell() {
         }
         return;
       }
-      if (ctrl && event.key.toLowerCase() === "a") {
+      if (ctrl && !event.shiftKey && event.key.toLowerCase() === "a" && chromeFocus) {
         event.preventDefault();
         useStudioStore.getState().setNotationEditor("comment");
         return;

@@ -1,10 +1,10 @@
 import { Chess, type Move } from "chess.js";
 import { parseGame, type ParseTree } from "@mliebelt/pgn-parser";
 import type { PgnMove } from "@mliebelt/pgn-types";
-import { formatCommentWithMarks, marksFromPgnArrays, mergeMarks, parseMarksFromComment } from "./marks";
+import { formatCommentWithMarks, marksAreEmpty, marksFromPgnArrays, mergeMarks, parseMarksFromComment } from "./marks";
 import { applyNullMoveFen, isNullMoveToken, NULL_MOVE_SAN, NULL_MOVE_UCI } from "./null-move";
 import { pgnGameChunks, sanMovesFromPgn } from "./pgn-clean";
-import { formatMoveSuffix, formatPgnNagTokens, parseNags } from "./nags";
+import { formatPgnNagTokens, parseNags } from "./nags";
 import {
   START_FEN,
   createEmptyTree,
@@ -24,6 +24,10 @@ export type ImportedGame = {
   path: Path;
   headers: GameHeaders;
   title: string;
+  /** Human-readable records of moves that could not be played during import.
+   * The first illegal SAN on a line stops that line; the already-parsed
+   * prefix is kept. Empty when the import was clean. */
+  warnings: string[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -87,7 +91,7 @@ function uciFromMove(move: Move): string {
   return `${move.from}${move.to}${move.promotion ?? ""}`;
 }
 
-function walkLine(chess: Chess, parent: TreeNode[], moves: PgnMove[]): void {
+function walkLine(chess: Chess, parent: TreeNode[], moves: PgnMove[], warnings: string[]): void {
   if (moves.length === 0) {
     return;
   }
@@ -103,7 +107,12 @@ function walkLine(chess: Chess, parent: TreeNode[], moves: PgnMove[]): void {
   let from: string;
   let to: string;
   if (isNullMoveToken(token)) {
-    fen = applyNullMoveFen(beforeFen);
+    try {
+      fen = applyNullMoveFen(beforeFen);
+    } catch {
+      warnings.push(`Skipped null move: invalid position before "${token}"`);
+      return;
+    }
     san = NULL_MOVE_SAN;
     uci = NULL_MOVE_UCI;
     from = "";
@@ -111,6 +120,7 @@ function walkLine(chess: Chess, parent: TreeNode[], moves: PgnMove[]): void {
     try {
       chess.load(fen, { skipValidation: true });
     } catch {
+      warnings.push(`Skipped null move "${token}": could not load resulting position`);
       return;
     }
   } else {
@@ -118,6 +128,7 @@ function walkLine(chess: Chess, parent: TreeNode[], moves: PgnMove[]): void {
     try {
       played = chess.move(token);
     } catch {
+      warnings.push(`Skipped illegal move "${token}"`);
       return;
     }
     san = played.san;
@@ -145,9 +156,9 @@ function walkLine(chess: Chess, parent: TreeNode[], moves: PgnMove[]): void {
   };
   parent.push(node);
   for (const variation of first.variations) {
-    walkLine(new Chess(beforeFen), parent, variation);
+    walkLine(new Chess(beforeFen, { skipValidation: true }), parent, variation, warnings);
   }
-  walkLine(chess, node.children, rest);
+  walkLine(chess, node.children, rest, warnings);
 }
 
 export function titleFromHeaders(headers: GameHeaders): string {
@@ -175,18 +186,21 @@ function emptyImported(): ImportedGame {
     path: [],
     headers: {},
     title: "Board",
+    warnings: [],
   };
 }
 
 export function importSans(sans: string[], headers: GameHeaders = {}): ImportedGame {
   const tree = createEmptyTree();
   const chess = new Chess(tree.startFen);
+  const warnings: string[] = [];
   let cursor = tree.children;
   for (const san of sans) {
     let played: Move;
     try {
       played = chess.move(san);
     } catch {
+      warnings.push(`Skipped illegal move "${san}"`);
       break;
     }
     const node: TreeNode = {
@@ -206,6 +220,7 @@ export function importSans(sans: string[], headers: GameHeaders = {}): ImportedG
     path: [],
     headers,
     title: titleFromHeaders(headers),
+    warnings,
   };
 }
 
@@ -246,6 +261,14 @@ function importOneGame(chunk: string): ImportedGame | null {
 }
 
 function absorbTree(dest: GameTree, source: GameTree): void {
+  // Tree-level annotations follow the same fill-empty / never-overwrite rule
+  // as node fields: a later game only fills what the first game left empty.
+  if (!dest.startComment && source.startComment) {
+    dest.startComment = source.startComment;
+  }
+  if (marksAreEmpty(dest.startMarks) && !marksAreEmpty(source.startMarks)) {
+    dest.startMarks = structuredClone(source.startMarks);
+  }
   const absorb = (siblings: TreeNode[], incoming: TreeNode[]) => {
     for (const node of incoming) {
       let existing = siblings.find((child) => child.uci === node.uci);
@@ -257,9 +280,26 @@ function absorbTree(dest: GameTree, source: GameTree): void {
           fen: node.fen,
           from: node.from,
           to: node.to,
+          comment: node.comment,
+          commentBefore: node.commentBefore,
+          nags: node.nags ? [...node.nags] : undefined,
+          marks: node.marks ? structuredClone(node.marks) : undefined,
           children: [],
         };
         siblings.push(existing);
+      } else {
+        if (!existing.comment && node.comment) {
+          existing.comment = node.comment;
+        }
+        if (!existing.commentBefore && node.commentBefore) {
+          existing.commentBefore = node.commentBefore;
+        }
+        if ((!existing.nags || existing.nags.length === 0) && node.nags?.length) {
+          existing.nags = [...node.nags];
+        }
+        if (marksAreEmpty(existing.marks) && !marksAreEmpty(node.marks)) {
+          existing.marks = structuredClone(node.marks);
+        }
       }
       absorb(existing.children, node.children);
     }
@@ -268,32 +308,55 @@ function absorbTree(dest: GameTree, source: GameTree): void {
 }
 
 export function openablePgn(pgn: string): ImportedGame | null {
-  const games: ImportedGame[] = [];
+  // Keep every import in chunk order so warnings from games with no playable
+  // moves still reach the caller instead of being dropped with the game.
+  const ordered: ImportedGame[] = [];
   for (const chunk of pgnGameChunks(pgn)) {
     const imported = importOneGame(chunk);
-    if (imported && imported.tree.children.length > 0) {
-      games.push(imported);
+    if (imported) {
+      ordered.push(imported);
     }
   }
+  const games = ordered.filter((game) => game.tree.children.length > 0);
   const first = games[0];
   if (!first) {
-    return null;
+    // No playable moves anywhere: return the first game's declared position
+    // (headers/FEN/start annotations) with every recorded warning, instead of
+    // silently falling back to the standard start with no warnings. Truly
+    // unparseable input still yields null (no imports at all).
+    const head = ordered[0];
+    if (!head) {
+      return null;
+    }
+    return {
+      tree: head.tree,
+      path: [],
+      headers: head.headers,
+      title: head.title,
+      warnings: ordered.flatMap((game) => game.warnings),
+    };
   }
   const start = fenKey(first.tree.startFen);
   const tree = structuredClone(first.tree);
+  const mergedGames = new Set<ImportedGame>([first]);
   let merged = 1;
   for (const game of games.slice(1)) {
     if (fenKey(game.tree.startFen) !== start) {
       continue;
     }
     absorbTree(tree, game.tree);
+    mergedGames.add(game);
     merged += 1;
   }
+  const warnings = ordered.flatMap((game) =>
+    game.tree.children.length === 0 || mergedGames.has(game) ? game.warnings : [],
+  );
   return {
     tree,
     path: merged > 1 ? [] : mainLineEnd(tree),
     headers: first.headers,
     title: first.title,
+    warnings,
   };
 }
 
@@ -368,12 +431,14 @@ function importParsedPgn(trimmed: string): ImportedGame {
       gameComment.marks,
       marksFromPgnArrays(parsed.gameComment?.colorFields, parsed.gameComment?.colorArrows),
     );
-    walkLine(new Chess(tree.startFen), tree.children, parsed.moves);
+    const warnings: string[] = [];
+    walkLine(new Chess(tree.startFen, { skipValidation: true }), tree.children, parsed.moves, warnings);
     return {
       tree,
       path: mainLineEnd(tree),
       headers,
       title: titleFromHeaders(headers),
+      warnings,
     };
   } catch {
     const chess = new Chess();
@@ -409,12 +474,17 @@ function importParsedPgn(trimmed: string): ImportedGame {
       path: mainLineEnd(tree),
       headers,
       title: titleFromHeaders(headers),
+      warnings: [],
     };
   }
 }
 
+// PGN comments are delimited by `{`/`}` with no standard escape sequence,
+// so a literal `}` inside the text would terminate the comment early and
+// corrupt the round-trip. Map it to `)` on export (documented here); the
+// re-imported text keeps `)`, making export->import idempotent.
 function escapeComment(text: string): string {
-  return text.replaceAll("}", "\\}");
+  return text.replaceAll("}", ")");
 }
 
 function emitFrom(nodes: TreeNode[], startFen: string, plyFromStart: number): string {
@@ -434,13 +504,14 @@ function emitFrom(nodes: TreeNode[], startFen: string, plyFromStart: number): st
     if (node.commentBefore) {
       parts.push(`{${escapeComment(node.commentBefore)}}`);
     }
-    const suffix = formatMoveSuffix(node.nags);
+    // NAGs are emitted as `$N` tokens only; the `!!`/`?` glyphs stay UI-only
+    // (see formatMoveSuffix consumers in print-sheet/NotationPanel).
     if (isWhite) {
-      parts.push(`${moveNumber}. ${node.san}${suffix}`);
+      parts.push(`${moveNumber}. ${node.san}`);
     } else if (ply === plyFromStart + 1 && !isWhite) {
-      parts.push(`${moveNumber}... ${node.san}${suffix}`);
+      parts.push(`${moveNumber}... ${node.san}`);
     } else {
-      parts.push(`${node.san}${suffix}`);
+      parts.push(`${node.san}`);
     }
     const nagTokens = formatPgnNagTokens(node.nags);
     if (nagTokens) {
@@ -473,6 +544,13 @@ export function exportPgn(tree: GameTree, headers: GameHeaders): string {
     Result: "*",
     ...headers,
   };
+  if (tree.startFen !== START_FEN) {
+    merged.FEN = tree.startFen;
+    merged.SetUp = "1";
+  } else {
+    delete merged.FEN;
+    delete merged.SetUp;
+  }
   const tagLines = Object.entries(merged).map(
     ([key, value]) => `[${key} "${value.replaceAll('"', '\\"')}"]`,
   );

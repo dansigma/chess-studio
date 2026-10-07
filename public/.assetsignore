@@ -1,0 +1,5 @@
+# Builds "full" do engine são servidos do R2 (95MB cada > limite de 25MiB de
+# asset) — ver app/engine/[...path]/route.ts e o bucket `chess-studio-engine`.
+# Padrões com semântica de .gitignore, relativos à raiz dos assets.
+/engine/full/stockfish-19.wasm
+/engine/stockfish-19-single.wasm

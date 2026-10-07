@@ -1,14 +1,15 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { Suspense, useActionState, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
+import { safeAuthNext } from "@/src/lib/auth/redirect-path";
 import { Button } from "@/src/studio/ui/Button";
+import { submitAuth, type AuthFormState } from "./actions";
 import { AuthField, AuthLayout, AuthMessage, authInputClass } from "./AuthLayout";
 
 type Mode = "signin" | "signup" | "reset";
-type Message = { tone: "info" | "error" | "success"; text: string };
 
 const HEADINGS: Record<Mode, { title: string; subtitle: string }> = {
   signin: { title: "Welcome back", subtitle: "Sign in to sync your boards, files and repertoires." },
@@ -16,55 +17,18 @@ const HEADINGS: Record<Mode, { title: string; subtitle: string }> = {
   reset: { title: "Reset your password", subtitle: "We'll email you a link to choose a new password." },
 };
 
-export default function LoginPage() {
-  const router = useRouter();
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") ?? "";
+  const authError = searchParams.get("error") === "auth";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<Mode>("signin");
-  const [message, setMessage] = useState<Message | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [state, formAction, pending] = useActionState(submitAuth, {} as AuthFormState);
   const supabase = createBrowserSupabase();
 
-  function switchMode(next: Mode) {
-    setMode(next);
-    setMessage(null);
-  }
-
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (!supabase) {
-      setMessage({ tone: "info", text: "Supabase is not configured. You can still use Studio as a guest." });
-      return;
-    }
-    setBusy(true);
-    setMessage(null);
-    try {
-      if (mode === "reset") {
-        const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/login/update-password")}`;
-        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-        if (error) {
-          throw error;
-        }
-        setMessage({ tone: "success", text: "If an account exists for that email, a reset link is on its way." });
-      } else if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) {
-          throw error;
-        }
-        setMessage({ tone: "success", text: "Check your email to confirm the account, then sign in." });
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) {
-          throw error;
-        }
-        router.push("/studio");
-        router.refresh();
-      }
-    } catch (error) {
-      setMessage({ tone: "error", text: error instanceof Error ? error.message : "Authentication failed" });
-    } finally {
-      setBusy(false);
-    }
+  function switchMode(nextMode: Mode) {
+    setMode(nextMode);
   }
 
   const heading = HEADINGS[mode];
@@ -95,7 +59,9 @@ export default function LoginPage() {
         </div>
       ) : null}
 
-      <form onSubmit={(event) => void onSubmit(event)} className="mt-6 space-y-4">
+      <form action={formAction} className="mt-6 space-y-4">
+        <input type="hidden" name="mode" value={mode} />
+        <input type="hidden" name="next" value={safeAuthNext(next)} />
         {!supabase ? (
           <AuthMessage tone="info">
             Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to enable accounts.
@@ -104,6 +70,7 @@ export default function LoginPage() {
         <AuthField id="email" label="Email">
           <input
             id="email"
+            name="email"
             type="email"
             required
             autoComplete="email"
@@ -134,6 +101,7 @@ export default function LoginPage() {
           >
             <input
               id="password"
+              name="password"
               type="password"
               required
               minLength={6}
@@ -144,9 +112,13 @@ export default function LoginPage() {
             />
           </AuthField>
         ) : null}
-        {message ? <AuthMessage tone={message.tone}>{message.text}</AuthMessage> : null}
-        <Button type="submit" variant="primary" block disabled={busy} className="h-9">
-          {busy ? "Please wait…" : submitLabel}
+        {authError ? (
+          <AuthMessage tone="error">The confirmation link is invalid or expired. Try again.</AuthMessage>
+        ) : null}
+        {state.error ? <AuthMessage tone="error">{state.error}</AuthMessage> : null}
+        {state.message ? <AuthMessage tone="success">{state.message}</AuthMessage> : null}
+        <Button type="submit" variant="primary" block disabled={pending || !supabase} className="h-9">
+          {pending ? "Please wait…" : submitLabel}
         </Button>
       </form>
 
@@ -163,5 +135,13 @@ export default function LoginPage() {
         </Link>
       </div>
     </AuthLayout>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

@@ -4,6 +4,7 @@ const STUDIO_PANELS = new Set([
   "repertoire",
   "engine",
   "evalGraph",
+  "review",
   "explorer",
   "games",
   "fileGames",

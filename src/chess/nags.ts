@@ -88,8 +88,5 @@ export function formatPositionGlyphs(nags: number[] | undefined): string {
 }
 
 export function formatPgnNagTokens(nags: number[] | undefined): string {
-  return (nags ?? [])
-    .filter((nag) => !MOVE_NAGS.has(nag))
-    .map((nag) => `$${nag}`)
-    .join(" ");
+  return (nags ?? []).map((nag) => `$${nag}`).join(" ");
 }
