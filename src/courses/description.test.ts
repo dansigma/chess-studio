@@ -20,6 +20,23 @@ describe("course description", () => {
     assert.equal(courseSummaryText("Keep 1 < 2 and <strong>bold</strong>"), "Keep 1 < 2 and bold");
   });
 
+  it("neutralizes parser-level payloads the regex could miss", () => {
+    assert.equal(sanitizeCourseHtml('<div title="a > b" onclick="alert(1)">hi</div>'), "<div>hi</div>");
+    assert.equal(sanitizeCourseHtml("<svg onload=alert(1)>x</svg>"), "");
+    assert.equal(
+      sanitizeCourseHtml('<style>a{background:url(javascript:alert(1))}</style>text'),
+      "text",
+    );
+    assert.equal(sanitizeCourseHtml("<SCRIPT>alert(1)</SCRIPT><P>Hi</P>"), "<p>Hi</p>");
+    assert.equal(sanitizeCourseHtml('<a href="javascript:alert(1)">click</a>'), "click");
+    // Nested-split tags parse as one unknown element; the parser drops the
+    // tags and keeps only inert text, so no script survives.
+    assert.equal(
+      sanitizeCourseHtml("<scr<script>ipt>alert(1)</scr<script>ipt>"),
+      "ipt&gt;alert(1)ipt&gt;",
+    );
+  });
+
   it("treats an empty editor as no description", () => {
     assert.equal(sanitizeCourseHtml("<div><br></div>"), "");
     assert.equal(sanitizeCourseHtml("  A solid defense.  "), "A solid defense.");

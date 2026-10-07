@@ -9,14 +9,14 @@ import { CourseChrome } from "./CourseChrome";
 import { DescriptionField } from "./DescriptionField";
 import { moveListItem, normalizeChapters } from "./draft";
 import { currentUserCanPublish, publishCourse, removePublishedCourse } from "./publish";
-import { findPublishedConflict, isCourseId, isCourseTheme, slugify } from "./catalog";
+import { findPublishedConflict, isCourseColor, isCourseId, isCourseTheme, slugify } from "./catalog";
 import {
   clearLocalCustomCourses,
   fetchPublishedCourses,
   readLocalCustomCourses,
   removeLocalCustomDraft,
 } from "./store";
-import { COURSE_THEMES, type Course, type CourseChapter, type CourseColor, type CourseTheme, type CourseVariation } from "./types";
+import { COURSE_THEMES, type Course, type CourseChapter, type CourseTheme, type CourseVariation } from "./types";
 
 type CourseDraft = Omit<Course, "theme"> & { theme: CourseTheme | "" };
 
@@ -428,7 +428,12 @@ export function AdminView() {
             Pieces the student plays
             <select
               value={draft.color}
-              onChange={(event) => setDraft({ ...draft, color: event.target.value as CourseColor })}
+              onChange={(event) => {
+                const color = event.target.value;
+                if (isCourseColor(color)) {
+                  setDraft({ ...draft, color });
+                }
+              }}
               className="mt-1 rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-fg"
             >
               <option value="white">White</option>

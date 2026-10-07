@@ -93,7 +93,7 @@ export function findPublishedConflict(
   return courses.find((course) => course.id === id) ?? null;
 }
 
-export function parseChapters(value: Json): CourseChapter[] {
+export function parseChapters(value: unknown): CourseChapter[] {
   if (!Array.isArray(value)) {
     return [];
   }
