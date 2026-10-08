@@ -53,16 +53,34 @@ const FILES = "abcdefgh";
 export type SetupPosition = {
   pieces: Record<string, SetupPiece>;
   turn: "w" | "b";
+  /** Castling rights pasted with the FEN (`KQkq` alphabet, `"-"` for none). */
+  castling: string;
 };
 
 export function emptySetupPosition(): SetupPosition {
-  return { pieces: {}, turn: "w" };
+  // Default to full rights so hand-building from an empty board (place
+  // K/R on e1/h1/a1/…) can regain rights via intersection in castleRights.
+  // An empty board still builds "-" (no corner pieces to intersect), and
+  // pasted "-"/garbage still sanitizes to "-" in parseSetupFen.
+  return { pieces: {}, turn: "w", castling: "KQkq" };
+}
+
+/** Sanitize a pasted castling field to the canonical `KQkq` order (`"-"` when empty). */
+function sanitizeCastlingField(field: string): string {
+  let kept = "";
+  for (const right of "KQkq") {
+    if (field.includes(right)) {
+      kept += right;
+    }
+  }
+  return kept || "-";
 }
 
 export function parseSetupFen(fen: string): SetupPosition {
   const parts = fen.trim().split(/\s+/);
   const board = parts[0] ?? START_FEN.split(" ")[0];
   const turn = parts[1] === "b" ? "b" : "w";
+  const castling = sanitizeCastlingField(parts[2] ?? "-");
   const pieces: Record<string, SetupPiece> = {};
   const ranks = board.split("/");
   for (let rankIndex = 0; rankIndex < 8; rankIndex += 1) {
@@ -87,21 +105,21 @@ export function parseSetupFen(fen: string): SetupPosition {
       fileIndex += 1;
     }
   }
-  return { pieces, turn };
+  return { pieces, turn, castling };
 }
 
-function castleRights(pieces: Record<string, SetupPiece>): string {
+function castleRights(pieces: Record<string, SetupPiece>, kept: string): string {
   let rights = "";
-  if (pieces.e1 === "wK" && pieces.h1 === "wR") {
+  if (kept.includes("K") && pieces.e1 === "wK" && pieces.h1 === "wR") {
     rights += "K";
   }
-  if (pieces.e1 === "wK" && pieces.a1 === "wR") {
+  if (kept.includes("Q") && pieces.e1 === "wK" && pieces.a1 === "wR") {
     rights += "Q";
   }
-  if (pieces.e8 === "bK" && pieces.h8 === "bR") {
+  if (kept.includes("k") && pieces.e8 === "bK" && pieces.h8 === "bR") {
     rights += "k";
   }
-  if (pieces.e8 === "bK" && pieces.a8 === "bR") {
+  if (kept.includes("q") && pieces.e8 === "bK" && pieces.a8 === "bR") {
     rights += "q";
   }
   return rights || "-";
@@ -129,7 +147,7 @@ export function buildSetupFen(position: SetupPosition): string {
     }
     ranks.push(row || "8");
   }
-  return `${ranks.join("/")} ${position.turn} ${castleRights(position.pieces)} - 0 1`;
+  return `${ranks.join("/")} ${position.turn} ${castleRights(position.pieces, position.castling)} - 0 1`;
 }
 
 export function isLegalSetupFen(fen: string): boolean {

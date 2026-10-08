@@ -34,6 +34,7 @@ import { formatSan } from "@/src/chess/move-notation";
 import { MoveGlyphMenu, type GlyphMenuState } from "./MoveGlyphMenu";
 import { Button, IconButton } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
+import { pgnResultCaption } from "./ResultMark";
 
 function pathKey(path: Path): string {
   return path.join(".");
@@ -61,19 +62,6 @@ function displayEvent(value: string | undefined): string | null {
     return null;
   }
   return value;
-}
-
-function resultCaption(result: string | undefined): { mark: string; label: string } | null {
-  if (result === "1-0") {
-    return { mark: "1-0", label: "White wins" };
-  }
-  if (result === "0-1") {
-    return { mark: "0-1", label: "Black wins" };
-  }
-  if (result === "1/2-1/2") {
-    return { mark: "½-½", label: "Draw" };
-  }
-  return null;
 }
 
 function CommentText({ text }: { text?: string }) {
@@ -391,7 +379,7 @@ export function NotationPanel() {
   const currentBefore = current?.commentBefore ?? "";
   const date = displayDate(board.headers.Date);
   const event = displayEvent(board.headers.Event);
-  const result = resultCaption(board.headers.Result);
+  const result = pgnResultCaption(board.headers.Result);
   const commentOpen = editor === "comment";
   const commentBeforeOpen = editor === "commentBefore";
   const headersOpen = editor === "headers";

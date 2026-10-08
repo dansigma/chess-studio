@@ -1,5 +1,6 @@
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { importPgn } from "@/src/chess/pgn";
+import type { GameTree } from "@/src/chess/tree";
 import { parsePgnCollection, type ParsedFileGame } from "@/src/chess/pgn-games";
 import { mergeStatRows, resultBucket, rowsForTree, type PositionRow, type StatRow } from "@/src/lib/position-index";
 import type { Database } from "@/src/lib/supabase/database.types";
@@ -203,12 +204,12 @@ function sqlDate(value: string | undefined): string | null {
   return `${match[1]}-${match[2]}-${match[3]}`;
 }
 
-function countMoves(tree: { children: Array<{ children: unknown[] }> }): number {
+function countMoves(tree: GameTree): number {
   let count = 0;
-  const walk = (nodes: Array<{ children: unknown[] }>) => {
+  const walk = (nodes: GameTree["children"]) => {
     for (const node of nodes) {
       count += 1;
-      walk(node.children as Array<{ children: unknown[] }>);
+      walk(node.children);
     }
   };
   walk(tree.children);
@@ -233,8 +234,16 @@ async function writePositionIndex(
   }
   const stats: StatRow[] = mergeStatRows(databaseId, contributions);
   type GamePositionInsert = Database["public"]["Tables"]["game_positions"]["Insert"];
+  const toInsert = (row: PositionRow): GamePositionInsert => ({
+    game_id: row.game_id,
+    seq: row.seq,
+    ply: row.ply,
+    // zkey is pg bigint ↔ string in postgrest-js (precision safety); coerce explicitly.
+    zkey: String(row.zkey),
+    next_uci: row.next_uci,
+  });
   const positionsError = await insertChunks(positions, (chunk) =>
-    supabase.from("game_positions").insert(chunk as unknown as GamePositionInsert[]),
+    supabase.from("game_positions").insert(chunk.map(toInsert)),
   );
   if (positionsError) {
     return positionsError;

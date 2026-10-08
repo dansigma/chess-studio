@@ -13,6 +13,10 @@ async function emailIsListedAdmin(email: string): Promise<boolean> {
   return Boolean(data);
 }
 
+/**
+ * Sole writer of `app_metadata.role`: runs server-side with the service role.
+ * Browser clients and RLS policies never write `app_metadata`.
+ */
 export async function finishSignIn(userId: string, email: string | null | undefined): Promise<void> {
   const admin = createServiceSupabase();
   if (!admin) {

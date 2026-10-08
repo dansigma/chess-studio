@@ -1,7 +1,7 @@
 import { Chess } from "chess.js";
 import { create } from "zustand";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import type { Json } from "@/src/lib/supabase/database.types";
+import { toJson } from "@/src/lib/supabase/database.types";
 import {
   bumpDockLayoutEpoch,
   clearStoredDockLayout,
@@ -1651,7 +1651,7 @@ export async function persistDockLayout(
   }
   const { error } = await supabase.from("user_settings").upsert({
     user_id: user.id,
-    layout: snapshot as unknown as Json,
+    layout: toJson(snapshot),
   });
   if (error) {
     throw error;
