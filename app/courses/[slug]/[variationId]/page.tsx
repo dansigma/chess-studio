@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { LessonView } from "@/src/courses/LessonView";
 import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, isPublishedCourse, mergeCourseLists, toCourse } from "@/src/courses/catalog";
 import { SEED_COURSES } from "@/src/courses/seed";
+import { SITE_NAME } from "@/src/site/sections";
 import { findVariation } from "@/src/courses/store";
 import type { Course } from "@/src/courses/types";
 import { isSupabaseConfigured } from "@/src/lib/supabase/env";
@@ -85,10 +86,10 @@ export async function generateMetadata({
   }
   const found = course ? findVariation(course, variationId) : null;
   if (!course || !found) {
-    return { title: "Line not found · Xadrez Digital" };
+    return { title: `Line not found · ${SITE_NAME}` };
   }
   return {
-    title: `${found.variation.title} · ${course.title} · Xadrez Digital`,
+    title: `${found.variation.title} · ${course.title} · ${SITE_NAME}`,
   };
 }
 

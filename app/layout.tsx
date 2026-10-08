@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import { ColorSchemeSync } from "@/src/studio/ColorSchemeSync";
 import { COLOR_SCHEME_BOOTSTRAP } from "@/src/studio/color-scheme";
+import { SITE_NAME } from "@/src/site/sections";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Xadrez Digital",
+  title: SITE_NAME,
   description: "Chess analysis studio with board, engine, notation, and opening explorer",
 };
 

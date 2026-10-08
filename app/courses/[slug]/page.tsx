@@ -4,6 +4,7 @@ import { CourseView } from "@/src/courses/CourseView";
 import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, isPublishedCourse, toCourse } from "@/src/courses/catalog";
 import { courseSummaryText } from "@/src/courses/description";
 import { SEED_COURSES } from "@/src/courses/seed";
+import { SITE_NAME } from "@/src/site/sections";
 import type { Course } from "@/src/courses/types";
 import { isSupabaseConfigured } from "@/src/lib/supabase/env";
 import { createPublicServerSupabase } from "@/src/lib/supabase/server";
@@ -72,10 +73,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     course = null;
   }
   if (!course) {
-    return { title: "Course not found · Xadrez Digital" };
+    return { title: `Course not found · ${SITE_NAME}` };
   }
   return {
-    title: `${course.title} · Xadrez Digital`,
+    title: `${course.title} · ${SITE_NAME}`,
     description: courseSummaryText(course.summary) || "Study this course move by move with the explanation beside the board.",
   };
 }

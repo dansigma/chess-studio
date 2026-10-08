@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CatalogView } from "@/src/courses/CatalogView";
 import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, isPublishedCourse, mergeCourseLists, toCatalogCourses, toCourse } from "@/src/courses/catalog";
 import { SEED_COURSES } from "@/src/courses/seed";
+import { SITE_NAME } from "@/src/site/sections";
 import type { Course } from "@/src/courses/types";
 import { createPublicServerSupabase } from "@/src/lib/supabase/server";
 
@@ -21,7 +22,7 @@ export const revalidate = 60;
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
-    title: "Courses · Xadrez Digital",
+    title: `Courses · ${SITE_NAME}`,
     description: "Pick a theme, open a course, and study move by move with the explanation beside the board.",
   };
 }
