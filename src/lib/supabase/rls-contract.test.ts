@@ -36,4 +36,13 @@ describe("sig-861 rls contract", () => {
       assert.ok(migration.includes(`create index if not exists ${name}`), `missing index ${name}`);
     }
   });
+
+  it("creates published_at before the index and policy that reference it", () => {
+    const col = migration.indexOf("add column if not exists published_at");
+    const index = migration.indexOf("courses_published_updated_idx");
+    const policy = migration.indexOf("courses_select_published");
+    assert.ok(col !== -1 && index !== -1 && policy !== -1, "missing column, index, or policy");
+    assert.ok(col < index, "published_at must be created before courses_published_updated_idx (fresh apply)");
+    assert.ok(col < policy, "published_at must be created before the courses_select_published policy");
+  });
 });
