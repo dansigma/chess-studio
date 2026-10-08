@@ -282,7 +282,7 @@ export function EvalGraphPanel() {
                 return;
               }
               const max = points.length - 1;
-              const current = Math.min(hover ?? (currentIndex >= 0 ? currentIndex : 0), max);
+              const current = Math.max(0, Math.min(hover ?? (currentIndex >= 0 ? currentIndex : 0), max));
               if (event.key === "ArrowRight" || event.key === "ArrowDown") {
                 event.preventDefault();
                 setHover(Math.min(max, current + 1));
