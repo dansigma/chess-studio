@@ -44,6 +44,49 @@ export function isCloudExplorerSource(source: ExplorerSource): source is CloudEx
   return source === "masters" || source === "lichess" || source === "chesscom";
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isMoveRow(value: unknown): value is ExplorerMoveRow {
+  if (!isRecord(value)) {
+    return false;
+  }
+  return (
+    typeof value.san === "string" &&
+    typeof value.uci === "string" &&
+    typeof value.games === "number"
+  );
+}
+
+/**
+ * Runtime guard for cached explorer payloads (Supabase `payload` column).
+ * Shallow by design: top-level fields + moves/games arrays. An invalid
+ * payload only falls through to the normal fetch path, never crashes.
+ */
+export function isExplorerResponse(value: unknown): value is ExplorerResponse {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (typeof value.fen !== "string" || typeof value.source !== "string") {
+    return false;
+  }
+  if (
+    typeof value.white !== "number" ||
+    typeof value.draws !== "number" ||
+    typeof value.black !== "number"
+  ) {
+    return false;
+  }
+  if (!Array.isArray(value.moves) || !Array.isArray(value.games)) {
+    return false;
+  }
+  if (value.opening !== null && value.opening !== undefined && !isRecord(value.opening)) {
+    return false;
+  }
+  return value.moves.every(isMoveRow);
+}
+
 export function fileExplorerSource(databaseId: string): ExplorerSource {
   return `file:${databaseId}`;
 }

@@ -6,6 +6,44 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
+/**
+ * Convert an unknown value into Supabase-compatible JSON, mirroring how
+ * JSON.stringify treats edge cases (drops `undefined` object values,
+ * maps non-finite numbers to null). Use at the cache↔DB boundary instead
+ * of `as unknown as Json` casts so the type is earned, not asserted.
+ */
+export function toJson(value: unknown): Json {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "string" || typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => toJson(item));
+  }
+  if (typeof value === "object") {
+    const out: { [key: string]: Json | undefined } = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      if (entry === undefined) {
+        continue;
+      }
+      out[key] = toJson(entry);
+    }
+    return out;
+  }
+  return null;
+}
+
 export type Database = {
   public: {
     Tables: {

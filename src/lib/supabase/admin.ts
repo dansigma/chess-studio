@@ -7,6 +7,7 @@ export function createServiceSupabase(): SupabaseClient<Database> | null {
   const url = getSupabaseUrl();
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) {
+    console.warn("[supabase] service client unavailable: missing SUPABASE_SECRET_KEY (presence only, value not logged).");
     return null;
   }
   return createClient<Database>(url, key, {

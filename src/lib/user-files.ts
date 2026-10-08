@@ -233,8 +233,16 @@ async function writePositionIndex(
   }
   const stats: StatRow[] = mergeStatRows(databaseId, contributions);
   type GamePositionInsert = Database["public"]["Tables"]["game_positions"]["Insert"];
+  const toInsert = (row: PositionRow): GamePositionInsert => ({
+    game_id: row.game_id,
+    seq: row.seq,
+    ply: row.ply,
+    // zkey is pg bigint ↔ string in postgrest-js (precision safety); coerce explicitly.
+    zkey: String(row.zkey),
+    next_uci: row.next_uci,
+  });
   const positionsError = await insertChunks(positions, (chunk) =>
-    supabase.from("game_positions").insert(chunk as unknown as GamePositionInsert[]),
+    supabase.from("game_positions").insert(chunk.map(toInsert)),
   );
   if (positionsError) {
     return positionsError;

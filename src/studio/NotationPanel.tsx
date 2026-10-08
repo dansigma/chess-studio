@@ -34,6 +34,7 @@ import { formatSan } from "@/src/chess/move-notation";
 import { MoveGlyphMenu, type GlyphMenuState } from "./MoveGlyphMenu";
 import { Button, IconButton } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
+import { pgnResultCaption } from "./ResultMark";
 
 function pathKey(path: Path): string {
   return path.join(".");
@@ -63,17 +64,8 @@ function displayEvent(value: string | undefined): string | null {
   return value;
 }
 
-function resultCaption(result: string | undefined): { mark: string; label: string } | null {
-  if (result === "1-0") {
-    return { mark: "1-0", label: "White wins" };
-  }
-  if (result === "0-1") {
-    return { mark: "0-1", label: "Black wins" };
-  }
-  if (result === "1/2-1/2") {
-    return { mark: "½-½", label: "Draw" };
-  }
-  return null;
+function resultCaption(result: string | undefined) {
+  return pgnResultCaption(result);
 }
 
 function CommentText({ text }: { text?: string }) {

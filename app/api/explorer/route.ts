@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
-import type { Json } from "@/src/lib/supabase/database.types";
-import type {
-  CloudExplorerSource,
-  ExplorerGameRow,
-  ExplorerMoveRow,
-  ExplorerResponse,
+import { toJson } from "@/src/lib/supabase/database.types";
+import {
+  isExplorerResponse,
+  type CloudExplorerSource,
+  type ExplorerGameRow,
+  type ExplorerMoveRow,
+  type ExplorerResponse,
 } from "@/src/lib/explorer-types";
 import { filtersAreDefault, filtersFromSearchParams, lichessFilterQuery } from "@/src/lib/explorer-filters";
 import { emptyExplorer, lookupOpeningBook } from "@/src/lib/opening-book";
@@ -210,8 +211,8 @@ export async function GET(request: NextRequest) {
       .eq("source", sourceParam)
       .eq("fen", fen)
       .maybeSingle();
-    if (data?.payload && typeof data.payload === "object") {
-      const payload = data.payload as unknown as ExplorerResponse;
+    if (data?.payload && typeof data.payload === "object" && isExplorerResponse(data.payload)) {
+      const payload = data.payload;
       if (!payload.notice) {
         memoryCache.set(key, { payload, fetchedAt: Date.now() });
         return NextResponse.json(payload);
@@ -251,7 +252,7 @@ export async function GET(request: NextRequest) {
     await service.from("explorer_cache").upsert({
       source: sourceParam,
       fen,
-      payload: payload as unknown as Json,
+      payload: toJson(payload satisfies ExplorerResponse),
       fetched_at: new Date().toISOString(),
     });
   }

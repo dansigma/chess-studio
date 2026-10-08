@@ -19,7 +19,7 @@ test("setup piece palettes contain the full set", () => {
 });
 
 test("emptySetupPosition starts empty on white to move", () => {
-  assert.deepEqual(emptySetupPosition(), { pieces: {}, turn: "w" });
+  assert.deepEqual(emptySetupPosition(), { pieces: {}, turn: "w", castling: "-" });
   assert.equal(buildSetupFen(emptySetupPosition()), "8/8/8/8/8/8/8/8 w - - 0 1");
 });
 
@@ -47,6 +47,31 @@ test("buildSetupFen derives castling rights from corner pieces", () => {
   const noWhiteKingside = placeSetupPiece(full, "h1", null);
   assert.equal(buildSetupFen(noWhiteKingside).split(" ")[2], "Qkq");
   assert.equal(buildSetupFen(emptySetupPosition()).split(" ")[2], "-");
+});
+
+test("parseSetupFen preserves pasted castling rights (standard only)", () => {
+  const kingsideOnly = parseSetupFen(`${START_FEN.split(" ")[0]} w K - 0 1`);
+  assert.equal(kingsideOnly.castling, "K");
+  assert.equal(buildSetupFen(kingsideOnly).split(" ")[2], "K");
+  const queensideOnly = parseSetupFen(`${START_FEN.split(" ")[0]} w q - 0 1`);
+  assert.equal(buildSetupFen(queensideOnly).split(" ")[2], "q");
+});
+
+test("parseSetupFen sanitizes the castling field to KQkq order", () => {
+  const scrambled = parseSetupFen(`${START_FEN.split(" ")[0]} w qkQK - 0 1`);
+  assert.equal(scrambled.castling, "KQkq");
+  const garbage = parseSetupFen(`${START_FEN.split(" ")[0]} w xyz - 0 1`);
+  assert.equal(garbage.castling, "-");
+  assert.equal(buildSetupFen(garbage).split(" ")[2], "-");
+});
+
+test("buildSetupFen drops rights whose corner pieces are missing", () => {
+  const noRook = placeSetupPiece(
+    parseSetupFen(`${START_FEN.split(" ")[0]} w K - 0 1`),
+    "h1",
+    null,
+  );
+  assert.equal(buildSetupFen(noRook).split(" ")[2], "-");
 });
 
 test("isLegalSetupFen accepts the start and rejects garbage", () => {

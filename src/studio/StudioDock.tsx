@@ -187,6 +187,10 @@ export function StudioDock() {
 
   function placeSnapshot(api: DockviewApi, snapshot: DockLayoutSnapshot): boolean {
     try {
+      // Single documented conversion point: sanitizeDockLayout already validated
+      // grid.root/panels/activeGroup, so snapshot.dock is JSON-pure;
+      // dockview-core exposes no public guard, fromJSON stays in try/catch
+      // with a seedDefaultLayout fallback at the call site.
       api.fromJSON(snapshot.dock as unknown as SerializedDockview);
       return true;
     } catch {
