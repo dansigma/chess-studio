@@ -220,7 +220,7 @@ export function EvalGraphPanel() {
   const filled = points.filter((point) => evalByFen[fenKey(point.fen)]).length;
   const hoverPoint = hover != null ? points[hover] : null;
   const hoverEval = hoverPoint ? evalByFen[fenKey(hoverPoint.fen)] : undefined;
-  const focusIndex = hover ?? (currentIndex >= 0 ? currentIndex : 0);
+  const focusIndex = Math.max(0, hover ?? (currentIndex >= 0 ? currentIndex : 0));
   const focusPoint = points.length > 0 ? points[Math.min(focusIndex, points.length - 1)] : null;
   const focusEval = focusPoint ? evalByFen[fenKey(focusPoint.fen)] : undefined;
   const focusText = focusPoint
