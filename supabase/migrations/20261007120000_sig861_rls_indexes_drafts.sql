@@ -6,11 +6,13 @@
 -- target roles, and predicate shape.
 -- Section B: symmetric own-row DELETEs (settings, course_progress) plus the
 -- missing game_positions UPDATE, mirroring position_stats_update_own.
--- Section C: indexes for courses.created_by, the published catalog read,
+-- Section C: courses.published_at column (created before the index and policies
+-- that reference it).
+-- Section D: indexes for courses.created_by, the published catalog read,
 -- and trigram search over games(white, black).
--- Section D: courses draft lifecycle via published_at (nullable; null =
--- draft, invisible to anon; backfilled from updated_at so every existing
--- course stays visible).
+-- Section E: courses draft policies via published_at (null = draft, invisible
+-- to anon; the column is backfilled from updated_at so every existing course
+-- stays visible).
 --
 -- Writes on courses stay service-role-only (publish.ts gate): no
 -- insert/update/delete policies are added for anon/authenticated.
@@ -250,7 +252,20 @@ create policy "game_positions_update_own" on public.game_positions
     )
   );
 
--- ============ Section C: indexes ============
+-- ============ Section C: published_at column ============
+
+-- Must run before Section D's partial index and Section E's policies, which reference
+-- published_at — the original order (index before column) failed on fresh applies
+-- with 42703: column "published_at" does not exist.
+
+alter table public.courses add column if not exists published_at timestamptz;
+
+-- Every existing course stays visible: backfill from updated_at.
+update public.courses set published_at = updated_at where published_at is null;
+
+alter table public.courses alter column published_at set default now();
+
+-- ============ Section D: indexes ============
 
 create extension if not exists pg_trgm;
 
@@ -271,14 +286,7 @@ create index if not exists games_white_trgm_idx
 create index if not exists games_black_trgm_idx
   on public.games using gin (black gin_trgm_ops);
 
--- ============ Section D: course drafts via published_at ============
-
-alter table public.courses add column if not exists published_at timestamptz;
-
--- Every existing course stays visible: backfill from updated_at.
-update public.courses set published_at = updated_at where published_at is null;
-
-alter table public.courses alter column published_at set default now();
+-- ============ Section E: courses draft policies ============
 
 -- Replace the select-all policy: anon/authenticated see published rows;
 -- publishers preview their own drafts.
