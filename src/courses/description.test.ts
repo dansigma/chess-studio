@@ -1,9 +1,25 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { courseSummaryText, sanitizeCourseHtml } from "./description.ts";
 import { hasPlayableContent, normalizeChapters } from "./draft.ts";
 
 describe("course description", () => {
+  it("keeps the sanitizer Worker-safe (no DOM-based sanitizer deps)", () => {
+    const source = readFileSync(new URL("./description.ts", import.meta.url), "utf8");
+    const imports = source.split("\n").filter((line) => /^\s*import\b/.test(line));
+    for (const line of imports) {
+      assert.ok(
+        !/jsdom|dompurify|linkedom/i.test(line),
+        `DOM-based sanitizer deps break or silently no-op on Workers: ${line.trim()}`,
+      );
+    }
+    assert.ok(
+      imports.some((line) => /["']xss["']/.test(line)),
+      "the sanitizer must use the DOM-free xss filter",
+    );
+  });
+
   it("keeps bold and italic and drops scripts", () => {
     const html = sanitizeCourseHtml('<strong>Master</strong> the <em>plans</em><script>alert(1)</script>');
     assert.equal(html, "<strong>Master</strong> the <em>plans</em>");
@@ -29,11 +45,12 @@ describe("course description", () => {
     );
     assert.equal(sanitizeCourseHtml("<SCRIPT>alert(1)</SCRIPT><P>Hi</P>"), "<p>Hi</p>");
     assert.equal(sanitizeCourseHtml('<a href="javascript:alert(1)">click</a>'), "click");
-    // Nested-split tags parse as one unknown element; the parser drops the
-    // tags and keeps only inert text, so no script survives.
+    // Nested-split fragments are escaped as inert text and the inner script
+    // tag is replaced with a `[removed]` marker; no tags or attributes
+    // survive, so nothing executable can come out of this payload.
     assert.equal(
       sanitizeCourseHtml("<scr<script>ipt>alert(1)</scr<script>ipt>"),
-      "ipt&gt;alert(1)ipt&gt;",
+      "&lt;scr[removed]ipt&gt;alert(1)&lt;/scr[removed]ipt&gt;",
     );
   });
 
