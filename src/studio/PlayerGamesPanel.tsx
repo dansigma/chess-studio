@@ -3,16 +3,7 @@
 import { useEffect, useMemo } from "react";
 import type { PlayerGame, PlayerGamesResponse } from "@/src/lib/player-types";
 import { useStudioStore } from "@/src/store/studio-store";
-
-function ResultMark({ winner }: { winner: PlayerGame["winner"] }) {
-  if (winner === "white") {
-    return <span className="text-studio-fg">1-0</span>;
-  }
-  if (winner === "black") {
-    return <span className="text-studio-muted">0-1</span>;
-  }
-  return <span className="text-studio-faint">½-½</span>;
-}
+import { ResultMark } from "./ResultMark";
 
 export function PlayerGamesPanel() {
   const player = useStudioStore((state) => state.playerProfile);

@@ -13,20 +13,14 @@ import { createInterface } from "node:readline";
 import { DatabaseSync } from "node:sqlite";
 import { Chess } from "chess.js";
 import { decodeMoveBlob } from "../src/chess/move-index.ts";
+import { fnv1a64PositionHash } from "../src/chess/position-hash.ts";
 
 const MAX_PLY = 24;
 const INDEX_PATH = "data/opening-index.sqlite";
 const CAISSA_PATH = "data/caissabase_2024.db3";
 
 function positionKey(fen) {
-  const core = fen.trim().split(/\s+/).slice(0, 4).join(" ");
-  let hash = BigInt("0xcbf29ce484222325");
-  const prime = BigInt("0x100000001b3");
-  for (let i = 0; i < core.length; i += 1) {
-    hash ^= BigInt(core.charCodeAt(i));
-    hash = BigInt.asUintN(64, hash * prime);
-  }
-  return BigInt.asIntN(64, hash).toString();
+  return fnv1a64PositionHash(fen).toString();
 }
 
 function argValue(flag) {

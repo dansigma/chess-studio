@@ -66,6 +66,19 @@ export function decodeMoveBlob(
 ): DecodedMove[] {
   const chess = new Chess(startFen && startFen !== "start" ? startFen : undefined);
   const moves: DecodedMove[] = [];
+  // Positions repeat via transpositions and skipped variations, so cache the
+  // sorted move list per FEN instead of re-sorting on every ply.
+  const legalCache = new Map<string, Move[]>();
+  const legalMoves = (): Move[] => {
+    const fen = chess.fen();
+    const cached = legalCache.get(fen);
+    if (cached) {
+      return cached;
+    }
+    const legal = indexedLegalMoves(chess);
+    legalCache.set(fen, legal);
+    return legal;
+  };
   let i = 0;
   let variationDepth = 0;
 
@@ -93,7 +106,7 @@ export function decodeMoveBlob(
     if (variationDepth > 0) {
       continue;
     }
-    const move = indexedLegalMoves(chess)[byte];
+    const move = legalMoves()[byte];
     if (!move) {
       break;
     }

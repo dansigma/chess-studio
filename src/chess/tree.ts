@@ -351,16 +351,12 @@ export function goForwardN(tree: GameTree, path: Path, steps = 10): Path {
   let current = path;
   for (let i = 0; i < steps; i += 1) {
     const next = goForward(tree, current);
-    if (pathEquals(next, current)) {
+    if (pathsEqual(next, current)) {
       break;
     }
     current = next;
   }
   return current;
-}
-
-export function pathEquals(a: Path, b: Path): boolean {
-  return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
 export function isPrefix(prefix: Path, path: Path): boolean {

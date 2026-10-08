@@ -76,28 +76,6 @@ function resultCaption(result: string | undefined): { mark: string; label: strin
   return null;
 }
 
-function ToolButton({
-  label,
-  shortcut,
-  disabled,
-  active,
-  onClick,
-  children,
-}: {
-  label: string;
-  shortcut?: string;
-  disabled?: boolean;
-  active?: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <IconButton label={label} shortcut={shortcut} disabled={disabled} active={active} onClick={onClick}>
-      {children}
-    </IconButton>
-  );
-}
-
 function CommentText({ text }: { text?: string }) {
   if (!text) {
     return null;
@@ -502,60 +480,60 @@ export function NotationPanel() {
       </div>
 
       <div className="flex items-center gap-0.5 border-b border-studio-border-subtle px-1.5 py-1">
-        <ToolButton label="Start" shortcut="Home" onClick={toStart}>
+        <IconButton label="Start" shortcut="Home" onClick={toStart}>
           <ChevronsLeft size={15} />
-        </ToolButton>
-        <ToolButton label="Back" shortcut="←" onClick={back}>
+        </IconButton>
+        <IconButton label="Back" shortcut="←" onClick={back}>
           <ChevronLeft size={15} />
-        </ToolButton>
-        <ToolButton label="Forward" shortcut="→" onClick={forward}>
+        </IconButton>
+        <IconButton label="Forward" shortcut="→" onClick={forward}>
           <ChevronRight size={15} />
-        </ToolButton>
-        <ToolButton label="Skip forward" onClick={skipForward}>
+        </IconButton>
+        <IconButton label="Skip forward" onClick={skipForward}>
           <ChevronsRight size={15} />
-        </ToolButton>
-        <ToolButton label="End" shortcut="End" onClick={toEnd}>
+        </IconButton>
+        <IconButton label="End" shortcut="End" onClick={toEnd}>
           <ArrowRightToLine size={15} />
-        </ToolButton>
-        <ToolButton label="Flip board" shortcut="Ctrl+F" onClick={flip}>
+        </IconButton>
+        <IconButton label="Flip board" shortcut="Ctrl+F" onClick={flip}>
           <RefreshCw size={14} />
-        </ToolButton>
+        </IconButton>
         <div className="mx-1 h-4 w-px bg-studio-border-strong" />
-        <ToolButton
+        <IconButton
           label="Edit annotations"
           shortcut="Ctrl+A"
           active={commentOpen}
           onClick={() => setEditor(commentOpen ? null : "comment")}
         >
           <MessageSquare size={14} />
-        </ToolButton>
-        <ToolButton
+        </IconButton>
+        <IconButton
           label="Promote variation"
           shortcut="Ctrl+↑"
           disabled={!canPromote(board.path)}
           onClick={promote}
         >
           <ArrowUp size={14} />
-        </ToolButton>
-        <ToolButton
+        </IconButton>
+        <IconButton
           label="Make mainline"
           shortcut="Ctrl+Shift+↑"
           disabled={!canMakeMainline(board.path)}
           onClick={makeMain}
         >
           <ChevronsUp size={14} />
-        </ToolButton>
-        <ToolButton label="Delete after" shortcut="Del" onClick={pruneAfter}>
+        </IconButton>
+        <IconButton label="Delete after" shortcut="Del" onClick={pruneAfter}>
           <Scissors size={14} />
-        </ToolButton>
-        <ToolButton
+        </IconButton>
+        <IconButton
           label="Delete variation"
           shortcut="Ctrl+Del"
           disabled={board.path.length === 0}
           onClick={removeVariation}
         >
           <Trash2 size={14} />
-        </ToolButton>
+        </IconButton>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-3 text-body leading-6">
