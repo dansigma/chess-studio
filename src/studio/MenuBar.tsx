@@ -17,7 +17,7 @@ import { isLegalSetupFen } from "@/src/chess/setup-fen";
 import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-board-image";
 import { printActiveBoard } from "./print-board";
 import { marksAreEmpty } from "@/src/chess/marks";
-import { SITE_SECTIONS } from "@/src/site/sections";
+import { SITE_NAME, SITE_SECTIONS } from "@/src/site/sections";
 import { OPEN_PANEL_ITEMS, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 import { BrandLockup } from "./ui/BrandLockup";
@@ -398,7 +398,7 @@ export function MenuBar({
         </>
       );
     }
-    return <Item label="About Xadrez Digital" onClick={run(() => setAboutOpen(true))} />;
+    return <Item label={`About ${SITE_NAME}`} onClick={run(() => setAboutOpen(true))} />;
   }
 
   return (
