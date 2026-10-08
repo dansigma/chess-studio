@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
-
 export type BoardMenuState = {
   x: number;
   y: number;
@@ -28,20 +27,13 @@ export function BoardContextMenu({
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
     function onPointer(event: MouseEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
         onClose();
       }
     }
-    window.addEventListener("keydown", onKey);
     window.addEventListener("mousedown", onPointer);
     return () => {
-      window.removeEventListener("keydown", onKey);
       window.removeEventListener("mousedown", onPointer);
     };
   }, [onClose]);
@@ -51,7 +43,7 @@ export function BoardContextMenu({
 
   return (
     <div ref={rootRef} className="fixed z-50" style={{ left, top }}>
-      <MenuSurface className="min-w-52">
+      <MenuSurface className="min-w-52" onClose={onClose}>
         <MenuItem
           label="Flip board"
           shortcut="Ctrl+F"

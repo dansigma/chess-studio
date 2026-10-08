@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Cpu, Pause, Play } from "lucide-react";
+import { useMenuKeyDown } from "./ui/use-menu-keyboard";
 import {
   ENGINE_BUILD_INFO,
   ENGINE_BUILDS,
@@ -67,6 +68,8 @@ export function EnginePanel() {
   const [runId, setRunId] = useState(0);
   const [coresOpen, setCoresOpen] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
+  const buildMenuRef = useRef<HTMLDivElement>(null);
+  const handleBuildMenuKeyDown = useMenuKeyDown(buildMenuRef, () => setBuildOpen(false), buildOpen);
   const [info, setInfo] = useState<EngineInfo>({
     depth: 0,
     running: false,
@@ -189,7 +192,10 @@ export function EnginePanel() {
                 onClick={() => setBuildOpen(false)}
               />
               <div
+                ref={buildMenuRef}
                 role="menu"
+                aria-label="Engine build"
+                onKeyDown={handleBuildMenuKeyDown}
                 className="absolute left-0 top-8 z-20 w-64 rounded-[9px] border border-studio-border-strong bg-studio-elevated p-1.5 shadow-2xl"
               >
                 {ENGINE_BUILDS.map((build) => {

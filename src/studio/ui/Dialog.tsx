@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { IconButton } from "./Button";
 import { Kbd } from "./Controls";
+import { useDialogFocus } from "./use-dialog-focus";
 
 export function Dialog({
   title,
@@ -20,6 +21,10 @@ export function Dialog({
   width?: string;
   children: ReactNode;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialogFocus(dialogRef);
+
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -37,13 +42,15 @@ export function Dialog({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
         className={`${width} max-w-full animate-[studio-dialog-in_160ms_ease-out] rounded-xl border border-studio-border-strong bg-studio-elevated shadow-2xl`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-3 px-4 pb-1 pt-3.5">
-          <h2 className="text-title font-semibold text-studio-fg">{title}</h2>
+          <h2 id={titleId} className="text-title font-semibold text-studio-fg">{title}</h2>
           <IconButton label="Close" shortcut="Esc" onClick={onClose}>
             <X size={14} />
           </IconButton>

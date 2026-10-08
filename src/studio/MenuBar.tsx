@@ -442,7 +442,9 @@ export function MenuBar({
             {label}
           </button>
           {open === key ? (
-            <MenuSurface className="absolute left-0 top-[calc(100%+5px)]">{menuContent(key)}</MenuSurface>
+            <MenuSurface className="absolute left-0 top-[calc(100%+5px)]" onClose={close}>
+              {menuContent(key)}
+            </MenuSurface>
           ) : null}
         </div>
       ))}
@@ -466,7 +468,7 @@ export function MenuBar({
               <ChevronDown size={13} />
             </button>
             {open === "account" ? (
-              <MenuSurface className="absolute right-0 top-[calc(100%+5px)] min-w-60">
+              <MenuSurface className="absolute right-0 top-[calc(100%+5px)] min-w-60" onClose={close}>
                 <div className="px-2 pb-1.5 pt-2">
                   <div className="truncate font-medium text-studio-fg">{user.email}</div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-caption text-studio-faint">

@@ -473,7 +473,9 @@ export function PuzzleTrainer() {
       {loadError ? (
         <main className="px-6 py-10 text-body text-studio-warning-fg">{loadError}</main>
       ) : !progress || !puzzle || !fen ? (
-        <main className="px-6 py-10 text-body text-studio-muted">Loading puzzle…</main>
+        <main className="px-6 py-10 text-body text-studio-muted" role="status">
+          Loading puzzle…
+        </main>
       ) : (
         <div className="mx-auto grid min-h-0 w-full max-w-5xl flex-1 grid-rows-[minmax(0,1fr)_auto] gap-3 px-4 py-3 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:grid-rows-1 lg:gap-6 lg:py-6">
           <div className="flex h-full min-h-0 w-full items-center justify-center [container-type:size]">

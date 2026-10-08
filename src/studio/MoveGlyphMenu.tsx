@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { NAG_GLYPHS, type NagGroup } from "@/src/chess/nags";
 import type { Path } from "@/src/chess/tree";
+import { useMenuKeyDown } from "./ui/use-menu-keyboard";
 
 const GROUPS: { id: NagGroup; title: string }[] = [
   { id: "move", title: "Move" },
@@ -32,22 +33,16 @@ export function MoveGlyphMenu({
   onClose: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const handleKeyDown = useMenuKeyDown(rootRef, onClose);
 
   useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
     function onPointer(event: MouseEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
         onClose();
       }
     }
-    window.addEventListener("keydown", onKey);
     window.addEventListener("mousedown", onPointer);
     return () => {
-      window.removeEventListener("keydown", onKey);
       window.removeEventListener("mousedown", onPointer);
     };
   }, [onClose]);
@@ -61,6 +56,8 @@ export function MoveGlyphMenu({
       className="fixed z-50 w-64 rounded border border-studio-border bg-studio-elevated py-2 shadow-2xl"
       style={{ left, top }}
       role="menu"
+      aria-label="Move annotations"
+      onKeyDown={handleKeyDown}
     >
       {GROUPS.map((group) => (
         <div key={group.id} className="px-2 pb-1">
@@ -92,6 +89,7 @@ export function MoveGlyphMenu({
       <div className="mt-1 border-t border-studio-border px-2 pt-1">
         <button
           type="button"
+          role="menuitem"
           className="w-full rounded px-2 py-1 text-left text-dense text-studio-fg hover:bg-studio-hover"
           onClick={onComment}
         >
@@ -99,6 +97,7 @@ export function MoveGlyphMenu({
         </button>
         <button
           type="button"
+          role="menuitem"
           className="w-full rounded px-2 py-1 text-left text-dense text-studio-muted hover:bg-studio-hover disabled:opacity-40"
           disabled={nags.length === 0}
           onClick={onClear}

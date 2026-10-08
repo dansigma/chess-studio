@@ -77,7 +77,11 @@ export function SearchSidebar() {
         />
       }
     >
-      {visibleLoading ? <SidebarHint>Searching…</SidebarHint> : null}
+      {visibleLoading ? (
+        <p role="status" className="px-2 py-3 text-dense leading-5 text-studio-faint">
+          Searching…
+        </p>
+      ) : null}
       {!visibleLoading && searching && visibleHits.length === 0 ? (
         <SidebarHint>No players found.</SidebarHint>
       ) : null}

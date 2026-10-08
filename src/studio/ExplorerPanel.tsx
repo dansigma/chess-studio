@@ -65,14 +65,17 @@ export function ExplorerPanel() {
         <span>Games</span>
         <span>White · Draw · Black</span>
         {loading ? (
-          <span className="absolute inset-x-0 -bottom-px h-0.5 overflow-hidden" aria-label="Loading explorer">
+          <span className="absolute inset-x-0 -bottom-px h-0.5 overflow-hidden" role="progressbar" aria-label="Loading explorer">
             <span className="absolute inset-y-0 w-1/3 animate-[studio-progress_1.1s_ease-in-out_infinite] bg-studio-accent" />
           </span>
         ) : null}
       </div>
-      <div className={`min-h-0 flex-1 overflow-auto transition-opacity ${loading && hasMoves ? "opacity-60" : ""}`}>
+      <div
+        className={`min-h-0 flex-1 overflow-auto transition-opacity ${loading && hasMoves ? "opacity-60" : ""}`}
+        aria-busy={loading || undefined}
+      >
         {loading && !explorer ? (
-          <div className="px-3 py-4 text-dense text-studio-faint">Loading explorer…</div>
+          <div className="px-3 py-4 text-dense text-studio-faint" role="status">Loading explorer…</div>
         ) : null}
         {!loading && !error && !hasMoves ? (
           <div className="px-3 py-4 text-dense text-studio-faint">No games for this position.</div>

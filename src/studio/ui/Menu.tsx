@@ -1,22 +1,33 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useRef, type ReactNode } from "react";
 import { Check, ChevronRight } from "lucide-react";
+import { focusMenuItem, useMenuKeyDown } from "./use-menu-keyboard";
 
 export function MenuSurface({
   className = "",
   children,
+  onClose,
 }: {
   className?: string;
   children: ReactNode;
+  onClose?: () => void;
 }) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const handleKeyDown = useMenuKeyDown(rootRef, onClose);
   return (
     <div
+      ref={rootRef}
       role="menu"
+      onKeyDown={handleKeyDown}
       className={`min-w-64 rounded-[9px] border border-studio-border-strong bg-studio-elevated p-1 shadow-2xl ${className}`}
     >
       {children}
     </div>
   );
 }
+
+export { focusMenuItem };
 
 export function MenuDivider() {
   return <div role="separator" className="mx-1.5 my-1 h-px bg-studio-border" />;

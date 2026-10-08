@@ -220,6 +220,12 @@ export function EvalGraphPanel() {
   const filled = points.filter((point) => evalByFen[fenKey(point.fen)]).length;
   const hoverPoint = hover != null ? points[hover] : null;
   const hoverEval = hoverPoint ? evalByFen[fenKey(hoverPoint.fen)] : undefined;
+  const focusIndex = hover ?? (currentIndex >= 0 ? currentIndex : 0);
+  const focusPoint = points.length > 0 ? points[Math.min(focusIndex, points.length - 1)] : null;
+  const focusEval = focusPoint ? evalByFen[fenKey(focusPoint.fen)] : undefined;
+  const focusText = focusPoint
+    ? `${focusPoint.san ? formatSan(focusPoint.san, moveNotation) : "Start"} ${focusEval?.label ?? "evaluating"}`
+    : "No moves";
 
   function indexFromClientX(clientX: number): number {
     const rect = wrapRef.current?.getBoundingClientRect();
@@ -261,10 +267,42 @@ export function EvalGraphPanel() {
             className="h-full w-full cursor-pointer"
             viewBox={`0 0 ${width} ${height}`}
             preserveAspectRatio="none"
-            role="img"
+            role="slider"
             aria-label="Evaluation graph"
+            aria-valuemin={0}
+            aria-valuemax={Math.max(0, points.length - 1)}
+            aria-valuenow={Math.min(focusIndex, Math.max(0, points.length - 1))}
+            aria-valuetext={focusText}
+            tabIndex={0}
             onMouseLeave={() => setHover(null)}
             onMouseMove={(event) => setHover(indexFromClientX(event.clientX))}
+            onFocus={() => setHover((current) => current ?? (currentIndex >= 0 ? currentIndex : 0))}
+            onKeyDown={(event) => {
+              if (points.length === 0) {
+                return;
+              }
+              const max = points.length - 1;
+              const current = Math.min(hover ?? (currentIndex >= 0 ? currentIndex : 0), max);
+              if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+                event.preventDefault();
+                setHover(Math.min(max, current + 1));
+              } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+                event.preventDefault();
+                setHover(Math.max(0, current - 1));
+              } else if (event.key === "Home") {
+                event.preventDefault();
+                setHover(0);
+              } else if (event.key === "End") {
+                event.preventDefault();
+                setHover(max);
+              } else if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                const point = points[current];
+                if (point) {
+                  goPath(point.path);
+                }
+              }
+            }}
             onClick={(event) => {
               const point = points[indexFromClientX(event.clientX)];
               if (point) {

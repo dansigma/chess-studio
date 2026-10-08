@@ -45,7 +45,7 @@ export function BoardsSidebar() {
                 type="button"
                 title="Close board"
                 aria-label="Close board"
-                className="absolute inset-0 hidden items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg group-hover:flex"
+                className="absolute inset-0 hidden items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg group-focus-within:flex group-hover:flex focus-visible:flex"
                 onClick={() => closeBoard(board.id)}
               >
                 <X size={13} />
