@@ -55,14 +55,67 @@ function isMoveRow(value: unknown): value is ExplorerMoveRow {
   return (
     typeof value.san === "string" &&
     typeof value.uci === "string" &&
-    typeof value.games === "number"
+    typeof value.games === "number" &&
+    typeof value.white === "number" &&
+    typeof value.draws === "number" &&
+    typeof value.black === "number" &&
+    (typeof value.averageRating === "number" || value.averageRating === null)
+  );
+}
+
+function isGameRow(value: unknown): value is ExplorerGameRow {
+  if (!isRecord(value)) {
+    return false;
+  }
+  if (typeof value.id !== "string") {
+    return false;
+  }
+  if (
+    value.winner !== "white" &&
+    value.winner !== "black" &&
+    value.winner !== "draw" &&
+    value.winner !== null
+  ) {
+    return false;
+  }
+  if (typeof value.whiteName !== "string" || typeof value.blackName !== "string") {
+    return false;
+  }
+  for (const field of ["whiteRating", "blackRating", "year", "month"] as const) {
+    if (typeof value[field] !== "number" && value[field] !== null) {
+      return false;
+    }
+  }
+  for (const field of ["event", "eco", "opening"] as const) {
+    if (typeof value[field] !== "string" && value[field] !== null) {
+      return false;
+    }
+  }
+  if (value.pgn !== undefined && typeof value.pgn !== "string") {
+    return false;
+  }
+  return (
+    value.speed === undefined ||
+    value.speed === null ||
+    value.speed === "bullet" ||
+    value.speed === "blitz" ||
+    value.speed === "rapid" ||
+    value.speed === "classical"
+  );
+}
+
+function isOpening(value: unknown): value is { eco: string; name: string } {
+  return (
+    isRecord(value) && typeof value.eco === "string" && typeof value.name === "string"
   );
 }
 
 /**
  * Runtime guard for cached explorer payloads (Supabase `payload` column).
- * Shallow by design: top-level fields + moves/games arrays. An invalid
- * payload only falls through to the normal fetch path, never crashes.
+ * Validates every field the panels render: top-level totals, the opening
+ * badge (`eco`/`name`), all move rows (incl. `white`/`draws`/`black` for
+ * `ResultBar`), and all game rows (incl. `winner`/`whiteName`/`blackName`).
+ * An invalid payload only falls through to the normal fetch path, never crashes.
  */
 export function isExplorerResponse(value: unknown): value is ExplorerResponse {
   if (!isRecord(value)) {
@@ -81,10 +134,10 @@ export function isExplorerResponse(value: unknown): value is ExplorerResponse {
   if (!Array.isArray(value.moves) || !Array.isArray(value.games)) {
     return false;
   }
-  if (value.opening !== null && value.opening !== undefined && !isRecord(value.opening)) {
+  if (value.opening !== null && value.opening !== undefined && !isOpening(value.opening)) {
     return false;
   }
-  return value.moves.every(isMoveRow);
+  return value.moves.every(isMoveRow) && value.games.every(isGameRow);
 }
 
 export function fileExplorerSource(databaseId: string): ExplorerSource {

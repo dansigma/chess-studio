@@ -58,7 +58,11 @@ export type SetupPosition = {
 };
 
 export function emptySetupPosition(): SetupPosition {
-  return { pieces: {}, turn: "w", castling: "-" };
+  // Default to full rights so hand-building from an empty board (place
+  // K/R on e1/h1/a1/…) can regain rights via intersection in castleRights.
+  // An empty board still builds "-" (no corner pieces to intersect), and
+  // pasted "-"/garbage still sanitizes to "-" in parseSetupFen.
+  return { pieces: {}, turn: "w", castling: "KQkq" };
 }
 
 /** Sanitize a pasted castling field to the canonical `KQkq` order (`"-"` when empty). */

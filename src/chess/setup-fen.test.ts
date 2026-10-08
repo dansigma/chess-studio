@@ -19,7 +19,7 @@ test("setup piece palettes contain the full set", () => {
 });
 
 test("emptySetupPosition starts empty on white to move", () => {
-  assert.deepEqual(emptySetupPosition(), { pieces: {}, turn: "w", castling: "-" });
+  assert.deepEqual(emptySetupPosition(), { pieces: {}, turn: "w", castling: "KQkq" });
   assert.equal(buildSetupFen(emptySetupPosition()), "8/8/8/8/8/8/8/8 w - - 0 1");
 });
 
@@ -72,6 +72,24 @@ test("buildSetupFen drops rights whose corner pieces are missing", () => {
     null,
   );
   assert.equal(buildSetupFen(noRook).split(" ")[2], "-");
+});
+
+test("hand-building the start position from empty regains castling rights", () => {
+  let pos = emptySetupPosition();
+  for (const [square, piece] of [
+    ["e1", "wK"],
+    ["a1", "wR"],
+    ["h1", "wR"],
+    ["e8", "bK"],
+    ["a8", "bR"],
+    ["h8", "bR"],
+  ] as const) {
+    pos = placeSetupPiece(pos, square, piece);
+  }
+  assert.equal(buildSetupFen(pos).split(" ")[2], "KQkq");
+  // Without the kingside corner rooks, only queenside rights survive.
+  const noKingside = placeSetupPiece(placeSetupPiece(pos, "h1", null), "h8", null);
+  assert.equal(buildSetupFen(noKingside).split(" ")[2], "Qq");
 });
 
 test("isLegalSetupFen accepts the start and rejects garbage", () => {

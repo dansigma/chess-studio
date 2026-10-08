@@ -64,10 +64,6 @@ function displayEvent(value: string | undefined): string | null {
   return value;
 }
 
-function resultCaption(result: string | undefined) {
-  return pgnResultCaption(result);
-}
-
 function CommentText({ text }: { text?: string }) {
   if (!text) {
     return null;
@@ -383,7 +379,7 @@ export function NotationPanel() {
   const currentBefore = current?.commentBefore ?? "";
   const date = displayDate(board.headers.Date);
   const event = displayEvent(board.headers.Event);
-  const result = resultCaption(board.headers.Result);
+  const result = pgnResultCaption(board.headers.Result);
   const commentOpen = editor === "comment";
   const commentBeforeOpen = editor === "commentBefore";
   const headersOpen = editor === "headers";

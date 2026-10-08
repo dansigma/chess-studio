@@ -33,8 +33,11 @@ export function toJson(value: unknown): Json {
   }
   if (typeof value === "object") {
     const out: { [key: string]: Json | undefined } = {};
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    for (const [key, entry] of Object.entries(value)) {
       if (entry === undefined) {
+        continue;
+      }
+      if (typeof entry === "function" || typeof entry === "symbol") {
         continue;
       }
       out[key] = toJson(entry);
