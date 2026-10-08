@@ -2,16 +2,7 @@
 
 import { useStudioStore } from "@/src/store/studio-store";
 import { explorerGamesTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
-
-function ResultMark({ winner }: { winner: ExplorerGameRow["winner"] }) {
-  if (winner === "white") {
-    return <span className="text-studio-fg">1-0</span>;
-  }
-  if (winner === "black") {
-    return <span className="text-studio-muted">0-1</span>;
-  }
-  return <span className="text-studio-faint">½-½</span>;
-}
+import { ResultMark } from "./ResultMark";
 
 export function GamesPanel() {
   const explorer = useStudioStore((state) => state.explorer);

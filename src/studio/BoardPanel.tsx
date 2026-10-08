@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Chess, type Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { useActiveBoard, useBoardFen, useBoardLastMoveSquares } from "@/src/store/hooks";
@@ -130,7 +130,7 @@ export function BoardPanel() {
       lastMoveKey.length === 4
         ? { from: lastMoveKey.slice(0, 2), to: lastMoveKey.slice(2, 4) }
         : null;
-    const styles: Record<string, React.CSSProperties> = {};
+    const styles: Record<string, CSSProperties> = {};
     if (lastMove) {
       styles[lastMove.from] = { backgroundColor: "rgba(186, 202, 68, 0.72)" };
       styles[lastMove.to] = { backgroundColor: "rgba(186, 202, 68, 0.72)" };

@@ -1,4 +1,5 @@
 import type { GameTree, Path, TreeNode } from "./tree";
+import { pathsEqual } from "./tree";
 import type { MoveNotation } from "./move-notation";
 import { formatSanAtPly } from "./move-notation";
 import { formatMoveSuffix, formatPositionGlyphs } from "./nags";
@@ -7,10 +8,6 @@ export type PrintToken = {
   text: string;
   current: boolean;
 };
-
-function pathsEqual(left: Path, right: Path): boolean {
-  return left.length === right.length && left.every((step, index) => step === right[index]);
-}
 
 function moveLabel(node: TreeNode, ply: number, chainStart: number, startFen: string, notation: MoveNotation): string {
   const side = startFen.split(" ")[1] === "b" ? "b" : "w";

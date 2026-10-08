@@ -22,7 +22,6 @@ import {
   mainlinePathForFen,
   makeMainline,
   moveNumberForPath,
-  pathEquals,
   pathsEqual,
   playMove,
   plyColor,
@@ -237,7 +236,7 @@ test("fenKey keeps the first four FEN fields", () => {
 test("path helpers compare and prefix-match paths", () => {
   assert.equal(pathsEqual([0, 1], [0, 1]), true);
   assert.equal(pathsEqual([0], [1]), false);
-  assert.equal(pathEquals([0], [0, 1]), false);
+  assert.equal(pathsEqual([0], [0, 1]), false);
   assert.equal(isPrefix([0], [0, 1]), true);
   assert.equal(isPrefix([1], [0, 1]), false);
 });
