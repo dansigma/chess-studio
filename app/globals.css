@@ -10,7 +10,7 @@
   --studio-tab: #353942;
   --studio-fg: #f4f4f5;
   --studio-muted: #a1a1aa;
-  --studio-faint: #71717a;
+  --studio-faint: #a1a1aa;
   --studio-disabled: #52525b;
   --studio-border: rgb(255 255 255 / 0.08);
   --studio-border-subtle: rgb(255 255 255 / 0.05);
@@ -48,7 +48,7 @@ html[data-color-scheme="light"] {
   --studio-tab: #dde1e7;
   --studio-fg: #18181b;
   --studio-muted: #52525b;
-  --studio-faint: #71717a;
+  --studio-faint: #63636b;
   --studio-disabled: #a1a1aa;
   --studio-border: rgb(0 0 0 / 0.09);
   --studio-border-subtle: rgb(0 0 0 / 0.05);

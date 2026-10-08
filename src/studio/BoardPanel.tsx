@@ -20,6 +20,7 @@ import { piecesForSet } from "@/src/chess/piece-sets";
 import { boardImageElement, fenToCopy, publishVisibleFen } from "@/src/chess/copy-board";
 import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-board-image";
 import { Button } from "./ui/Button";
+import { useDialogFocus } from "./ui/use-dialog-focus";
 
 const PROMOTION_PIECES = [
   { piece: "q", label: "Queen" },
@@ -58,6 +59,8 @@ export function BoardPanel() {
   } | null>(null);
   const [boardMenu, setBoardMenu] = useState<BoardMenuState | null>(null);
   const pending = useRef<PendingDraw | null>(null);
+  const promotionRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(promotionRef, promotion !== null);
 
   const storedMarks = enginePreview ? null : getMarksAt(board.tree, board.path);
   const squareMarks = useMemo(() => storedMarks?.squares ?? [], [storedMarks]);
@@ -312,10 +315,14 @@ export function BoardPanel() {
           <div
             className="absolute inset-0 z-10 flex items-center justify-center bg-studio-scrim"
             role="dialog"
+            aria-modal="true"
             aria-label="Choose promotion piece"
             data-promotion-open
           >
-            <div className="flex flex-col gap-2 rounded-[10px] border border-studio-border-strong bg-studio-elevated p-3 shadow-2xl">
+            <div
+              ref={promotionRef}
+              className="flex flex-col gap-2 rounded-[10px] border border-studio-border-strong bg-studio-elevated p-3 shadow-2xl"
+            >
               <span className="text-caption uppercase tracking-wider text-studio-faint">Promote to</span>
               <div className="flex gap-1.5">
                 {PROMOTION_PIECES.map(({ piece, label }) => (

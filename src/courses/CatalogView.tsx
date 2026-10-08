@@ -85,7 +85,14 @@ export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
                   <div className="mt-4 text-caption text-studio-faint">
                     {course.chapterCount} chapters · {course.moveCount} lines
                   </div>
-                  <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-studio-hover">
+                  <div
+                    className="mt-3 h-1.5 overflow-hidden rounded-full bg-studio-hover"
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={percent}
+                    aria-label={`${course.title} progress`}
+                  >
                     <div className="h-full rounded-full bg-studio-accent" style={{ width: `${percent}%` }} />
                   </div>
                   <div className="mt-1 text-caption text-studio-muted">{percent}% complete</div>

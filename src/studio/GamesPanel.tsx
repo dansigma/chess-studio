@@ -59,8 +59,12 @@ export function GamesPanel() {
         <span>Event</span>
         <span>ECO</span>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
-        {loading ? <div className="px-3 py-4 text-studio-faint">Loading games…</div> : null}
+      <div className="min-h-0 flex-1 overflow-auto" aria-busy={loading || undefined}>
+        {loading ? (
+          <div className="px-3 py-4 text-studio-faint" role="status">
+            Loading games…
+          </div>
+        ) : null}
         {!loading && (explorer?.games.length ?? 0) === 0 ? (
           <div className="px-3 py-4 text-studio-faint">No games for this position.</div>
         ) : null}

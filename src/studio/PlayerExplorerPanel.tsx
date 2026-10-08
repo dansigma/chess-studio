@@ -104,8 +104,12 @@ export function PlayerExplorerPanel() {
         <span>Games</span>
         <span>White · Draw · Black</span>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
-        {loading ? <div className="px-3 py-4 text-studio-faint">Loading games…</div> : null}
+      <div className="min-h-0 flex-1 overflow-auto" aria-busy={loading || undefined}>
+        {loading ? (
+          <div className="px-3 py-4 text-studio-faint" role="status">
+            Loading games…
+          </div>
+        ) : null}
         {!loading && moves.length === 0 ? (
           <div className="px-3 py-4 text-studio-faint">No games reach this position.</div>
         ) : null}

@@ -48,18 +48,20 @@ function Submenu({
   open,
   label,
   onOpen,
+  onClose,
   children,
 }: {
   open: boolean;
   label: string;
   onOpen: () => void;
+  onClose?: () => void;
   children: ReactNode;
 }) {
   return (
     <div className="relative">
       <Item label={label} submenu highlighted={open} onMouseEnter={onOpen} onClick={onOpen} />
       {open ? (
-        <MenuSurface className="absolute left-full top-[-5px] ml-1.5 max-h-80 min-w-52 overflow-auto">
+        <MenuSurface className="absolute left-full top-[-5px] ml-1.5 max-h-80 min-w-52 overflow-auto" onClose={onClose}>
           {children}
         </MenuSurface>
       ) : null}
@@ -347,12 +349,12 @@ export function MenuBar({
           <Item label="Game preview mode" checked={gamePreviewEnabled} onMouseEnter={leaveSubmenu} onClick={run(toggleGamePreview)} />
           <Item label="Move sound" checked={moveSound} onMouseEnter={leaveSubmenu} onClick={run(toggleMoveSound)} />
           <Divider />
-          <Submenu label="Open panel" open={viewSub === "panel"} onOpen={() => setViewSub("panel")}>
+          <Submenu label="Open panel" open={viewSub === "panel"} onOpen={() => setViewSub("panel")} onClose={leaveSubmenu}>
             {OPEN_PANEL_ITEMS.map((item) => (
               <Item key={item.id} label={item.label} onClick={run(() => openStudioPanel(item.id))} />
             ))}
           </Submenu>
-          <Submenu label="Board theme" open={viewSub === "theme"} onOpen={() => setViewSub("theme")}>
+          <Submenu label="Board theme" open={viewSub === "theme"} onOpen={() => setViewSub("theme")} onClose={leaveSubmenu}>
             {BOARD_THEME_IDS.map((id) => (
               <Item
                 key={id}
@@ -363,12 +365,12 @@ export function MenuBar({
               />
             ))}
           </Submenu>
-          <Submenu label="Piece set" open={viewSub === "pieces"} onOpen={() => setViewSub("pieces")}>
+          <Submenu label="Piece set" open={viewSub === "pieces"} onOpen={() => setViewSub("pieces")} onClose={leaveSubmenu}>
             {PIECE_SET_IDS.map((id) => (
               <Item key={id} label={PIECE_SETS[id].label} checked={pieceSet === id} onClick={run(() => setPieceSet(id))} />
             ))}
           </Submenu>
-          <Submenu label="Color scheme" open={viewSub === "scheme"} onOpen={() => setViewSub("scheme")}>
+          <Submenu label="Color scheme" open={viewSub === "scheme"} onOpen={() => setViewSub("scheme")} onClose={leaveSubmenu}>
             {COLOR_SCHEME_IDS.map((id) => (
               <Item
                 key={id}
@@ -378,7 +380,7 @@ export function MenuBar({
               />
             ))}
           </Submenu>
-          <Submenu label="Move notation" open={viewSub === "notation"} onOpen={() => setViewSub("notation")}>
+          <Submenu label="Move notation" open={viewSub === "notation"} onOpen={() => setViewSub("notation")} onClose={leaveSubmenu}>
             {MOVE_NOTATION_IDS.map((id) => (
               <Item
                 key={id}
@@ -442,7 +444,9 @@ export function MenuBar({
             {label}
           </button>
           {open === key ? (
-            <MenuSurface className="absolute left-0 top-[calc(100%+5px)]">{menuContent(key)}</MenuSurface>
+            <MenuSurface className="absolute left-0 top-[calc(100%+5px)]" onClose={close}>
+              {menuContent(key)}
+            </MenuSurface>
           ) : null}
         </div>
       ))}
@@ -466,7 +470,7 @@ export function MenuBar({
               <ChevronDown size={13} />
             </button>
             {open === "account" ? (
-              <MenuSurface className="absolute right-0 top-[calc(100%+5px)] min-w-60">
+              <MenuSurface className="absolute right-0 top-[calc(100%+5px)] min-w-60" onClose={close}>
                 <div className="px-2 pb-1.5 pt-2">
                   <div className="truncate font-medium text-studio-fg">{user.email}</div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-caption text-studio-faint">
