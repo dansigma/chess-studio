@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 
 export const MENU_ITEM_SELECTOR = '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]';
 
@@ -48,10 +48,13 @@ export function useMenuKeyDown(
   onClose?: () => void,
   active = true,
 ): (event: React.KeyboardEvent) => void {
+  const previousRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
     if (!active) {
       return;
     }
+    previousRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     // Defer so the menu is laid out before stealing focus.
     const timer = window.setTimeout(() => {
       const root = rootRef.current;
@@ -61,6 +64,17 @@ export function useMenuKeyDown(
     }, 0);
     return () => window.clearTimeout(timer);
   }, [active, rootRef]);
+
+  const close = useCallback(() => {
+    onClose?.();
+    // Return focus to the trigger on Escape, unless it lives inside the
+    // menu being closed (e.g. a nested submenu item).
+    const root = rootRef.current;
+    const previous = previousRef.current;
+    if (previous && (!root || !root.contains(previous))) {
+      previous.focus({ preventScroll: true });
+    }
+  }, [onClose, rootRef]);
 
   return useCallback(
     (event: React.KeyboardEvent) => {
@@ -85,7 +99,7 @@ export function useMenuKeyDown(
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        onClose?.();
+        close();
         return;
       } else {
         return;
@@ -94,6 +108,6 @@ export function useMenuKeyDown(
       event.stopPropagation();
       focusMenuItem(root, nextMenuIndex(current < 0 ? -1 : current, items.length, move));
     },
-    [onClose, rootRef],
+    [close, rootRef],
   );
 }

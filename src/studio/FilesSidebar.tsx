@@ -133,7 +133,7 @@ export function FilesSidebar() {
                 aria-label="Close menu"
                 onClick={() => setMenuOpen(false)}
               />
-              <MenuSurface className="absolute right-2 top-11 z-20 min-w-52">
+              <MenuSurface className="absolute right-2 top-11 z-20 min-w-52" onClose={() => setMenuOpen(false)}>
                 <MenuItem
                   label="New folder"
                   leading={<FolderPlus size={14} className="text-studio-faint" />}
