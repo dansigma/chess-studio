@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
+import type { ReactNode } from "react";
 import "./globals.css";
 import { ColorSchemeSync } from "@/src/studio/ColorSchemeSync";
 import { COLOR_SCHEME_BOOTSTRAP } from "@/src/studio/color-scheme";
@@ -21,7 +22,7 @@ export const metadata: Metadata = {
   description: "Chess analysis studio with board, engine, notation, and opening explorer",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"

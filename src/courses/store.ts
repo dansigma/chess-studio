@@ -9,9 +9,10 @@ import {
   writeCourseProgressOwner,
   writeRawCache,
 } from "../lib/local-cache";
-import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, toCourse } from "./catalog";
+import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isCourseColor, isCourseId, isCourseTheme, isMissingSchemaError, parseChapters, toCourse } from "./catalog";
 import { mergeProgress } from "./progress";
-import type { Course, VariationProgress } from "./types";
+import type { Course, CourseChapter } from "./types";
+import type { VariationProgress } from "./types";
 
 export { courseSlugError, slugify } from "./catalog";
 
@@ -45,7 +46,70 @@ export function readLocalCustomCourses(): Course[] {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value.filter((item): item is Course => typeof item === "object" && item !== null);
+  const courses: Course[] = [];
+  for (const item of value) {
+    const course = toLocalDraftCourse(item);
+    if (course) {
+      courses.push(course);
+    }
+  }
+  return courses;
+}
+
+/**
+ * SIG-893: field-level validation for browser-local drafts. Lenient where
+ * `importLocalDraft`/`save` regenerate (slug/title/summary/chapters), strict
+ * where no safe default is knowable at read time (id/theme/color).
+ */
+export function toLocalDraftCourse(value: unknown): Course | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const row = value as Record<string, unknown>;
+  const id = row.id;
+  if (typeof id !== "string" || !isCourseId(id)) {
+    return null;
+  }
+  const theme = row.theme;
+  if (typeof theme !== "string" || !isCourseTheme(theme)) {
+    return null;
+  }
+  const color = row.color;
+  if (typeof color !== "string" || !isCourseColor(color)) {
+    return null;
+  }
+  const slug = typeof row.slug === "string" ? row.slug : "";
+  const title = typeof row.title === "string" ? row.title : "";
+  const summary = typeof row.summary === "string" ? row.summary : "";
+  const chapters: CourseChapter[] = parseChapters(row.chapters);
+  const course: Course = {
+    id,
+    slug,
+    title,
+    summary,
+    theme,
+    color,
+    chapters,
+  };
+  if (typeof row.coverUrl === "string") {
+    course.coverUrl = row.coverUrl;
+  }
+  if (typeof row.videoUrl === "string") {
+    course.videoUrl = row.videoUrl;
+  }
+  if (typeof row.builtin === "boolean") {
+    course.builtin = row.builtin;
+  }
+  if (typeof row.publishedAt === "string" || row.publishedAt === null) {
+    course.publishedAt = row.publishedAt;
+  } else {
+    // Browser-local drafts predate the SIG-861 published_at lifecycle and
+    // carry no publishedAt key; `isPublishedCourse` treats undefined as
+    // published (anon-invisible rows never reach this store), so default
+    // an explicit null (= draft) to keep the admin copy honest.
+    course.publishedAt = null;
+  }
+  return course;
 }
 
 export function removeLocalCustomDraft(id: string): boolean {
