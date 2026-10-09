@@ -35,7 +35,11 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import { persistDockLayout, useStudioStore } from "@/src/store/studio-store";
+import {
+  persistDockLayout,
+  selectActiveBoard,
+  useStudioStore,
+} from "@/src/store/studio-store";
 import { registerStudioDock, seedDefaultLayout } from "./dock-api";
 import {
   currentDockLayoutEpoch,
@@ -148,11 +152,8 @@ function ensurePlayerPanels(api: DockviewReadyEvent["api"], title: string) {
 }
 
 export function StudioDock() {
-  const title = useStudioStore((state) => {
-    const board =
-      state.boards.find((item) => item.id === state.activeBoardId) ?? state.boards[0];
-    return board.title;
-  });
+  // SIG-857: shared active-board selector instead of the inline find.
+  const title = useStudioStore((state) => selectActiveBoard(state).title);
   const layoutNonce = useStudioStore((state) => state.layoutNonce);
   const playerKey = useStudioStore((state) => state.playerProfile?.id ?? null);
   const playerName = useStudioStore((state) => state.playerProfile?.displayName ?? null);

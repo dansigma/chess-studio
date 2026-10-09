@@ -40,7 +40,12 @@ export function BoardPanel() {
   const lastMoveKey = useBoardLastMoveSquares();
   const enginePreview = useStudioStore((state) => state.enginePreview);
   const engineEval = useStudioStore((state) => state.engineEval);
-  const settings = useStudioStore((state) => state.settings);
+  // SIG-857: primitive settings picks — the old `state.settings` object
+  // re-rendered the board on every preference change (e.g. move sound).
+  const boardTheme = useStudioStore((state) => state.settings.boardTheme);
+  const pieceSet = useStudioStore((state) => state.settings.pieceSet);
+  const showEvalBar = useStudioStore((state) => state.settings.showEvalBar);
+  const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const flip = useStudioStore((state) => state.flip);
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
@@ -188,10 +193,9 @@ export function BoardPanel() {
     return ok;
   }
 
-  const theme = boardSquareStyles(settings.boardTheme);
-  const pieces = piecesForSet(settings.pieceSet);
+  const theme = boardSquareStyles(boardTheme);
+  const pieces = piecesForSet(pieceSet);
   const turn = fen.split(" ")[1] === "b" ? "b" : "w";
-  const showEvalBar = settings.showEvalBar;
 
   if (setupMode) {
     return <SetupBoardPanel />;
@@ -229,12 +233,12 @@ export function BoardPanel() {
           }}
         >
         <Chessboard
-          key={`${board.id}-${settings.pieceSet}`}
+          key={`${board.id}-${pieceSet}`}
           options={{
             id: `board-${board.id}`,
             position: fen,
             boardOrientation: board.orientation,
-            showNotation: settings.showCoordinates,
+            showNotation: showCoordinates,
             animationDurationInMs: 0,
             showAnimations: false,
             allowDrawingArrows: false,

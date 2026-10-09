@@ -1,18 +1,31 @@
 "use client";
 
 import { getFenAt, getLastMove } from "@/src/chess/tree";
-import { useStudioStore, type BoardSession } from "@/src/store/studio-store";
+import {
+  selectActiveBoard,
+  selectActiveBoardId,
+  selectActivePathKey,
+  useStudioStore,
+  type BoardSession,
+} from "@/src/store/studio-store";
 
+// SIG-857: all board lookups funnel through selectActiveBoard so components
+// subscribe to the resolved board instead of repeating the find inline.
 export function useActiveBoard(): BoardSession {
-  return useStudioStore((state) => {
-    return state.boards.find((board) => board.id === state.activeBoardId) ?? state.boards[0];
-  });
+  return useStudioStore(selectActiveBoard);
+}
+
+export function useActiveBoardId(): string {
+  return useStudioStore(selectActiveBoardId);
+}
+
+export function useActivePathKey(): string {
+  return useStudioStore(selectActivePathKey);
 }
 
 export function useActiveFen(): string {
   return useStudioStore((state) => {
-    const board =
-      state.boards.find((item) => item.id === state.activeBoardId) ?? state.boards[0];
+    const board = selectActiveBoard(state);
     return getFenAt(board.tree, board.path);
   });
 }
@@ -22,16 +35,14 @@ export function useBoardFen(): string {
     if (state.enginePreview) {
       return state.enginePreview.fen;
     }
-    const board =
-      state.boards.find((item) => item.id === state.activeBoardId) ?? state.boards[0];
+    const board = selectActiveBoard(state);
     return getFenAt(board.tree, board.path);
   });
 }
 
 export function useLastMoveSquares(): string {
   return useStudioStore((state) => {
-    const board =
-      state.boards.find((item) => item.id === state.activeBoardId) ?? state.boards[0];
+    const board = selectActiveBoard(state);
     const move = getLastMove(board.tree, board.path);
     return move ? `${move.from}${move.to}` : "";
   });
@@ -42,8 +53,7 @@ export function useBoardLastMoveSquares(): string {
     if (state.enginePreview) {
       return state.enginePreview.lastMove;
     }
-    const board =
-      state.boards.find((item) => item.id === state.activeBoardId) ?? state.boards[0];
+    const board = selectActiveBoard(state);
     const move = getLastMove(board.tree, board.path);
     return move ? `${move.from}${move.to}` : "";
   });

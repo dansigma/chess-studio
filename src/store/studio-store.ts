@@ -17,16 +17,9 @@ import {
   createEmptyTree,
   deleteAfter,
   deleteVariation,
-  fenKey,
   getFenAt,
-  getLastMove,
   getMarksAt,
   getNodeAt,
-  goBack,
-  goEnd,
-  goForward,
-  goForwardN,
-  goStart,
   makeMainline,
   mainlinePathForFen,
   playMove,
@@ -35,12 +28,8 @@ import {
   setNodeCommentBefore,
   setNodeMarks,
   setNodeNags,
-  type GameTree,
-  type Path,
 } from "@/src/chess/tree";
 import { exportPgn, importPgn, importSans, openListedFileGame, openablePgn, recentSans, titleFromHeaders, type GameHeaders } from "@/src/chess/pgn";
-import { repertoireMoves } from "@/src/chess/repertoire";
-import { trainingAttempt } from "@/src/chess/training";
 import { toggleNag } from "@/src/chess/nags";
 import { playMoveSound, shouldPlayMoveSound } from "@/src/chess/move-sound";
 import {
@@ -48,9 +37,7 @@ import {
   marksAreEmpty,
   toggleArrowMark,
   toggleSquareMark,
-  type MarkColor,
 } from "@/src/chess/marks";
-import type { PlayerColorFilter, PlayerGame, PlayerHit, PlayerResultFilter } from "@/src/lib/player-types";
 import {
   bookmarkKey,
   deleteRemoteBookmark,
@@ -61,31 +48,20 @@ import {
   removeBookmark,
   saveLocalBookmarks,
   upsertBookmark,
-  type PlayerBookmark,
 } from "@/src/lib/player-bookmarks";
 import {
   clampDepth,
   clampLines,
   clampThreads,
-  defaultEngineThreads,
-  isEngineBuild,
-  type EngineBuild,
 } from "@/src/engine/stockfish-client";
-import { fileDatabaseId, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
-import {
-  DEFAULT_EXPLORER_FILTERS,
-  readExplorerFilters,
-  type ExplorerFilters,
-} from "@/src/lib/explorer-filters";
+import { fileDatabaseId } from "@/src/lib/explorer-types";
 import { dropFilesExplorerIndex } from "@/src/lib/files-explorer";
 import { purgeUserLocalCaches } from "@/src/lib/local-cache";
 import { resetCourseProgressState } from "@/src/courses/store";
 import { isLegalSetupFen } from "@/src/chess/setup-fen";
 import { applyNullMoveFen, NULL_MOVE_SAN, NULL_MOVE_UCI } from "@/src/chess/null-move";
-import { isBoardTheme, type BoardTheme } from "@/src/chess/board-themes";
-import { isPieceSet, type PieceSet } from "@/src/chess/piece-sets";
-import { isMoveNotation, type MoveNotation } from "@/src/chess/move-notation";
-import { isColorScheme, type ColorScheme } from "@/src/studio/color-scheme";
+import { isBoardTheme } from "@/src/chess/board-themes";
+import { isPieceSet } from "@/src/chess/piece-sets";
 import {
   EMPTY_FILES,
   deleteRemoteDatabase,
@@ -93,343 +69,77 @@ import {
   loadLocalFiles,
   persistRemoteDatabase,
   saveLocalFiles,
-  type FileDatabase,
   type FileFolder,
-  type FileGame,
-  type FilesLibrary,
 } from "@/src/lib/user-files";
-import { capEvalCache } from "@/src/lib/eval-cache";
+// SIG-857 Phase C: slice modules own types, selectors, board helpers, and
+// settings defaults. The store composes them into the single create() below
+// so all 30+ existing `@/src/store/studio-store` import paths keep working.
+import { emptyBoard, newId, withActive, analysisFen } from "./slices/board-helpers";
+import { createBoardsSlice } from "./slices/boards";
+import { createEngineSlice } from "./slices/engine";
+import {
+  DEFAULT_SETTINGS,
+  SETTINGS_KEY,
+  loadLocalSettings,
+} from "./slices/settings";
+import type {
+  BoardSession,
+  SessionResetPayload,
+  StudioSettings,
+  StudioState,
+} from "./slices/types";
 
 export type { BoardTheme } from "@/src/chess/board-themes";
 export type { PieceSet } from "@/src/chess/piece-sets";
 export type { MoveNotation } from "@/src/chess/move-notation";
 export type { ColorScheme } from "@/src/studio/color-scheme";
-export type BoardOrientation = "white" | "black";
-export type ActivityView = "search" | "boards" | "databases" | "files" | "bookmarks";
-
-export type BoardSession = {
-  id: string;
-  remoteId: string | null;
-  title: string;
-  tree: GameTree;
-  path: Path;
-  headers: GameHeaders;
-  orientation: BoardOrientation;
-  dirty: boolean;
-  preview: boolean;
-};
-
-export type EnginePreview = {
-  fen: string;
-  lastMove: string;
-  key: string;
-};
-
-export type EngineEval = {
-  pawns: number;
-  label: string;
-  // SIG-856: carried so the held eval stays coherent with its depth readout
-  // while a fresh FEN has no live lines yet.
-  depth?: number;
-};
-
-export type CachedEval = {
-  pawns: number;
-  label: string;
-  depth: number;
-};
-
-export type StudioSettings = {
-  showCoordinates: boolean;
-  showEvalBar: boolean;
-  boardTheme: BoardTheme;
-  pieceSet: PieceSet;
-  moveNotation: MoveNotation;
-  colorScheme: ColorScheme;
-  gamePreviewEnabled: boolean;
-  engineDepth: number;
-  multiPv: number;
-  engineThreads: number;
-  engineBuild: EngineBuild;
-  sidebarCollapsed: boolean;
-  explorerFilters: ExplorerFilters;
-  moveSound: boolean;
-};
-
-const SETTINGS_KEY = "studio-clone-settings";
-const DEFAULT_SETTINGS: StudioSettings = {
-  showCoordinates: true,
-  showEvalBar: true,
-  boardTheme: "studio",
-  pieceSet: "classic",
-  moveNotation: "english",
-  colorScheme: "dark",
-  gamePreviewEnabled: true,
-  engineDepth: 30,
-  multiPv: 2,
-  engineThreads: 1,
-  engineBuild: "lite",
-  sidebarCollapsed: false,
-  explorerFilters: DEFAULT_EXPLORER_FILTERS,
-  moveSound: true,
-};
-
-function loadLocalSettings(): StudioSettings {
-  if (typeof window === "undefined") {
-    return DEFAULT_SETTINGS;
-  }
-  try {
-    const raw = window.localStorage.getItem(SETTINGS_KEY);
-    if (!raw) {
-      return DEFAULT_SETTINGS;
-    }
-    const parsed = JSON.parse(raw) as Partial<StudioSettings>;
-    return {
-      showCoordinates:
-        typeof parsed.showCoordinates === "boolean"
-          ? parsed.showCoordinates
-          : DEFAULT_SETTINGS.showCoordinates,
-      showEvalBar:
-        typeof parsed.showEvalBar === "boolean"
-          ? parsed.showEvalBar
-          : DEFAULT_SETTINGS.showEvalBar,
-      boardTheme: isBoardTheme(parsed.boardTheme)
-        ? parsed.boardTheme
-        : DEFAULT_SETTINGS.boardTheme,
-      pieceSet: isPieceSet(parsed.pieceSet) ? parsed.pieceSet : DEFAULT_SETTINGS.pieceSet,
-      moveNotation: isMoveNotation(parsed.moveNotation)
-        ? parsed.moveNotation
-        : DEFAULT_SETTINGS.moveNotation,
-      colorScheme: isColorScheme(parsed.colorScheme)
-        ? parsed.colorScheme
-        : DEFAULT_SETTINGS.colorScheme,
-      gamePreviewEnabled:
-        typeof parsed.gamePreviewEnabled === "boolean"
-          ? parsed.gamePreviewEnabled
-          : DEFAULT_SETTINGS.gamePreviewEnabled,
-      engineDepth:
-        typeof parsed.engineDepth === "number"
-          ? parsed.engineDepth
-          : DEFAULT_SETTINGS.engineDepth,
-      multiPv:
-        typeof parsed.multiPv === "number" ? parsed.multiPv : DEFAULT_SETTINGS.multiPv,
-      engineThreads:
-        typeof parsed.engineThreads === "number"
-          ? clampThreads(parsed.engineThreads)
-          : defaultEngineThreads(),
-      engineBuild: isEngineBuild(parsed.engineBuild) ? parsed.engineBuild : DEFAULT_SETTINGS.engineBuild,
-      sidebarCollapsed:
-        typeof parsed.sidebarCollapsed === "boolean"
-          ? parsed.sidebarCollapsed
-          : DEFAULT_SETTINGS.sidebarCollapsed,
-      explorerFilters: readExplorerFilters(parsed.explorerFilters),
-      moveSound: typeof parsed.moveSound === "boolean" ? parsed.moveSound : DEFAULT_SETTINGS.moveSound,
-    };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
-}
-
-type UserInfo = {
-  id: string;
-  email: string | null;
-};
-
-type StudioState = {
-  boards: BoardSession[];
-  activeBoardId: string;
-  activity: ActivityView;
-  databaseSource: ExplorerSource;
-  settings: StudioSettings;
-  user: UserInfo | null;
-  explorer: ExplorerResponse | null;
-  explorerLoading: boolean;
-  explorerError: string | null;
-  explorerRetry: number;
-  statusMessage: string | null;
-  aboutOpen: boolean;
-  notationEditor: "comment" | "commentBefore" | "headers" | null;
-  layoutNonce: number;
-  enginePreview: EnginePreview | null;
-  engineEval: EngineEval | null;
-  evalByFen: Record<string, CachedEval>;
-  playerProfile: PlayerHit | null;
-  playerGames: PlayerGame[];
-  playerGamesLoading: boolean;
-  playerGamesNotice: string | null;
-  playerColorFilter: PlayerColorFilter;
-  playerResultFilter: PlayerResultFilter;
-  files: FilesLibrary;
-  filesQuery: string;
-  activeFileDatabaseId: string | null;
-  activeFileGameId: string | null;
-  bookmarks: PlayerBookmark[];
-  setupMode: boolean;
-  active: () => BoardSession;
-  fen: () => string;
-  lastMove: () => { from: string; to: string } | null;
-  sideToMove: () => "w" | "b";
-  newBoard: () => void;
-  closeBoard: (id?: string) => void;
-  cloneBoard: () => void;
-  setActiveBoard: (id: string) => void;
-  makeUciMove: (from: string, to: string, promotion?: string) => boolean;
-  playUciSequence: (ucis: string[]) => void;
-  setEnginePreview: (preview: EnginePreview | null) => void;
-  setEngineEval: (value: EngineEval | null) => void;
-  putEvalCache: (fen: string, value: CachedEval) => void;
-  goPath: (path: Path) => void;
-  back: () => void;
-  forward: () => void;
-  toStart: () => void;
-  toEnd: () => void;
-  undo: () => void;
-  redo: () => void;
-  flip: () => void;
-  toggleCoordinates: () => void;
-  toggleMoveSound: () => void;
-  toggleEvalBar: () => void;
-  toggleGamePreview: () => void;
-  pinPreviewBoard: (id: string) => void;
-  setBoardTheme: (theme: BoardTheme) => void;
-  setPieceSet: (set: PieceSet) => void;
-  setMoveNotation: (notation: MoveNotation) => void;
-  setColorScheme: (scheme: ColorScheme) => void;
-  setEngineDepth: (depth: number) => void;
-  setMultiPv: (value: number) => void;
-  setEngineThreads: (value: number) => void;
-  setEngineBuild: (build: EngineBuild) => void;
-  setActivity: (view: ActivityView) => void;
-  toggleSidebar: () => void;
-  setDatabaseSource: (source: ExplorerSource) => void;
-  setExplorerFilters: (patch: Partial<ExplorerFilters>) => void;
-  importPgnText: (pgn: string, title?: string) => void;
-  openListedGame: (args: {
-    title: string;
-    pgn?: string;
-    moves?: string;
-    headers?: GameHeaders;
-    atFen?: string;
-  }) => void;
-  importPlayerGame: (game: PlayerGame) => void;
-  exportActivePgn: () => string;
-  pruneAfter: () => void;
-  promoteVariation: () => void;
-  makeMainline: () => void;
-  deleteVariation: () => void;
-  setMoveComment: (comment: string) => void;
-  setMoveCommentBefore: (comment: string) => void;
-  insertNullMove: () => boolean;
-  clearBoardMarks: () => void;
-  toggleMoveNag: (nag: number, path?: Path) => void;
-  clearMoveNags: (path?: Path) => void;
-  toggleBoardSquareMark: (square: string, color: MarkColor) => void;
-  toggleBoardArrowMark: (from: string, to: string, color: MarkColor) => void;
-  setHeaders: (headers: GameHeaders) => void;
-  skipForward: () => void;
-  training: boolean;
-  trainingStart: Path | null;
-  startTraining: () => void;
-  stopTraining: () => void;
-  renameActive: (title: string) => void;
-  setExplorer: (data: ExplorerResponse | null) => void;
-  setExplorerLoading: (loading: boolean) => void;
-  setExplorerError: (error: string | null) => void;
-  retryExplorer: () => void;
-  setStatus: (message: string | null) => void;
-  setAboutOpen: (open: boolean) => void;
-  setNotationEditor: (editor: "comment" | "commentBefore" | "headers" | null) => void;
-  openPlayerView: (player: PlayerHit, color?: PlayerColorFilter) => void;
-  setPlayerGames: (games: PlayerGame[], notice?: string | null) => void;
-  setPlayerGamesLoading: (loading: boolean) => void;
-  setPlayerColorFilter: (filter: PlayerColorFilter) => void;
-  setPlayerResultFilter: (filter: PlayerResultFilter) => void;
-  setFilesQuery: (query: string) => void;
-  createFileFolder: (name?: string) => void;
-  importFileDatabase: (
-    name: string,
-    pgn: string,
-    folderId?: string | null,
-    options?: { focusFiles?: boolean },
-  ) => void;
-  showFileDatabase: (id: string) => void;
-  openPgnSource: (name: string, pgn: string) => void;
-  openFileGame: (game: FileGame) => void;
-  deleteFileFolder: (id: string) => void;
-  deleteFileDatabase: (id: string) => void;
-  mergeRemoteFiles: (databases: FileDatabase[]) => void;
-  togglePlayerBookmark: (player: PlayerHit) => void;
-  mergeRemoteBookmarks: (remote: PlayerBookmark[]) => void;
-  hydrateRemoteBookmarks: () => Promise<void>;
-  setSetupMode: (open: boolean) => void;
-  applySetupFen: (fen: string) => boolean;
-  openSharedPosition: (fen: string) => void;
-  setUser: (user: UserInfo | null) => void;
-  resetSessionState: () => void;
-  hydrateSettings: (settings: Partial<StudioSettings>) => void;
-  hydrateLocalSettings: () => void;
-  hydrateRemoteBoard: (board: BoardSession) => void;
-  markSaved: (id: string, remoteId: string) => void;
-  resetView: () => void;
-};
-
-function newId(): string {
-  return crypto.randomUUID();
-}
-
-// NOTE: id must be injectable — Workers forbids crypto.randomUUID() during
-// global-scope (module init) evaluation ("Disallowed operation called within
-// global scope... generating random values are not allowed within global
-// scope"). The initial store board passes a deterministic id; every other
-// call site runs inside handlers/effects, where newId() is allowed.
-function emptyBoard(title = "Board", id = newId()): BoardSession {
-  return {
-    id,
-    remoteId: null,
-    title,
-    tree: createEmptyTree(),
-    path: [],
-    headers: {},
-    orientation: "white",
-    dirty: true,
-    preview: false,
-  };
-}
-
-function withActive(
-  boards: BoardSession[],
-  activeBoardId: string,
-  updater: (board: BoardSession) => BoardSession,
-): BoardSession[] {
-  return boards.map((board) =>
-    board.id === activeBoardId ? updater(board) : board,
-  );
-}
-
-function analysisFen(state: { boards: BoardSession[]; activeBoardId: string }): string {
-  const analysis =
-    state.boards.find((board) => !board.preview) ??
-    state.boards.find((board) => board.id === state.activeBoardId) ??
-    state.boards[0];
-  return analysis ? getFenAt(analysis.tree, analysis.path) : START_FEN;
-}
-
-// Data (non-function) keys of the store; the reset payload must cover every
-// session-scoped one so a future session key cannot silently survive sign-out.
-// (Pick, not Record<..., unknown>: keeps the exact value types so the payload
-// is checked for completeness AND assignability to Partial<StudioState>.)
-type SessionDataKey = {
-  [K in keyof StudioState]: StudioState[K] extends (...args: never[]) => unknown ? never : K;
-}[keyof StudioState];
-
-type SessionResetPayload = Pick<
+export type { GameTree, Path } from "@/src/chess/tree";
+export type { MarkColor } from "@/src/chess/marks";
+export type {
+  PlayerColorFilter,
+  PlayerGame,
+  PlayerHit,
+  PlayerResultFilter,
+} from "@/src/lib/player-types";
+export type { PlayerBookmark } from "@/src/lib/player-bookmarks";
+export type { EngineBuild } from "@/src/engine/stockfish-client";
+export type { ExplorerResponse, ExplorerSource } from "@/src/lib/explorer-types";
+export type { ExplorerFilters } from "@/src/lib/explorer-filters";
+export { DEFAULT_EXPLORER_FILTERS, readExplorerFilters } from "@/src/lib/explorer-filters";
+export type {
+  FileDatabase,
+  FileGame,
+  FilesLibrary,
+} from "@/src/lib/user-files";
+export type {
+  ActivityView,
+  BoardOrientation,
+  BoardSession,
+  CachedEval,
+  EngineEval,
+  EnginePreview,
+  SessionDataKey,
+  SessionResetPayload,
+  StudioSettings,
   StudioState,
-  Exclude<SessionDataKey, "settings" | "user" | "layoutNonce">
->;
+  UserInfo,
+} from "./slices/types";
+export {
+  selectActiveBoard,
+  selectActiveBoardId,
+  selectActivePathKey,
+  selectDirtyCount,
+} from "./slices/selectors";
+export { DEFAULT_SETTINGS, SETTINGS_KEY, loadLocalSettings } from "./slices/settings";
+export { emptyBoard, newId, withActive, analysisFen } from "./slices/board-helpers";
 
 export const useStudioStore = create<StudioState>((set, get) => ({
-  boards: [emptyBoard("Board", "initial-board")],
-  activeBoardId: "",
+  // Board navigation/move state lives in slices/boards.ts and engine state in
+  // slices/engine.ts; the third StateCreator arg (store api) is unused by
+  // those slices, so pass a placeholder to avoid a self-reference to
+  // useStudioStore inside its own initializer.
+  ...createEngineSlice(set, get, undefined as never),
+  ...createBoardsSlice(set, get, undefined as never),
   activity: "boards",
   databaseSource: "masters",
   settings: DEFAULT_SETTINGS,
@@ -442,9 +152,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   aboutOpen: false,
   notationEditor: null,
   layoutNonce: 0,
-  enginePreview: null,
-  engineEval: null,
-  evalByFen: {},
   playerProfile: null,
   playerGames: [],
   playerGamesLoading: false,
@@ -457,250 +164,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   activeFileGameId: null,
   bookmarks: loadLocalBookmarks(),
   setupMode: false,
-  training: false,
-  trainingStart: null,
-  active: () => {
-    const state = get();
-    return (
-      state.boards.find((board) => board.id === state.activeBoardId) ??
-      state.boards[0]
-    );
-  },
-  fen: () => {
-    const board = get().active();
-    return getFenAt(board.tree, board.path);
-  },
-  lastMove: () => {
-    const board = get().active();
-    return getLastMove(board.tree, board.path);
-  },
-  sideToMove: () => {
-    const fen = get().fen();
-    return fen.split(" ")[1] === "b" ? "b" : "w";
-  },
-  newBoard: () => {
-    const board = emptyBoard();
-    set((state) => ({
-      boards: [...state.boards, board],
-      activeBoardId: board.id,
-      training: false,
-      trainingStart: null,
-    }));
-  },
-  closeBoard: (id) => {
-    set((state) => {
-      const target = id ?? state.activeBoardId;
-      let boards = state.boards.filter((board) => board.id !== target);
-      if (boards.length === 0) {
-        boards = [emptyBoard()];
-      }
-      const activeBoardId =
-        state.activeBoardId === target ? boards[0].id : state.activeBoardId;
-      return { boards, activeBoardId, training: false, trainingStart: null };
-    });
-  },
-  cloneBoard: () => {
-    const current = get().active();
-    const clone: BoardSession = {
-      ...current,
-      id: newId(),
-      remoteId: null,
-      title: `${current.title} copy`,
-      tree: structuredClone(current.tree),
-      path: [...current.path],
-      headers: { ...current.headers },
-      dirty: true,
-      preview: false,
-    };
-    set((state) => ({
-      boards: [...state.boards, clone],
-      activeBoardId: clone.id,
-      training: false,
-      trainingStart: null,
-    }));
-  },
-  setActiveBoard: (id) =>
-    set({
-      activeBoardId: id,
-      enginePreview: null,
-      setupMode: false,
-      training: false,
-      trainingStart: null,
-    }),
-  makeUciMove: (from, to, promotion) => {
-    if (get().training) {
-      const board = get().active();
-      const uci = `${from}${to}${promotion ?? ""}`;
-      const attempt = trainingAttempt(board.tree, board.path, uci);
-      if (attempt.kind === "complete") {
-        set({ statusMessage: "Line complete." });
-        return false;
-      }
-      if (attempt.kind === "refused") {
-        set({ statusMessage: "Not in the repertoire." });
-        return false;
-      }
-      const previous = board.path;
-      set((state) => ({
-        statusMessage: repertoireMoves(board.tree, attempt.path).length === 0 ? "Line complete." : null,
-        boards: withActive(state.boards, state.activeBoardId, (active) => ({
-          ...active,
-          path: attempt.path,
-        })),
-      }));
-      soundForAdvance(previous);
-      return true;
-    }
-    const board = get().active();
-    const previous = board.path;
-    const chess = new Chess(getFenAt(board.tree, previous));
-    try {
-      const move = chess.move({ from, to, promotion });
-      const next = playMove(board.tree, previous, {
-        san: move.san,
-        uci: `${move.from}${move.to}${move.promotion ?? ""}`,
-        fen: chess.fen(),
-        from: move.from,
-        to: move.to,
-      });
-      set((state) => ({
-        boards: withActive(state.boards, state.activeBoardId, (active) => ({
-          ...active,
-          tree: next.tree,
-          path: next.path,
-          dirty: true,
-        })),
-      }));
-      soundForAdvance(previous);
-      return true;
-    } catch {
-      return false;
-    }
-  },
-  playUciSequence: (ucis) => {
-    if (get().training) {
-      return;
-    }
-    const previous = get().active().path;
-    set({ enginePreview: null });
-    suppressMoveSound = true;
-    try {
-      for (const uci of ucis) {
-        const from = uci.slice(0, 2);
-        const to = uci.slice(2, 4);
-        const promotion = uci.length > 4 ? uci[4] : undefined;
-        const ok = get().makeUciMove(from, to, promotion);
-        if (!ok) {
-          break;
-        }
-      }
-    } finally {
-      suppressMoveSound = false;
-    }
-    soundForAdvance(previous);
-  },
-  goPath: (path) => {
-    if (get().training) {
-      return;
-    }
-    const previous = get().active().path;
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        path,
-      })),
-    }));
-    soundForAdvance(previous);
-  },
-  back: () => {
-    if (get().training) {
-      return;
-    }
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        path: goBack(board.path),
-      })),
-    }));
-  },
-  forward: () => {
-    if (get().training) {
-      return;
-    }
-    const previous = get().active().path;
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        path: goForward(board.tree, board.path),
-      })),
-    }));
-    soundForAdvance(previous);
-  },
-  toStart: () => {
-    if (get().training) {
-      return;
-    }
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        path: goStart(),
-      })),
-    }));
-  },
-  toEnd: () => {
-    if (get().training) {
-      return;
-    }
-    const previous = get().active().path;
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        path: goEnd(board.tree, board.path),
-      })),
-    }));
-    soundForAdvance(previous);
-  },
-  skipForward: () => {
-    if (get().training) {
-      return;
-    }
-    const previous = get().active().path;
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        path: goForwardN(board.tree, board.path, 10),
-      })),
-    }));
-    soundForAdvance(previous);
-  },
-  startTraining: () => {
-    const state = get();
-    if (state.training && state.trainingStart) {
-      const start = state.trainingStart;
-      set((current) => ({
-        statusMessage: null,
-        boards: withActive(current.boards, current.activeBoardId, (board) => ({
-          ...board,
-          path: [...start],
-        })),
-      }));
-      const board = get().active();
-      if (repertoireMoves(board.tree, board.path).length === 0) {
-        set({ statusMessage: "Line complete." });
-      }
-      return;
-    }
-    const board = state.active();
-    const start = [...board.path];
-    set({
-      training: true,
-      trainingStart: start,
-      statusMessage: repertoireMoves(board.tree, start).length === 0 ? "Line complete." : null,
-    });
-  },
-  stopTraining: () => set({ training: false, trainingStart: null }),
-  undo: () => get().back(),
-  redo: () => get().forward(),
   flip: () => {
     set((state) => ({
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
@@ -1103,31 +566,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   setExplorerError: (explorerError) => set({ explorerError }),
   retryExplorer: () => set((state) => ({ explorerRetry: state.explorerRetry + 1 })),
   setStatus: (statusMessage) => set({ statusMessage }),
-  setEnginePreview: (enginePreview) => set({ enginePreview }),
-  setEngineEval: (engineEval) => {
-    const prev = get().engineEval;
-    if (prev?.pawns === engineEval?.pawns && prev?.label === engineEval?.label) {
-      return;
-    }
-    set({ engineEval });
-  },
-  putEvalCache: (fen, value) => {
-    const key = fenKey(fen);
-    const prev = get().evalByFen[key];
-    if (
-      prev &&
-      (prev.depth > value.depth ||
-        (prev.depth === value.depth && prev.pawns === value.pawns && prev.label === value.label))
-    ) {
-      return;
-    }
-    // SIG-856: re-insert the key so the write refreshes recency, then cap the
-    // map at MAX_EVAL_CACHE_ENTRIES (oldest FENs evicted first).
-    const next = { ...get().evalByFen };
-    delete next[key];
-    next[key] = value;
-    set({ evalByFen: capEvalCache(next) });
-  },
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
   setNotationEditor: (notationEditor) => set({ notationEditor }),
   openPlayerView: (player, color = "all") => {
@@ -1517,12 +955,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   },
 }));
 
-let suppressMoveSound = false;
-
 function soundForAdvance(previous: number[]): void {
-  if (suppressMoveSound) {
-    return;
-  }
   const state = useStudioStore.getState();
   if (shouldPlayMoveSound(state.settings.moveSound, previous, state.active().path)) {
     playMoveSound();

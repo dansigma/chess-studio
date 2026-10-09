@@ -58,11 +58,18 @@ export function StudioShell() {
   const explorerFilters = useStudioStore((state) => state.settings.explorerFilters);
   const playerProfile = useStudioStore((state) => state.playerProfile);
   const playerGames = useStudioStore((state) => state.playerGames);
-  const files = useStudioStore((state) => state.files);
-  const selectedFileId = fileDatabaseId(source);
-  const personalSignature = selectedFileId
-    ? (files.databases.find((item) => item.id === selectedFileId)?.games.map((game) => game.id).join(",") ?? "")
-    : "";
+  // SIG-857: primitive signature — the old `state.files` object re-rendered
+  // the shell on every library change; this string changes only when the
+  // selected database's game ids change.
+  const personalSignature = useStudioStore((state) => {
+    const fileId = fileDatabaseId(state.databaseSource);
+    if (!fileId) {
+      return "";
+    }
+    return (
+      state.files.databases.find((item) => item.id === fileId)?.games.map((game) => game.id).join(",") ?? ""
+    );
+  });
   const status = useStudioStore((state) => state.statusMessage);
   const dirtyRevision = useStudioStore((state) =>
     state.boards.map((board) => `${board.id}:${board.dirty ? "1" : "0"}`).join("|"),
@@ -76,7 +83,11 @@ export function StudioShell() {
   const setUser = useStudioStore((state) => state.setUser);
   const hydrateRemoteBoard = useStudioStore((state) => state.hydrateRemoteBoard);
   const hydrateSettings = useStudioStore((state) => state.hydrateSettings);
-  const settings = useStudioStore((state) => state.settings);
+  // SIG-857: primitive pick — the old `state.settings` object re-rendered on
+  // every unrelated field; persistSettings only serializes the full object,
+  // so subscribe to its JSON signature instead.
+  const settingsSignature = useStudioStore((state) => JSON.stringify(state.settings));
+  const sidebarCollapsed = useStudioStore((state) => state.settings.sidebarCollapsed);
   const openPgnSource = useStudioStore((state) => state.openPgnSource);
   const back = useStudioStore((state) => state.back);
   const forward = useStudioStore((state) => state.forward);
@@ -164,10 +175,10 @@ export function StudioShell() {
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
-      void persistSettings(settings).catch(() => undefined);
+      void persistSettings(useStudioStore.getState().settings).catch(() => undefined);
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [settings]);
+  }, [settingsSignature]);
 
   useEffect(() => {
     if (!user) {
@@ -381,7 +392,7 @@ export function StudioShell() {
       <div className="flex min-h-0 flex-1">
         <ActivityBar />
         <div className="flex min-h-0 min-w-0 flex-1 gap-2 p-2">
-          {settings.sidebarCollapsed ? null : activity === "search" ? (
+          {sidebarCollapsed ? null : activity === "search" ? (
             <SearchSidebar />
           ) : activity === "boards" ? (
             <BoardsSidebar />
