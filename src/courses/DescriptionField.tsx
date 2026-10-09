@@ -53,7 +53,7 @@ export function DescriptionField({
           "aria-multiline": "true",
           "aria-label": "Course description",
           class:
-            "min-h-36 px-3 py-2 text-body text-studio-fg outline-none [&_em]:italic [&_li+li]:mt-1 [&_strong]:font-semibold [&_u]:underline [&_ul]:list-disc [&_ul]:pl-5",
+            "min-h-36 px-3 py-2 text-body text-studio-fg outline-none [&_em]:italic [&_li+li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_u]:underline [&_ul]:list-disc [&_ul]:pl-5",
         },
       },
       onUpdate: ({ editor }) => {

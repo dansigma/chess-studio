@@ -37,7 +37,7 @@ describe("course description", () => {
     );
   });
 
-  it("keeps underline, bullet, and ordered lists the toolbar can produce", () => {
+  it("keeps underline, bullet, and ordered lists the pipeline preserves", () => {
     assert.equal(
       sanitizeCourseHtml("<p><u>Under</u></p><ul><li>One</li></ul><ol><li>First</li></ol>"),
       "<p><u>Under</u></p><ul><li>One</li></ul><ol><li>First</li></ol>",
