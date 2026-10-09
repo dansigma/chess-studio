@@ -37,6 +37,13 @@ describe("course description", () => {
     );
   });
 
+  it("keeps underline, bullet, and ordered lists the toolbar can produce", () => {
+    assert.equal(
+      sanitizeCourseHtml("<p><u>Under</u></p><ul><li>One</li></ul><ol><li>First</li></ol>"),
+      "<p><u>Under</u></p><ul><li>One</li></ul><ol><li>First</li></ol>",
+    );
+  });
+
   it("treats an empty editor as no description", () => {
     assert.equal(sanitizeCourseHtml("<div><br></div>"), "");
     assert.equal(sanitizeCourseHtml("  A solid defense.  "), "A solid defense.");

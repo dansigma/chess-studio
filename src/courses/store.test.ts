@@ -190,7 +190,9 @@ describe("readLocalCustomCourses validation", () => {
     };
     writeRawCache(CUSTOM_COURSES_KEY, JSON.stringify([loose]));
 
-    assert.deepEqual(readLocalCustomCourses(), [{ ...makeDraft(DRAFT_A), slug: "", title: "", summary: "" }]);
+    assert.deepEqual(readLocalCustomCourses(), [
+      { ...makeDraft(DRAFT_A), slug: "", title: "", summary: "", publishedAt: null },
+    ]);
   });
 
   it("cleans junk chapter entries via parseChapters", () => {
@@ -208,6 +210,7 @@ describe("readLocalCustomCourses validation", () => {
     assert.deepEqual(readLocalCustomCourses(), [
       {
         ...makeDraft(DRAFT_A),
+        publishedAt: null,
         chapters: [{ id: "c-1", title: "One", variations: [{ id: "v-1", title: "Line", pgn: "1. e4 e5" }] }],
       },
     ]);

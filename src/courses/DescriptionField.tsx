@@ -11,8 +11,11 @@ import { sanitizeCourseHtml } from "./description";
  * SIG-893: Tiptap replaces the bespoke Selection/Range formatter.
  * StarterKit is trimmed to the toolbar surface (bold/italic/underline/
  * bullet list); everything else that `sanitizeCourseHtml` would strip
- * (headings, code, quotes, links, ordered lists, strike, hr) stays
- * disabled so the editor cannot produce markup the pipeline drops.
+ * (headings, code, quotes, links, strike, hr) stays disabled so the
+ * editor cannot produce markup the pipeline drops. Ordered lists stay
+ * enabled for parsing only (no toolbar button): the sanitizer allows
+ * `<ol>` and CourseView styles it, so legacy/pasted `<ol>` must survive
+ * `setContent`/paste instead of degrading to paragraphs.
  */
 const extensions = [
   StarterKit.configure({
@@ -24,7 +27,6 @@ const extensions = [
     heading: false,
     horizontalRule: false,
     link: false,
-    orderedList: false,
     strike: false,
     trailingNode: false,
   }),

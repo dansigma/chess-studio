@@ -102,6 +102,12 @@ export function toLocalDraftCourse(value: unknown): Course | null {
   }
   if (typeof row.publishedAt === "string" || row.publishedAt === null) {
     course.publishedAt = row.publishedAt;
+  } else {
+    // Browser-local drafts predate the SIG-861 published_at lifecycle and
+    // carry no publishedAt key; `isPublishedCourse` treats undefined as
+    // published (anon-invisible rows never reach this store), so default
+    // an explicit null (= draft) to keep the admin copy honest.
+    course.publishedAt = null;
   }
   return course;
 }
