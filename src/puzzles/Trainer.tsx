@@ -20,12 +20,12 @@ import {
   isPuzzleTheme,
   judgeMove,
   playUci,
-  PUZZLES,
   rankedPuzzles,
   sessionTarget,
   levelFromXp,
   type CompiledPuzzle,
 } from "./engine";
+import { loadPuzzleCatalog } from "./puzzle-client";
 import { puzzleGoal, solvedPraise, squareAnchor } from "./feedback";
 import { hydratePuzzleProgress, saveProgress } from "./progress";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
@@ -44,6 +44,7 @@ function clock(total: number): string {
 }
 
 function pickPuzzle(
+  puzzles: readonly CompiledPuzzle[],
   mode: PuzzleMode,
   theme: PuzzleTheme | null,
   progress: PuzzleProgress,
@@ -51,10 +52,10 @@ function pickPuzzle(
   exclude: ReadonlySet<string>,
 ): CompiledPuzzle | null {
   if (mode === "daily") {
-    return dailyPuzzle(PUZZLES, Date.now());
+    return dailyPuzzle(puzzles, Date.now());
   }
   const target = sessionTarget(progress.rating, solvedInSession, mode);
-  const ranked = rankedPuzzles(PUZZLES, target, exclude, theme ?? undefined);
+  const ranked = rankedPuzzles(puzzles, target, exclude, theme ?? undefined);
   if (ranked.length === 0) {
     return null;
   }
@@ -92,6 +93,7 @@ export function PuzzleTrainer() {
   const [gained, setGained] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const catalogRef = useRef<CompiledPuzzle[]>([]);
   const progressRef = useRef<PuzzleProgress | null>(null);
   const sessionSolvedRef = useRef(0);
   const strikesRef = useRef(0);
@@ -182,10 +184,14 @@ export function PuzzleTrainer() {
       try {
         const supabase = createBrowserSupabase();
         const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-        const loaded = await hydratePuzzleProgress(user?.id ?? null);
+        const [loaded, catalog] = await Promise.all([
+          hydratePuzzleProgress(user?.id ?? null),
+          loadPuzzleCatalog(),
+        ]);
         if (cancel) {
           return;
         }
+        catalogRef.current = catalog;
         progressRef.current = loaded;
         sessionSolvedRef.current = 0;
         exclude.current = new Set();
@@ -196,7 +202,7 @@ export function PuzzleTrainer() {
         setSessionOver(false);
         secondsRef.current = RUSH_SECONDS;
         setSecondsLeft(RUSH_SECONDS);
-        const first = pickPuzzle(mode, theme, loaded, 0, exclude.current);
+        const first = pickPuzzle(catalogRef.current, mode, theme, loaded, 0, exclude.current);
         if (!first) {
           setPuzzle(null);
           setLoadError(null);
@@ -366,7 +372,7 @@ export function PuzzleTrainer() {
     if (!current || mode === "daily") {
       return;
     }
-    const chosen = pickPuzzle(mode, theme, current, sessionSolvedRef.current, exclude.current);
+    const chosen = pickPuzzle(catalogRef.current, mode, theme, current, sessionSolvedRef.current, exclude.current);
     if (!chosen) {
       return;
     }
@@ -387,7 +393,7 @@ export function PuzzleTrainer() {
     setSessionOver(false);
     secondsRef.current = RUSH_SECONDS;
     setSecondsLeft(RUSH_SECONDS);
-    const chosen = pickPuzzle(mode, theme, current, 0, exclude.current);
+    const chosen = pickPuzzle(catalogRef.current, mode, theme, current, 0, exclude.current);
     if (!chosen) {
       return;
     }

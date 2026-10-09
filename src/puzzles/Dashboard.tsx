@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Crown } from "lucide-react";
 import { CourseChrome } from "@/src/courses/CourseChrome";
 import { Button } from "@/src/studio/ui/Button";
-import { dailyPuzzle, dateKey, levelFromXp, PUZZLES } from "./engine";
+import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
+import { loadPuzzleCatalog } from "./puzzle-client";
 import { hydratePuzzleProgress, progressSource } from "./progress";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { THEME_CARDS, THEME_LABELS, type PuzzleMode, type PuzzleProgress } from "./types";
@@ -20,6 +21,7 @@ const MODE_LABELS: Record<PuzzleMode, string> = {
 export function PuzzleDashboard() {
   const router = useRouter();
   const [progress, setProgress] = useState<PuzzleProgress | null>(null);
+  const [puzzles, setPuzzles] = useState<CompiledPuzzle[]>([]);
   const [now, setNow] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [source, setSource] = useState<"account" | "browser">("browser");
@@ -30,12 +32,16 @@ export function PuzzleDashboard() {
       try {
         const supabase = createBrowserSupabase();
         const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-        const loaded = await hydratePuzzleProgress(user?.id ?? null);
+        const [loaded, catalog] = await Promise.all([
+          hydratePuzzleProgress(user?.id ?? null),
+          loadPuzzleCatalog(),
+        ]);
         const timestamp = Date.now();
         if (cancel) {
           return;
         }
         setProgress(loaded);
+        setPuzzles(catalog);
         setNow(timestamp);
         setSource(progressSource());
         setLoadError(null);
@@ -51,7 +57,7 @@ export function PuzzleDashboard() {
     };
   }, []);
 
-  const daily = now === null ? null : dailyPuzzle(PUZZLES, now);
+  const daily = now === null ? null : dailyPuzzle(puzzles, now);
   const playedToday = Boolean(progress && now !== null && progress.daily === dateKey(now));
   const attempts = progress ? progress.solved + progress.failed : 0;
   const accuracy = progress && attempts > 0 ? Math.round((progress.solved / attempts) * 100) : null;
@@ -134,7 +140,7 @@ export function PuzzleDashboard() {
         <p className="mt-1 text-body text-studio-muted">Train one motif. These puzzles still count toward your rating.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {THEME_CARDS.map((theme) => {
-            const count = PUZZLES.filter((puzzle) => puzzle.themes.includes(theme.id)).length;
+            const count = puzzles.filter((puzzleItem) => puzzleItem.themes.includes(theme.id)).length;
             return (
               <button
                 key={theme.id}
@@ -159,7 +165,7 @@ export function PuzzleDashboard() {
         {progress && progress.history.length > 0 ? (
           <ul className="mt-3 divide-y divide-studio-border overflow-hidden rounded-xl border border-studio-border bg-studio-chrome">
             {progress.history.map((entry, index) => {
-              const puzzle = PUZZLES.find((item) => item.id === entry.id);
+              const puzzle = puzzles.find((item) => item.id === entry.id);
               const themes = puzzle?.themes.slice(0, 2).map((item) => THEME_LABELS[item]).join(" · ");
               return (
                 <li key={`${entry.id}-${entry.at}-${index}`} className="flex items-center justify-between gap-3 px-4 py-3">

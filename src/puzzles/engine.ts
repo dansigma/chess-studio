@@ -1,5 +1,4 @@
 import { Chess, type Square } from "chess.js";
-import { PUZZLE_CATALOG } from "./catalog";
 import {
   PUZZLE_MODES,
   PUZZLE_THEMES,
@@ -81,8 +80,6 @@ export function compilePuzzle(puzzle: Puzzle): CompiledPuzzle {
   }
   return { ...puzzle, moves: sans, uci, sans, endFen: chess.fen() };
 }
-
-export const PUZZLES: CompiledPuzzle[] = PUZZLE_CATALOG.map(compilePuzzle);
 
 export function materialFor(fen: string, color: "w" | "b"): number {
   const board = new Chess(fen).board();

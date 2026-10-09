@@ -12,13 +12,17 @@ import {
   judgeMove,
   levelFromXp,
   materialFor,
-  PUZZLES,
   puzzlePoints,
   rankedPuzzles,
   rate,
 } from "./engine.ts";
 import { puzzleGoal, solvedPraise, squareAnchor } from "./feedback.ts";
 import { THEME_CARDS, type PuzzleTheme } from "./types.ts";
+
+// Engine tests compile the catalog directly: `PUZZLES` lives in the
+// server-only `puzzle-data.ts` module (fetched by clients via /api/puzzles),
+// so importing it here would drag the server boundary into the suite.
+const PUZZLES = PUZZLE_CATALOG.map(compilePuzzle);
 
 test("every puzzle is a legal line that ends with the solver", () => {
   assert.equal(PUZZLES.length, PUZZLE_CATALOG.length);

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { userCanPublishCourses } from "@/src/lib/auth/course-permissions";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { getSupabasePublicKey, getSupabaseUrl, isSupabaseConfigured } from "@/src/lib/supabase/env";
+import { adminDenyDestination } from "@/src/lib/supabase/admin-gate";
 
 function redirectWithSession(url: URL, sessionResponse: NextResponse) {
   const redirect = NextResponse.redirect(url);
@@ -12,9 +13,32 @@ function redirectWithSession(url: URL, sessionResponse: NextResponse) {
   return redirect;
 }
 
+/**
+ * Pure admin-gate decision for `/courses/admin*`, unit-testable.
+ * (Moved to ./admin-gate so tests can import it without pulling next/server.)
+ */
+
+function redirectToDestination(request: NextRequest, destination: string, sessionResponse: NextResponse) {
+  const url = request.nextUrl.clone();
+  const queryIndex = destination.indexOf("?");
+  if (queryIndex === -1) {
+    url.pathname = destination;
+    url.search = "";
+  } else {
+    url.pathname = destination.slice(0, queryIndex);
+    url.search = destination.slice(queryIndex);
+  }
+  return redirectWithSession(url, sessionResponse);
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
+  const path = request.nextUrl.pathname;
   if (!isSupabaseConfigured()) {
+    const denied = adminDenyDestination(path, { configured: false, hasUser: false, canPublish: false });
+    if (denied) {
+      return redirectToDestination(request, denied, response);
+    }
     return response;
   }
   const url = getSupabaseUrl();
@@ -41,21 +65,14 @@ export async function updateSession(request: NextRequest) {
   });
 
   const { data } = await supabase.auth.getUser();
-  const path = request.nextUrl.pathname;
-  if (path === "/courses/admin" || path.startsWith("/courses/admin/")) {
-    const destination = request.nextUrl.clone();
-    if (!data.user) {
-      destination.pathname = "/login";
-      destination.search = "";
-      destination.searchParams.set("next", path);
-      return redirectWithSession(destination, response);
-    }
-    const allowed = await userCanPublishCourses(supabase, data.user);
-    if (!allowed) {
-      destination.pathname = "/courses";
-      destination.search = "";
-      return redirectWithSession(destination, response);
-    }
+  const denied = data.user
+    ? adminDenyDestination(
+        path,
+        { configured: true, hasUser: true, canPublish: await userCanPublishCourses(supabase, data.user) },
+      )
+    : adminDenyDestination(path, { configured: true, hasUser: false, canPublish: false });
+  if (denied) {
+    return redirectToDestination(request, denied, response);
   }
   return response;
 }

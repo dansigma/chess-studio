@@ -1,6 +1,11 @@
 import { importPgn } from "@/src/chess/pgn";
 import type { CourseChapter, CourseVariation } from "./types";
 
+/** True when at least one chapter holds at least one playable line. */
+export function hasPlayableContent(chapters: CourseChapter[]): boolean {
+  return chapters.some((chapter) => chapter.variations.length > 0);
+}
+
 export function moveListItem<T>(items: T[], index: number, direction: -1 | 1): T[] {
   const next = index + direction;
   if (next < 0 || next >= items.length) {

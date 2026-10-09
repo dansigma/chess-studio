@@ -7,7 +7,7 @@ import { IconButton, Button } from "@/src/studio/ui/Button";
 import { chapterTitleFromPgn, variationsFromChapterPgn } from "./chapter-pgn";
 import { CourseChrome } from "./CourseChrome";
 import { DescriptionField } from "./DescriptionField";
-import { moveListItem, normalizeChapters } from "./draft";
+import { hasPlayableContent, moveListItem, normalizeChapters } from "./draft";
 import { currentUserCanPublish, publishCourse, removePublishedCourse, unpublishCourse } from "./publish";
 import { findPublishedConflict, isCourseColor, isCourseId, isCourseTheme, slugify } from "./catalog";
 import {
@@ -218,6 +218,10 @@ export function AdminView() {
       setError(normalized.error);
       return;
     }
+    if (!hasPlayableContent(normalized.chapters)) {
+      setError("Add at least one chapter with a playable line before publishing.");
+      return;
+    }
     setSaving(true);
     const result = await publishCourse({
       ...draft,
@@ -370,6 +374,15 @@ export function AdminView() {
         >
           <h1 className="text-xl font-semibold text-studio-fg">{draft.title.trim() || "Create a course"}</h1>
           <p className="text-caption text-studio-muted">/courses/{draft.slug.trim() || slugify(draft.title) || "…"}</p>
+          <label className="block text-caption text-studio-muted">
+            Address
+            <input
+              value={draft.slug}
+              onChange={(event) => setDraft({ ...draft, slug: event.target.value })}
+              placeholder={slugify(draft.title) || "my-course"}
+              className="mt-1 w-full rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-fg"
+            />
+          </label>
           <label className="block text-caption text-studio-muted">
             Title
             <input
