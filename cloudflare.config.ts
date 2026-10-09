@@ -20,6 +20,8 @@ export default defineConfig({
     env: {
       ASSETS: bindings.assets(),
       ENGINE: bindings.r2({ name: "chess-studio-engine" }),
+      // Data cache do ISR (courses revalidate=60) — ver vite.config.ts.
+      VINEXT_KV_CACHE: bindings.kv({ id: "2abf45b38f9943b792848ec48562282d" }),
     },
   }),
 });

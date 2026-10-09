@@ -39,6 +39,7 @@ export function BoardPanel() {
   const fen = useBoardFen();
   const lastMoveKey = useBoardLastMoveSquares();
   const enginePreview = useStudioStore((state) => state.enginePreview);
+  const setEnginePreview = useStudioStore((state) => state.setEnginePreview);
   const engineEval = useStudioStore((state) => state.engineEval);
   // SIG-857: primitive settings picks — the old `state.settings` object
   // re-rendered the board on every preference change (e.g. move sound).
@@ -265,6 +266,9 @@ export function BoardPanel() {
             },
             onSquareClick: ({ square, piece }) => {
               if (enginePreview) {
+                // Never leave the user in a dead board: a lingering engine
+                // preview (hover that did not clear) must not swallow clicks.
+                setEnginePreview(null);
                 return;
               }
               if (selected && dests.includes(square)) {
@@ -281,7 +285,13 @@ export function BoardPanel() {
               setSelected(null);
             },
             onSquareMouseDown: ({ square }, event) => {
-              if (enginePreview || event.button !== 2) {
+              if (enginePreview) {
+                // First press on the board clears a stale engine preview so
+                // the next click/drag is not silently blocked.
+                setEnginePreview(null);
+                return;
+              }
+              if (event.button !== 2) {
                 return;
               }
               pending.current = {
