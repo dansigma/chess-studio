@@ -4,6 +4,7 @@ import {
   START_FEN,
   canMakeMainline,
   canPromote,
+  cloneTree,
   createEmptyTree,
   deleteAfter,
   deleteVariation,
@@ -277,6 +278,18 @@ test("flattenMainLine follows children[0]", () => {
     ["e4", "e5"],
   );
   assert.deepEqual(flattenMainLine(createEmptyTree()), []);
+});
+
+test("cloneTree deep-clones (mutating the clone leaves the original alone)", () => {
+  const tree = sampleTree();
+  const clone = cloneTree(tree);
+  assert.deepEqual(clone, tree);
+  assert.notEqual(clone, tree);
+  clone.children[0].children.push(
+    node({ uci: "g8f6", san: "Nf6", fen: "fen-nf6", from: "g8", to: "f6" }),
+  );
+  assert.equal(getNodeAt(tree, [0])?.children.length, 2);
+  assert.equal(getNodeAt(clone, [0])?.children.length, 3);
 });
 
 test("plyColor and moveNumberForPath derive turn info from the start FEN", () => {

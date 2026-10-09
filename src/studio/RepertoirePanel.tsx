@@ -3,12 +3,12 @@
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { repertoireMoves } from "@/src/chess/repertoire";
 import { getFenAt, getNodeAt } from "@/src/chess/tree";
+import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 
 export function RepertoirePanel() {
-  const board = useStudioStore((state) => {
-    return state.boards.find((item) => item.id === state.activeBoardId) ?? state.boards[0];
-  });
+  // SIG-857: shared active-board selector instead of the inline find.
+  const board = useActiveBoard();
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const goPath = useStudioStore((state) => state.goPath);
   const training = useStudioStore((state) => state.training);

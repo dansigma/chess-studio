@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowRightToLine,
   ArrowUp,
@@ -27,10 +27,10 @@ import {
   type TreeNode,
 } from "@/src/chess/tree";
 import type { GameHeaders } from "@/src/chess/pgn";
-import { useActiveBoard } from "@/src/store/hooks";
+import { useActiveBoard, useActivePathKey } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { formatMoveSuffix, formatPositionGlyphs } from "@/src/chess/nags";
-import { formatSan } from "@/src/chess/move-notation";
+import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
 import { MoveGlyphMenu, type GlyphMenuState } from "./MoveGlyphMenu";
 import { Button, IconButton } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
@@ -71,11 +71,16 @@ function CommentText({ text }: { text?: string }) {
   return <span className="px-1 text-studio-comment">{text}</span>;
 }
 
-function MoveToken({
+// SIG-857: memoized — a notation tree renders N tokens; without memo every
+// token re-rendered on each cursor move. Props are primitives + stable
+// callbacks; the style prop is hoisted from the panel root so all tokens
+// share one subscription instead of N.
+const MoveToken = memo(function MoveToken({
   san,
   color,
   nags,
   active,
+  style,
   onClick,
   onAnnotate,
 }: {
@@ -83,10 +88,10 @@ function MoveToken({
   color: "w" | "b";
   nags?: number[];
   active: boolean;
+  style: MoveNotation;
   onClick: () => void;
   onAnnotate: (event: React.MouseEvent) => void;
 }) {
-  const style = useStudioStore((state) => state.settings.moveNotation);
   const suffix = formatMoveSuffix(nags);
   const rest = formatPositionGlyphs(nags);
   return (
@@ -109,13 +114,16 @@ function MoveToken({
       {rest ? <span className="pl-0.5 text-dense text-studio-muted">{rest}</span> : null}
     </span>
   );
-}
+});
 
-function Line({
+const Line = memo(function Line({
   nodes,
   parentPath,
   startFen,
   collapsed,
+  currentPath,
+  style,
+  goPath,
   onToggleCollapse,
   onAnnotate,
   continuation = false,
@@ -124,16 +132,13 @@ function Line({
   parentPath: Path;
   startFen: string;
   collapsed: Set<string>;
+  currentPath: string;
+  style: MoveNotation;
+  goPath: (path: Path) => void;
   onToggleCollapse: (key: string) => void;
   onAnnotate: (path: Path, event: React.MouseEvent) => void;
   continuation?: boolean;
 }) {
-  const currentPath = useStudioStore((state) => {
-    const board =
-      state.boards.find((item) => item.id === state.activeBoardId) ?? state.boards[0];
-    return pathKey(board.path);
-  });
-  const goPath = useStudioStore((state) => state.goPath);
   if (!nodes[0]) {
     return null;
   }
@@ -175,6 +180,7 @@ function Line({
         color={color}
         nags={node.nags}
         active={currentPath === pathKey(nodePath)}
+        style={style}
         onClick={() => goPath(nodePath)}
         onAnnotate={(event) => onAnnotate(nodePath, event)}
       />,
@@ -214,6 +220,7 @@ function Line({
               color={color}
               nags={variation.nags}
               active={currentPath === pathKey(variationPath)}
+              style={style}
               onClick={() => goPath(variationPath)}
               onAnnotate={(event) => onAnnotate(variationPath, event)}
             />
@@ -224,6 +231,9 @@ function Line({
                 parentPath={variationPath}
                 startFen={startFen}
                 collapsed={collapsed}
+                currentPath={currentPath}
+                style={style}
+                goPath={goPath}
                 onToggleCollapse={onToggleCollapse}
                 onAnnotate={onAnnotate}
                 continuation
@@ -239,7 +249,7 @@ function Line({
   }
 
   return <>{items}</>;
-}
+});
 
 function PlayerName({
   name,
@@ -422,6 +432,9 @@ export function NotationPanel() {
   }, [commitDraftComment, commentOpen, commentBeforeOpen]);
 
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
+  // SIG-857: single shared path-key subscription — Line rows receive it as a
+  // prop instead of each subscribing with an inline find.
+  const currentPath = useActivePathKey();
   const moveLabel = useMemo(() => {
     if (!current) {
       return "start position";
@@ -431,7 +444,9 @@ export function NotationPanel() {
     return `${number}${color === "w" ? "." : "..."} ${formatSan(current.san, moveNotation, color)}`;
   }, [board.path, board.tree.startFen, current, moveNotation]);
 
-  function toggleCollapse(key: string) {
+  // SIG-857: stabilized so memoized Line rows skip re-render unless their
+  // props (nodes/path/collapsed/currentPath) actually change.
+  const handleToggleCollapse = useCallback((key: string) => {
     setCollapsed((currentSet) => {
       const next = new Set(currentSet);
       if (next.has(key)) {
@@ -441,7 +456,15 @@ export function NotationPanel() {
       }
       return next;
     });
-  }
+  }, []);
+
+  const handleAnnotate = useCallback(
+    (path: Path, event: React.MouseEvent) => {
+      goPath(path);
+      setGlyphMenu({ x: event.clientX, y: event.clientY, path });
+    },
+    [goPath],
+  );
 
   return (
     <div className="relative flex h-full flex-col bg-studio-panel text-sm text-studio-fg">
@@ -539,11 +562,11 @@ export function NotationPanel() {
               parentPath={[]}
               startFen={board.tree.startFen}
               collapsed={collapsed}
-              onToggleCollapse={toggleCollapse}
-              onAnnotate={(path, event) => {
-                goPath(path);
-                setGlyphMenu({ x: event.clientX, y: event.clientY, path });
-              }}
+              currentPath={currentPath}
+              style={moveNotation}
+              goPath={goPath}
+              onToggleCollapse={handleToggleCollapse}
+              onAnnotate={handleAnnotate}
             />
           </div>
         )}

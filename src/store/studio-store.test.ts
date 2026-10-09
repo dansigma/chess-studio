@@ -4,7 +4,7 @@ import { START_FEN, createEmptyTree } from "../chess/tree.ts";
 import { loadLocalBookmarks, saveLocalBookmarks, type PlayerBookmark } from "../lib/player-bookmarks.ts";
 import type { PlayerGame, PlayerHit } from "../lib/player-types.ts";
 import { EMPTY_FILES, loadLocalFiles, saveLocalFiles, type FilesLibrary } from "../lib/user-files.ts";
-import { useStudioStore, type BoardSession, type StudioSettings } from "./studio-store.ts";
+import { useStudioStore, selectActiveBoard, type BoardSession, type StudioSettings } from "./studio-store.ts";
 
 // Regression coverage for the cross-user residue fix (spec t_c7273126):
 // setUser resets the previous user's session state on sign-out and on a
@@ -339,4 +339,19 @@ test("a same-user refresh and a sign-in from signed out leave the session untouc
   resetStore();
   useStudioStore.getState().setUser(null);
   assert.deepEqual(writes, [], "no cache purge on null -> null");
+});
+
+test("SIG-857: initial activeBoardId matches the placeholder board id", () => {
+  assert.equal(initial.activeBoardId, initialBoard.id, "no empty-string active board id");
+  assert.equal(selectActiveBoard(initial), initialBoard, "selector resolves the initial board");
+});
+
+test("SIG-857: selectActiveBoard falls back to boards[0] on a stale id", () => {
+  resetStore();
+  const state = useStudioStore.getState();
+  assert.equal(
+    selectActiveBoard({ boards: state.boards, activeBoardId: "stale-id" }),
+    state.boards[0],
+    "stale activeBoardId resolves to the first board",
+  );
 });

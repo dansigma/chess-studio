@@ -115,7 +115,7 @@ export function getLastMove(
   return { from: node.from, to: node.to };
 }
 
-function cloneTree(tree: GameTree): GameTree {
+export function cloneTree(tree: GameTree): GameTree {
   return structuredClone(tree);
 }
 
