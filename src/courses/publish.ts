@@ -6,8 +6,8 @@ import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 import { courseOwnershipError, courseSlugError, isCourseColor, isCourseId, isCourseTheme, parseChapters, slugify } from "./catalog";
 import { sanitizeCourseHtml } from "./description";
-import { normalizeChapters } from "./draft";
-import { courseImageUrl, courseVideo } from "./media";
+import { hasPlayableContent, normalizeChapters } from "./draft";
+import { courseCoverUrl, courseVideo } from "./media";
 import { SEED_COURSES } from "./seed";
 import type { Course, CourseChapter } from "./types";
 
@@ -78,20 +78,26 @@ function checkedCourse(input: Course): { course: Course; chapters: CourseChapter
     return { error: "The description is too long." };
   }
   const coverInput = input.coverUrl?.trim() ?? "";
-  const coverUrl = courseImageUrl(coverInput);
+  const coverUrl = courseCoverUrl(coverInput);
   if (coverInput && !coverUrl) {
-    return { error: "The cover image needs an https link." };
+    return { error: "The cover image must come from an allowed host." };
   }
   const videoInput = input.videoUrl?.trim() ?? "";
   if (videoInput && !courseVideo(videoInput)) {
     return { error: "The video needs a YouTube, Vimeo, or https video file link." };
   }
-  const slug = (input.slug.trim() || slugify(title)).slice(0, 60);
+  const slug = (slugify(input.slug.trim()) || slugify(title)).slice(0, 60);
+  if (!slug) {
+    return { error: "The course needs an address." };
+  }
   const normalized = normalizeChapters(parseChapters(input.chapters));
   if ("error" in normalized) {
     return normalized;
   }
   const chapters = normalized.chapters;
+  if (!hasPlayableContent(chapters)) {
+    return { error: "Add at least one chapter with a playable line before publishing." };
+  }
   return {
     course: {
       ...input,
@@ -116,13 +122,23 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
   if ("error" in checked) {
     return { ok: false, error: checked.error };
   }
-  const { data: existing, error: listError } = await gate.admin.from("courses").select("id, slug");
-  if (listError) {
-    return { ok: false, error: databaseError(listError) };
+  const seedCollision = courseSlugError(checked.course.slug, SEED_COURSES, checked.course.id);
+  if (seedCollision) {
+    return { ok: false, error: seedCollision };
   }
-  const slugError = courseSlugError(checked.course.slug, [...SEED_COURSES, ...(existing ?? [])], checked.course.id);
+  // Point query by slug: the DB unique constraint on slug is the final race
+  // arbiter (23505), this read is a fast pre-check, not a full-table scan.
+  // The eq filter guarantees every row carries the queried slug, so a row
+  // with a different id is a collision; our own id means re-publishing.
+  const { data: slugRows, error: slugError } = await gate.admin
+    .from("courses")
+    .select("id")
+    .eq("slug", checked.course.slug);
   if (slugError) {
-    return { ok: false, error: slugError };
+    return { ok: false, error: databaseError(slugError) };
+  }
+  if ((slugRows ?? []).some((row) => row.id !== checked.course.id)) {
+    return { ok: false, error: "That address is already used by a course." };
   }
   const { data: existingRow, error: ownershipReadError } = await gate.admin
     .from("courses")

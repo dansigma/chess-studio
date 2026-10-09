@@ -24,6 +24,43 @@ export function courseImageUrl(value: string | null | undefined): string | null 
   return httpsUrl(value)?.toString() ?? null;
 }
 
+/** Hosts new course covers may come from at publish time. */
+export const COURSE_COVER_HOSTS: ReadonlySet<string> = new Set(["images.unsplash.com"]);
+
+/** Storage hostname derived from the configured Supabase URL (if any). */
+function supabaseStorageHost(): string | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  if (!url) {
+    return null;
+  }
+  try {
+    const host = new URL(url).hostname;
+    return host || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Strict cover validator for the publish gate: https + allowlisted host.
+ * `courseImageUrl` stays lenient so existing published covers keep rendering.
+ */
+export function courseCoverUrl(value: string | null | undefined): string | null {
+  const url = httpsUrl(value);
+  if (!url) {
+    return null;
+  }
+  const host = url.hostname.toLowerCase();
+  if (COURSE_COVER_HOSTS.has(host)) {
+    return url.toString();
+  }
+  const storageHost = supabaseStorageHost()?.toLowerCase();
+  if (storageHost && (host === storageHost || host.endsWith(`.${storageHost.replace(/^\./, "")}`))) {
+    return url.toString();
+  }
+  return null;
+}
+
 function youtubeId(url: URL): string | null {
   const host = url.hostname.replace(/^www\./, "").replace(/^m\./, "");
   if (host === "youtu.be") {

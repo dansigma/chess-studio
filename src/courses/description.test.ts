@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { courseSummaryText, sanitizeCourseHtml } from "./description.ts";
-import { normalizeChapters } from "./draft.ts";
+import { hasPlayableContent, normalizeChapters } from "./draft.ts";
 
 describe("course description", () => {
   it("keeps bold and italic and drops scripts", () => {
@@ -73,5 +73,20 @@ describe("course draft", () => {
       return;
     }
     assert.equal(result.chapters[0]?.variations.length, 1);
+  });
+
+  it("requires a chapter with a playable line before publishing", () => {
+    assert.equal(hasPlayableContent([]), false);
+    assert.equal(
+      hasPlayableContent([
+        { id: "ch-1", title: "Empty", variations: [] },
+        { id: "ch-2", title: "Also empty", variations: [] },
+      ]),
+      false,
+    );
+    assert.equal(
+      hasPlayableContent([{ id: "ch-1", title: "Jobava", variations: [{ id: "v", title: "Main", pgn: "1. d4 d5" }] }]),
+      true,
+    );
   });
 });
