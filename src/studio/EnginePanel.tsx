@@ -16,10 +16,10 @@ import {
   positionAfterPv,
   scoreNumber,
   evalBarPercent,
-  StockfishEngine,
   supportsEngineThreads,
   type EngineInfo,
 } from "@/src/engine/stockfish-client";
+import { acquire, type SharedEngineLease } from "@/src/engine/shared-engine";
 import { useActiveFen, useSideToMove } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { fenKey } from "@/src/chess/tree";
@@ -63,7 +63,7 @@ export function EnginePanel() {
   // wait) and the last displayed eval (held instead of zeroed on fresh FENs).
   const cachedForFen = useStudioStore((state) => state.evalByFen[fenKey(fen)]);
   const heldEval = useStudioStore((state) => state.engineEval);
-  const engineRef = useRef<StockfishEngine | null>(null);
+  const engineRef = useRef<SharedEngineLease | null>(null);
   const [paused, setPaused] = useState(false);
   const [runId, setRunId] = useState(0);
   const [coresOpen, setCoresOpen] = useState(false);
@@ -83,20 +83,19 @@ export function EnginePanel() {
   });
 
   useEffect(() => {
-    const instance = new StockfishEngine(engineBuild);
-    engineRef.current = instance;
-    instance.start();
-    const unsubscribe = instance.subscribe(setInfo);
+    const lease = acquire("engine", engineBuild);
+    engineRef.current = lease;
+    const unsubscribe = lease.subscribe(setInfo);
     return () => {
       unsubscribe();
-      instance.dispose();
+      lease.release();
       engineRef.current = null;
     };
   }, [engineBuild]);
 
   useEffect(() => {
     if (paused) {
-      engineRef.current?.stopSearch();
+      engineRef.current?.stop();
       return;
     }
     engineRef.current?.analyze(fen, depthTarget, multiPv, threads);

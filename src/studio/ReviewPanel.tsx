@@ -21,7 +21,8 @@ import {
 import { isNullMoveToken } from "@/src/chess/null-move";
 import { dividePhases, phaseAt, type GamePhase } from "@/src/chess/phases";
 import { getNodeAt, variationPoints, type Path } from "@/src/chess/tree";
-import { defaultEngineThreads, scoreNumber, StockfishEngine, type EngineInfo } from "@/src/engine/stockfish-client";
+import { defaultEngineThreads, scoreNumber, type EngineInfo } from "@/src/engine/stockfish-client";
+import { acquire } from "@/src/engine/shared-engine";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "./ui/Button";
@@ -96,8 +97,11 @@ export function ReviewPanel() {
     if (!running || setupMode || points.length < 2) {
       return;
     }
-    const engine = new StockfishEngine(engineBuild);
-    engine.start();
+    const lease = acquire("review", engineBuild);
+    const engine = {
+      subscribe: lease.subscribe.bind(lease),
+      analyze: lease.analyze.bind(lease),
+    };
     let cancelled = false;
     let unsubscribe: () => void = () => undefined;
 
@@ -251,7 +255,7 @@ export function ReviewPanel() {
     return () => {
       cancelled = true;
       unsubscribe();
-      engine.dispose();
+      lease.release();
     };
   }, [board.tree, engineBuild, engineThreads, points, running, setupMode]);
 
