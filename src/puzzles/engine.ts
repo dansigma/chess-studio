@@ -104,13 +104,16 @@ export function dateKey(now: number): string {
   return `${date.getUTCFullYear()}-${month}-${day}`;
 }
 
-export function dailyPuzzle(puzzles: readonly CompiledPuzzle[], now: number): CompiledPuzzle {
+export function dailyPuzzle(puzzles: readonly CompiledPuzzle[], now: number): CompiledPuzzle | null {
+  if (puzzles.length === 0) {
+    return null;
+  }
   const key = dateKey(now);
   let hash = 0;
   for (let index = 0; index < key.length; index += 1) {
     hash = (Math.imul(hash, 33) + key.charCodeAt(index)) >>> 0;
   }
-  return puzzles[hash % puzzles.length] ?? puzzles[0];
+  return puzzles[hash % puzzles.length] ?? null;
 }
 
 export function rate(user: number, puzzle: number, success: boolean): number {

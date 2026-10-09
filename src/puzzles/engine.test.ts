@@ -116,7 +116,7 @@ test("rated success updates rating and streak", () => {
 test("the daily puzzle is stable and counts once", () => {
   const now = new Date(2026, 8, 28, 12).getTime();
   const later = new Date(2026, 8, 28, 18).getTime();
-  assert.equal(dailyPuzzle(PUZZLES, now).id, dailyPuzzle(PUZZLES, later).id);
+  assert.equal(dailyPuzzle(PUZZLES, now)?.id, dailyPuzzle(PUZZLES, later)?.id);
   const once = applyResult(emptyProgress(), {
     id: "queen-corridor",
     mode: "daily",
@@ -136,6 +136,11 @@ test("the daily puzzle is stable and counts once", () => {
   assert.equal(twice.solved, 1);
   assert.equal(twice.rating, 1200);
   assert.equal(twice.daily, "2026-09-28");
+});
+
+test("the daily puzzle returns null for an empty catalog", () => {
+  const now = new Date(2026, 8, 28, 12).getTime();
+  assert.equal(dailyPuzzle([], now), null);
 });
 
 test("dateKey uses the UTC calendar day", () => {
