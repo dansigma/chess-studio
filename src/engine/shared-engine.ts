@@ -16,6 +16,16 @@
 // (the SIG-851 path).
 //
 // `StockfishEngine` itself is consumed as-is and left untouched.
+//
+// Natural completion is detected by a service-owned tap subscription on the
+// underlying client (attached in `ensureUnderlying`, cleared by `dispose`).
+// When the active search finishes on its own (`running` false) with waiters
+// queued, the tap schedules promotion on a microtask. The deferral matters:
+// the completion emit is still being delivered to lease wrappers, so
+// promoting synchronously would retarget `activeSlot` before the owner sees
+// its own completion snapshot (Review/Graph treat `!running` as finish).
+// The microtask re-validates live state and aborts if another slot took over
+// meanwhile (captured-slot guard).
 
 import {
   StockfishEngine,
@@ -64,9 +74,27 @@ let activeSlot: EngineSlot | null = null;
 const pendingBySlot = new Map<EngineSlot, AnalyzeParams>();
 const lastParamsBySlot = new Map<EngineSlot, AnalyzeParams>();
 const liveLeases = new Set<LeaseImpl>();
+let tapUnsubscribe: (() => void) | null = null;
+
+/** Schedule promotion when the active search completes on its own. */
+function maybeAutoPromoteOnCompletion(): void {
+  if (!underlying || activeSlot === null || pendingBySlot.size === 0) {
+    return;
+  }
+  const owner = activeSlot;
+  void Promise.resolve().then(() => {
+    if (!underlying || activeSlot !== owner || pendingBySlot.size === 0) {
+      return;
+    }
+    activeSlot = null;
+    promote();
+  });
+}
 
 function ensureUnderlying(build: EngineBuild): StockfishEngine {
   if (currentBuild !== build) {
+    tapUnsubscribe?.();
+    tapUnsubscribe = null;
     underlying?.dispose();
     underlying = null;
     currentBuild = build;
@@ -76,6 +104,13 @@ function ensureUnderlying(build: EngineBuild): StockfishEngine {
   }
   if (!underlying) {
     underlying = new StockfishEngine(build);
+    // Service tap: runs before any lease wrapper's listener (attached first),
+    // never delivers to panels, only detects natural completion.
+    tapUnsubscribe = underlying.subscribe((snapshot) => {
+      if (!snapshot.running && snapshot.ready && !snapshot.failed) {
+        maybeAutoPromoteOnCompletion();
+      }
+    });
   }
   return underlying;
 }
@@ -190,8 +225,11 @@ class LeaseImpl implements SharedEngineLease {
     lastParamsBySlot.delete(this.slot);
     pendingBySlot.delete(this.slot);
     if (activeSlot === this.slot) {
-      underlying.stopSearch();
+      // Clear first: stopSearch() emits synchronously (running false), and
+      // the wrapper may promote a waiter during that emit. Clearing first
+      // keeps the promotion instead of clobbering it.
       activeSlot = null;
+      underlying.stopSearch();
       promote();
     }
   };
@@ -209,10 +247,18 @@ class LeaseImpl implements SharedEngineLease {
     pendingBySlot.delete(this.slot);
     lastParamsBySlot.delete(this.slot);
     if (activeSlot === this.slot) {
+      // Same reentrancy note as stop(): release() unsubscribes its own
+      // wrapper first, but other slots' wrappers are still attached during
+      // the synchronous stopSearch() emit — they may promote a waiter.
+      // Stop the orphaned search so the worker doesn't burn CPU on a result
+      // nobody owns; a waiter (if any) is promoted right after.
       activeSlot = null;
+      underlying?.stopSearch();
       promote();
     }
     if (liveLeases.size === 0) {
+      tapUnsubscribe?.();
+      tapUnsubscribe = null;
       underlying?.dispose();
       underlying = null;
       currentBuild = null;
@@ -232,6 +278,8 @@ export function acquire(slot: EngineSlot, build: EngineBuild): SharedEngineLease
 
 /** Test-only: tear down all module state between cases. */
 export function resetSharedEngineForTests(): void {
+  tapUnsubscribe?.();
+  tapUnsubscribe = null;
   underlying?.dispose();
   underlying = null;
   currentBuild = null;

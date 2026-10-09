@@ -85,6 +85,20 @@ function activeSearch(lease: SharedEngineLease, fen: string): void {
   driveToSearch(worker());
 }
 
+/** Emit a natural search completion: bestmove then the final info lines. */
+function completeSearch(
+  w: FakeInstance,
+  heard: { bestmove: string; info: string },
+): void {
+  w.emit(heard.bestmove);
+  w.emit(heard.info);
+}
+
+const COMPLETION = {
+  bestmove: "bestmove e2e4",
+  info: "info depth 12 seldepth 16 multipv 1 score cp 35 nodes 100 nps 1000 pv e2e4 e7e5",
+};
+
 test("one underlying worker for three leases of the same build", () => {
   setup();
   const engine = acquire("engine", "lite");
@@ -258,6 +272,56 @@ test("analyze-before-subscribe replays running state (Review contract)", () => {
   assert.equal((seen as EngineInfo | null)?.fen, FEN_A);
   unsubscribe();
   review.release();
+});
+
+test("queued waiter starts when the active search completes naturally", async () => {
+  setup();
+  const engine = acquire("engine", "lite");
+  const graph = acquire("graph", "lite");
+  activeSearch(engine, FEN_A);
+  graph.analyze(FEN_B, 12, 1, 1);
+  const w = worker();
+  w.sent.length = 0;
+  // The client's go-depth search finishes on its own: bestmove, then a final
+  // info line with running false. The queued graph search must start without
+  // any further stop/release from the owner. Promotion is deferred to a
+  // microtask so the owner's own completion snapshot is delivered first.
+  completeSearch(w, COMPLETION);
+  await Promise.resolve();
+  await Promise.resolve();
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_B}`));
+  assert.ok(w.sent.some((msg) => msg.startsWith("go depth")));
+  engine.release();
+  graph.release();
+});
+
+test("stop from the active slot promotes without clobbering (reentrancy)", () => {
+  setup();
+  const engine = acquire("engine", "lite");
+  const graph = acquire("graph", "lite");
+  activeSearch(engine, FEN_A);
+  graph.analyze(FEN_B, 12, 1, 1);
+  const w = worker();
+  w.sent.length = 0;
+  // stopSearch() clears activeSlot BEFORE emitting synchronously, so the
+  // promotion to the waiter during the emit survives (no clobbering).
+  engine.stop();
+  assert.ok(w.sent.includes("stop"));
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_B}`));
+  engine.release();
+  graph.release();
+});
+
+test("release from the active slot stops the orphaned search", () => {
+  setup();
+  const engine = acquire("engine", "lite");
+  activeSearch(engine, FEN_A);
+  const w = worker();
+  w.sent.length = 0;
+  engine.release();
+  assert.ok(w.sent.includes("stop"));
 });
 
 test("slots typecheck as the EngineSlot union", () => {
