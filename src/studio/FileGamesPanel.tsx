@@ -32,12 +32,15 @@ export function FileGamesPanel() {
           <button
             key={game.id}
             type="button"
-            className={`block w-full truncate px-3 py-1.5 text-left hover:bg-studio-hover-subtle ${
+            className={`flex w-full items-baseline justify-between gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle ${
               game.id === gameId ? "bg-studio-selected" : ""
             }`}
             onClick={() => openFileGame(game)}
           >
-            {game.title}
+            <span className="min-w-0 flex-1 truncate">{game.title}</span>
+            {game.date ? (
+              <span className="shrink-0 text-studio-faint">{game.date}</span>
+            ) : null}
           </button>
         ))}
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { formatYearMonth } from "@/src/lib/game-date";
 import type { PlayerGame, PlayerGamesResponse } from "@/src/lib/player-types";
 import { useStudioStore } from "@/src/store/studio-store";
 import { ResultMark } from "./ResultMark";
@@ -104,12 +105,13 @@ export function PlayerGamesPanel() {
           {notice}
         </div>
       ) : null}
-      <div className="grid grid-cols-[44px_1fr_44px_1fr_44px] gap-2 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
+      <div className="grid grid-cols-[44px_1fr_44px_1fr_44px_64px] gap-2 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
         <span>Res.</span>
         <span>White</span>
         <span></span>
         <span>Black</span>
         <span></span>
+        <span>Date</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto" aria-busy={loading || undefined}>
         {loading ? (
@@ -123,7 +125,7 @@ export function PlayerGamesPanel() {
         {visible.map((game) => (
           <button
             key={game.id}
-            className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px] items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle"
+            className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px_64px] items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle"
             onClick={() => openGame(game)}
           >
             <ResultMark winner={game.winner} />
@@ -131,6 +133,7 @@ export function PlayerGamesPanel() {
             <span className="text-right text-studio-faint">{game.whiteRating ?? ""}</span>
             <span className="truncate">{game.blackName}</span>
             <span className="text-right text-studio-faint">{game.blackRating ?? ""}</span>
+            <span className="truncate text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
           </button>
         ))}
       </div>
