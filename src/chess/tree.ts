@@ -153,6 +153,26 @@ export function playMove(
   return { tree: next, path: [...path, siblings.length - 1] };
 }
 
+// Inserts one engine PV as a variation branching from the fixed base path.
+// Folds `playMove` over the moves, advancing the tip each step, so a line
+// chains correctly while shared prefixes and identical lines reuse existing
+// UCI children (dedupe for free). Never mutates the input; an empty `moves`
+// list returns it unchanged.
+export function insertLine(
+  tree: GameTree,
+  path: Path,
+  moves: Pick<TreeNode, "san" | "uci" | "fen" | "from" | "to">[],
+): GameTree {
+  let next = tree;
+  let tip = [...path];
+  for (const move of moves) {
+    const result = playMove(next, tip, move);
+    next = result.tree;
+    tip = result.path;
+  }
+  return next;
+}
+
 export function goBack(path: Path): Path {
   return path.slice(0, -1);
 }

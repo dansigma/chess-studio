@@ -118,6 +118,7 @@ export type StudioState = {
   setActiveBoard: (id: string) => void;
   makeUciMove: (from: string, to: string, promotion?: string) => boolean;
   playUciSequence: (ucis: string[]) => void;
+  insertEngineLines: (fen: string, pvUcisList: string[][]) => void;
   setEnginePreview: (preview: EnginePreview | null) => void;
   setEngineEval: (value: EngineEval | null) => void;
   putEvalCache: (fen: string, value: CachedEval) => void;

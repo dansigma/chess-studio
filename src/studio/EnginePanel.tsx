@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Cpu, Pause, Play } from "lucide-react";
+import { Cpu, ListPlus, Pause, Play } from "lucide-react";
 import { useMenuKeyDown } from "./ui/use-menu-keyboard";
 import {
   ENGINE_BUILD_INFO,
@@ -53,6 +53,7 @@ export function EnginePanel() {
   const setEngineThreads = useStudioStore((state) => state.setEngineThreads);
   const setEngineBuild = useStudioStore((state) => state.setEngineBuild);
   const playUciSequence = useStudioStore((state) => state.playUciSequence);
+  const insertEngineLines = useStudioStore((state) => state.insertEngineLines);
   const setEnginePreview = useStudioStore((state) => state.setEnginePreview);
   const setEngineEval = useStudioStore((state) => state.setEngineEval);
   const putEvalCache = useStudioStore((state) => state.putEvalCache);
@@ -303,6 +304,18 @@ export function EnginePanel() {
           onDecrement={() => setMultiPv(multiPv - 1)}
           onIncrement={() => setMultiPv(multiPv + 1)}
         />
+        <IconButton
+          label="Insert all engine lines into notation"
+          disabled={lines.length === 0}
+          onClick={() =>
+            insertEngineLines(
+              fen,
+              lines.map((line) => line.pvUci),
+            )
+          }
+        >
+          <ListPlus size={14} />
+        </IconButton>
       </div>
 
       <div className="flex min-h-0 flex-1">
