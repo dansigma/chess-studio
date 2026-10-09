@@ -30,8 +30,16 @@ export function withActive(
   activeBoardId: string,
   updater: (board: BoardSession) => BoardSession,
 ): BoardSession[] {
+  // Resolve to the SAME board the UI reads: selectActiveBoard() falls back to
+  // boards[0] when activeBoardId does not match. Without the same fallback
+  // here, a stale activeBoardId turns every write into a silent no-op while
+  // reads keep rendering boards[0] — the board looks healthy but no move,
+  // navigation, or load ever lands.
+  const target = boards.some((board) => board.id === activeBoardId)
+    ? activeBoardId
+    : boards[0]?.id;
   return boards.map((board) =>
-    board.id === activeBoardId ? updater(board) : board,
+    board.id === target ? updater(board) : board,
   );
 }
 

@@ -191,6 +191,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       soundForAdvance(get, previous);
       return true;
     } catch {
+      // Surface the failure instead of dying silently: reaching here means a
+      // legal-looking move could not be applied (corrupt tree/path state).
+      set({ statusMessage: "That move could not be applied." });
       return false;
     }
   },
