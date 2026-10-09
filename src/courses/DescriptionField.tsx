@@ -24,7 +24,6 @@ const extensions = [
     heading: false,
     horizontalRule: false,
     link: false,
-    listKeymap: false,
     orderedList: false,
     strike: false,
     trailingNode: false,
