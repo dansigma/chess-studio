@@ -1,8 +1,11 @@
 import { bindings, defineConfig, defineWorker } from "cf/config";
 
+// ⚠️ Branch `staging`: deploy do ambiente de validação (worker próprio, sem
+// domínios custom — alcançável em chess-studio-staging.<account>.workers.dev).
+// O app de produção (name `chess-studio` + xadrez.digital) é o do master.
 export default defineConfig({
   worker: defineWorker({
-    name: "chess-studio",
+    name: "chess-studio-staging",
     entrypoint: "vinext/server/fetch-handler",
     compatibilityDate: "2026-10-04",
     compatibilityFlags: ["nodejs_compat"],
@@ -16,7 +19,6 @@ export default defineConfig({
         "/engine/stockfish-19-single.wasm",
       ],
     },
-    domains: ["xadrez.digital", "www.xadrez.digital"],
     env: {
       ASSETS: bindings.assets(),
       ENGINE: bindings.r2({ name: "chess-studio-engine" }),
