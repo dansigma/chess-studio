@@ -2,6 +2,7 @@
 
 import { useStudioStore } from "@/src/store/studio-store";
 import { explorerGamesTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
+import { formatYearMonth } from "@/src/lib/game-date";
 import { ResultMark } from "./ResultMark";
 
 export function GamesPanel() {
@@ -50,13 +51,14 @@ export function GamesPanel() {
         <span>Games · {explorerGamesTitle(source, databases)}</span>
         <span>{explorer?.games.length ?? 0} shown</span>
       </div>
-      <div className="grid grid-cols-[44px_1fr_44px_1fr_44px_90px_40px] gap-2 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
+      <div className="grid grid-cols-[44px_1fr_44px_1fr_44px_90px_64px_40px] gap-2 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
         <span>Res.</span>
         <span>White</span>
         <span></span>
         <span>Black</span>
         <span></span>
         <span>Event</span>
+        <span>Date</span>
         <span>ECO</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto" aria-busy={loading || undefined}>
@@ -71,7 +73,7 @@ export function GamesPanel() {
         {explorer?.games.map((game) => (
           <button
             key={game.id}
-            className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px_90px_40px] items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle"
+            className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px_90px_64px_40px] items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle"
             onClick={() => void openGame(game)}
           >
             <ResultMark winner={game.winner} />
@@ -80,6 +82,7 @@ export function GamesPanel() {
             <span className="truncate">{game.blackName}</span>
             <span className="text-right text-studio-faint">{game.blackRating ?? ""}</span>
             <span className="truncate text-studio-muted">{game.event ?? ""}</span>
+            <span className="truncate text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
             <span className="text-studio-faint">{game.eco ?? ""}</span>
           </button>
         ))}
