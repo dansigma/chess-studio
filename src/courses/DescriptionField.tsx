@@ -1,50 +1,38 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Placeholder from "@tiptap/extension-placeholder";
+import { useEffect, type ReactNode } from "react";
 import { Bold, Italic, List, Underline } from "lucide-react";
 import { sanitizeCourseHtml } from "./description";
 
-type FormatCommand = "bold" | "italic" | "underline" | "insertUnorderedList";
-
-const MARK_TAGS: Record<Exclude<FormatCommand, "insertUnorderedList">, string> = {
-  bold: "strong",
-  italic: "em",
-  underline: "u",
-};
-
-function editorAncestor(node: Node | null, root: Node): HTMLElement | null {
-  let current: Node | null = node instanceof Text ? node.parentElement : (node as HTMLElement | null);
-  while (current && current !== root) {
-    if (current instanceof HTMLElement) {
-      return current;
-    }
-    current = current.parentNode;
-  }
-  return root instanceof HTMLElement ? root : null;
-}
-
-function hasMark(node: Node | null, tag: string, root: Node): boolean {
-  let current: Node | null = node instanceof Text ? node.parentElement : node;
-  while (current && current !== root) {
-    if (current instanceof HTMLElement && current.tagName.toLowerCase() === tag) {
-      return true;
-    }
-    current = current.parentNode;
-  }
-  return false;
-}
-
-function unwrapElement(node: HTMLElement): void {
-  const parent = node.parentNode;
-  if (!parent) {
-    return;
-  }
-  while (node.firstChild) {
-    parent.insertBefore(node.firstChild, node);
-  }
-  parent.removeChild(node);
-  parent.normalize();
-}
+/**
+ * SIG-893: Tiptap replaces the bespoke Selection/Range formatter.
+ * StarterKit is trimmed to the toolbar surface (bold/italic/underline/
+ * bullet list); everything else that `sanitizeCourseHtml` would strip
+ * (headings, code, quotes, links, ordered lists, strike, hr) stays
+ * disabled so the editor cannot produce markup the pipeline drops.
+ */
+const extensions = [
+  StarterKit.configure({
+    blockquote: false,
+    code: false,
+    codeBlock: false,
+    dropcursor: false,
+    gapcursor: false,
+    heading: false,
+    horizontalRule: false,
+    link: false,
+    listKeymap: false,
+    orderedList: false,
+    strike: false,
+    trailingNode: false,
+  }),
+  Placeholder.configure({
+    placeholder: "Write the course description",
+  }),
+];
 
 export function DescriptionField({
   value,
@@ -53,237 +41,81 @@ export function DescriptionField({
   value: string;
   onChange: (html: string) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [marks, setMarks] = useState({ bold: false, italic: false, underline: false });
+  const editor = useEditor(
+    {
+      extensions,
+      content: sanitizeCourseHtml(value),
+      immediatelyRender: false,
+      editorProps: {
+        attributes: {
+          role: "textbox",
+          "aria-multiline": "true",
+          "aria-label": "Course description",
+          class:
+            "min-h-36 px-3 py-2 text-body text-studio-fg outline-none [&_em]:italic [&_li+li]:mt-1 [&_strong]:font-semibold [&_u]:underline [&_ul]:list-disc [&_ul]:pl-5",
+        },
+      },
+      onUpdate: ({ editor }) => {
+        onChange(sanitizeCourseHtml(editor.getHTML()));
+      },
+      onBlur: ({ editor }) => {
+        onChange(sanitizeCourseHtml(editor.getHTML()));
+      },
+    },
+    [],
+  );
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el || document.activeElement === el) {
+    if (!editor || editor.isFocused) {
       return;
     }
     const next = sanitizeCourseHtml(value);
-    if (el.innerHTML !== next) {
-      el.innerHTML = next;
+    if (sanitizeCourseHtml(editor.getHTML()) !== next) {
+      editor.commands.setContent(next, { emitUpdate: false });
     }
-  }, [value]);
+  }, [editor, value]);
 
-  useEffect(() => {
-    function sync() {
-      const el = ref.current;
-      if (!el || !el.contains(document.activeElement)) {
-        return;
-      }
-      const selection = window.getSelection();
-      const anchor = selection?.anchorNode ?? null;
-      setMarks({
-        bold: hasMark(anchor, "strong", el),
-        italic: hasMark(anchor, "em", el),
-        underline: hasMark(anchor, "u", el),
-      });
-    }
-    document.addEventListener("selectionchange", sync);
-    return () => document.removeEventListener("selectionchange", sync);
-  }, []);
-
-  function emit() {
-    onChange(sanitizeCourseHtml(ref.current?.innerHTML ?? ""));
-  }
-
-  function toggleMark(tag: string) {
-    const el = ref.current;
-    if (!el) {
-      return;
-    }
-    el.focus();
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) {
-      return;
-    }
-    const range = selection.getRangeAt(0);
-    if (!el.contains(range.commonAncestorContainer)) {
-      return;
-    }
-    if (range.collapsed) {
-      const existing = editorAncestor(selection.anchorNode, el);
-      let styled: HTMLElement | null = null;
-      for (let node: HTMLElement | null = existing; node && node !== el; node = node.parentElement) {
-        if (node.tagName.toLowerCase() === tag) {
-          styled = node;
-          break;
-        }
-      }
-      if (styled?.parentNode) {
-        const after = document.createRange();
-        after.setStartAfter(styled);
-        after.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(after);
-      } else {
-        const mark = document.createElement(tag);
-        mark.appendChild(document.createTextNode("\u200b"));
-        range.insertNode(mark);
-        const inner = document.createRange();
-        inner.setStart(mark.firstChild!, 1);
-        inner.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(inner);
-      }
-    } else if (hasMark(selection.anchorNode, tag, el) || hasMark(selection.focusNode, tag, el)) {
-      for (const node of Array.from(el.getElementsByTagName(tag))) {
-        try {
-          if (node instanceof HTMLElement && range.intersectsNode(node)) {
-            unwrapElement(node);
-          }
-        } catch {
-          // Node detached while unwrapping siblings; nothing left to do.
-        }
-      }
-      selection.removeAllRanges();
-      selection.addRange(range);
-    } else {
-      const mark = document.createElement(tag);
-      try {
-        mark.appendChild(range.extractContents());
-      } catch {
-        return;
-      }
-      if (!mark.textContent) {
-        mark.appendChild(document.createTextNode("\u200b"));
-      }
-      range.insertNode(mark);
-      const next = document.createRange();
-      next.selectNodeContents(mark);
-      selection.removeAllRanges();
-      selection.addRange(next);
-    }
-    emit();
-  }
-
-  function toggleList() {
-    const el = ref.current;
-    if (!el) {
-      return;
-    }
-    el.focus();
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) {
-      return;
-    }
-    const range = selection.getRangeAt(0);
-    if (!el.contains(range.commonAncestorContainer)) {
-      return;
-    }
-    const tops = Array.from(el.childNodes).filter((node) => {
-      try {
-        return range.intersectsNode(node);
-      } catch {
-        return false;
-      }
-    });
-    if (tops.length === 0) {
-      const list = document.createElement("ul");
-      const item = document.createElement("li");
-      item.appendChild(document.createTextNode("\u200b"));
-      list.appendChild(item);
-      range.insertNode(list);
-      const caret = document.createRange();
-      caret.setStart(item.firstChild!, 1);
-      caret.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(caret);
-      emit();
-      return;
-    }
-    if (tops.every((node) => node instanceof HTMLElement && node.tagName.toLowerCase() === "ul")) {
-      for (const node of tops) {
-        const list = node as HTMLElement;
-        const plain = document.createElement("div");
-        for (const item of Array.from(list.childNodes)) {
-          while (item.firstChild) {
-            plain.appendChild(item.firstChild);
-          }
-          plain.appendChild(document.createElement("br"));
-        }
-        list.replaceWith(plain);
-      }
-    } else {
-      const list = document.createElement("ul");
-      const first = tops[0];
-      if (!first) {
-        return;
-      }
-      el.insertBefore(list, first);
-      for (const node of tops) {
-        const item = document.createElement("li");
-        if (node instanceof HTMLElement && node.tagName.toLowerCase() === "li") {
-          while (node.firstChild) {
-            item.appendChild(node.firstChild);
-          }
-          node.remove();
-        } else if (node instanceof HTMLElement && node.tagName.toLowerCase() !== "ul") {
-          while (node.firstChild) {
-            item.appendChild(node.firstChild);
-          }
-          node.remove();
-        } else if (node.textContent?.trim()) {
-          item.textContent = node.textContent;
-          node.remove();
-        } else {
-          item.appendChild(document.createTextNode("\u200b"));
-          if (node.parentNode === el) {
-            el.removeChild(node);
-          }
-        }
-        if (!item.textContent) {
-          item.appendChild(document.createTextNode("\u200b"));
-        }
-        list.appendChild(item);
-      }
-      if (!list.hasChildNodes()) {
-        list.remove();
-        return;
-      }
-    }
-    selection.removeAllRanges();
-    selection.addRange(range);
-    emit();
-  }
-
-  function format(command: FormatCommand) {
-    if (command === "insertUnorderedList") {
-      toggleList();
-      return;
-    }
-    toggleMark(MARK_TAGS[command]);
-  }
+  const boldActive =
+    useEditorState({ editor, selector: (snapshot) => snapshot.editor?.isActive("bold") ?? false }) ?? false;
+  const italicActive =
+    useEditorState({ editor, selector: (snapshot) => snapshot.editor?.isActive("italic") ?? false }) ?? false;
+  const underlineActive =
+    useEditorState({ editor, selector: (snapshot) => snapshot.editor?.isActive("underline") ?? false }) ?? false;
+  const bulletListActive =
+    useEditorState({ editor, selector: (snapshot) => snapshot.editor?.isActive("bulletList") ?? false }) ??
+    false;
 
   return (
     <div className="mt-1 overflow-hidden rounded-lg border border-studio-border bg-studio-chrome">
       <div className="flex gap-0.5 border-b border-studio-border px-1 py-1">
-        <FormatButton label="Bold" active={marks.bold} onClick={() => format("bold")}>
+        <FormatButton label="Bold" active={boldActive} onClick={() => editor?.chain().focus().toggleBold().run()}>
           <Bold size={14} />
         </FormatButton>
-        <FormatButton label="Italic" active={marks.italic} onClick={() => format("italic")}>
+        <FormatButton
+          label="Italic"
+          active={italicActive}
+          onClick={() => editor?.chain().focus().toggleItalic().run()}
+        >
           <Italic size={14} />
         </FormatButton>
-        <FormatButton label="Underline" active={marks.underline} onClick={() => format("underline")}>
+        <FormatButton
+          label="Underline"
+          active={underlineActive}
+          onClick={() => editor?.chain().focus().toggleUnderline().run()}
+        >
           <Underline size={14} />
         </FormatButton>
-        <FormatButton label="Bullet list" onClick={() => format("insertUnorderedList")}>
+        <FormatButton
+          label="Bullet list"
+          active={bulletListActive}
+          onClick={() => editor?.chain().focus().toggleBulletList().run()}
+        >
           <List size={14} />
         </FormatButton>
       </div>
-      <div
-        ref={ref}
-        role="textbox"
-        aria-multiline="true"
-        aria-label="Course description"
-        contentEditable
-        suppressContentEditableWarning
-        data-placeholder="Write the course description"
-        onInput={emit}
-        onBlur={emit}
-        className="min-h-36 px-3 py-2 text-body text-studio-fg outline-none empty:before:text-studio-faint empty:before:content-[attr(data-placeholder)] [&_em]:italic [&_li+li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_u]:underline [&_ul]:list-disc [&_ul]:pl-5"
+      <EditorContent
+        editor={editor}
+        className="tiptap-placeholder [&_.is-editor-empty:first-child::before]:pointer-events-none [&_.is-editor-empty:first-child::before]:float-left [&_.is-editor-empty:first-child::before]:h-0 [&_.is-editor-empty:first-child::before]:text-studio-faint [&_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]"
       />
     </div>
   );
