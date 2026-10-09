@@ -325,6 +325,81 @@ test("release from the active slot stops the orphaned search", () => {
 });
 
 test("slots typecheck as the EngineSlot union", () => {
-  const slots: EngineSlot[] = ["engine", "graph", "review"];
-  assert.deepEqual(slots.length, 3);
+  const slots: EngineSlot[] = ["engine", "graph", "review", "threat"];
+  assert.deepEqual(slots.length, 4);
+});
+
+test("threat preempts engine and engine resumes on threat stop", () => {
+  setup();
+  const engine = acquire("engine", "lite");
+  const threat = acquire("threat", "lite");
+  activeSearch(engine, FEN_A);
+  const w = worker();
+  w.sent.length = 0;
+  threat.analyze(FEN_B, 14, 1, 1);
+  assert.deepEqual(w.sent, ["stop", "isready"]);
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_B}`));
+  w.sent.length = 0;
+  threat.stop();
+  assert.ok(w.sent.includes("stop"));
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_A}`));
+  engine.release();
+  threat.release();
+});
+
+test("threat preempts review and review resumes on threat release", () => {
+  setup();
+  const review = acquire("review", "lite");
+  const threat = acquire("threat", "lite");
+  activeSearch(review, FEN_C);
+  const w = worker();
+  w.sent.length = 0;
+  threat.analyze(FEN_B, 14, 1, 1);
+  assert.deepEqual(w.sent, ["stop", "isready"]);
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_B}`));
+  w.sent.length = 0;
+  threat.release();
+  assert.ok(w.sent.includes("stop"));
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_C}`));
+  review.release();
+});
+
+test("threat subscribe isolation: engine hears nothing while threat is active", () => {
+  setup();
+  const engine = acquire("engine", "lite");
+  const threat = acquire("threat", "lite");
+  const heardByEngine: EngineInfo[] = [];
+  const heardByThreat: EngineInfo[] = [];
+  const unsubEngine = engine.subscribe((info) => {
+    heardByEngine.push(info);
+  });
+  const unsubThreat = threat.subscribe((info) => {
+    heardByThreat.push(info);
+  });
+  void unsubEngine;
+  void unsubThreat;
+  // No active search yet: replay snapshots go to both.
+  assert.ok(heardByEngine.length > 0);
+  assert.ok(heardByThreat.length > 0);
+  heardByEngine.length = 0;
+  heardByThreat.length = 0;
+  activeSearch(engine, FEN_A);
+  worker().emit("info depth 10 seldepth 12 multipv 1 score cp 35 nodes 100 nps 1000 pv e2e4 e7e5");
+  assert.ok(heardByEngine.length > 0);
+  assert.deepEqual(heardByThreat, []);
+
+  // Threat preempts; engine's listener goes silent, threat hears its search.
+  threat.analyze(FEN_B, 14, 1, 1);
+  releaseBarrier(worker());
+  worker().emit("info depth 10 seldepth 12 multipv 1 score cp 15 nodes 100 nps 1000 pv e2e4 e7e5");
+  assert.ok(heardByThreat.length > 0);
+  const engineCount = heardByEngine.length;
+  worker().emit("info depth 11 seldepth 12 multipv 1 score cp 16 nodes 200 nps 1000 pv e2e4 e7e5");
+  assert.equal(heardByEngine.length, engineCount);
+  engine.release();
+  threat.release();
 });

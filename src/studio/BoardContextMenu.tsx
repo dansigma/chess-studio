@@ -10,16 +10,20 @@ export type BoardMenuState = {
 export function BoardContextMenu({
   menu,
   showEvalBar,
+  showThreat,
   onFlip,
   onToggleEvalBar,
+  onToggleThreat,
   onCopyFen,
   onCopyImage,
   onClose,
 }: {
   menu: BoardMenuState;
   showEvalBar: boolean;
+  showThreat: boolean;
   onFlip: () => void;
   onToggleEvalBar: () => void;
+  onToggleThreat: () => void;
   onCopyFen: () => void;
   onCopyImage: () => void;
   onClose: () => void;
@@ -57,6 +61,14 @@ export function BoardContextMenu({
           checked={showEvalBar}
           onClick={() => {
             onToggleEvalBar();
+            onClose();
+          }}
+        />
+        <MenuItem
+          label="Show threat"
+          checked={showThreat}
+          onClick={() => {
+            onToggleThreat();
             onClose();
           }}
         />

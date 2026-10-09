@@ -275,6 +275,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       statusMessage: null,
       training: false,
       trainingStart: null,
+      threat: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         title: title ?? imported.title,
@@ -305,6 +306,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         if (existing) {
           return {
             enginePreview: null,
+            threat: null,
             setupMode: false,
             training: false,
             trainingStart: null,
@@ -322,6 +324,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         };
         return {
           enginePreview: null,
+          threat: null,
           setupMode: false,
           training: false,
           trainingStart: null,
@@ -337,6 +340,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       };
       return {
         enginePreview: null,
+        threat: null,
         setupMode: false,
         training: false,
         trainingStart: null,
@@ -457,6 +461,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         to: "",
       });
       set((state) => ({
+        threat: null,
         boards: withActive(state.boards, state.activeBoardId, (active) => ({
           ...active,
           tree: next.tree,
@@ -683,6 +688,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       statusMessage: null,
       training: false,
       trainingStart: null,
+      threat: null,
       activeFileDatabaseId: database?.id ?? state.activeFileDatabaseId,
       activeFileGameId: game.id,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
@@ -781,7 +787,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const remote = await loadRemoteBookmarks(user.id);
     get().mergeRemoteBookmarks(remote);
   },
-  setSetupMode: (setupMode) => set({ setupMode, enginePreview: null }),
+  setSetupMode: (setupMode) => set({ setupMode, enginePreview: null, threat: null }),
   applySetupFen: (fen) => {
     const trimmed = fen.trim();
     if (!isLegalSetupFen(trimmed)) {
@@ -793,6 +799,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const isStart = startFen === START_FEN;
     set((state) => ({
       setupMode: false,
+      threat: null,
       statusMessage: "Position applied",
       boards: withActive(state.boards, state.activeBoardId, (board) => {
         const headers = { ...board.headers };
@@ -824,6 +831,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     set((state) => ({
       setupMode: false,
       enginePreview: null,
+      threat: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => {
         const headers = { ...board.headers };
         if (isStart) {
@@ -877,6 +885,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       enginePreview: null,
       engineEval: null,
       evalByFen: {},
+      threat: null,
+      showThreat: false,
       playerProfile: null,
       playerGames: [],
       playerGamesLoading: false,

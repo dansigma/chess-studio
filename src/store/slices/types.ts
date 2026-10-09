@@ -56,6 +56,14 @@ export type CachedEval = {
   depth: number;
 };
 
+// SIG-906: opponent's intended move from a null-move one-shot. `fen` is the
+// real position the threat was computed for (FEN-guarded like
+// enginePreview.key); the arrow layer only renders when it matches.
+export type ThreatMark = {
+  uci: string;
+  fen: string;
+};
+
 export type StudioSettings = {
   showCoordinates: boolean;
   showEvalBar: boolean;
@@ -96,6 +104,8 @@ export type StudioState = {
   enginePreview: EnginePreview | null;
   engineEval: EngineEval | null;
   evalByFen: Record<string, CachedEval>;
+  threat: ThreatMark | null;
+  showThreat: boolean;
   playerProfile: PlayerHit | null;
   playerGames: PlayerGame[];
   playerGamesLoading: boolean;
@@ -122,6 +132,8 @@ export type StudioState = {
   setEnginePreview: (preview: EnginePreview | null) => void;
   setEngineEval: (value: EngineEval | null) => void;
   putEvalCache: (fen: string, value: CachedEval) => void;
+  setThreat: (threat: ThreatMark | null) => void;
+  setShowThreat: (show: boolean) => void;
   goPath: (path: Path) => void;
   back: () => void;
   forward: () => void;

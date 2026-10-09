@@ -1,23 +1,33 @@
 import type { StateCreator } from "zustand";
 import { fenKey } from "@/src/chess/tree";
 import { capEvalCache } from "@/src/lib/eval-cache";
-import type { EngineEval, EnginePreview, CachedEval, StudioState } from "./types";
+import type { EngineEval, EnginePreview, CachedEval, StudioState, ThreatMark } from "./types";
 
 export type EngineSlice = Pick<
   StudioState,
   | "enginePreview"
   | "engineEval"
   | "evalByFen"
+  | "threat"
+  | "showThreat"
   | "setEnginePreview"
   | "setEngineEval"
   | "putEvalCache"
+  | "setThreat"
+  | "setShowThreat"
 >;
 
 export const createEngineSlice: StateCreator<StudioState, [], [], EngineSlice> = (set, get) => ({
   enginePreview: null,
   engineEval: null,
   evalByFen: {},
+  threat: null,
+  showThreat: false,
   setEnginePreview: (enginePreview: EnginePreview | null) => set({ enginePreview }),
+  setThreat: (threat: ThreatMark | null) => set({ threat }),
+  // SIG-906: toggle-off clears the arrow; in-flight cancel is the hook's job.
+  setShowThreat: (show: boolean) =>
+    set(show ? { showThreat: true } : { showThreat: false, threat: null }),
   setEngineEval: (engineEval: EngineEval | null) => {
     const prev = get().engineEval;
     if (prev?.pawns === engineEval?.pawns && prev?.label === engineEval?.label) {

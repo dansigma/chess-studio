@@ -138,6 +138,8 @@ function seedSignedInUser(user: { id: string; email: string | null }): SignedInS
     enginePreview: { fen: "A-FEN", lastMove: "e2e4", key: "A-KEY" },
     engineEval: { pawns: 1.5, label: "+1.5" },
     evalByFen: { "A-FEN": { pawns: 1.5, label: "+1.5", depth: 20 } },
+    threat: { uci: "A-e2e4", fen: "A-FEN" },
+    showThreat: true,
     playerProfile: PLAYER_A,
     playerGames: [GAME_A],
     playerGamesLoading: true,
@@ -177,7 +179,7 @@ function resetStore(): void {
   writes.length = 0;
 }
 
-// The defaults the reset must restore (contract spec §7: 26 CLEAR keys).
+// The defaults the reset must restore (contract spec §7: 28 CLEAR keys).
 const CLEARED_DEFAULTS = {
   activity: "boards",
   databaseSource: "masters",
@@ -189,6 +191,8 @@ const CLEARED_DEFAULTS = {
   enginePreview: null,
   engineEval: null,
   evalByFen: {},
+  threat: null,
+  showThreat: false,
   playerProfile: null,
   playerGames: [],
   playerGamesLoading: false,
