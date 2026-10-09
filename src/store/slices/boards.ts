@@ -9,6 +9,7 @@ import {
   goForward,
   goForwardN,
   goStart,
+  insertLine,
   playMove,
 } from "@/src/chess/tree";
 import { repertoireMoves } from "@/src/chess/repertoire";
@@ -54,6 +55,7 @@ export type BoardsSlice = Pick<
   | "setActiveBoard"
   | "makeUciMove"
   | "playUciSequence"
+  | "insertEngineLines"
   | "goPath"
   | "back"
   | "forward"
@@ -218,6 +220,64 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       suppressMoveSound = false;
     }
     soundForAdvance(get, previous);
+  },
+  insertEngineLines: (fen, pvUcisList) => {
+    if (get().training) {
+      return;
+    }
+    // Stale guard: the engine may have been analyzing an older position when
+    // the user clicked; never insert lines for a FEN the board has left.
+    if (get().fen() !== fen) {
+      return;
+    }
+    const board = get().active();
+    let merged = board.tree;
+    let inserted = 0;
+    for (const pvUcis of pvUcisList) {
+      const chess = new Chess(fen);
+      const moves: {
+        san: string;
+        uci: string;
+        fen: string;
+        from: string;
+        to: string;
+      }[] = [];
+      for (const uci of pvUcis) {
+        const from = uci.slice(0, 2);
+        const to = uci.slice(2, 4);
+        const promotion = uci.length > 4 ? uci[4] : undefined;
+        try {
+          const move = chess.move({ from, to, promotion });
+          moves.push({
+            san: move.san,
+            uci: `${move.from}${move.to}${move.promotion ?? ""}`,
+            fen: chess.fen(),
+            from: move.from,
+            to: move.to,
+          });
+        } catch {
+          break;
+        }
+      }
+      if (moves.length === 0) {
+        continue;
+      }
+      merged = insertLine(merged, board.path, moves);
+      inserted += 1;
+    }
+    if (inserted === 0) {
+      set({ statusMessage: "Already in notation." });
+      return;
+    }
+    const tree = merged;
+    set((state) => ({
+      statusMessage: `Inserted ${inserted} line${inserted === 1 ? "" : "s"}.`,
+      boards: withActive(state.boards, state.activeBoardId, (active) => ({
+        ...active,
+        tree,
+        dirty: true,
+      })),
+    }));
   },
   goPath: (path) => {
     if (get().training) {

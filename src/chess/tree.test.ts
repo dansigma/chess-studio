@@ -20,6 +20,7 @@ import {
   goForwardN,
   goStart,
   isPrefix,
+  insertLine,
   mainlinePathForFen,
   makeMainline,
   moveNumberForPath,
@@ -97,6 +98,49 @@ test("playMove on an invalid path returns the input unchanged", () => {
   const result = playMove(tree, [9], MOVE_E4);
   assert.equal(result.tree, tree);
   assert.deepEqual(result.path, [9]);
+});
+
+test("insertLine chains a line from the base path without mutating", () => {
+  const tree = createEmptyTree();
+  const e5 = { san: "e5", uci: "e7e5", fen: "fen-e5", from: "e7", to: "e5" };
+  const next = insertLine(tree, [], [MOVE_E4, e5]);
+  assert.equal(tree.children.length, 0);
+  assert.equal(next.children.length, 1);
+  assert.equal(next.children[0]?.children.length, 1);
+  assert.equal(next.children[0]?.children[0]?.uci, "e7e5");
+});
+
+test("insertLine reuses shared prefixes across lines", () => {
+  const tree = createEmptyTree();
+  const e5 = { san: "e5", uci: "e7e5", fen: "fen-e5", from: "e7", to: "e5" };
+  const c5 = { san: "c5", uci: "c7c5", fen: "fen-c5", from: "c7", to: "c5" };
+  const withFirst = insertLine(tree, [], [MOVE_E4, e5]);
+  const withBoth = insertLine(withFirst, [], [MOVE_E4, c5]);
+  assert.equal(withBoth.children.length, 1);
+  assert.equal(withBoth.children[0]?.children.length, 2);
+  assert.deepEqual(
+    withBoth.children[0]?.children.map((child) => child.uci),
+    ["e7e5", "c7c5"],
+  );
+});
+
+test("insertLine dedupes an identical re-insert and keeps order", () => {
+  const tree = createEmptyTree();
+  const e5 = { san: "e5", uci: "e7e5", fen: "fen-e5", from: "e7", to: "e5" };
+  const d4 = { san: "d4", uci: "d2d4", fen: "fen-d4", from: "d2", to: "d4" };
+  const once = insertLine(insertLine(tree, [], [MOVE_E4, e5]), [], [d4]);
+  const twice = insertLine(once, [], [MOVE_E4, e5]);
+  assert.equal(twice.children.length, 2);
+  assert.deepEqual(
+    twice.children.map((child) => child.uci),
+    ["e2e4", "d2d4"],
+  );
+  assert.equal(twice.children[0]?.children.length, 1);
+});
+
+test("insertLine with no moves returns the input unchanged", () => {
+  const tree = sampleTree();
+  assert.equal(insertLine(tree, [], []), tree);
 });
 
 test("getNodeAt and getFenAt resolve nodes with start-fen fallback", () => {
