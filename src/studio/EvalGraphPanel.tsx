@@ -11,9 +11,9 @@ import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import {
   formatScore,
   scoreNumber,
-  StockfishEngine,
   type EngineInfo,
 } from "@/src/engine/stockfish-client";
+import { acquire } from "@/src/engine/shared-engine";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore, type CachedEval } from "@/src/store/studio-store";
 
@@ -89,8 +89,12 @@ export function EvalGraphPanel() {
     if (setupMode) {
       return;
     }
-    const engine = new StockfishEngine(engineBuild);
-    engine.start();
+    const lease = acquire("graph", engineBuild);
+    const engine = {
+      subscribe: lease.subscribe.bind(lease),
+      analyze: lease.analyze.bind(lease),
+      dispose: lease.release.bind(lease),
+    };
     let cancelled = false;
     let unsubscribe: () => void = () => undefined;
     let settle: (() => void) | null = null;
