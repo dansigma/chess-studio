@@ -83,10 +83,13 @@ export function PlayerGamesPanel() {
     }
     importPlayerGame(game, { openInNewBoard });
     setStatus(null);
-    if (openInNewBoard) {
-      const active = selectActiveBoard(useStudioStore.getState());
-      openBoardPanel(active.id, active.title);
-    }
+    // SIG-911: the import activates a board session in the store, so reveal
+    // its `board:*` panel too — otherwise the game sits on an invisible board
+    // and notation navigation looks frozen. Unconditional: it covers the
+    // preview board on a plain click and the new board opened via
+    // double-click/Shift+Enter.
+    const active = selectActiveBoard(useStudioStore.getState());
+    openBoardPanel(active.id, active.title);
   }
 
   if (!player) {

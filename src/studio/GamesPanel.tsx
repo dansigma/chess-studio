@@ -26,7 +26,10 @@ export function GamesPanel() {
           openInNewBoard,
         });
         setStatus(null);
-        openSideBySide(openInNewBoard);
+        // SIG-911: the load activates a board session in the store, so reveal
+        // its `board:*` panel too — otherwise the game sits on an invisible
+        // board and notation navigation looks frozen.
+        revealActiveBoard();
         return;
       }
       if (source !== "masters") {
@@ -45,18 +48,18 @@ export function GamesPanel() {
         openInNewBoard,
       });
       setStatus(null);
-      openSideBySide(openInNewBoard);
+      // SIG-911: same reveal as the inline-PGN path above.
+      revealActiveBoard();
     } catch {
       setStatus("Could not load that game.");
     }
   }
 
-  // SIG-910: after a new-board open, show the fresh board side by side.
-  // Matches the BoardsSidebar.handleNewBoard load-then-open order.
-  function openSideBySide(openInNewBoard: boolean): void {
-    if (!openInNewBoard) {
-      return;
-    }
+  // SIG-911: reveal the session the load just activated — the preview board in
+  // preview mode, or the independent board opened via double-click/Shift+Enter.
+  // Supersedes SIG-910's conditional openSideBySide: the load always leaves the
+  // target session active, so an unconditional reveal covers both cases.
+  function revealActiveBoard(): void {
     const active = selectActiveBoard(useStudioStore.getState());
     openBoardPanel(active.id, active.title);
   }
