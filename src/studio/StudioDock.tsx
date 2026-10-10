@@ -43,6 +43,7 @@ import {
 import {
   boardIdFromPanelId,
   boardPanelId,
+  closeBoardPanel,
   consumeProgrammaticBoardClose,
   firstBoardPanel,
   openBoardPanel,
@@ -183,6 +184,9 @@ export function StudioDock() {
     const database = state.files.databases.find((item) => item.id === state.activeFileDatabaseId);
     return database?.name ?? "Games";
   });
+  // SIG-907: hydration gate — restore places verbatim until remote boards
+  // settle, then prunes orphan `board:*` panels whose sessions never arrived.
+  const boardsHydrated = useStudioStore((state) => state.boardsHydrated);
   const apiRef = useRef<DockviewApi | null>(null);
   const suppressSaves = useRef(0);
   const suppressTimers = useRef<number[]>([]);
@@ -263,6 +267,35 @@ export function StudioDock() {
   useEffect(() => {
     apiRef.current?.getPanel("fileGames")?.setTitle(fileGamesTitle);
   }, [fileGamesTitle]);
+
+  // SIG-907: hydration-gated orphan prune. Restore places verbatim (remote
+  // boards may not have hydrated yet); once boardsHydrated flips, close any
+  // `board:*` panel whose session never arrived. Uses the programmatic path
+  // so the remove→close handler skips the echo, then reseeds when pruning
+  // emptied the dock so the store is never stranded without a board view.
+  useEffect(() => {
+    const api = apiRef.current;
+    if (!api || !boardsHydrated) {
+      return;
+    }
+    const state = useStudioStore.getState();
+    const known = new Set(state.boards.map((board) => board.id));
+    let pruned = false;
+    for (const panel of [...api.panels]) {
+      const boardId = boardIdFromPanelId(panel.id);
+      if (boardId && !known.has(boardId)) {
+        closeBoardPanel(boardId);
+        pruned = true;
+      }
+    }
+    if (pruned && !firstBoardPanel(api)) {
+      const next = useStudioStore.getState();
+      const active = selectActiveBoard(next);
+      runWithoutSave(() => {
+        openBoardPanel(active.id, active.title || "Board");
+      });
+    }
+  }, [boardsHydrated]);
 
   useEffect(() => {
     return () => {

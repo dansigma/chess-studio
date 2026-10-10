@@ -224,7 +224,10 @@ function windowViews(entries: Record<string, unknown>[]): string[] {
   });
 }
 
-export function sanitizeDockLayout(raw: unknown): DockLayoutSnapshot | null {
+export function sanitizeDockLayout(
+  raw: unknown,
+  knownBoardIds?: ReadonlySet<string>,
+): DockLayoutSnapshot | null {
   if (!isRecord(raw) || raw.version !== DOCK_LAYOUT_VERSION || !isRecord(raw.dock)) {
     return null;
   }
@@ -236,6 +239,15 @@ export function sanitizeDockLayout(raw: unknown): DockLayoutSnapshot | null {
   for (const [id, panel] of Object.entries(dock.panels)) {
     if (!isAllowedPanelId(id) || !isRecord(panel)) {
       continue;
+    }
+    // SIG-907: optionally drop `board:*` panels whose session is gone.
+    // Without known ids the sanitizer keeps every well-formed board panel
+    // (restore path places verbatim; the dock prunes once boards hydrate).
+    if (knownBoardIds && isBoardPanelId(id)) {
+      const boardId = id.slice("board:".length);
+      if (!knownBoardIds.has(boardId)) {
+        continue;
+      }
     }
     if (typeof panel.contentComponent === "string") {
       const expected = isBoardPanelId(id) ? "board" : id;

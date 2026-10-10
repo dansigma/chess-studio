@@ -173,6 +173,46 @@ test("the retired bare board id is dropped", () => {
   assert.deepEqual(Object.keys(snapshot.dock.panels).sort(), ["board:b1", "notation"]);
 });
 
+test("an orphan board panel whose session is gone is dropped", () => {
+  const snapshot = sanitizeDockLayout(
+    {
+      version: DOCK_LAYOUT_VERSION,
+      dock: {
+        grid: {
+          root: {
+            type: "branch",
+            data: [
+              { type: "leaf", data: { id: "g-one", views: ["board:b1"], activeView: "board:b1" } },
+              { type: "leaf", data: { id: "g-two", views: ["board:gone"], activeView: "board:gone" } },
+              { type: "leaf", data: { id: "g-note", views: ["notation"], activeView: "notation" } },
+            ],
+          },
+          width: 100,
+          height: 100,
+          orientation: "HORIZONTAL",
+        },
+        panels: {
+          "board:b1": board,
+          "board:gone": { id: "board:gone", contentComponent: "board", title: "Gone" },
+          notation,
+        },
+        activeGroup: "g-two",
+      },
+    },
+    new Set(["b1"]),
+  );
+
+  assert.ok(snapshot);
+  const root = snapshot.dock.grid as {
+    root: { type: string; data: Array<{ data: { id: string; views: string[]; activeView: string } }> };
+  };
+  const views = root.root.data.flatMap((group) => group.data.views);
+  assert.deepEqual(views.sort(), ["board:b1", "notation"]);
+  assert.deepEqual(Object.keys(snapshot.dock.panels).sort(), ["board:b1", "notation"]);
+  // Active group pointed at the dropped orphan group; it must be repaired.
+  assert.notEqual(snapshot.dock.activeGroup, "g-two");
+});
+
 test("a mismatched component or a stale version is rejected", () => {
   assert.equal(
     sanitizeDockLayout({

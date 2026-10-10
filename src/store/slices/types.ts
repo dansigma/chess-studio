@@ -89,6 +89,9 @@ export type UserInfo = {
 export type StudioState = {
   boards: BoardSession[];
   activeBoardId: string;
+  // SIG-907: false until remote board hydration settles (true immediately for
+  // guests with nothing to load). Gates restore-time orphan pruning.
+  boardsHydrated: boolean;
   activity: ActivityView;
   databaseSource: ExplorerSource;
   settings: StudioSettings;
@@ -225,6 +228,9 @@ export type StudioState = {
   hydrateSettings: (settings: Partial<StudioSettings>) => void;
   hydrateLocalSettings: () => void;
   hydrateRemoteBoard: (board: BoardSession) => void;
+  // SIG-907: marks remote board hydration settled so StudioDock can prune
+  // orphan `board:*` panels whose sessions never arrived.
+  setBoardsHydrated: () => void;
   markSaved: (id: string, remoteId: string) => void;
   resetView: () => void;
 };

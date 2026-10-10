@@ -43,6 +43,7 @@ export type BoardsSlice = Pick<
   StudioState,
   | "boards"
   | "activeBoardId"
+  | "boardsHydrated"
   | "training"
   | "trainingStart"
   | "active"
@@ -66,6 +67,7 @@ export type BoardsSlice = Pick<
   | "stopTraining"
   | "undo"
   | "redo"
+  | "setBoardsHydrated"
 >;
 
 export const initialBoardsState = {
@@ -73,6 +75,11 @@ export const initialBoardsState = {
   // Matches the deterministic initial board id above (Workers forbids
   // crypto.randomUUID() at module init, so the placeholder id is fixed).
   activeBoardId: "initial-board",
+  // SIG-907: gates restore-time orphan pruning. The dock restores its layout
+  // before remote boards hydrate, so StudioDock must place verbatim until the
+  // shell flips this after the boards query settles — pruning earlier would
+  // drop valid `board:*` panels whose sessions have not loaded yet.
+  boardsHydrated: false,
   training: false,
   trainingStart: null,
 };
@@ -391,6 +398,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     });
   },
   stopTraining: () => set({ training: false, trainingStart: null }),
+  setBoardsHydrated: () => set({ boardsHydrated: true }),
   undo: () => get().back(),
   redo: () => get().forward(),
 });
