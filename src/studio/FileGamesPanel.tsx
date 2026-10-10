@@ -1,6 +1,8 @@
 "use client";
 
-import { useStudioStore } from "@/src/store/studio-store";
+import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
+import { openBoardPanel } from "./dock-api";
+import { GameOpenRow } from "./GameOpenRow";
 import { selectFileDatabase } from "./select-file-database";
 
 export function FileGamesPanel() {
@@ -29,19 +31,23 @@ export function FileGamesPanel() {
           <div className="px-3 py-4 text-studio-faint">No games in this file.</div>
         ) : null}
         {database.games.map((game) => (
-          <button
+          <GameOpenRow
             key={game.id}
-            type="button"
             className={`flex w-full items-baseline justify-between gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle ${
               game.id === gameId ? "bg-studio-selected" : ""
             }`}
-            onClick={() => openFileGame(game)}
+            onOpen={() => openFileGame(game)}
+            onOpenNew={() => {
+              openFileGame(game, { openInNewBoard: true });
+              const active = selectActiveBoard(useStudioStore.getState());
+              openBoardPanel(active.id, active.title);
+            }}
           >
             <span className="min-w-0 flex-1 truncate">{game.title}</span>
             {game.date ? (
               <span className="shrink-0 text-studio-faint">{game.date}</span>
             ) : null}
-          </button>
+          </GameOpenRow>
         ))}
       </div>
     </div>
