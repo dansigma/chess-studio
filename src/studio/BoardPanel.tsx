@@ -8,10 +8,12 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { getMarksAt } from "@/src/chess/tree";
 import {
   MARK_FILL,
+  MARK_HEX,
   arrowsForRender,
   colorFromModifiers,
   type MarkColor,
 } from "@/src/chess/marks";
+import { threatSquaresFromUci, useThreat } from "./useThreat";
 import { BoardEvalBar } from "./BoardEvalBar";
 import { BoardContextMenu, type BoardMenuState } from "./BoardContextMenu";
 import { SetupBoardPanel } from "./SetupBoardPanel";
@@ -41,6 +43,10 @@ export function BoardPanel() {
   const enginePreview = useStudioStore((state) => state.enginePreview);
   const setEnginePreview = useStudioStore((state) => state.setEnginePreview);
   const engineEval = useStudioStore((state) => state.engineEval);
+  const threat = useStudioStore((state) => state.threat);
+  const showThreat = useStudioStore((state) => state.showThreat);
+  const setShowThreat = useStudioStore((state) => state.setShowThreat);
+  useThreat();
   // SIG-857: primitive settings picks — the old `state.settings` object
   // re-rendered the board on every preference change (e.g. move sound).
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
@@ -166,10 +172,27 @@ export function BoardPanel() {
     return styles;
   }, [dests, lastMoveKey, squareMarks, selected]);
 
-  const arrows = useMemo(
-    () => arrowsForRender(arrowMarks, preview),
-    [arrowMarks, preview],
-  );
+  const arrows = useMemo(() => {
+    const base = arrowsForRender(arrowMarks, preview);
+    // SIG-906: ephemeral threat arrow appended LAST so it renders above
+    // stored marks and the draw preview. Never stored in node marks, never
+    // part of preview suppression. FEN-guarded: only show for the position
+    // the one-shot was computed on.
+    if (!showThreat || !threat || threat.fen !== fen) {
+      return base;
+    }
+    const squares = threatSquaresFromUci(threat.uci);
+    if (!squares) {
+      return base;
+    }
+    if (base.some((item) => item.startSquare === squares.from && item.endSquare === squares.to)) {
+      return base;
+    }
+    return [
+      ...base,
+      { startSquare: squares.from, endSquare: squares.to, color: MARK_HEX.R },
+    ];
+  }, [arrowMarks, preview, showThreat, threat, fen]);
 
   function attemptMove(from: string, to: string): boolean {
     let chess: Chess;
@@ -363,8 +386,10 @@ export function BoardPanel() {
         <BoardContextMenu
           menu={boardMenu}
           showEvalBar={showEvalBar}
+          showThreat={showThreat}
           onFlip={flip}
           onToggleEvalBar={toggleEvalBar}
+          onToggleThreat={() => setShowThreat(!showThreat)}
           onCopyFen={() => {
             void (async () => {
               try {

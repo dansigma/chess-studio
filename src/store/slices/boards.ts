@@ -102,6 +102,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     set((state) => ({
       boards: [...state.boards, board],
       activeBoardId: board.id,
+      threat: null,
       training: false,
       trainingStart: null,
     }));
@@ -115,7 +116,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       }
       const activeBoardId =
         state.activeBoardId === target ? boards[0].id : state.activeBoardId;
-      return { boards, activeBoardId, training: false, trainingStart: null };
+      return { boards, activeBoardId, threat: null, training: false, trainingStart: null };
     });
   },
   cloneBoard: () => {
@@ -142,6 +143,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     set({
       activeBoardId: id,
       enginePreview: null,
+      threat: null,
       setupMode: false,
       training: false,
       trainingStart: null,
@@ -162,6 +164,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       const previous = board.path;
       set((state) => ({
         statusMessage: repertoireMoves(board.tree, attempt.path).length === 0 ? "Line complete." : null,
+        threat: null,
         boards: withActive(state.boards, state.activeBoardId, (active) => ({
           ...active,
           path: attempt.path,
@@ -183,6 +186,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
         to: move.to,
       });
       set((state) => ({
+        threat: null,
         boards: withActive(state.boards, state.activeBoardId, (active) => ({
           ...active,
           tree: next.tree,
@@ -204,7 +208,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       return;
     }
     const previous = get().active().path;
-    set({ enginePreview: null });
+    // SIG-906: clear the threat arrow; the toggle stays on so useThreat
+    // recomputes for the new FEN.
+    set({ enginePreview: null, threat: null });
     suppressMoveSound = true;
     try {
       for (const uci of ucis) {
@@ -285,6 +291,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
     const previous = get().active().path;
     set((state) => ({
+      threat: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path,
@@ -297,6 +304,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       return;
     }
     set((state) => ({
+      threat: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goBack(board.path),
@@ -309,6 +317,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
     const previous = get().active().path;
     set((state) => ({
+      threat: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goForward(board.tree, board.path),
@@ -321,6 +330,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       return;
     }
     set((state) => ({
+      threat: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goStart(),
@@ -333,6 +343,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
     const previous = get().active().path;
     set((state) => ({
+      threat: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goEnd(board.tree, board.path),
@@ -346,6 +357,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
     const previous = get().active().path;
     set((state) => ({
+      threat: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goForwardN(board.tree, board.path, 10),

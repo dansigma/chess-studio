@@ -3,7 +3,11 @@
 // The three dock panels (EnginePanel, EvalGraphPanel, ReviewPanel) previously
 // each owned a `StockfishEngine` worker (~99MB on the standard build). This
 // module owns one resident worker for the active build and arbitrates access
-// by slot priority: review (3) > engine (2) > graph (1).
+// by slot priority: threat (4) > review (3) > engine (2) > graph (1).
+//
+// The `threat` slot (SIG-906) is a one-shot: the Show-threat hook acquires it,
+// analyzes the null-move FEN once, then stops/releases so the preempted victim
+// resumes via the stashed-params / promote() path. No extra worker is created.
 //
 // The underlying client is a single-search state machine, so sharing means
 // one active search at a time. A higher-priority `analyze` preempts via the
@@ -33,11 +37,12 @@ import {
   type EngineInfo,
 } from "./stockfish-client";
 
-export type EngineSlot = "engine" | "graph" | "review";
+export type EngineSlot = "engine" | "graph" | "review" | "threat";
 
 export type EngineSlotListener = (info: EngineInfo) => void;
 
 const SLOT_PRIORITY: Record<EngineSlot, number> = {
+  threat: 4,
   review: 3,
   engine: 2,
   graph: 1,
