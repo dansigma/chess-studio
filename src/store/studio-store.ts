@@ -17,6 +17,7 @@ import {
   createEmptyTree,
   deleteAfter,
   deleteVariation,
+  fenKey,
   getFenAt,
   getMarksAt,
   getNodeAt,
@@ -673,7 +674,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       set({ statusMessage: `Opened ${count} game${count === 1 ? "" : "s"}` });
     }
   },
-  openFileGame: (game) => {
+  openFileGame: (game, options) => {
     const database = get().files.databases.find((item) =>
       item.games.some((entry) => entry.id === game.id),
     );
@@ -684,7 +685,16 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       set({ statusMessage: "Could not open that PGN." });
       return;
     }
-    const path = imported.path;
+    // SIG-909: landing jump for the position-search panel. Walk the merged
+    // tree's mainline for atFen; fall back to the imported path when the hit
+    // game is not on that mainline so the board never blanks.
+    let path = imported.path;
+    if (options?.atFen) {
+      const jump = mainlinePathForFen(imported.tree, options.atFen);
+      if (jump.length > 0 || fenKey(imported.tree.startFen) === fenKey(options.atFen)) {
+        path = jump;
+      }
+    }
     set((state) => ({
       statusMessage: null,
       training: false,

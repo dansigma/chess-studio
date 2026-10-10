@@ -7,6 +7,7 @@ const STUDIO_PANELS = new Set([
   "explorer",
   "games",
   "fileGames",
+  "positionSearch",
 ]);
 
 // SIG-907: per-board panels are `board:<boardId>` sharing contentComponent

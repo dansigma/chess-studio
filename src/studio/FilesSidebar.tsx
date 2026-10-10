@@ -9,6 +9,7 @@ import {
   FolderPlus,
   Plus,
   RefreshCw,
+  Search,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -111,6 +112,14 @@ export function FilesSidebar() {
         <div className="flex items-center gap-0.5">
           <IconButton label="Refresh" size="sm" className="text-studio-muted" onClick={() => void refresh()}>
             <RefreshCw size={14} />
+          </IconButton>
+          <IconButton
+            label="Search position across files"
+            size="sm"
+            className="text-studio-muted"
+            onClick={() => openStudioPanel("positionSearch")}
+          >
+            <Search size={14} />
           </IconButton>
           <IconButton
             label="Add"
