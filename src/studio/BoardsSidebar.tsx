@@ -1,6 +1,6 @@
 "use client";
 
-import { Columns2, Plus, X } from "lucide-react";
+import { Columns2, Pin, Plus, X } from "lucide-react";
 import {
   boardPreview,
   selectActiveBoard,
@@ -74,6 +74,23 @@ export function BoardsSidebar() {
           description={boardPreview(board)}
           trailing={
             <span className="flex h-6 items-center">
+              {/* SIG-910: visible keep control so the preview no longer needs a
+                  hidden double-click to pin. Always rendered on preview rows
+                  (the hover-only pattern stays for split/close). */}
+              {board.preview ? (
+                <button
+                  type="button"
+                  title="Keep this board (stop replacing it)"
+                  aria-label={`Keep ${board.title}`}
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    pinPreviewBoard(board.id);
+                  }}
+                >
+                  <Pin size={13} />
+                </button>
+              ) : null}
               <button
                 type="button"
                 title="Open in split view"

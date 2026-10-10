@@ -169,8 +169,11 @@ export type StudioState = {
     moves?: string;
     headers?: GameHeaders;
     atFen?: string;
+    // SIG-910: opt-in side-by-side open. When set, the game loads on a new
+    // independent board (preview: false) instead of reusing the preview board.
+    openInNewBoard?: boolean;
   }) => void;
-  importPlayerGame: (game: PlayerGame) => void;
+  importPlayerGame: (game: PlayerGame, options?: { openInNewBoard?: boolean }) => void;
   exportActivePgn: () => string;
   pruneAfter: () => void;
   promoteVariation: () => void;
@@ -213,7 +216,7 @@ export type StudioState = {
   ) => void;
   showFileDatabase: (id: string) => void;
   openPgnSource: (name: string, pgn: string) => void;
-  openFileGame: (game: FileGame, options?: { atFen?: string }) => void;
+  openFileGame: (game: FileGame, options?: { atFen?: string; openInNewBoard?: boolean }) => void;
   deleteFileFolder: (id: string) => void;
   deleteFileDatabase: (id: string) => void;
   mergeRemoteFiles: (databases: FileDatabase[]) => void;
