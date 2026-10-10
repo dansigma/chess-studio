@@ -4,6 +4,7 @@ import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { explorerGamesTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
 import { formatYearMonth } from "@/src/lib/game-date";
 import { openBoardPanel } from "./dock-api";
+import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
 
 export function GamesPanel() {
@@ -14,7 +15,7 @@ export function GamesPanel() {
   const source = useStudioStore((state) => state.databaseSource);
   const databases = useStudioStore((state) => state.files.databases);
 
-  async function openGame(game: ExplorerGameRow) {
+  async function openGame(game: ExplorerGameRow, openInNewBoard = false) {
     setStatus("Loading game…");
     try {
       if (game.pgn) {
@@ -22,12 +23,13 @@ export function GamesPanel() {
           pgn: game.pgn,
           title: `${game.whiteName} vs ${game.blackName}`,
           atFen: explorer?.fen,
+          openInNewBoard,
         });
+        setStatus(null);
         // SIG-911: the load activates a board session in the store, so reveal
         // its `board:*` panel too — otherwise the game sits on an invisible
         // board and notation navigation looks frozen.
         revealActiveBoard();
-        setStatus(null);
         return;
       }
       if (source !== "masters") {
@@ -43,15 +45,20 @@ export function GamesPanel() {
         pgn,
         title: `${game.whiteName} vs ${game.blackName}`,
         atFen: explorer?.fen,
+        openInNewBoard,
       });
+      setStatus(null);
       // SIG-911: same reveal as the inline-PGN path above.
       revealActiveBoard();
-      setStatus(null);
     } catch {
       setStatus("Could not load that game.");
     }
   }
 
+  // SIG-911: reveal the session the load just activated — the preview board in
+  // preview mode, or the independent board opened via double-click/Shift+Enter.
+  // Supersedes SIG-910's conditional openSideBySide: the load always leaves the
+  // target session active, so an unconditional reveal covers both cases.
   function revealActiveBoard(): void {
     const active = selectActiveBoard(useStudioStore.getState());
     openBoardPanel(active.id, active.title);
@@ -83,10 +90,11 @@ export function GamesPanel() {
           <div className="px-3 py-4 text-studio-faint">No games for this position.</div>
         ) : null}
         {explorer?.games.map((game) => (
-          <button
+          <GameOpenRow
             key={game.id}
             className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px_90px_64px_40px] items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle"
-            onClick={() => void openGame(game)}
+            onOpen={() => void openGame(game)}
+            onOpenNew={() => void openGame(game, true)}
           >
             <ResultMark winner={game.winner} />
             <span className="truncate">{game.whiteName}</span>
@@ -96,7 +104,7 @@ export function GamesPanel() {
             <span className="truncate text-studio-muted">{game.event ?? ""}</span>
             <span className="truncate text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
             <span className="text-studio-faint">{game.eco ?? ""}</span>
-          </button>
+          </GameOpenRow>
         ))}
       </div>
     </div>

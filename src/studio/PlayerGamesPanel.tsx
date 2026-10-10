@@ -5,6 +5,7 @@ import { formatYearMonth } from "@/src/lib/game-date";
 import type { PlayerGame, PlayerGamesResponse } from "@/src/lib/player-types";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
+import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
 
 export function PlayerGamesPanel() {
@@ -75,18 +76,20 @@ export function PlayerGamesPanel() {
     });
   }, [games, color, result]);
 
-  function openGame(game: PlayerGame) {
+  function openGame(game: PlayerGame, openInNewBoard = false) {
     if (!game.pgn && !game.moves) {
       setStatus("No PGN available for that game.");
       return;
     }
-    importPlayerGame(game);
+    importPlayerGame(game, { openInNewBoard });
+    setStatus(null);
     // SIG-911: the import activates a board session in the store, so reveal
-    // its `board:*` panel too — otherwise the game sits on an invisible
-    // board and notation navigation looks frozen.
+    // its `board:*` panel too — otherwise the game sits on an invisible board
+    // and notation navigation looks frozen. Unconditional: it covers the
+    // preview board on a plain click and the new board opened via
+    // double-click/Shift+Enter.
     const active = selectActiveBoard(useStudioStore.getState());
     openBoardPanel(active.id, active.title);
-    setStatus(null);
   }
 
   if (!player) {
@@ -129,10 +132,11 @@ export function PlayerGamesPanel() {
           <div className="px-3 py-4 text-studio-faint">No games for this player.</div>
         ) : null}
         {visible.map((game) => (
-          <button
+          <GameOpenRow
             key={game.id}
             className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px_64px] items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle"
-            onClick={() => openGame(game)}
+            onOpen={() => openGame(game)}
+            onOpenNew={() => openGame(game, true)}
           >
             <ResultMark winner={game.winner} />
             <span className="truncate">{game.whiteName}</span>
@@ -140,7 +144,7 @@ export function PlayerGamesPanel() {
             <span className="truncate">{game.blackName}</span>
             <span className="text-right text-studio-faint">{game.blackRating ?? ""}</span>
             <span className="truncate text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
-          </button>
+          </GameOpenRow>
         ))}
       </div>
     </div>

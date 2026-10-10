@@ -360,6 +360,42 @@ test("SIG-857: selectActiveBoard falls back to boards[0] on a stale id", () => {
   );
 });
 
+// SIG-910: single-click keeps the replaceable preview board; the opt-in
+// new-board open leaves the preview untouched and appends an independent
+// board (preview: false) as the active one.
+test("SIG-910: listed-game opens reuse the preview unless opened in a new board", () => {
+  resetStore();
+  const store = useStudioStore.getState();
+  assert.equal(store.settings.gamePreviewEnabled, true, "precondition: preview mode on");
+
+  useStudioStore.getState().openListedGame({ title: "Game One", pgn: "1. e4 e5" });
+  const afterFirst = useStudioStore.getState();
+  assert.equal(afterFirst.boards.length, initial.boards.length + 1, "preview board appended");
+  const previewId = afterFirst.activeBoardId;
+  assert.equal(selectActiveBoard(afterFirst).preview, true, "preview board is active");
+  assert.equal(selectActiveBoard(afterFirst).title, "Game One", "preview holds game one");
+
+  useStudioStore.getState().openListedGame({ title: "Game Two", pgn: "1. d4 d5" });
+  const afterSecond = useStudioStore.getState();
+  assert.equal(afterSecond.boards.length, initial.boards.length + 1, "preview board reused");
+  assert.equal(afterSecond.activeBoardId, previewId, "same preview board stays active");
+  assert.equal(selectActiveBoard(afterSecond).title, "Game Two", "preview replaced in place");
+
+  useStudioStore.getState().openListedGame({
+    title: "Game Three",
+    pgn: "1. c4 c5",
+    openInNewBoard: true,
+  });
+  const afterThird = useStudioStore.getState();
+  assert.equal(afterThird.boards.length, initial.boards.length + 2, "new board appended");
+  assert.notEqual(afterThird.activeBoardId, previewId, "new board is active");
+  assert.equal(selectActiveBoard(afterThird).preview, false, "new board is independent");
+  assert.equal(selectActiveBoard(afterThird).title, "Game Three", "new board holds game three");
+  const preview = afterThird.boards.find((board) => board.id === previewId);
+  assert.equal(preview?.title, "Game Two", "existing preview untouched");
+  assert.equal(preview?.preview, true, "existing board still marked preview");
+});
+
 // SIG-911: the GamesPanel/PlayerGamesPanel reveal calls
 // `openBoardPanel(selectActiveBoard(getState()).id, ...)` after loading, so
 // the load actions must leave a resolvable active board carrying the game.

@@ -302,7 +302,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         headers,
         dirty: false,
       };
-      const previewMode = state.settings.gamePreviewEnabled;
+      const previewMode = state.settings.gamePreviewEnabled && !args.openInNewBoard;
       if (previewMode) {
         const existing = state.boards.find((board) => board.preview);
         if (existing) {
@@ -351,7 +351,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       };
     });
   },
-  importPlayerGame: (game) => {
+  importPlayerGame: (game, options) => {
     const headers: GameHeaders = {
       Event: game.event ?? "?",
       White: game.whiteName,
@@ -385,6 +385,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       pgn: game.pgn,
       moves: game.moves,
       headers,
+      openInNewBoard: options?.openInNewBoard,
     });
   },
   exportActivePgn: () => {
@@ -694,6 +695,30 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       if (jump.length > 0 || fenKey(imported.tree.startFen) === fenKey(options.atFen)) {
         path = jump;
       }
+    }
+    // SIG-910: side-by-side open. Instead of overwriting the active board,
+    // append a new independent board (preview: false) and make it active.
+    if (options?.openInNewBoard) {
+      const board: BoardSession = {
+        ...emptyBoard(combined ? database.name : (game.title || imported.title)),
+        title: combined ? database.name : (game.title || imported.title),
+        tree: imported.tree,
+        path,
+        headers: imported.headers,
+        preview: false,
+        dirty: true,
+      };
+      set((state) => ({
+        statusMessage: null,
+        training: false,
+        trainingStart: null,
+        threat: null,
+        activeFileDatabaseId: database?.id ?? state.activeFileDatabaseId,
+        activeFileGameId: game.id,
+        boards: [...state.boards, board],
+        activeBoardId: board.id,
+      }));
+      return;
     }
     set((state) => ({
       statusMessage: null,
