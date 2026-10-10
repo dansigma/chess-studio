@@ -359,3 +359,61 @@ test("SIG-857: selectActiveBoard falls back to boards[0] on a stale id", () => {
     "stale activeBoardId resolves to the first board",
   );
 });
+
+// SIG-911: the GamesPanel/PlayerGamesPanel reveal calls
+// `openBoardPanel(selectActiveBoard(getState()).id, ...)` after loading, so
+// the load actions must leave a resolvable active board carrying the game.
+// Preview ON (default): the first load creates the preview board and repeat
+// loads reuse it, so re-clicking focuses the existing panel (no panel spam).
+test("SIG-911: openListedGame leaves a resolvable active preview board with preview ON", () => {
+  resetStore();
+  const before = useStudioStore.getState();
+  const countBefore = before.boards.length;
+
+  before.openListedGame({ pgn: "1. e4 e5", title: "White vs Black" });
+  const state = useStudioStore.getState();
+  const active = selectActiveBoard(state);
+  assert.equal(state.activeBoardId, active.id, "active board id resolves after load");
+  assert.equal(active.title, "White vs Black", "loaded game title lands on the active board");
+  assert.equal(active.preview, true, "first load creates the preview board");
+  assert.equal(state.boards.length, countBefore + 1, "first load adds exactly one board");
+
+  state.openListedGame({ pgn: "1. d4 d5", title: "Second vs Game" });
+  const reused = useStudioStore.getState();
+  assert.equal(reused.boards.length, countBefore + 1, "repeat load reuses the preview board");
+  assert.equal(
+    selectActiveBoard(reused).id,
+    active.id,
+    "repeat load stays on the same board the UI reveals",
+  );
+});
+
+// SIG-911: preview OFF: every load creates a fresh non-preview board, so the
+// UI reveal opens each new session in turn.
+test("SIG-911: openListedGame leaves a resolvable active board with preview OFF", () => {
+  resetStore();
+  useStudioStore.setState((state) => ({
+    settings: { ...state.settings, gamePreviewEnabled: false },
+  }));
+  const before = useStudioStore.getState();
+
+  before.openListedGame({ pgn: "1. e4 e5", title: "White vs Black" });
+  const state = useStudioStore.getState();
+  const active = selectActiveBoard(state);
+  assert.equal(state.activeBoardId, active.id, "active board id resolves after load");
+  assert.equal(active.title, "White vs Black", "loaded game title lands on the active board");
+  assert.equal(active.preview, false, "preview OFF creates a regular board");
+  assert.equal(state.boards.length, before.boards.length + 1, "load adds exactly one board");
+});
+
+// SIG-911: the player-games path delegates to openListedGame; the UI reveal
+// reads the same active board afterwards.
+test("SIG-911: importPlayerGame leaves a resolvable active board", () => {
+  resetStore();
+
+  useStudioStore.getState().importPlayerGame(GAME_A);
+  const state = useStudioStore.getState();
+  const active = selectActiveBoard(state);
+  assert.equal(state.activeBoardId, active.id, "active board id resolves after import");
+  assert.equal(active.title, "A White vs A Black", "player game title lands on the active board");
+});

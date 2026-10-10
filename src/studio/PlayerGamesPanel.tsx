@@ -3,7 +3,8 @@
 import { useEffect, useMemo } from "react";
 import { formatYearMonth } from "@/src/lib/game-date";
 import type { PlayerGame, PlayerGamesResponse } from "@/src/lib/player-types";
-import { useStudioStore } from "@/src/store/studio-store";
+import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
+import { openBoardPanel } from "./dock-api";
 import { ResultMark } from "./ResultMark";
 
 export function PlayerGamesPanel() {
@@ -80,6 +81,11 @@ export function PlayerGamesPanel() {
       return;
     }
     importPlayerGame(game);
+    // SIG-911: the import activates a board session in the store, so reveal
+    // its `board:*` panel too — otherwise the game sits on an invisible
+    // board and notation navigation looks frozen.
+    const active = selectActiveBoard(useStudioStore.getState());
+    openBoardPanel(active.id, active.title);
     setStatus(null);
   }
 

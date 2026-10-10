@@ -1,8 +1,9 @@
 "use client";
 
-import { useStudioStore } from "@/src/store/studio-store";
+import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { explorerGamesTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
 import { formatYearMonth } from "@/src/lib/game-date";
+import { openBoardPanel } from "./dock-api";
 import { ResultMark } from "./ResultMark";
 
 export function GamesPanel() {
@@ -22,6 +23,10 @@ export function GamesPanel() {
           title: `${game.whiteName} vs ${game.blackName}`,
           atFen: explorer?.fen,
         });
+        // SIG-911: the load activates a board session in the store, so reveal
+        // its `board:*` panel too — otherwise the game sits on an invisible
+        // board and notation navigation looks frozen.
+        revealActiveBoard();
         setStatus(null);
         return;
       }
@@ -39,10 +44,17 @@ export function GamesPanel() {
         title: `${game.whiteName} vs ${game.blackName}`,
         atFen: explorer?.fen,
       });
+      // SIG-911: same reveal as the inline-PGN path above.
+      revealActiveBoard();
       setStatus(null);
     } catch {
       setStatus("Could not load that game.");
     }
+  }
+
+  function revealActiveBoard(): void {
+    const active = selectActiveBoard(useStudioStore.getState());
+    openBoardPanel(active.id, active.title);
   }
 
   return (
