@@ -19,8 +19,21 @@ export function isBoardPanelId(id: string): boolean {
   return suffix.length > 0 && !/\s/.test(suffix);
 }
 
+// SIG-908: per-explorer panels are `explorer:<uid>` sharing contentComponent
+// "explorer". The uid is opaque (crypto.randomUUID); the panel's source
+// travels in dockview params (`params.source`), so the header dropdown can
+// change it without renaming the panel. Unlike the retired bare `board`, the
+// bare `explorer` id stays valid — it is the sidebar-driven default panel.
+export function isExplorerPanelId(id: string): boolean {
+  if (!id.startsWith("explorer:")) {
+    return false;
+  }
+  const suffix = id.slice("explorer:".length);
+  return suffix.length > 0 && !/\s/.test(suffix);
+}
+
 function isAllowedPanelId(id: string): boolean {
-  return STUDIO_PANELS.has(id) || isBoardPanelId(id);
+  return STUDIO_PANELS.has(id) || isBoardPanelId(id) || isExplorerPanelId(id);
 }
 
 export const DOCK_LAYOUT_VERSION = "multi-board-1";
@@ -250,7 +263,7 @@ export function sanitizeDockLayout(
       }
     }
     if (typeof panel.contentComponent === "string") {
-      const expected = isBoardPanelId(id) ? "board" : id;
+      const expected = isBoardPanelId(id) || isExplorerPanelId(id) ? id.slice(0, id.indexOf(":")) : id;
       if (panel.contentComponent !== expected) {
         continue;
       }

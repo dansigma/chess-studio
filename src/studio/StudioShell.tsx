@@ -12,7 +12,7 @@ import { StudioDock } from "./StudioDock";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { importPgn } from "@/src/chess/pgn";
-import { useActiveFen } from "@/src/store/hooks";
+import { useExplorerData } from "./use-explorer-data";
 import {
   forgetRemoteDockSync,
   loadRemoteSettings,
@@ -23,9 +23,6 @@ import {
   type BoardSession,
 } from "@/src/store/studio-store";
 import { loadRemoteFiles } from "@/src/lib/user-files";
-import { studioFilterQuery } from "@/src/lib/explorer-filters";
-import { fileDatabaseId, type ExplorerResponse } from "@/src/lib/explorer-types";
-import { lookupChesscomExplorer, lookupFilesExplorer } from "@/src/lib/files-explorer";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
 import { fenFromShareSearch } from "@/src/chess/share-board";
@@ -53,23 +50,12 @@ export function StudioShell() {
   const fileRef = useRef<HTMLInputElement>(null);
   const sharedFenApplied = useRef(false);
   const activity = useStudioStore((state) => state.activity);
-  const fen = useActiveFen();
   const source = useStudioStore((state) => state.databaseSource);
-  const explorerFilters = useStudioStore((state) => state.settings.explorerFilters);
-  const playerProfile = useStudioStore((state) => state.playerProfile);
-  const playerGames = useStudioStore((state) => state.playerGames);
-  // SIG-857: primitive signature — the old `state.files` object re-rendered
-  // the shell on every library change; this string changes only when the
-  // selected database's game ids change.
-  const personalSignature = useStudioStore((state) => {
-    const fileId = fileDatabaseId(state.databaseSource);
-    if (!fileId) {
-      return "";
-    }
-    return (
-      state.files.databases.find((item) => item.id === fileId)?.games.map((game) => game.id).join(",") ?? ""
-    );
-  });
+  const explorerRetry = useStudioStore((state) => state.explorerRetry);
+  // SIG-908: the shell owns the legacy bare `explorer` panel feed — the hook
+  // does the fetch and the mirror below keeps the global store fields (read
+  // by ExplorerPanel-as-bare + GamesPanel) in sync.
+  const legacyExplorer = useExplorerData(source, explorerRetry);
   const status = useStudioStore((state) => state.statusMessage);
   const dirtyRevision = useStudioStore((state) =>
     state.boards.map((board) => `${board.id}:${board.dirty ? "1" : "0"}`).join("|"),
@@ -79,7 +65,6 @@ export function StudioShell() {
   const setExplorer = useStudioStore((state) => state.setExplorer);
   const setExplorerLoading = useStudioStore((state) => state.setExplorerLoading);
   const setExplorerError = useStudioStore((state) => state.setExplorerError);
-  const explorerRetry = useStudioStore((state) => state.explorerRetry);
   const setUser = useStudioStore((state) => state.setUser);
   const hydrateRemoteBoard = useStudioStore((state) => state.hydrateRemoteBoard);
   const hydrateSettings = useStudioStore((state) => state.hydrateSettings);
@@ -224,73 +209,20 @@ export function StudioShell() {
     return () => window.clearTimeout(handle);
   }, [status]);
 
+  // SIG-908: legacy feed only — `useExplorerData` owns the fetch above;
+  // this mirror keeps the global store fields (bare panel + GamesPanel) in
+  // sync without a second network request.
   useEffect(() => {
-    let cancelled = false;
-    // A new search clears the previous failure; only the network .catch below
-    // sets it again. The last-good payload stays so the panel can keep it
-    // behind the error banner instead of blanking to "No games".
-    setExplorerError(null);
-    const fileId = fileDatabaseId(source);
-    if (fileId) {
-      const database = useStudioStore.getState().files.databases.find((item) => item.id === fileId);
-      setExplorer(
-        database
-          ? lookupFilesExplorer(database, fen, explorerFilters)
-          : {
-              source,
-              fen,
-              white: 0,
-              draws: 0,
-              black: 0,
-              opening: null,
-              moves: [],
-              games: [],
-            },
-      );
-      setExplorerLoading(false);
-      return;
-    }
-    if (source === "chesscom") {
-      const games = playerProfile?.source === "chesscom" ? playerGames : [];
-      setExplorer(lookupChesscomExplorer(games, fen, explorerFilters));
-      setExplorerLoading(false);
-      return;
-    }
-    const filterQuery = studioFilterQuery(explorerFilters);
-    // Choice (b): loading starts synchronously with the error clear above —
-    // the 160 ms timer delays only the fetch. Otherwise the panel sits one
-    // debounce in {error: null, loading: false, explorer: null} and flashes
-    // the false "No games" before "Loading explorer…".
-    setExplorerLoading(true);
-    const timer = window.setTimeout(() => {
-      void fetch(`/api/explorer?fen=${encodeURIComponent(fen)}&source=${source}${filterQuery}`)
-        .then(async (response) => {
-          if (!response.ok) {
-            throw new Error("explorer failed");
-          }
-          return (await response.json()) as ExplorerResponse;
-        })
-        .then((payload) => {
-          if (!cancelled) {
-            setExplorer(payload);
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setExplorerError("explorer request failed");
-          }
-        })
-        .finally(() => {
-          if (!cancelled) {
-            setExplorerLoading(false);
-          }
-        });
-    }, 160);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, setExplorer, setExplorerLoading, setExplorerError, explorerRetry]);
+    setExplorer(legacyExplorer.explorer);
+  }, [legacyExplorer.explorer, setExplorer]);
+
+  useEffect(() => {
+    setExplorerLoading(legacyExplorer.loading);
+  }, [legacyExplorer.loading, setExplorerLoading]);
+
+  useEffect(() => {
+    setExplorerError(legacyExplorer.error);
+  }, [legacyExplorer.error, setExplorerError]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {

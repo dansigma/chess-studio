@@ -1,5 +1,13 @@
 import type { DockviewApi } from "dockview-react";
-import { isBoardPanelId } from "./dock-layout";
+import { persistDockLayout, useStudioStore } from "@/src/store/studio-store";
+import {
+  currentDockLayoutEpoch,
+  DOCK_LAYOUT_VERSION,
+  isBoardPanelId,
+  isExplorerPanelId,
+  sanitizeDockLayout,
+} from "./dock-layout";
+import { explorerSourceTitle, type ExplorerSource } from "@/src/lib/explorer-types";
 
 export type StudioPanelId =
   | "engine"
@@ -35,6 +43,7 @@ export function boardIdFromPanelId(panelId: string): string | null {
   return panelId.slice("board:".length);
 }
 
+// SIG-907: first board panel, used as the split-view sibling anchor.
 export function firstBoardPanel(api: DockviewApi) {
   const panels = api.panels;
   for (const panel of panels) {
@@ -43,6 +52,88 @@ export function firstBoardPanel(api: DockviewApi) {
     }
   }
   return undefined;
+}
+
+// SIG-908: per-explorer panels are `explorer:<uid>` sharing contentComponent
+// "explorer". The uid is opaque; the panel's source travels in dockview
+// params so the header dropdown can change it without renaming the panel.
+export function explorerPanelId(explorerUid: string): string {
+  return `explorer:${explorerUid}`;
+}
+
+export function explorerIdFromPanelId(panelId: string): string | null {
+  if (!isExplorerPanelId(panelId)) {
+    return null;
+  }
+  return panelId.slice("explorer:".length);
+}
+
+export function firstExplorerPanel(api: DockviewApi) {
+  for (const panel of api.panels) {
+    if (isExplorerPanelId(panel.id)) {
+      return panel;
+    }
+  }
+  return undefined;
+}
+
+// Resolves the tab title for an explorer panel's source against the current
+// library snapshot. Called at open/title-sync time (not render). Accepts an
+// explicit snapshot so StudioDock title-sync can reuse its subscribed state;
+// defaults to the store when omitted (open/persist paths).
+export function explorerTitleForSource(
+  source: ExplorerSource,
+  databases: Array<{ id: string; name: string }> = useStudioStore.getState().files.databases,
+): string {
+  return explorerSourceTitle(source, databases);
+}
+
+// SIG-908: open (or focus) an `explorer:<uid>` panel side by side. The uid is
+// opaque; the panel's source travels in dockview params so the header dropdown
+// can change it without renaming the panel. Placement mirrors openBoardPanel:
+// sibling `explorer:*` to the right, else the legacy bare explorer / notation
+// group. A caller-supplied uid (tests) keeps id generation out of the dock.
+export function openExplorerPanel(source?: ExplorerSource, explorerUid?: string): void {
+  if (!dockApi) {
+    return;
+  }
+  const effective = source ?? useStudioStore.getState().databaseSource;
+  const uid = explorerUid ?? crypto.randomUUID().slice(0, 8);
+  const id = explorerPanelId(uid);
+  const existing = dockApi.getPanel(id);
+  if (existing) {
+    existing.api.setActive();
+    return;
+  }
+  const sibling = firstExplorerPanel(dockApi) ?? dockApi.getPanel("explorer") ?? dockApi.getPanel("notation");
+  dockApi.addPanel({
+    id,
+    component: "explorer",
+    title: explorerTitleForSource(effective),
+    params: { explorerId: uid, source: effective },
+    position: sibling ? { referencePanel: sibling.id, direction: "right" } : undefined,
+  });
+}
+
+// SIG-908: a panel's own source change via updateParameters does not fire
+// onDidLayoutChange (dockview only saves on add/remove/active/resize), so
+// persist explicitly — same sanitize+persist path as the debounced dock save.
+export function persistExplorerSource(panelId: string, source: ExplorerSource): void {
+  const panel = dockApi?.getPanel(panelId);
+  if (!panel) {
+    return;
+  }
+  panel.api.updateParameters({ ...panel.api.getParameters(), source });
+  panel.setTitle(explorerTitleForSource(source));
+  if (!dockApi) {
+    return;
+  }
+  const epoch = currentDockLayoutEpoch();
+  const snapshot = sanitizeDockLayout({ version: DOCK_LAYOUT_VERSION, dock: dockApi.toJSON() });
+  if (!snapshot) {
+    return;
+  }
+  void persistDockLayout(snapshot, epoch).catch(() => undefined);
 }
 
 // SIG-907: ids closed programmatically via closeBoardPanel (sidebar close,

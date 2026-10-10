@@ -45,6 +45,7 @@ import {
   boardPanelId,
   closeBoardPanel,
   consumeProgrammaticBoardClose,
+  explorerTitleForSource,
   firstBoardPanel,
   openBoardPanel,
   registerStudioDock,
@@ -54,12 +55,14 @@ import {
   currentDockLayoutEpoch,
   DOCK_LAYOUT_VERSION,
   isBoardPanelId,
+  isExplorerPanelId,
   readStoredDockLayout,
   sanitizeDockLayout,
   setDockLayoutListener,
   takeQueuedDockLayout,
   type DockLayoutSnapshot,
 } from "./dock-layout";
+import { parseExplorerSource } from "./ExplorerPanel";
 
 const TAB_ICONS: Record<string, LucideIcon> = {
   engine: Cpu,
@@ -76,7 +79,10 @@ const TAB_ICONS: Record<string, LucideIcon> = {
 
 function StudioTab(props: IDockviewPanelHeaderProps) {
   // SIG-907: board panels are `board:<boardId>`; match by prefix.
-  const Icon = TAB_ICONS[props.api.id] ?? (isBoardPanelId(props.api.id) ? LayoutGrid : undefined);
+  // SIG-908: same for `explorer:<uid>` panels.
+  const Icon =
+    TAB_ICONS[props.api.id] ??
+    (isBoardPanelId(props.api.id) ? LayoutGrid : isExplorerPanelId(props.api.id) ? BookOpen : undefined);
   return (
     <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden">
       {Icon ? <Icon aria-hidden="true" className="ml-0.5 shrink-0 opacity-70" size={13} /> : null}
@@ -101,6 +107,19 @@ function BoardDockPanel(props: IDockviewPanelProps<{ boardId?: string }>) {
   return <BoardPanel boardId={boardId} />;
 }
 
+// SIG-908: explorer panels carry their source in dockview params
+// (`params: { explorerId, source }` at addPanel time). Dynamic `explorer:<uid>`
+// panels fetch via the shared hook with their own source; the bare `explorer`
+// id (no/wrong params) stays on the global store fields (sidebar-driven).
+function ExplorerDockPanel(props: IDockviewPanelProps<{ explorerId?: string; source?: unknown }>) {
+  const panelId = props.api.id;
+  if (!isExplorerPanelId(panelId)) {
+    return <ExplorerPanel />;
+  }
+  const source = parseExplorerSource(props.params?.source);
+  return <ExplorerPanel source={source ?? undefined} panelId={panelId} />;
+}
+
 const components = {
   board: BoardDockPanel,
   engine: () => <EnginePanel />,
@@ -108,7 +127,7 @@ const components = {
   review: () => <ReviewPanel />,
   notation: () => <NotationPanel />,
   repertoire: () => <RepertoirePanel />,
-  explorer: () => <ExplorerPanel />,
+  explorer: ExplorerDockPanel,
   games: () => <GamesPanel />,
   fileGames: () => <FileGamesPanel />,
   playerExplorer: () => <PlayerExplorerPanel />,
@@ -263,6 +282,30 @@ export function StudioDock() {
     }
     ensurePlayerPanels(api, playerName);
   }, [playerKey, playerName]);
+
+  // SIG-908: per-explorer tab titles. Dynamic `explorer:<uid>` panels own
+  // their source in dock params (`persistExplorerSource` sets the title at
+  // switch time); this effect re-syncs them when database names change plus
+  // keeps the bare sidebar-driven panel tracking the global source.
+  const explorerTitles = useStudioStore((state) =>
+    `${state.databaseSource}|${state.files.databases.map((item) => `${item.id}:${item.name}`).join("|")}`,
+  );
+  useEffect(() => {
+    const api = apiRef.current;
+    if (!api) {
+      return;
+    }
+    const state = useStudioStore.getState();
+    for (const panel of api.panels) {
+      if (!isExplorerPanelId(panel.id)) {
+        continue;
+      }
+      const raw = (panel.api.getParameters() as { source?: unknown } | undefined)?.source;
+      const source = parseExplorerSource(raw) ?? state.databaseSource;
+      panel.setTitle(explorerTitleForSource(source, state.files.databases));
+    }
+    api.getPanel("explorer")?.setTitle(explorerTitleForSource(state.databaseSource, state.files.databases));
+  }, [explorerTitles]);
 
   useEffect(() => {
     apiRef.current?.getPanel("fileGames")?.setTitle(fileGamesTitle);
