@@ -1,44 +1,164 @@
 "use client";
 
-import { explorerSourceTitle } from "@/src/lib/explorer-types";
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import { fileExplorerSource, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { useStudioStore } from "@/src/store/studio-store";
 import { ExplorerFiltersBar } from "./ExplorerFiltersBar";
 import { Badge } from "./ui/Controls";
 import { ResultBar } from "./ui/ResultBar";
+import { IconButton } from "./ui/Button";
+import { isExplorerPanelId } from "./dock-layout";
+import { openExplorerPanel, persistExplorerSource } from "./dock-api";
+import { useExplorerData } from "./use-explorer-data";
 
 const compactCount = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
 const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(96px,160px)] items-center gap-3 px-3";
 
-export function ExplorerPanel() {
+/**
+ * SIG-908: runtime guard for a dockview `params.source` value. The panel id
+ * suffix is an opaque uid; only this validates the source. Personal sources
+ * are `file:<id>` with a non-empty whitespace-free id.
+ */
+export function parseExplorerSource(value: unknown): ExplorerSource | null {
+  if (value === "masters" || value === "lichess" || value === "chesscom") {
+    return value;
+  }
+  if (typeof value === "string" && value.startsWith("file:")) {
+    const suffix = value.slice("file:".length);
+    if (suffix.length > 0 && !/\s/.test(suffix)) {
+      return value as ExplorerSource;
+    }
+  }
+  return null;
+}
+
+export function ExplorerPanel({ source, panelId }: { source?: ExplorerSource; panelId?: string }) {
+  // Dynamic `explorer:<uid>` panels own their source via dock params + the
+  // shared hook. The bare `explorer` panel stays on the global store fields
+  // (sidebar-driven) so the default flow + GamesPanel are unchanged.
+  if (panelId && isExplorerPanelId(panelId)) {
+    return <DynamicExplorerPanel initialSource={source} panelId={panelId} />;
+  }
+  return <BareExplorerPanel />;
+}
+
+function DynamicExplorerPanel({ initialSource, panelId }: { initialSource?: ExplorerSource; panelId: string }) {
+  const databases = useStudioStore((state) => state.files.databases);
+  const globalSource = useStudioStore((state) => state.databaseSource);
+  const validated = parseExplorerSource(initialSource) ?? parseExplorerSource(globalSource) ?? "masters";
+  const [retryTick, setRetryTick] = useState(0);
+  const { explorer, loading, error } = useExplorerData(validated, retryTick);
+  return (
+    <ExplorerChrome
+      effectiveSource={validated}
+      databases={databases}
+      explorer={explorer}
+      loading={loading}
+      error={error}
+      onRetry={() => setRetryTick((count) => count + 1)}
+      onSourceChange={(next) => {
+        if (next !== validated) {
+          persistExplorerSource(panelId, next);
+        }
+      }}
+      onDuplicate={() => openExplorerPanel(validated)}
+    />
+  );
+}
+
+function BareExplorerPanel() {
   const explorer = useStudioStore((state) => state.explorer);
   const loading = useStudioStore((state) => state.explorerLoading);
   const error = useStudioStore((state) => state.explorerError);
   const retryExplorer = useStudioStore((state) => state.retryExplorer);
   const source = useStudioStore((state) => state.databaseSource);
   const databases = useStudioStore((state) => state.files.databases);
+  const setDatabaseSource = useStudioStore((state) => state.setDatabaseSource);
+  return (
+    <ExplorerChrome
+      effectiveSource={source}
+      databases={databases}
+      explorer={explorer}
+      loading={loading}
+      error={error}
+      onRetry={retryExplorer}
+      onSourceChange={setDatabaseSource}
+      onDuplicate={() => openExplorerPanel(source)}
+    />
+  );
+}
+
+function ExplorerChrome({
+  effectiveSource,
+  databases,
+  explorer,
+  loading,
+  error,
+  onRetry,
+  onSourceChange,
+  onDuplicate,
+}: {
+  effectiveSource: ExplorerSource;
+  databases: Array<{ id: string; name: string }>;
+  explorer: ExplorerResponse | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onSourceChange: (source: ExplorerSource) => void;
+  onDuplicate: () => void;
+}) {
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const filters = useStudioStore((state) => state.settings.explorerFilters);
   const setExplorerFilters = useStudioStore((state) => state.setExplorerFilters);
   const maxGames = Math.max(1, ...(explorer?.moves.map((row) => row.games) ?? [1]));
-  const title = explorerSourceTitle(source, databases);
   const side = explorer ? sideFromFen(explorer.fen) : "w";
   const totalGames = explorer ? explorer.white + explorer.draws + explorer.black : 0;
   const hasMoves = (explorer?.moves.length ?? 0) > 0;
+  const knownSources = new Set<ExplorerSource>([
+    "masters",
+    "lichess",
+    "chesscom",
+    ...databases.map((database) => fileExplorerSource(database.id)),
+  ]);
 
   return (
     <div className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
-      <div className="flex items-center justify-between gap-2 border-b border-studio-border-subtle px-3 py-2">
-        <span className="truncate text-dense font-semibold">{title}</span>
+      <div className="flex items-center gap-1 border-b border-studio-border-subtle px-3 py-2">
+        <select
+          aria-label="Explorer source"
+          value={effectiveSource}
+          onChange={(event) => {
+            const next = parseExplorerSource(event.target.value);
+            if (next) {
+              onSourceChange(next);
+            }
+          }}
+          className="min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 text-dense font-semibold text-studio-fg outline-none hover:border-studio-border focus:border-studio-accent"
+        >
+          <option value="masters">Ultra Database</option>
+          <option value="lichess">Online Database</option>
+          <option value="chesscom">Chess.com</option>
+          {databases.map((database) => (
+            <option key={database.id} value={fileExplorerSource(database.id)}>
+              {database.name}
+            </option>
+          ))}
+          {knownSources.has(effectiveSource) ? null : <option value={effectiveSource}>Personal</option>}
+        </select>
         {explorer ? (
           <span className="shrink-0 text-caption tabular-nums text-studio-faint">
             {totalGames.toLocaleString()} {totalGames === 1 ? "game" : "games"}
           </span>
         ) : null}
+        <IconButton label="Open explorer in split view" size="sm" onClick={onDuplicate}>
+          <Plus size={15} />
+        </IconButton>
       </div>
-      <ExplorerFiltersBar source={source} filters={filters} onChange={setExplorerFilters} />
+      <ExplorerFiltersBar source={effectiveSource} filters={filters} onChange={setExplorerFilters} />
       {explorer?.opening ? (
         <div className="flex items-center gap-2 border-b border-studio-border-subtle px-3 py-2 text-dense text-studio-muted">
           <Badge tone="accent">{explorer.opening.eco}</Badge>
@@ -53,7 +173,7 @@ export function ExplorerPanel() {
       {error ? (
         <div className="border-b border-studio-border-subtle bg-studio-warning-bg px-3 py-2 text-caption text-studio-warning-fg">
           Couldn&apos;t load the explorer. Try again.{" "}
-          <button type="button" className="underline" onClick={retryExplorer}>
+          <button type="button" className="underline" onClick={onRetry}>
             Retry
           </button>
         </div>

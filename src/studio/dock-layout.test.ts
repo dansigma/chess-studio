@@ -4,6 +4,8 @@ import { DOCK_LAYOUT_VERSION, sanitizeDockLayout } from "./dock-layout.ts";
 
 const notation = { id: "notation", contentComponent: "notation", title: "Notation" };
 const explorer = { id: "explorer", contentComponent: "explorer", title: "Ultra Database" };
+const explorerA = { id: "explorer:a1", contentComponent: "explorer", title: "Ultra Database" };
+const explorerB = { id: "explorer:b2", contentComponent: "explorer", title: "Online Database" };
 const board = { id: "board:b1", contentComponent: "board", title: "Board" };
 const boardTwo = { id: "board:b2", contentComponent: "board", title: "Second" };
 
@@ -211,6 +213,75 @@ test("an orphan board panel whose session is gone is dropped", () => {
   assert.deepEqual(Object.keys(snapshot.dock.panels).sort(), ["board:b1", "notation"]);
   // Active group pointed at the dropped orphan group; it must be repaired.
   assert.notEqual(snapshot.dock.activeGroup, "g-two");
+});
+
+test("two explorer panels survive side by side with the bare default", () => {
+  const snapshot = sanitizeDockLayout({
+    version: DOCK_LAYOUT_VERSION,
+    dock: {
+      grid: {
+        root: {
+          type: "branch",
+          data: [
+            { type: "leaf", data: { id: "g-one", views: ["explorer:a1"], activeView: "explorer:a1" } },
+            { type: "leaf", data: { id: "g-two", views: ["explorer:b2"], activeView: "explorer:b2" } },
+            { type: "leaf", data: { id: "g-note", views: ["explorer"], activeView: "explorer" } },
+          ],
+        },
+        width: 100,
+        height: 100,
+        orientation: "HORIZONTAL",
+      },
+      panels: { "explorer:a1": explorerA, "explorer:b2": explorerB, explorer, notation },
+      activeGroup: "g-two",
+    },
+  });
+
+  assert.ok(snapshot);
+  assert.deepEqual(Object.keys(snapshot.dock.panels).sort(), ["explorer", "explorer:a1", "explorer:b2"]);
+  assert.equal(snapshot.dock.activeGroup, "g-two");
+});
+
+test("malformed explorer ids and a mismatched component are dropped", () => {
+  const snapshot = sanitizeDockLayout({
+    version: DOCK_LAYOUT_VERSION,
+    dock: {
+      grid: {
+        root: {
+          type: "branch",
+          data: [
+            {
+              type: "leaf",
+              data: {
+                id: "g",
+                views: ["explorer:a1", "explorer:", "explorer:a b", "explorer:bad", "explorer"],
+                activeView: "explorer:",
+              },
+            },
+          ],
+        },
+        width: 100,
+        height: 100,
+        orientation: "HORIZONTAL",
+      },
+      panels: {
+        "explorer:a1": explorerA,
+        "explorer:": { id: "explorer:", contentComponent: "explorer", title: "Bad" },
+        "explorer:a b": { id: "explorer:a b", contentComponent: "explorer", title: "Bad" },
+        "explorer:bad": { id: "explorer:bad", contentComponent: "notation", title: "Bad" },
+        explorer,
+      },
+      activeGroup: "g",
+    },
+  });
+
+  assert.ok(snapshot);
+  const root = snapshot.dock.grid as {
+    root: { type: string; data: Array<{ data: { id: string; views: string[]; activeView: string } }> };
+  };
+  assert.deepEqual(root.root.data[0]?.data.views, ["explorer:a1", "explorer"]);
+  assert.equal(root.root.data[0]?.data.activeView, "explorer:a1");
+  assert.deepEqual(Object.keys(snapshot.dock.panels).sort(), ["explorer", "explorer:a1"]);
 });
 
 test("a mismatched component or a stale version is rejected", () => {

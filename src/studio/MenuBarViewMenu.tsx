@@ -6,7 +6,7 @@ import { BOARD_THEME_IDS, BOARD_THEMES } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
 import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "@/src/studio/color-scheme";
-import { OPEN_PANEL_ITEMS, openBoardPanel, openStudioPanel } from "./dock-api";
+import { OPEN_PANEL_ITEMS, openBoardPanel, openExplorerPanel, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 
 function ThemeSwatch({ light, dark }: { light: string; dark: string }) {
@@ -94,7 +94,11 @@ export function MenuBarViewMenu({
             openBoardPanel(active.id, active.title);
           })}
         />
-        {OPEN_PANEL_ITEMS.map((item) => (
+        {/* SIG-908: a second explorer opens side by side with its own source
+            (seeded from the sidebar-driven global source); the bare panel stays
+            for the default single-explorer flow. */}
+        <Item label="Explorer" onClick={run(() => openExplorerPanel())} />
+        {OPEN_PANEL_ITEMS.filter((item) => item.id !== "explorer").map((item) => (
           <Item key={item.id} label={item.label} onClick={run(() => openStudioPanel(item.id))} />
         ))}
       </Submenu>
