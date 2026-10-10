@@ -9,7 +9,7 @@ import {
   type DockviewReadyEvent,
   type IDockviewPanelHeaderProps,
 } from "dockview-react";
-import type { SerializedDockview } from "dockview-core";
+import type { IDockviewPanelProps, SerializedDockview } from "dockview-core";
 import { BoardPanel } from "./BoardPanel";
 import { EnginePanel } from "./EnginePanel";
 import { EvalGraphPanel } from "./EvalGraphPanel";
@@ -40,10 +40,19 @@ import {
   selectActiveBoard,
   useStudioStore,
 } from "@/src/store/studio-store";
-import { registerStudioDock, seedDefaultLayout } from "./dock-api";
+import {
+  boardIdFromPanelId,
+  boardPanelId,
+  consumeProgrammaticBoardClose,
+  firstBoardPanel,
+  openBoardPanel,
+  registerStudioDock,
+  seedDefaultLayout,
+} from "./dock-api";
 import {
   currentDockLayoutEpoch,
   DOCK_LAYOUT_VERSION,
+  isBoardPanelId,
   readStoredDockLayout,
   sanitizeDockLayout,
   setDockLayoutListener,
@@ -52,7 +61,6 @@ import {
 } from "./dock-layout";
 
 const TAB_ICONS: Record<string, LucideIcon> = {
-  board: LayoutGrid,
   engine: Cpu,
   evalGraph: ChartSpline,
   review: ClipboardCheck,
@@ -66,7 +74,8 @@ const TAB_ICONS: Record<string, LucideIcon> = {
 };
 
 function StudioTab(props: IDockviewPanelHeaderProps) {
-  const Icon = TAB_ICONS[props.api.id];
+  // SIG-907: board panels are `board:<boardId>`; match by prefix.
+  const Icon = TAB_ICONS[props.api.id] ?? (isBoardPanelId(props.api.id) ? LayoutGrid : undefined);
   return (
     <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden">
       {Icon ? <Icon aria-hidden="true" className="ml-0.5 shrink-0 opacity-70" size={13} /> : null}
@@ -83,8 +92,16 @@ const studioTheme = {
   dndPanelOverlay: "group" as const,
 };
 
+// SIG-907: board panels carry their session id in dockview params
+// (`params: { boardId }` at addPanel time); the prop re-renders that session
+// independent of the global active board.
+function BoardDockPanel(props: IDockviewPanelProps<{ boardId?: string }>) {
+  const boardId = props.params?.boardId;
+  return <BoardPanel boardId={boardId} />;
+}
+
 const components = {
-  board: () => <BoardPanel />,
+  board: BoardDockPanel,
   engine: () => <EnginePanel />,
   evalGraph: () => <EvalGraphPanel />,
   review: () => <ReviewPanel />,
@@ -101,7 +118,8 @@ function ensureReviewPanel(api: DockviewReadyEvent["api"]): void {
   if (api.getPanel("review")) {
     return;
   }
-  const reference = api.getPanel("evalGraph") ?? api.getPanel("engine") ?? api.getPanel("board");
+  // SIG-907: bare `board` id is retired; fall back to any `board:*` panel.
+  const reference = api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
   api.addPanel({
     id: "review",
     component: "review",
@@ -115,7 +133,8 @@ function ensureRepertoirePanel(api: DockviewReadyEvent["api"]): void {
   if (api.getPanel("repertoire")) {
     return;
   }
-  const reference = api.getPanel("notation") ?? api.getPanel("explorer") ?? api.getPanel("board");
+  // SIG-907: bare `board` id is retired; fall back to any `board:*` panel.
+  const reference = api.getPanel("notation") ?? api.getPanel("explorer") ?? firstBoardPanel(api);
   api.addPanel({
     id: "repertoire",
     component: "repertoire",
@@ -152,8 +171,11 @@ function ensurePlayerPanels(api: DockviewReadyEvent["api"], title: string) {
 }
 
 export function StudioDock() {
-  // SIG-857: shared active-board selector instead of the inline find.
-  const title = useStudioStore((state) => selectActiveBoard(state).title);
+  // SIG-907: per-board title signature so every `board:*` tab tracks its own
+  // session (id+title only — moves must not re-run the title effect).
+  const boardTitles = useStudioStore((state) =>
+    state.boards.map((board) => `${board.id}:${board.title}`).join("|"),
+  );
   const layoutNonce = useStudioStore((state) => state.layoutNonce);
   const playerKey = useStudioStore((state) => state.playerProfile?.id ?? null);
   const playerName = useStudioStore((state) => state.playerProfile?.displayName ?? null);
@@ -166,9 +188,22 @@ export function StudioDock() {
   const suppressTimers = useRef<number[]>([]);
   const saveTimer = useRef<number | null>(null);
   const layoutSubscription = useRef<{ dispose: () => void } | null>(null);
+  // SIG-907: focus→active + remove→close subscriptions; disposed on
+  // re-ready/unmount alongside the layout subscription.
+  const panelSubscriptions = useRef<Array<{ dispose: () => void }>>([]);
 
-  function boardTitle(): string {
-    return title || "Board";
+  // SIG-907: seed needs the session id for the `board:<boardId>` panel id.
+  function seedFor(api: DockviewApi): void {
+    const state = useStudioStore.getState();
+    const active = selectActiveBoard(state);
+    seedDefaultLayout(api, active.title || "Board", active.id);
+  }
+
+  function disposePanelSubscriptions(): void {
+    for (const sub of panelSubscriptions.current) {
+      sub.dispose();
+    }
+    panelSubscriptions.current = [];
   }
 
   function runWithoutSave(fn: () => void): void {
@@ -206,9 +241,16 @@ export function StudioDock() {
     }
   }
 
+  // SIG-907: sync every `board:<boardId>` tab title from the boards list.
   useEffect(() => {
-    apiRef.current?.getPanel("board")?.setTitle(title || "Board");
-  }, [title]);
+    const api = apiRef.current;
+    if (!api) {
+      return;
+    }
+    for (const board of useStudioStore.getState().boards) {
+      api.getPanel(boardPanelId(board.id))?.setTitle(board.title || "Board");
+    }
+  }, [boardTitles]);
 
   useEffect(() => {
     const api = apiRef.current;
@@ -225,6 +267,8 @@ export function StudioDock() {
   useEffect(() => {
     return () => {
       layoutSubscription.current?.dispose();
+      disposePanelSubscriptions();
+      apiRef.current = null;
       for (const timer of suppressTimers.current) {
         window.clearTimeout(timer);
       }
@@ -239,6 +283,7 @@ export function StudioDock() {
 
   function onReady(event: DockviewReadyEvent) {
     layoutSubscription.current?.dispose();
+    disposePanelSubscriptions();
     if (saveTimer.current !== null) {
       window.clearTimeout(saveTimer.current);
       saveTimer.current = null;
@@ -249,7 +294,7 @@ export function StudioDock() {
     setDockLayoutListener((snapshot) => {
       runWithoutSave(() => {
         if (!placeSnapshot(api, snapshot)) {
-          seedDefaultLayout(api, boardTitle());
+          seedFor(api);
         }
         placePlayers(api);
         ensureRepertoirePanel(api);
@@ -259,12 +304,58 @@ export function StudioDock() {
     const saved = takeQueuedDockLayout() ?? readStoredDockLayout();
     runWithoutSave(() => {
       if (!saved || !placeSnapshot(api, saved)) {
-        seedDefaultLayout(api, boardTitle());
+        seedFor(api);
       }
       placePlayers(api);
       ensureRepertoirePanel(api);
       ensureReviewPanel(api);
     });
+    // SIG-907: focus→active so notation/engine/explorer follow the focused
+    // board panel. Guard on "different + exists" — setActiveBoard clears
+    // enginePreview/threat/setupMode, so a redundant call on every tab
+    // switch would drop overlays. Accept both user and api origins: opening
+    // a board panel programmatically (sidebar split-view) activates it.
+    // Remove→close: a user-closed `board:*` panel closes its session; our
+    // own closeBoardPanel closes are skipped via the programmatic set.
+    // Closing the last board panel reseeds a fresh session panel so the
+    // store is never stranded without a board view.
+    panelSubscriptions.current = [
+      api.onDidActivePanelChange(({ panel }) => {
+        const boardId = panel ? boardIdFromPanelId(panel.id) : null;
+        if (!boardId) {
+          return;
+        }
+        const state = useStudioStore.getState();
+        if (state.activeBoardId === boardId) {
+          return;
+        }
+        if (!state.boards.some((board) => board.id === boardId)) {
+          return;
+        }
+        state.setActiveBoard(boardId);
+      }),
+      api.onDidRemovePanel((panel) => {
+        const boardId = boardIdFromPanelId(panel.id);
+        if (!boardId) {
+          return;
+        }
+        if (consumeProgrammaticBoardClose(boardId)) {
+          return;
+        }
+        const state = useStudioStore.getState();
+        if (!state.boards.some((board) => board.id === boardId)) {
+          return;
+        }
+        state.closeBoard(boardId);
+        if (!firstBoardPanel(api)) {
+          const next = useStudioStore.getState();
+          const active = selectActiveBoard(next);
+          runWithoutSave(() => {
+            openBoardPanel(active.id, active.title || "Board");
+          });
+        }
+      }),
+    ];
     layoutSubscription.current = api.onDidLayoutChange(() => {
       if (suppressSaves.current > 0) {
         return;

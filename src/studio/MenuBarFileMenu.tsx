@@ -7,7 +7,7 @@ import { shareBoardUrl } from "@/src/chess/share-board";
 import { isLegalSetupFen } from "@/src/chess/setup-fen";
 import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-board-image";
 import { printActiveBoard } from "./print-board";
-import { openStudioPanel } from "./dock-api";
+import { closeBoardPanel, openBoardPanel, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item } from "./ui/Menu";
 
 // SIG-857: file-menu subscriptions live here so the closed MenuBar root does
@@ -27,11 +27,37 @@ export function MenuBarFileMenu({
 }) {
   const activeTitle = useStudioStore((state) => selectActiveBoard(state).title);
   const setStatus = useStudioStore((state) => state.setStatus);
-  const newBoard = useStudioStore((state) => state.newBoard);
-  const cloneBoard = useStudioStore((state) => state.cloneBoard);
-  const closeBoard = useStudioStore((state) => state.closeBoard);
   const exportActivePgn = useStudioStore((state) => state.exportActivePgn);
   const openPgnSource = useStudioStore((state) => state.openPgnSource);
+
+  // SIG-907: File-menu board actions stay store-driven but must keep the
+  // `board:*` panels in sync: creation opens the new session's panel, and
+  // closing the active board closes its panel (tracked so the dock remove
+  // handler skips the echo). Closing the last board seeds a fresh session
+  // whose panel we open explicitly.
+  function handleNewBoard(): void {
+    useStudioStore.getState().newBoard();
+    const active = selectActiveBoard(useStudioStore.getState());
+    openBoardPanel(active.id, active.title);
+  }
+
+  function handleCloneBoard(): void {
+    useStudioStore.getState().cloneBoard();
+    const active = selectActiveBoard(useStudioStore.getState());
+    openBoardPanel(active.id, active.title);
+  }
+
+  function handleCloseBoard(): void {
+    const before = useStudioStore.getState();
+    const target = before.activeBoardId;
+    const wasLast = before.boards.length === 1 && before.boards[0].id === target;
+    before.closeBoard();
+    closeBoardPanel(target);
+    if (wasLast) {
+      const active = selectActiveBoard(useStudioStore.getState());
+      openBoardPanel(active.id, active.title);
+    }
+  }
 
   async function copyPgn() {
     await navigator.clipboard.writeText(exportActivePgn());
@@ -140,7 +166,7 @@ export function MenuBarFileMenu({
 
   return (
     <>
-      <Item label="New empty board" shortcut="Ctrl+N" onClick={run(newBoard)} />
+      <Item label="New empty board" shortcut="Ctrl+N" onClick={run(handleNewBoard)} />
       <Item label="Open PGN…" shortcut="Ctrl+O" onClick={run(onOpenPgn)} />
       <Item label="Open from clipboard" onClick={() => void openClipboard()} />
       <Divider />
@@ -154,8 +180,8 @@ export function MenuBarFileMenu({
       <Item label="Share board…" onClick={() => void shareBoard()} />
       <Item label="Print" shortcut="Ctrl+P" onClick={() => void printBoard()} />
       <Divider />
-      <Item label="Clone board" onClick={run(cloneBoard)} />
-      <Item label="Close board" shortcut="Ctrl+Q" onClick={run(closeBoard)} />
+      <Item label="Clone board" onClick={run(handleCloneBoard)} />
+      <Item label="Close board" shortcut="Ctrl+Q" onClick={run(handleCloseBoard)} />
     </>
   );
 }

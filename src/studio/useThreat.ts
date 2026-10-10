@@ -47,8 +47,12 @@ export function threatSquaresFromUci(uci: string | undefined): { from: string; t
  * analyzes the null-move FEN on the dedicated `threat` slot (highest priority,
  * preempts EnginePanel) and stores the first best-line move as `threat`.
  * Ephemeral: cleared on position change / toggle-off; never touches node marks.
+ *
+ * SIG-907: `enabled` lets split-view board panels share one threat lease —
+ * only the active session's panel runs the analysis; inactive panels skip
+ * subscribing so two panels never contend for the `threat` slot.
  */
-export function useThreat(): void {
+export function useThreat(enabled = true): void {
   // Real position, NOT useBoardFen (preview FENs must not drive the threat).
   const fen = useActiveFen();
   const showThreat = useStudioStore((state) => state.showThreat);
@@ -56,6 +60,9 @@ export function useThreat(): void {
   const threads = useStudioStore((state) => state.settings.engineThreads);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
     const store = useStudioStore.getState();
     if (!showThreat) {
       store.setThreat(null);
@@ -101,5 +108,5 @@ export function useThreat(): void {
       lease.release();
       useStudioStore.getState().setThreat(null);
     };
-  }, [fen, showThreat, build, threads]);
+  }, [fen, showThreat, build, threads, enabled]);
 }

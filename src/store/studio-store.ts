@@ -128,6 +128,7 @@ export {
   selectActiveBoard,
   selectActiveBoardId,
   selectActivePathKey,
+  selectBoard,
   selectDirtyCount,
 } from "./slices/selectors";
 export { DEFAULT_SETTINGS, SETTINGS_KEY, loadLocalSettings } from "./slices/settings";

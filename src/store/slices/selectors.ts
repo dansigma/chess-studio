@@ -17,6 +17,19 @@ export const selectActiveBoard = (state: ActiveBoardState): BoardSession =>
   state.boards.find((board) => board.id === state.activeBoardId) ??
   state.boards[0];
 
+// SIG-907: per-panel board lookup for split view. When `boardId` is set,
+// resolve that session; fall back to the active board when absent or stale
+// (mirrors the `withActive` boards[0]-fallback invariant so a stale panel id
+// never renders blank after remote hydration replaces the placeholder).
+export const selectBoard = (
+  state: ActiveBoardState,
+  boardId?: string,
+): BoardSession =>
+  boardId
+    ? (state.boards.find((board) => board.id === boardId) ??
+      selectActiveBoard(state))
+    : selectActiveBoard(state);
+
 // SIG-857: primitive derivations so menu chrome re-renders only when the
 // count changes instead of on every boards array identity change.
 export const selectDirtyCount = (state: { boards: BoardSession[] }): number =>

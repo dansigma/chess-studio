@@ -9,7 +9,7 @@ import { FilesSidebar } from "./FilesSidebar";
 import { SearchSidebar } from "./SearchSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
-import { openStudioPanel } from "./dock-api";
+import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { importPgn } from "@/src/chess/pgn";
 import { useActiveFen } from "@/src/store/hooks";
@@ -92,7 +92,6 @@ export function StudioShell() {
   const back = useStudioStore((state) => state.back);
   const forward = useStudioStore((state) => state.forward);
   const flip = useStudioStore((state) => state.flip);
-  const newBoard = useStudioStore((state) => state.newBoard);
   const user = useStudioStore((state) => state.user);
 
   useEffect(() => {
@@ -305,7 +304,10 @@ export function StudioShell() {
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
-        newBoard();
+        // SIG-907: Ctrl+N creates a session, so open its `board:*` panel too.
+        useStudioStore.getState().newBoard();
+        const active = useStudioStore.getState().active();
+        openBoardPanel(active.id, active.title);
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
         event.preventDefault();
@@ -367,7 +369,7 @@ export function StudioShell() {
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [back, flip, forward, newBoard]);
+  }, [back, flip, forward]);
 
   useEffect(() => {
     window.addEventListener("beforeprint", preparePrintFallback);

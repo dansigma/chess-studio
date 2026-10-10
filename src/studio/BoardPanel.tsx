@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Chess, type Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
-import { useActiveBoard, useBoardFen, useBoardLastMoveSquares } from "@/src/store/hooks";
-import { useStudioStore } from "@/src/store/studio-store";
-import { getMarksAt } from "@/src/chess/tree";
+import { useActiveBoardId } from "@/src/store/hooks";
+import { selectBoard, useStudioStore } from "@/src/store/studio-store";
+import { getFenAt, getLastMove, getMarksAt } from "@/src/chess/tree";
 import {
   MARK_FILL,
   MARK_HEX,
@@ -36,17 +36,30 @@ type PendingDraw = {
   color: MarkColor;
 };
 
-export function BoardPanel() {
-  const board = useActiveBoard();
-  const fen = useBoardFen();
-  const lastMoveKey = useBoardLastMoveSquares();
+export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) {
+  const activeBoardId = useActiveBoardId();
+  const board = useStudioStore((state) => selectBoard(state, boardIdProp));
+  const isActive = board.id === activeBoardId;
   const enginePreview = useStudioStore((state) => state.enginePreview);
   const setEnginePreview = useStudioStore((state) => state.setEnginePreview);
   const engineEval = useStudioStore((state) => state.engineEval);
   const threat = useStudioStore((state) => state.threat);
   const showThreat = useStudioStore((state) => state.showThreat);
   const setShowThreat = useStudioStore((state) => state.setShowThreat);
-  useThreat();
+  // SIG-907: only the active session's panel drives the shared threat lease
+  // so split-view panels never contend for the `threat` slot.
+  useThreat(isActive);
+  const baseFen = getFenAt(board.tree, board.path);
+  const baseLastMove = getLastMove(board.tree, board.path);
+  // Engine preview stays global (active-board-scoped): only the active
+  // panel renders the preview FEN; split panels keep their stored position.
+  const fen = isActive && enginePreview ? enginePreview.fen : baseFen;
+  const lastMoveKey =
+    isActive && enginePreview
+      ? enginePreview.lastMove
+      : baseLastMove
+        ? `${baseLastMove.from}${baseLastMove.to}`
+        : "";
   // SIG-857: primitive settings picks — the old `state.settings` object
   // re-rendered the board on every preference change (e.g. move sound).
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
@@ -55,6 +68,16 @@ export function BoardPanel() {
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const flip = useStudioStore((state) => state.flip);
+  const setActiveBoard = useStudioStore((state) => state.setActiveBoard);
+  // SIG-907: split panels are fully interactive. Mutations stay
+  // active-board-scoped in the store, so ensure this session is active
+  // before mutating — zustand applies set() synchronously, so the
+  // following makeUciMove/flip/mark call lands on this board.
+  function ensureActive() {
+    if (!isActive) {
+      setActiveBoard(board.id);
+    }
+  }
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
   const toggleBoardSquareMark = useStudioStore((state) => state.toggleBoardSquareMark);
   const toggleBoardArrowMark = useStudioStore((state) => state.toggleBoardArrowMark);
@@ -74,10 +97,10 @@ export function BoardPanel() {
   const promotionRef = useRef<HTMLDivElement>(null);
   useDialogFocus(promotionRef, promotion !== null);
 
-  const storedMarks = enginePreview ? null : getMarksAt(board.tree, board.path);
+  const storedMarks = isActive && enginePreview ? null : getMarksAt(board.tree, board.path);
   const squareMarks = useMemo(() => storedMarks?.squares ?? [], [storedMarks]);
   const arrowMarks = useMemo(() => storedMarks?.arrows ?? [], [storedMarks]);
-  const previewing = Boolean(enginePreview);
+  const previewing = Boolean(isActive && enginePreview);
   const [wasPreviewing, setWasPreviewing] = useState(previewing);
   if (wasPreviewing !== previewing) {
     setWasPreviewing(previewing);
@@ -88,15 +111,20 @@ export function BoardPanel() {
   }
 
   useEffect(() => {
+    // SIG-907: only the active panel publishes — with two boards mounted the
+    // last-mounting panel must not overwrite the focused session's FEN.
+    if (!isActive) {
+      return;
+    }
     publishVisibleFen(fen);
     return () => publishVisibleFen(null);
-  }, [fen]);
+  }, [fen, isActive]);
 
   useEffect(() => {
-    if (enginePreview) {
+    if (previewing) {
       pending.current = null;
     }
-  }, [enginePreview]);
+  }, [previewing]);
 
   useEffect(() => {
     function onUp(event: MouseEvent) {
@@ -177,8 +205,9 @@ export function BoardPanel() {
     // SIG-906: ephemeral threat arrow appended LAST so it renders above
     // stored marks and the draw preview. Never stored in node marks, never
     // part of preview suppression. FEN-guarded: only show for the position
-    // the one-shot was computed on.
-    if (!showThreat || !threat || threat.fen !== fen) {
+    // the one-shot was computed on. SIG-907: threat overlay applies to the
+    // active session's panel only.
+    if (!isActive || !showThreat || !threat || threat.fen !== fen) {
       return base;
     }
     const squares = threatSquaresFromUci(threat.uci);
@@ -192,7 +221,7 @@ export function BoardPanel() {
       ...base,
       { startSquare: squares.from, endSquare: squares.to, color: MARK_HEX.R },
     ];
-  }, [arrowMarks, preview, showThreat, threat, fen]);
+  }, [arrowMarks, isActive, preview, showThreat, threat, fen]);
 
   function attemptMove(from: string, to: string): boolean {
     let chess: Chess;
@@ -207,6 +236,7 @@ export function BoardPanel() {
     if (legal.length === 0) {
       return false;
     }
+    ensureActive();
     if (legal.some((move) => Boolean(move.promotion))) {
       setPromotion({ from, to });
       setSelected(null);
@@ -221,7 +251,7 @@ export function BoardPanel() {
   const pieces = piecesForSet(pieceSet);
   const turn = fen.split(" ")[1] === "b" ? "b" : "w";
 
-  if (setupMode) {
+  if (setupMode && isActive) {
     return <SetupBoardPanel />;
   }
 
@@ -275,20 +305,20 @@ export function BoardPanel() {
             squareStyles,
             boardStyle: { width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" },
             canDragPiece: ({ piece }) => {
-              if (enginePreview) {
+              if (previewing) {
                 return false;
               }
               const color = piece.pieceType.startsWith("w") ? "w" : "b";
               return color === turn;
             },
             onPieceDrop: ({ sourceSquare, targetSquare }) => {
-              if (enginePreview || !targetSquare) {
+              if (previewing || !targetSquare) {
                 return false;
               }
               return attemptMove(sourceSquare, targetSquare);
             },
             onSquareClick: ({ square, piece }) => {
-              if (enginePreview) {
+              if (previewing) {
                 // Never leave the user in a dead board: a lingering engine
                 // preview (hover that did not clear) must not swallow clicks.
                 setEnginePreview(null);
@@ -308,7 +338,7 @@ export function BoardPanel() {
               setSelected(null);
             },
             onSquareMouseDown: ({ square }, event) => {
-              if (enginePreview) {
+              if (previewing) {
                 // First press on the board clears a stale engine preview so
                 // the next click/drag is not silently blocked.
                 setEnginePreview(null);
@@ -333,9 +363,11 @@ export function BoardPanel() {
                 return;
               }
               if (start.square === square) {
+                ensureActive();
                 toggleBoardSquareMark(square, start.color);
                 return;
               }
+              ensureActive();
               toggleBoardArrowMark(start.square, square, start.color);
             },
             onMouseOverSquare: ({ square }) => {
@@ -366,6 +398,7 @@ export function BoardPanel() {
                   <Button
                     key={piece}
                     onClick={() => {
+                      ensureActive();
                       makeUciMove(promotion.from, promotion.to, piece);
                       setPromotion(null);
                     }}
@@ -387,7 +420,10 @@ export function BoardPanel() {
           menu={boardMenu}
           showEvalBar={showEvalBar}
           showThreat={showThreat}
-          onFlip={flip}
+          onFlip={() => {
+            ensureActive();
+            flip();
+          }}
           onToggleEvalBar={toggleEvalBar}
           onToggleThreat={() => setShowThreat(!showThreat)}
           onCopyFen={() => {

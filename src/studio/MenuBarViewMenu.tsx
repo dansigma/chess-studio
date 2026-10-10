@@ -1,12 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useStudioStore } from "@/src/store/studio-store";
+import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { BOARD_THEME_IDS, BOARD_THEMES } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
 import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "@/src/studio/color-scheme";
-import { OPEN_PANEL_ITEMS, openStudioPanel } from "./dock-api";
+import { OPEN_PANEL_ITEMS, openBoardPanel, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 
 function ThemeSwatch({ light, dark }: { light: string; dark: string }) {
@@ -87,6 +87,13 @@ export function MenuBarViewMenu({
       <Item label="Move sound" checked={moveSound} onMouseEnter={leaveSubmenu} onClick={run(toggleMoveSound)} />
       <Divider />
       <Submenu label="Open panel" open={viewSub === "panel"} onOpen={() => setViewSub("panel")} onClose={leaveSubmenu}>
+        <Item
+          label="Board"
+          onClick={run(() => {
+            const active = selectActiveBoard(useStudioStore.getState());
+            openBoardPanel(active.id, active.title);
+          })}
+        />
         {OPEN_PANEL_ITEMS.map((item) => (
           <Item key={item.id} label={item.label} onClick={run(() => openStudioPanel(item.id))} />
         ))}

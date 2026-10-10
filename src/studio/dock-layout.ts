@@ -1,5 +1,4 @@
 const STUDIO_PANELS = new Set([
-  "board",
   "notation",
   "repertoire",
   "engine",
@@ -10,7 +9,21 @@ const STUDIO_PANELS = new Set([
   "fileGames",
 ]);
 
-export const DOCK_LAYOUT_VERSION = "board-engine-eval-graph";
+// SIG-907: per-board panels are `board:<boardId>` sharing contentComponent
+// "board". The bare `board` id is retired (rejected by the sanitizer).
+export function isBoardPanelId(id: string): boolean {
+  if (!id.startsWith("board:")) {
+    return false;
+  }
+  const suffix = id.slice("board:".length);
+  return suffix.length > 0 && !/\s/.test(suffix);
+}
+
+function isAllowedPanelId(id: string): boolean {
+  return STUDIO_PANELS.has(id) || isBoardPanelId(id);
+}
+
+export const DOCK_LAYOUT_VERSION = "multi-board-1";
 export const DOCK_LAYOUT_STORAGE_KEY = "studio-clone-dock-layout";
 
 export type SanitizedDock = {
@@ -221,11 +234,14 @@ export function sanitizeDockLayout(raw: unknown): DockLayoutSnapshot | null {
   }
   const allowed = new Set<string>();
   for (const [id, panel] of Object.entries(dock.panels)) {
-    if (!STUDIO_PANELS.has(id) || !isRecord(panel)) {
+    if (!isAllowedPanelId(id) || !isRecord(panel)) {
       continue;
     }
-    if (typeof panel.contentComponent === "string" && panel.contentComponent !== id) {
-      continue;
+    if (typeof panel.contentComponent === "string") {
+      const expected = isBoardPanelId(id) ? "board" : id;
+      if (panel.contentComponent !== expected) {
+        continue;
+      }
     }
     allowed.add(id);
   }
