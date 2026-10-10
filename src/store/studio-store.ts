@@ -128,6 +128,7 @@ export {
   selectActiveBoard,
   selectActiveBoardId,
   selectActivePathKey,
+  selectBoard,
   selectDirtyCount,
 } from "./slices/selectors";
 export { DEFAULT_SETTINGS, SETTINGS_KEY, loadLocalSettings } from "./slices/settings";
@@ -873,6 +874,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       boards: [board],
       // intentional: initializer seeds "" and resolves via the boards[0] fallback; the reset assigns the id directly like the post-create block — same single empty board either way
       activeBoardId: board.id,
+      // SIG-907: the reset board is the whole session, so it is hydrated.
+      boardsHydrated: true,
       activity: "boards",
       databaseSource: "masters",
       explorer: null,

@@ -9,7 +9,7 @@ import { FilesSidebar } from "./FilesSidebar";
 import { SearchSidebar } from "./SearchSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
-import { openStudioPanel } from "./dock-api";
+import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { importPgn } from "@/src/chess/pgn";
 import { useActiveFen } from "@/src/store/hooks";
@@ -83,6 +83,7 @@ export function StudioShell() {
   const setUser = useStudioStore((state) => state.setUser);
   const hydrateRemoteBoard = useStudioStore((state) => state.hydrateRemoteBoard);
   const hydrateSettings = useStudioStore((state) => state.hydrateSettings);
+  const setBoardsHydrated = useStudioStore((state) => state.setBoardsHydrated);
   // SIG-857: primitive pick — the old `state.settings` object re-rendered on
   // every unrelated field; persistSettings only serializes the full object,
   // so subscribe to its JSON signature instead.
@@ -92,7 +93,6 @@ export function StudioShell() {
   const back = useStudioStore((state) => state.back);
   const forward = useStudioStore((state) => state.forward);
   const flip = useStudioStore((state) => state.flip);
-  const newBoard = useStudioStore((state) => state.newBoard);
   const user = useStudioStore((state) => state.user);
 
   useEffect(() => {
@@ -114,6 +114,9 @@ export function StudioShell() {
   useEffect(() => {
     const supabase = createBrowserSupabase();
     if (!supabase || !user) {
+      // SIG-907: guests have nothing to load — mark hydrated immediately so
+      // the dock may prune orphan `board:*` panels without waiting.
+      setBoardsHydrated();
       return;
     }
     let cancelled = false;
@@ -134,8 +137,13 @@ export function StudioShell() {
       }
       for (const row of data ?? []) {
         const imported = importPgn(row.pgn);
+        // SIG-907: derive the session id from the remote row id so persisted
+        // `board:<boardId>` panels resolve to the same session after reload.
+        // Session-only boards (remoteId null — guest, new, clone, preview) keep
+        // random ids from emptyBoard/newId and their split panels are
+        // best-effort: they reseed to the active board on reload.
         const session: BoardSession = {
-          id: crypto.randomUUID(),
+          id: row.id,
           remoteId: row.id,
           title: row.title,
           tree: imported.tree,
@@ -159,11 +167,17 @@ export function StudioShell() {
         return;
       }
       await useStudioStore.getState().hydrateRemoteBookmarks();
+      if (cancelled) {
+        return;
+      }
+      // SIG-907: boards query settled — the dock may now prune orphan
+      // `board:*` panels whose sessions never arrived.
+      setBoardsHydrated();
     })();
     return () => {
       cancelled = true;
     };
-  }, [hydrateRemoteBoard, hydrateSettings, user]);
+  }, [hydrateRemoteBoard, hydrateSettings, setBoardsHydrated, user]);
 
   useEffect(() => {
     if (!user) {
@@ -305,7 +319,10 @@ export function StudioShell() {
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
-        newBoard();
+        // SIG-907: Ctrl+N creates a session, so open its `board:*` panel too.
+        useStudioStore.getState().newBoard();
+        const active = useStudioStore.getState().active();
+        openBoardPanel(active.id, active.title);
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
         event.preventDefault();
@@ -367,7 +384,7 @@ export function StudioShell() {
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [back, flip, forward, newBoard]);
+  }, [back, flip, forward]);
 
   useEffect(() => {
     window.addEventListener("beforeprint", preparePrintFallback);

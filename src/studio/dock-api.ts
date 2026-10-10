@@ -1,7 +1,7 @@
 import type { DockviewApi } from "dockview-react";
+import { isBoardPanelId } from "./dock-layout";
 
 export type StudioPanelId =
-  | "board"
   | "engine"
   | "evalGraph"
   | "review"
@@ -12,7 +12,6 @@ export type StudioPanelId =
   | "fileGames";
 
 const PANEL_TITLES: Record<StudioPanelId, string> = {
-  board: "Board",
   engine: "Engine",
   evalGraph: "Eval Graph",
   review: "Game Review",
@@ -23,24 +22,63 @@ const PANEL_TITLES: Record<StudioPanelId, string> = {
   fileGames: "Games",
 };
 
+const BOARD_TITLE = "Board";
+
+export function boardPanelId(boardId: string): string {
+  return `board:${boardId}`;
+}
+
+export function boardIdFromPanelId(panelId: string): string | null {
+  if (!isBoardPanelId(panelId)) {
+    return null;
+  }
+  return panelId.slice("board:".length);
+}
+
+export function firstBoardPanel(api: DockviewApi) {
+  const panels = api.panels;
+  for (const panel of panels) {
+    if (isBoardPanelId(panel.id)) {
+      return panel;
+    }
+  }
+  return undefined;
+}
+
+// SIG-907: ids closed programmatically via closeBoardPanel (sidebar close,
+// last-panel reseed) so the dock→store remove handler can skip them and avoid
+// a closeBoard echo. Board ids are unique per session, so a stale entry can
+// never collide with a future board.
+const programmaticBoardCloses = new Set<string>();
+
+export function consumeProgrammaticBoardClose(boardId: string): boolean {
+  if (programmaticBoardCloses.has(boardId)) {
+    programmaticBoardCloses.delete(boardId);
+    return true;
+  }
+  return false;
+}
+
 let dockApi: DockviewApi | null = null;
 
 export function registerStudioDock(api: DockviewApi | null): void {
   dockApi = api;
 }
 
-export function seedDefaultLayout(api: DockviewApi, boardTitle: string): void {
+export function seedDefaultLayout(api: DockviewApi, boardTitle: string, boardId: string): void {
+  const firstBoard = boardPanelId(boardId);
   api.addPanel({
-    id: "board",
+    id: firstBoard,
     component: "board",
-    title: boardTitle || PANEL_TITLES.board,
+    title: boardTitle || BOARD_TITLE,
+    params: { boardId },
   });
   api.addPanel({
     id: "notation",
     component: "notation",
     title: PANEL_TITLES.notation,
     initialWidth: 460,
-    position: { referencePanel: "board", direction: "right" },
+    position: { referencePanel: firstBoard, direction: "right" },
   });
   api.addPanel({
     id: "repertoire",
@@ -54,7 +92,7 @@ export function seedDefaultLayout(api: DockviewApi, boardTitle: string): void {
     component: "engine",
     title: PANEL_TITLES.engine,
     initialHeight: 220,
-    position: { referencePanel: "board", direction: "below" },
+    position: { referencePanel: firstBoard, direction: "below" },
   });
   api.addPanel({
     id: "evalGraph",
@@ -86,6 +124,46 @@ export function seedDefaultLayout(api: DockviewApi, boardTitle: string): void {
   });
 }
 
+export function openBoardPanel(boardId: string, title?: string): void {
+  if (!dockApi) {
+    return;
+  }
+  const id = boardPanelId(boardId);
+  const existing = dockApi.getPanel(id);
+  if (existing) {
+    existing.api.setActive();
+    return;
+  }
+  const sibling = firstBoardPanel(dockApi);
+  if (sibling) {
+    dockApi.addPanel({
+      id,
+      component: "board",
+      title: title || BOARD_TITLE,
+      params: { boardId },
+      position: { referencePanel: sibling.id, direction: "right" },
+    });
+    return;
+  }
+  const reference = dockApi.getPanel("notation") ?? dockApi.getPanel("engine");
+  dockApi.addPanel({
+    id,
+    component: "board",
+    title: title || BOARD_TITLE,
+    params: { boardId },
+    position: reference ? { referencePanel: reference.id, direction: "left" } : undefined,
+  });
+}
+
+export function closeBoardPanel(boardId: string): void {
+  const panel = dockApi?.getPanel(boardPanelId(boardId));
+  if (!panel) {
+    return;
+  }
+  programmaticBoardCloses.add(boardId);
+  panel.api.close();
+}
+
 export function openStudioPanel(id: StudioPanelId): void {
   if (!dockApi) {
     return;
@@ -96,24 +174,14 @@ export function openStudioPanel(id: StudioPanelId): void {
     return;
   }
 
-  if (id === "board") {
-    const reference = dockApi.getPanel("notation") ?? dockApi.getPanel("engine");
-    dockApi.addPanel({
-      id,
-      component: id,
-      title: PANEL_TITLES.board,
-      position: reference ? { referencePanel: reference.id, direction: "left" } : undefined,
-    });
-    return;
-  }
-
   if (id === "engine" || id === "evalGraph" || id === "review") {
+    const fallbackBoard = firstBoardPanel(dockApi);
     const reference =
       id === "review"
-        ? (dockApi.getPanel("evalGraph") ?? dockApi.getPanel("engine") ?? dockApi.getPanel("board"))
+        ? (dockApi.getPanel("evalGraph") ?? dockApi.getPanel("engine") ?? fallbackBoard)
         : id === "evalGraph"
-          ? (dockApi.getPanel("engine") ?? dockApi.getPanel("board") ?? dockApi.getPanel("notation"))
-          : (dockApi.getPanel("board") ?? dockApi.getPanel("notation"));
+          ? (dockApi.getPanel("engine") ?? fallbackBoard ?? dockApi.getPanel("notation"))
+          : (fallbackBoard ?? dockApi.getPanel("notation"));
     dockApi.addPanel({
       id,
       component: id,
@@ -135,7 +203,7 @@ export function openStudioPanel(id: StudioPanelId): void {
     dockApi.getPanel("notation") ??
     dockApi.getPanel("explorer") ??
     dockApi.getPanel("games") ??
-    dockApi.getPanel("board");
+    firstBoardPanel(dockApi);
   dockApi.addPanel({
     id,
     component: id,
@@ -146,7 +214,6 @@ export function openStudioPanel(id: StudioPanelId): void {
 }
 
 export const OPEN_PANEL_ITEMS: Array<{ id: StudioPanelId; label: string }> = [
-  { id: "board", label: "Board" },
   { id: "notation", label: "Notation" },
   { id: "repertoire", label: "Repertoire" },
   { id: "engine", label: "Engine" },
