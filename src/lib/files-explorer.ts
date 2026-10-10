@@ -318,6 +318,26 @@ export function lookupFilesExplorer(
   return lookupIndexed(fileExplorerSource(database.id), database.id, database.games, fen, filters, false);
 }
 
+export type FilePositionHit = {
+  databaseId: string;
+  databaseName: string;
+  games: ExplorerGameRow[];
+};
+
+export function searchFilesForPosition(databases: FileDatabase[], fen: string): FilePositionHit[] {
+  const key = normalizeFen(fen);
+  const hits: FilePositionHit[] = [];
+  for (const database of databases) {
+    const pos = positionsFor(database.id, database.games).get(key);
+    if (!pos || pos.games.length === 0) {
+      continue;
+    }
+    const games = [...pos.games].sort((a, b) => (b.year ?? 0) - (a.year ?? 0)).slice(0, GAMES_PER_POSITION);
+    hits.push({ databaseId: database.id, databaseName: database.name, games });
+  }
+  return hits;
+}
+
 export function lookupChesscomExplorer(
   games: PlayerGame[],
   fen: string,

@@ -18,6 +18,7 @@ import { ExplorerPanel } from "./ExplorerPanel";
 import { FileGamesPanel } from "./FileGamesPanel";
 import { GamesPanel } from "./GamesPanel";
 import { NotationPanel } from "./NotationPanel";
+import { PositionSearchPanel } from "./PositionSearchPanel";
 import { RepertoirePanel } from "./RepertoirePanel";
 import { PlayerExplorerPanel } from "./PlayerExplorerPanel";
 import { PlayerGamesPanel } from "./PlayerGamesPanel";
@@ -31,6 +32,7 @@ import {
   LayoutGrid,
   Library,
   ListOrdered,
+  Search,
   UserSearch,
   Users,
   type LucideIcon,
@@ -73,6 +75,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   explorer: BookOpen,
   games: Library,
   fileGames: FileText,
+  positionSearch: Search,
   "player-explorer": UserSearch,
   "player-games": Users,
 };
@@ -130,6 +133,7 @@ const components = {
   explorer: ExplorerDockPanel,
   games: () => <GamesPanel />,
   fileGames: () => <FileGamesPanel />,
+  positionSearch: () => <PositionSearchPanel />,
   playerExplorer: () => <PlayerExplorerPanel />,
   playerGames: () => <PlayerGamesPanel />,
 };

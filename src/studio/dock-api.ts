@@ -17,7 +17,8 @@ export type StudioPanelId =
   | "repertoire"
   | "explorer"
   | "games"
-  | "fileGames";
+  | "fileGames"
+  | "positionSearch";
 
 const PANEL_TITLES: Record<StudioPanelId, string> = {
   engine: "Engine",
@@ -28,6 +29,7 @@ const PANEL_TITLES: Record<StudioPanelId, string> = {
   explorer: "Ultra Database",
   games: "Ultra Games",
   fileGames: "Games",
+  positionSearch: "Position Search",
 };
 
 const BOARD_TITLE = "Board";
@@ -313,4 +315,5 @@ export const OPEN_PANEL_ITEMS: Array<{ id: StudioPanelId; label: string }> = [
   { id: "explorer", label: "Ultra Database" },
   { id: "games", label: "Ultra Games" },
   { id: "fileGames", label: "Games" },
+  { id: "positionSearch", label: "Position Search" },
 ];
