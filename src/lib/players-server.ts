@@ -13,12 +13,15 @@ import type {
   PlayerSource,
 } from "@/src/lib/player-types";
 import { createLruCache } from "@/src/lib/lru";
+import { mapFidePlayers, type FidePlayerSuggestion } from "@/src/lib/fide-players";
 
 const MAX_PLAYER_GAMES = 80;
 const GAMES_CACHE_TTL_MS = 180_000;
 const SEARCH_TIMEOUT_MS = 6_000;
 const GAMES_TIMEOUT_MS = 15_000;
+const FIDE_CACHE_TTL_MS = 300_000;
 const gamesCache = createLruCache<string, { expires: number; payload: PlayerGamesResponse }>(200);
+const fideCache = createLruCache<string, { expires: number; payload: FidePlayerSuggestion[] }>(300);
 
 const UA = "StudioClone/0.1 (chess analysis; local development)";
 
@@ -308,6 +311,33 @@ function playerRank(hit: PlayerHit): number {
   const titleBoost = hit.title ? 0 : 10;
   const sourceBoost = hit.source === "studio" ? 0 : hit.source === "chesscom" ? 1 : 2;
   return titleBoost + sourceBoost;
+}
+
+export async function searchFidePlayers(query: string): Promise<FidePlayerSuggestion[]> {
+  const q = query.trim();
+  if (q.length < 2) {
+    return [];
+  }
+  const key = q.toLowerCase();
+  const cached = fideCache.get(key);
+  if (cached && cached.expires > Date.now()) {
+    return cached.payload;
+  }
+  try {
+    const response = await fetchTimeout(
+      `https://lichess.org/api/fide/player?q=${encodeURIComponent(q)}`,
+      { headers: lichessHeaders(), cache: "no-store" },
+      SEARCH_TIMEOUT_MS,
+    );
+    if (!response.ok) {
+      return [];
+    }
+    const suggestions = mapFidePlayers((await response.json()) as unknown);
+    fideCache.set(key, { expires: Date.now() + FIDE_CACHE_TTL_MS, payload: suggestions });
+    return suggestions;
+  } catch {
+    return [];
+  }
 }
 
 type LichessGameJson = {
