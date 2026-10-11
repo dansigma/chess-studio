@@ -34,10 +34,14 @@ export function PlayerCombobox({
   placeholder?: string;
   className?: string;
 }) {
+  const query = value.trim();
+  const searching = query.length >= 2;
+
   const [suggestions, setSuggestions] = useState<FidePlayerSuggestion[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [activeIndex, setActiveIndex] = useState(-1);
   const [open, setOpen] = useState(false);
+  const [wasSearching, setWasSearching] = useState(searching);
   const baseId = useId();
   const inputId = id ?? `${baseId}-input`;
   const listboxId = `${baseId}-listbox`;
@@ -45,18 +49,26 @@ export function PlayerCombobox({
   const requestRef = useRef(0);
   const pickedRef = useRef<string | null>(null);
 
-  const query = value.trim();
-  const searching = query.length >= 2;
+  // Render-phase reset (SIG-914): when the query drops below 2 chars,
+  // clear suggestion state during render instead of inside the search
+  // effect, keeping `react-hooks/set-state-in-effect` clean. This is
+  // React's adjust-state-during-render pattern: it re-renders before
+  // commit, so no stale-list frame is painted.
+  if (wasSearching && !searching) {
+    setSuggestions([]);
+    setStatus("idle");
+    setActiveIndex(-1);
+    setOpen(false);
+  }
+  if (wasSearching !== searching) {
+    setWasSearching(searching);
+  }
 
   useEffect(() => {
     if (pickedRef.current !== null && query === pickedRef.current) {
       return;
     }
     if (!searching) {
-      setSuggestions([]);
-      setStatus("idle");
-      setActiveIndex(-1);
-      setOpen(false);
       return;
     }
     const requestId = ++requestRef.current;
