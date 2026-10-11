@@ -46,7 +46,7 @@ export function BoardContextMenu({
   const top = Math.max(8, Math.min(menu.y, window.innerHeight - 180));
 
   return (
-    <div ref={rootRef} className="fixed z-50" style={{ left, top }}>
+    <div ref={rootRef} className="fixed z-[1100]" style={{ left, top }}>
       <MenuSurface className="min-w-52" onClose={onClose}>
         <MenuItem
           label="Flip board"
