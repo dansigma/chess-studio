@@ -100,13 +100,22 @@ export function PlayerCombobox({
     };
   }, [query, searching]);
 
+  function closeList() {
+    // Invalidate any in-flight search so a late response can never
+    // re-open a dismissed list (e.g. Escape while "Searching...").
+    requestRef.current += 1;
+    setStatus("idle");
+    setOpen(false);
+    setActiveIndex(-1);
+  }
+
   useEffect(() => {
     if (!open) {
       return;
     }
     function onPointerDown(event: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setOpen(false);
+        closeList();
       }
     }
     document.addEventListener("mousedown", onPointerDown);
@@ -119,11 +128,6 @@ export function PlayerCombobox({
     onPick?.(suggestion);
     setSuggestions([]);
     setStatus("idle");
-    setOpen(false);
-    setActiveIndex(-1);
-  }
-
-  function closeList() {
     setOpen(false);
     setActiveIndex(-1);
   }
