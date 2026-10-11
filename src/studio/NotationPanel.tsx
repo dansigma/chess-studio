@@ -34,6 +34,7 @@ import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
 import { MoveGlyphMenu, type GlyphMenuState } from "./MoveGlyphMenu";
 import { Button, IconButton } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
+import { PlayerCombobox } from "./ui/PlayerCombobox";
 import { pgnResultCaption } from "./ResultMark";
 
 function pathKey(path: Path): string {
@@ -329,17 +330,34 @@ function GameInfoDialog({
         }}
       >
         <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
-          {HEADER_FIELDS.map((field) => (
-            <label key={field.key} className="flex flex-col gap-1 text-caption text-studio-muted">
-              {field.label}
-              <input
-                value={draft[field.key] ?? ""}
-                onChange={(event) => setField(field.key, event.target.value)}
-                className={fieldClass}
-                placeholder={field.key === "Date" ? "YYYY.MM.DD" : undefined}
-              />
-            </label>
-          ))}
+          {HEADER_FIELDS.map((field) =>
+            field.key === "White" || field.key === "Black" ? (
+              <label
+                key={field.key}
+                className="flex flex-col gap-1 text-caption text-studio-muted"
+              >
+                {field.label}
+                <PlayerCombobox
+                  value={draft[field.key] ?? ""}
+                  onChange={(value) => setField(field.key, value)}
+                  className={fieldClass}
+                />
+              </label>
+            ) : (
+              <label
+                key={field.key}
+                className="flex flex-col gap-1 text-caption text-studio-muted"
+              >
+                {field.label}
+                <input
+                  value={draft[field.key] ?? ""}
+                  onChange={(event) => setField(field.key, event.target.value)}
+                  className={fieldClass}
+                  placeholder={field.key === "Date" ? "YYYY.MM.DD" : undefined}
+                />
+              </label>
+            ),
+          )}
           <label className="col-span-2 flex flex-col gap-1 text-caption text-studio-muted">
             Result
             <select

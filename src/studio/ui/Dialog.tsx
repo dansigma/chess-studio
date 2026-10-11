@@ -28,6 +28,11 @@ export function Dialog({
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        // An open autocomplete list (or similar popover) defers Escape to
+        // itself: it closes the list first, and the dialog only on a second press.
+        if (document.querySelector("[data-escape-defer]")) {
+          return;
+        }
         event.stopPropagation();
         onClose();
       }
