@@ -43,11 +43,15 @@ export function PlayerCombobox({
   const listboxId = `${baseId}-listbox`;
   const wrapperRef = useRef<HTMLDivElement>(null);
   const requestRef = useRef(0);
+  const pickedRef = useRef<string | null>(null);
 
   const query = value.trim();
   const searching = query.length >= 2;
 
   useEffect(() => {
+    if (pickedRef.current !== null && query === pickedRef.current) {
+      return;
+    }
     if (!searching) {
       setSuggestions([]);
       setStatus("idle");
@@ -110,8 +114,11 @@ export function PlayerCombobox({
   }, [open ]);
 
   function pick(suggestion: FidePlayerSuggestion) {
+    pickedRef.current = suggestion.name.trim();
     onChange(suggestion.name);
     onPick?.(suggestion);
+    setSuggestions([]);
+    setStatus("idle");
     setOpen(false);
     setActiveIndex(-1);
   }
@@ -143,7 +150,10 @@ export function PlayerCombobox({
             : undefined
         }
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          pickedRef.current = null;
+          onChange(event.target.value);
+        }}
         onBlur={(event) => {
           if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node)) {
             closeList();
