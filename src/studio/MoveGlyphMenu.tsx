@@ -53,7 +53,7 @@ export function MoveGlyphMenu({
   return (
     <div
       ref={rootRef}
-      className="fixed z-50 w-64 rounded border border-studio-border bg-studio-elevated py-2 shadow-2xl"
+      className="fixed z-[1100] w-64 rounded border border-studio-border bg-studio-elevated py-2 shadow-2xl"
       style={{ left, top }}
       role="menu"
       aria-label="Move annotations"

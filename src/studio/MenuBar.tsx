@@ -127,7 +127,7 @@ export function MenuBar({
   }
 
   return (
-    <div className="relative z-30 flex h-9 items-center gap-0.5 border-b border-studio-border bg-studio-chrome px-2 text-body text-studio-fg">
+    <div className="relative z-[1000] flex h-9 items-center gap-0.5 border-b border-studio-border bg-studio-chrome px-2 text-body text-studio-fg">
       <span className="mr-3 px-1.5">
         <BrandLockup />
       </span>
