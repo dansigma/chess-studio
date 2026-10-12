@@ -458,13 +458,16 @@ export function StudioDock() {
           return;
         }
         state.closeBoard(boardId);
-        if (!firstBoardPanel(api)) {
-          const next = useStudioStore.getState();
-          const active = selectActiveBoard(next);
-          runWithoutSave(() => {
-            openBoardPanel(active.id, active.title || "Board");
-          });
-        }
+        // SIG-915: explicit neighbor focus — dockview auto-activation is not
+        // guaranteed to pick the store-chosen previous-else-next neighbor, and
+        // the focus handler would then flip active away from it. Focusing the
+        // neighbor panel keeps dock and store in agreement (last-board reseed
+        // included: closeBoard reseeds the store, openBoardPanel its panel).
+        const next = useStudioStore.getState();
+        const active = selectActiveBoard(next);
+        runWithoutSave(() => {
+          openBoardPanel(active.id, active.title || "Board");
+        });
       }),
     ];
     layoutSubscription.current = api.onDidLayoutChange(() => {
