@@ -184,17 +184,22 @@ export function StudioShell() {
       return;
     }
     const handle = window.setTimeout(() => {
-      const board = useStudioStore.getState().active();
-      if (!board.dirty) {
+      const dirtyBoards = useStudioStore.getState().boards.filter((b) => b.dirty);
+      if (dirtyBoards.length === 0) {
         return;
       }
-      void persistBoard(board)
-        .then((remoteId) => {
-          if (remoteId) {
-            useStudioStore.getState().markSaved(board.id, remoteId);
+      void (async () => {
+        for (const board of dirtyBoards) {
+          try {
+            const remoteId = await persistBoard(board);
+            if (remoteId) {
+              useStudioStore.getState().markSaved(board.id, remoteId);
+            }
+          } catch {
+            useStudioStore.getState().setStatus("Could not save board.");
           }
-        })
-        .catch(() => useStudioStore.getState().setStatus("Could not save board."));
+        }
+      })();
     }, 1000);
     return () => window.clearTimeout(handle);
   }, [dirtyRevision, user]);
