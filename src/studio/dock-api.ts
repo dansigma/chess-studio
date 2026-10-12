@@ -45,7 +45,7 @@ export function boardIdFromPanelId(panelId: string): string | null {
   return panelId.slice("board:".length);
 }
 
-// SIG-907: first board panel, used as the split-view sibling anchor.
+// SIG-907: first board panel, used as the same-group sibling anchor.
 export function firstBoardPanel(api: DockviewApi) {
   const panels = api.panels;
   for (const panel of panels) {
@@ -217,6 +217,9 @@ export function seedDefaultLayout(api: DockviewApi, boardTitle: string, boardId:
   });
 }
 
+// SIG-915: one board tab group. New boards open in the SAME group as the
+// existing board tab (reference without direction — the evalGraph/review
+// pattern) so exactly one board is visible at a time, browser-tab style.
 export function openBoardPanel(boardId: string, title?: string): void {
   if (!dockApi) {
     return;
@@ -234,7 +237,7 @@ export function openBoardPanel(boardId: string, title?: string): void {
       component: "board",
       title: title || BOARD_TITLE,
       params: { boardId },
-      position: { referencePanel: sibling.id, direction: "right" },
+      position: { referencePanel: sibling.id },
     });
     return;
   }

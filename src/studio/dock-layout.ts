@@ -37,7 +37,7 @@ function isAllowedPanelId(id: string): boolean {
   return STUDIO_PANELS.has(id) || isBoardPanelId(id) || isExplorerPanelId(id);
 }
 
-export const DOCK_LAYOUT_VERSION = "multi-board-1";
+export const DOCK_LAYOUT_VERSION = "board-tabs-1";
 export const DOCK_LAYOUT_STORAGE_KEY = "studio-clone-dock-layout";
 
 export type SanitizedDock = {

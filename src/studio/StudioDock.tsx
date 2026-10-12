@@ -9,7 +9,7 @@ import {
   type DockviewReadyEvent,
   type IDockviewPanelHeaderProps,
 } from "dockview-react";
-import type { IDockviewPanelProps, SerializedDockview } from "dockview-core";
+import type { IDockviewHeaderActionsProps, IDockviewPanelProps, SerializedDockview } from "dockview-core";
 import { BoardPanel } from "./BoardPanel";
 import { EnginePanel } from "./EnginePanel";
 import { EvalGraphPanel } from "./EvalGraphPanel";
@@ -32,6 +32,7 @@ import {
   LayoutGrid,
   Library,
   ListOrdered,
+  Plus,
   Search,
   UserSearch,
   Users,
@@ -90,6 +91,36 @@ function StudioTab(props: IDockviewPanelHeaderProps) {
     <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden">
       {Icon ? <Icon aria-hidden="true" className="ml-0.5 shrink-0 opacity-70" size={13} /> : null}
       <DockviewDefaultTab {...props} />
+    </div>
+  );
+}
+
+// SIG-915: browser-style "+" action on the board tab group — opens a new
+// empty session as a tab in the same group. Rendered only when the group
+// hosts at least one `board:*` panel; per-tab close is the default
+// DockviewDefaultTab close action (handled by onDidRemovePanel → closeBoard).
+function BoardGroupHeaderActions(props: IDockviewHeaderActionsProps) {
+  const isBoardGroup = props.panels.some((panel) => isBoardPanelId(panel.id));
+  if (!isBoardGroup) {
+    return null;
+  }
+  function handleNewBoard(): void {
+    useStudioStore.getState().newBoard();
+    const state = useStudioStore.getState();
+    const active = selectActiveBoard(state);
+    openBoardPanel(active.id, active.title);
+  }
+  return (
+    <div className="flex h-full items-center pr-1">
+      <button
+        type="button"
+        title="New board (Ctrl+N)"
+        aria-label="New board"
+        onClick={handleNewBoard}
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-studio-fg hover:bg-studio-hover-strong"
+      >
+        <Plus aria-hidden="true" size={15} />
+      </button>
     </div>
   );
 }
@@ -394,7 +425,7 @@ export function StudioDock() {
     // board panel. Guard on "different + exists" — setActiveBoard clears
     // enginePreview/threat/setupMode, so a redundant call on every tab
     // switch would drop overlays. Accept both user and api origins: opening
-    // a board panel programmatically (sidebar split-view) activates it.
+    // a board panel programmatically (sidebar activate-or-open) activates it.
     // Remove→close: a user-closed `board:*` panel closes its session; our
     // own closeBoardPanel closes are skipped via the programmatic set.
     // Closing the last board panel reseeds a fresh session panel so the
@@ -427,13 +458,16 @@ export function StudioDock() {
           return;
         }
         state.closeBoard(boardId);
-        if (!firstBoardPanel(api)) {
-          const next = useStudioStore.getState();
-          const active = selectActiveBoard(next);
-          runWithoutSave(() => {
-            openBoardPanel(active.id, active.title || "Board");
-          });
-        }
+        // SIG-915: explicit neighbor focus — dockview auto-activation is not
+        // guaranteed to pick the store-chosen previous-else-next neighbor, and
+        // the focus handler would then flip active away from it. Focusing the
+        // neighbor panel keeps dock and store in agreement (last-board reseed
+        // included: closeBoard reseeds the store, openBoardPanel its panel).
+        const next = useStudioStore.getState();
+        const active = selectActiveBoard(next);
+        runWithoutSave(() => {
+          openBoardPanel(active.id, active.title || "Board");
+        });
       }),
     ];
     layoutSubscription.current = api.onDidLayoutChange(() => {
@@ -468,6 +502,7 @@ export function StudioDock() {
       theme={studioTheme}
       components={components}
       defaultTabComponent={StudioTab}
+      rightHeaderActionsComponent={BoardGroupHeaderActions}
       onReady={onReady}
     />
   );
