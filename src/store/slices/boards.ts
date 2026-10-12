@@ -15,7 +15,7 @@ import {
 import { repertoireMoves } from "@/src/chess/repertoire";
 import { trainingAttempt } from "@/src/chess/training";
 import { playMoveSound, shouldPlayMoveSound } from "@/src/chess/move-sound";
-import { emptyBoard, newId, withActive } from "./board-helpers";
+import { emptyBoard, newId, nextActiveBoardId, withActive } from "./board-helpers";
 import { selectActiveBoard } from "./selectors";
 import type { BoardSession, StudioState } from "./types";
 
@@ -117,12 +117,17 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
   closeBoard: (id) => {
     set((state) => {
       const target = id ?? state.activeBoardId;
+      // SIG-915: closing the active tab focuses the previous tab (else next),
+      // like browser tabs. Non-active closes keep the current active id.
+      const neighbor =
+        state.activeBoardId === target
+          ? nextActiveBoardId(state.boards, target)
+          : state.activeBoardId;
       let boards = state.boards.filter((board) => board.id !== target);
       if (boards.length === 0) {
         boards = [emptyBoard()];
       }
-      const activeBoardId =
-        state.activeBoardId === target ? boards[0].id : state.activeBoardId;
+      const activeBoardId = neighbor ?? boards[0].id;
       return { boards, activeBoardId, threat: null, training: false, trainingStart: null };
     });
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { Columns2, Pin, Plus, X } from "lucide-react";
+import { Pin, Plus, X } from "lucide-react";
 import {
   boardPreview,
   selectActiveBoard,
@@ -13,14 +13,14 @@ import { SidebarItem, SidebarPanel } from "./ui/Sidebar";
 export function BoardsSidebar() {
   const boards = useStudioStore((state) => state.boards);
   const activeBoardId = useStudioStore((state) => state.activeBoardId);
-  const setActiveBoard = useStudioStore((state) => state.setActiveBoard);
   const pinPreviewBoard = useStudioStore((state) => state.pinPreviewBoard);
   const signedIn = useStudioStore((state) => Boolean(state.user));
 
-  // SIG-907: open (or focus) this session's `board:*` panel side by side.
+  // SIG-915: browser-tab semantics — clicking a sidebar row activates the
+  // session AND opens (or focuses) its tab in the single board group.
   // Activation focuses the panel, and the dock focus handler moves active
   // there; set active first so notation follows even if the dock is busy.
-  function openSplitView(boardId: string): void {
+  function activateOrOpenBoard(boardId: string): void {
     const state = useStudioStore.getState();
     const board = state.boards.find((item) => item.id === boardId);
     if (!board) {
@@ -40,12 +40,21 @@ export function BoardsSidebar() {
   // SIG-907: store→dock close sync. closeBoardPanel is tracked so the dock
   // remove handler skips the echo; closing the last board seeds a fresh
   // session whose panel we open explicitly.
+  // SIG-915: activate the store-chosen neighbor (previous else next) so its
+  // tab gets focus after the closed panel is removed.
   function handleCloseBoard(boardId: string): void {
     const before = useStudioStore.getState();
     const wasLast = before.boards.length === 1 && before.boards[0].id === boardId;
+    const wasActive = before.activeBoardId === boardId;
     before.closeBoard(boardId);
     closeBoardPanel(boardId);
     if (wasLast) {
+      const after = useStudioStore.getState();
+      const active = selectActiveBoard(after);
+      openBoardPanel(active.id, active.title);
+      return;
+    }
+    if (wasActive) {
       const after = useStudioStore.getState();
       const active = selectActiveBoard(after);
       openBoardPanel(active.id, active.title);
@@ -76,7 +85,7 @@ export function BoardsSidebar() {
             <span className="flex h-6 items-center">
               {/* SIG-910: visible keep control so the preview no longer needs a
                   hidden double-click to pin. Always rendered on preview rows
-                  (the hover-only pattern stays for split/close). */}
+                  (the hover-only pattern stays for close). */}
               {board.preview ? (
                 <button
                   type="button"
@@ -91,18 +100,6 @@ export function BoardsSidebar() {
                   <Pin size={13} />
                 </button>
               ) : null}
-              <button
-                type="button"
-                title="Open in split view"
-                aria-label={`Open ${board.title} in split view`}
-                className="hidden h-6 w-6 items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg group-focus-within:flex group-hover:flex focus-visible:flex"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openSplitView(board.id);
-                }}
-              >
-                <Columns2 size={13} />
-              </button>
               <span className="relative flex h-6 w-6 items-center justify-center">
                 {signedIn && board.dirty ? (
                   <span className="text-studio-warning-fg group-hover:hidden" title="Unsaved changes">
@@ -121,7 +118,7 @@ export function BoardsSidebar() {
               </span>
             </span>
           }
-          onClick={() => setActiveBoard(board.id)}
+          onClick={() => activateOrOpenBoard(board.id)}
           onDoubleClick={() => pinPreviewBoard(board.id)}
           onAuxClick={(event) => {
             if (event.button === 1) {

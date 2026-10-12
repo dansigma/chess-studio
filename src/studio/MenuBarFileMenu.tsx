@@ -50,13 +50,13 @@ export function MenuBarFileMenu({
   function handleCloseBoard(): void {
     const before = useStudioStore.getState();
     const target = before.activeBoardId;
-    const wasLast = before.boards.length === 1 && before.boards[0].id === target;
     before.closeBoard();
     closeBoardPanel(target);
-    if (wasLast) {
-      const active = selectActiveBoard(useStudioStore.getState());
-      openBoardPanel(active.id, active.title);
-    }
+    // SIG-915: closing the active tab focuses the store-chosen neighbor
+    // (previous else next), so its tab gets focus after removal. The last
+    // board reseeds a fresh session whose panel we open explicitly.
+    const active = selectActiveBoard(useStudioStore.getState());
+    openBoardPanel(active.id, active.title);
   }
 
   async function copyPgn() {

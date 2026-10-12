@@ -51,3 +51,20 @@ export function analysisFen(state: {
     state.boards.find((board) => !board.preview) ?? selectActiveBoard(state);
   return analysis ? getFenAt(analysis.tree, analysis.path) : START_FEN;
 }
+
+// SIG-915: browser-style tab close ordering. Closing the active tab focuses
+// the previous tab, or the next when there is no previous (closed the first
+// tab). Returns null when the closed board is the only one (caller reseeds).
+export function nextActiveBoardId(
+  boards: BoardSession[],
+  closedId: string,
+): string | null {
+  const index = boards.findIndex((board) => board.id === closedId);
+  if (index < 0) {
+    return null;
+  }
+  if (index > 0) {
+    return boards[index - 1].id;
+  }
+  return boards[index + 1]?.id ?? null;
+}
