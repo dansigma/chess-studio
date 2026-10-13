@@ -1,13 +1,20 @@
 import { positionKey } from "@/src/chess/zobrist";
 import type { ExplorerFilters } from "@/src/lib/explorer-filters";
-import type { ExplorerGameRow, ExplorerResponse } from "@/src/lib/explorer-types";
+import type { ExplorerGameRow, ExplorerResponse, ExplorerSource } from "@/src/lib/explorer-types";
 import {
   emptyExplorer,
   lookupBookGames,
   lookupBookOpening,
   lookupOpeningBook,
 } from "@/src/lib/opening-book";
-import { lookupOpeningIndex } from "@/src/lib/opening-index";
+
+export type IndexLookupProvider = (fen: string, source?: ExplorerSource) => ExplorerResponse | null;
+
+let activeIndexProvider: IndexLookupProvider | null = null;
+
+export function registerIndexProvider(provider: IndexLookupProvider | null): void {
+  activeIndexProvider = provider;
+}
 
 function normalizeFen(fen: string): string {
   return fen.trim().split(/\s+/).slice(0, 4).join(" ");
@@ -58,18 +65,20 @@ export function warmCuratedIndex(): void {
 /**
  * Embedded query engine for the offline curated master database.
  * Resolves positions in sub-50ms by checking:
- * 1. The local SQLite index (if present on disk).
+ * 1. The local SQLite index (if registered / present on disk).
  * 2. The embedded curated master opening book.
  * 3. Graceful empty explorer payload fallback.
  */
 export function lookupCuratedIndex(
   fen: string,
   filters?: ExplorerFilters,
+  customProvider?: IndexLookupProvider | null,
 ): ExplorerResponse {
   const normalized = normalizeFen(fen);
 
-  // 1. Try local SQLite opening index
-  const indexed = lookupOpeningIndex(normalized, "curated");
+  // 1. Try local SQLite opening index via provider (server-side only)
+  const provider = customProvider !== undefined ? customProvider : activeIndexProvider;
+  const indexed = provider ? provider(normalized, "curated") : null;
   if (indexed && indexed.moves.length > 0) {
     const rawGames = lookupBookGames(normalized);
     const opening = lookupBookOpening(normalized);

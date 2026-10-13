@@ -8,7 +8,7 @@ import {
   lookupCuratedIndex,
   warmCuratedIndex,
 } from "./offline-explorer.ts";
-import { setIndexDatabaseForTesting } from "./opening-index.ts";
+import { lookupOpeningIndex, setIndexDatabaseForTesting } from "./opening-index.ts";
 
 test("getCuratedPositionKey matches positionKey", () => {
   assert.equal(getCuratedPositionKey(START_FEN), positionKey(START_FEN));
@@ -71,7 +71,7 @@ test("lookupCuratedIndex integrates with sqlite opening index when present", () 
 
   try {
     setIndexDatabaseForTesting(db);
-    const res = lookupCuratedIndex(START_FEN);
+    const res = lookupCuratedIndex(START_FEN, undefined, lookupOpeningIndex);
     assert.equal(res.source, "curated");
     assert.equal(res.moves.length, 1);
     assert.equal(res.moves[0].san, "e4");

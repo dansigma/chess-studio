@@ -198,7 +198,7 @@ export async function GET(request: NextRequest) {
   const filters = filtersFromSearchParams(request.nextUrl.searchParams);
 
   if (sourceParam === "curated") {
-    const payload = lookupCuratedIndex(fen, filters);
+    const payload = lookupCuratedIndex(fen, filters, lookupOpeningIndex);
     return NextResponse.json(payload);
   }
 
