@@ -1,397 +1,19 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import {
-  ArrowRightToLine,
-  ArrowUp,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  ChevronsUp,
-  MessageSquare,
-  Minus,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Scissors,
-  Trash2,
-} from "lucide-react";
-import {
-  canMakeMainline,
-  canPromote,
-  getNodeAt,
-  moveNumberForPath,
-  plyColor,
-  type Path,
-  type TreeNode,
-} from "@/src/chess/tree";
-import type { GameHeaders } from "@/src/chess/pgn";
+import { useCallback, useMemo, useState } from "react";
+import { getNodeAt, moveNumberForPath, plyColor, type Path } from "@/src/chess/tree";
 import { useActiveBoard, useActivePathKey } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
-import { formatMoveSuffix, formatPositionGlyphs } from "@/src/chess/nags";
-import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
-import type { NotationDensity } from "./notation-density";
+import { formatSan } from "@/src/chess/move-notation";
+import { GameInfoDialog } from "./GameInfoDialog";
+import { NotationCommentEditor } from "./NotationCommentEditor";
+import { NotationHeader } from "./NotationHeader";
+import { NotationToolbar } from "./NotationToolbar";
 import { MoveGlyphMenu, type GlyphMenuState } from "./MoveGlyphMenu";
-import { Button, IconButton } from "./ui/Button";
-import { Dialog } from "./ui/Dialog";
-import { PlayerCombobox } from "./ui/PlayerCombobox";
 import { pgnResultCaption } from "./ResultMark";
-
-function pathKey(path: Path): string {
-  return path.join(".");
-}
-
-function displayDate(value: string | undefined): string | null {
-  if (!value || value.startsWith("?") || value === "????.??.??") {
-    return null;
-  }
-  const [year, month, day] = value.split(".");
-  if (!year || year.includes("?")) {
-    return null;
-  }
-  if (!month || month.includes("?")) {
-    return year;
-  }
-  if (!day || day.includes("?")) {
-    return `${year}.${month}`;
-  }
-  return value;
-}
-
-function displayEvent(value: string | undefined): string | null {
-  if (!value || value === "?" || value === "Casual game") {
-    return null;
-  }
-  return value;
-}
-
-function CommentText({ text }: { text?: string }) {
-  if (!text) {
-    return null;
-  }
-  return <span className="px-1 text-studio-comment">{text}</span>;
-}
-
-// SIG-857: memoized — a notation tree renders N tokens; without memo every
-// token re-rendered on each cursor move. Props are primitives + stable
-// callbacks; the style prop is hoisted from the panel root so all tokens
-// share one subscription instead of N.
-// SIG-919: compact density reuses the same token — the button keeps click,
-// right-click annotate, the same active highlight, and an aria-current step
-// marker so highlighting/annotations/keyboard parity holds in both modes.
-const MoveToken = memo(function MoveToken({
-  san,
-  color,
-  nags,
-  active,
-  style,
-  compact = false,
-  onClick,
-  onAnnotate,
-}: {
-  san: string;
-  color: "w" | "b";
-  nags?: number[];
-  active: boolean;
-  style: MoveNotation;
-  compact?: boolean;
-  onClick: () => void;
-  onAnnotate: (event: React.MouseEvent) => void;
-}) {
-  const suffix = formatMoveSuffix(nags);
-  const rest = formatPositionGlyphs(nags);
-  return (
-    <span className="inline-flex items-center">
-      <button
-        type="button"
-        onClick={onClick}
-        onContextMenu={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onAnnotate(event);
-        }}
-        aria-current={active ? "step" : undefined}
-        className={`rounded-[5px] font-medium leading-5 ${
-          compact ? "px-0.5 py-px" : "px-1 py-0.5"
-        } ${active ? "bg-studio-accent-move text-studio-accent-fg" : "hover:bg-studio-hover-strong"}`}
-      >
-        {formatSan(san, style, color)}
-        {suffix}
-      </button>
-      {rest ? <span className="pl-0.5 text-dense text-studio-muted">{rest}</span> : null}
-    </span>
-  );
-});
-
-const Line = memo(function Line({
-  nodes,
-  parentPath,
-  startFen,
-  collapsed,
-  currentPath,
-  style,
-  density = "normal",
-  goPath,
-  onToggleCollapse,
-  onAnnotate,
-  continuation = false,
-}: {
-  nodes: TreeNode[];
-  parentPath: Path;
-  startFen: string;
-  collapsed: Set<string>;
-  currentPath: string;
-  style: MoveNotation;
-  density?: NotationDensity;
-  goPath: (path: Path) => void;
-  onToggleCollapse: (key: string) => void;
-  onAnnotate: (path: Path, event: React.MouseEvent) => void;
-  continuation?: boolean;
-}) {
-  if (!nodes[0]) {
-    return null;
-  }
-
-  const items: ReactNode[] = [];
-  let cursor = nodes;
-  let parent = parentPath;
-  let resumeAfterVariation = false;
-
-  while (cursor[0]) {
-    const node = cursor[0];
-    const nodePath = [...parent, 0];
-    const plyIndex = nodePath.length;
-    const color = plyColor(startFen, plyIndex);
-    const number = moveNumberForPath(startFen, plyIndex);
-    const variations = cursor.slice(1);
-    const collapseKey = pathKey(parent);
-    const hideVariations = collapsed.has(collapseKey);
-
-    if (color === "w") {
-      items.push(
-        <span key={`n-${pathKey(nodePath)}`} className="px-0.5 text-studio-faint">
-          {number}.
-        </span>,
-      );
-    } else if (((parent.length === parentPath.length && !continuation) || resumeAfterVariation) && color === "b") {
-      items.push(
-        <span key={`n-${pathKey(nodePath)}`} className="px-0.5 text-studio-faint">
-          {number}...
-        </span>,
-      );
-    }
-
-    items.push(<CommentText key={`${node.id}-before`} text={node.commentBefore} />);
-    items.push(
-      <MoveToken
-        key={node.id}
-        san={node.san}
-        color={color}
-        nags={node.nags}
-        active={currentPath === pathKey(nodePath)}
-        style={style}
-        compact={density === "compact"}
-        onClick={() => goPath(nodePath)}
-        onAnnotate={(event) => onAnnotate(nodePath, event)}
-      />,
-    );
-    items.push(<CommentText key={`${node.id}-after`} text={node.comment} />);
-
-    if (variations.length > 0) {
-      items.push(
-        <button
-          key={`${node.id}-toggle`}
-          type="button"
-          title={hideVariations ? "Show variations" : "Hide variations"}
-          onClick={() => onToggleCollapse(collapseKey)}
-          className="mx-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-studio-hover text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
-        >
-          {hideVariations ? <Plus size={10} /> : <Minus size={10} />}
-        </button>,
-      );
-    }
-
-    resumeAfterVariation = !hideVariations && variations.length > 0;
-    if (!hideVariations) {
-      variations.forEach((variation, index) => {
-        const variationPath = [...parent, index + 1];
-        items.push(
-          <span
-            key={`${node.id}-var-${variation.id}`}
-            className={
-              density === "compact"
-                ? "inline items-baseline gap-0 text-dense text-studio-muted before:content-['('] after:content-[')']"
-                : "my-0.5 ml-1.5 flex basis-full flex-wrap items-center gap-0.5 border-l-2 border-studio-border-strong pl-2 text-dense text-studio-muted"
-            }
-          >
-            <CommentText text={variation.commentBefore} />
-            <span className="px-0.5 text-studio-faint">
-              {number}
-              {color === "b" ? "..." : "."}
-            </span>
-            <MoveToken
-              san={variation.san}
-              color={color}
-              nags={variation.nags}
-              active={currentPath === pathKey(variationPath)}
-              style={style}
-              compact={density === "compact"}
-              onClick={() => goPath(variationPath)}
-              onAnnotate={(event) => onAnnotate(variationPath, event)}
-            />
-            <CommentText text={variation.comment} />
-            {variation.children.length > 0 ? (
-              <Line
-                nodes={variation.children}
-                parentPath={variationPath}
-                startFen={startFen}
-                collapsed={collapsed}
-                currentPath={currentPath}
-                style={style}
-                density={density}
-                goPath={goPath}
-                onToggleCollapse={onToggleCollapse}
-                onAnnotate={onAnnotate}
-                continuation
-              />
-            ) : null}
-          </span>,
-        );
-      });
-    }
-
-    parent = nodePath;
-    cursor = node.children;
-  }
-
-  return <>{items}</>;
-});
-
-function PlayerName({
-  name,
-  elo,
-  fallback,
-}: {
-  name?: string;
-  elo?: string;
-  fallback: string;
-}) {
-  const shown = name && name !== "?" ? name : fallback;
-  const muted = !name || name === "?" || name === fallback;
-  return (
-    <span className="inline-flex items-baseline gap-1.5">
-      <span className={`text-title font-semibold tracking-tight ${muted ? "text-studio-faint" : "text-studio-fg"}`}>
-        {shown}
-      </span>
-      {elo ? <span className="text-body font-medium tabular-nums text-studio-muted">{elo}</span> : null}
-    </span>
-  );
-}
-
-const HEADER_FIELDS: Array<{ key: keyof GameHeaders | string; label: string }> = [
-  { key: "White", label: "White" },
-  { key: "WhiteElo", label: "White rating" },
-  { key: "Black", label: "Black" },
-  { key: "BlackElo", label: "Black rating" },
-  { key: "Event", label: "Event" },
-  { key: "Site", label: "Site" },
-  { key: "Date", label: "Date" },
-  { key: "Round", label: "Round" },
-];
-
-function GameInfoDialog({
-  headers,
-  onClose,
-  onSave,
-}: {
-  headers: GameHeaders;
-  onClose: () => void;
-  onSave: (headers: GameHeaders) => void;
-}) {
-  const [draft, setDraft] = useState<GameHeaders>({ ...headers });
-
-  function setField(key: string, value: string) {
-    setDraft((current) => ({ ...current, [key]: value }));
-  }
-
-  const fieldClass =
-    "h-8 rounded-md border border-studio-border-strong bg-studio-panel px-2 text-body text-studio-fg outline-none focus:border-studio-accent";
-  return (
-    <Dialog
-      title="Game information"
-      onClose={onClose}
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" form="game-info-form">
-            Save
-          </Button>
-        </>
-      }
-    >
-      <form
-        id="game-info-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          const next: GameHeaders = {};
-          for (const [key, value] of Object.entries(draft)) {
-            if (value.trim()) {
-              next[key] = value.trim();
-            }
-          }
-          onSave(next);
-        }}
-      >
-        <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
-          {HEADER_FIELDS.map((field) =>
-            field.key === "White" || field.key === "Black" ? (
-              <label
-                key={field.key}
-                className="flex flex-col gap-1 text-caption text-studio-muted"
-              >
-                {field.label}
-                <PlayerCombobox
-                  value={draft[field.key] ?? ""}
-                  onChange={(value) => setField(field.key, value)}
-                  className={fieldClass}
-                />
-              </label>
-            ) : (
-              <label
-                key={field.key}
-                className="flex flex-col gap-1 text-caption text-studio-muted"
-              >
-                {field.label}
-                <input
-                  value={draft[field.key] ?? ""}
-                  onChange={(event) => setField(field.key, event.target.value)}
-                  className={fieldClass}
-                  placeholder={field.key === "Date" ? "YYYY.MM.DD" : undefined}
-                />
-              </label>
-            ),
-          )}
-          <label className="col-span-2 flex flex-col gap-1 text-caption text-studio-muted">
-            Result
-            <select
-              value={draft.Result ?? "*"}
-              onChange={(event) => setField("Result", event.target.value)}
-              className={fieldClass}
-            >
-              <option value="*">Ongoing *</option>
-              <option value="1-0">White wins 1-0</option>
-              <option value="0-1">Black wins 0-1</option>
-              <option value="1/2-1/2">Draw 1/2-1/2</option>
-            </select>
-          </label>
-        </div>
-      </form>
-    </Dialog>
-  );
-}
+import { Line } from "./NotationMoves";
+import { displayDate, displayEvent } from "./notation-format";
+import { useNotationCommentDraft } from "./use-notation-comment-draft";
 
 export function NotationPanel() {
   const board = useActiveBoard();
@@ -414,7 +36,6 @@ export function NotationPanel() {
   const editor = useStudioStore((state) => state.notationEditor);
   const setEditor = useStudioStore((state) => state.setNotationEditor);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [draftComment, setDraftComment] = useState("");
   const [glyphMenu, setGlyphMenu] = useState<GlyphMenuState | null>(null);
 
   const current = getNodeAt(board.tree, board.path);
@@ -428,42 +49,15 @@ export function NotationPanel() {
   const commentBeforeOpen = editor === "commentBefore";
   const headersOpen = editor === "headers";
 
-  const editedComment = commentOpen ? currentComment : commentBeforeOpen ? currentBefore : null;
-  const draftSource =
-    editedComment === null ? null : `${editor}|${board.id}|${pathKey(board.path)}|${editedComment}`;
-  const [syncedDraftSource, setSyncedDraftSource] = useState<string | null>(null);
-  if (syncedDraftSource !== draftSource) {
-    setSyncedDraftSource(draftSource);
-    if (editedComment !== null) {
-      setDraftComment(editedComment);
-    }
-  }
-
-  const commitDraftComment = useCallback(() => {
-    if (commentBeforeOpen) {
-      if (draftComment !== currentBefore) {
-        setMoveCommentBefore(draftComment);
-      }
-    } else if (commentOpen && draftComment !== currentComment) {
-      setMoveComment(draftComment);
-    }
-  }, [
-    commentBeforeOpen,
-    commentOpen,
-    currentBefore,
+  const { draftComment, setDraftComment, commitDraftComment } = useNotationCommentDraft({
+    editor,
+    boardId: board.id,
+    path: board.path,
     currentComment,
-    draftComment,
-    setMoveComment,
-    setMoveCommentBefore,
-  ]);
-
-  useEffect(() => {
-    if (!commentOpen && !commentBeforeOpen) {
-      return;
-    }
-    const handle = window.setTimeout(commitDraftComment, 300);
-    return () => window.clearTimeout(handle);
-  }, [commitDraftComment, commentOpen, commentBeforeOpen]);
+    currentBefore,
+    setComment: setMoveComment,
+    setCommentBefore: setMoveCommentBefore,
+  });
 
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const notationDensity = useStudioStore((state) => state.settings.notationDensity);
@@ -504,84 +98,28 @@ export function NotationPanel() {
 
   return (
     <div className="relative flex h-full flex-col bg-studio-panel text-sm text-studio-fg">
-      <div className="flex items-start justify-between gap-3 border-b border-studio-border-subtle px-3 py-2.5">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <PlayerName name={board.headers.White} elo={board.headers.WhiteElo} fallback="White" />
-            <span className="text-dense text-studio-faint">vs</span>
-            <PlayerName name={board.headers.Black} elo={board.headers.BlackElo} fallback="Black" />
-          </div>
-          {event ? <div className="mt-0.5 truncate text-dense text-studio-muted">{event}</div> : null}
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5 pt-0.5 text-dense text-studio-muted">
-          {date ? <span className="tabular-nums">{date}</span> : <span className="text-studio-faint">No date</span>}
-          <IconButton
-            label="Edit game information"
-            size="sm"
-            className="text-studio-faint hover:text-studio-fg"
-            onClick={() => setEditor("headers")}
-          >
-            <Pencil size={13} />
-          </IconButton>
-        </div>
-      </div>
+      <NotationHeader
+        headers={board.headers}
+        date={date}
+        event={event}
+        onEdit={() => setEditor("headers")}
+      />
 
-      <div className="flex items-center gap-0.5 border-b border-studio-border-subtle px-1.5 py-1">
-        <IconButton label="Start" shortcut="Home" onClick={toStart}>
-          <ChevronsLeft size={15} />
-        </IconButton>
-        <IconButton label="Back" shortcut="←" onClick={back}>
-          <ChevronLeft size={15} />
-        </IconButton>
-        <IconButton label="Forward" shortcut="→" onClick={forward}>
-          <ChevronRight size={15} />
-        </IconButton>
-        <IconButton label="Skip forward" onClick={skipForward}>
-          <ChevronsRight size={15} />
-        </IconButton>
-        <IconButton label="End" shortcut="End" onClick={toEnd}>
-          <ArrowRightToLine size={15} />
-        </IconButton>
-        <IconButton label="Flip board" shortcut="Ctrl+F" onClick={flip}>
-          <RefreshCw size={14} />
-        </IconButton>
-        <div className="mx-1 h-4 w-px bg-studio-border-strong" />
-        <IconButton
-          label="Edit annotations"
-          shortcut="Ctrl+A"
-          active={commentOpen}
-          onClick={() => setEditor(commentOpen ? null : "comment")}
-        >
-          <MessageSquare size={14} />
-        </IconButton>
-        <IconButton
-          label="Promote variation"
-          shortcut="Ctrl+↑"
-          disabled={!canPromote(board.path)}
-          onClick={promote}
-        >
-          <ArrowUp size={14} />
-        </IconButton>
-        <IconButton
-          label="Make mainline"
-          shortcut="Ctrl+Shift+↑"
-          disabled={!canMakeMainline(board.path)}
-          onClick={makeMain}
-        >
-          <ChevronsUp size={14} />
-        </IconButton>
-        <IconButton label="Delete after" shortcut="Del" onClick={pruneAfter}>
-          <Scissors size={14} />
-        </IconButton>
-        <IconButton
-          label="Delete variation"
-          shortcut="Ctrl+Del"
-          disabled={board.path.length === 0}
-          onClick={removeVariation}
-        >
-          <Trash2 size={14} />
-        </IconButton>
-      </div>
+      <NotationToolbar
+        path={board.path}
+        commentOpen={commentOpen}
+        onStart={toStart}
+        onBack={back}
+        onForward={forward}
+        onSkipForward={skipForward}
+        onEnd={toEnd}
+        onFlip={flip}
+        onToggleComment={() => setEditor(commentOpen ? null : "comment")}
+        onPromote={promote}
+        onMakeMainline={makeMain}
+        onDeleteAfter={pruneAfter}
+        onDeleteVariation={removeVariation}
+      />
 
       <div
         className={`min-h-0 flex-1 overflow-auto text-body ${compact ? "p-2 text-dense leading-5" : "p-3 leading-6"}`}
@@ -620,43 +158,14 @@ export function NotationPanel() {
       </div>
 
       {commentOpen || commentBeforeOpen ? (
-        <div className="border-t border-studio-border bg-studio-chrome p-3">
-          <div className="mb-1.5 text-caption uppercase tracking-wider text-studio-faint">
-            {commentBeforeOpen ? "Comment before" : "Comment"} · {moveLabel}
-          </div>
-          <textarea
-            value={draftComment}
-            onChange={(event) => {
-              setDraftComment(event.target.value);
-            }}
-            onBlur={commitDraftComment}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                commitDraftComment();
-                setEditor(null);
-              }
-            }}
-            placeholder={
-              commentBeforeOpen
-                ? "Write a note that appears before this move…"
-                : "Write a note for this move or the starting position…"
-            }
-            className="h-24 w-full resize-none rounded-md border border-studio-border-strong bg-studio-panel px-2 py-1.5 text-body text-studio-fg outline-none focus:border-studio-accent"
-            autoFocus
-          />
-          <div className="mt-2 flex justify-end">
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => {
-                commitDraftComment();
-                setEditor(null);
-              }}
-            >
-              Done
-            </Button>
-          </div>
-        </div>
+        <NotationCommentEditor
+          commentBefore={commentBeforeOpen}
+          moveLabel={moveLabel}
+          value={draftComment}
+          onChange={setDraftComment}
+          onCommit={commitDraftComment}
+          onClose={() => setEditor(null)}
+        />
       ) : null}
 
       {glyphMenu ? (
