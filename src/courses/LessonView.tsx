@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Chess, type Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
-import { ChevronLeft, ChevronRight, ChevronsLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ExternalLink } from "lucide-react";
 import { importPgn } from "@/src/chess/pgn";
 import { boardSquareStyles } from "@/src/chess/board-themes";
 import { MARK_HEX } from "@/src/chess/marks";
 import { piecesForSet } from "@/src/chess/piece-sets";
+import { shareBoardUrl, writeCourseStudyImport } from "@/src/chess/share-board";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button, IconButton } from "@/src/studio/ui/Button";
 import { lessonFrames, progressAfterStep, studentMoveMatches } from "./lesson";
@@ -18,6 +20,7 @@ import { CourseChrome } from "./CourseChrome";
 import type { Course, CourseChapter, CourseVariation } from "./types";
 
 export function LessonView({ course, variationId }: { course: Course; variationId: string }) {
+  const router = useRouter();
   const [step, setStep] = useState(0);
   const [notice, setNotice] = useState("");
   const [hint, setHint] = useState(false);
@@ -189,12 +192,37 @@ export function LessonView({ course, variationId }: { course: Course; variationI
     <div className="flex h-dvh flex-col overflow-hidden bg-studio-bg">
       <CourseChrome admin={admin} />
       <div className="shrink-0 border-b border-studio-border bg-studio-chrome px-4 py-3">
-        <Link href={`/courses/${loaded.course.slug}`} className="text-caption text-studio-muted hover:text-studio-fg">
-          {loaded.course.title}
-        </Link>
-        <h1 className="text-body font-semibold text-studio-fg">
-          {loaded.chapter.title} · {loaded.variation.title}
-        </h1>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Link href={`/courses/${loaded.course.slug}`} className="text-caption text-studio-muted hover:text-studio-fg">
+              {loaded.course.title}
+            </Link>
+            <h1 className="text-body font-semibold text-studio-fg">
+              {loaded.chapter.title} · {loaded.variation.title}
+            </h1>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="mt-0.5 shrink-0"
+            onClick={() => {
+              const title = `${loaded.course.title} — ${loaded.variation.title}`;
+              const written = writeCourseStudyImport({
+                title,
+                pgn: loaded.variation.pgn,
+                atFen: frame.fen,
+              });
+              if (written) {
+                router.push("/studio");
+              } else {
+                router.push(shareBoardUrl(window.location.origin, frame.fen));
+              }
+            }}
+          >
+            <ExternalLink size={14} aria-hidden />
+            Open in Studio
+          </Button>
+        </div>
         <div
           className="mt-2 h-1 overflow-hidden rounded-full bg-studio-track"
           role="progressbar"

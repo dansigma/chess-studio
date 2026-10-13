@@ -25,7 +25,7 @@ import {
 import { loadRemoteFiles } from "@/src/lib/user-files";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
-import { fenFromShareSearch } from "@/src/chess/share-board";
+import { clearCourseStudyImport, fenFromShareSearch, readCourseStudyImport } from "@/src/chess/share-board";
 import { StatusBar } from "./StatusBar";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
@@ -333,6 +333,21 @@ export function StudioShell() {
       return;
     }
     sharedFenApplied.current = true;
+    const courseImport = readCourseStudyImport();
+    if (courseImport) {
+      clearCourseStudyImport();
+      try {
+        useStudioStore.getState().openListedGame({
+          title: courseImport.title,
+          pgn: courseImport.pgn,
+          atFen: courseImport.atFen,
+          openInNewBoard: true,
+        });
+      } catch {
+        useStudioStore.setState({ statusMessage: "Could not open that course line." });
+      }
+      return;
+    }
     const fen = fenFromShareSearch(window.location.search);
     if (fen) {
       useStudioStore.getState().openSharedPosition(fen);
