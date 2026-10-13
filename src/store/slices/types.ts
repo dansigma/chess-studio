@@ -213,7 +213,10 @@ export type StudioState = {
   setPlayerColorFilter: (filter: PlayerColorFilter) => void;
   setPlayerResultFilter: (filter: PlayerResultFilter) => void;
   setFilesQuery: (query: string) => void;
-  createFileFolder: (name?: string) => void;
+  createFileFolder: (name?: string, parentId?: string | null) => void;
+  renameFileFolder: (id: string, name: string) => void;
+  moveFileFolder: (id: string, targetParentId: string | null) => boolean;
+  moveFileDatabase: (id: string, targetFolderId: string | null) => void;
   importFileDatabase: (
     name: string,
     pgn: string,
@@ -225,7 +228,7 @@ export type StudioState = {
   openFileGame: (game: FileGame, options?: { atFen?: string; openInNewBoard?: boolean }) => void;
   deleteFileFolder: (id: string) => void;
   deleteFileDatabase: (id: string) => void;
-  mergeRemoteFiles: (databases: FileDatabase[]) => void;
+  mergeRemoteFiles: (remote: FilesLibrary | FileDatabase[]) => void;
   togglePlayerBookmark: (player: PlayerHit) => void;
   mergeRemoteBookmarks: (remote: PlayerBookmark[]) => void;
   hydrateRemoteBookmarks: () => Promise<void>;

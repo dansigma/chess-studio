@@ -67,7 +67,7 @@ const GAME_A: PlayerGame = {
 };
 
 const FILES_A: FilesLibrary = {
-  folders: [{ id: "folder-a1", name: "A folder" }],
+  folders: [{ id: "folder-a1", name: "A folder", parentId: null }],
   databases: [
     { id: "db-a1", remoteId: "remote-db-a1", name: "A db", folderId: "folder-a1", games: [] },
   ],

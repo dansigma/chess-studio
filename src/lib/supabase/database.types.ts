@@ -126,6 +126,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      user_folders: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          parent_id: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          parent_id?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          name?: string;
+          parent_id?: string | null;
+        };
+        Relationships: [];
+      };
       game_databases: {
         Row: {
           id: string;
@@ -133,6 +154,7 @@ export type Database = {
           name: string;
           kind: "ultra" | "online" | "personal";
           game_count: number;
+          folder_id: string | null;
         };
         Insert: {
           id?: string;
@@ -140,10 +162,12 @@ export type Database = {
           name: string;
           kind: "ultra" | "online" | "personal";
           game_count?: number;
+          folder_id?: string | null;
         };
         Update: {
           name?: string;
           game_count?: number;
+          folder_id?: string | null;
         };
         Relationships: [];
       };
