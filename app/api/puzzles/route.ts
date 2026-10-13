@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { clientIp, createRouteLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 import { PUZZLES } from "@/src/puzzles/puzzle-data";
 import { queryPuzzles, isPuzzleTheme, type PuzzleQueryOptions } from "@/src/puzzles/query";
 
@@ -11,14 +11,12 @@ const limiter = createRouteLimiter({ limit: 60, windowMs: 60_000, bindingName: "
 
 export async function GET(request: NextRequest) {
   const ip = clientIp(request.headers);
-  if (ip !== "unknown") {
-    const verdict = await limiter.checkAsync(`puzzles:${ip}`);
-    if (!verdict.ok) {
-      return NextResponse.json(
-        { error: "Too many requests — try again shortly." },
-        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-      );
-    }
+  const verdict = await limiter.checkAsync(rateLimitKey("puzzles", ip));
+  if (!verdict.ok) {
+    return NextResponse.json(
+      { error: "Too many requests — try again shortly." },
+      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+    );
   }
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get("id");

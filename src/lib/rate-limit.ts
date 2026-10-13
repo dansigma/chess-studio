@@ -1,7 +1,8 @@
 // Rate limiting is best-effort with two tiers: on Cloudflare Workers the
-// native Rate Limit binding (`env[bindingName]`) enforces the limit globally
-// at the edge; everywhere else (local dev, tests, Next build) it degrades to
-// the in-process fallback below (per isolate/process, not global).
+// native Rate Limit binding (`env[bindingName]`) enforces the limit at the
+// edge (per Cloudflare location — eventually consistent, replacing
+// per-isolate-only); everywhere else (local dev, tests, Next build) it
+// degrades to the in-process fallback below (per isolate/process).
 //
 // Trust boundary: `cf-connecting-ip` is set (overwritten) by Cloudflare at
 // the edge and trusted first. `x-forwarded-for` / `x-real-ip` must come from
@@ -12,16 +13,11 @@
 // attacker-controlled under an appending proxy and must not be used. Without
 // that proxy the header is client-controlled (dev only).
 //
-// No-header case: when no IP header is present the limiter is skipped
-// (fail-open) — call sites get `unknown` from `clientIp` and bypass the
-// check. In production the edge always sets the header, so `unknown` happens
-// only in dev/direct connections, where a shared bucket would let normal
-// studio browsing (one explorer request per move) self-throttle. Fail-open is
-// kept even with the global backend: a shared bucket would let one abuser
-// throttle all users. The right-most convention requires a single appending
-// proxy at the edge; on a multi-hop chain (CDN → app proxy) every client
-// collapses onto the last hop's IP — documented, accepted for this
-// deployment.
+// No-header case: when no IP header is present, call sites MUST still count
+// the request against a shared low-quota `unknown` bucket for that limiter —
+// never skip. Skipping lets anyone bypass every limit by omitting headers.
+// `clientIp` returns "unknown" and `rateLimitKey` maps it to a shared
+// `<route>:unknown` key so all header-less callers share one small quota.
 export const MAX_KEYS = 5000;
 
 export type Verdict = { ok: true } | { ok: false; retryAfterSeconds: number };
@@ -124,6 +120,15 @@ function warnFallbackOnce(bindingName: string, reason: string): void {
   }
 }
 
+/**
+ * Builds the limiter key for a route + client IP. Unknown IPs (no headers)
+ * share one `<route>:unknown` bucket so omitting headers never bypasses the
+ * limit — call sites must always check, never skip on "unknown".
+ */
+export function rateLimitKey(route: string, ip: string): string {
+  return `${route}:${ip}`;
+}
+
 export function clientIp(headers: Headers): string {
   // Cloudflare overwrites this at the edge — trusted first.
   const connectingIp = headers.get("cf-connecting-ip")?.trim();
@@ -147,23 +152,28 @@ export function clientIp(headers: Headers): string {
   }
   if (!warnedUnknownIp) {
     warnedUnknownIp = true;
-    console.warn("rate-limit: client IP unavailable (fail-open)");
+    console.warn("rate-limit: client IP unavailable (counted in shared unknown bucket)");
   }
   return "unknown";
 }
 
 /**
  * Async limiter: prefers the native Cloudflare Rate Limit binding
- * (`env[bindingName]`, global at the edge) and falls back to an in-process
- * `createRateLimiter` when the binding is absent or throws. The native API
- * returns only `{ success }` (no retry-after), so denials approximate with
- * `ceil(windowMs/1000)`.
+ * (`env[bindingName]`, edge-enforced per Cloudflare location) and always
+ * enforces the in-process `createRateLimiter` fallback too. Both must allow
+ * the request: the fallback preserves long windows the native API cannot
+ * express (periods are 10s|60s only, e.g. the 10 req/10 min auth quota),
+ * while the binding adds an edge burst cap. The native API returns only
+ * `{ success }` (no retry-after), so binding denials use
+ * `bindingRetryAfterSeconds` (defaults to min(window, 60s)).
  */
 export function createRouteLimiter(options: {
   limit: number;
   windowMs: number;
   bindingName: string;
   now?: () => number;
+  /** Retry hint for native binding denials (its period is 10s|60s). */
+  bindingRetryAfterSeconds?: number;
   /** Test seam — overrides the workerd binding resolution. */
   resolveBindingForTest?: () => Promise<RateLimitBinding | undefined>;
 }): {
@@ -174,9 +184,14 @@ export function createRouteLimiter(options: {
     windowMs: options.windowMs,
     now: options.now,
   });
-  const retryAfterSeconds = Math.max(1, Math.ceil(options.windowMs / 1000));
+  const fallbackRetryCeil = Math.max(1, Math.ceil(options.windowMs / 1000));
+  const bindingRetryAfterSeconds =
+    options.bindingRetryAfterSeconds ?? Math.min(fallbackRetryCeil, 60);
   return {
     async checkAsync(key: string): Promise<Verdict> {
+      // Always count against the fallback first so long windows (e.g. auth
+      // 10-min) hold even when the edge binding allows the burst.
+      const fallbackVerdict = fallback.check(key);
       const resolve = options.resolveBindingForTest ?? (() => resolveBinding(options.bindingName));
       let binding: RateLimitBinding | undefined;
       try {
@@ -187,17 +202,18 @@ export function createRouteLimiter(options: {
       if (binding) {
         try {
           const result = await binding.limit({ key });
-          if (result.success) {
-            return { ok: true };
+          if (!result.success) {
+            return { ok: false, retryAfterSeconds: bindingRetryAfterSeconds };
           }
-          return { ok: false, retryAfterSeconds };
+          return fallbackVerdict;
         } catch {
           warnFallbackOnce(options.bindingName, "limit() threw");
+          return fallbackVerdict;
         }
       } else {
         warnFallbackOnce(options.bindingName, "missing");
       }
-      return fallback.check(key);
+      return fallbackVerdict;
     },
   };
 }

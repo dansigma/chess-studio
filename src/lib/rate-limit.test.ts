@@ -4,6 +4,7 @@ import {
   clientIp,
   createRateLimiter,
   createRouteLimiter,
+  rateLimitKey,
   MAX_KEYS,
 } from "./rate-limit.ts";
 
@@ -177,4 +178,40 @@ test("drains expired windows past MAX_KEYS while a recent active bucket survives
   assert.deepEqual(limiter.check("old-0"), { ok: true });
   assert.deepEqual(limiter.check("flood-0"), { ok: true });
   assert.equal(limiter.check("flood-0").ok, false);
+});
+
+test("rateLimitKey routes unknown IPs to a shared bucket", () => {
+  assert.equal(rateLimitKey("explorer", "unknown"), "explorer:unknown");
+  assert.equal(rateLimitKey("explorer", "1.2.3.4"), "explorer:1.2.3.4");
+});
+
+test("createRouteLimiter enforces the shared unknown bucket via checkAsync", async () => {
+  const limiter = createRouteLimiter({
+    limit: 2,
+    windowMs: 60_000,
+    bindingName: "RL_60_MIN",
+    resolveBindingForTest: async () => undefined,
+  });
+  const key = rateLimitKey("explorer", clientIp(new Headers()));
+  assert.equal(key, "explorer:unknown");
+  assert.deepEqual(await limiter.checkAsync(key), { ok: true });
+  assert.deepEqual(await limiter.checkAsync(key), { ok: true });
+  assert.equal((await limiter.checkAsync(key)).ok, false);
+});
+
+test("createRouteLimiter enforces the long fallback window when the edge binding allows", async () => {
+  let now = 0;
+  const limiter = createRouteLimiter({
+    limit: 2,
+    windowMs: 10 * 60 * 1000,
+    bindingName: "RL_AUTH",
+    now: () => now,
+    resolveBindingForTest: async () => ({
+      limit: async () => ({ success: true }),
+    }),
+  });
+  assert.deepEqual(await limiter.checkAsync("auth:1.2.3.4"), { ok: true });
+  assert.deepEqual(await limiter.checkAsync("auth:1.2.3.4"), { ok: true });
+  now = 61_000;
+  assert.equal((await limiter.checkAsync("auth:1.2.3.4")).ok, false);
 });

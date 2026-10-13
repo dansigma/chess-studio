@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadPlayerGames } from "@/src/lib/players-server";
 import { isPlayerUsername, isStudioPlayerName } from "@/src/lib/request-validation";
-import { clientIp, createRouteLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 
 const limiter = createRouteLimiter({ limit: 30, windowMs: 60_000, bindingName: "RL_30_MIN" });
 
@@ -16,14 +16,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "source and a valid username are required" }, { status: 400 });
   }
   const ip = clientIp(request.headers);
-  if (ip !== "unknown") {
-    const verdict = await limiter.checkAsync(`games:${ip}`);
-    if (!verdict.ok) {
-      return NextResponse.json(
-        { error: "Too many requests — try again shortly." },
-        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-      );
-    }
+  const verdict = await limiter.checkAsync(rateLimitKey("games", ip));
+  if (!verdict.ok) {
+    return NextResponse.json(
+      { error: "Too many requests — try again shortly." },
+      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+    );
   }
   try {
     const payload = await loadPlayerGames(source, username, displayName, subtitle);

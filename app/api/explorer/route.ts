@@ -15,7 +15,7 @@ import { lookupCuratedIndex } from "@/src/lib/offline-explorer";
 import { lookupOpeningIndex } from "@/src/lib/opening-index";
 import { createLruCache } from "@/src/lib/lru";
 import { isExplorerFen } from "@/src/lib/request-validation";
-import { clientIp, createRouteLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 
 const memoryCache = createLruCache<string, { payload: ExplorerResponse; fetchedAt: number }>(500);
 const limiter = createRouteLimiter({ limit: 60, windowMs: 60_000, bindingName: "RL_60_MIN" });
@@ -185,14 +185,12 @@ export async function GET(request: NextRequest) {
   }
 
   const ip = clientIp(request.headers);
-  if (ip !== "unknown") {
-    const verdict = await limiter.checkAsync(`explorer:${ip}`);
-    if (!verdict.ok) {
-      return NextResponse.json(
-        { error: "Too many requests — try again shortly." },
-        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-      );
-    }
+  const verdict = await limiter.checkAsync(rateLimitKey("explorer", ip));
+  if (!verdict.ok) {
+    return NextResponse.json(
+      { error: "Too many requests — try again shortly." },
+      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+    );
   }
 
   const filters = filtersFromSearchParams(request.nextUrl.searchParams);

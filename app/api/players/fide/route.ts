@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchFidePlayers } from "@/src/lib/players-server";
 import { isSearchQuery } from "@/src/lib/request-validation";
-import { clientIp, createRouteLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -13,14 +13,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ players: [] });
   }
   const ip = clientIp(request.headers);
-  if (ip !== "unknown") {
-    const verdict = await limiter.checkAsync(`fide:${ip}`);
-    if (!verdict.ok) {
-      return NextResponse.json(
-        { error: "Too many requests — try again shortly." },
-        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-      );
-    }
+  const verdict = await limiter.checkAsync(rateLimitKey("fide", ip));
+  if (!verdict.ok) {
+    return NextResponse.json(
+      { error: "Too many requests — try again shortly." },
+      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+    );
   }
   try {
     const players = await searchFidePlayers(query);
