@@ -3,12 +3,19 @@ import { isPieceSet } from "@/src/chess/piece-sets";
 import { isMoveNotation } from "@/src/chess/move-notation";
 import { isColorScheme } from "@/src/studio/color-scheme";
 import { isNotationDensity } from "@/src/studio/notation-density";
-import { clampThreads, defaultEngineThreads, isEngineBuild } from "@/src/engine/stockfish-client";
+import type { StateCreator } from "zustand";
+import {
+  clampDepth,
+  clampLines,
+  clampThreads,
+  defaultEngineThreads,
+  isEngineBuild,
+} from "@/src/engine/stockfish-client";
 import {
   DEFAULT_EXPLORER_FILTERS,
   readExplorerFilters,
 } from "@/src/lib/explorer-filters";
-import type { StudioSettings } from "./types";
+import type { StudioSettings, StudioState } from "./types";
 
 export const SETTINGS_KEY = "studio-clone-settings";
 
@@ -88,3 +95,157 @@ export function loadLocalSettings(): StudioSettings {
     return DEFAULT_SETTINGS;
   }
 }
+
+export type SettingsSlice = Pick<
+  StudioState,
+  | "toggleCoordinates"
+  | "toggleMoveSound"
+  | "toggleEvalBar"
+  | "toggleGamePreview"
+  | "pinPreviewBoard"
+  | "setBoardTheme"
+  | "setPieceSet"
+  | "setMoveNotation"
+  | "setNotationDensity"
+  | "toggleNotationDensity"
+  | "setColorScheme"
+  | "setEngineDepth"
+  | "setMultiPv"
+  | "setEngineThreads"
+  | "setEngineBuild"
+  | "toggleSidebar"
+  | "setExplorerFilters"
+  | "hydrateLocalSettings"
+  | "hydrateSettings"
+>;
+
+// SIG-944: settings state/actions used to live inline in studio-store.ts. The
+// store still owns the `settings` field itself (it spreads this slice alongside
+// the others); this module owns every action that mutates it.
+export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlice> = (set) => ({
+  toggleCoordinates: () => {
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        showCoordinates: !state.settings.showCoordinates,
+      },
+    }));
+  },
+  toggleMoveSound: () => {
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        moveSound: !state.settings.moveSound,
+      },
+    }));
+  },
+  toggleEvalBar: () => {
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        showEvalBar: !state.settings.showEvalBar,
+      },
+    }));
+  },
+  toggleGamePreview: () => {
+    set((state) => {
+      const enabled = !state.settings.gamePreviewEnabled;
+      return {
+        settings: { ...state.settings, gamePreviewEnabled: enabled },
+        boards: enabled
+          ? state.boards
+          : state.boards.map((board) => (board.preview ? { ...board, preview: false } : board)),
+      };
+    });
+  },
+  pinPreviewBoard: (id) => {
+    set((state) => ({
+      boards: state.boards.map((board) =>
+        board.id === id && board.preview ? { ...board, preview: false } : board,
+      ),
+    }));
+  },
+  setBoardTheme: (boardTheme) => {
+    set((state) => ({ settings: { ...state.settings, boardTheme } }));
+  },
+  setPieceSet: (pieceSet) => {
+    set((state) => ({ settings: { ...state.settings, pieceSet } }));
+  },
+  setMoveNotation: (moveNotation) => {
+    set((state) => ({ settings: { ...state.settings, moveNotation } }));
+  },
+  setNotationDensity: (notationDensity) => {
+    set((state) => ({ settings: { ...state.settings, notationDensity } }));
+  },
+  toggleNotationDensity: () => {
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        notationDensity: state.settings.notationDensity === "compact" ? "normal" : "compact",
+      },
+    }));
+  },
+  setColorScheme: (colorScheme) => {
+    set((state) => ({ settings: { ...state.settings, colorScheme } }));
+  },
+  setEngineDepth: (engineDepth) => {
+    set((state) => ({
+      settings: { ...state.settings, engineDepth: clampDepth(engineDepth) },
+    }));
+  },
+  setMultiPv: (multiPv) => {
+    set((state) => ({
+      settings: { ...state.settings, multiPv: clampLines(multiPv) },
+    }));
+  },
+  setEngineThreads: (engineThreads) => {
+    set((state) => ({
+      settings: { ...state.settings, engineThreads: clampThreads(engineThreads) },
+    }));
+  },
+  setEngineBuild: (engineBuild) => {
+    set((state) => ({ settings: { ...state.settings, engineBuild } }));
+  },
+  toggleSidebar: () =>
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        sidebarCollapsed: !state.settings.sidebarCollapsed,
+      },
+    })),
+  setExplorerFilters: (patch) =>
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        explorerFilters: { ...state.settings.explorerFilters, ...patch },
+      },
+    })),
+  hydrateLocalSettings: () => {
+    set({ settings: loadLocalSettings() });
+  },
+  hydrateSettings: (partial) => {
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        ...(partial.showCoordinates !== undefined
+          ? { showCoordinates: partial.showCoordinates }
+          : {}),
+        ...(partial.showEvalBar !== undefined ? { showEvalBar: partial.showEvalBar } : {}),
+        ...(partial.boardTheme !== undefined ? { boardTheme: partial.boardTheme } : {}),
+        ...(partial.pieceSet !== undefined ? { pieceSet: partial.pieceSet } : {}),
+        ...(partial.moveNotation !== undefined ? { moveNotation: partial.moveNotation } : {}),
+        ...(partial.notationDensity !== undefined
+          ? { notationDensity: partial.notationDensity }
+          : {}),
+        ...(partial.gamePreviewEnabled !== undefined
+          ? { gamePreviewEnabled: partial.gamePreviewEnabled }
+          : {}),
+        ...(partial.engineDepth !== undefined ? { engineDepth: clampDepth(partial.engineDepth) } : {}),
+        ...(partial.multiPv !== undefined ? { multiPv: clampLines(partial.multiPv) } : {}),
+        ...(partial.engineThreads !== undefined
+          ? { engineThreads: clampThreads(partial.engineThreads) }
+          : {}),
+      },
+    }));
+  },
+});

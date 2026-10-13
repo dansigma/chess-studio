@@ -84,6 +84,8 @@ export type BoardsSlice = Pick<
   | "undo"
   | "redo"
   | "setBoardsHydrated"
+  | "hydrateRemoteBoard"
+  | "markSaved"
 >;
 
 export const initialBoardsState = {
@@ -508,4 +510,32 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
   setBoardsHydrated: () => set({ boardsHydrated: true }),
   undo: () => get().back(),
   redo: () => get().forward(),
+  hydrateRemoteBoard: (board) => {
+    set((state) => {
+      const exists = state.boards.some((item) => item.remoteId === board.remoteId);
+      if (exists) {
+        return {
+          boards: state.boards.map((item) =>
+            item.remoteId === board.remoteId ? { ...board, dirty: false } : item,
+          ),
+        };
+      }
+      const isPlaceholder =
+        state.boards.length === 1 &&
+        state.boards[0].path.length === 0 &&
+        state.boards[0].tree.children.length === 0 &&
+        !state.boards[0].remoteId;
+      if (isPlaceholder) {
+        return { boards: [board], activeBoardId: board.id };
+      }
+      return { boards: [...state.boards, board] };
+    });
+  },
+  markSaved: (id, remoteId) => {
+    set((state) => ({
+      boards: state.boards.map((board) =>
+        board.id === id ? { ...board, remoteId, dirty: false } : board,
+      ),
+    }));
+  },
 });
