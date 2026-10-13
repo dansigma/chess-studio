@@ -6,34 +6,36 @@ import {
   ClipboardPaste,
   Database,
   Folder,
+  FolderInput,
   FolderPlus,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
   Trash2,
   Upload,
 } from "lucide-react";
-import { loadRemoteFiles, type FileDatabase, type FileFolder } from "@/src/lib/user-files";
+import {
+  isDescendantFolder,
+  loadRemoteFiles,
+  type FileDatabase,
+  type FileFolder,
+} from "@/src/lib/user-files";
 import { useStudioStore } from "@/src/store/studio-store";
 import { openStudioPanel } from "./dock-api";
 import { Button, IconButton } from "./ui/Button";
 import { SearchInput } from "./ui/Controls";
+import { Dialog } from "./ui/Dialog";
 import { MenuItem, MenuSurface } from "./ui/Menu";
 import { SidebarHint, SidebarPanel } from "./ui/Sidebar";
+import {
+  buildFolderTree,
+  type FolderNode,
+} from "./files-tree";
 
-function matchesQuery(
-  query: string,
-  folder: FileFolder | null,
-  database: FileDatabase,
-): boolean {
-  if (!query) {
-    return true;
-  }
-  const hay = `${folder?.name ?? ""} ${database.name} ${database.games
-    .map((game) => `${game.white} ${game.black} ${game.event}`)
-    .join(" ")}`.toLowerCase();
-  return hay.includes(query);
-}
+type MoveItem =
+  | { type: "folder"; id: string; name: string; currentParentId: string | null }
+  | { type: "database"; id: string; name: string; currentFolderId: string | null };
 
 export function FilesSidebar() {
   const files = useStudioStore((state) => state.files);
@@ -41,6 +43,9 @@ export function FilesSidebar() {
   const user = useStudioStore((state) => state.user);
   const setFilesQuery = useStudioStore((state) => state.setFilesQuery);
   const createFileFolder = useStudioStore((state) => state.createFileFolder);
+  const renameFileFolder = useStudioStore((state) => state.renameFileFolder);
+  const moveFileFolder = useStudioStore((state) => state.moveFileFolder);
+  const moveFileDatabase = useStudioStore((state) => state.moveFileDatabase);
   const importFileDatabase = useStudioStore((state) => state.importFileDatabase);
   const openFileGame = useStudioStore((state) => state.openFileGame);
   const showFileDatabase = useStudioStore((state) => state.showFileDatabase);
@@ -48,32 +53,19 @@ export function FilesSidebar() {
   const deleteFileDatabase = useStudioStore((state) => state.deleteFileDatabase);
   const mergeRemoteFiles = useStudioStore((state) => state.mergeRemoteFiles);
   const setStatus = useStudioStore((state) => state.setStatus);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
   const [openDatabases, setOpenDatabases] = useState<Set<string>>(new Set());
+  const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
+  const [renamingName, setRenamingName] = useState("");
+  const [moveItem, setMoveItem] = useState<MoveItem | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const folders = files.folders.filter((folder) =>
-      files.databases.some((database) => database.folderId === folder.id && matchesQuery(q, folder, database))
-      || (!q ? true : folder.name.toLowerCase().includes(q)),
-    );
-    const root = files.databases.filter(
-      (database) => !database.folderId && matchesQuery(q, null, database),
-    );
-    const byFolder = new Map<string, FileDatabase[]>();
-    for (const database of files.databases) {
-      if (!database.folderId || !matchesQuery(q, files.folders.find((item) => item.id === database.folderId) ?? null, database)) {
-        continue;
-      }
-      const list = byFolder.get(database.folderId) ?? [];
-      list.push(database);
-      byFolder.set(database.folderId, list);
-    }
-    return { folders, root, byFolder };
+  const tree = useMemo(() => {
+    return buildFolderTree(files.folders, files.databases, query);
   }, [files, query]);
 
   const empty = files.folders.length === 0 && files.databases.length === 0;
@@ -103,6 +95,14 @@ export function FilesSidebar() {
       importFileDatabase(file.name.replace(/\.pgn$/i, "") || "Database", text);
       openStudioPanel("fileGames");
     });
+  }
+
+  function handleCommitRename(id: string, name: string) {
+    const trimmed = name.trim();
+    if (trimmed) {
+      renameFileFolder(id, trimmed);
+    }
+    setRenamingFolderId(null);
   }
 
   return (
@@ -207,83 +207,160 @@ export function FilesSidebar() {
               </div>
             </div>
           ) : null}
+          {moveItem ? (
+            <Dialog
+              title={
+                moveItem.type === "folder"
+                  ? `Move folder "${moveItem.name}"`
+                  : `Move database "${moveItem.name}"`
+              }
+              onClose={() => setMoveItem(null)}
+              width="w-[24rem]"
+            >
+              <div className="p-3">
+                <p className="mb-2 text-caption text-studio-muted">Select destination:</p>
+                <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border border-studio-border bg-studio-base p-1">
+                  <button
+                    type="button"
+                    disabled={
+                      moveItem.type === "folder"
+                        ? moveItem.currentParentId === null
+                        : moveItem.currentFolderId === null
+                    }
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-body text-studio-fg hover:bg-studio-hover disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={() => {
+                      if (moveItem.type === "folder") {
+                        moveFileFolder(moveItem.id, null);
+                      } else {
+                        moveFileDatabase(moveItem.id, null);
+                      }
+                      setMoveItem(null);
+                    }}
+                  >
+                    <Folder size={14} className="shrink-0 text-studio-faint" />
+                    <span className="font-medium">Root (no folder)</span>
+                  </button>
+
+                  {tree.folderOptions.map((opt) => {
+                    const disabled =
+                      moveItem.type === "folder"
+                        ? opt.id === moveItem.id ||
+                          opt.id === moveItem.currentParentId ||
+                          isDescendantFolder(files.folders, opt.id, moveItem.id)
+                        : opt.id === moveItem.currentFolderId;
+
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        disabled={disabled}
+                        style={{ paddingLeft: `${(opt.depth + 1) * 16}px` }}
+                        className="flex w-full items-center gap-2 rounded py-1.5 pr-2 text-left text-body text-studio-fg hover:bg-studio-hover disabled:cursor-not-allowed disabled:opacity-40"
+                        onClick={() => {
+                          if (moveItem.type === "folder") {
+                            moveFileFolder(moveItem.id, opt.id);
+                            setOpenFolders((prev) => new Set([...prev, opt.id]));
+                          } else {
+                            moveFileDatabase(moveItem.id, opt.id);
+                            setOpenFolders((prev) => new Set([...prev, opt.id]));
+                          }
+                          setMoveItem(null);
+                        }}
+                      >
+                        <Folder size={14} className="shrink-0 text-studio-faint" />
+                        <span className="truncate">{opt.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </Dialog>
+          ) : null}
         </>
       }
     >
-        {empty ? (
-          <SidebarHint>No databases yet. Use + to create a folder, import a PGN file or paste one.</SidebarHint>
-        ) : null}
-        {filtered.folders.map((folder) => {
-          const expanded = openFolders.has(folder.id) || Boolean(query.trim());
-          const nested = filtered.byFolder.get(folder.id) ?? [];
-          return (
-            <div key={folder.id} className="mb-1">
-              <div className="group flex items-center rounded-md hover:bg-studio-hover">
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1.5 text-left text-body text-studio-fg"
-                  onClick={() => toggle(openFolders, folder.id, setOpenFolders)}
-                >
-                  <ChevronRight
-                    size={13}
-                    className={`shrink-0 text-studio-faint transition ${expanded ? "rotate-90" : ""}`}
-                  />
-                  <Folder size={14} className="shrink-0 text-studio-faint" />
-                  <span className="truncate">{folder.name}</span>
-                </button>
-                <button
-                  type="button"
-                  title="Delete folder"
-                  aria-label="Delete folder"
-                  className="mr-1 hidden rounded p-1 text-studio-faint hover:text-studio-danger group-hover:block"
-                  onClick={() => deleteFileFolder(folder.id)}
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-              {expanded
-                ? nested.map((database) => (
-                    <DatabaseRow
-                      key={database.id}
-                      database={database}
-                      indent
-                      open={openDatabases.has(database.id) || Boolean(query.trim())}
-                      onToggle={() => {
-                        showFileDatabase(database.id);
-                        openStudioPanel("fileGames");
-                        toggle(openDatabases, database.id, setOpenDatabases);
-                      }}
-                      onOpenGame={(game) => {
-                        showFileDatabase(database.id);
-                        openStudioPanel("fileGames");
-                        openFileGame(game);
-                      }}
-                      onDelete={() => deleteFileDatabase(database.id)}
-                    />
-                  ))
-                : null}
-            </div>
-          );
-        })}
-        {filtered.root.map((database) => (
-          <DatabaseRow
-            key={database.id}
-            database={database}
-            indent={false}
-            open={openDatabases.has(database.id) || Boolean(query.trim())}
-            onToggle={() => {
-              showFileDatabase(database.id);
-              openStudioPanel("fileGames");
-              toggle(openDatabases, database.id, setOpenDatabases);
-            }}
-            onOpenGame={(game) => {
-              showFileDatabase(database.id);
-              openStudioPanel("fileGames");
-              openFileGame(game);
-            }}
-            onDelete={() => deleteFileDatabase(database.id)}
-          />
-        ))}
+      {empty ? (
+        <SidebarHint>No databases yet. Use + to create a folder, import a PGN file or paste one.</SidebarHint>
+      ) : null}
+      {tree.rootFolders.map((folderNode) => (
+        <FolderNodeView
+          key={folderNode.folder.id}
+          node={folderNode}
+          level={0}
+          query={query}
+          openFolders={openFolders}
+          openDatabases={openDatabases}
+          renamingFolderId={renamingFolderId}
+          renamingName={renamingName}
+          onToggleFolder={(id) => toggle(openFolders, id, setOpenFolders)}
+          onStartRename={(folder) => {
+            setRenamingFolderId(folder.id);
+            setRenamingName(folder.name);
+          }}
+          onCancelRename={() => setRenamingFolderId(null)}
+          onChangeRename={setRenamingName}
+          onCommitRename={handleCommitRename}
+          onStartMoveFolder={(folder) =>
+            setMoveItem({
+              type: "folder",
+              id: folder.id,
+              name: folder.name,
+              currentParentId: folder.parentId,
+            })
+          }
+          onStartMoveDatabase={(database) =>
+            setMoveItem({
+              type: "database",
+              id: database.id,
+              name: database.name,
+              currentFolderId: database.folderId,
+            })
+          }
+          onCreateSubfolder={(parentId) => {
+            createFileFolder("New folder", parentId);
+            setOpenFolders((prev) => new Set([...prev, parentId]));
+          }}
+          onDeleteFolder={deleteFileFolder}
+          onDeleteDatabase={deleteFileDatabase}
+          onSelectDatabase={(id) => {
+            showFileDatabase(id);
+            openStudioPanel("fileGames");
+            toggle(openDatabases, id, setOpenDatabases);
+          }}
+          onOpenGame={(database, game) => {
+            showFileDatabase(database.id);
+            openStudioPanel("fileGames");
+            openFileGame(game);
+          }}
+        />
+      ))}
+      {tree.rootDatabases.map((database) => (
+        <DatabaseRow
+          key={database.id}
+          database={database}
+          indent={false}
+          open={openDatabases.has(database.id) || Boolean(query.trim())}
+          onToggle={() => {
+            showFileDatabase(database.id);
+            openStudioPanel("fileGames");
+            toggle(openDatabases, database.id, setOpenDatabases);
+          }}
+          onOpenGame={(game) => {
+            showFileDatabase(database.id);
+            openStudioPanel("fileGames");
+            openFileGame(game);
+          }}
+          onDelete={() => deleteFileDatabase(database.id)}
+          onMove={() =>
+            setMoveItem({
+              type: "database",
+              id: database.id,
+              name: database.name,
+              currentFolderId: null,
+            })
+          }
+        />
+      ))}
       <input
         ref={fileRef}
         type="file"
@@ -301,6 +378,183 @@ export function FilesSidebar() {
   );
 }
 
+function FolderNodeView({
+  node,
+  level,
+  query,
+  openFolders,
+  openDatabases,
+  renamingFolderId,
+  renamingName,
+  onToggleFolder,
+  onStartRename,
+  onCancelRename,
+  onChangeRename,
+  onCommitRename,
+  onStartMoveFolder,
+  onStartMoveDatabase,
+  onCreateSubfolder,
+  onDeleteFolder,
+  onDeleteDatabase,
+  onSelectDatabase,
+  onOpenGame,
+}: {
+  node: FolderNode;
+  level: number;
+  query: string;
+  openFolders: Set<string>;
+  openDatabases: Set<string>;
+  renamingFolderId: string | null;
+  renamingName: string;
+  onToggleFolder: (id: string) => void;
+  onStartRename: (folder: FileFolder) => void;
+  onCancelRename: () => void;
+  onChangeRename: (name: string) => void;
+  onCommitRename: (id: string, name: string) => void;
+  onStartMoveFolder: (folder: FileFolder) => void;
+  onStartMoveDatabase: (database: FileDatabase) => void;
+  onCreateSubfolder: (parentId: string) => void;
+  onDeleteFolder: (id: string) => void;
+  onDeleteDatabase: (id: string) => void;
+  onSelectDatabase: (id: string) => void;
+  onOpenGame: (database: FileDatabase, game: FileDatabase["games"][number]) => void;
+}) {
+  const expanded = openFolders.has(node.folder.id) || Boolean(query.trim());
+  const isRenaming = renamingFolderId === node.folder.id;
+
+  return (
+    <div className="mb-0.5">
+      <div className="group flex items-center rounded-md hover:bg-studio-hover">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-1.5 text-left text-body text-studio-fg"
+          onClick={() => onToggleFolder(node.folder.id)}
+        >
+          <ChevronRight
+            size={13}
+            className={`shrink-0 text-studio-faint transition ${expanded ? "rotate-90" : ""}`}
+          />
+          <Folder size={14} className="shrink-0 text-studio-faint" />
+          {isRenaming ? (
+            <input
+              autoFocus
+              type="text"
+              value={renamingName}
+              onChange={(e) => onChangeRename(e.target.value)}
+              onBlur={() => onCommitRename(node.folder.id, renamingName)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  onCommitRename(node.folder.id, renamingName);
+                } else if (e.key === "Escape") {
+                  onCancelRename();
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="h-6 min-w-0 flex-1 rounded border border-studio-accent bg-studio-selected px-1 text-body text-studio-fg outline-none"
+            />
+          ) : (
+            <span className="truncate">{node.folder.name}</span>
+          )}
+        </button>
+
+        {!isRenaming ? (
+          <div className="mr-1 hidden items-center gap-0.5 group-hover:flex">
+            <button
+              type="button"
+              title="New subfolder"
+              aria-label="New subfolder"
+              className="rounded p-1 text-studio-faint hover:text-studio-fg"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCreateSubfolder(node.folder.id);
+              }}
+            >
+              <FolderPlus size={12} />
+            </button>
+            <button
+              type="button"
+              title="Rename"
+              aria-label="Rename folder"
+              className="rounded p-1 text-studio-faint hover:text-studio-fg"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartRename(node.folder);
+              }}
+            >
+              <Pencil size={12} />
+            </button>
+            <button
+              type="button"
+              title="Move to…"
+              aria-label="Move folder"
+              className="rounded p-1 text-studio-faint hover:text-studio-fg"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartMoveFolder(node.folder);
+              }}
+            >
+              <FolderInput size={12} />
+            </button>
+            <button
+              type="button"
+              title="Delete folder"
+              aria-label="Delete folder"
+              className="rounded p-1 text-studio-faint hover:text-studio-danger"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteFolder(node.folder.id);
+              }}
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {expanded ? (
+        <div className="ml-3 border-l border-studio-border/50 pl-1">
+          {node.children.map((child) => (
+            <FolderNodeView
+              key={child.folder.id}
+              node={child}
+              level={level + 1}
+              query={query}
+              openFolders={openFolders}
+              openDatabases={openDatabases}
+              renamingFolderId={renamingFolderId}
+              renamingName={renamingName}
+              onToggleFolder={onToggleFolder}
+              onStartRename={onStartRename}
+              onCancelRename={onCancelRename}
+              onChangeRename={onChangeRename}
+              onCommitRename={onCommitRename}
+              onStartMoveFolder={onStartMoveFolder}
+              onStartMoveDatabase={onStartMoveDatabase}
+              onCreateSubfolder={onCreateSubfolder}
+              onDeleteFolder={onDeleteFolder}
+              onDeleteDatabase={onDeleteDatabase}
+              onSelectDatabase={onSelectDatabase}
+              onOpenGame={onOpenGame}
+            />
+          ))}
+          {node.databases.map((database) => (
+            <DatabaseRow
+              key={database.id}
+              database={database}
+              indent={false}
+              open={openDatabases.has(database.id) || Boolean(query.trim())}
+              onToggle={() => onSelectDatabase(database.id)}
+              onOpenGame={(game) => onOpenGame(database, game)}
+              onDelete={() => onDeleteDatabase(database.id)}
+              onMove={() => onStartMoveDatabase(database)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DatabaseRow({
   database,
   indent,
@@ -308,6 +562,7 @@ function DatabaseRow({
   onToggle,
   onOpenGame,
   onDelete,
+  onMove,
 }: {
   database: FileDatabase;
   indent: boolean;
@@ -315,6 +570,7 @@ function DatabaseRow({
   onToggle: () => void;
   onOpenGame: (game: FileDatabase["games"][number]) => void;
   onDelete: () => void;
+  onMove: () => void;
 }) {
   return (
     <div className={indent ? "ml-4 border-l border-studio-border pl-1" : ""}>
@@ -334,15 +590,32 @@ function DatabaseRow({
             {database.games.length}
           </span>
         </button>
-        <button
-          type="button"
-          title="Delete database"
-          aria-label="Delete database"
-          className="mr-1 hidden rounded p-1 text-studio-faint hover:text-studio-danger group-hover:block"
-          onClick={onDelete}
-        >
-          <Trash2 size={12} />
-        </button>
+        <div className="mr-1 hidden items-center gap-0.5 group-hover:flex">
+          <button
+            type="button"
+            title="Move to…"
+            aria-label="Move database"
+            className="rounded p-1 text-studio-faint hover:text-studio-fg"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMove();
+            }}
+          >
+            <FolderInput size={12} />
+          </button>
+          <button
+            type="button"
+            title="Delete database"
+            aria-label="Delete database"
+            className="rounded p-1 text-studio-faint hover:text-studio-danger"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
       </div>
       {open
         ? database.games.map((game) => (
