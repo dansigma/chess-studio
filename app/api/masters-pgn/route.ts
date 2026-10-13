@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBookGamePgn } from "@/src/lib/opening-book";
-import { clientIp, createRateLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 
-const limiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
+const limiter = createRouteLimiter({ limit: 30, windowMs: 60_000, bindingName: "RL_30_MIN" });
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
@@ -11,14 +11,12 @@ export async function GET(request: NextRequest) {
   }
 
   const ip = clientIp(request.headers);
-  if (ip !== "unknown") {
-    const verdict = limiter.check(`masters-pgn:${ip}`);
-    if (!verdict.ok) {
-      return NextResponse.json(
-        { error: "Too many requests — try again shortly." },
-        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-      );
-    }
+  const verdict = await limiter.checkAsync(rateLimitKey("masters-pgn", ip));
+  if (!verdict.ok) {
+    return NextResponse.json(
+      { error: "Too many requests — try again shortly." },
+      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+    );
   }
 
   const book = getBookGamePgn(id);

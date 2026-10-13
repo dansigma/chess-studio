@@ -4,12 +4,16 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { finishSignIn } from "@/src/lib/auth/access";
 import { safeAuthNext } from "@/src/lib/auth/redirect-path";
-import { clientIp, createRateLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 
 export type AuthFormState = { error?: string; message?: string };
 
-const limiter = createRateLimiter({ limit: 10, windowMs: 10 * 60 * 1000 });
+// Auth abuse protection: 10 req/10 min per IP (fallback window). The native
+// RL_AUTH binding only supports 10s/60s periods, so it enforces an additional
+// 10 req/60s burst cap at the edge; the 10-min fallback window is always
+// enforced too (see createRouteLimiter), preserving the original quota.
+const limiter = createRouteLimiter({ limit: 10, windowMs: 10 * 60 * 1000, bindingName: "RL_AUTH" });
 
 function field(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -50,10 +54,8 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
 
   if (mode === "reset") {
     const ip = clientIp(await headers());
-    if (ip !== "unknown") {
-      const verdict = limiter.check(`reset:${ip}`);
-      if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
-    }
+    const verdict = await limiter.checkAsync(rateLimitKey("reset", ip));
+    if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
     const base = await siteUrl();
     const redirectTo = `${base}/auth/callback?next=${encodeURIComponent("/login/update-password")}`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
@@ -71,10 +73,8 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
 
   if (mode === "signup") {
     const ip = clientIp(await headers());
-    if (ip !== "unknown") {
-      const verdict = limiter.check(`signup:${ip}`);
-      if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
-    }
+    const verdict = await limiter.checkAsync(rateLimitKey("signup", ip));
+    if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
     const { error } = await supabase.auth.signUp({
       email,
       password,
