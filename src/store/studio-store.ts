@@ -1,15 +1,9 @@
 import { Chess } from "chess.js";
 import { create } from "zustand";
-import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import { toJson } from "@/src/lib/supabase/database.types";
 import {
   bumpDockLayoutEpoch,
   clearStoredDockLayout,
   currentDockLayoutEpoch,
-  publishDockLayout,
-  readStoredDockLayout,
-  sanitizeDockLayout,
-  writeStoredDockLayout,
   type DockLayoutSnapshot,
 } from "@/src/studio/dock-layout";
 import {
@@ -17,7 +11,6 @@ import {
   createEmptyTree,
   deleteAfter,
   deleteVariation,
-  fenKey,
   getFenAt,
   getMarksAt,
   getNodeAt,
@@ -30,7 +23,7 @@ import {
   setNodeMarks,
   setNodeNags,
 } from "@/src/chess/tree";
-import { exportPgn, importPgn, importSans, openListedFileGame, openablePgn, recentSans, titleFromHeaders, type GameHeaders } from "@/src/chess/pgn";
+import { exportPgn, importPgn, importSans, openablePgn, recentSans, titleFromHeaders, type GameHeaders } from "@/src/chess/pgn";
 import { toggleNag } from "@/src/chess/nags";
 import { playMoveSound, shouldPlayMoveSound } from "@/src/chess/move-sound";
 import {
@@ -40,49 +33,40 @@ import {
   toggleSquareMark,
 } from "@/src/chess/marks";
 import {
-  bookmarkKey,
-  deleteRemoteBookmark,
-  loadLocalBookmarks,
-  loadRemoteBookmarks,
-  mergeBookmarks,
-  persistRemoteBookmark,
-  removeBookmark,
   saveLocalBookmarks,
-  upsertBookmark,
 } from "@/src/lib/player-bookmarks";
 import {
   clampDepth,
   clampLines,
   clampThreads,
 } from "@/src/engine/stockfish-client";
-import { fileDatabaseId } from "@/src/lib/explorer-types";
-import { dropFilesExplorerIndex } from "@/src/lib/files-explorer";
 import { purgeUserLocalCaches } from "@/src/lib/local-cache";
 import { resetCourseProgressState } from "@/src/courses/store";
 import { isLegalSetupFen } from "@/src/chess/setup-fen";
 import { applyNullMoveFen, NULL_MOVE_SAN, NULL_MOVE_UCI } from "@/src/chess/null-move";
-import { isBoardTheme } from "@/src/chess/board-themes";
-import { isPieceSet } from "@/src/chess/piece-sets";
 import {
   EMPTY_FILES,
-  deleteRemoteDatabase,
-  libraryFromPgn,
-  loadLocalFiles,
-  persistRemoteDatabase,
   saveLocalFiles,
-  type FileFolder,
 } from "@/src/lib/user-files";
 // SIG-857 Phase C: slice modules own types, selectors, board helpers, and
 // settings defaults. The store composes them into the single create() below
 // so all 30+ existing `@/src/store/studio-store` import paths keep working.
-import { emptyBoard, newId, withActive, analysisFen } from "./slices/board-helpers";
+import { emptyBoard, withActive, analysisFen } from "./slices/board-helpers";
+import { createFilesSlice } from "./slices/files";
 import { createBoardsSlice } from "./slices/boards";
 import { createEngineSlice } from "./slices/engine";
 import {
   DEFAULT_SETTINGS,
-  SETTINGS_KEY,
   loadLocalSettings,
 } from "./slices/settings";
+import {
+  forgetRemoteDockSync as _forgetRemoteDockSync,
+  persistBoardRecord,
+  persistDockLayoutRecord,
+  persistSettingsRecord,
+  loadRemoteSettingsForUser,
+  syncRemoteDockLayout as _syncRemoteDockLayout,
+} from "@/src/lib/studio-persistence";
 import type {
   BoardSession,
   SessionResetPayload,
@@ -142,6 +126,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   // useStudioStore inside its own initializer.
   ...createEngineSlice(set, get, undefined as never),
   ...createBoardsSlice(set, get, undefined as never),
+  // SIG-917: files/bookmarks initial state + actions live in slices/files.ts.
+  ...createFilesSlice(set, get, undefined as never),
   activity: "boards",
   databaseSource: "masters",
   settings: DEFAULT_SETTINGS,
@@ -160,11 +146,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   playerGamesNotice: null,
   playerColorFilter: "all",
   playerResultFilter: "all",
-  files: loadLocalFiles(),
-  filesQuery: "",
-  activeFileDatabaseId: null,
-  activeFileGameId: null,
-  bookmarks: loadLocalBookmarks(),
   setupMode: false,
   flip: () => {
     set((state) => ({
@@ -603,226 +584,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   setPlayerGamesLoading: (playerGamesLoading) => set({ playerGamesLoading }),
   setPlayerColorFilter: (playerColorFilter) => set({ playerColorFilter }),
   setPlayerResultFilter: (playerResultFilter) => set({ playerResultFilter }),
-  setFilesQuery: (filesQuery) => set({ filesQuery }),
-  createFileFolder: (name) => {
-    const folder: FileFolder = {
-      id: newId(),
-      name: (name ?? "New folder").trim() || "New folder",
-    };
-    set((state) => {
-      const files = { ...state.files, folders: [...state.files.folders, folder] };
-      saveLocalFiles(files);
-      return { files, activity: "files", settings: { ...state.settings, sidebarCollapsed: false } };
-    });
-  },
-  importFileDatabase: (name, pgn, folderId = null, options) => {
-    const database = libraryFromPgn(name.trim() || "Database", pgn, folderId);
-    const focusFiles = options?.focusFiles !== false;
-    set((state) => {
-      const files = {
-        ...state.files,
-        databases: [...state.files.databases, database],
-      };
-      saveLocalFiles(files);
-      return {
-        files,
-        activeFileDatabaseId: database.id,
-        activeFileGameId: null,
-        ...(focusFiles
-          ? {
-              activity: "files" as const,
-              settings: { ...state.settings, sidebarCollapsed: false },
-            }
-          : {}),
-        statusMessage:
-          database.games.length === 0
-            ? "No games found in that PGN"
-            : `Imported ${database.games.length} game${database.games.length === 1 ? "" : "s"}`,
-      };
-    });
-    const user = get().user;
-    if (user) {
-      void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError }) => {
-        if (indexError) {
-          set({ statusMessage: "Games imported, but the position index could not be saved." });
-        }
-        if (!remoteId) {
-          return;
-        }
-        set((state) => {
-          const files = {
-            ...state.files,
-            databases: state.files.databases.map((item) =>
-              item.id === database.id ? { ...item, remoteId } : item,
-            ),
-          };
-          saveLocalFiles(files);
-          return { files };
-        });
-      });
-    }
-  },
-  showFileDatabase: (id) => set({ activeFileDatabaseId: id }),
-  openPgnSource: (name, pgn) => {
-    get().importFileDatabase(name, pgn, null, { focusFiles: false });
-    get().importPgnText(pgn, name);
-    if (get().statusMessage === "Could not open that PGN.") {
-      return;
-    }
-    const database = get().files.databases.find((item) => item.id === get().activeFileDatabaseId);
-    const count = database?.games.length ?? 0;
-    if (count > 0) {
-      set({ statusMessage: `Opened ${count} game${count === 1 ? "" : "s"}` });
-    }
-  },
-  openFileGame: (game, options) => {
-    const database = get().files.databases.find((item) =>
-      item.games.some((entry) => entry.id === game.id),
-    );
-    const combined = database && database.games.length > 1;
-    const pgn = combined ? database.games.map((entry) => entry.pgn).join("\n\n") : game.pgn;
-    const imported = openListedFileGame(pgn, game.pgn);
-    if (!imported) {
-      set({ statusMessage: "Could not open that PGN." });
-      return;
-    }
-    // SIG-909: landing jump for the position-search panel. Walk the merged
-    // tree's mainline for atFen; fall back to the imported path when the hit
-    // game is not on that mainline so the board never blanks.
-    let path = imported.path;
-    if (options?.atFen) {
-      const jump = mainlinePathForFen(imported.tree, options.atFen);
-      if (jump.length > 0 || fenKey(imported.tree.startFen) === fenKey(options.atFen)) {
-        path = jump;
-      }
-    }
-    // SIG-910: side-by-side open. Instead of overwriting the active board,
-    // append a new independent board (preview: false) and make it active.
-    if (options?.openInNewBoard) {
-      const board: BoardSession = {
-        ...emptyBoard(combined ? database.name : (game.title || imported.title)),
-        title: combined ? database.name : (game.title || imported.title),
-        tree: imported.tree,
-        path,
-        headers: imported.headers,
-        preview: false,
-        dirty: true,
-      };
-      set((state) => ({
-        statusMessage: null,
-        training: false,
-        trainingStart: null,
-        threat: null,
-        activeFileDatabaseId: database?.id ?? state.activeFileDatabaseId,
-        activeFileGameId: game.id,
-        boards: [...state.boards, board],
-        activeBoardId: board.id,
-      }));
-      return;
-    }
-    set((state) => ({
-      statusMessage: null,
-      training: false,
-      trainingStart: null,
-      threat: null,
-      activeFileDatabaseId: database?.id ?? state.activeFileDatabaseId,
-      activeFileGameId: game.id,
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        title: combined ? database.name : (game.title || imported.title),
-        tree: imported.tree,
-        path,
-        headers: imported.headers,
-        dirty: true,
-      })),
-    }));
-  },
-  deleteFileFolder: (id) => {
-    set((state) => {
-      const files = {
-        folders: state.files.folders.filter((folder) => folder.id !== id),
-        databases: state.files.databases.map((database) =>
-          database.folderId === id ? { ...database, folderId: null } : database,
-        ),
-      };
-      saveLocalFiles(files);
-      return { files };
-    });
-  },
-  deleteFileDatabase: (id) => {
-    const target = get().files.databases.find((item) => item.id === id);
-    dropFilesExplorerIndex(id);
-    set((state) => {
-      const files = {
-        ...state.files,
-        databases: state.files.databases.filter((item) => item.id !== id),
-      };
-      saveLocalFiles(files);
-      const selectedId = fileDatabaseId(state.databaseSource);
-      return {
-        files,
-        activeFileDatabaseId: state.activeFileDatabaseId === id ? null : state.activeFileDatabaseId,
-        activeFileGameId: state.activeFileDatabaseId === id ? null : state.activeFileGameId,
-        databaseSource: selectedId === id ? "masters" : state.databaseSource,
-      };
-    });
-    if (target?.remoteId) {
-      void deleteRemoteDatabase(target.remoteId);
-    }
-  },
-  mergeRemoteFiles: (databases) => {
-    set((state) => {
-      const existing = new Set(
-        state.files.databases.map((item) => item.remoteId).filter((id): id is string => Boolean(id)),
-      );
-      const extra = databases.filter((item) => item.remoteId && !existing.has(item.remoteId));
-      if (extra.length === 0) {
-        return {};
-      }
-      const files = {
-        ...state.files,
-        databases: [...state.files.databases, ...extra],
-      };
-      saveLocalFiles(files);
-      return { files };
-    });
-  },
-  togglePlayerBookmark: (player) => {
-    const key = bookmarkKey(player);
-    const exists = get().bookmarks.some((item) => bookmarkKey(item) === key);
-    const bookmarks = exists
-      ? removeBookmark(get().bookmarks, player)
-      : upsertBookmark(get().bookmarks, player);
-    saveLocalBookmarks(bookmarks);
-    set({ bookmarks });
-    const user = get().user;
-    if (!user) {
-      return;
-    }
-    if (exists) {
-      void deleteRemoteBookmark(player, user.id);
-      return;
-    }
-    const saved = bookmarks.find((item) => bookmarkKey(item) === key);
-    if (saved) {
-      void persistRemoteBookmark(saved, user.id);
-    }
-  },
-  mergeRemoteBookmarks: (remote) => {
-    set((state) => {
-      const bookmarks = mergeBookmarks(state.bookmarks, remote);
-      saveLocalBookmarks(bookmarks);
-      return { bookmarks };
-    });
-  },
-  hydrateRemoteBookmarks: async () => {
-    const user = get().user;
-    if (!user) {
-      return;
-    }
-    const remote = await loadRemoteBookmarks(user.id);
-    get().mergeRemoteBookmarks(remote);
-  },
   setSetupMode: (setupMode) => set({ setupMode, enginePreview: null, threat: null }),
   applySetupFen: (fen) => {
     const trimmed = fen.trim();
@@ -1019,152 +780,36 @@ export function boardPreview(board: BoardSession): string {
   return recentSans(board.tree, board.path) || "starting position";
 }
 
+// SIG-917: remote persistence lives in lib/studio-persistence.ts (store-free,
+// parameterized by explicit user id). These same-name wrappers read the user
+// from the store so all existing consumer imports keep working unchanged.
 export async function persistBoard(board: BoardSession): Promise<string | null> {
-  const supabase = createBrowserSupabase();
-  const user = useStudioStore.getState().user;
-  if (!supabase || !user) {
-    return null;
-  }
-  if (board.remoteId) {
-    const { error } = await supabase
-      .from("boards")
-      .update({
-        title: board.title,
-        pgn: exportPgn(board.tree, board.headers),
-        current_node_path: board.path,
-        orientation: board.orientation,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", board.remoteId);
-    if (error) {
-      throw error;
-    }
-    return board.remoteId;
-  }
-  const { data, error } = await supabase
-    .from("boards")
-    .insert({
-      user_id: user.id,
-      title: board.title,
-      pgn: exportPgn(board.tree, board.headers),
-      current_node_path: board.path,
-      orientation: board.orientation,
-      updated_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
-  if (error) {
-    throw error;
-  }
-  return data.id;
+  return persistBoardRecord(board, useStudioStore.getState().user?.id ?? null);
 }
 
 export async function persistSettings(settings: StudioSettings): Promise<void> {
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }
-  const supabase = createBrowserSupabase();
-  const user = useStudioStore.getState().user;
-  if (!supabase || !user) {
-    return;
-  }
-  const { error } = await supabase.from("user_settings").upsert({
-    user_id: user.id,
-    show_coordinates: settings.showCoordinates,
-    piece_theme: settings.pieceSet,
-    board_theme: settings.boardTheme,
-    engine_depth: settings.engineDepth,
-    multi_pv: settings.multiPv,
-  });
-  if (error) {
-    throw error;
-  }
+  return persistSettingsRecord(settings, useStudioStore.getState().user?.id ?? null);
 }
 
 export async function loadRemoteSettings(): Promise<Partial<StudioSettings> | null> {
-  const supabase = createBrowserSupabase();
-  const user = useStudioStore.getState().user;
-  if (!supabase || !user) {
-    return null;
-  }
-  const { data, error } = await supabase
-    .from("user_settings")
-    .select("show_coordinates, board_theme, piece_theme, engine_depth, multi_pv")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (error || !data) {
-    return null;
-  }
-  return {
-    showCoordinates: data.show_coordinates,
-    boardTheme: isBoardTheme(data.board_theme) ? data.board_theme : undefined,
-    pieceSet: isPieceSet(data.piece_theme) ? data.piece_theme : undefined,
-    engineDepth: data.engine_depth,
-    multiPv: data.multi_pv,
-  };
+  return loadRemoteSettingsForUser(useStudioStore.getState().user?.id ?? null);
 }
 
-let syncedDockUserId: string | null = null;
-
 export function forgetRemoteDockSync(): void {
-  syncedDockUserId = null;
+  return _forgetRemoteDockSync();
+}
+
+export function syncRemoteDockLayout(userId: string): Promise<void> {
+  return _syncRemoteDockLayout(userId);
 }
 
 export async function persistDockLayout(
   snapshot: DockLayoutSnapshot | null,
   epoch = currentDockLayoutEpoch(),
 ): Promise<void> {
-  if (epoch !== currentDockLayoutEpoch()) {
-    return;
-  }
-  if (snapshot) {
-    writeStoredDockLayout(snapshot);
-  } else {
-    clearStoredDockLayout();
-  }
-  if (epoch !== currentDockLayoutEpoch()) {
-    return;
-  }
-  const supabase = createBrowserSupabase();
-  const user = useStudioStore.getState().user;
-  if (!supabase || !user) {
-    return;
-  }
-  const { error } = await supabase.from("user_settings").upsert({
-    user_id: user.id,
-    layout: toJson(snapshot),
-  });
-  if (error) {
-    throw error;
-  }
-}
-
-export async function syncRemoteDockLayout(userId: string): Promise<void> {
-  if (syncedDockUserId === userId) {
-    return;
-  }
-  syncedDockUserId = userId;
-  const epoch = currentDockLayoutEpoch();
-  const supabase = createBrowserSupabase();
-  if (!supabase) {
-    return;
-  }
-  const { data, error } = await supabase
-    .from("user_settings")
-    .select("layout")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error || epoch !== currentDockLayoutEpoch()) {
-    return;
-  }
-  const remote = sanitizeDockLayout(data?.layout ?? null);
-  if (remote) {
-    writeStoredDockLayout(remote);
-    publishDockLayout(remote);
-    return;
-  }
-  const local = readStoredDockLayout();
-  if (local) {
-    await persistDockLayout(local, epoch);
-  }
+  return persistDockLayoutRecord(
+    snapshot,
+    epoch,
+    useStudioStore.getState().user?.id ?? null,
+  );
 }
