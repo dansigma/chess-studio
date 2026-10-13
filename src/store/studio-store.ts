@@ -584,7 +584,6 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   setPlayerGamesLoading: (playerGamesLoading) => set({ playerGamesLoading }),
   setPlayerColorFilter: (playerColorFilter) => set({ playerColorFilter }),
   setPlayerResultFilter: (playerResultFilter) => set({ playerResultFilter }),
-  ...createFilesSlice(set, get, undefined as never),
   setSetupMode: (setupMode) => set({ setupMode, enginePreview: null, threat: null }),
   applySetupFen: (fen) => {
     const trimmed = fen.trim();
