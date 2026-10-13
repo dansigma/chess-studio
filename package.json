@@ -42,7 +42,7 @@
     "@cloudflare/vite-plugin": "2.0.0-beta.sha-8c6014f9a",
     "@playwright/test": "^1.64.0",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^24",
+    "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^6.1.1",
