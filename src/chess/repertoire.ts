@@ -55,3 +55,102 @@ export function repertoireMoves(tree: GameTree, path: Path): RepertoireMove[] {
   }
   return moves;
 }
+
+export interface SpacedRepetitionItem {
+  lastReviewedAt: string;
+  intervalDays: number;
+  easeFactor: number;
+  dueDate: string;
+  mistakeCount: number;
+}
+
+export interface DueRepertoireMove {
+  key: string;
+  path: Path;
+  fen: string;
+  uci: string;
+  san: string;
+}
+
+export function repertoireMoveKey(fen: string, uci: string): string {
+  return `${fenKey(fen)}:${uci}`;
+}
+
+export function scheduleReview(
+  current: SpacedRepetitionItem | undefined,
+  correct: boolean,
+  now: Date = new Date(),
+): SpacedRepetitionItem {
+  const defaultEase = 2.5;
+  const easeFactor = current?.easeFactor ?? defaultEase;
+  const mistakeCount = (current?.mistakeCount ?? 0) + (correct ? 0 : 1);
+  const nowMs = now.getTime();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  let nextInterval: number;
+  let nextEase: number;
+
+  if (correct) {
+    if (!current || current.intervalDays <= 0) {
+      nextInterval = 1;
+    } else if (current.intervalDays === 1) {
+      nextInterval = 6;
+    } else {
+      nextInterval = Math.round(current.intervalDays * easeFactor);
+    }
+    nextEase = Math.max(1.3, Number((easeFactor + 0.1).toFixed(2)));
+  } else {
+    nextInterval = 1;
+    nextEase = Math.max(1.3, Number((easeFactor - 0.2).toFixed(2)));
+  }
+
+  const dueDate = new Date(nowMs + nextInterval * dayMs).toISOString();
+
+  return {
+    lastReviewedAt: now.toISOString(),
+    intervalDays: nextInterval,
+    easeFactor: nextEase,
+    dueDate,
+    mistakeCount,
+  };
+}
+
+export function isDue(item: SpacedRepetitionItem | undefined, now: Date = new Date()): boolean {
+  if (!item) {
+    return true;
+  }
+  return new Date(item.dueDate).getTime() <= now.getTime();
+}
+
+export function getDueRepertoireMoves(
+  tree: GameTree,
+  progress: Record<string, SpacedRepetitionItem>,
+  now: Date = new Date(),
+): DueRepertoireMove[] {
+  const dueMoves: DueRepertoireMove[] = [];
+  const seenKeys = new Set<string>();
+
+  function scanNode(fen: string, children: TreeNode[], path: Path) {
+    for (const child of children) {
+      const key = repertoireMoveKey(fen, child.uci);
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        if (isDue(progress[key], now)) {
+          dueMoves.push({
+            key,
+            path,
+            fen,
+            uci: child.uci,
+            san: child.san,
+          });
+        }
+      }
+    }
+    children.forEach((child, index) => {
+      scanNode(child.fen, child.children, [...path, index]);
+    });
+  }
+
+  scanNode(tree.startFen, tree.children, []);
+  return dueMoves;
+}

@@ -3,6 +3,7 @@ import type { PieceSet } from "@/src/chess/piece-sets";
 import type { MoveNotation } from "@/src/chess/move-notation";
 import type { ColorScheme } from "@/src/studio/color-scheme";
 import type { GameTree, Path } from "@/src/chess/tree";
+import type { SpacedRepetitionItem } from "@/src/chess/repertoire";
 import type { GameHeaders } from "@/src/chess/pgn";
 import type { MarkColor } from "@/src/chess/marks";
 import type {
@@ -197,8 +198,14 @@ export type StudioState = {
   skipForward: () => void;
   training: boolean;
   trainingStart: Path | null;
+  drillDueOnly: boolean;
+  repertoireProgress: Record<string, SpacedRepetitionItem>;
   startTraining: () => void;
   stopTraining: () => void;
+  startDueDrill: () => void;
+  recordRepertoireMove: (fen: string, uci: string, correct: boolean) => void;
+  setRepertoireProgress: (progress: Record<string, SpacedRepetitionItem>) => void;
+  hydrateRepertoire: () => Promise<void>;
   renameActive: (title: string) => void;
   setExplorer: (data: ExplorerResponse | null) => void;
   setExplorerLoading: (loading: boolean) => void;

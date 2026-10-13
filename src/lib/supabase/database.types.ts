@@ -346,6 +346,23 @@ export type Database = {
         };
         Relationships: [];
       };
+      repertoire_progress: {
+        Row: {
+          user_id: string;
+          data: Json;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          data?: Json;
+          updated_at?: string;
+        };
+        Update: {
+          data?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

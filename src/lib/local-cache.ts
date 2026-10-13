@@ -9,12 +9,16 @@ export const COURSE_PROGRESS_KEY = "xd-course-progress";
 export const CUSTOM_COURSES_KEY = "xd-custom-courses";
 export const PUZZLE_PROGRESS_KEY = "xadrez-digital.puzzles";
 export const COURSE_PROGRESS_OWNER_KEY = `${COURSE_PROGRESS_KEY}:owner`;
+export const REPERTOIRE_PROGRESS_KEY = "xd-repertoire-progress";
+export const REPERTOIRE_PROGRESS_OWNER_KEY = `${REPERTOIRE_PROGRESS_KEY}:owner`;
 
 export const USER_LOCAL_CACHE_KEYS = [
   COURSE_PROGRESS_KEY,
   CUSTOM_COURSES_KEY,
   PUZZLE_PROGRESS_KEY,
   COURSE_PROGRESS_OWNER_KEY,
+  REPERTOIRE_PROGRESS_KEY,
+  REPERTOIRE_PROGRESS_OWNER_KEY,
 ];
 
 function userCacheStorage(): Storage | null {
