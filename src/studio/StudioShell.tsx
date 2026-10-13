@@ -155,6 +155,10 @@ export function StudioShell() {
       if (cancelled) {
         return;
       }
+      await useStudioStore.getState().hydrateRepertoire();
+      if (cancelled) {
+        return;
+      }
       // SIG-907: boards query settled — the dock may now prune orphan
       // `board:*` panels whose sessions never arrived.
       setBoardsHydrated();

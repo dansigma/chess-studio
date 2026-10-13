@@ -12,8 +12,18 @@ import {
   insertLine,
   playMove,
 } from "@/src/chess/tree";
-import { repertoireMoves } from "@/src/chess/repertoire";
+import {
+  getDueRepertoireMoves,
+  repertoireMoveKey,
+  repertoireMoves,
+  scheduleReview,
+} from "@/src/chess/repertoire";
 import { trainingAttempt } from "@/src/chess/training";
+import {
+  hydrateRepertoireProgress,
+  readLocalRepertoireProgress,
+  saveRepertoireProgress,
+} from "@/src/lib/repertoire-progress";
 import { playMoveSound, shouldPlayMoveSound } from "@/src/chess/move-sound";
 import { emptyBoard, newId, nextActiveBoardId, withActive } from "./board-helpers";
 import { selectActiveBoard } from "./selectors";
@@ -46,6 +56,8 @@ export type BoardsSlice = Pick<
   | "boardsHydrated"
   | "training"
   | "trainingStart"
+  | "drillDueOnly"
+  | "repertoireProgress"
   | "active"
   | "fen"
   | "lastMove"
@@ -65,6 +77,10 @@ export type BoardsSlice = Pick<
   | "skipForward"
   | "startTraining"
   | "stopTraining"
+  | "startDueDrill"
+  | "recordRepertoireMove"
+  | "setRepertoireProgress"
+  | "hydrateRepertoire"
   | "undo"
   | "redo"
   | "setBoardsHydrated"
@@ -82,6 +98,8 @@ export const initialBoardsState = {
   boardsHydrated: false,
   training: false,
   trainingStart: null,
+  drillDueOnly: false,
+  repertoireProgress: typeof window !== "undefined" ? readLocalRepertoireProgress() : {},
 };
 
 export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> = (
@@ -128,7 +146,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
         boards = [emptyBoard()];
       }
       const activeBoardId = neighbor ?? boards[0].id;
-      return { boards, activeBoardId, threat: null, training: false, trainingStart: null };
+      return { boards, activeBoardId, threat: null, training: false, trainingStart: null, drillDueOnly: false };
     });
   },
   cloneBoard: () => {
@@ -149,6 +167,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       activeBoardId: clone.id,
       training: false,
       trainingStart: null,
+      drillDueOnly: false,
     }));
   },
   setActiveBoard: (id) =>
@@ -159,21 +178,62 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       setupMode: false,
       training: false,
       trainingStart: null,
+      drillDueOnly: false,
     }),
   makeUciMove: (from, to, promotion) => {
     if (get().training) {
       const board = get().active();
       const uci = `${from}${to}${promotion ?? ""}`;
+      const currentFen = getFenAt(board.tree, board.path);
       const attempt = trainingAttempt(board.tree, board.path, uci);
+      const isDueOnly = get().drillDueOnly;
+
       if (attempt.kind === "complete") {
         set({ statusMessage: "Line complete." });
         return false;
       }
       if (attempt.kind === "refused") {
+        const valid = repertoireMoves(board.tree, board.path);
+        for (const candidate of valid) {
+          get().recordRepertoireMove(currentFen, candidate.uci, false);
+        }
         set({ statusMessage: "Not in the repertoire." });
         return false;
       }
+
+      get().recordRepertoireMove(currentFen, uci, true);
       const previous = board.path;
+
+      if (isDueOnly) {
+        soundForAdvance(get, previous);
+        const remaining = getDueRepertoireMoves(board.tree, get().repertoireProgress);
+        if (remaining.length === 0) {
+          set((state) => ({
+            training: false,
+            trainingStart: null,
+            drillDueOnly: false,
+            statusMessage: "All reviews complete!",
+            threat: null,
+            boards: withActive(state.boards, state.activeBoardId, (active) => ({
+              ...active,
+              path: attempt.path,
+            })),
+          }));
+        } else {
+          const nextTarget = remaining[0];
+          set((state) => ({
+            trainingStart: [...nextTarget.path],
+            statusMessage: null,
+            threat: null,
+            boards: withActive(state.boards, state.activeBoardId, (active) => ({
+              ...active,
+              path: [...nextTarget.path],
+            })),
+          }));
+        }
+        return true;
+      }
+
       set((state) => ({
         statusMessage: repertoireMoves(board.tree, attempt.path).length === 0 ? "Line complete." : null,
         threat: null,
@@ -182,7 +242,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
           path: attempt.path,
         })),
       }));
-    soundForAdvance(get, previous);
+      soundForAdvance(get, previous);
       return true;
     }
     const board = get().active();
@@ -382,6 +442,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     if (state.training && state.trainingStart) {
       const start = state.trainingStart;
       set((current) => ({
+        drillDueOnly: false,
         statusMessage: null,
         boards: withActive(current.boards, current.activeBoardId, (board) => ({
           ...board,
@@ -399,10 +460,51 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     set({
       training: true,
       trainingStart: start,
+      drillDueOnly: false,
       statusMessage: repertoireMoves(board.tree, start).length === 0 ? "Line complete." : null,
     });
   },
-  stopTraining: () => set({ training: false, trainingStart: null }),
+  stopTraining: () => set({ training: false, trainingStart: null, drillDueOnly: false }),
+  startDueDrill: () => {
+    const board = get().active();
+    const dueMoves = getDueRepertoireMoves(board.tree, get().repertoireProgress);
+    if (dueMoves.length === 0) {
+      set({ statusMessage: "No reviews due." });
+      return;
+    }
+    const target = dueMoves[0];
+    set((state) => ({
+      training: true,
+      trainingStart: [...target.path],
+      drillDueOnly: true,
+      statusMessage: null,
+      threat: null,
+      boards: withActive(state.boards, state.activeBoardId, (b) => ({
+        ...b,
+        path: [...target.path],
+      })),
+    }));
+  },
+  recordRepertoireMove: (fen, uci, correct) => {
+    const state = get();
+    const key = repertoireMoveKey(fen, uci);
+    const existing = state.repertoireProgress[key];
+    const updated = scheduleReview(existing, correct);
+    const progress = {
+      ...state.repertoireProgress,
+      [key]: updated,
+    };
+    set({ repertoireProgress: progress });
+    void saveRepertoireProgress(progress, state.user?.id ?? null);
+  },
+  setRepertoireProgress: (progress) => {
+    set({ repertoireProgress: progress });
+    void saveRepertoireProgress(progress, get().user?.id ?? null);
+  },
+  hydrateRepertoire: async () => {
+    const progress = await hydrateRepertoireProgress(get().user?.id ?? null);
+    set({ repertoireProgress: progress });
+  },
   setBoardsHydrated: () => set({ boardsHydrated: true }),
   undo: () => get().back(),
   redo: () => get().forward(),
