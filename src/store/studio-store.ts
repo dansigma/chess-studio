@@ -207,6 +207,17 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   setMoveNotation: (moveNotation) => {
     set((state) => ({ settings: { ...state.settings, moveNotation } }));
   },
+  setNotationDensity: (notationDensity) => {
+    set((state) => ({ settings: { ...state.settings, notationDensity } }));
+  },
+  toggleNotationDensity: () => {
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        notationDensity: state.settings.notationDensity === "compact" ? "normal" : "compact",
+      },
+    }));
+  },
   setColorScheme: (colorScheme) => {
     set((state) => ({ settings: { ...state.settings, colorScheme } }));
   },
@@ -717,6 +728,9 @@ export const useStudioStore = create<StudioState>((set, get) => ({
         ...(partial.boardTheme !== undefined ? { boardTheme: partial.boardTheme } : {}),
         ...(partial.pieceSet !== undefined ? { pieceSet: partial.pieceSet } : {}),
         ...(partial.moveNotation !== undefined ? { moveNotation: partial.moveNotation } : {}),
+        ...(partial.notationDensity !== undefined
+          ? { notationDensity: partial.notationDensity }
+          : {}),
         ...(partial.gamePreviewEnabled !== undefined
           ? { gamePreviewEnabled: partial.gamePreviewEnabled }
           : {}),

@@ -2,6 +2,7 @@ import { isBoardTheme } from "@/src/chess/board-themes";
 import { isPieceSet } from "@/src/chess/piece-sets";
 import { isMoveNotation } from "@/src/chess/move-notation";
 import { isColorScheme } from "@/src/studio/color-scheme";
+import { isNotationDensity } from "@/src/studio/notation-density";
 import { clampThreads, defaultEngineThreads, isEngineBuild } from "@/src/engine/stockfish-client";
 import {
   DEFAULT_EXPLORER_FILTERS,
@@ -17,6 +18,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   boardTheme: "studio",
   pieceSet: "classic",
   moveNotation: "english",
+  notationDensity: "normal",
   colorScheme: "dark",
   gamePreviewEnabled: true,
   engineDepth: 30,
@@ -54,6 +56,9 @@ export function loadLocalSettings(): StudioSettings {
       moveNotation: isMoveNotation(parsed.moveNotation)
         ? parsed.moveNotation
         : DEFAULT_SETTINGS.moveNotation,
+      notationDensity: isNotationDensity(parsed.notationDensity)
+        ? parsed.notationDensity
+        : DEFAULT_SETTINGS.notationDensity,
       colorScheme: isColorScheme(parsed.colorScheme)
         ? parsed.colorScheme
         : DEFAULT_SETTINGS.colorScheme,

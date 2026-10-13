@@ -15,6 +15,9 @@ import type { PlayerBookmark } from "@/src/lib/player-bookmarks";
 import type { EngineBuild } from "@/src/engine/stockfish-client";
 import type { ExplorerResponse, ExplorerSource } from "@/src/lib/explorer-types";
 import type { ExplorerFilters } from "@/src/lib/explorer-filters";
+import type { NotationDensity } from "@/src/studio/notation-density";
+
+export type { NotationDensity } from "@/src/studio/notation-density";
 import type {
   FileDatabase,
   FileGame,
@@ -70,6 +73,7 @@ export type StudioSettings = {
   boardTheme: BoardTheme;
   pieceSet: PieceSet;
   moveNotation: MoveNotation;
+  notationDensity: NotationDensity;
   colorScheme: ColorScheme;
   gamePreviewEnabled: boolean;
   engineDepth: number;
@@ -153,6 +157,8 @@ export type StudioState = {
   setBoardTheme: (theme: BoardTheme) => void;
   setPieceSet: (set: PieceSet) => void;
   setMoveNotation: (notation: MoveNotation) => void;
+  setNotationDensity: (density: NotationDensity) => void;
+  toggleNotationDensity: () => void;
   setColorScheme: (scheme: ColorScheme) => void;
   setEngineDepth: (depth: number) => void;
   setMultiPv: (value: number) => void;

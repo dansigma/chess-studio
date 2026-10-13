@@ -31,6 +31,7 @@ import { useActiveBoard, useActivePathKey } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { formatMoveSuffix, formatPositionGlyphs } from "@/src/chess/nags";
 import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
+import type { NotationDensity } from "./notation-density";
 import { MoveGlyphMenu, type GlyphMenuState } from "./MoveGlyphMenu";
 import { Button, IconButton } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
@@ -76,12 +77,16 @@ function CommentText({ text }: { text?: string }) {
 // token re-rendered on each cursor move. Props are primitives + stable
 // callbacks; the style prop is hoisted from the panel root so all tokens
 // share one subscription instead of N.
+// SIG-919: compact density reuses the same token — the button keeps click,
+// right-click annotate, the same active highlight, and an aria-current step
+// marker so highlighting/annotations/keyboard parity holds in both modes.
 const MoveToken = memo(function MoveToken({
   san,
   color,
   nags,
   active,
   style,
+  compact = false,
   onClick,
   onAnnotate,
 }: {
@@ -90,6 +95,7 @@ const MoveToken = memo(function MoveToken({
   nags?: number[];
   active: boolean;
   style: MoveNotation;
+  compact?: boolean;
   onClick: () => void;
   onAnnotate: (event: React.MouseEvent) => void;
 }) {
@@ -105,9 +111,10 @@ const MoveToken = memo(function MoveToken({
           event.stopPropagation();
           onAnnotate(event);
         }}
-        className={`rounded-[5px] px-1 py-0.5 font-medium leading-5 ${
-          active ? "bg-studio-accent-move text-studio-accent-fg" : "hover:bg-studio-hover-strong"
-        }`}
+        aria-current={active ? "step" : undefined}
+        className={`rounded-[5px] font-medium leading-5 ${
+          compact ? "px-0.5 py-px" : "px-1 py-0.5"
+        } ${active ? "bg-studio-accent-move text-studio-accent-fg" : "hover:bg-studio-hover-strong"}`}
       >
         {formatSan(san, style, color)}
         {suffix}
@@ -124,6 +131,7 @@ const Line = memo(function Line({
   collapsed,
   currentPath,
   style,
+  density = "normal",
   goPath,
   onToggleCollapse,
   onAnnotate,
@@ -135,6 +143,7 @@ const Line = memo(function Line({
   collapsed: Set<string>;
   currentPath: string;
   style: MoveNotation;
+  density?: NotationDensity;
   goPath: (path: Path) => void;
   onToggleCollapse: (key: string) => void;
   onAnnotate: (path: Path, event: React.MouseEvent) => void;
@@ -182,6 +191,7 @@ const Line = memo(function Line({
         nags={node.nags}
         active={currentPath === pathKey(nodePath)}
         style={style}
+        compact={density === "compact"}
         onClick={() => goPath(nodePath)}
         onAnnotate={(event) => onAnnotate(nodePath, event)}
       />,
@@ -209,7 +219,11 @@ const Line = memo(function Line({
         items.push(
           <span
             key={`${node.id}-var-${variation.id}`}
-            className="my-0.5 ml-1.5 flex basis-full flex-wrap items-center gap-0.5 border-l-2 border-studio-border-strong pl-2 text-dense text-studio-muted"
+            className={
+              density === "compact"
+                ? "inline items-baseline gap-0 text-dense text-studio-muted before:content-['('] after:content-[')']"
+                : "my-0.5 ml-1.5 flex basis-full flex-wrap items-center gap-0.5 border-l-2 border-studio-border-strong pl-2 text-dense text-studio-muted"
+            }
           >
             <CommentText text={variation.commentBefore} />
             <span className="px-0.5 text-studio-faint">
@@ -222,6 +236,7 @@ const Line = memo(function Line({
               nags={variation.nags}
               active={currentPath === pathKey(variationPath)}
               style={style}
+              compact={density === "compact"}
               onClick={() => goPath(variationPath)}
               onAnnotate={(event) => onAnnotate(variationPath, event)}
             />
@@ -234,6 +249,7 @@ const Line = memo(function Line({
                 collapsed={collapsed}
                 currentPath={currentPath}
                 style={style}
+                density={density}
                 goPath={goPath}
                 onToggleCollapse={onToggleCollapse}
                 onAnnotate={onAnnotate}
@@ -450,6 +466,8 @@ export function NotationPanel() {
   }, [commitDraftComment, commentOpen, commentBeforeOpen]);
 
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
+  const notationDensity = useStudioStore((state) => state.settings.notationDensity);
+  const compact = notationDensity === "compact";
   // SIG-857: single shared path-key subscription — Line rows receive it as a
   // prop instead of each subscribing with an inline find.
   const currentPath = useActivePathKey();
@@ -565,7 +583,9 @@ export function NotationPanel() {
         </IconButton>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto p-3 text-body leading-6">
+      <div
+        className={`min-h-0 flex-1 overflow-auto text-body ${compact ? "p-2 text-dense leading-5" : "p-3 leading-6"}`}
+      >
         {board.tree.startComment ? (
           <div className="mb-2 border-l-2 border-studio-comment/40 pl-2 text-studio-comment">
             {board.tree.startComment}
@@ -574,7 +594,7 @@ export function NotationPanel() {
         {board.tree.children.length === 0 ? (
           <div className="text-studio-faint">Make a move on the board.</div>
         ) : (
-          <div className="flex flex-wrap items-center gap-0.5">
+          <div className={compact ? "inline leading-5" : "flex flex-wrap items-center gap-0.5"}>
             <Line
               nodes={board.tree.children}
               parentPath={[]}
@@ -582,6 +602,7 @@ export function NotationPanel() {
               collapsed={collapsed}
               currentPath={currentPath}
               style={moveNotation}
+              density={notationDensity}
               goPath={goPath}
               onToggleCollapse={handleToggleCollapse}
               onAnnotate={handleAnnotate}

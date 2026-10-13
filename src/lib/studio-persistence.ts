@@ -93,6 +93,9 @@ export async function loadRemoteSettingsForUser(
   if (!supabase || !userId) {
     return null;
   }
+  // SIG-919: notationDensity is local-only (no user_settings column), so it
+  // rides in the full JSON localStorage record via persistSettingsRecord.
+  // Remote select stays on the known columns to avoid PostgREST errors.
   const { data, error } = await supabase
     .from("user_settings")
     .select("show_coordinates, board_theme, piece_theme, engine_depth, multi_pv")
