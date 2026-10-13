@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { START_FEN, createEmptyTree } from "../chess/tree.ts";
+import { START_FEN, createEmptyTree, getFenAt } from "../chess/tree.ts";
+import { importPgn } from "../chess/pgn.ts";
 import { loadLocalBookmarks, saveLocalBookmarks, type PlayerBookmark } from "../lib/player-bookmarks.ts";
 import type { PlayerGame, PlayerHit } from "../lib/player-types.ts";
 import { EMPTY_FILES, loadLocalFiles, saveLocalFiles, type FilesLibrary } from "../lib/user-files.ts";
@@ -452,4 +453,36 @@ test("SIG-911: importPlayerGame leaves a resolvable active board", () => {
   const active = selectActiveBoard(state);
   assert.equal(state.activeBoardId, active.id, "active board id resolves after import");
   assert.equal(active.title, "A White vs A Black", "player game title lands on the active board");
+});
+
+// SIG-920: the Courses "Open in Studio" handoff imports the full variation PGN
+// on a new board tab, positioned at the student's current step (atFen), while
+// leaving the previous board untouched.
+test("SIG-920: openListedGame imports a course line on a new board at atFen", () => {
+  resetStore();
+  const before = useStudioStore.getState();
+  const previousId = before.activeBoardId;
+  const coursePgn = "1. e4 c6 2. d4 d5 { Caro-Kann Advance idea } 3. e5 *";
+  const imported = importPgn(coursePgn);
+  const atFen = getFenAt(imported.tree, [0, 0]);
+
+  before.openListedGame({
+    title: "Caro-Kann — Advance",
+    pgn: coursePgn,
+    atFen,
+    openInNewBoard: true,
+  });
+
+  const state = useStudioStore.getState();
+  assert.equal(state.boards.length, before.boards.length + 1, "course import adds exactly one board");
+  const active = selectActiveBoard(state);
+  assert.equal(active.title, "Caro-Kann — Advance", "course title lands on the new board");
+  assert.equal(active.preview, false, "course import bypasses preview onto a regular board");
+  assert.deepEqual(active.path, [0, 0], "cursor lands at the student's step");
+  const d5 = active.tree.children[0]?.children[0]?.children[0]?.children[0];
+  assert.equal(d5?.san, "d5", "full mainline survives the import");
+  assert.match(d5?.comment ?? "", /Caro-Kann Advance idea/, "variation comment survives the import");
+  const previous = state.boards.find((board) => board.id === previousId);
+  assert.ok(previous, "previous board still exists");
+  assert.notEqual(active.id, previousId, "import does not clobber the previous board");
 });

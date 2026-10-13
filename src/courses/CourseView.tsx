@@ -2,8 +2,10 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { Check, Circle, CircleDot } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Circle, CircleDot, ExternalLink } from "lucide-react";
 import { importPgn } from "@/src/chess/pgn";
+import { writeCourseStudyImport } from "@/src/chess/share-board";
 import { courseThemeLabel } from "./catalog";
 import { lessonFrames, lineProgressLabel } from "./lesson";
 import { CourseSummary } from "./DescriptionField";
@@ -14,6 +16,7 @@ import type { Course } from "./types";
 import { useCourseData } from "./use-courses";
 
 export function CourseView({ course }: { course: Course }) {
+  const router = useRouter();
   const { progress, admin, signedIn, source } = useCourseData();
 
   const frameCounts = useMemo(() => {
@@ -121,24 +124,45 @@ export function CourseView({ course }: { course: Course }) {
                   const started = !learned && (saved?.step ?? 0) > 0;
                   return (
                     <li key={variation.id} className="border-t border-studio-border">
-                      <Link
-                        href={`/courses/${course.slug}/${variation.id}`}
-                        className="flex items-center gap-3 px-4 py-3 hover:bg-studio-hover"
-                      >
-                        {learned ? (
-                          <Check size={16} className="shrink-0 text-studio-success" aria-hidden />
-                        ) : started ? (
-                          <CircleDot size={16} className="shrink-0 text-studio-accent-text" aria-hidden />
-                        ) : (
-                          <Circle size={16} className="shrink-0 text-studio-faint" aria-hidden />
-                        )}
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-body text-studio-fg">{variation.title}</span>
-                          <span className={`block text-caption ${learned ? "text-studio-success" : "text-studio-muted"}`}>
-                            {label}
+                      <div className="flex items-center gap-2 px-4 py-3 hover:bg-studio-hover">
+                        <Link
+                          href={`/courses/${course.slug}/${variation.id}`}
+                          className="flex min-w-0 flex-1 items-center gap-3"
+                        >
+                          {learned ? (
+                            <Check size={16} className="shrink-0 text-studio-success" aria-hidden />
+                          ) : started ? (
+                            <CircleDot size={16} className="shrink-0 text-studio-accent-text" aria-hidden />
+                          ) : (
+                            <Circle size={16} className="shrink-0 text-studio-faint" aria-hidden />
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-body text-studio-fg">{variation.title}</span>
+                            <span className={`block text-caption ${learned ? "text-studio-success" : "text-studio-muted"}`}>
+                              {label}
+                            </span>
                           </span>
-                        </span>
-                      </Link>
+                        </Link>
+                        <button
+                          type="button"
+                          title="Open in Studio"
+                          aria-label={`Open ${variation.title} in Studio`}
+                          className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
+                          onClick={() => {
+                            const written = writeCourseStudyImport({
+                              title: `${course.title} — ${variation.title}`,
+                              pgn: variation.pgn,
+                            });
+                            if (written) {
+                              router.push("/studio");
+                            } else {
+                              router.push(`/courses/${course.slug}/${variation.id}`);
+                            }
+                          }}
+                        >
+                          <ExternalLink size={15} aria-hidden />
+                        </button>
+                      </div>
                     </li>
                   );
                 })}
