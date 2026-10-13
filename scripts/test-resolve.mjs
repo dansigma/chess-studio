@@ -10,6 +10,17 @@ const root = pathToFileURL(fileURLToPath(new URL("..", import.meta.url)));
 const EXTENSIONS = [".ts", ".tsx", "/index.ts", "/index.tsx"];
 const require = createRequire(import.meta.url);
 
+// Test doubles for modules that cannot load under plain `node --test`:
+// real `next/*` needs the Next runtime, `server-only` is a build-time marker,
+// and `cloudflare:workers` only exists on workerd.
+const STUBS = {
+  "next/server": "src/test-utils/stubs/next-server.ts",
+  "next/headers": "src/test-utils/stubs/next-headers.ts",
+  "next/navigation": "src/test-utils/stubs/next-navigation.ts",
+  "server-only": "src/test-utils/stubs/server-only.ts",
+  "cloudflare:workers": "src/test-utils/stubs/cloudflare-workers.ts",
+};
+
 let ts = null;
 
 // Finds the existing file a specifier points at, completing a missing
@@ -29,6 +40,9 @@ function tsFileUrl(url) {
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier in STUBS) {
+      return nextResolve(new URL(STUBS[specifier], `${root.href}/`).href, context);
+    }
     if (specifier.startsWith("@/")) {
       const url = tsFileUrl(new URL(specifier.slice(2), `${root.href}/`));
       return nextResolve(url ? url.href : specifier, context);
