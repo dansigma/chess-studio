@@ -16,13 +16,21 @@ async function emailIsListedAdmin(email: string): Promise<boolean> {
 /**
  * Sole writer of `app_metadata.role`: runs server-side with the service role.
  * Browser clients and RLS policies never write `app_metadata`.
+ *
+ * Admin is granted only to listed admins whose email is confirmed
+ * (fail-closed: unconfirmed or unknown confirmation state stays student).
+ * Never strips an existing `app_metadata.role`.
  */
-export async function finishSignIn(userId: string, email: string | null | undefined): Promise<void> {
+export async function finishSignIn(
+  userId: string,
+  email: string | null | undefined,
+  emailConfirmedAt?: string | null,
+): Promise<void> {
   const admin = createServiceSupabase();
   if (!admin) {
     return;
   }
-  const allow = email ? await emailIsListedAdmin(email) : false;
+  const allow = Boolean(email && emailConfirmedAt && (await emailIsListedAdmin(email)));
   if (allow) {
     await admin.from("profiles").upsert({ id: userId, role: "admin" });
     await admin.auth.admin.updateUserById(userId, { app_metadata: { role: "admin" } });
