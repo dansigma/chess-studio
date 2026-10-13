@@ -1,6 +1,6 @@
 export type CloudExplorerSource = "masters" | "lichess" | "chesscom";
 
-export type ExplorerSource = CloudExplorerSource | `file:${string}`;
+export type ExplorerSource = CloudExplorerSource | "curated" | `file:${string}`;
 
 export type ExplorerMoveRow = {
   san: string;
@@ -42,6 +42,17 @@ export type ExplorerResponse = {
 
 export function isCloudExplorerSource(source: ExplorerSource): source is CloudExplorerSource {
   return source === "masters" || source === "lichess" || source === "chesscom";
+}
+
+export function isExplorerSource(value: unknown): value is ExplorerSource {
+  if (value === "curated" || value === "masters" || value === "lichess" || value === "chesscom") {
+    return true;
+  }
+  if (typeof value === "string" && value.startsWith("file:")) {
+    const suffix = value.slice("file:".length);
+    return suffix.length > 0 && !/\s/.test(suffix);
+  }
+  return false;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -152,6 +163,9 @@ export function explorerSourceTitle(
   source: ExplorerSource,
   databases: Array<{ id: string; name: string }>,
 ): string {
+  if (source === "curated") {
+    return "Curated Masters";
+  }
   if (source === "masters") {
     return "Ultra Database";
   }
@@ -169,6 +183,9 @@ export function explorerGamesTitle(
   source: ExplorerSource,
   databases: Array<{ id: string; name: string }>,
 ): string {
+  if (source === "curated") {
+    return "Curated";
+  }
   if (source === "masters") {
     return "Ultra";
   }

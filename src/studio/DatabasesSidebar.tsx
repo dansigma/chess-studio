@@ -14,6 +14,12 @@ const PUBLIC_SOURCES: Array<{
   icon: typeof Database;
 }> = [
   {
+    source: "curated",
+    title: "Curated Masters",
+    description: "Offline curated master database and position index",
+    icon: Database,
+  },
+  {
     source: "masters",
     title: "Ultra Database",
     description: "Over-the-board master games · Lichess Masters",
