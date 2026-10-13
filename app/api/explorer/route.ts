@@ -11,6 +11,7 @@ import {
 } from "@/src/lib/explorer-types";
 import { filtersAreDefault, filtersFromSearchParams, lichessFilterQuery } from "@/src/lib/explorer-filters";
 import { emptyExplorer, lookupOpeningBook } from "@/src/lib/opening-book";
+import { lookupCuratedIndex } from "@/src/lib/offline-explorer";
 import { lookupOpeningIndex } from "@/src/lib/opening-index";
 import { createLruCache } from "@/src/lib/lru";
 import { isExplorerFen } from "@/src/lib/request-validation";
@@ -53,8 +54,8 @@ type LichessExplorer = {
   recentGames?: LichessGame[];
 };
 
-function isSource(value: string | null): value is "masters" | "lichess" {
-  return value === "masters" || value === "lichess";
+function isSource(value: string | null): value is "masters" | "lichess" | "curated" {
+  return value === "masters" || value === "lichess" || value === "curated";
 }
 
 function cacheKey(source: CloudExplorerSource, fen: string): string {
@@ -175,7 +176,7 @@ export async function GET(request: NextRequest) {
   const sourceParam = request.nextUrl.searchParams.get("source");
   if (!fen || !isSource(sourceParam)) {
     return NextResponse.json(
-      { error: "fen and source=masters|lichess are required" },
+      { error: "fen and source=masters|lichess|curated are required" },
       { status: 400 },
     );
   }
@@ -195,6 +196,12 @@ export async function GET(request: NextRequest) {
   }
 
   const filters = filtersFromSearchParams(request.nextUrl.searchParams);
+
+  if (sourceParam === "curated") {
+    const payload = lookupCuratedIndex(fen, filters, lookupOpeningIndex);
+    return NextResponse.json(payload);
+  }
+
   const filtered = !filtersAreDefault(filters);
   const filterQuery = lichessFilterQuery(sourceParam, filters);
   const key = filtered ? `${cacheKey(sourceParam, fen)}|${filterQuery}` : cacheKey(sourceParam, fen);

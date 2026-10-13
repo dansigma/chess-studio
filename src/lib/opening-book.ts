@@ -363,6 +363,19 @@ export function getBookGamePgn(id: string): string | null {
   return pgnById.get(id) ?? null;
 }
 
+export function lookupBookGames(fen: string): ExplorerGameRow[] {
+  const pos = ensureIndex().get(normalizeFen(fen));
+  return pos ? [...pos.games] : [];
+}
+
+export function lookupBookOpening(fen: string): { eco: string; name: string } | null {
+  const pos = ensureIndex().get(normalizeFen(fen));
+  if (!pos || normalizeFen(fen) === normalizeFen(START_FEN) || !pos.games[0]?.eco) {
+    return null;
+  }
+  return { eco: pos.games[0].eco ?? "", name: pos.games[0].opening ?? "" };
+}
+
 export function lookupOpeningBook(
   source: ExplorerSource,
   fen: string,
@@ -395,7 +408,9 @@ export function lookupOpeningBook(
     moves,
     games: pos.games,
     notice:
-      "Showing a built-in master sample book. Set LICHESS_TOKEN for live Lichess explorer stats.",
+      source === "curated"
+        ? undefined
+        : "Showing a built-in master sample book. Set LICHESS_TOKEN for live Lichess explorer stats.",
   };
 }
 

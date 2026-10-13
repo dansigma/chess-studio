@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isExplorerResponse, type ExplorerResponse } from "./explorer-types.ts";
+import {
+  isCloudExplorerSource,
+  isExplorerResponse,
+  isExplorerSource,
+  explorerSourceTitle,
+  explorerGamesTitle,
+  type ExplorerResponse,
+} from "./explorer-types.ts";
+import { parseExplorerSource } from "../studio/ExplorerPanel.tsx";
 import { toJson } from "./supabase/database.types.ts";
 
 const valid: ExplorerResponse = {
@@ -81,4 +89,18 @@ test("toJson mirrors JSON.stringify edge cases", () => {
   assert.deepEqual(toJson({ fn: () => 1, sym: Symbol("s"), b: 1 }), { b: 1 });
   assert.equal(toJson(Number.NaN), null);
   assert.equal(toJson(10n), "10");
+});
+
+test("curated source is recognized by parser, guards, and titles", () => {
+  assert.equal(parseExplorerSource("curated"), "curated");
+  assert.equal(isExplorerSource("curated"), true);
+  assert.equal(isCloudExplorerSource("curated"), false);
+  assert.equal(explorerSourceTitle("curated", []), "Curated Masters");
+  assert.equal(explorerGamesTitle("curated", []), "Curated");
+
+  const curatedResponse: ExplorerResponse = {
+    ...valid,
+    source: "curated",
+  };
+  assert.equal(isExplorerResponse(curatedResponse), true);
 });

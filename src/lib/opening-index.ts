@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { positionKey } from "@/src/chess/zobrist";
-import type { ExplorerMoveRow, ExplorerResponse } from "@/src/lib/explorer-types";
+import type { ExplorerMoveRow, ExplorerResponse, ExplorerSource } from "@/src/lib/explorer-types";
 
 type IndexRow = {
   uci: string;
@@ -14,6 +14,21 @@ type IndexRow = {
 
 let database: DatabaseSync | null | undefined;
 let selectMoves: { all: (pos: string) => IndexRow[] } | null = null;
+
+export function hasOpeningIndex(): boolean {
+  return openIndex() !== null;
+}
+
+export function setIndexDatabaseForTesting(db: DatabaseSync | null): void {
+  database = db;
+  if (db) {
+    selectMoves = db.prepare(
+      "SELECT uci, san, white, draws, black FROM moves WHERE pos = ? ORDER BY (white + draws + black) DESC",
+    ) as unknown as { all: (pos: string) => IndexRow[] };
+  } else {
+    selectMoves = null;
+  }
+}
 
 function openIndex(): DatabaseSync | null {
   if (database !== undefined) {
@@ -40,7 +55,7 @@ function openIndex(): DatabaseSync | null {
 }
 
 /** Local opening index built from Caissabase and extra PGN files. */
-export function lookupOpeningIndex(fen: string): ExplorerResponse | null {
+export function lookupOpeningIndex(fen: string, source: ExplorerSource = "masters"): ExplorerResponse | null {
   if (!openIndex() || !selectMoves) {
     return null;
   }
@@ -58,7 +73,7 @@ export function lookupOpeningIndex(fen: string): ExplorerResponse | null {
     averageRating: null,
   }));
   return {
-    source: "masters",
+    source,
     fen,
     white: moves.reduce((sum, move) => sum + move.white, 0),
     draws: moves.reduce((sum, move) => sum + move.draws, 0),

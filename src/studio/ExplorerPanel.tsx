@@ -23,7 +23,7 @@ const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(96px,160px)] items-c
  * are `file:<id>` with a non-empty whitespace-free id.
  */
 export function parseExplorerSource(value: unknown): ExplorerSource | null {
-  if (value === "masters" || value === "lichess" || value === "chesscom") {
+  if (value === "curated" || value === "masters" || value === "lichess" || value === "chesscom") {
     return value;
   }
   if (typeof value === "string" && value.startsWith("file:")) {
@@ -119,6 +119,7 @@ function ExplorerChrome({
   const totalGames = explorer ? explorer.white + explorer.draws + explorer.black : 0;
   const hasMoves = (explorer?.moves.length ?? 0) > 0;
   const knownSources = new Set<ExplorerSource>([
+    "curated",
     "masters",
     "lichess",
     "chesscom",
@@ -139,6 +140,7 @@ function ExplorerChrome({
           }}
           className="min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 text-dense font-semibold text-studio-fg outline-none hover:border-studio-border focus:border-studio-accent"
         >
+          <option value="curated">Curated Masters (Offline)</option>
           <option value="masters">Ultra Database</option>
           <option value="lichess">Online Database</option>
           <option value="chesscom">Chess.com</option>

@@ -10,6 +10,7 @@ import {
   type ExplorerSource,
 } from "@/src/lib/explorer-types";
 import { lookupChesscomExplorer, lookupFilesExplorer } from "@/src/lib/files-explorer";
+import { lookupCuratedIndex } from "@/src/lib/offline-explorer";
 
 export type ExplorerData = {
   explorer: ExplorerResponse | null;
@@ -81,6 +82,11 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0): Explor
     if (source === "chesscom") {
       const games = playerProfile?.source === "chesscom" ? playerGames : [];
       setExplorer(lookupChesscomExplorer(games, fen, explorerFilters));
+      setLoading(false);
+      return;
+    }
+    if (source === "curated") {
+      setExplorer(lookupCuratedIndex(fen, explorerFilters));
       setLoading(false);
       return;
     }
