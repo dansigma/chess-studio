@@ -4,12 +4,14 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { finishSignIn } from "@/src/lib/auth/access";
 import { safeAuthNext } from "@/src/lib/auth/redirect-path";
-import { clientIp, createRateLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter } from "@/src/lib/rate-limit";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 
 export type AuthFormState = { error?: string; message?: string };
 
-const limiter = createRateLimiter({ limit: 10, windowMs: 10 * 60 * 1000 });
+// Native Rate Limit bindings only support 10s or 60s periods — tighter than
+// the previous 10 req/10 min in-memory window, enforced globally at the edge.
+const limiter = createRouteLimiter({ limit: 10, windowMs: 60_000, bindingName: "RL_AUTH" });
 
 function field(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -51,7 +53,7 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
   if (mode === "reset") {
     const ip = clientIp(await headers());
     if (ip !== "unknown") {
-      const verdict = limiter.check(`reset:${ip}`);
+      const verdict = await limiter.checkAsync(`reset:${ip}`);
       if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
     }
     const base = await siteUrl();
@@ -72,7 +74,7 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
   if (mode === "signup") {
     const ip = clientIp(await headers());
     if (ip !== "unknown") {
-      const verdict = limiter.check(`signup:${ip}`);
+      const verdict = await limiter.checkAsync(`signup:${ip}`);
       if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
     }
     const { error } = await supabase.auth.signUp({

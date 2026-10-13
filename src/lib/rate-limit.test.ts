@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clientIp, createRateLimiter, MAX_KEYS } from "./rate-limit.ts";
+import {
+  clientIp,
+  createRateLimiter,
+  createRouteLimiter,
+  MAX_KEYS,
+} from "./rate-limit.ts";
 
 test("allows requests under the limit", () => {
   const limiter = createRateLimiter({ limit: 3, windowMs: 60_000 });
@@ -53,6 +58,92 @@ test("clientIp uses the right-most forwarded entry, then x-real-ip, then unknown
     clientIp(new Headers({ "x-forwarded-for": ",  , ", "x-real-ip": "9.9.9.9" })),
     "9.9.9.9",
   );
+});
+
+test("clientIp trusts cf-connecting-ip first", () => {
+  assert.equal(
+    clientIp(
+      new Headers({
+        "cf-connecting-ip": "203.0.113.9",
+        "x-forwarded-for": "1.2.3.4",
+        "x-real-ip": "2.2.2.2",
+      }),
+    ),
+    "203.0.113.9",
+  );
+  assert.equal(
+    clientIp(new Headers({ "cf-connecting-ip": " 203.0.113.9 " })),
+    "203.0.113.9",
+  );
+  assert.equal(
+    clientIp(
+      new Headers({ "cf-connecting-ip": "   ", "x-real-ip": "9.9.9.9" }),
+    ),
+    "9.9.9.9",
+  );
+  assert.equal(
+    clientIp(
+      new Headers({ "cf-connecting-ip": "  ", "x-forwarded-for": "1.1.1.1" }),
+    ),
+    "1.1.1.1",
+  );
+});
+
+test("createRouteLimiter maps native success verdicts", async () => {
+  const allowed = createRouteLimiter({
+    limit: 60,
+    windowMs: 60_000,
+    bindingName: "RL_60_MIN",
+    resolveBindingForTest: async () => ({
+      limit: async () => ({ success: true }),
+    }),
+  });
+  assert.deepEqual(await allowed.checkAsync("explorer:1.2.3.4"), { ok: true });
+
+  const denied = createRouteLimiter({
+    limit: 60,
+    windowMs: 60_000,
+    bindingName: "RL_60_MIN",
+    resolveBindingForTest: async () => ({
+      limit: async () => ({ success: false }),
+    }),
+  });
+  assert.deepEqual(await denied.checkAsync("explorer:1.2.3.4"), {
+    ok: false,
+    retryAfterSeconds: 60,
+  });
+});
+
+test("createRouteLimiter falls back to memory when the binding is missing", async () => {
+  const limiter = createRouteLimiter({
+    limit: 2,
+    windowMs: 60_000,
+    bindingName: "RL_60_MIN",
+    resolveBindingForTest: async () => undefined,
+  });
+  assert.deepEqual(await limiter.checkAsync("k"), { ok: true });
+  assert.deepEqual(await limiter.checkAsync("k"), { ok: true });
+  const verdict = await limiter.checkAsync("k");
+  assert.equal(verdict.ok, false);
+  assert.ok(
+    !verdict.ok && verdict.retryAfterSeconds > 0,
+    "expected retryAfterSeconds > 0",
+  );
+});
+
+test("createRouteLimiter falls back to memory when limit() throws", async () => {
+  const limiter = createRouteLimiter({
+    limit: 1,
+    windowMs: 60_000,
+    bindingName: "RL_60_MIN",
+    resolveBindingForTest: async () => ({
+      limit: async () => {
+        throw new Error("edge down");
+      },
+    }),
+  });
+  assert.deepEqual(await limiter.checkAsync("k"), { ok: true });
+  assert.equal((await limiter.checkAsync("k")).ok, false);
 });
 
 test("keeps enforcing limits past MAX_KEYS and evicts the least-recently-touched bucket", () => {

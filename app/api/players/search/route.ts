@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchPlayers } from "@/src/lib/players-server";
 import { isSearchQuery } from "@/src/lib/request-validation";
-import { clientIp, createRateLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter } from "@/src/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-const limiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
+const limiter = createRouteLimiter({ limit: 60, windowMs: 60_000, bindingName: "RL_60_MIN" });
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q") ?? "";
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   }
   const ip = clientIp(request.headers);
   if (ip !== "unknown") {
-    const verdict = limiter.check(`search:${ip}`);
+    const verdict = await limiter.checkAsync(`search:${ip}`);
     if (!verdict.ok) {
       return NextResponse.json(
         { error: "Too many requests — try again shortly." },

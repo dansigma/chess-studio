@@ -22,6 +22,13 @@ export default defineConfig({
       ENGINE: bindings.r2({ name: "chess-studio-engine" }),
       // Data cache do ISR (courses revalidate=60) — ver vite.config.ts.
       VINEXT_KV_CACHE: bindings.kv({ id: "2abf45b38f9943b792848ec48562282d" }),
+      // Global edge rate limits (ver src/lib/rate-limit.ts). Namespace IDs must
+      // be provisioned in the Cloudflare dashboard before deploy enforces them;
+      // until then routes degrade to the per-isolate in-memory fallback.
+      // TODO(SIG-927): replace placeholder namespace IDs with provisioned ones.
+      RL_60_MIN: bindings.rateLimit({ namespace: "RL_60_MIN", simple: { limit: 60, period: 60 } }),
+      RL_30_MIN: bindings.rateLimit({ namespace: "RL_30_MIN", simple: { limit: 30, period: 60 } }),
+      RL_AUTH: bindings.rateLimit({ namespace: "RL_AUTH", simple: { limit: 10, period: 60 } }),
     },
   }),
 });

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadPlayerGames } from "@/src/lib/players-server";
 import { isPlayerUsername, isStudioPlayerName } from "@/src/lib/request-validation";
-import { clientIp, createRateLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter } from "@/src/lib/rate-limit";
 
-const limiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
+const limiter = createRouteLimiter({ limit: 30, windowMs: 60_000, bindingName: "RL_30_MIN" });
 
 export async function GET(request: NextRequest) {
   const source = request.nextUrl.searchParams.get("source") ?? "";
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   }
   const ip = clientIp(request.headers);
   if (ip !== "unknown") {
-    const verdict = limiter.check(`games:${ip}`);
+    const verdict = await limiter.checkAsync(`games:${ip}`);
     if (!verdict.ok) {
       return NextResponse.json(
         { error: "Too many requests — try again shortly." },
