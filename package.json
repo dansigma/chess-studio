@@ -29,7 +29,7 @@
     "next": "16.4.0",
     "react": "19.3.0",
     "react-chessboard": "^5.12.1",
-    "react-dom": "19.2.8",
+    "react-dom": "19.3.0",
     "react-server-dom-webpack": "^19.2.8",
     "server-only": "^0.0.1",
     "stockfish": "^19.0.0",
