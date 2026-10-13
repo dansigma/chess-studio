@@ -54,7 +54,7 @@ export async function loadPuzzleCatalog(
       throw new Error("puzzles API shape");
     }
     return payload as CompiledPuzzle[];
-  } catch (error) {
+  } catch {
     // If request failed (offline / network error), provide fallback
     // Filter fallback according to options if specified
     const fallback = getFallbackCatalog();

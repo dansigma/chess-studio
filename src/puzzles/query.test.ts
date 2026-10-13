@@ -1,7 +1,6 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import { ALL_PUZZLES } from "./catalog-full";
-import { PUZZLE_CATALOG } from "./catalog";
 import { compilePuzzle, type CompiledPuzzle } from "./engine";
 import { queryPuzzles, isPuzzleTheme } from "./query";
 import { PUZZLE_THEMES } from "./types";
@@ -92,7 +91,7 @@ test("queryPuzzles: seed creates deterministic shuffle", () => {
 });
 
 test("queryPuzzles: validation errors", () => {
-  assert.throws(() => queryPuzzles(ALL_COMPILED, { theme: "invalidTheme" as any }), /Invalid theme/);
+  assert.throws(() => queryPuzzles(ALL_COMPILED, { theme: "invalidTheme" as unknown as import("./types").PuzzleTheme }), /Invalid theme/);
   assert.throws(() => queryPuzzles(ALL_COMPILED, { minRating: -5 }), /Invalid minRating/);
   assert.throws(() => queryPuzzles(ALL_COMPILED, { maxRating: -5 }), /Invalid maxRating/);
   assert.throws(() => queryPuzzles(ALL_COMPILED, { minRating: 1500, maxRating: 1000 }), /minRating.*cannot exceed maxRating/);

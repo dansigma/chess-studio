@@ -916,8 +916,6 @@ function genEndgameTactics() {
 // 13. High-Rated Tactics (Ratings 1800 to 2400)
 // -------------------------------------------------------------
 function genHighRatedTactics() {
-  let count = 0;
-
   const HIGH_STRUCTURES = [
     // 1800-1899
     { id: "s1", w: ["a2", "b2"], b: ["a7", "b7"], rating: 1810 },
@@ -969,7 +967,6 @@ function genHighRatedTactics() {
       for (const p of s.w) c.put({ type: "p", color: "w" }, p);
       for (const p of s.b) c.put({ type: "p", color: "b" }, p);
 
-      count += 1;
       const id = `tactics-expert-sac-${s.id}-${rookSq}`;
       tryAdmit({
         id,
@@ -995,7 +992,6 @@ function genHighRatedTactics() {
       for (const p of s.w) c.put({ type: "p", color: "w" }, p);
       for (const p of s.b) c.put({ type: "p", color: "b" }, p);
 
-      count += 1;
       const id = `tactics-expert-disc-${s.id}-${qSq}`;
       tryAdmit({
         id,
@@ -1020,7 +1016,6 @@ function genHighRatedTactics() {
       for (const p of s.w) c.put({ type: "p", color: "w" }, p);
       for (const p of s.b) c.put({ type: "p", color: "b" }, p);
 
-      count += 1;
       const id = `tactics-expert-fork-${s.id}-${qSq}`;
       tryAdmit({
         id,
