@@ -39,7 +39,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   sidebarCollapsed: false,
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   explorerFilters: DEFAULT_EXPLORER_FILTERS,
-  moveSound: true,
+  moveSound: false,
 };
 
 export function loadLocalSettings(): StudioSettings {

@@ -101,7 +101,7 @@ test("setSidebarWidth updates and clamps sidebar width", () => {
 test("hydrateSettings merges only the persisted fields and clamps engine values", () => {
   resetSettings();
   useStudioStore.setState({
-    settings: { ...DEFAULT_SETTINGS, colorScheme: "light", moveSound: false },
+    settings: { ...DEFAULT_SETTINGS, colorScheme: "light", moveSound: true },
   });
   actions().hydrateSettings({
     boardTheme: "wood",
@@ -118,7 +118,7 @@ test("hydrateSettings merges only the persisted fields and clamps engine values"
   assert.equal(settings.sidebarWidth, 350);
   // local-only fields survive a remote hydrate.
   assert.equal(settings.colorScheme, "light");
-  assert.equal(settings.moveSound, false);
+  assert.equal(settings.moveSound, true);
 });
 
 test("hydrateLocalSettings reads the persisted settings key and restores sidebarWidth", () => {
@@ -138,6 +138,25 @@ test("hydrateLocalSettings reads the persisted settings key and restores sidebar
   assert.equal(settings.engineDepth, 20);
   assert.equal(settings.sidebarWidth, 180);
   storage.delete(SETTINGS_KEY);
+});
+
+test("moveSound defaults to off and respects the persisted value", () => {
+  // SIG-951: fresh guests start silent; the user opts in from the View menu.
+  assert.equal(DEFAULT_SETTINGS.moveSound, false);
+
+  storage.delete(SETTINGS_KEY);
+  resetSettings();
+  actions().hydrateLocalSettings();
+  assert.equal(useStudioStore.getState().settings.moveSound, false);
+
+  for (const persisted of [true, false]) {
+    storage.set(SETTINGS_KEY, JSON.stringify({ moveSound: persisted }));
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.moveSound, persisted);
+  }
+
+  storage.delete(SETTINGS_KEY);
+  resetSettings();
 });
 
 test("hydrateLocalSettings clamps out-of-range persisted sidebarWidth", () => {
