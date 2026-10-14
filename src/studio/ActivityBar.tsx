@@ -4,7 +4,6 @@ import {
   Bookmark,
   Database,
   Folder,
-  LayoutGrid,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -12,10 +11,11 @@ import {
 import type { ReactNode } from "react";
 import { useStudioStore, type ActivityView } from "@/src/store/studio-store";
 import { Tooltip } from "./ui/Controls";
+import { ChessboardIcon } from "./ui/ChessboardIcon";
 
 const items: { id: ActivityView; icon: typeof Search; title: string }[] = [
   { id: "search", icon: Search, title: "Search" },
-  { id: "boards", icon: LayoutGrid, title: "Open boards" },
+  { id: "boards", icon: ChessboardIcon, title: "Open boards" },
   { id: "databases", icon: Database, title: "Databases" },
   { id: "files", icon: Folder, title: "Files" },
   { id: "bookmarks", icon: Bookmark, title: "Bookmarks" },
