@@ -46,3 +46,14 @@ test("updating an existing key keeps size and refreshes recency", () => {
   assert.equal(cache.get("a"), 10);
   assert.equal(cache.get("c"), 3);
 });
+
+test("clear empties the cache", () => {
+  const cache = createLruCache<string, number>(3);
+  cache.set("a", 1);
+  cache.set("b", 2);
+  assert.equal(cache.size(), 2);
+  cache.clear();
+  assert.equal(cache.size(), 0);
+  assert.equal(cache.get("a"), undefined);
+});
+

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createEmptyTree, playMove } from "./tree.ts";
-import { printDocumentHtml, printNotationText, printTokens } from "./print-sheet.ts";
+import { createEmptyTree, getNodeAt, playMove } from "./tree.ts";
+import { printDocumentHtml, printNotationText, printSheetMarkup, printTokens } from "./print-sheet.ts";
 
 function move(san: string, uci: string, fen: string) {
   return { san, uci, fen, from: uci.slice(0, 2), to: uci.slice(2, 4) };
@@ -38,4 +38,46 @@ test("the print page embeds the board and escapes the title", () => {
   assert.match(html, /A &lt; B/);
   assert.match(html, /data:image\/png;base64,abc/);
   assert.match(html, /<strong>e4<\/strong>/);
+});
+
+test("escapes HTML special characters in titles and tree comments", () => {
+  const specialTitle = "Morphy's & Anderssen's <Immortal> \"Game\"";
+  const html = printDocumentHtml({
+    title: specialTitle,
+    tokens: [{ text: "e4", current: false }],
+    imageDataUrl: "data:image/png;base64,123",
+  });
+  // Title escaped in both <title> and <h1>
+  const expectedEscaped = "Morphy&#39;s &amp; Anderssen&#39;s &lt;Immortal&gt; &quot;Game&quot;";
+  assert.ok(html.includes(`<title>${expectedEscaped}</title>`));
+  assert.ok(html.includes(`<h1>${expectedEscaped}</h1>`));
+
+  // Escaping in tree comments: startComment, commentBefore, comment
+  let tree = createEmptyTree();
+  tree.startComment = "<script>alert('start')</script> & \"quotes\"";
+  const e4 = playMove(tree, [], move("e4", "e2e4", "fen-e4"));
+  tree = e4.tree;
+  const node = getNodeAt(tree, e4.path);
+  assert.ok(node);
+  node.commentBefore = "Before: <tag> & 'single'";
+  node.comment = "After: \"double\" & <b>bold</b>";
+
+  const tokens = printTokens(tree, e4.path, "english");
+  const markup = printSheetMarkup({
+    title: "Test",
+    tokens,
+    imageDataUrl: "",
+  });
+
+  // Check startComment escaped
+  assert.ok(
+    markup.includes("{&lt;script&gt;alert(&#39;start&#39;)&lt;/script&gt; &amp; &quot;quotes&quot;}"),
+  );
+  // Check commentBefore escaped
+  assert.ok(markup.includes("{Before: &lt;tag&gt; &amp; &#39;single&#39;}"));
+  // Check comment escaped
+  assert.ok(markup.includes("{After: &quot;double&quot; &amp; &lt;b&gt;bold&lt;/b&gt;}"));
+  // Raw dangerous chars must not appear unescaped in markup
+  assert.ok(!markup.includes("<script>"));
+  assert.ok(!markup.includes("<b>bold</b>"));
 });
