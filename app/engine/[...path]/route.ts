@@ -6,11 +6,11 @@
 // engine/full/stockfish-19.wasm e engine/stockfish-19-single.wasm) e são
 // levantados para lá por scripts/uploads manuais (ver skill do projeto).
 //
-// IMPORTANTE: os wasm ficam fora de public/ durante o build (o wrapper
-// scripts/vinext-deploy.mjs faz stash→deploy→restore). Se estiverem em public/
-// no build, o pipeline estático do vinext classifica esses paths como assets do
-// build e os drena para o binding de ASSETS (que não os contém) ANTES desta
-// rota rodar — resultado: 404 vazio.
+// IMPORTANTE: os wasm full não são versionados em public/ (são servidos do R2).
+// Caso sejam baixados localmente para testes, não devem ser incluídos no build
+// de produção — se presentes em public/ no build, o pipeline estático do vinext
+// classificaria esses paths como assets e os drenaria para o binding de ASSETS
+// (que tem limite de 25MiB) ANTES desta rota rodar — resultado: 404 vazio.
 //
 // Mantém os headers de isolation (COOP/COEP/CORP) que o worker do engine exige
 // sob COEP, com os mesmos paths do app (nenhuma mudança no cliente).
