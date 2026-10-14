@@ -20,21 +20,31 @@ export function emailIsCourseAdmin(email: string | null | undefined): boolean {
 /**
  * Super-admin check: `app_metadata.role` is written server-side only (service
  * role via `finishSignIn`); clients never set it, they only read it here.
+ * Allowlisted emails must have a confirmed email address.
  */
-export function isCourseSuperAdmin(user: Pick<User, "email" | "app_metadata">): boolean {
-  return emailIsCourseAdmin(user.email) || user.app_metadata.role === "admin";
+export function isCourseSuperAdmin(
+  user: Pick<User, "email" | "app_metadata"> & { email_confirmed_at?: string | null },
+): boolean {
+  return (
+    Boolean(user.email_confirmed_at && emailIsCourseAdmin(user.email)) ||
+    user.app_metadata.role === "admin"
+  );
 }
 
 /**
  * Only the service role can grant `app_metadata.role` (via
  * `admin.auth.admin.updateUserById` in `finishSignIn`). Browser clients and RLS
  * policies never write `app_metadata`; they are read-only here.
+ * Allowlisted emails must have a confirmed email address.
  */
 export async function userCanPublishCourses(
   supabase: SupabaseClient<Database>,
-  user: Pick<User, "id" | "email" | "app_metadata">,
+  user: Pick<User, "id" | "email" | "app_metadata"> & { email_confirmed_at?: string | null },
 ): Promise<boolean> {
-  if (user.app_metadata.role === "admin" || emailIsCourseAdmin(user.email)) {
+  if (
+    user.app_metadata.role === "admin" ||
+    Boolean(user.email_confirmed_at && emailIsCourseAdmin(user.email))
+  ) {
     return true;
   }
   const { data, error } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
