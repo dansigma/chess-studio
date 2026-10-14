@@ -88,8 +88,8 @@ function StudioTab(props: IDockviewPanelHeaderProps) {
     TAB_ICONS[props.api.id] ??
     (isBoardPanelId(props.api.id) ? LayoutGrid : isExplorerPanelId(props.api.id) ? BookOpen : undefined);
   return (
-    <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden">
-      {Icon ? <Icon aria-hidden="true" className="ml-0.5 shrink-0 opacity-70" size={13} /> : null}
+    <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+      {Icon ? <Icon aria-hidden="true" className="dv-tab-context-icon ml-0.5 shrink-0 transition-opacity" size={13} /> : null}
       <DockviewDefaultTab {...props} />
     </div>
   );
