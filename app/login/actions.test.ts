@@ -300,7 +300,7 @@ test("production: signup without NEXT_PUBLIC_SITE_URL fails closed and does not 
     withRequest();
     const state = await submitAuth(
       {},
-      form({ mode: "signup", email: "player@example.com", password: "secret1", next: "/courses" }),
+      form({ mode: "signup", email: "player@example.com", password: "secret1234", next: "/courses" }),
     );
     assert.deepEqual(state, { error: "Could not create the account. Try again." });
     assert.equal(fake.authCalls.length, 0);
@@ -347,7 +347,7 @@ test("production: valid NEXT_PUBLIC_SITE_URL is used for reset and signup ignori
     withRequest();
     await submitAuth(
       {},
-      form({ mode: "signup", email: "player@example.com", password: "secret1", next: "/courses" }),
+      form({ mode: "signup", email: "player@example.com", password: "secret1234", next: "/courses" }),
     );
     assert.equal(
       signupRedirectTo,
