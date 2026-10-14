@@ -1,6 +1,7 @@
 import type { PlayerGame, PlayerSource } from "@/src/lib/player-types";
 
 export const MAX_PLAYER_GAMES = 80;
+export const MAX_PLAYER_GAMES_BYTES = 2 * 1024 * 1024; // 2 MB
 export const GAMES_CACHE_TTL_MS = 180_000;
 export const SEARCH_TIMEOUT_MS = 6_000;
 export const GAMES_TIMEOUT_MS = 15_000;

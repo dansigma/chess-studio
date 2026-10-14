@@ -4,11 +4,13 @@ import type { PlayerGame, PlayerHit } from "@/src/lib/player-types";
 import {
   GAMES_TIMEOUT_MS,
   MAX_PLAYER_GAMES,
+  MAX_PLAYER_GAMES_BYTES,
   SEARCH_TIMEOUT_MS,
   UA,
   fetchTimeout,
   playerResult,
 } from "./shared";
+import { readCapped } from "../read-capped";
 
 export function chesscomHeaders(): Record<string, string> {
   return {
@@ -91,7 +93,8 @@ async function fetchArchive(url: string): Promise<ChesscomArchiveGame[]> {
   if (!monthResponse.ok) {
     return [];
   }
-  const monthPayload = (await monthResponse.json()) as { games?: ChesscomArchiveGame[] };
+  const text = await readCapped(monthResponse, MAX_PLAYER_GAMES_BYTES);
+  const monthPayload = JSON.parse(text) as { games?: ChesscomArchiveGame[] };
   return monthPayload.games ?? [];
 }
 
@@ -139,7 +142,8 @@ export async function chesscomGames(username: string): Promise<PlayerGame[]> {
   if (!archivesResponse.ok) {
     throw new Error("Chess.com archives request failed");
   }
-  const archivesPayload = (await archivesResponse.json()) as { archives?: string[] };
+  const archivesText = await readCapped(archivesResponse, 512 * 1024);
+  const archivesPayload = JSON.parse(archivesText) as { archives?: string[] };
   const urls = (archivesPayload.archives ?? []).slice(-2);
   const latestUrl = urls.at(-1);
   if (!latestUrl) {

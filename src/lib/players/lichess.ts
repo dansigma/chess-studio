@@ -8,11 +8,13 @@ import type { PlayerGame, PlayerHit } from "@/src/lib/player-types";
 import {
   GAMES_TIMEOUT_MS,
   MAX_PLAYER_GAMES,
+  MAX_PLAYER_GAMES_BYTES,
   SEARCH_TIMEOUT_MS,
   UA,
   fetchTimeout,
   playerResult,
 } from "./shared";
+import { readCapped } from "../read-capped";
 
 function lichessToken(): string | undefined {
   return process.env.LICHESS_TOKEN ?? process.env.LICHESS_API_TOKEN;
@@ -203,13 +205,19 @@ export async function lichessGames(username: string): Promise<PlayerGame[]> {
         : "Lichess games request failed",
     );
   }
-  const text = await response.text();
+  const text = await readCapped(response, MAX_PLAYER_GAMES_BYTES);
   const games: PlayerGame[] = [];
   for (const line of text.split("\n")) {
     if (!line.trim()) {
       continue;
     }
-    const raw = JSON.parse(line) as LichessGameJson;
+    let raw: LichessGameJson;
+    try {
+      raw = JSON.parse(line) as LichessGameJson;
+    } catch {
+      console.warn("Skipping malformed NDJSON line in Lichess response", { line });
+      continue;
+    }
     const whiteName = raw.players?.white?.user?.name ?? raw.players?.white?.user?.id ?? "White";
     const blackName = raw.players?.black?.user?.name ?? raw.players?.black?.user?.id ?? "Black";
     const target = username.toLowerCase();

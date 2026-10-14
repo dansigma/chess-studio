@@ -72,12 +72,12 @@ test("studio source accepts display-style names", async () => {
   assert.equal(res.status, 200);
 });
 
-test("upstream failure returns 400", async () => {
+test("upstream failure returns 502", async () => {
   stubs.loadPlayerGames = async () => {
     throw new Error("upstream down");
   };
   const { res, body } = await get("?source=lichess&username=hikaru");
-  assert.equal(res.status, 400);
+  assert.equal(res.status, 502);
   assert.deepEqual(body, { error: "Could not load games" });
 });
 
