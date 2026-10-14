@@ -225,7 +225,7 @@ body {
 .dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container {
   box-sizing: border-box;
   border-bottom: 1px solid var(--studio-border);
-  padding: 0 4px;
+  padding: 0 4px 0 0;
   border-top-left-radius: var(--dv-border-radius);
   border-top-right-radius: var(--dv-border-radius);
   position: relative;
@@ -233,6 +233,13 @@ body {
 
 .dockview-theme-vs .dv-tabs-and-actions-container .dv-tabs-container {
   height: calc(100% + 1px);
+}
+
+/* SIG-954: the first tab sits flush with the group's left edge. Only the
+   left margin is zeroed so the 3px top margin and inter-tab gaps from
+   --dv-tab-margin are preserved for every other tab. */
+.dockview-theme-vs .dv-tabs-container > .dv-tab:first-child {
+  margin-left: 0;
 }
 
 .dockview-theme-vs .dv-tab {
