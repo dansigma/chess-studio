@@ -9,7 +9,7 @@ export default defineConfig({
     assets: {
       notFoundHandling: "none",
       // Os wasm "full" do engine são servidos do R2 pela rota app/engine/[...path]
-      // (os arquivos ficam fora de public/ durante o build — ver scripts/vinext-deploy.mjs).
+      // (não são versionados em public/engine/ para respeitar o limite de 25MiB de asset).
       // Estes paths devem sempre chegar ao worker.
       runWorkerFirst: [
         "/engine/full/stockfish-19.wasm",
