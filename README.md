@@ -21,8 +21,9 @@ Ultra Database maps to the Lichess Masters explorer; Online Database maps to the
 ## Supabase (accounts + saved boards)
 
 1. Create a project and run `supabase/migrations/20260317120000_init_studio.sql` in the SQL editor.
-2. Copy `.env.example` to `.env.local` and fill in the URL and anon key.
-3. Restart `npm run dev`.
+2. Under Authentication -> Providers -> Email in the Supabase Dashboard, make sure **Confirm email** is enabled so unconfirmed signups cannot claim allowlisted admin addresses.
+3. Copy `.env.example` to `.env.local` and fill in the URL and anon key.
+4. Restart `npm run dev`.
 
 Saved boards, settings, and explorer cache then persist. Opening-database tables (`games`, `game_positions`, `position_stats`) are created empty for a later ingest phase.
 
