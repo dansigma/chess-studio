@@ -233,7 +233,7 @@ test("production: reset without NEXT_PUBLIC_SITE_URL fails closed and does not c
   const originalError = console.error;
   let loggedError = "";
   try {
-    process.env.NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     delete process.env.NEXT_PUBLIC_SITE_URL;
     console.error = (...args: unknown[]) => {
       loggedError = args.map(String).join(" ");
@@ -247,7 +247,7 @@ test("production: reset without NEXT_PUBLIC_SITE_URL fails closed and does not c
     assert.equal(fake.authCalls.length, 0);
     assert.match(loggedError, /NEXT_PUBLIC_SITE_URL is required in production/);
   } finally {
-    process.env.NODE_ENV = originalEnv;
+    (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
     if (originalSiteUrl !== undefined) {
       process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
     } else {
@@ -263,7 +263,7 @@ test("production: signup without NEXT_PUBLIC_SITE_URL fails closed and does not 
   const originalError = console.error;
   let loggedError = "";
   try {
-    process.env.NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     delete process.env.NEXT_PUBLIC_SITE_URL;
     console.error = (...args: unknown[]) => {
       loggedError = args.map(String).join(" ");
@@ -280,7 +280,7 @@ test("production: signup without NEXT_PUBLIC_SITE_URL fails closed and does not 
     assert.equal(fake.authCalls.length, 0);
     assert.match(loggedError, /NEXT_PUBLIC_SITE_URL is required in production/);
   } finally {
-    process.env.NODE_ENV = originalEnv;
+    (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
     if (originalSiteUrl !== undefined) {
       process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
     } else {
@@ -294,7 +294,7 @@ test("production: valid NEXT_PUBLIC_SITE_URL is used for reset and signup ignori
   const originalEnv = process.env.NODE_ENV;
   const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
   try {
-    process.env.NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
     process.env.NEXT_PUBLIC_SITE_URL = "https://chess.example.com/";
 
     let resetRedirectTo = "";
@@ -328,7 +328,7 @@ test("production: valid NEXT_PUBLIC_SITE_URL is used for reset and signup ignori
       "https://chess.example.com/auth/callback?next=%2Fcourses",
     );
   } finally {
-    process.env.NODE_ENV = originalEnv;
+    (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
     if (originalSiteUrl !== undefined) {
       process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
     } else {
