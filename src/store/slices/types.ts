@@ -82,6 +82,7 @@ export type StudioSettings = {
   engineThreads: number;
   engineBuild: EngineBuild;
   sidebarCollapsed: boolean;
+  sidebarWidth: number;
   explorerFilters: ExplorerFilters;
   moveSound: boolean;
 };
@@ -167,6 +168,7 @@ export type StudioState = {
   setEngineBuild: (build: EngineBuild) => void;
   setActivity: (view: ActivityView) => void;
   toggleSidebar: () => void;
+  setSidebarWidth: (width: number) => void;
   setDatabaseSource: (source: ExplorerSource) => void;
   setExplorerFilters: (patch: Partial<ExplorerFilters>) => void;
   importPgnText: (pgn: string, title?: string) => void;
