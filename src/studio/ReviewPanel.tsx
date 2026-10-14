@@ -2,22 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Chess } from "chess.js";
-import { formatSan, sideFromFen } from "@/src/chess/move-notation";
+import { sideFromFen } from "@/src/chess/move-notation";
 import {
   REVIEW_DEPTH,
-  REVIEW_LABELS,
   bookFlags,
-  harmonicAccuracy,
-  countLabels,
   gradeMove,
   hangsPieceOn,
   isSacrificeOn,
   lineHolds,
   mergeBookLabel,
   type PositionScore,
-  type ReviewLabel,
   type ReviewedMove,
 } from "@/src/chess/review";
+import { buildReviewReport, keyMoments } from "@/src/chess/review-report";
+import { lookupBookOpening } from "@/src/lib/opening-book";
+import { ReviewReportCard } from "./review/ReviewReportCard";
 import { isNullMoveToken } from "@/src/chess/null-move";
 import { dividePhases, phaseAt, type GamePhase } from "@/src/chess/phases";
 import { getNodeAt, variationPoints, type Path } from "@/src/chess/tree";
@@ -27,31 +26,13 @@ import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "./ui/Button";
 
-const LABEL_TEXT: Record<ReviewLabel, { name: string; mark: string; className: string }> = {
-  brilliant: { name: "Brilliant", mark: "!!", className: "text-studio-accent" },
-  great: { name: "Great", mark: "!", className: "text-studio-success" },
-  book: { name: "Book", mark: "B", className: "text-studio-comment" },
-  best: { name: "Best", mark: "★", className: "text-studio-fg" },
-  interesting: { name: "Interesting", mark: "!?", className: "text-studio-fg" },
-  inaccuracy: { name: "Inaccuracy", mark: "?!", className: "text-studio-warning-fg" },
-  mistake: { name: "Mistake", mark: "?", className: "text-studio-warning-fg" },
-  blunder: { name: "Blunder", mark: "??", className: "text-studio-danger" },
-};
-
-const KEY_MOMENTS = new Set<ReviewLabel>(["brilliant", "inaccuracy", "mistake", "blunder"]);
-
 type MoveRow = ReviewedMove & {
   path: Path;
   san: string;
   side: "w" | "b";
   phase: GamePhase;
+  forced: boolean;
 };
-
-const PHASES: Array<{ id: GamePhase; name: string }> = [
-  { id: "opening", name: "Opening" },
-  { id: "middlegame", name: "Middlegame" },
-  { id: "endgame", name: "Endgame" },
-];
 
 function positionScore(fen: string, info: EngineInfo): PositionScore | null {
   const best = info.lines[0];
@@ -194,11 +175,14 @@ export function ReviewPanel() {
       const division = dividePhases(points.map((point) => point.fen));
       const moveCount = points.length - 1;
       const next: MoveRow[] = [];
+      // Win-chance points the previous mover lost; feeds "miss" detection.
+      let lastWinLoss = 0;
       for (let index = 0; index < moveCount; index += 1) {
         const before = scores[index];
         const after = scores[index + 1];
         const node = getNodeAt(board.tree, points[index + 1].path);
         if (!before || !after || !node || node.uci.length < 4 || isNullMoveToken(node.uci)) {
+          lastWinLoss = 0;
           continue;
         }
         const beforeBoard = new Chess(points[index].fen);
@@ -219,8 +203,10 @@ export function ReviewPanel() {
           before: beforeScore,
           afterWhitePawns: after.whitePawns,
           sacrifice,
+          opponentLastLoss: lastWinLoss,
         });
-        const negative = graded.label === "inaccuracy" || graded.label === "mistake" || graded.label === "blunder";
+        const negative =
+          graded.label === "inaccuracy" || graded.label === "mistake" || graded.label === "miss" || graded.label === "blunder";
         if (negative && (sacrifice || hanging)) {
           const deeper = await analyzeFen(points[index + 1].fen, false, REVIEW_DEPTH + 6, 1, undefined, 12_000);
           if (deeper && (deeper.depth ?? 0) >= REVIEW_DEPTH + 4 && lineHolds(side, before.whitePawns, deeper.whitePawns)) {
@@ -234,9 +220,11 @@ export function ReviewPanel() {
               },
               afterWhitePawns: deeper.whitePawns,
               sacrifice: true,
+              opponentLastLoss: lastWinLoss,
             });
           }
         }
+        lastWinLoss = graded.winLoss;
         next.push({
           ...graded,
           label: mergeBookLabel(inBook[index], graded.label),
@@ -244,6 +232,7 @@ export function ReviewPanel() {
           san: node.san,
           side,
           phase: phaseAt(division, index + 1),
+          forced: beforeBoard.moves().length === 1,
         });
       }
       setRows(next);
@@ -259,17 +248,23 @@ export function ReviewPanel() {
     };
   }, [board.tree, engineBuild, engineThreads, points, running, setupMode]);
 
-  const whiteAccuracy = harmonicAccuracy(
-    rows?.filter((row) => row.side === "w" && row.label !== "book").map((row) => row.accuracy) ?? [],
-  );
-  const blackAccuracy = harmonicAccuracy(
-    rows?.filter((row) => row.side === "b" && row.label !== "book").map((row) => row.accuracy) ?? [],
-  );
-  const counts = countLabels(rows?.map((row) => row.label) ?? []);
-  const moments = rows?.filter((row) => row.label != null && KEY_MOMENTS.has(row.label)) ?? [];
-  const headers = board.headers;
-  const whiteName = headers.White || "White";
-  const blackName = headers.Black || "Black";
+  const report = useMemo(() => (rows ? buildReviewReport(rows, board.headers) : null), [rows, board.headers]);
+  const moments = useMemo(() => (rows ? keyMoments(rows) : []), [rows]);
+  const openingName = useMemo(() => {
+    if (!rows) {
+      return null;
+    }
+    for (let index = points.length - 1; index > 0; index -= 1) {
+      const opening = lookupBookOpening(points[index].fen);
+      if (opening?.name) {
+        return opening.eco ? `${opening.eco} · ${opening.name}` : opening.name;
+      }
+    }
+    return null;
+  }, [rows, points]);
+  const lineNote = points[points.length - 1]?.path.some((index) => index !== 0)
+    ? "Reviewed line is a variation, not the main line."
+    : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-studio-panel text-body text-studio-fg">
@@ -297,79 +292,15 @@ export function ReviewPanel() {
             Scoring moves at depth {REVIEW_DEPTH}… {progress.done}/{progress.total}
           </p>
         ) : null}
-        {rows ? (
-          <>
-            <div className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 border-b border-studio-border-subtle px-3 py-2">
-              <span className="text-caption text-studio-faint">Accuracy</span>
-              <span className="text-right text-dense font-semibold tabular-nums">{whiteAccuracy ?? "—"}</span>
-              <span className="text-right text-dense font-semibold tabular-nums">{blackAccuracy ?? "—"}</span>
-              <span />
-              <span className="truncate text-right text-caption text-studio-muted">{whiteName}</span>
-              <span className="truncate text-right text-caption text-studio-muted">{blackName}</span>
-            </div>
-            {PHASES.map((phase) => {
-              const white = harmonicAccuracy(
-                rows.filter((row) => row.phase === phase.id && row.side === "w" && row.label !== "book").map((row) => row.accuracy),
-              );
-              const black = harmonicAccuracy(
-                rows.filter((row) => row.phase === phase.id && row.side === "b" && row.label !== "book").map((row) => row.accuracy),
-              );
-              return (
-                <div
-                  key={phase.id}
-                  className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 px-3 py-1 text-dense"
-                >
-                  <span className="text-caption text-studio-faint">{phase.name}</span>
-                  <span className="text-right tabular-nums text-studio-muted">{white ?? "—"}</span>
-                  <span className="text-right tabular-nums text-studio-muted">{black ?? "—"}</span>
-                </div>
-              );
-            })}
-            <ul className="border-b border-studio-border-subtle py-1">
-              {REVIEW_LABELS.map((label) => {
-                const text = LABEL_TEXT[label];
-                const white = rows.filter((row) => row.side === "w" && row.label === label).length;
-                const black = rows.filter((row) => row.side === "b" && row.label === label).length;
-                return (
-                  <li
-                    key={label}
-                    className="grid grid-cols-[1fr_28px_36px_36px] items-center gap-2 px-3 py-1 text-dense"
-                  >
-                    <span>{text.name}</span>
-                    <span className={`text-center font-semibold ${text.className}`}>{text.mark}</span>
-                    <span className="text-right tabular-nums text-studio-muted">{white}</span>
-                    <span className="text-right tabular-nums text-studio-muted">{black}</span>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="px-3 py-2 text-caption uppercase tracking-wide text-studio-faint">Key moments</div>
-            {moments.length === 0 ? (
-              <p className="px-3 pb-3 text-dense text-studio-faint">No mistakes in this line.</p>
-            ) : (
-              moments.map((row) => {
-                if (!row.label) {
-                  return null;
-                }
-                const text = LABEL_TEXT[row.label];
-                return (
-                  <button
-                    key={row.path.join(".")}
-                    type="button"
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover"
-                    onClick={() => goPath(row.path)}
-                  >
-                    <span className={`w-6 text-center font-semibold ${text.className}`}>{text.mark}</span>
-                    <span className="font-medium">{formatSan(row.san, moveNotation, row.side)}</span>
-                    <span className="ml-auto text-caption text-studio-faint">{text.name}</span>
-                  </button>
-                );
-              })
-            )}
-            <p className="px-3 py-2 text-caption text-studio-faint">
-              {counts.best} best {counts.best === 1 ? "move" : "moves"} kept the evaluation.
-            </p>
-          </>
+        {report ? (
+          <ReviewReportCard
+            report={report}
+            moments={moments}
+            moveNotation={moveNotation}
+            onSelectMoment={goPath}
+            openingName={openingName}
+            lineNote={lineNote}
+          />
         ) : null}
       </div>
     </div>
