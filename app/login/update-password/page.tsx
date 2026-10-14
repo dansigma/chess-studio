@@ -3,6 +3,12 @@
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import {
+  MIN_PASSWORD_LENGTH,
+  isValidPassword,
+  passwordLengthError,
+  passwordRequirementHint,
+} from "@/src/lib/auth/password";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { Button } from "@/src/studio/ui/Button";
 import { AuthField, AuthLayout, AuthMessage, authInputClass } from "../AuthLayout";
@@ -36,6 +42,10 @@ export default function UpdatePasswordPage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!supabase) {
+      return;
+    }
+    if (!isValidPassword(password)) {
+      setMessage({ tone: "error", text: passwordLengthError() });
       return;
     }
     if (password !== confirm) {
@@ -77,13 +87,13 @@ export default function UpdatePasswordPage() {
           <AuthField
             id="new-password"
             label="New password"
-            trailing={<span className="text-caption text-studio-faint">At least 6 characters</span>}
+            trailing={<span className="text-caption text-studio-faint">{passwordRequirementHint()}</span>}
           >
             <input
               id="new-password"
               type="password"
               required
-              minLength={6}
+              minLength={MIN_PASSWORD_LENGTH}
               autoComplete="new-password"
               autoFocus
               value={password}
@@ -96,7 +106,7 @@ export default function UpdatePasswordPage() {
               id="confirm-password"
               type="password"
               required
-              minLength={6}
+              minLength={MIN_PASSWORD_LENGTH}
               autoComplete="new-password"
               value={confirm}
               onChange={(event) => setConfirm(event.target.value)}
