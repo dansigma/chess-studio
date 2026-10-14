@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { finishSignIn } from "@/src/lib/auth/access";
 import { safeAuthNext } from "@/src/lib/auth/redirect-path";
+import { resolveSiteUrl } from "@/src/lib/auth/site-url";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 
@@ -31,15 +32,6 @@ function signInError(message: string): string {
   return "Could not sign in. Try again.";
 }
 
-async function requestOrigin(): Promise<string> {
-  const headerStore = await headers();
-  return headerStore.get("origin") ?? "http://localhost:3000";
-}
-
-async function siteUrl(): Promise<string> {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? (await requestOrigin());
-}
-
 export async function submitAuth(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const supabase = await createServerSupabase();
   if (!supabase) {
@@ -53,11 +45,16 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
   }
 
   if (mode === "reset") {
-    const ip = clientIp(await headers());
+    const headerStore = await headers();
+    const ip = clientIp(headerStore);
     const verdict = await limiter.checkAsync(rateLimitKey("reset", ip));
     if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
-    const base = await siteUrl();
-    const redirectTo = `${base}/auth/callback?next=${encodeURIComponent("/login/update-password")}`;
+    const siteUrlResult = resolveSiteUrl({ origin: headerStore.get("origin") });
+    if (!siteUrlResult.ok) {
+      console.error("[auth] Site URL resolution failed:", siteUrlResult.cause);
+      return { error: "Could not send the reset link. Try again." };
+    }
+    const redirectTo = `${siteUrlResult.url}/auth/callback?next=${encodeURIComponent("/login/update-password")}`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) {
       return { error: "Could not send the reset link. Try again." };
@@ -72,13 +69,19 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
   const next = safeAuthNext(formData.get("next"));
 
   if (mode === "signup") {
-    const ip = clientIp(await headers());
+    const headerStore = await headers();
+    const ip = clientIp(headerStore);
     const verdict = await limiter.checkAsync(rateLimitKey("signup", ip));
     if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
+    const siteUrlResult = resolveSiteUrl({ origin: headerStore.get("origin") });
+    if (!siteUrlResult.ok) {
+      console.error("[auth] Site URL resolution failed:", siteUrlResult.cause);
+      return { error: "Could not create the account. Try again." };
+    }
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${await siteUrl()}/auth/callback?next=${encodeURIComponent(next)}` },
+      options: { emailRedirectTo: `${siteUrlResult.url}/auth/callback?next=${encodeURIComponent(next)}` },
     });
     if (error) return { error: "Could not create the account. Try again." };
     return { message: "Check your email to confirm your account, then sign in." };

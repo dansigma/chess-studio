@@ -226,3 +226,113 @@ test("signOut signs out then redirects to /login", async () => {
   );
   assert.equal(redirectUrl(thrown), "/login");
 });
+
+test("production: reset without NEXT_PUBLIC_SITE_URL fails closed and does not call Supabase", async () => {
+  const originalEnv = process.env.NODE_ENV;
+  const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const originalError = console.error;
+  let loggedError = "";
+  try {
+    process.env.NODE_ENV = "production";
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    console.error = (...args: unknown[]) => {
+      loggedError = args.map(String).join(" ");
+    };
+    const fake = serverWithAuth({
+      resetPasswordForEmail: async () => ({ error: null }),
+    });
+    withRequest();
+    const state = await submitAuth({}, form({ mode: "reset", email: "player@example.com" }));
+    assert.deepEqual(state, { error: "Could not send the reset link. Try again." });
+    assert.equal(fake.authCalls.length, 0);
+    assert.match(loggedError, /NEXT_PUBLIC_SITE_URL is required in production/);
+  } finally {
+    process.env.NODE_ENV = originalEnv;
+    if (originalSiteUrl !== undefined) {
+      process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+    } else {
+      delete process.env.NEXT_PUBLIC_SITE_URL;
+    }
+    console.error = originalError;
+  }
+});
+
+test("production: signup without NEXT_PUBLIC_SITE_URL fails closed and does not call Supabase", async () => {
+  const originalEnv = process.env.NODE_ENV;
+  const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const originalError = console.error;
+  let loggedError = "";
+  try {
+    process.env.NODE_ENV = "production";
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    console.error = (...args: unknown[]) => {
+      loggedError = args.map(String).join(" ");
+    };
+    const fake = serverWithAuth({
+      signUp: async () => ({ data: { user: null }, error: null }),
+    });
+    withRequest();
+    const state = await submitAuth(
+      {},
+      form({ mode: "signup", email: "player@example.com", password: "secret1", next: "/courses" }),
+    );
+    assert.deepEqual(state, { error: "Could not create the account. Try again." });
+    assert.equal(fake.authCalls.length, 0);
+    assert.match(loggedError, /NEXT_PUBLIC_SITE_URL is required in production/);
+  } finally {
+    process.env.NODE_ENV = originalEnv;
+    if (originalSiteUrl !== undefined) {
+      process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+    } else {
+      delete process.env.NEXT_PUBLIC_SITE_URL;
+    }
+    console.error = originalError;
+  }
+});
+
+test("production: valid NEXT_PUBLIC_SITE_URL is used for reset and signup ignoring request origin", async () => {
+  const originalEnv = process.env.NODE_ENV;
+  const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://chess.example.com/";
+
+    let resetRedirectTo = "";
+    let signupRedirectTo = "";
+    serverWithAuth({
+      resetPasswordForEmail: async (_email, options) => {
+        resetRedirectTo = (options as { redirectTo?: string })?.redirectTo ?? "";
+        return { error: null };
+      },
+      signUp: async (_credentials) => {
+        const opts = (_credentials as { options?: { emailRedirectTo?: string } })?.options;
+        signupRedirectTo = opts?.emailRedirectTo ?? "";
+        return { data: { user: null }, error: null };
+      },
+    });
+
+    withRequest();
+    await submitAuth({}, form({ mode: "reset", email: "player@example.com" }));
+    assert.equal(
+      resetRedirectTo,
+      "https://chess.example.com/auth/callback?next=%2Flogin%2Fupdate-password",
+    );
+
+    withRequest();
+    await submitAuth(
+      {},
+      form({ mode: "signup", email: "player@example.com", password: "secret1", next: "/courses" }),
+    );
+    assert.equal(
+      signupRedirectTo,
+      "https://chess.example.com/auth/callback?next=%2Fcourses",
+    );
+  } finally {
+    process.env.NODE_ENV = originalEnv;
+    if (originalSiteUrl !== undefined) {
+      process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+    } else {
+      delete process.env.NEXT_PUBLIC_SITE_URL;
+    }
+  }
+});
