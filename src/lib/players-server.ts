@@ -83,7 +83,7 @@ export async function loadPlayerGames(
     }
   } catch (error) {
     console.error("loadPlayerGames failed", { source, username, error });
-    notice = "Could not load games.";
+    throw error;
   }
   games.sort((a, b) => (b.playedAt ?? 0) - (a.playedAt ?? 0));
   const payload: PlayerGamesResponse = { player, games, truncated, notice };

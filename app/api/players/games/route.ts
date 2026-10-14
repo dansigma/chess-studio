@@ -30,6 +30,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("loadPlayerGames route failed", { source, username, error });
-    return NextResponse.json({ error: "Could not load games" }, { status: 400 });
+    return NextResponse.json({ error: "Could not load games" }, { status: 502 });
   }
 }

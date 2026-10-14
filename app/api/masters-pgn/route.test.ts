@@ -54,6 +54,17 @@ test("upstream misses on both hosts return 404", async (t) => {
   assert.deepEqual(await res.json(), { error: "Game not found" });
 });
 
+test("upstream payload exceeding cap returns 502", async (t) => {
+  mockFetch(t, (url) =>
+    url.includes("explorer.lichess.ovh")
+      ? new Response("x".repeat(1024 * 1024 + 10))
+      : null,
+  );
+  const res = await GET(makeGetRequest(`${BASE}?id=abcdefgh`));
+  assert.equal(res.status, 502);
+  assert.deepEqual(await res.json(), { error: "Upstream response too large" });
+});
+
 test("rate-limits after 30 requests from one IP", async () => {
   const ip = nextTestIp();
   let last = 0;

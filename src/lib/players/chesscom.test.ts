@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chesscomWinner, compactChesscomGame } from "./chesscom.ts";
+import { chesscomGames, chesscomWinner, compactChesscomGame } from "./chesscom.ts";
+import { mockFetch } from "@/src/test-utils/route-test.ts";
+import { UpstreamPayloadTooLargeError } from "../read-capped.ts";
 
 test("chesscomWinner reads the winning side and defaults to a draw", () => {
   assert.equal(chesscomWinner({ white: { result: "win" } }), "white");
@@ -54,3 +56,48 @@ test("compactChesscomGame marks the requested player as black and falls back to 
   assert.equal(game.color, "black");
   assert.equal(game.playerResult, "loss");
 });
+
+test("chesscomGames throws UpstreamPayloadTooLargeError when archives response exceeds cap", async (t) => {
+  mockFetch(t, (url) => {
+    if (url.includes("/games/archives")) {
+      return new Response("x".repeat(512 * 1024 + 100), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return null;
+  });
+
+  await assert.rejects(
+    async () => {
+      await chesscomGames("magnuscarlsen");
+    },
+    (err: unknown) => err instanceof UpstreamPayloadTooLargeError,
+  );
+});
+
+test("chesscomGames throws UpstreamPayloadTooLargeError when monthly archive exceeds cap", async (t) => {
+  mockFetch(t, (url) => {
+    if (url.includes("/games/archives")) {
+      return new Response(
+        JSON.stringify({ archives: ["https://api.chess.com/pub/player/magnuscarlsen/games/2024/01"] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (url.includes("/games/2024/01")) {
+      return new Response("x".repeat(2 * 1024 * 1024 + 100), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return null;
+  });
+
+  await assert.rejects(
+    async () => {
+      await chesscomGames("magnuscarlsen");
+    },
+    (err: unknown) => err instanceof UpstreamPayloadTooLargeError,
+  );
+});
+

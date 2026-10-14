@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hitFromLichessUser, lichessWinner } from "./lichess.ts";
+import { hitFromLichessUser, lichessGames, lichessWinner } from "./lichess.ts";
+import { mockFetch } from "@/src/test-utils/route-test.ts";
+import { UpstreamPayloadTooLargeError } from "../read-capped.ts";
 
 test("hitFromLichessUser builds a Lichess hit with a title", () => {
   const hit = hitFromLichessUser({ id: "DrNykterstein", name: "Magnus Carlsen", title: "GM" }, "fallback");
@@ -32,3 +34,64 @@ test("lichessWinner prefers the declared winner then draw statuses", () => {
   assert.equal(lichessWinner({ status: "stalemate" }), "draw");
   assert.equal(lichessWinner({ status: "started" }), null);
 });
+
+test("lichessGames skips malformed NDJSON lines and returns valid games", async (t) => {
+  const g1 = {
+    id: "game1",
+    createdAt: 1700000000000,
+    speed: "blitz",
+    players: {
+      white: { user: { name: "Magnus", id: "drnykterstein" }, rating: 2800 },
+      black: { user: { name: "Hikaru", id: "hikaru" }, rating: 2800 },
+    },
+    winner: "white",
+  };
+  const g2 = {
+    id: "game2",
+    createdAt: 1700001000000,
+    speed: "rapid",
+    players: {
+      white: { user: { name: "Hikaru", id: "hikaru" }, rating: 2800 },
+      black: { user: { name: "Magnus", id: "drnykterstein" }, rating: 2800 },
+    },
+    winner: "black",
+  };
+
+  mockFetch(t, (url) => {
+    if (url.includes("api/games/user/hikaru")) {
+      const ndjson = [
+        JSON.stringify(g1),
+        "MALFORMED_NON_JSON_LINE",
+        JSON.stringify(g2),
+        "",
+      ].join("\n");
+      return new Response(ndjson, { status: 200, headers: { "Content-Type": "application/x-ndjson" } });
+    }
+    return null;
+  });
+
+  const games = await lichessGames("hikaru");
+  assert.equal(games.length, 2);
+  assert.equal(games[0].id, "game1");
+  assert.equal(games[1].id, "game2");
+});
+
+test("lichessGames throws UpstreamPayloadTooLargeError when response exceeds cap", async (t) => {
+  mockFetch(t, (url) => {
+    if (url.includes("api/games/user/hikaru")) {
+      return new Response("x".repeat(2 * 1024 * 1024 + 100), {
+        status: 200,
+        headers: { "Content-Type": "application/x-ndjson" },
+      });
+    }
+    return null;
+  });
+
+  await assert.rejects(
+    async () => {
+      await lichessGames("hikaru");
+    },
+    (err: unknown) => err instanceof UpstreamPayloadTooLargeError,
+  );
+});
+
