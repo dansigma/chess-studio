@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { clampDepth, clampLines, clampThreads } from "../../engine/stockfish-client.ts";
 import { DEFAULT_EXPLORER_FILTERS } from "../../lib/explorer-filters.ts";
+import {
+  DEFAULT_SIDEBAR_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+} from "../../studio/sidebar-width.ts";
 import { emptyBoard, newId } from "./board-helpers.ts";
 import {
   DEFAULT_SETTINGS,
@@ -78,6 +83,21 @@ test("setExplorerFilters shallow-merges the patch", () => {
   assert.deepEqual(filters.speeds, DEFAULT_EXPLORER_FILTERS.speeds);
 });
 
+test("setSidebarWidth updates and clamps sidebar width", () => {
+  resetSettings();
+  actions().setSidebarWidth(320);
+  assert.equal(useStudioStore.getState().settings.sidebarWidth, 320);
+
+  actions().setSidebarWidth(100);
+  assert.equal(useStudioStore.getState().settings.sidebarWidth, MIN_SIDEBAR_WIDTH);
+
+  actions().setSidebarWidth(999);
+  assert.equal(useStudioStore.getState().settings.sidebarWidth, MAX_SIDEBAR_WIDTH);
+
+  actions().setSidebarWidth(NaN);
+  assert.equal(useStudioStore.getState().settings.sidebarWidth, DEFAULT_SIDEBAR_WIDTH);
+});
+
 test("hydrateSettings merges only the persisted fields and clamps engine values", () => {
   resetSettings();
   useStudioStore.setState({
@@ -88,27 +108,59 @@ test("hydrateSettings merges only the persisted fields and clamps engine values"
     engineDepth: 999,
     multiPv: 999,
     engineThreads: 999,
+    sidebarWidth: 350,
   });
   const settings = useStudioStore.getState().settings;
   assert.equal(settings.boardTheme, "wood");
   assert.equal(settings.engineDepth, clampDepth(999));
   assert.equal(settings.multiPv, clampLines(999));
   assert.equal(settings.engineThreads, clampThreads(999));
+  assert.equal(settings.sidebarWidth, 350);
   // local-only fields survive a remote hydrate.
   assert.equal(settings.colorScheme, "light");
   assert.equal(settings.moveSound, false);
 });
 
-test("hydrateLocalSettings reads the persisted settings key", () => {
+test("hydrateLocalSettings reads the persisted settings key and restores sidebarWidth", () => {
   resetSettings();
   storage.set(
     SETTINGS_KEY,
-    JSON.stringify({ ...DEFAULT_SETTINGS, boardTheme: "wood", engineDepth: 20 }),
+    JSON.stringify({
+      ...DEFAULT_SETTINGS,
+      boardTheme: "wood",
+      engineDepth: 20,
+      sidebarWidth: 180,
+    }),
   );
   actions().hydrateLocalSettings();
   const settings = useStudioStore.getState().settings;
   assert.equal(settings.boardTheme, "wood");
   assert.equal(settings.engineDepth, 20);
+  assert.equal(settings.sidebarWidth, 180);
+  storage.delete(SETTINGS_KEY);
+});
+
+test("hydrateLocalSettings clamps out-of-range persisted sidebarWidth", () => {
+  resetSettings();
+  storage.set(
+    SETTINGS_KEY,
+    JSON.stringify({
+      ...DEFAULT_SETTINGS,
+      sidebarWidth: 50,
+    }),
+  );
+  actions().hydrateLocalSettings();
+  assert.equal(useStudioStore.getState().settings.sidebarWidth, MIN_SIDEBAR_WIDTH);
+
+  storage.set(
+    SETTINGS_KEY,
+    JSON.stringify({
+      ...DEFAULT_SETTINGS,
+      sidebarWidth: 900,
+    }),
+  );
+  actions().hydrateLocalSettings();
+  assert.equal(useStudioStore.getState().settings.sidebarWidth, MAX_SIDEBAR_WIDTH);
   storage.delete(SETTINGS_KEY);
 });
 

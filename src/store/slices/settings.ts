@@ -3,6 +3,10 @@ import { isPieceSet } from "@/src/chess/piece-sets";
 import { isMoveNotation } from "@/src/chess/move-notation";
 import { isColorScheme } from "@/src/studio/color-scheme";
 import { isNotationDensity } from "@/src/studio/notation-density";
+import {
+  DEFAULT_SIDEBAR_WIDTH,
+  clampSidebarWidth,
+} from "@/src/studio/sidebar-width";
 import type { StateCreator } from "zustand";
 import {
   clampDepth,
@@ -33,6 +37,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   engineThreads: 1,
   engineBuild: "lite",
   sidebarCollapsed: false,
+  sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   explorerFilters: DEFAULT_EXPLORER_FILTERS,
   moveSound: true,
 };
@@ -88,6 +93,10 @@ export function loadLocalSettings(): StudioSettings {
         typeof parsed.sidebarCollapsed === "boolean"
           ? parsed.sidebarCollapsed
           : DEFAULT_SETTINGS.sidebarCollapsed,
+      sidebarWidth:
+        typeof parsed.sidebarWidth === "number"
+          ? clampSidebarWidth(parsed.sidebarWidth)
+          : DEFAULT_SETTINGS.sidebarWidth,
       explorerFilters: readExplorerFilters(parsed.explorerFilters),
       moveSound: typeof parsed.moveSound === "boolean" ? parsed.moveSound : DEFAULT_SETTINGS.moveSound,
     };
@@ -114,6 +123,7 @@ export type SettingsSlice = Pick<
   | "setEngineThreads"
   | "setEngineBuild"
   | "toggleSidebar"
+  | "setSidebarWidth"
   | "setExplorerFilters"
   | "hydrateLocalSettings"
   | "hydrateSettings"
@@ -213,6 +223,13 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
         sidebarCollapsed: !state.settings.sidebarCollapsed,
       },
     })),
+  setSidebarWidth: (sidebarWidth) =>
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        sidebarWidth: clampSidebarWidth(sidebarWidth),
+      },
+    })),
   setExplorerFilters: (patch) =>
     set((state) => ({
       settings: {
@@ -244,6 +261,9 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
         ...(partial.multiPv !== undefined ? { multiPv: clampLines(partial.multiPv) } : {}),
         ...(partial.engineThreads !== undefined
           ? { engineThreads: clampThreads(partial.engineThreads) }
+          : {}),
+        ...(partial.sidebarWidth !== undefined
+          ? { sidebarWidth: clampSidebarWidth(partial.sidebarWidth) }
           : {}),
       },
     }));

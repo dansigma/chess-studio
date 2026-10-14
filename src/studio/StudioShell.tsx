@@ -9,6 +9,7 @@ import { FilesSidebar } from "./FilesSidebar";
 import { SearchSidebar } from "./SearchSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
+import { ResizeHandle } from "./ui/ResizeHandle";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { importPgn } from "@/src/chess/pgn";
@@ -48,6 +49,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
 
 export function StudioShell() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const sharedFenApplied = useRef(false);
   const activity = useStudioStore((state) => state.activity);
   const source = useStudioStore((state) => state.databaseSource);
@@ -74,6 +76,8 @@ export function StudioShell() {
   // so subscribe to its JSON signature instead.
   const settingsSignature = useStudioStore((state) => JSON.stringify(state.settings));
   const sidebarCollapsed = useStudioStore((state) => state.settings.sidebarCollapsed);
+  const sidebarWidth = useStudioStore((state) => state.settings.sidebarWidth);
+  const setSidebarWidth = useStudioStore((state) => state.setSidebarWidth);
   const openPgnSource = useStudioStore((state) => state.openPgnSource);
   const back = useStudioStore((state) => state.back);
   const forward = useStudioStore((state) => state.forward);
@@ -364,17 +368,34 @@ export function StudioShell() {
       <MenuBar onOpenPgn={() => fileRef.current?.click()} />
       <div className="flex min-h-0 flex-1">
         <ActivityBar />
-        <div className="flex min-h-0 min-w-0 flex-1 gap-2 p-2">
-          {sidebarCollapsed ? null : activity === "search" ? (
-            <SearchSidebar />
-          ) : activity === "boards" ? (
-            <BoardsSidebar />
-          ) : activity === "files" ? (
-            <FilesSidebar />
-          ) : activity === "bookmarks" ? (
-            <BookmarksSidebar />
-          ) : (
-            <DatabasesSidebar />
+        <div
+          className="flex min-h-0 min-w-0 flex-1 p-2"
+          style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+        >
+          {sidebarCollapsed ? null : (
+            <>
+              <div ref={sidebarRef} className="flex h-full shrink-0">
+                {activity === "search" ? (
+                  <SearchSidebar />
+                ) : activity === "boards" ? (
+                  <BoardsSidebar />
+                ) : activity === "files" ? (
+                  <FilesSidebar />
+                ) : activity === "bookmarks" ? (
+                  <BookmarksSidebar />
+                ) : (
+                  <DatabasesSidebar />
+                )}
+              </div>
+              <ResizeHandle
+                sidebarRef={sidebarRef}
+                sidebarWidth={sidebarWidth}
+                onResize={setSidebarWidth}
+                onResizeEnd={() => {
+                  window.dispatchEvent(new Event("resize"));
+                }}
+              />
+            </>
           )}
           <div className="min-w-0 flex-1 overflow-hidden">
             <StudioDock />
