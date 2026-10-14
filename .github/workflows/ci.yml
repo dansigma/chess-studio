@@ -107,7 +107,7 @@ jobs:
         run: supabase start
 
       - name: Verify migration status
-        run: supabase migration list
+        run: supabase migration list --local
 
       - name: Verify RLS contract on database
         run: |
