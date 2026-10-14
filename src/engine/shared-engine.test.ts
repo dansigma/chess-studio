@@ -329,6 +329,23 @@ test("slots typecheck as the EngineSlot union", () => {
   assert.deepEqual(slots.length, 4);
 });
 
+test("SIG-950: acquire alone boots no worker; first analyze does", () => {
+  setup();
+  const engine = acquire("engine", "lite");
+  assert.equal(instances.length, 0);
+  engine.analyze(FEN_A, 12, 1, 1);
+  assert.equal(instances.length, 1);
+  const w = worker();
+  assert.deepEqual(w.sent, ["uci"]);
+  w.emit("uciok");
+  assert.ok(w.sent.includes("isready"));
+  w.emit("readyok");
+  assert.deepEqual(w.sent.slice(-2), ["stop", "isready"]);
+  w.emit("readyok");
+  assert.ok(w.sent.some((msg) => msg.startsWith("go depth")));
+  engine.release();
+});
+
 test("threat preempts engine and engine resumes on threat stop", () => {
   setup();
   const engine = acquire("engine", "lite");

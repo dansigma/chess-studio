@@ -65,7 +65,8 @@ export function EnginePanel() {
   const cachedForFen = useStudioStore((state) => state.evalByFen[fenKey(fen)]);
   const heldEval = useStudioStore((state) => state.engineEval);
   const engineRef = useRef<SharedEngineLease | null>(null);
-  const [paused, setPaused] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [paused, setPaused] = useState(true);
   const [runId, setRunId] = useState(0);
   const [coresOpen, setCoresOpen] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
@@ -84,6 +85,9 @@ export function EnginePanel() {
   });
 
   useEffect(() => {
+    if (!started) {
+      return;
+    }
     const lease = acquire("engine", engineBuild);
     engineRef.current = lease;
     const unsubscribe = lease.subscribe(setInfo);
@@ -92,15 +96,18 @@ export function EnginePanel() {
       lease.release();
       engineRef.current = null;
     };
-  }, [engineBuild]);
+  }, [engineBuild, started]);
 
   useEffect(() => {
+    if (!started) {
+      return;
+    }
     if (paused) {
       engineRef.current?.stop();
       return;
     }
     engineRef.current?.analyze(fen, depthTarget, multiPv, threads);
-  }, [fen, depthTarget, multiPv, threads, paused, runId, engineBuild]);
+  }, [fen, depthTarget, multiPv, threads, paused, runId, engineBuild, started]);
 
   // SIG-856 choice (b): on a FEN change, show the cached eval immediately
   // when present; otherwise hold the last displayed value — never zero the
@@ -141,6 +148,8 @@ export function EnginePanel() {
   const nps = formatNps(info.nps);
   const status = info.failed
     ? "Engine failed to load"
+    : !started
+    ? "Engine paused — press play"
     : !info.ready
     ? "Loading engine…"
     : paused || !info.running
@@ -162,6 +171,11 @@ export function EnginePanel() {
           onClick={() => {
             if (info.running && !paused) {
               setPaused(true);
+              return;
+            }
+            if (!started) {
+              setStarted(true);
+              setPaused(false);
               return;
             }
             if (paused) {
