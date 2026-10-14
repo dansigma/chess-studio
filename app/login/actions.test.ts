@@ -104,7 +104,7 @@ test("signup calls signUp with emailRedirectTo containing the safe next", async 
   withRequest();
   const state = await submitAuth(
     {},
-    form({ mode: "signup", email: "new@example.com", password: "secret1", next: "/courses" }),
+    form({ mode: "signup", email: "new@example.com", password: "secret1234", next: "/courses" }),
   );
   assert.deepEqual(state, {
     message: "Check your email to confirm your account, then sign in.",
@@ -125,20 +125,46 @@ test("signup upstream error maps to a generic message", async () => {
   withRequest();
   const state = await submitAuth(
     {},
-    form({ mode: "signup", email: "new@example.com", password: "secret1" }),
+    form({ mode: "signup", email: "new@example.com", password: "secret1234" }),
   );
   assert.deepEqual(state, { error: "Could not create the account. Try again." });
 });
 
-test("short password is rejected", async () => {
+test("short password on signup is rejected", async () => {
   const fake = serverWithAuth({});
   withRequest();
   const state = await submitAuth(
     {},
-    form({ mode: "signin", email: "a@b.c", password: "abc" }),
+    form({ mode: "signup", email: "a@b.c", password: "short" }),
   );
-  assert.deepEqual(state, { error: "Password must be at least 6 characters." });
+  assert.deepEqual(state, { error: "Password must be at least 10 characters." });
   assert.deepEqual(fake.authCalls, []);
+});
+
+test("empty password on signin is rejected", async () => {
+  const fake = serverWithAuth({});
+  withRequest();
+  const state = await submitAuth(
+    {},
+    form({ mode: "signin", email: "a@b.c", password: "" }),
+  );
+  assert.deepEqual(state, { error: "Enter a password." });
+  assert.deepEqual(fake.authCalls, []);
+});
+
+test("short password on signin is forwarded to signInWithPassword for legacy accounts", async () => {
+  const fake = serverWithAuth({
+    signInWithPassword: async () => ({ data: {}, error: new Error("Invalid login credentials") }),
+  });
+  withRequest();
+  const state = await submitAuth(
+    {},
+    form({ mode: "signin", email: "legacy@example.com", password: "secret" }),
+  );
+  assert.deepEqual(state, { error: "Email or password is incorrect." });
+  assert.equal(fake.authCalls.length, 1);
+  const [creds] = fake.authCalls[0].args as [{ email: string; password: string }];
+  assert.equal(creds.password, "secret");
 });
 
 test("invalid credentials map to a friendly message", async () => {

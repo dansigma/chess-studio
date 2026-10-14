@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { finishSignIn } from "@/src/lib/auth/access";
+import { isValidPassword, passwordLengthError } from "@/src/lib/auth/password";
 import { safeAuthNext } from "@/src/lib/auth/redirect-path";
 import { resolveSiteUrl } from "@/src/lib/auth/site-url";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
@@ -62,13 +63,12 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
     return { message: "If an account exists for that email, a reset link is on its way." };
   }
 
-  if (password.length < 6) {
-    return { error: "Password must be at least 6 characters." };
-  }
-
   const next = safeAuthNext(formData.get("next"));
 
   if (mode === "signup") {
+    if (!isValidPassword(password)) {
+      return { error: passwordLengthError() };
+    }
     const headerStore = await headers();
     const ip = clientIp(headerStore);
     const verdict = await limiter.checkAsync(rateLimitKey("signup", ip));
@@ -85,6 +85,10 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
     });
     if (error) return { error: "Could not create the account. Try again." };
     return { message: "Check your email to confirm your account, then sign in." };
+  }
+
+  if (!password) {
+    return { error: "Enter a password." };
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
