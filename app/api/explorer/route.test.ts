@@ -1,7 +1,7 @@
 // Tests for the explorer API route: validation, curated book, Supabase cache,
 // live Lichess fallback, filter forwarding, offline notice, and rate limiting
 // (see `.artifacts/plans/issue-932.md` Phase 3).
-import test from "node:test";
+import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   createFakeSupabase,
@@ -16,7 +16,11 @@ import {
 const state: FakeSupabaseState = {};
 mockSupabaseModules(state);
 
-const { GET } = await import("./route.ts");
+const { GET, _resetExplorerStateForTest } = await import("./route.ts");
+
+beforeEach(() => {
+  _resetExplorerStateForTest();
+});
 
 const BASE = "http://app.test/api/explorer";
 const STARTPOS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -194,3 +198,48 @@ test("rate-limits after 60 requests from one IP", async () => {
   }
   assert.equal(last.status, 429);
 });
+
+test("serves cached fallback responses with notice within fallback TTL without re-fetching upstream", async (t) => {
+  state.server = createFakeSupabase();
+  const service = createFakeSupabase();
+  state.service = service;
+  let fetchCount = 0;
+  mockFetch(t, () => {
+    fetchCount += 1;
+    return jsonResponse({ error: "down" }, 500);
+  });
+  const first = await get(PETROV, "lichess");
+  assert.equal(first.res.status, 200);
+  const firstPayload = first.body as { source: string; notice?: unknown };
+  assert.equal(firstPayload.source, "lichess");
+  assert.equal(typeof firstPayload.notice, "string");
+  assert.equal(fetchCount, 2);
+
+  // Subsequent call for the same FEN within fallback TTL hits memoryCache directly
+  const second = await get(PETROV, "lichess");
+  assert.equal(second.res.status, 200);
+  assert.deepEqual(second.body, firstPayload);
+  assert.equal(fetchCount, 2);
+  assert.equal(service.calls.upsert.length, 0);
+});
+
+test("backs off Lichess upstream queries when upstream has recently failed", async (t) => {
+  state.server = createFakeSupabase();
+  state.service = createFakeSupabase();
+  let fetchCount = 0;
+  mockFetch(t, () => {
+    fetchCount += 1;
+    return jsonResponse({ error: "down" }, 500);
+  });
+  // First query fails both hosts and initiates backoff
+  await get(PETROV, "lichess");
+  assert.equal(fetchCount, 2);
+
+  // Second query for a different position returns fallback immediately due to backoff
+  const second = await get(GIUOCO, "lichess");
+  assert.equal(second.res.status, 200);
+  const secondPayload = second.body as { source: string; notice?: unknown };
+  assert.equal(typeof secondPayload.notice, "string");
+  assert.equal(fetchCount, 2);
+});
+
