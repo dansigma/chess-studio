@@ -1,6 +1,6 @@
-// SIG-961: which language explanations are written in. Canonical definition
-// lives in src/i18n/locale.ts (SIG-962 site language); this module re-exports
-// it so explain code keeps working unchanged.
+// SIG-971: Game Review has no separate language — explanations are rendered in
+// the site language. Canonical definition lives in src/i18n/locale.ts; this
+// module re-exports it so explain code keeps working unchanged.
 export {
   DEFAULT_SITE_LOCALE as DEFAULT_EXPLAIN_LOCALE,
   SITE_LOCALE_LABELS as EXPLAIN_LOCALE_LABELS,
