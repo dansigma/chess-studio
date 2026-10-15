@@ -45,6 +45,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const engineEval = useStudioStore((state) => state.engineEval);
   const threat = useStudioStore((state) => state.threat);
   const showThreat = useStudioStore((state) => state.showThreat);
+  const insightMarks = useStudioStore((state) => state.insightMarks);
   const setShowThreat = useStudioStore((state) => state.setShowThreat);
   // SIG-907: only the active session's panel drives the shared threat lease
   // so split-view panels never contend for the `threat` slot.
@@ -100,6 +101,9 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const storedMarks = isActive && enginePreview ? null : getMarksAt(board.tree, board.path);
   const squareMarks = useMemo(() => storedMarks?.squares ?? [], [storedMarks]);
   const arrowMarks = useMemo(() => storedMarks?.arrows ?? [], [storedMarks]);
+  // SIG-959: transient Insights overlay (hover / threat arrows). FEN-guarded
+  // against the position actually shown, never stored on the tree.
+  const insight = isActive && insightMarks?.fen === fen ? insightMarks.marks : null;
   const previewing = Boolean(isActive && enginePreview);
   const [wasPreviewing, setWasPreviewing] = useState(previewing);
   if (wasPreviewing !== previewing) {
@@ -184,6 +188,12 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
         backgroundColor: MARK_FILL[mark.color],
       };
     }
+    for (const mark of insight?.squares ?? []) {
+      styles[mark.square] = {
+        ...(styles[mark.square] ?? {}),
+        backgroundColor: MARK_FILL[mark.color],
+      };
+    }
     if (selected) {
       styles[selected] = {
         ...(styles[selected] ?? {}),
@@ -198,10 +208,10 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
       };
     }
     return styles;
-  }, [dests, lastMoveKey, squareMarks, selected]);
+  }, [dests, insight, lastMoveKey, squareMarks, selected]);
 
   const arrows = useMemo(() => {
-    const base = arrowsForRender(arrowMarks, preview);
+    const base = arrowsForRender([...arrowMarks, ...(insight?.arrows ?? [])], preview);
     // SIG-906: ephemeral threat arrow appended LAST so it renders above
     // stored marks and the draw preview. Never stored in node marks, never
     // part of preview suppression. FEN-guarded: only show for the position
@@ -221,7 +231,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
       ...base,
       { startSquare: squares.from, endSquare: squares.to, color: MARK_HEX.R },
     ];
-  }, [arrowMarks, isActive, preview, showThreat, threat, fen]);
+  }, [arrowMarks, insight, isActive, preview, showThreat, threat, fen]);
 
   function attemptMove(from: string, to: string): boolean {
     let chess: Chess;

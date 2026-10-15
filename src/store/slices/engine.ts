@@ -1,7 +1,14 @@
 import type { StateCreator } from "zustand";
 import { fenKey } from "@/src/chess/tree";
 import { capEvalCache } from "@/src/lib/eval-cache";
-import type { EngineEval, EnginePreview, CachedEval, StudioState, ThreatMark } from "./types";
+import type {
+  EngineEval,
+  EnginePreview,
+  CachedEval,
+  InsightMarks,
+  StudioState,
+  ThreatMark,
+} from "./types";
 
 export type EngineSlice = Pick<
   StudioState,
@@ -10,11 +17,13 @@ export type EngineSlice = Pick<
   | "evalByFen"
   | "threat"
   | "showThreat"
+  | "insightMarks"
   | "setEnginePreview"
   | "setEngineEval"
   | "putEvalCache"
   | "setThreat"
   | "setShowThreat"
+  | "setInsightMarks"
 >;
 
 export const createEngineSlice: StateCreator<StudioState, [], [], EngineSlice> = (set, get) => ({
@@ -23,8 +32,11 @@ export const createEngineSlice: StateCreator<StudioState, [], [], EngineSlice> =
   evalByFen: {},
   threat: null,
   showThreat: false,
+  insightMarks: null,
   setEnginePreview: (enginePreview: EnginePreview | null) => set({ enginePreview }),
   setThreat: (threat: ThreatMark | null) => set({ threat }),
+  // SIG-959: transient overlay only — never touches `boards`, so no dirty flag.
+  setInsightMarks: (insightMarks: InsightMarks | null) => set({ insightMarks }),
   // SIG-906: toggle-off clears the arrow; in-flight cancel is the hook's job.
   setShowThreat: (show: boolean) =>
     set(show ? { showThreat: true } : { showThreat: false, threat: null }),
