@@ -9,11 +9,13 @@ const CP_CEILING = 1000;
 export const REVIEW_LABELS = [
   "brilliant",
   "great",
-  "book",
   "best",
-  "interesting",
+  "veryGood",
+  "decent",
+  "book",
   "inaccuracy",
   "mistake",
+  "miss",
   "blunder",
 ] as const;
 
@@ -29,8 +31,27 @@ export type PositionScore = {
 export type ReviewedMove = {
   label: ReviewLabel | null;
   lossCp: number;
+  /** Win-chance points the mover gave up versus the engine's best line (never negative). */
+  winLoss: number;
   accuracy: number;
 };
+
+// "Miss": the mover squanders an advantage created by the opponent's previous
+// error. Design decision: it needs all three conditions below, and it ranks
+// between blunder (which keeps precedence) and mistake/inaccuracy (which it
+// replaces). Tune here.
+export const MISS_OPPONENT_LOSS = 10; // opponent's last move lost at least this many win-chance points
+export const MISS_BEST_WIN_CHANCE = 70; // the best move here reaches at least this win chance (%)
+export const MISS_OWN_LOSS = 10; // the played move loses at least this many points vs best
+
+// Non-best moves are split by win-chance loss: <= VERY_GOOD_LOSS very good, <= DECENT_LOSS decent.
+// Both tiers keep the old "interesting" guard: a move that leaves the mover
+// clearly worse (win chance after the move <= NOT_LOST_WIN_CHANCE) is never
+// "Very good" or "Decent", however small the loss, so a lost position is not
+// praised.
+export const VERY_GOOD_LOSS = 2;
+export const DECENT_LOSS = 5;
+export const NOT_LOST_WIN_CHANCE = 45;
 
 function clampCp(whitePawns: number): number {
   return Math.max(-CP_CEILING, Math.min(CP_CEILING, Math.round(whitePawns * 100)));
@@ -110,6 +131,8 @@ export function gradeMove(input: {
   before: PositionScore;
   afterWhitePawns: number;
   sacrifice: boolean;
+  /** Win-chance points the opponent's previous move lost; enables "miss". */
+  opponentLastLoss?: number;
 }): ReviewedMove {
   const prevCp = playerCp(input.before.whitePawns, input.side);
   const nextCp = playerCp(input.afterWhitePawns, input.side);
@@ -119,10 +142,18 @@ export function gradeMove(input: {
   const playedBest = input.before.bestUci != null && input.playedUci === input.before.bestUci;
   const betterAlternative = !playedBest && prevCp > nextCp + 100;
   const accuracy = accuracyPercent(prevCp, nextCp);
+  const winLoss = Math.max(0, winDiff);
+  const isMiss =
+    betterAlternative &&
+    (input.opponentLastLoss ?? 0) >= MISS_OPPONENT_LOSS &&
+    winChance(prevCp) >= MISS_BEST_WIN_CHANCE &&
+    winDiff >= MISS_OWN_LOSS;
 
   let label: ReviewLabel | null = null;
   if (betterAlternative && (winDiff > 20 || (lossCp > 400 && prevCp > 0))) {
     label = "blunder";
+  } else if (isMiss) {
+    label = "miss";
   } else if (betterAlternative && (winDiff > 10 || (lossCp > 200 && prevCp > 100))) {
     label = "mistake";
   } else if (betterAlternative && (winDiff > 5 || (lossCp > 100 && prevCp >= 0))) {
@@ -140,11 +171,13 @@ export function gradeMove(input: {
     label = "great";
   } else if (playedBest) {
     label = "best";
-  } else if (winDiff <= 5 && winChance(nextCp) > 45) {
-    label = "interesting";
+  } else if (winChance(nextCp) > NOT_LOST_WIN_CHANCE && winDiff <= VERY_GOOD_LOSS) {
+    label = "veryGood";
+  } else if (winChance(nextCp) > NOT_LOST_WIN_CHANCE && winDiff <= DECENT_LOSS) {
+    label = "decent";
   }
 
-  return { label, lossCp, accuracy };
+  return { label, lossCp, winLoss, accuracy };
 }
 
 const BOOK_KEEPS: ReadonlySet<ReviewLabel> = new Set(["brilliant", "great", "best"]);
@@ -180,11 +213,13 @@ export function countLabels(labels: Array<ReviewLabel | null>): Record<ReviewLab
   const counts = {
     brilliant: 0,
     great: 0,
-    book: 0,
     best: 0,
-    interesting: 0,
+    veryGood: 0,
+    decent: 0,
+    book: 0,
     inaccuracy: 0,
     mistake: 0,
+    miss: 0,
     blunder: 0,
   };
   for (const label of labels) {
