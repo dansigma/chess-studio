@@ -60,6 +60,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
   const [preset, setPreset] = useState<ReviewPreset>(DEFAULT_REVIEW_PRESET);
   const [running, setRunning] = useState(false);
   const [cancelled, setCancelled] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState<ReviewProgress>(IDLE_PROGRESS);
 
   const ucis = useMemo(
@@ -78,6 +79,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     setLastKey(cacheKey);
     setRunning(false);
     setCancelled(false);
+    setFailed(false);
     setProgress(IDLE_PROGRESS);
     setCore(getCachedReview(cacheKey));
   }
@@ -112,7 +114,15 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
         }
       },
     }).then((outcome) => {
-      if (stopped || outcome.status !== "done") {
+      if (stopped) {
+        return;
+      }
+      if (outcome.status === "failed") {
+        setFailed(true);
+        setRunning(false);
+        return;
+      }
+      if (outcome.status !== "done") {
         return;
       }
       setCachedReview(line.cacheKey, outcome.rows);
@@ -128,6 +138,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
 
   const start = useCallback(() => {
     setCancelled(false);
+    setFailed(false);
     setProgress({ done: 0, total: points.length, elapsedMs: 0 });
     setRunning(true);
   }, [points.length]);
@@ -148,5 +159,5 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     });
   }, [core, points, tree]);
 
-  return { preset, setPreset, running, cancelled, progress, rows, start, cancel };
+  return { preset, setPreset, running, cancelled, failed, progress, rows, start, cancel };
 }

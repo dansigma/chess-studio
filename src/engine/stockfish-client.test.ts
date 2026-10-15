@@ -242,6 +242,66 @@ test("analyze twice before readyok starts the latest request only", () => {
   engine.dispose();
 });
 
+test("barrier: a search started after stopSearch waits for the stopped search's bestmove", () => {
+  // Cancel in Game Review: the review search is stopped, then another search is
+  // requested at once. The engine answers readyok before the stopped search's
+  // bestmove; sending ucinewgame/position/go then aborts the worker.
+  const { engine, worker } = freshEngine();
+  handshake(worker);
+  engine.analyze(FEN_A, 22, 2, 1);
+  worker.emit("readyok");
+  assert.ok(worker.sent.some((msg) => msg.startsWith("go depth")));
+  engine.stopSearch();
+  worker.sent.length = 0;
+  engine.analyze(FEN_B, 22, 2, 1, undefined, true);
+  assert.deepEqual(worker.sent, ["stop", "isready"]);
+  worker.emit("readyok");
+  assert.ok(!worker.sent.includes("ucinewgame"));
+  assert.ok(!worker.sent.some((msg) => msg.startsWith("position fen")));
+  assert.ok(!worker.sent.some((msg) => msg.startsWith("go depth")));
+  worker.emit("bestmove e2e4");
+  assert.ok(worker.sent.includes("ucinewgame"));
+  assert.ok(worker.sent.includes(`position fen ${FEN_B}`));
+  assert.ok(worker.sent.some((msg) => msg.startsWith("go depth 22")));
+  engine.dispose();
+});
+
+test("barrier: the bestmove of a stopped search is ignored and nothing is owed afterwards", () => {
+  const { engine, worker } = freshEngine();
+  handshake(worker);
+  engine.analyze(FEN_A, 22, 2, 1);
+  worker.emit("readyok");
+  engine.stopSearch();
+  worker.emit("bestmove e2e4");
+  assert.equal(snap(engine).running, false);
+  worker.sent.length = 0;
+  engine.analyze(FEN_B, 22, 2, 1);
+  worker.emit("readyok");
+  assert.ok(worker.sent.some((msg) => msg.startsWith("go depth 22")));
+  engine.dispose();
+});
+
+test("barrier: two stopped searches in a row both have to report before the next one starts", () => {
+  const { engine, worker } = freshEngine();
+  handshake(worker);
+  engine.analyze(FEN_A, 22, 2, 1);
+  worker.emit("readyok");
+  engine.stopSearch();
+  // A second search is requested and started once the first stop settled.
+  engine.analyze(FEN_B, 22, 2, 1);
+  worker.emit("bestmove e2e4");
+  worker.emit("readyok");
+  assert.ok(worker.sent.some((msg) => msg.startsWith("go depth 22")));
+  engine.stopSearch();
+  worker.sent.length = 0;
+  engine.analyze(FEN_A, 22, 2, 1);
+  worker.emit("readyok");
+  assert.ok(!worker.sent.some((msg) => msg.startsWith("go depth")));
+  worker.emit("bestmove e7e5");
+  assert.ok(worker.sent.some((msg) => msg.startsWith("go depth 22")));
+  engine.dispose();
+});
+
 test("stopSearch sends stop, clears running and pending", () => {
   const { engine, worker } = freshEngine();
   handshake(worker);
