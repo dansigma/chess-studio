@@ -686,6 +686,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       evalByFen: {},
       threat: null,
       showThreat: false,
+      insightMarks: null,
       playerProfile: null,
       playerGames: [],
       playerGamesLoading: false,

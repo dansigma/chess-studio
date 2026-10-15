@@ -4,7 +4,7 @@ import type { MoveNotation } from "@/src/chess/move-notation";
 import type { ColorScheme } from "@/src/studio/color-scheme";
 import type { GameTree, Path } from "@/src/chess/tree";
 import type { GameHeaders } from "@/src/chess/pgn";
-import type { MarkColor } from "@/src/chess/marks";
+import type { BoardMarks, MarkColor } from "@/src/chess/marks";
 import type {
   PlayerColorFilter,
   PlayerGame,
@@ -64,6 +64,14 @@ export type ThreatMark = {
   fen: string;
 };
 
+// SIG-959: transient overlay drawn by the Insights panel (hover / tab marks).
+// Lives outside `BoardSession.tree`, so it never marks a game dirty, never
+// reaches the PGN and is never persisted. FEN-guarded like ThreatMark.
+export type InsightMarks = {
+  fen: string;
+  marks: BoardMarks;
+};
+
 export type StudioSettings = {
   showCoordinates: boolean;
   showEvalBar: boolean;
@@ -109,6 +117,7 @@ export type StudioState = {
   evalByFen: Record<string, CachedEval>;
   threat: ThreatMark | null;
   showThreat: boolean;
+  insightMarks: InsightMarks | null;
   playerProfile: PlayerHit | null;
   playerGames: PlayerGame[];
   playerGamesLoading: boolean;
@@ -137,6 +146,7 @@ export type StudioState = {
   putEvalCache: (fen: string, value: CachedEval) => void;
   setThreat: (threat: ThreatMark | null) => void;
   setShowThreat: (show: boolean) => void;
+  setInsightMarks: (marks: InsightMarks | null) => void;
   goPath: (path: Path) => void;
   back: () => void;
   forward: () => void;
