@@ -87,6 +87,7 @@ export type Database = {
           layout: Json | null;
           engine_depth: number;
           multi_pv: number;
+          locale: string;
         };
         Insert: {
           user_id: string;
@@ -96,6 +97,7 @@ export type Database = {
           layout?: Json | null;
           engine_depth?: number;
           multi_pv?: number;
+          locale?: string;
         };
         Update: {
           show_coordinates?: boolean;
@@ -104,6 +106,7 @@ export type Database = {
           layout?: Json | null;
           engine_depth?: number;
           multi_pv?: number;
+          locale?: string;
         };
         Relationships: [];
       };
