@@ -74,7 +74,7 @@ test("every position is analysed sequentially with 3 lines at the preset depth",
   assert.ok(fake.log.every((entry) => entry.options.lines === REVIEW_LINES && entry.options.depth === REVIEW_PRESETS.deep.depth));
   assert.deepEqual(
     fake.log.map((entry) => entry.options.fresh),
-    [true, false, false, false, false],
+    [true, true, true, true, true],
   );
   assert.equal(progress[progress.length - 1].done, OPENING.fens.length);
   assert.equal(progress[progress.length - 1].total, OPENING.fens.length);
@@ -113,7 +113,7 @@ test("the second line decides great vs best", async () => {
   assert.equal(await run(0.2), "best");
 });
 
-test("a forced move carries no tier and is flagged, so the report skips it", async () => {
+test("a forced move is labelled forced, so the report counts it apart and skips it", async () => {
   const forcedFen = "6k1/8/8/8/8/2B5/5PPP/4r1K1 w - - 0 1";
   const game = new Chess(forcedFen);
   game.move("Bxe1");
@@ -131,11 +131,12 @@ test("a forced move carries no tier and is flagged, so the report skips it", asy
   }
   assert.equal(outcome.rows.length, 1);
   assert.equal(outcome.rows[0].forced, true);
-  assert.equal(outcome.rows[0].label, null);
+  assert.equal(outcome.rows[0].label, "forced");
   const report = buildReviewReport(outcome.rows, {});
   assert.equal(report.white.accuracy, null);
   assert.equal(report.white.acpl, null);
   assert.equal(Object.values(report.white.counts).reduce((sum, count) => sum + count, 0), 0);
+  assert.equal(report.white.forced, 1);
 });
 
 test("a position the engine could not score is skipped without breaking the rest", async () => {

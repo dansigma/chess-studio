@@ -43,7 +43,10 @@ export type AnalyzeOptions = {
   depth: number;
   lines: number;
   timeoutMs: number;
-  /** True for the first search of a run (clears engine hash). */
+  /**
+   * Clears the engine hash before the search. The pipeline sets it on every call so a
+   * position's score never depends on what was searched before it (Show threat, restarts).
+   */
   fresh: boolean;
   /** Legal moves in the position; lets the adapter tell a cut-short search from a legitimately short one. */
   legalMoves?: number;
@@ -105,6 +108,7 @@ export function toPositionScore(evaluation: PositionEval): PositionScore | null 
     whitePawns: best.whitePawns,
     bestUci: best.uci,
     secondWhitePawns: evaluation.lines[1]?.whitePawns ?? null,
+    thirdWhitePawns: evaluation.lines[2]?.whitePawns ?? null,
     depth: evaluation.depth,
   };
 }
@@ -150,7 +154,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
       depth,
       lines: REVIEW_LINES,
       timeoutMs: POSITION_TIMEOUT_MS,
-      fresh: index === 0,
+      fresh: true,
       legalMoves: legalMoveCount(fens[index]),
     });
     scores.push(evaluation ? toPositionScore(evaluation) : null);
@@ -204,7 +208,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
         depth: depth + RECHECK_EXTRA_DEPTH,
         lines: 1,
         timeoutMs: RECHECK_TIMEOUT_MS,
-        fresh: false,
+        fresh: true,
         legalMoves: legalMoveCount(fens[index + 1]),
       });
       if (deeper && deeper.depth >= depth + RECHECK_MIN_EXTRA_DEPTH && deeper.lines[0] && lineHolds(side, before.whitePawns, deeper.lines[0].whitePawns)) {
@@ -224,8 +228,8 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
     lastWinLoss = graded.winLoss;
     rows.push({
       ...graded,
-      // A forced move has no alternative, so it carries no tier.
-      label: forced ? null : mergeBookLabel(inBook[index], graded.label),
+      // A forced move has no alternative: it is labelled `forced` instead of a tier.
+      label: forced ? "forced" : mergeBookLabel(inBook[index], graded.label),
       index,
       side,
       phase: phaseAt(division, index + 1),

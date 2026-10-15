@@ -1,6 +1,6 @@
 import type { GamePhase } from "./phases.ts";
 import { playerAccuracy } from "./review-accuracy.ts";
-import { countLabels, type ReviewLabel, type ReviewedMove } from "./review.ts";
+import { countLabels, type ReviewLabel, type ReviewedMove, type TierLabel } from "./review.ts";
 
 export type ReviewSide = "w" | "b";
 
@@ -46,7 +46,9 @@ export type SideReport = {
   accuracy: number | null;
   acpl: number | null;
   gameRating: GameRating;
-  counts: Record<ReviewLabel, number>;
+  counts: Record<TierLabel, number>;
+  /** Moves with a single legal reply; listed apart from the tiers and left out of every figure. */
+  forced: number;
   phases: Record<GamePhase, number | null>;
 };
 
@@ -116,6 +118,7 @@ function buildSide(rows: ReportRow[], name: string, rating: number | null): Side
     acpl: acpl == null ? null : Math.round(acpl),
     gameRating: estimateGameRating(rows, rating),
     counts: countLabels(scored.map((row) => row.label)),
+    forced: rows.length - scored.length,
     phases: {
       opening: accuracyOf(rows.filter((row) => row.phase === "opening")),
       middlegame: accuracyOf(rows.filter((row) => row.phase === "middlegame")),

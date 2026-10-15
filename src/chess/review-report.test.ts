@@ -160,4 +160,11 @@ test("forced moves are excluded from accuracy and tier counts", () => {
   assert.equal(report.white.counts.blunder, 0);
   assert.equal(report.white.counts.veryGood, 8);
   assert.equal(report.white.accuracy, 90);
+  assert.equal(report.white.forced, 2);
+});
+
+test("a forced label is never counted as a tier", () => {
+  const report = buildReviewReport([row("w", 0, "forced"), row("w", 0, "best")], {});
+  assert.equal(Object.values(report.white.counts).reduce((sum, count) => sum + count, 0), 1);
+  assert.equal(report.white.forced, 0);
 });

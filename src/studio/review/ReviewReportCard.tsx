@@ -102,6 +102,16 @@ export function ReviewReportCard({ report, moments, moveNotation, onSelectMoment
             </li>
           );
         })}
+        <li className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 px-3 py-1 text-dense">
+          <span className="flex items-center gap-1.5" title="Moves with only one legal reply; left out of accuracy, average loss and the tiers above">
+            <span aria-hidden className={`w-4 text-center font-semibold ${REVIEW_TIERS.forced.className}`}>
+              {REVIEW_TIERS.forced.icon}
+            </span>
+            <span className="text-studio-muted">{REVIEW_TIERS.forced.name}</span>
+          </span>
+          <span className="text-center tabular-nums text-studio-faint">{white.forced}</span>
+          <span className="text-center tabular-nums text-studio-faint">{black.forced}</span>
+        </li>
       </ul>
       <div className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 border-b border-studio-border-subtle px-3 py-2">
         <span className="text-caption text-studio-faint" title={RATING_TOOLTIP}>
