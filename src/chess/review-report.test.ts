@@ -125,3 +125,27 @@ test("key moments include miss and skip ordinary tiers", () => {
     ["miss", "blunder"],
   );
 });
+
+test("a book-heavy game does not get a rating from a couple of scored moves", () => {
+  const rows = [...Array.from({ length: 7 }, () => row("w", 0, "book")), row("w", 60)];
+  assert.equal(rows.length, 8);
+  assert.deepEqual(estimateGameRating(rows, null), { value: null, anchored: false });
+});
+
+test("the anchored game rating never exceeds the rating model's ceiling", () => {
+  const rating = estimateGameRating(rowsFor("w", 12, 0), 3050);
+  assert.ok((rating.value ?? 0) <= 3100);
+});
+
+test("forced moves are excluded from accuracy and tier counts", () => {
+  const rows = [
+    ...rowsFor("w", 8, 10),
+    row("w", 0, "best", { forced: true, accuracy: 100 }),
+    row("w", 900, "blunder", { forced: true, accuracy: 5 }),
+  ];
+  const report = buildReviewReport(rows, {});
+  assert.equal(report.white.counts.best, 0);
+  assert.equal(report.white.counts.blunder, 0);
+  assert.equal(report.white.counts.veryGood, 8);
+  assert.equal(report.white.accuracy, 90);
+});

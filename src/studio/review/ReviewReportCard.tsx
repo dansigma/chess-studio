@@ -1,6 +1,6 @@
 "use client";
 
-import { formatSan } from "@/src/chess/move-notation";
+import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
 import { REPORT_PHASES, type ReviewReport, type SideReport } from "@/src/chess/review-report";
 import { REVIEW_TIERS } from "@/src/chess/review-tiers";
 import { REVIEW_LABELS, type ReviewLabel } from "@/src/chess/review";
@@ -16,7 +16,7 @@ export type KeyMomentRow = {
 type Props = {
   report: ReviewReport;
   moments: KeyMomentRow[];
-  moveNotation: Parameters<typeof formatSan>[1];
+  moveNotation: MoveNotation;
   onSelectMoment: (path: Path) => void;
   openingName?: string | null;
   /** Set when the reviewed line is not the main line. */
@@ -24,8 +24,14 @@ type Props = {
 };
 
 const RATING_TOOLTIP =
-  "Estimated from your average centipawn loss (book and forced moves excluded). " +
-  "When the game header has a rating, the estimate is scaled around it. It is an estimate, not an official rating.";
+  "Estimated from each player's average centipawn loss (book and forced moves excluded). " +
+  "When the game header has a rating, the estimate is scaled around it; a leading ≈ means the " +
+  "player has no header rating, so the number is a raw estimate. It is not an official rating.";
+
+/** One decimal, so 86 shows as 86.0 like the other column. */
+function percent(value: number | null): string {
+  return value == null ? "—" : value.toFixed(1);
+}
 
 function PlayerHeader({ side, color }: { side: SideReport; color: "White" | "Black" }) {
   return (
@@ -39,7 +45,11 @@ function PlayerHeader({ side, color }: { side: SideReport; color: "White" | "Bla
 }
 
 function ratingText(side: SideReport): string {
-  return side.gameRating.value != null ? String(side.gameRating.value) : "—";
+  const { value, anchored } = side.gameRating;
+  if (value == null) {
+    return "—";
+  }
+  return anchored ? String(value) : `≈ ${value}`;
 }
 
 export function ReviewReportCard({ report, moments, moveNotation, onSelectMoment, openingName, lineNote }: Props) {
@@ -59,8 +69,8 @@ export function ReviewReportCard({ report, moments, moveNotation, onSelectMoment
       {lineNote ? <p className="px-3 py-1 text-caption text-studio-warning-fg">{lineNote}</p> : null}
       <div className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 border-b border-studio-border-subtle px-3 py-3">
         <span className="text-caption text-studio-faint">Accuracy</span>
-        <span className="text-center text-2xl font-semibold tabular-nums">{white.accuracy ?? "—"}</span>
-        <span className="text-center text-2xl font-semibold tabular-nums">{black.accuracy ?? "—"}</span>
+        <span className="text-center text-2xl font-semibold tabular-nums">{percent(white.accuracy)}</span>
+        <span className="text-center text-2xl font-semibold tabular-nums">{percent(black.accuracy)}</span>
       </div>
       <div className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 px-3 py-1 text-dense">
         <span className="text-caption text-studio-faint" title="Average centipawn loss per move (lower is better)">
@@ -72,8 +82,8 @@ export function ReviewReportCard({ report, moments, moveNotation, onSelectMoment
       {REPORT_PHASES.map((phase) => (
         <div key={phase.id} className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 px-3 py-1 text-dense">
           <span className="text-caption text-studio-faint">{phase.name}</span>
-          <span className="text-center tabular-nums text-studio-muted">{white.phases[phase.id] ?? "—"}</span>
-          <span className="text-center tabular-nums text-studio-muted">{black.phases[phase.id] ?? "—"}</span>
+          <span className="text-center tabular-nums text-studio-muted">{percent(white.phases[phase.id])}</span>
+          <span className="text-center tabular-nums text-studio-muted">{percent(black.phases[phase.id])}</span>
         </div>
       ))}
       <ul className="border-y border-studio-border-subtle py-1">

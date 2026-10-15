@@ -89,17 +89,21 @@ export function averageCpLoss(rows: ReportRow[]): number | null {
 }
 
 export function estimateGameRating(rows: ReportRow[], headerRating: number | null): GameRating {
+  const scored = scoredRows(rows);
   const acpl = averageCpLoss(rows);
   if (scoredRows(rows).length < MIN_MOVES_FOR_RATING || acpl == null) {
     return { value: null, anchored: false };
   }
   const anchored = headerRating != null;
   const raw = anchored ? anchoredRating(headerRating, acpl) : eloFromAcpl(acpl);
-  return { value: Math.round(raw / 10) * 10, anchored };
+  return { value: Math.round(Math.min(raw, ELO_CEILING) / 10) * 10, anchored };
 }
 
 function buildSide(rows: ReportRow[], name: string, rating: number | null): SideReport {
   const acpl = averageCpLoss(rows);
+  // Book and forced moves are excluded from accuracy and tier counts alike; the
+  // forced ones still appear in the move list under their label.
+  const scored = rows.filter((row) => !row.forced);
   const accuracyOf = (subset: ReportRow[]) =>
     harmonicAccuracy(scoredRows(subset).map((row) => row.accuracy));
   return {
@@ -109,7 +113,7 @@ function buildSide(rows: ReportRow[], name: string, rating: number | null): Side
     accuracy: accuracyOf(rows),
     acpl: acpl == null ? null : Math.round(acpl),
     gameRating: estimateGameRating(rows, rating),
-    counts: countLabels(rows.map((row) => row.label)),
+    counts: countLabels(scored.map((row) => row.label)),
     phases: {
       opening: accuracyOf(rows.filter((row) => row.phase === "opening")),
       middlegame: accuracyOf(rows.filter((row) => row.phase === "middlegame")),
