@@ -233,3 +233,29 @@ test("the remaining-time estimate uses the measured pace", () => {
   assert.equal(estimateRemainingMs({ done: 4, total: 10, elapsedMs: 8000 }), 12_000);
   assert.equal(estimateRemainingMs({ done: 10, total: 10, elapsedMs: 8000 }), 0);
 });
+
+test("rows carry what an explanation needs: played move, engine line and evaluations", async () => {
+  const script: Script = {
+    0: [{ whitePawns: 0.4, uci: "d2d4", pv: ["d2d4", "d7d5"] }, { whitePawns: 0.3, uci: "e2e4" }],
+    1: flat(0.1),
+    2: flat(0.1),
+    3: flat(0.1),
+    4: flat(0.1),
+  };
+  const outcome = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "standard",
+    engine: fakeEngine(OPENING.fens, script).engine,
+  });
+  assert.equal(outcome.status, "done");
+  if (outcome.status === "done") {
+    const first = outcome.rows[0];
+    assert.equal(first.playedUci, "e2e4");
+    assert.deepEqual(first.bestPv, ["d2d4", "d7d5"]);
+    assert.equal(first.beforePawns, 0.4);
+    assert.equal(first.afterPawns, 0.1);
+    // A line without a continuation falls back to its first move.
+    assert.deepEqual(outcome.rows[1].bestPv, []);
+  }
+});

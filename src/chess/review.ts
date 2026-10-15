@@ -25,6 +25,8 @@ export type ReviewLabel = TierLabel | "forced";
 export type PositionScore = {
   whitePawns: number;
   bestUci: string | null;
+  /** Engine continuation from the position, best move first (UCI); for callers that explain moves. */
+  bestPv?: string[];
   secondWhitePawns: number | null;
   /** Third engine line, when the position has one; carried for callers that compare alternatives. */
   thirdWhitePawns?: number | null;

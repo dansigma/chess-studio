@@ -5,6 +5,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { BOARD_THEME_IDS, BOARD_THEMES, type BoardTheme } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
+import { EXPLAIN_LOCALES, EXPLAIN_LOCALE_LABELS } from "@/src/chess/explain/locale";
 import { NOTATION_DENSITY_IDS, NOTATION_DENSITIES } from "./notation-density";
 import { ENGINE_BUILDS, ENGINE_BUILD_INFO } from "@/src/engine/stockfish-client";
 import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "./color-scheme";
@@ -77,6 +78,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const setPieceSet = useStudioStore((state) => state.setPieceSet);
   const setMoveNotation = useStudioStore((state) => state.setMoveNotation);
   const setNotationDensity = useStudioStore((state) => state.setNotationDensity);
+  const setLocale = useStudioStore((state) => state.setLocale);
   const toggleCoordinates = useStudioStore((state) => state.toggleCoordinates);
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
   const toggleMoveSound = useStudioStore((state) => state.toggleMoveSound);
@@ -158,6 +160,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               value={settings.notationDensity}
               options={NOTATION_DENSITY_IDS.map((id) => ({ id, label: NOTATION_DENSITIES[id].label }))}
               onChange={setNotationDensity}
+            />
+          </Row>
+        </Section>
+        <Section title="Game Review">
+          <Row label="Explanation language">
+            <Select
+              value={settings.locale}
+              options={EXPLAIN_LOCALES.map((id) => ({ id, label: EXPLAIN_LOCALE_LABELS[id] }))}
+              onChange={setLocale}
             />
           </Row>
         </Section>

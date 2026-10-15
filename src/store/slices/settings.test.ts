@@ -210,3 +210,45 @@ test("pinPreviewBoard clears only the matching preview board", () => {
   assert.equal(boards.find((board) => board.id === previewA.id)?.preview, false);
   assert.equal(boards.find((board) => board.id === previewB.id)?.preview, true);
 });
+
+test("locale defaults to the browser language and respects a valid persisted value", () => {
+  // SIG-961: explanations follow the browser language until the user picks one.
+  const win = (globalThis as { window?: { navigator?: { language: string } } }).window;
+  assert.ok(win);
+  try {
+    storage.delete(SETTINGS_KEY);
+    win.navigator = { language: "pt-BR" };
+    resetSettings();
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.locale, "pt-br");
+
+    win.navigator = { language: "en-US" };
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.locale, "en");
+
+    storage.set(SETTINGS_KEY, JSON.stringify({ locale: "pt-br" }));
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.locale, "pt-br");
+
+    // An unknown persisted value is ignored in favour of the browser language.
+    storage.set(SETTINGS_KEY, JSON.stringify({ locale: "klingon" }));
+    win.navigator = { language: "pt" };
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.locale, "pt-br");
+  } finally {
+    delete win.navigator;
+    storage.delete(SETTINGS_KEY);
+    resetSettings();
+  }
+});
+
+test("setLocale updates the setting and remote hydration only accepts valid locales", () => {
+  resetSettings();
+  actions().setLocale("pt-br");
+  assert.equal(useStudioStore.getState().settings.locale, "pt-br");
+  actions().hydrateSettings({ locale: "en" });
+  assert.equal(useStudioStore.getState().settings.locale, "en");
+  actions().hydrateSettings({ locale: "xx" as never });
+  assert.equal(useStudioStore.getState().settings.locale, "en");
+  resetSettings();
+});

@@ -18,6 +18,7 @@ function toEval(fen: string, info: EngineInfo): PositionEval | null {
   const lines: EvalLine[] = info.lines.map((line) => ({
     whitePawns: scoreNumber(line, side),
     uci: line.pvUci[0] ?? null,
+    pv: line.pvUci,
   }));
   return { depth: info.depth, lines };
 }
