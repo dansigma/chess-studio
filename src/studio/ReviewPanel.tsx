@@ -6,7 +6,8 @@ import { buildReviewReport, keyMoments } from "@/src/chess/review-report";
 import { lookupBookOpening } from "@/src/lib/opening-book";
 import { ReviewReportCard } from "./review/ReviewReportCard";
 import { useGameReview } from "./review/useGameReview";
-import { variationPoints } from "@/src/chess/tree";
+import { WhyBlock } from "./review/WhyBlock";
+import { getNodeAt, pathAlongLine, pathsEqual, variationPoints } from "@/src/chess/tree";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "./ui/Button";
@@ -25,6 +26,7 @@ export function ReviewPanel() {
   const engineThreads = useStudioStore((state) => state.settings.engineThreads);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const goPath = useStudioStore((state) => state.goPath);
+  const locale = useStudioStore((state) => state.settings.locale);
 
   const points = useMemo(
     () => variationPoints(board.tree, board.path),
@@ -37,6 +39,46 @@ export function ReviewPanel() {
     engineThreads,
     setupMode,
   });
+
+  // "Why?" follows the board: it explains the reviewed move the board is on.
+  const selected = useMemo(() => rows?.find((row) => pathsEqual(row.path, board.path)) ?? null, [rows, board.path]);
+  const selectedContext = useMemo(() => {
+    if (!selected) {
+      return null;
+    }
+    const before = points[selected.index];
+    const after = points[selected.index + 1];
+    if (!before || !after) {
+      return null;
+    }
+    const previousUci = getNodeAt(board.tree, before.path)?.uci ?? "";
+    return {
+      fenBefore: before.fen,
+      fenAfter: after.fen,
+      parentPath: before.path,
+      previous: before.san ? { to: previousUci.slice(2, 4), capture: before.san.includes("x") } : null,
+    };
+  }, [selected, points, board.tree]);
+
+  const playLine = (ucis: string[], ply: number) => {
+    if (!selectedContext) {
+      return;
+    }
+    const { parentPath, fenBefore } = selectedContext;
+    const store = useStudioStore.getState();
+    // Already in the notation (e.g. the played move is the engine's): just go there.
+    const existing = pathAlongLine(store.active().tree, parentPath, ucis.slice(0, ply + 1));
+    if (existing) {
+      store.goPath(existing);
+      return;
+    }
+    store.goPath(parentPath);
+    store.insertEngineLines(fenBefore, [ucis]);
+    const target = pathAlongLine(useStudioStore.getState().active().tree, parentPath, ucis.slice(0, ply + 1));
+    if (target) {
+      useStudioStore.getState().goPath(target);
+    }
+  };
 
   const report = useMemo(() => (rows ? buildReviewReport(rows, board.headers) : null), [rows, board.headers]);
   const moments = useMemo(() => (rows ? keyMoments(rows) : []), [rows]);
@@ -122,6 +164,18 @@ export function ReviewPanel() {
           <p className="px-3 py-3 text-dense text-studio-muted">
             Review cancelled at {progress.done}/{progress.total} positions.
           </p>
+        ) : null}
+        {selected && selectedContext && !running ? (
+          <WhyBlock
+            key={selected.path.join(".")}
+            row={selected}
+            fenBefore={selectedContext.fenBefore}
+            fenAfter={selectedContext.fenAfter}
+            previous={selectedContext.previous}
+            locale={locale}
+            moveNotation={moveNotation}
+            onPlayLine={playLine}
+          />
         ) : null}
         {report ? (
           <ReviewReportCard

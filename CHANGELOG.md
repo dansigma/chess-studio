@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Game Review explanations (SIG-961)
+
+- New "Why?" block in the Review panel for the move the board is on. It opens by default for Brilliant, Miss,
+  Mistake and Blunder and stays collapsed for the rest. Every sentence is backed by the position facts (threats,
+  pins, hanging pieces, mates, sacrifices); when nothing can be proven it shows only the engine's view.
+- Hovering a sentence highlights the squares involved on the board (transient, never saved to the game);
+  sentences about the position before the move briefly show that position.
+- The engine's best line is shown as clickable moves and opens as a variation.
+- New "Explanation language" setting (English / Português do Brasil), defaulting to the browser language.
+
 ### Game Review (SIG-960)
 
 - **Accuracy values shift slightly.** Player accuracy is now the average of a volatility-weighted mean and a

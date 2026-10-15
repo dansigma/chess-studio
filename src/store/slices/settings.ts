@@ -1,3 +1,4 @@
+import { DEFAULT_EXPLAIN_LOCALE, explainLocaleFromLanguage, isExplainLocale } from "@/src/chess/explain/locale";
 import { isBoardTheme } from "@/src/chess/board-themes";
 import { isPieceSet } from "@/src/chess/piece-sets";
 import { isMoveNotation } from "@/src/chess/move-notation";
@@ -40,6 +41,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   explorerFilters: DEFAULT_EXPLORER_FILTERS,
   moveSound: false,
+  locale: DEFAULT_EXPLAIN_LOCALE,
 };
 
 export function loadLocalSettings(): StudioSettings {
@@ -49,7 +51,7 @@ export function loadLocalSettings(): StudioSettings {
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
     if (!raw) {
-      return DEFAULT_SETTINGS;
+      return { ...DEFAULT_SETTINGS, locale: explainLocaleFromLanguage(window.navigator?.language) };
     }
     const parsed = JSON.parse(raw) as Partial<StudioSettings>;
     return {
@@ -99,6 +101,7 @@ export function loadLocalSettings(): StudioSettings {
           : DEFAULT_SETTINGS.sidebarWidth,
       explorerFilters: readExplorerFilters(parsed.explorerFilters),
       moveSound: typeof parsed.moveSound === "boolean" ? parsed.moveSound : DEFAULT_SETTINGS.moveSound,
+      locale: isExplainLocale(parsed.locale) ? parsed.locale : explainLocaleFromLanguage(window.navigator?.language),
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -116,6 +119,7 @@ export type SettingsSlice = Pick<
   | "setPieceSet"
   | "setMoveNotation"
   | "setNotationDensity"
+  | "setLocale"
   | "toggleNotationDensity"
   | "setColorScheme"
   | "setEngineDepth"
@@ -187,6 +191,9 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
   setNotationDensity: (notationDensity) => {
     set((state) => ({ settings: { ...state.settings, notationDensity } }));
   },
+  setLocale: (locale) => {
+    set((state) => ({ settings: { ...state.settings, locale } }));
+  },
   toggleNotationDensity: () => {
     set((state) => ({
       settings: {
@@ -257,6 +264,7 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
         ...(partial.gamePreviewEnabled !== undefined
           ? { gamePreviewEnabled: partial.gamePreviewEnabled }
           : {}),
+        ...(isExplainLocale(partial.locale) ? { locale: partial.locale } : {}),
         ...(partial.engineDepth !== undefined ? { engineDepth: clampDepth(partial.engineDepth) } : {}),
         ...(partial.multiPv !== undefined ? { multiPv: clampLines(partial.multiPv) } : {}),
         ...(partial.engineThreads !== undefined

@@ -126,6 +126,19 @@ function childrenAt(tree: GameTree, path: Path): TreeNode[] | null {
   return getNodeAt(tree, path)?.children ?? null;
 }
 
+/** Path reached by following `ucis` from `base` through existing children; null when the line is not in the tree. */
+export function pathAlongLine(tree: GameTree, base: Path, ucis: string[]): Path | null {
+  let path = [...base];
+  for (const uci of ucis) {
+    const index = childrenAt(tree, path)?.findIndex((child) => child.uci === uci) ?? -1;
+    if (index < 0) {
+      return null;
+    }
+    path = [...path, index];
+  }
+  return path;
+}
+
 export function playMove(
   tree: GameTree,
   path: Path,

@@ -31,7 +31,12 @@ const RECHECK_MIN_EXTRA_DEPTH = 4;
 const RECHECK_TIMEOUT_MS = 12_000;
 
 /** One scored line, always from White's point of view (pawns). */
-export type EvalLine = { whitePawns: number; uci: string | null };
+export type EvalLine = {
+  whitePawns: number;
+  uci: string | null;
+  /** Full continuation in UCI (best move first); defaults to just `uci`. */
+  pv?: string[];
+};
 
 export type PositionEval = {
   depth: number;
@@ -64,7 +69,16 @@ export type ReviewEngine = {
 export type ReviewMove = { uci: string };
 
 /** A graded move; `index` is the 0-based position of the move in the reviewed line. */
-export type ReviewRow = ReportRow & { index: number };
+export type ReviewRow = ReportRow & {
+  index: number;
+  /** The move that was played (UCI). */
+  playedUci: string;
+  /** Engine continuation from the position before the move, best move first (UCI). */
+  bestPv: string[];
+  /** White-perspective evaluations (pawns) of the best line before the move and of the position after it. */
+  beforePawns: number;
+  afterPawns: number;
+};
 
 export type ReviewProgress = {
   done: number;
@@ -107,6 +121,7 @@ export function toPositionScore(evaluation: PositionEval): PositionScore | null 
   return {
     whitePawns: best.whitePawns,
     bestUci: best.uci,
+    bestPv: best.pv ?? (best.uci ? [best.uci] : []),
     secondWhitePawns: evaluation.lines[1]?.whitePawns ?? null,
     thirdWhitePawns: evaluation.lines[2]?.whitePawns ?? null,
     depth: evaluation.depth,
@@ -193,6 +208,9 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
     const hanging = hangsPieceOn(beforeBoard, afterBoard, uci, side);
     const sacrifice = isSacrificeOn(beforeBoard, afterBoard, side) || hanging;
 
+    let beforePawns = before.whitePawns;
+    let afterPawns = after.whitePawns;
+    let bestPv = before.bestPv ?? [];
     let graded = gradeMove({
       side,
       playedUci: uci,
@@ -212,6 +230,9 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
         legalMoves: legalMoveCount(fens[index + 1]),
       });
       if (deeper && deeper.depth >= depth + RECHECK_MIN_EXTRA_DEPTH && deeper.lines[0] && lineHolds(side, before.whitePawns, deeper.lines[0].whitePawns)) {
+        beforePawns = deeper.lines[0].whitePawns;
+        afterPawns = deeper.lines[0].whitePawns;
+        bestPv = [uci];
         graded = gradeMove({
           side,
           playedUci: uci,
@@ -231,10 +252,14 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
       // A forced move has no alternative: it is labelled `forced` instead of a tier.
       label: forced ? "forced" : mergeBookLabel(inBook[index], graded.label),
       index,
+      playedUci: uci,
       side,
       phase: phaseAt(division, index + 1),
       forced,
       weight: weights[index],
+      bestPv,
+      beforePawns,
+      afterPawns,
     });
   }
   return { status: "done", rows };

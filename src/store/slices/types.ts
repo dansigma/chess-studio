@@ -1,3 +1,4 @@
+import type { ExplainLocale } from "@/src/chess/explain/locale";
 import type { BoardTheme } from "@/src/chess/board-themes";
 import type { PieceSet } from "@/src/chess/piece-sets";
 import type { MoveNotation } from "@/src/chess/move-notation";
@@ -93,6 +94,8 @@ export type StudioSettings = {
   sidebarWidth: number;
   explorerFilters: ExplorerFilters;
   moveSound: boolean;
+  /** Language of the Game Review explanations (SIG-961). */
+  locale: ExplainLocale;
 };
 
 export type UserInfo = {
@@ -170,6 +173,7 @@ export type StudioState = {
   setPieceSet: (set: PieceSet) => void;
   setMoveNotation: (notation: MoveNotation) => void;
   setNotationDensity: (density: NotationDensity) => void;
+  setLocale: (locale: ExplainLocale) => void;
   toggleNotationDensity: () => void;
   setColorScheme: (scheme: ColorScheme) => void;
   setEngineDepth: (depth: number) => void;
