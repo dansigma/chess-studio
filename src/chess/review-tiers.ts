@@ -9,7 +9,7 @@ export type ReviewTier = {
   className: string;
 };
 
-/** Single source of truth for tier presentation, in display order (best → worst). */
+/** Single source of truth for tier presentation, in display order (best → worst); `forced` is not a tier and sits last. */
 export const REVIEW_TIERS: Record<ReviewLabel, ReviewTier> = {
   brilliant: { name: "Genius", mark: "!!", icon: "✦", className: "text-studio-accent" },
   great: { name: "Great", mark: "!", icon: "✓", className: "text-studio-success" },
@@ -21,4 +21,5 @@ export const REVIEW_TIERS: Record<ReviewLabel, ReviewTier> = {
   mistake: { name: "Mistake", mark: "?", icon: "◇", className: "text-studio-warning-fg" },
   miss: { name: "Miss", mark: "✕", icon: "✕", className: "text-studio-warning-fg" },
   blunder: { name: "Blunder", mark: "??", icon: "✖", className: "text-studio-danger" },
+  forced: { name: "Forced", mark: "□", icon: "□", className: "text-studio-faint" },
 };

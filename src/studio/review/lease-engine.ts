@@ -86,7 +86,7 @@ export function createLeaseEngine(lease: Lease, threads: number, isCancelled: ()
           } else if (restarts < MAX_RESTARTS) {
             restarts += 1;
             latest = null;
-            search(false);
+            search(true);
           } else {
             finish(evaluation);
           }

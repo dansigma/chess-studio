@@ -17,12 +17,17 @@ export const REVIEW_LABELS = [
   "blunder",
 ] as const;
 
-export type ReviewLabel = (typeof REVIEW_LABELS)[number];
+/** Tiers shown in the report; counted per side. */
+export type TierLabel = (typeof REVIEW_LABELS)[number];
+/** A move label: a tier, or `forced` for the only legal move (never counted as a tier). */
+export type ReviewLabel = TierLabel | "forced";
 
 export type PositionScore = {
   whitePawns: number;
   bestUci: string | null;
   secondWhitePawns: number | null;
+  /** Third engine line, when the position has one; carried for callers that compare alternatives. */
+  thirdWhitePawns?: number | null;
   depth?: number;
 };
 
@@ -199,7 +204,7 @@ export function bookFlags(playedUcis: string[], replies: Array<readonly string[]
   return flags;
 }
 
-export function countLabels(labels: Array<ReviewLabel | null>): Record<ReviewLabel, number> {
+export function countLabels(labels: Array<ReviewLabel | null>): Record<TierLabel, number> {
   const counts = {
     brilliant: 0,
     great: 0,
@@ -213,7 +218,7 @@ export function countLabels(labels: Array<ReviewLabel | null>): Record<ReviewLab
     blunder: 0,
   };
   for (const label of labels) {
-    if (label) {
+    if (label && label !== "forced") {
       counts[label] += 1;
     }
   }
