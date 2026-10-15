@@ -126,6 +126,18 @@ test("key moments include miss and skip ordinary tiers", () => {
   );
 });
 
+test("accuracy is volatility-weighted and phases use the same function", () => {
+  const rows: ReportRow[] = [
+    row("w", 0, "best", { accuracy: 100, weight: 0.5 }),
+    row("w", 300, "blunder", { accuracy: 20, weight: 12 }),
+    row("w", 0, "best", { accuracy: 100, weight: 0.5, phase: "endgame" }),
+  ];
+  const report = buildReviewReport(rows, {});
+  // weighted = (50 + 240 + 50) / 13 = 26.15 ; harmonic = 3 / (1/100 + 1/20 + 1/100) = 42.86 -> 34.5
+  assert.equal(report.white.accuracy, 34.5);
+  assert.equal(report.white.phases.endgame, 100);
+});
+
 test("a book-heavy game does not get a rating from a couple of scored moves", () => {
   const rows = [...Array.from({ length: 7 }, () => row("w", 0, "book")), row("w", 60)];
   assert.equal(rows.length, 8);
