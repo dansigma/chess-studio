@@ -8,6 +8,8 @@ import {
   MIN_SIDEBAR_WIDTH,
 } from "../../studio/sidebar-width.ts";
 import { emptyBoard, newId } from "./board-helpers.ts";
+import { EXPLAIN_LOCALES } from "../../chess/explain/locale.ts";
+import { SITE_LOCALES } from "../../i18n/locale.ts";
 import {
   DEFAULT_SETTINGS,
   SETTINGS_KEY,
@@ -212,7 +214,8 @@ test("pinPreviewBoard clears only the matching preview board", () => {
 });
 
 test("locale defaults to the browser language and respects a valid persisted value", () => {
-  // SIG-961: explanations follow the browser language until the user picks one.
+  // SIG-971: the browser language seeds the *site* language for fresh installs;
+  // Game Review explanations follow that same setting (no separate review locale).
   const win = (globalThis as { window?: { navigator?: { language: string } } }).window;
   assert.ok(win);
   try {
@@ -240,6 +243,12 @@ test("locale defaults to the browser language and respects a valid persisted val
     storage.delete(SETTINGS_KEY);
     resetSettings();
   }
+});
+
+test("game review explanations share the site locale list (single language setting)", () => {
+  // SIG-971: Game Review has no separate language — the explain layer renders
+  // in settings.locale, so its locale list must stay identical to the site list.
+  assert.deepEqual([...EXPLAIN_LOCALES], [...SITE_LOCALES]);
 });
 
 test("setLocale updates the setting and remote hydration only accepts valid locales", () => {

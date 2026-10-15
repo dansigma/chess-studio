@@ -5,7 +5,6 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { BOARD_THEME_IDS, BOARD_THEMES, type BoardTheme } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
-import { EXPLAIN_LOCALES, EXPLAIN_LOCALE_LABELS } from "@/src/chess/explain/locale";
 import { SITE_LOCALES, SITE_LOCALE_LABELS } from "@/src/i18n/locale";
 import { NOTATION_DENSITY_IDS, NOTATION_DENSITIES } from "./notation-density";
 import { ENGINE_BUILDS, ENGINE_BUILD_INFO } from "@/src/engine/stockfish-client";
@@ -169,15 +168,6 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <Select
               value={settings.locale}
               options={SITE_LOCALES.map((id) => ({ id, label: SITE_LOCALE_LABELS[id] }))}
-              onChange={setLocale}
-            />
-          </Row>
-        </Section>
-        <Section title="Game Review">
-          <Row label="Explanation language">
-            <Select
-              value={settings.locale}
-              options={EXPLAIN_LOCALES.map((id) => ({ id, label: EXPLAIN_LOCALE_LABELS[id] }))}
               onChange={setLocale}
             />
           </Row>

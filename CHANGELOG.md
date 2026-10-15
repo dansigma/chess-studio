@@ -17,7 +17,8 @@
 - Hovering a sentence highlights the squares involved on the board (transient, never saved to the game);
   sentences about the position before the move briefly show that position.
 - The engine's best line is shown as clickable moves and opens as a variation.
-- New "Explanation language" setting (English / Português do Brasil), defaulting to the browser language.
+- Explanations follow the site language (English / Português do Brasil); fresh installs seed it from the
+  browser language until the user picks one (SIG-971).
 
 ### Game Review (SIG-960)
 

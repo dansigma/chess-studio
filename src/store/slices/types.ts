@@ -94,7 +94,7 @@ export type StudioSettings = {
   sidebarWidth: number;
   explorerFilters: ExplorerFilters;
   moveSound: boolean;
-  /** Site language; also drives Game Review explanations until split (SIG-961/962). */
+  /** Site language; also drives Game Review explanations (SIG-971). */
   locale: SiteLocale;
 };
 
