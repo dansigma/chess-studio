@@ -3,13 +3,19 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { finishSignIn } from "@/src/lib/auth/access";
+import { isValidPassword, passwordLengthError } from "@/src/lib/auth/password";
 import { safeAuthNext } from "@/src/lib/auth/redirect-path";
-import { clientIp, createRateLimiter } from "@/src/lib/rate-limit";
+import { resolveSiteUrl } from "@/src/lib/auth/site-url";
+import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 
 export type AuthFormState = { error?: string; message?: string };
 
-const limiter = createRateLimiter({ limit: 10, windowMs: 10 * 60 * 1000 });
+// Auth abuse protection: 10 req/10 min per IP (fallback window). The native
+// RL_AUTH binding only supports 10s/60s periods, so it enforces an additional
+// 10 req/60s burst cap at the edge; the 10-min fallback window is always
+// enforced too (see createRouteLimiter), preserving the original quota.
+const limiter = createRouteLimiter({ limit: 10, windowMs: 10 * 60 * 1000, bindingName: "RL_AUTH" });
 
 function field(formData: FormData, name: string): string {
   const value = formData.get(name);
@@ -27,15 +33,6 @@ function signInError(message: string): string {
   return "Could not sign in. Try again.";
 }
 
-async function requestOrigin(): Promise<string> {
-  const headerStore = await headers();
-  return headerStore.get("origin") ?? "http://localhost:3000";
-}
-
-async function siteUrl(): Promise<string> {
-  return process.env.NEXT_PUBLIC_SITE_URL ?? (await requestOrigin());
-}
-
 export async function submitAuth(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const supabase = await createServerSupabase();
   if (!supabase) {
@@ -49,13 +46,16 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
   }
 
   if (mode === "reset") {
-    const ip = clientIp(await headers());
-    if (ip !== "unknown") {
-      const verdict = limiter.check(`reset:${ip}`);
-      if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
+    const headerStore = await headers();
+    const ip = clientIp(headerStore);
+    const verdict = await limiter.checkAsync(rateLimitKey("reset", ip));
+    if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
+    const siteUrlResult = resolveSiteUrl({ origin: headerStore.get("origin") });
+    if (!siteUrlResult.ok) {
+      console.error("[auth] Site URL resolution failed:", siteUrlResult.cause);
+      return { error: "Could not send the reset link. Try again." };
     }
-    const base = await siteUrl();
-    const redirectTo = `${base}/auth/callback?next=${encodeURIComponent("/login/update-password")}`;
+    const redirectTo = `${siteUrlResult.url}/auth/callback?next=${encodeURIComponent("/login/update-password")}`;
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) {
       return { error: "Could not send the reset link. Try again." };
@@ -63,25 +63,32 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
     return { message: "If an account exists for that email, a reset link is on its way." };
   }
 
-  if (password.length < 6) {
-    return { error: "Password must be at least 6 characters." };
-  }
-
   const next = safeAuthNext(formData.get("next"));
 
   if (mode === "signup") {
-    const ip = clientIp(await headers());
-    if (ip !== "unknown") {
-      const verdict = limiter.check(`signup:${ip}`);
-      if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
+    if (!isValidPassword(password)) {
+      return { error: passwordLengthError() };
+    }
+    const headerStore = await headers();
+    const ip = clientIp(headerStore);
+    const verdict = await limiter.checkAsync(rateLimitKey("signup", ip));
+    if (!verdict.ok) return { error: "Too many attempts. Wait a few minutes and try again." };
+    const siteUrlResult = resolveSiteUrl({ origin: headerStore.get("origin") });
+    if (!siteUrlResult.ok) {
+      console.error("[auth] Site URL resolution failed:", siteUrlResult.cause);
+      return { error: "Could not create the account. Try again." };
     }
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${await siteUrl()}/auth/callback?next=${encodeURIComponent(next)}` },
+      options: { emailRedirectTo: `${siteUrlResult.url}/auth/callback?next=${encodeURIComponent(next)}` },
     });
     if (error) return { error: "Could not create the account. Try again." };
     return { message: "Check your email to confirm your account, then sign in." };
+  }
+
+  if (!password) {
+    return { error: "Enter a password." };
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -89,7 +96,7 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
     return { error: signInError(error.message) };
   }
   if (data.user) {
-    await finishSignIn(data.user.id, data.user.email);
+    await finishSignIn(data.user.id, data.user.email, data.user.email_confirmed_at ?? null);
   }
   redirect(next);
 }

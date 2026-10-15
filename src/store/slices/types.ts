@@ -3,6 +3,7 @@ import type { PieceSet } from "@/src/chess/piece-sets";
 import type { MoveNotation } from "@/src/chess/move-notation";
 import type { ColorScheme } from "@/src/studio/color-scheme";
 import type { GameTree, Path } from "@/src/chess/tree";
+import type { SpacedRepetitionItem } from "@/src/chess/repertoire";
 import type { GameHeaders } from "@/src/chess/pgn";
 import type { BoardMarks, MarkColor } from "@/src/chess/marks";
 import type {
@@ -15,6 +16,9 @@ import type { PlayerBookmark } from "@/src/lib/player-bookmarks";
 import type { EngineBuild } from "@/src/engine/stockfish-client";
 import type { ExplorerResponse, ExplorerSource } from "@/src/lib/explorer-types";
 import type { ExplorerFilters } from "@/src/lib/explorer-filters";
+import type { NotationDensity } from "@/src/studio/notation-density";
+
+export type { NotationDensity } from "@/src/studio/notation-density";
 import type {
   FileDatabase,
   FileGame,
@@ -78,6 +82,7 @@ export type StudioSettings = {
   boardTheme: BoardTheme;
   pieceSet: PieceSet;
   moveNotation: MoveNotation;
+  notationDensity: NotationDensity;
   colorScheme: ColorScheme;
   gamePreviewEnabled: boolean;
   engineDepth: number;
@@ -85,6 +90,7 @@ export type StudioSettings = {
   engineThreads: number;
   engineBuild: EngineBuild;
   sidebarCollapsed: boolean;
+  sidebarWidth: number;
   explorerFilters: ExplorerFilters;
   moveSound: boolean;
 };
@@ -163,6 +169,8 @@ export type StudioState = {
   setBoardTheme: (theme: BoardTheme) => void;
   setPieceSet: (set: PieceSet) => void;
   setMoveNotation: (notation: MoveNotation) => void;
+  setNotationDensity: (density: NotationDensity) => void;
+  toggleNotationDensity: () => void;
   setColorScheme: (scheme: ColorScheme) => void;
   setEngineDepth: (depth: number) => void;
   setMultiPv: (value: number) => void;
@@ -170,6 +178,7 @@ export type StudioState = {
   setEngineBuild: (build: EngineBuild) => void;
   setActivity: (view: ActivityView) => void;
   toggleSidebar: () => void;
+  setSidebarWidth: (width: number) => void;
   setDatabaseSource: (source: ExplorerSource) => void;
   setExplorerFilters: (patch: Partial<ExplorerFilters>) => void;
   importPgnText: (pgn: string, title?: string) => void;
@@ -201,8 +210,14 @@ export type StudioState = {
   skipForward: () => void;
   training: boolean;
   trainingStart: Path | null;
+  drillDueOnly: boolean;
+  repertoireProgress: Record<string, SpacedRepetitionItem>;
   startTraining: () => void;
   stopTraining: () => void;
+  startDueDrill: () => void;
+  recordRepertoireMove: (fen: string, uci: string, correct: boolean) => void;
+  setRepertoireProgress: (progress: Record<string, SpacedRepetitionItem>) => void;
+  hydrateRepertoire: () => Promise<void>;
   renameActive: (title: string) => void;
   setExplorer: (data: ExplorerResponse | null) => void;
   setExplorerLoading: (loading: boolean) => void;
@@ -217,7 +232,10 @@ export type StudioState = {
   setPlayerColorFilter: (filter: PlayerColorFilter) => void;
   setPlayerResultFilter: (filter: PlayerResultFilter) => void;
   setFilesQuery: (query: string) => void;
-  createFileFolder: (name?: string) => void;
+  createFileFolder: (name?: string, parentId?: string | null) => void;
+  renameFileFolder: (id: string, name: string) => void;
+  moveFileFolder: (id: string, targetParentId: string | null) => boolean;
+  moveFileDatabase: (id: string, targetFolderId: string | null) => void;
   importFileDatabase: (
     name: string,
     pgn: string,
@@ -229,7 +247,7 @@ export type StudioState = {
   openFileGame: (game: FileGame, options?: { atFen?: string; openInNewBoard?: boolean }) => void;
   deleteFileFolder: (id: string) => void;
   deleteFileDatabase: (id: string) => void;
-  mergeRemoteFiles: (databases: FileDatabase[]) => void;
+  mergeRemoteFiles: (remote: FilesLibrary | FileDatabase[]) => void;
   togglePlayerBookmark: (player: PlayerHit) => void;
   mergeRemoteBookmarks: (remote: PlayerBookmark[]) => void;
   hydrateRemoteBookmarks: () => Promise<void>;

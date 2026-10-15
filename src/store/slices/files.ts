@@ -15,11 +15,16 @@ import {
 import { fileDatabaseId } from "@/src/lib/explorer-types";
 import { dropFilesExplorerIndex } from "@/src/lib/files-explorer";
 import {
+  canMoveFolder,
   deleteRemoteDatabase,
+  deleteRemoteFolder,
+  getDescendantFolderIds,
   libraryFromPgn,
   loadLocalFiles,
   persistRemoteDatabase,
+  persistRemoteFolder,
   saveLocalFiles,
+  type FileDatabase,
   type FileFolder,
 } from "@/src/lib/user-files";
 import { emptyBoard, newId, withActive } from "./board-helpers";
@@ -36,6 +41,9 @@ export type FilesSlice = Pick<
   | "bookmarks"
   | "setFilesQuery"
   | "createFileFolder"
+  | "renameFileFolder"
+  | "moveFileFolder"
+  | "moveFileDatabase"
   | "importFileDatabase"
   | "showFileDatabase"
   | "openPgnSource"
@@ -62,16 +70,87 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
 ) => ({
   ...initialFilesState,
   setFilesQuery: (filesQuery) => set({ filesQuery }),
-  createFileFolder: (name) => {
+  createFileFolder: (name, parentId = null) => {
     const folder: FileFolder = {
       id: newId(),
       name: (name ?? "New folder").trim() || "New folder",
+      parentId: parentId ?? null,
     };
     set((state) => {
       const files = { ...state.files, folders: [...state.files.folders, folder] };
       saveLocalFiles(files);
       return { files, activity: "files", settings: { ...state.settings, sidebarCollapsed: false } };
     });
+    const user = get().user;
+    if (user) {
+      void persistRemoteFolder(folder, user.id);
+    }
+  },
+  renameFileFolder: (id, name) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return;
+    }
+    let updatedFolder: FileFolder | null = null;
+    set((state) => {
+      const folders = state.files.folders.map((folder) => {
+        if (folder.id === id) {
+          updatedFolder = { ...folder, name: trimmed };
+          return updatedFolder;
+        }
+        return folder;
+      });
+      const files = { ...state.files, folders };
+      saveLocalFiles(files);
+      return { files };
+    });
+    const user = get().user;
+    if (user && updatedFolder) {
+      void persistRemoteFolder(updatedFolder, user.id);
+    }
+  },
+  moveFileFolder: (id, targetParentId) => {
+    const folders = get().files.folders;
+    if (!canMoveFolder(folders, id, targetParentId)) {
+      return false;
+    }
+    let movedFolder: FileFolder | null = null;
+    set((state) => {
+      const folders = state.files.folders.map((folder) => {
+        if (folder.id === id) {
+          movedFolder = { ...folder, parentId: targetParentId };
+          return movedFolder;
+        }
+        return folder;
+      });
+      const files = { ...state.files, folders };
+      saveLocalFiles(files);
+      return { files };
+    });
+    const user = get().user;
+    if (user && movedFolder) {
+      void persistRemoteFolder(movedFolder, user.id);
+    }
+    return true;
+  },
+  moveFileDatabase: (id, targetFolderId) => {
+    let updatedDatabase: FileDatabase | null = null;
+    set((state) => {
+      const databases = state.files.databases.map((database) => {
+        if (database.id === id) {
+          updatedDatabase = { ...database, folderId: targetFolderId };
+          return updatedDatabase;
+        }
+        return database;
+      });
+      const files = { ...state.files, databases };
+      saveLocalFiles(files);
+      return { files };
+    });
+    const user = get().user;
+    if (user && updatedDatabase) {
+      void persistRemoteDatabase(updatedDatabase, user.id);
+    }
   },
   importFileDatabase: (name, pgn, folderId = null, options) => {
     const database = libraryFromPgn(name.trim() || "Database", pgn, folderId);
@@ -196,16 +275,27 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     }));
   },
   deleteFileFolder: (id) => {
+    const state = get();
+    const descendantIds = getDescendantFolderIds(state.files.folders, id);
+    const toDeleteIds = new Set([id, ...descendantIds]);
     set((state) => {
       const files = {
-        folders: state.files.folders.filter((folder) => folder.id !== id),
+        folders: state.files.folders.filter((folder) => !toDeleteIds.has(folder.id)),
         databases: state.files.databases.map((database) =>
-          database.folderId === id ? { ...database, folderId: null } : database,
+          database.folderId && toDeleteIds.has(database.folderId)
+            ? { ...database, folderId: null }
+            : database,
         ),
       };
       saveLocalFiles(files);
       return { files };
     });
+    const user = get().user;
+    if (user) {
+      for (const folderId of toDeleteIds) {
+        void deleteRemoteFolder(folderId);
+      }
+    }
   },
   deleteFileDatabase: (id) => {
     const target = get().files.databases.find((item) => item.id === id);
@@ -228,18 +318,27 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       void deleteRemoteDatabase(target.remoteId);
     }
   },
-  mergeRemoteFiles: (databases) => {
+  mergeRemoteFiles: (payload) => {
     set((state) => {
-      const existing = new Set(
+      const remote = Array.isArray(payload) ? { folders: [], databases: payload } : payload;
+      const existingDbRemoteIds = new Set(
         state.files.databases.map((item) => item.remoteId).filter((id): id is string => Boolean(id)),
       );
-      const extra = databases.filter((item) => item.remoteId && !existing.has(item.remoteId));
-      if (extra.length === 0) {
+      const existingFolderIds = new Set(state.files.folders.map((item) => item.id));
+
+      const extraDatabases = (remote.databases ?? []).filter(
+        (item) => item.remoteId && !existingDbRemoteIds.has(item.remoteId),
+      );
+      const extraFolders = (remote.folders ?? []).filter(
+        (item) => !existingFolderIds.has(item.id),
+      );
+
+      if (extraDatabases.length === 0 && extraFolders.length === 0) {
         return {};
       }
       const files = {
-        ...state.files,
-        databases: [...state.files.databases, ...extra],
+        folders: [...state.files.folders, ...extraFolders],
+        databases: [...state.files.databases, ...extraDatabases],
       };
       saveLocalFiles(files);
       return { files };

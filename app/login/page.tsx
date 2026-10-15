@@ -4,6 +4,7 @@ import { Suspense, useActionState, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
+import { MIN_PASSWORD_LENGTH, passwordRequirementHint } from "@/src/lib/auth/password";
 import { safeAuthNext } from "@/src/lib/auth/redirect-path";
 import { Button } from "@/src/studio/ui/Button";
 import { submitAuth, type AuthFormState } from "./actions";
@@ -95,7 +96,7 @@ function LoginForm() {
                   Forgot password?
                 </button>
               ) : (
-                <span className="text-caption font-normal text-studio-faint">At least 6 characters</span>
+                <span className="text-caption font-normal text-studio-faint">{passwordRequirementHint()}</span>
               )
             }
           >
@@ -104,7 +105,7 @@ function LoginForm() {
               name="password"
               type="password"
               required
-              minLength={6}
+              minLength={mode === "signup" ? MIN_PASSWORD_LENGTH : undefined}
               autoComplete={mode === "signup" ? "new-password" : "current-password"}
               value={password}
               onChange={(event) => setPassword(event.target.value)}

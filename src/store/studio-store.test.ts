@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { START_FEN, createEmptyTree } from "../chess/tree.ts";
+import { START_FEN, createEmptyTree, getFenAt } from "../chess/tree.ts";
+import { importPgn } from "../chess/pgn.ts";
+import { getDueRepertoireMoves, repertoireMoveKey, type SpacedRepetitionItem } from "../chess/repertoire.ts";
 import { loadLocalBookmarks, saveLocalBookmarks, type PlayerBookmark } from "../lib/player-bookmarks.ts";
 import type { PlayerGame, PlayerHit } from "../lib/player-types.ts";
 import { EMPTY_FILES, loadLocalFiles, saveLocalFiles, type FilesLibrary } from "../lib/user-files.ts";
@@ -66,7 +68,7 @@ const GAME_A: PlayerGame = {
 };
 
 const FILES_A: FilesLibrary = {
-  folders: [{ id: "folder-a1", name: "A folder" }],
+  folders: [{ id: "folder-a1", name: "A folder", parentId: null }],
   databases: [
     { id: "db-a1", remoteId: "remote-db-a1", name: "A db", folderId: "folder-a1", games: [] },
   ],
@@ -154,6 +156,16 @@ function seedSignedInUser(user: { id: string; email: string | null }): SignedInS
     setupMode: true,
     training: true,
     trainingStart: [0],
+    drillDueOnly: true,
+    repertoireProgress: {
+      "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR:e7e5": {
+        lastReviewedAt: "2026-10-10T00:00:00.000Z",
+        intervalDays: 1,
+        easeFactor: 2.5,
+        dueDate: "2026-10-11T00:00:00.000Z",
+        mistakeCount: 0,
+      },
+    },
   });
 
   const settings: StudioSettings = {
@@ -207,6 +219,8 @@ const CLEARED_DEFAULTS = {
   setupMode: false,
   training: false,
   trainingStart: null,
+  drillDueOnly: false,
+  repertoireProgress: {},
 };
 
 function assertSessionStateCleared(): void {
@@ -453,3 +467,101 @@ test("SIG-911: importPlayerGame leaves a resolvable active board", () => {
   assert.equal(state.activeBoardId, active.id, "active board id resolves after import");
   assert.equal(active.title, "A White vs A Black", "player game title lands on the active board");
 });
+
+// SIG-920: the Courses "Open in Studio" handoff imports the full variation PGN
+// on a new board tab, positioned at the student's current step (atFen), while
+// leaving the previous board untouched.
+test("SIG-920: openListedGame imports a course line on a new board at atFen", () => {
+  resetStore();
+  const before = useStudioStore.getState();
+  const previousId = before.activeBoardId;
+  const coursePgn = "1. e4 c6 2. d4 d5 { Caro-Kann Advance idea } 3. e5 *";
+  const imported = importPgn(coursePgn);
+  const atFen = getFenAt(imported.tree, [0, 0]);
+
+  before.openListedGame({
+    title: "Caro-Kann — Advance",
+    pgn: coursePgn,
+    atFen,
+    openInNewBoard: true,
+  });
+
+  const state = useStudioStore.getState();
+  assert.equal(state.boards.length, before.boards.length + 1, "course import adds exactly one board");
+  const active = selectActiveBoard(state);
+  assert.equal(active.title, "Caro-Kann — Advance", "course title lands on the new board");
+  assert.equal(active.preview, false, "course import bypasses preview onto a regular board");
+  assert.deepEqual(active.path, [0, 0], "cursor lands at the student's step");
+  const d5 = active.tree.children[0]?.children[0]?.children[0]?.children[0];
+  assert.equal(d5?.san, "d5", "full mainline survives the import");
+  assert.match(d5?.comment ?? "", /Caro-Kann Advance idea/, "variation comment survives the import");
+  const previous = state.boards.find((board) => board.id === previousId);
+  assert.ok(previous, "previous board still exists");
+  assert.notEqual(active.id, previousId, "import does not clobber the previous board");
+});
+
+test("SIG-923: store spaced repetition drill engine updates progress and completes session", () => {
+  resetStore();
+  const repertoirePgn = "1. e4 e5 (1... c5) 2. Nf3 Nc6 *";
+  const imported = importPgn(repertoirePgn);
+  useStudioStore.setState((state) => ({
+    boards: [
+      {
+        ...state.boards[0],
+        tree: imported.tree,
+        path: [],
+      },
+    ],
+    repertoireProgress: {},
+  }));
+
+  const store = useStudioStore.getState();
+  // Start due drill
+  store.startDueDrill();
+  let state = useStudioStore.getState();
+  assert.equal(state.training, true, "training started");
+  assert.equal(state.drillDueOnly, true, "due drill active");
+  assert.deepEqual(state.boards[0].path, [], "initial root path has due move e4");
+
+  // Make incorrect move
+  const failed = store.makeUciMove("d2", "d4");
+  assert.equal(failed, false, "d2d4 refused");
+  state = useStudioStore.getState();
+  assert.equal(state.statusMessage, "Not in the repertoire.");
+  const fenKeyE4 = repertoireMoveKey(START_FEN, "e2e4");
+  assert.ok(state.repertoireProgress[fenKeyE4], "failed move recorded");
+  assert.equal(state.repertoireProgress[fenKeyE4]?.mistakeCount, 1);
+  assert.equal(state.repertoireProgress[fenKeyE4]?.intervalDays, 1);
+
+  // Make correct move e2e4
+  const ok = store.makeUciMove("e2", "e4");
+  assert.equal(ok, true, "e2e4 accepted");
+  state = useStudioStore.getState();
+  assert.ok(state.repertoireProgress[fenKeyE4]);
+  // Next due position should be e4 with e5 or c5, or Nf3
+  assert.equal(state.training, true);
+
+  // Complete all due moves by marking progress as not due
+  const future = new Date(Date.now() + 86400000 * 30).toISOString();
+  const allDue = getDueRepertoireMoves(imported.tree, {});
+  const allReviewed: Record<string, SpacedRepetitionItem> = {};
+  for (const item of allDue) {
+    allReviewed[repertoireMoveKey(item.fen, item.uci)] = {
+      dueDate: future,
+      intervalDays: 1,
+      easeFactor: 2.5,
+      lastReviewedAt: future,
+      mistakeCount: 0,
+    };
+  }
+  store.setRepertoireProgress(allReviewed);
+
+  // Now starting due drill should report no reviews due
+  store.stopTraining();
+  store.startDueDrill();
+  state = useStudioStore.getState();
+  assert.equal(state.training, false);
+  assert.equal(state.drillDueOnly, false);
+  assert.equal(state.statusMessage, "No reviews due.");
+});
+

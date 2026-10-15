@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBookGamePgn } from "@/src/lib/opening-book";
-import { clientIp, createRateLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
+import { readCapped, UpstreamPayloadTooLargeError } from "@/src/lib/read-capped";
 
-const limiter = createRateLimiter({ limit: 30, windowMs: 60_000 });
+const MAX_MASTERS_PGN_BYTES = 1024 * 1024; // 1 MB
+const limiter = createRouteLimiter({ limit: 30, windowMs: 60_000, bindingName: "RL_30_MIN" });
 
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
@@ -11,14 +13,12 @@ export async function GET(request: NextRequest) {
   }
 
   const ip = clientIp(request.headers);
-  if (ip !== "unknown") {
-    const verdict = limiter.check(`masters-pgn:${ip}`);
-    if (!verdict.ok) {
-      return NextResponse.json(
-        { error: "Too many requests — try again shortly." },
-        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-      );
-    }
+  const verdict = await limiter.checkAsync(rateLimitKey("masters-pgn", ip));
+  if (!verdict.ok) {
+    return NextResponse.json(
+      { error: "Too many requests — try again shortly." },
+      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+    );
   }
 
   const book = getBookGamePgn(id);
@@ -39,12 +39,15 @@ export async function GET(request: NextRequest) {
         signal: AbortSignal.timeout(8000),
       });
       if (upstream.ok) {
-        const pgn = await upstream.text();
+        const pgn = await readCapped(upstream, MAX_MASTERS_PGN_BYTES);
         return new NextResponse(pgn, {
           headers: { "Content-Type": "text/plain; charset=utf-8" },
         });
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof UpstreamPayloadTooLargeError) {
+        return NextResponse.json({ error: "Upstream response too large" }, { status: 502 });
+      }
       // try the next host
     }
   }

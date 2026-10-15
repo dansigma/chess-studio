@@ -13,6 +13,10 @@
 # testing
 /coverage
 
+# playwright
+/playwright-report/
+/test-results/
+
 # next.js
 /.next/
 /out/
@@ -51,3 +55,7 @@ next-env.d.ts
 
 # local supabase state
 supabase/.temp/
+
+# large engine wasm binaries (served via Cloudflare R2 bucket chess-studio-engine)
+public/engine/stockfish-19-single.wasm
+public/engine/full/stockfish-19.wasm

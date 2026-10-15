@@ -30,7 +30,6 @@ import {
   Cpu,
   FileText,
   GitBranch,
-  LayoutGrid,
   Lightbulb,
   Library,
   ListOrdered,
@@ -68,6 +67,7 @@ import {
   type DockLayoutSnapshot,
 } from "./dock-layout";
 import { parseExplorerSource } from "./ExplorerPanel";
+import { ChessboardIcon } from "./ui/ChessboardIcon";
 
 const TAB_ICONS: Record<string, LucideIcon> = {
   engine: Cpu,
@@ -89,10 +89,10 @@ function StudioTab(props: IDockviewPanelHeaderProps) {
   // SIG-908: same for `explorer:<uid>` panels.
   const Icon =
     TAB_ICONS[props.api.id] ??
-    (isBoardPanelId(props.api.id) ? LayoutGrid : isExplorerPanelId(props.api.id) ? BookOpen : undefined);
+    (isBoardPanelId(props.api.id) ? ChessboardIcon : isExplorerPanelId(props.api.id) ? BookOpen : undefined);
   return (
-    <div className="flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden">
-      {Icon ? <Icon aria-hidden="true" className="ml-0.5 shrink-0 opacity-70" size={13} /> : null}
+    <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+      {Icon ? <Icon aria-hidden="true" className="dv-tab-context-icon ml-0.5 shrink-0 transition-opacity" size={13} /> : null}
       <DockviewDefaultTab {...props} />
     </div>
   );

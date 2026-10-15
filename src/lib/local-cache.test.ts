@@ -5,6 +5,8 @@ import {
   COURSE_PROGRESS_OWNER_KEY,
   CUSTOM_COURSES_KEY,
   PUZZLE_PROGRESS_KEY,
+  REPERTOIRE_PROGRESS_KEY,
+  REPERTOIRE_PROGRESS_OWNER_KEY,
   isCourseProgressOwnedBy,
   purgeUserLocalCaches,
   readCourseProgressOwner,
@@ -64,12 +66,14 @@ async function resetAll(): Promise<void> {
 }
 
 describe("purgeUserLocalCaches", () => {
-  it("removes the three caches plus the owner marker", async () => {
+  it("removes the local caches plus the owner markers", async () => {
     await resetAll();
     writeRawCache(COURSE_PROGRESS_KEY, JSON.stringify(A_PROGRESS));
     writeRawCache(CUSTOM_COURSES_KEY, JSON.stringify([{ id: "draft-a" }]));
     writeRawCache(PUZZLE_PROGRESS_KEY, JSON.stringify({ rating: 1500 }));
+    writeRawCache(REPERTOIRE_PROGRESS_KEY, JSON.stringify({ "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP:e7e5": { intervalDays: 6 } }));
     writeCourseProgressOwner("user-a");
+    writeRawCache(REPERTOIRE_PROGRESS_OWNER_KEY, "user-a");
 
     purgeUserLocalCaches();
 
@@ -77,6 +81,8 @@ describe("purgeUserLocalCaches", () => {
     assert.equal(storage.get(CUSTOM_COURSES_KEY), undefined);
     assert.equal(storage.get(PUZZLE_PROGRESS_KEY), undefined);
     assert.equal(storage.get(COURSE_PROGRESS_OWNER_KEY), undefined);
+    assert.equal(storage.get(REPERTOIRE_PROGRESS_KEY), undefined);
+    assert.equal(storage.get(REPERTOIRE_PROGRESS_OWNER_KEY), undefined);
   });
 
   it("writes nothing when the caches are already absent", async () => {

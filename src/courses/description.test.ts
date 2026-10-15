@@ -54,6 +54,39 @@ describe("course description", () => {
     );
   });
 
+  it("neutralizes XSS attack vectors across mixed-case, NUL bytes, and smuggled tags", () => {
+    // Mixed-case script tags
+    assert.equal(sanitizeCourseHtml("<sCrIpT>alert(1)</sCrIpT>"), "");
+    assert.equal(sanitizeCourseHtml("<SCRIPT SRC=\"https://evil.com/xss.js\"></SCRIPT>"), "");
+
+    // NUL byte injection in tags and text
+    assert.equal(sanitizeCourseHtml("<scr\u0000ipt>alert(1)</script>"), "");
+    assert.equal(sanitizeCourseHtml("<s\u0000cript>alert(1)</s\u0000cript>"), "");
+    assert.equal(sanitizeCourseHtml("<p>Hello\u0000 World</p>"), "<p>Hello World</p>");
+
+    // Event handler attributes (onerror, onload, onmouseover)
+    assert.equal(sanitizeCourseHtml('<img src="x" onerror="alert(1)">'), "");
+    assert.equal(sanitizeCourseHtml('<p onload="alert(1)" onmouseover="alert(2)">hover</p>'), "<p>hover</p>");
+    assert.equal(sanitizeCourseHtml('<div onclick="alert(1)">content</div>'), "<div>content</div>");
+
+    // javascript: URLs in various tags
+    assert.equal(sanitizeCourseHtml('<iframe src="javascript:alert(1)"></iframe>'), "");
+    assert.equal(sanitizeCourseHtml('<object data="javascript:alert(1)"></object>'), "");
+
+    // SVG vectors
+    assert.equal(sanitizeCourseHtml("<svg><circle r=10 /></svg>"), "");
+    assert.equal(sanitizeCourseHtml("<svg><script>alert(1)</script></svg>"), "[removed]");
+
+    // Mixed-case permitted tags are normalized and attributes stripped
+    assert.equal(sanitizeCourseHtml("<DIV><STRONG>text</STRONG></DIV>"), "<div><strong>text</strong></div>");
+    assert.equal(sanitizeCourseHtml("<B>bold</B> and <I>italic</I>"), "<strong>bold</strong> and <em>italic</em>");
+    assert.equal(sanitizeCourseHtml("<P><U>underline</U></P>"), "<p><u>underline</u></p>");
+
+    // Attribute-smuggled tags and less-than symbols
+    assert.equal(sanitizeCourseHtml('<div title="<script>alert(1)</script>">hello</div>'), "<div>hello</div>");
+    assert.equal(sanitizeCourseHtml('<p title="a<b">text</p>'), "<p>text</p>");
+  });
+
   it("keeps underline, bullet, and ordered lists the pipeline preserves", () => {
     assert.equal(
       sanitizeCourseHtml("<p><u>Under</u></p><ul><li>One</li></ul><ol><li>First</li></ol>"),

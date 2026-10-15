@@ -2,6 +2,7 @@ export function createLruCache<K, V>(maxEntries: number): {
   get(key: K): V | undefined;
   set(key: K, value: V): void;
   size(): number;
+  clear(): void;
 } {
   const store = new Map<K, V>();
   return {
@@ -27,6 +28,9 @@ export function createLruCache<K, V>(maxEntries: number): {
     },
     size(): number {
       return store.size;
+    },
+    clear(): void {
+      store.clear();
     },
   };
 }

@@ -5,6 +5,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { BOARD_THEME_IDS, BOARD_THEMES, type BoardTheme } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
+import { NOTATION_DENSITY_IDS, NOTATION_DENSITIES } from "./notation-density";
 import { ENGINE_BUILDS, ENGINE_BUILD_INFO } from "@/src/engine/stockfish-client";
 import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "./color-scheme";
 import { Dialog } from "./ui/Dialog";
@@ -75,6 +76,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const setBoardTheme = useStudioStore((state) => state.setBoardTheme);
   const setPieceSet = useStudioStore((state) => state.setPieceSet);
   const setMoveNotation = useStudioStore((state) => state.setMoveNotation);
+  const setNotationDensity = useStudioStore((state) => state.setNotationDensity);
   const toggleCoordinates = useStudioStore((state) => state.toggleCoordinates);
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
   const toggleMoveSound = useStudioStore((state) => state.toggleMoveSound);
@@ -149,6 +151,13 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               value={settings.moveNotation}
               options={MOVE_NOTATION_IDS.map((id) => ({ id, label: MOVE_NOTATIONS[id].label }))}
               onChange={setMoveNotation}
+            />
+          </Row>
+          <Row label="Notation density">
+            <Select
+              value={settings.notationDensity}
+              options={NOTATION_DENSITY_IDS.map((id) => ({ id, label: NOTATION_DENSITIES[id].label }))}
+              onChange={setNotationDensity}
             />
           </Row>
         </Section>

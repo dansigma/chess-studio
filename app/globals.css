@@ -184,24 +184,25 @@ body {
 .dockview-theme-vs {
   --dv-background-color: var(--studio-bg);
   --dv-group-view-background-color: var(--studio-panel);
-  --dv-tabs-and-actions-container-background-color: var(--studio-elevated);
+  --dv-tabs-and-actions-container-background-color: var(--studio-bg);
   --dv-tabs-and-actions-container-height: 32px;
   --dv-tabs-and-actions-container-font-size: 12px;
   --dv-tab-font-size: 12px;
-  --dv-tab-margin: 4px 3px;
-  --dv-tab-border-radius: 8px;
-  --dv-activegroup-visiblepanel-tab-background-color: var(--studio-tab);
-  --dv-activegroup-hiddenpanel-tab-background-color: var(--studio-selected);
-  --dv-inactivegroup-visiblepanel-tab-background-color: var(--studio-selected);
-  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--studio-selected);
+  --dv-tab-margin: 3px 2px 0 2px;
+  --dv-tab-border-radius: 6px;
+  --dv-activegroup-visiblepanel-tab-background-color: var(--studio-panel);
+  --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--studio-panel);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
   --dv-activegroup-visiblepanel-tab-color: var(--studio-fg);
   --dv-activegroup-hiddenpanel-tab-color: var(--studio-muted);
   --dv-inactivegroup-visiblepanel-tab-color: var(--studio-fg);
-  --dv-inactivegroup-hiddenpanel-tab-color: var(--studio-faint);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--studio-muted);
   --dv-tab-divider-color: transparent;
   --dv-separator-border: transparent;
   --dv-sash-color: var(--studio-bg);
-  --dv-paneview-header-border-color: var(--studio-selected);
+  --dv-paneview-header-border-color: var(--studio-border);
+  --dv-icon-hover-background-color: var(--studio-hover-strong);
   --dv-border-radius: 8px;
 }
 
@@ -223,24 +224,73 @@ body {
 .dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container,
 .dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container {
   box-sizing: border-box;
-  border-bottom: none;
-  padding: 0 6px;
+  border-bottom: 1px solid var(--studio-border);
+  padding: 0 4px 0 0;
   border-top-left-radius: var(--dv-border-radius);
   border-top-right-radius: var(--dv-border-radius);
+  position: relative;
 }
 
-.dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-active-tab,
-.dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab,
-.dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tab.dv-active-tab,
-.dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab {
-  border-top: none;
-  border-radius: var(--dv-tab-border-radius);
+.dockview-theme-vs .dv-tabs-and-actions-container .dv-tabs-container {
+  height: calc(100% + 1px);
+}
+
+/* SIG-954: the first tab sits flush with the group's left edge. Only the
+   left margin is zeroed so the 3px top margin and inter-tab gaps from
+   --dv-tab-margin are preserved for every other tab. */
+.dockview-theme-vs .dv-tabs-container > .dv-tab:first-child {
+  margin-left: 0;
 }
 
 .dockview-theme-vs .dv-tab {
   display: flex;
   align-items: center;
-  border-radius: var(--dv-tab-border-radius);
+  padding: 0 8px;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  font-size: 12px;
+  user-select: none;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.dockview-theme-vs .dv-tab:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: -2px;
+}
+
+.dockview-theme-vs .dv-tab:focus-visible::after,
+.dockview-theme-vs .dv-tab:has(:focus-visible)::after {
+  display: none;
+}
+
+.dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-active-tab,
+.dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tab.dv-active-tab {
+  background-color: var(--studio-panel);
+  color: var(--studio-fg);
+  font-weight: 500;
+  border: 1px solid var(--studio-border);
+  border-bottom: 1px solid var(--studio-panel);
+  position: relative;
+  z-index: 10;
+}
+
+.dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab,
+.dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab {
+  background-color: transparent;
+  color: var(--studio-muted);
+  font-weight: 400;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-bottom: 1px;
+}
+
+.dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab:hover,
+.dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab:hover {
+  background-color: var(--studio-hover);
+  color: var(--studio-fg);
 }
 
 .dockview-theme-vs .dv-tab .dv-default-tab {
@@ -248,8 +298,80 @@ body {
   flex: 1;
 }
 
+.dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-content {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action {
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  border-radius: 6px;
+  color: var(--studio-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: visible;
+  pointer-events: none;
+  transition: background-color 150ms ease, color 150ms ease, opacity 120ms ease;
+}
+
+/* SIG-955: compact tab close, visible only on tab hover/focus. The base
+   rule above hides the X at rest (including the active tab, neutralising
+   dockview's always-visible active-tab rule by source order); these reveal
+   it with a quick fade when the tab is hovered or keyboard-focused. */
+.dockview-theme-vs .dv-tab.dv-active-tab .dv-default-tab .dv-default-tab-action {
+  visibility: visible;
+  opacity: 0;
+}
+
+.dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action svg {
+  width: 12px;
+  height: 12px;
+}
+
+.dockview-theme-vs .dv-tab:hover .dv-default-tab .dv-default-tab-action,
+.dockview-theme-vs .dv-tab:focus-within .dv-default-tab .dv-default-tab-action,
+.dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .dockview-theme-vs .dv-tab.dv-active-tab .dv-default-tab .dv-default-tab-action {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 .dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action:hover {
-  border-radius: 999px;
+  border-radius: 6px;
+  background-color: var(--studio-hover-strong);
+  color: var(--studio-fg);
+}
+
+.dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 1px;
+}
+
+.dockview-theme-vs .dv-tab.dv-active-tab .dv-tab-context-icon {
+  opacity: 1;
+  color: var(--studio-fg);
+}
+
+.dockview-theme-vs .dv-tab.dv-inactive-tab .dv-tab-context-icon {
+  opacity: 0.6;
+  color: var(--studio-muted);
+}
+
+.dockview-theme-vs .dv-tab.dv-inactive-tab:hover .dv-tab-context-icon {
+  opacity: 0.9;
+  color: var(--studio-fg);
 }
 
 .dockview-theme-vs .dv-tabs-overflow-dropdown-default {

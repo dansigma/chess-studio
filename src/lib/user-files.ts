@@ -10,6 +10,7 @@ const FILES_KEY = "studio-clone-files";
 export type FileFolder = {
   id: string;
   name: string;
+  parentId: string | null;
 };
 
 export type FileGame = ParsedFileGame;
@@ -67,7 +68,13 @@ export function loadLocalFiles(): FilesLibrary {
         if (!isRecord(item) || typeof item.id !== "string" || typeof item.name !== "string") {
           return [];
         }
-        return [{ id: item.id, name: item.name }];
+        return [
+          {
+            id: item.id,
+            name: item.name,
+            parentId: typeof item.parentId === "string" ? item.parentId : null,
+          },
+        ];
       }),
       databases: parsed.databases.flatMap((item) => {
         if (!isRecord(item) || typeof item.id !== "string" || typeof item.name !== "string") {
@@ -129,6 +136,7 @@ export async function persistRemoteDatabase(
         name: database.name,
         kind: "personal",
         game_count: database.games.length,
+        folder_id: database.folderId,
       })
       .select("id")
       .single();
@@ -139,7 +147,11 @@ export async function persistRemoteDatabase(
   } else {
     await supabase
       .from("game_databases")
-      .update({ name: database.name, game_count: database.games.length })
+      .update({
+        name: database.name,
+        game_count: database.games.length,
+        folder_id: database.folderId,
+      })
       .eq("id", remoteId);
     await supabase.from("games").delete().eq("database_id", remoteId);
   }
@@ -268,18 +280,50 @@ async function insertChunks<T extends PositionRow | StatRow>(
   return null;
 }
 
-export async function loadRemoteFiles(userId: string): Promise<FileDatabase[]> {
+export async function persistRemoteFolder(folder: FileFolder, userId: string): Promise<void> {
   const supabase = createBrowserSupabase();
   if (!supabase) {
-    return [];
+    return;
   }
+  await supabase.from("user_folders").upsert({
+    id: folder.id,
+    user_id: userId,
+    name: folder.name,
+    parent_id: folder.parentId,
+  });
+}
+
+export async function deleteRemoteFolder(folderId: string): Promise<void> {
+  const supabase = createBrowserSupabase();
+  if (!supabase) {
+    return;
+  }
+  await supabase.from("user_folders").delete().eq("id", folderId);
+}
+
+export async function loadRemoteFiles(userId: string): Promise<FilesLibrary> {
+  const supabase = createBrowserSupabase();
+  if (!supabase) {
+    return EMPTY_FILES;
+  }
+  const { data: folderRows } = await supabase
+    .from("user_folders")
+    .select("id, name, parent_id")
+    .eq("user_id", userId);
+
+  const folders: FileFolder[] = (folderRows ?? []).map((row) => ({
+    id: row.id,
+    name: row.name,
+    parentId: row.parent_id,
+  }));
+
   const { data: databases, error } = await supabase
     .from("game_databases")
-    .select("id, name, game_count")
+    .select("id, name, game_count, folder_id")
     .eq("user_id", userId)
     .eq("kind", "personal");
   if (error || !databases) {
-    return [];
+    return { folders, databases: [] };
   }
   const result: FileDatabase[] = [];
   for (const row of databases) {
@@ -291,7 +335,7 @@ export async function loadRemoteFiles(userId: string): Promise<FileDatabase[]> {
       id: crypto.randomUUID(),
       remoteId: row.id,
       name: row.name,
-      folderId: null,
+      folderId: row.folder_id ?? null,
       games: (games ?? []).map((game) => ({
         id: game.id,
         white: game.white,
@@ -304,7 +348,7 @@ export async function loadRemoteFiles(userId: string): Promise<FileDatabase[]> {
       })),
     });
   }
-  return result;
+  return { folders, databases: result };
 }
 
 export async function deleteRemoteDatabase(remoteId: string): Promise<void> {
@@ -314,3 +358,60 @@ export async function deleteRemoteDatabase(remoteId: string): Promise<void> {
   }
   await supabase.from("game_databases").delete().eq("id", remoteId);
 }
+
+export function isDescendantFolder(
+  folders: FileFolder[],
+  folderId: string,
+  potentialAncestorId: string,
+): boolean {
+  let current = folders.find((f) => f.id === folderId);
+  const visited = new Set<string>();
+  while (current && current.parentId) {
+    if (visited.has(current.id)) {
+      break;
+    }
+    visited.add(current.id);
+    if (current.parentId === potentialAncestorId) {
+      return true;
+    }
+    current = folders.find((f) => f.id === current?.parentId);
+  }
+  return false;
+}
+
+export function getDescendantFolderIds(
+  folders: FileFolder[],
+  folderId: string,
+): Set<string> {
+  const descendants = new Set<string>();
+  const queue = [folderId];
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    for (const folder of folders) {
+      if (folder.parentId === parentId && !descendants.has(folder.id)) {
+        descendants.add(folder.id);
+        queue.push(folder.id);
+      }
+    }
+  }
+  return descendants;
+}
+
+export function canMoveFolder(
+  folders: FileFolder[],
+  folderId: string,
+  targetParentId: string | null,
+): boolean {
+  if (targetParentId === null) {
+    return true;
+  }
+  if (targetParentId === folderId) {
+    return false;
+  }
+  const targetExists = folders.some((f) => f.id === targetParentId);
+  if (!targetExists) {
+    return false;
+  }
+  return !isDescendantFolder(folders, targetParentId, folderId);
+}
+

@@ -67,11 +67,13 @@ export function MenuBarViewMenu({
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
+  const notationDensity = useStudioStore((state) => state.settings.notationDensity);
   const colorScheme = useStudioStore((state) => state.settings.colorScheme);
   const toggleCoordinates = useStudioStore((state) => state.toggleCoordinates);
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
   const toggleGamePreview = useStudioStore((state) => state.toggleGamePreview);
   const toggleMoveSound = useStudioStore((state) => state.toggleMoveSound);
+  const toggleNotationDensity = useStudioStore((state) => state.toggleNotationDensity);
   const setBoardTheme = useStudioStore((state) => state.setBoardTheme);
   const setPieceSet = useStudioStore((state) => state.setPieceSet);
   const setMoveNotation = useStudioStore((state) => state.setMoveNotation);
@@ -85,6 +87,12 @@ export function MenuBarViewMenu({
       <Item label="Show evaluation bar" checked={showEvalBar} onMouseEnter={leaveSubmenu} onClick={run(toggleEvalBar)} />
       <Item label="Game preview mode" checked={gamePreviewEnabled} onMouseEnter={leaveSubmenu} onClick={run(toggleGamePreview)} />
       <Item label="Move sound" checked={moveSound} onMouseEnter={leaveSubmenu} onClick={run(toggleMoveSound)} />
+      <Item
+        label="Compact notation"
+        checked={notationDensity === "compact"}
+        onMouseEnter={leaveSubmenu}
+        onClick={run(toggleNotationDensity)}
+      />
       <Divider />
       <Submenu label="Open panel" open={viewSub === "panel"} onOpen={() => setViewSub("panel")} onClose={leaveSubmenu}>
         <Item

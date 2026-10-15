@@ -11,14 +11,24 @@ import {
 } from "@/src/lib/explorer-types";
 import { filtersAreDefault, filtersFromSearchParams, lichessFilterQuery } from "@/src/lib/explorer-filters";
 import { emptyExplorer, lookupOpeningBook } from "@/src/lib/opening-book";
+import { lookupCuratedIndex } from "@/src/lib/offline-explorer";
 import { lookupOpeningIndex } from "@/src/lib/opening-index";
 import { createLruCache } from "@/src/lib/lru";
 import { isExplorerFen } from "@/src/lib/request-validation";
-import { clientIp, createRateLimiter } from "@/src/lib/rate-limit";
+import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 
 const memoryCache = createLruCache<string, { payload: ExplorerResponse; fetchedAt: number }>(500);
-const limiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
+const limiter = createRouteLimiter({ limit: 60, windowMs: 60_000, bindingName: "RL_60_MIN" });
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
+const FALLBACK_CACHE_TTL_MS = 1000 * 60 * 2;
+const LICHESS_BACKOFF_MS = 1000 * 30;
+
+let lichessBackoffUntil = 0;
+
+export function _resetExplorerStateForTest() {
+  memoryCache.clear();
+  lichessBackoffUntil = 0;
+}
 
 type LichessPlayer = {
   name?: string;
@@ -53,8 +63,8 @@ type LichessExplorer = {
   recentGames?: LichessGame[];
 };
 
-function isSource(value: string | null): value is "masters" | "lichess" {
-  return value === "masters" || value === "lichess";
+function isSource(value: string | null): value is "masters" | "lichess" | "curated" {
+  return value === "masters" || value === "lichess" || value === "curated";
 }
 
 function cacheKey(source: CloudExplorerSource, fen: string): string {
@@ -134,6 +144,9 @@ async function fetchLichess(
   fen: string,
   filterQuery: string,
 ): Promise<ExplorerResponse | null> {
+  if (Date.now() < lichessBackoffUntil) {
+    return null;
+  }
   const token = lichessToken();
   const endpoints =
     source === "masters"
@@ -160,6 +173,7 @@ async function fetchLichess(
         signal: AbortSignal.timeout(8000),
       });
       if (response.ok) {
+        lichessBackoffUntil = 0;
         const raw = (await response.json()) as LichessExplorer;
         return mapResponse(source, fen, raw);
       }
@@ -167,6 +181,7 @@ async function fetchLichess(
       // try the fallback host
     }
   }
+  lichessBackoffUntil = Date.now() + LICHESS_BACKOFF_MS;
   return null;
 }
 
@@ -175,7 +190,7 @@ export async function GET(request: NextRequest) {
   const sourceParam = request.nextUrl.searchParams.get("source");
   if (!fen || !isSource(sourceParam)) {
     return NextResponse.json(
-      { error: "fen and source=masters|lichess are required" },
+      { error: "fen and source=masters|lichess|curated are required" },
       { status: 400 },
     );
   }
@@ -184,23 +199,30 @@ export async function GET(request: NextRequest) {
   }
 
   const ip = clientIp(request.headers);
-  if (ip !== "unknown") {
-    const verdict = limiter.check(`explorer:${ip}`);
-    if (!verdict.ok) {
-      return NextResponse.json(
-        { error: "Too many requests — try again shortly." },
-        { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-      );
-    }
+  const verdict = await limiter.checkAsync(rateLimitKey("explorer", ip));
+  if (!verdict.ok) {
+    return NextResponse.json(
+      { error: "Too many requests — try again shortly." },
+      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
+    );
   }
 
   const filters = filtersFromSearchParams(request.nextUrl.searchParams);
+
+  if (sourceParam === "curated") {
+    const payload = lookupCuratedIndex(fen, filters, lookupOpeningIndex);
+    return NextResponse.json(payload);
+  }
+
   const filtered = !filtersAreDefault(filters);
   const filterQuery = lichessFilterQuery(sourceParam, filters);
   const key = filtered ? `${cacheKey(sourceParam, fen)}|${filterQuery}` : cacheKey(sourceParam, fen);
   const memory = memoryCache.get(key);
-  if (memory && Date.now() - memory.fetchedAt < CACHE_TTL_MS && !memory.payload.notice) {
-    return NextResponse.json(memory.payload);
+  if (memory) {
+    const ttl = memory.payload.notice ? FALLBACK_CACHE_TTL_MS : CACHE_TTL_MS;
+    if (Date.now() - memory.fetchedAt < ttl) {
+      return NextResponse.json(memory.payload);
+    }
   }
 
   const supabase = await createServerSupabase();

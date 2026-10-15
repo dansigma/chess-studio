@@ -16,7 +16,10 @@ export function SidebarPanel({
   children: ReactNode;
 }) {
   return (
-    <aside className="relative flex h-full w-64 shrink-0 flex-col overflow-hidden rounded-[10px] bg-studio-panel">
+    <aside
+      className="relative flex h-full shrink-0 flex-col overflow-hidden rounded-[10px] bg-studio-panel"
+      style={{ width: "var(--sidebar-width, 256px)" }}
+    >
       <div className="px-3 pb-2.5 pt-3">
         <div className="flex h-6 items-center justify-between gap-2">
           <h2 className="truncate text-body font-semibold text-studio-fg">{title}</h2>
