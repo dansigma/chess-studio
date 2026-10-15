@@ -219,3 +219,14 @@ test("miss never applies to the engine's best move", () => {
   const graded = gradeMove({ side: "w", playedUci: "d1h5", before: score(3, "d1h5"), afterWhitePawns: 0.8, sacrifice: false, opponentLastLoss: 30 });
   assert.notEqual(graded.label, "miss");
 });
+
+test("a move that leaves the mover clearly worse is never very good or decent", () => {
+  // -8.0 -> -8.1 pawns barely moves win chance, but the side is already lost.
+  const lost = gradeMove({ side: "w", playedUci: "a2a3", before: score(-8, "e2e4"), afterWhitePawns: -8.1, sacrifice: false });
+  assert.equal(lost.label, null);
+  const lostDecent = gradeMove({ side: "b", playedUci: "a7a6", before: score(8, "e7e5"), afterWhitePawns: 8.3, sacrifice: false });
+  assert.equal(lostDecent.label, null);
+  // The same tiny loss from a level position stays "very good".
+  const level = gradeMove({ side: "w", playedUci: "a2a3", before: score(0, "e2e4"), afterWhitePawns: -0.05, sacrifice: false });
+  assert.equal(level.label, "veryGood");
+});

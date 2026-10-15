@@ -14,6 +14,7 @@ import { BoardPanel } from "./BoardPanel";
 import { EnginePanel } from "./EnginePanel";
 import { EvalGraphPanel } from "./EvalGraphPanel";
 import { ReviewPanel } from "./ReviewPanel";
+import { PositionInsightsPanel } from "./PositionInsightsPanel";
 import { ExplorerPanel } from "./ExplorerPanel";
 import { FileGamesPanel } from "./FileGamesPanel";
 import { GamesPanel } from "./GamesPanel";
@@ -29,6 +30,7 @@ import {
   Cpu,
   FileText,
   GitBranch,
+  Lightbulb,
   Library,
   ListOrdered,
   Plus,
@@ -71,6 +73,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   engine: Cpu,
   evalGraph: ChartSpline,
   review: ClipboardCheck,
+  insights: Lightbulb,
   notation: ListOrdered,
   repertoire: GitBranch,
   explorer: BookOpen,
@@ -159,6 +162,7 @@ const components = {
   engine: () => <EnginePanel />,
   evalGraph: () => <EvalGraphPanel />,
   review: () => <ReviewPanel />,
+  insights: () => <PositionInsightsPanel />,
   notation: () => <NotationPanel />,
   repertoire: () => <RepertoirePanel />,
   explorer: ExplorerDockPanel,
@@ -179,6 +183,20 @@ function ensureReviewPanel(api: DockviewReadyEvent["api"]): void {
     id: "review",
     component: "review",
     title: "Game Review",
+    inactive: true,
+    position: reference ? { referencePanel: reference.id } : undefined,
+  });
+}
+
+function ensureInsightsPanel(api: DockviewReadyEvent["api"]): void {
+  if (api.getPanel("insights")) {
+    return;
+  }
+  const reference = api.getPanel("review") ?? api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
+  api.addPanel({
+    id: "insights",
+    component: "insights",
+    title: "Insights",
     inactive: true,
     position: reference ? { referencePanel: reference.id } : undefined,
   });
@@ -410,6 +428,7 @@ export function StudioDock() {
         placePlayers(api);
         ensureRepertoirePanel(api);
         ensureReviewPanel(api);
+        ensureInsightsPanel(api);
       });
     });
     const saved = takeQueuedDockLayout() ?? readStoredDockLayout();
@@ -420,6 +439,7 @@ export function StudioDock() {
       placePlayers(api);
       ensureRepertoirePanel(api);
       ensureReviewPanel(api);
+      ensureInsightsPanel(api);
     });
     // SIG-907: focus→active so notation/engine/explorer follow the focused
     // board panel. Guard on "different + exists" — setActiveBoard clears

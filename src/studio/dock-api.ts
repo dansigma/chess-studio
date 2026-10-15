@@ -13,6 +13,7 @@ export type StudioPanelId =
   | "engine"
   | "evalGraph"
   | "review"
+  | "insights"
   | "notation"
   | "repertoire"
   | "explorer"
@@ -24,6 +25,7 @@ const PANEL_TITLES: Record<StudioPanelId, string> = {
   engine: "Engine",
   evalGraph: "Eval Graph",
   review: "Game Review",
+  insights: "Insights",
   notation: "Notation",
   repertoire: "Repertoire",
   explorer: "Ultra Database",
@@ -202,6 +204,13 @@ export function seedDefaultLayout(api: DockviewApi, boardTitle: string, boardId:
     position: { referencePanel: "evalGraph" },
   });
   api.addPanel({
+    id: "insights",
+    component: "insights",
+    title: PANEL_TITLES.insights,
+    inactive: true,
+    position: { referencePanel: "review" },
+  });
+  api.addPanel({
     id: "explorer",
     component: "explorer",
     title: PANEL_TITLES.explorer,
@@ -270,10 +279,10 @@ export function openStudioPanel(id: StudioPanelId): void {
     return;
   }
 
-  if (id === "engine" || id === "evalGraph" || id === "review") {
+  if (id === "engine" || id === "evalGraph" || id === "review" || id === "insights") {
     const fallbackBoard = firstBoardPanel(dockApi);
     const reference =
-      id === "review"
+      id === "review" || id === "insights"
         ? (dockApi.getPanel("evalGraph") ?? dockApi.getPanel("engine") ?? fallbackBoard)
         : id === "evalGraph"
           ? (dockApi.getPanel("engine") ?? fallbackBoard ?? dockApi.getPanel("notation"))
@@ -284,7 +293,7 @@ export function openStudioPanel(id: StudioPanelId): void {
       title: PANEL_TITLES[id],
       initialHeight: 220,
       position:
-        id === "evalGraph" || id === "review"
+        id === "evalGraph" || id === "review" || id === "insights"
           ? reference
             ? { referencePanel: reference.id }
             : undefined
@@ -315,6 +324,7 @@ export const OPEN_PANEL_ITEMS: Array<{ id: StudioPanelId; label: string }> = [
   { id: "engine", label: "Engine" },
   { id: "evalGraph", label: "Eval Graph" },
   { id: "review", label: "Game Review" },
+  { id: "insights", label: "Insights" },
   { id: "explorer", label: "Ultra Database" },
   { id: "games", label: "Ultra Games" },
   { id: "fileGames", label: "Games" },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { getNodeAt, moveNumberForPath, plyColor, type Path } from "@/src/chess/tree";
+import { canMakeMainline, canPromote, getNodeAt, moveNumberForPath, plyColor, type Path } from "@/src/chess/tree";
 import { useActiveBoard, useActivePathKey } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { formatSan } from "@/src/chess/move-notation";
@@ -9,7 +9,7 @@ import { GameInfoDialog } from "./GameInfoDialog";
 import { NotationCommentEditor } from "./NotationCommentEditor";
 import { NotationHeader } from "./NotationHeader";
 import { NotationToolbar } from "./NotationToolbar";
-import { MoveGlyphMenu, type GlyphMenuState } from "./MoveGlyphMenu";
+import { NotationContextMenu, notationMenuEnablement, type NotationMenuState } from "./NotationContextMenu";
 import { pgnResultCaption } from "./ResultMark";
 import { Line } from "./NotationMoves";
 import { displayDate, displayEvent } from "./notation-format";
@@ -32,11 +32,13 @@ export function NotationPanel() {
   const setMoveCommentBefore = useStudioStore((state) => state.setMoveCommentBefore);
   const toggleMoveNag = useStudioStore((state) => state.toggleMoveNag);
   const clearMoveNags = useStudioStore((state) => state.clearMoveNags);
+  const setupMode = useStudioStore((state) => state.setupMode);
+  const insertNullMove = useStudioStore((state) => state.insertNullMove);
   const setHeaders = useStudioStore((state) => state.setHeaders);
   const editor = useStudioStore((state) => state.notationEditor);
   const setEditor = useStudioStore((state) => state.setNotationEditor);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [glyphMenu, setGlyphMenu] = useState<GlyphMenuState | null>(null);
+  const [contextMenu, setContextMenu] = useState<NotationMenuState | null>(null);
 
   const current = getNodeAt(board.tree, board.path);
   const currentComment =
@@ -90,11 +92,35 @@ export function NotationPanel() {
 
   const handleAnnotate = useCallback(
     (path: Path, event: React.MouseEvent) => {
+      // No-op paths (start position) surface no menu: the actions all target
+      // a move node.
+      if (path.length === 0) {
+        return;
+      }
       goPath(path);
-      setGlyphMenu({ x: event.clientX, y: event.clientY, path });
+      setContextMenu({ x: event.clientX, y: event.clientY, path });
     },
     [goPath],
   );
+
+  // Menu target node (right-clicked move) — read from the stored path rather
+  // than the live cursor so enablement stays stable while the menu is open.
+  const menuNode = contextMenu ? getNodeAt(board.tree, contextMenu.path) : undefined;
+  const menuMoveColor: "w" | "b" = contextMenu
+    ? plyColor(board.tree.startFen, contextMenu.path.length)
+    : "w";
+  const menuNags = menuNode?.nags ?? [];
+  const menuHasMoveNag = menuNags.some((nag) => nag >= 1 && nag <= 6);
+  const menuEnabled = notationMenuEnablement({
+    pathLength: contextMenu?.path.length ?? 0,
+    canPromote: contextMenu ? canPromote(contextMenu.path) : false,
+    canMakeMainline: contextMenu ? canMakeMainline(contextMenu.path) : false,
+    setupMode,
+    hasNags: menuNags.length > 0,
+    hasMoveNag: menuHasMoveNag,
+  });
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   return (
     <div className="relative flex h-full flex-col bg-studio-panel text-sm text-studio-fg">
@@ -168,20 +194,31 @@ export function NotationPanel() {
         />
       ) : null}
 
-      {glyphMenu ? (
-        <MoveGlyphMenu
-          menu={glyphMenu}
-          nags={getNodeAt(board.tree, glyphMenu.path)?.nags ?? []}
-          onToggle={(nag) => toggleMoveNag(nag, glyphMenu.path)}
-          onClear={() => {
-            clearMoveNags(glyphMenu.path);
-            setGlyphMenu(null);
+      {contextMenu && menuNode ? (
+        <NotationContextMenu
+          menu={contextMenu}
+          moveColor={menuMoveColor}
+          nags={menuNags}
+          enabled={menuEnabled}
+          onTextAfter={() => setEditor("comment")}
+          onTextBefore={() => setEditor("commentBefore")}
+          onPromote={promote}
+          onMakeMainline={makeMain}
+          onDeleteVariation={removeVariation}
+          onCutAfter={pruneAfter}
+          onInsertNull={() => {
+            insertNullMove();
           }}
-          onComment={() => {
-            setEditor("comment");
-            setGlyphMenu(null);
+          onToggleNag={(nag) => toggleMoveNag(nag, contextMenu.path)}
+          onClearMoveEval={() => {
+            for (const nag of menuNags) {
+              if (nag >= 1 && nag <= 6) {
+                toggleMoveNag(nag, contextMenu.path);
+              }
+            }
           }}
-          onClose={() => setGlyphMenu(null)}
+          onClearAll={() => clearMoveNags(contextMenu.path)}
+          onClose={closeContextMenu}
         />
       ) : null}
 

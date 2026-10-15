@@ -43,11 +43,13 @@ export const MISS_BEST_WIN_CHANCE = 70; // the best move here reaches at least t
 export const MISS_OWN_LOSS = 10; // the played move loses at least this many points vs best
 
 // Non-best moves are split by win-chance loss: <= VERY_GOOD_LOSS very good, <= DECENT_LOSS decent.
-// The old "interesting" guard (win chance after the move > 45%) was dropped on
-// purpose: tiers depend only on the loss, so a near-best move in a lost position
-// is still "Very good".
+// Both tiers keep the old "interesting" guard: a move that leaves the mover
+// clearly worse (win chance after the move <= NOT_LOST_WIN_CHANCE) is never
+// "Very good" or "Decent", however small the loss, so a lost position is not
+// praised.
 export const VERY_GOOD_LOSS = 2;
 export const DECENT_LOSS = 5;
+export const NOT_LOST_WIN_CHANCE = 45;
 
 function clampCp(whitePawns: number): number {
   return Math.max(-CP_CEILING, Math.min(CP_CEILING, Math.round(whitePawns * 100)));
@@ -167,9 +169,9 @@ export function gradeMove(input: {
     label = "great";
   } else if (playedBest) {
     label = "best";
-  } else if (winDiff <= VERY_GOOD_LOSS) {
+  } else if (winChance(nextCp) > NOT_LOST_WIN_CHANCE && winDiff <= VERY_GOOD_LOSS) {
     label = "veryGood";
-  } else if (winDiff <= DECENT_LOSS) {
+  } else if (winChance(nextCp) > NOT_LOST_WIN_CHANCE && winDiff <= DECENT_LOSS) {
     label = "decent";
   }
 

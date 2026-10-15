@@ -4,6 +4,7 @@ import {
   formatMoveSuffix,
   formatPgnNagTokens,
   formatPositionGlyphs,
+  NAG_GLYPHS,
   nagGlyph,
   parseNags,
   toggleNag,
@@ -73,4 +74,34 @@ test("formatPgnNagTokens joins $-tokens", () => {
 test("nagGlyph looks up known NAGs", () => {
   assert.equal(nagGlyph(1)?.glyph, "!");
   assert.equal(nagGlyph(999), undefined);
+});
+
+test("catalog rows are unique with non-empty glyph and label", () => {
+  const seen = new Set<number>();
+  for (const row of NAG_GLYPHS) {
+    assert.ok(!seen.has(row.nag), `duplicate NAG $${row.nag}`);
+    seen.add(row.nag);
+    assert.ok(row.glyph.length > 0, `NAG $${row.nag} needs a glyph`);
+    assert.ok(row.label.length > 0, `NAG $${row.nag} needs a label`);
+  }
+});
+
+test("spec numbers resolve to the corrected catalog rows", () => {
+  // Phase-0 ground truth: 132 is moderate counterplay, 140 is with-the-idea.
+  assert.equal(nagGlyph(132)?.label, "With counterplay");
+  assert.equal(nagGlyph(140)?.label, "With the idea");
+  assert.equal(nagGlyph(44)?.glyph, "⯹");
+  assert.equal(nagGlyph(45)?.glyph, "⯹");
+  assert.equal(nagGlyph(130)?.glyph, "⇆");
+  assert.equal(nagGlyph(136)?.glyph, "⨁");
+  assert.equal(nagGlyph(37)?.glyph, "↑");
+  assert.equal(nagGlyph(41)?.glyph, "→");
+});
+
+test("new NAGs render glyphs instead of the $N fallback", () => {
+  for (const nag of [37, 41, 44, 45, 130, 132, 136, 140, 146]) {
+    assert.notEqual(formatPositionGlyphs([nag]), `$${nag}`);
+  }
+  assert.equal(formatPgnNagTokens([44, 140]), "$44 $140");
+  assert.deepEqual(toggleNag([44], 140), [44, 140]);
 });
