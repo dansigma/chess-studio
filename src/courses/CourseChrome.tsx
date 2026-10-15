@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SITE_SECTIONS } from "@/src/site/sections";
+import { siteSections } from "@/src/site/sections";
 import { BrandLockup } from "@/src/studio/ui/BrandLockup";
+import { LocaleSwitcher } from "@/src/i18n/LocaleSwitcher";
+import { useStudioStore } from "@/src/store/studio-store";
 
 export function CourseChrome({
   admin = false,
@@ -11,6 +13,7 @@ export function CourseChrome({
   admin?: boolean;
 }) {
   const pathname = usePathname();
+  const locale = useStudioStore((state) => state.settings.locale);
 
   return (
     <header className="flex h-12 items-center gap-4 border-b border-studio-border bg-studio-chrome px-4">
@@ -18,7 +21,7 @@ export function CourseChrome({
         <BrandLockup />
       </Link>
       <nav className="flex items-center gap-1 text-body">
-        {SITE_SECTIONS.map((section) => {
+        {siteSections(locale).map((section) => {
           const active = pathname === section.href || pathname.startsWith(`${section.href}/`);
           return (
             <Link
@@ -41,6 +44,9 @@ export function CourseChrome({
           </Link>
         ) : null}
       </nav>
+      <div className="ml-auto">
+        <LocaleSwitcher />
+      </div>
     </header>
   );
 }

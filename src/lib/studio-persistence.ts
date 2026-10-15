@@ -12,6 +12,7 @@ import {
 import { exportPgn } from "@/src/chess/pgn";
 import { isBoardTheme } from "@/src/chess/board-themes";
 import { isPieceSet } from "@/src/chess/piece-sets";
+import { isSiteLocale } from "@/src/i18n/locale";
 import { SETTINGS_KEY } from "@/src/store/slices/settings";
 import type { BoardSession, StudioSettings } from "@/src/store/slices/types";
 
@@ -80,6 +81,7 @@ export async function persistSettingsRecord(
     board_theme: settings.boardTheme,
     engine_depth: settings.engineDepth,
     multi_pv: settings.multiPv,
+    locale: settings.locale,
   });
   if (error) {
     throw error;
@@ -98,7 +100,7 @@ export async function loadRemoteSettingsForUser(
   // Remote select stays on the known columns to avoid PostgREST errors.
   const { data, error } = await supabase
     .from("user_settings")
-    .select("show_coordinates, board_theme, piece_theme, engine_depth, multi_pv")
+    .select("show_coordinates, board_theme, piece_theme, engine_depth, multi_pv, locale")
     .eq("user_id", userId)
     .maybeSingle();
   if (error || !data) {
@@ -110,6 +112,7 @@ export async function loadRemoteSettingsForUser(
     pieceSet: isPieceSet(data.piece_theme) ? data.piece_theme : undefined,
     engineDepth: data.engine_depth,
     multiPv: data.multi_pv,
+    locale: isSiteLocale(data.locale) ? data.locale : undefined,
   };
 }
 

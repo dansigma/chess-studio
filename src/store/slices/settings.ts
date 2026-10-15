@@ -1,4 +1,4 @@
-import { DEFAULT_EXPLAIN_LOCALE, explainLocaleFromLanguage, isExplainLocale } from "@/src/chess/explain/locale";
+import { DEFAULT_SITE_LOCALE, siteLocaleFromLanguage, isSiteLocale } from "@/src/i18n/locale";
 import { isBoardTheme } from "@/src/chess/board-themes";
 import { isPieceSet } from "@/src/chess/piece-sets";
 import { isMoveNotation } from "@/src/chess/move-notation";
@@ -41,7 +41,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   explorerFilters: DEFAULT_EXPLORER_FILTERS,
   moveSound: false,
-  locale: DEFAULT_EXPLAIN_LOCALE,
+  locale: DEFAULT_SITE_LOCALE,
 };
 
 export function loadLocalSettings(): StudioSettings {
@@ -51,7 +51,7 @@ export function loadLocalSettings(): StudioSettings {
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
     if (!raw) {
-      return { ...DEFAULT_SETTINGS, locale: explainLocaleFromLanguage(window.navigator?.language) };
+      return { ...DEFAULT_SETTINGS, locale: siteLocaleFromLanguage(window.navigator?.language) };
     }
     const parsed = JSON.parse(raw) as Partial<StudioSettings>;
     return {
@@ -101,7 +101,7 @@ export function loadLocalSettings(): StudioSettings {
           : DEFAULT_SETTINGS.sidebarWidth,
       explorerFilters: readExplorerFilters(parsed.explorerFilters),
       moveSound: typeof parsed.moveSound === "boolean" ? parsed.moveSound : DEFAULT_SETTINGS.moveSound,
-      locale: isExplainLocale(parsed.locale) ? parsed.locale : explainLocaleFromLanguage(window.navigator?.language),
+      locale: isSiteLocale(parsed.locale) ? parsed.locale : siteLocaleFromLanguage(window.navigator?.language),
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -264,7 +264,7 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
         ...(partial.gamePreviewEnabled !== undefined
           ? { gamePreviewEnabled: partial.gamePreviewEnabled }
           : {}),
-        ...(isExplainLocale(partial.locale) ? { locale: partial.locale } : {}),
+        ...(isSiteLocale(partial.locale) ? { locale: partial.locale } : {}),
         ...(partial.engineDepth !== undefined ? { engineDepth: clampDepth(partial.engineDepth) } : {}),
         ...(partial.multiPv !== undefined ? { multiPv: clampLines(partial.multiPv) } : {}),
         ...(partial.engineThreads !== undefined

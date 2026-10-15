@@ -5,6 +5,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 import { ColorSchemeSync } from "@/src/studio/ColorSchemeSync";
 import { COLOR_SCHEME_BOOTSTRAP } from "@/src/studio/color-scheme";
+import { LocaleSync } from "@/src/i18n/LocaleSync";
+import { LANG_BOOTSTRAP } from "@/src/i18n/locale";
 import { SITE_NAME } from "@/src/site/sections";
 
 const geistSans = Geist({
@@ -37,7 +39,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Script id="color-scheme-bootstrap" strategy="beforeInteractive">
           {COLOR_SCHEME_BOOTSTRAP}
         </Script>
+        <Script id="lang-bootstrap" strategy="beforeInteractive">
+          {LANG_BOOTSTRAP}
+        </Script>
         <ColorSchemeSync />
+        <LocaleSync />
         {children}
       </body>
     </html>

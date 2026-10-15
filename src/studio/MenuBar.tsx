@@ -6,7 +6,8 @@ import { Check, ChevronDown, Copy, Link2 } from "lucide-react";
 import { signOut } from "@/app/login/actions";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectDirtyCount, useStudioStore } from "@/src/store/studio-store";
-import { SITE_NAME, SITE_SECTIONS } from "@/src/site/sections";
+import { SITE_NAME, siteSections } from "@/src/site/sections";
+import { LocaleSwitcher } from "@/src/i18n/LocaleSwitcher";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 import { BrandLockup } from "./ui/BrandLockup";
 import { Dialog } from "./ui/Dialog";
@@ -54,6 +55,7 @@ export function MenuBar({
   const dirtyCount = useStudioStore(selectDirtyCount);
   const user = useStudioStore((state) => state.user);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
+  const locale = useStudioStore((state) => state.settings.locale);
 
   function close() {
     setOpen(null);
@@ -131,7 +133,7 @@ export function MenuBar({
       <span className="mr-3 px-1.5">
         <BrandLockup />
       </span>
-      {SITE_SECTIONS.filter((section) => section.href !== "/studio").map((section) => (
+      {siteSections(locale).filter((section) => section.href !== "/studio").map((section) => (
         <a
           key={section.href}
           href={section.href}
@@ -174,7 +176,8 @@ export function MenuBar({
         </div>
       ))}
 
-      <div className="relative z-20 ml-auto">
+      <div className="relative z-20 ml-auto flex items-center gap-2">
+        <LocaleSwitcher />
         {user?.email ? (
           <>
             <button
