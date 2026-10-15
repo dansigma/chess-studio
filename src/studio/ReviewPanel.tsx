@@ -3,6 +3,14 @@
 import { useMemo } from "react";
 import { REVIEW_PRESETS, estimateRemainingMs, type ReviewPreset } from "@/src/chess/review-engine";
 import { buildReviewReport, keyMoments } from "@/src/chess/review-report";
+import {
+  formatReviewEta,
+  reviewCancelledText,
+  reviewFailedText,
+  reviewPresetOption,
+  reviewProgressText,
+  tReview,
+} from "@/src/chess/review-strings";
 import { lookupBookOpening } from "@/src/lib/opening-book";
 import { ReviewReportCard } from "./review/ReviewReportCard";
 import { useGameReview } from "./review/useGameReview";
@@ -13,11 +21,6 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "./ui/Button";
 
 const PRESET_IDS = Object.keys(REVIEW_PRESETS) as ReviewPreset[];
-
-function formatEta(ms: number): string {
-  const seconds = Math.max(1, Math.round(ms / 1000));
-  return seconds < 60 ? `~${seconds}s left` : `~${Math.floor(seconds / 60)}m ${seconds % 60}s left`;
-}
 
 export function ReviewPanel() {
   const board = useActiveBoard();
@@ -80,7 +83,10 @@ export function ReviewPanel() {
     }
   };
 
-  const report = useMemo(() => (rows ? buildReviewReport(rows, board.headers) : null), [rows, board.headers]);
+  const report = useMemo(
+    () => (rows ? buildReviewReport(rows, board.headers, locale) : null),
+    [rows, board.headers, locale],
+  );
   const moments = useMemo(() => (rows ? keyMoments(rows) : []), [rows]);
   const openingName = useMemo(() => {
     if (!rows) {
@@ -94,17 +100,15 @@ export function ReviewPanel() {
     }
     return null;
   }, [rows, points]);
-  const lineNote = points[points.length - 1]?.path.some((index) => index !== 0)
-    ? "Reviewed line is a variation, not the main line."
-    : null;
+  const lineNote = points[points.length - 1]?.path.some((index) => index !== 0) ? tReview(locale, "panel.lineNote") : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-studio-panel text-body text-studio-fg">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-studio-border-subtle px-3 py-2">
-        <span className="text-dense font-semibold">Game Review</span>
+        <span className="text-dense font-semibold">{tReview(locale, "panel.title")}</span>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <select
-            aria-label="Review depth"
+            aria-label={tReview(locale, "panel.depthLabel")}
             value={preset}
             disabled={running}
             onChange={(event) => setPreset(event.target.value as ReviewPreset)}
@@ -112,42 +116,42 @@ export function ReviewPanel() {
           >
             {PRESET_IDS.map((id) => (
               <option key={id} value={id}>
-                {REVIEW_PRESETS[id].label} (depth {REVIEW_PRESETS[id].depth})
+                {reviewPresetOption(locale, id, REVIEW_PRESETS[id].depth)}
               </option>
             ))}
           </select>
           {running ? (
             <Button size="sm" onClick={cancel}>
-              Cancel
+              {tReview(locale, "panel.cancel")}
             </Button>
           ) : (
             <Button size="sm" variant="primary" disabled={setupMode || points.length < 2} onClick={start}>
-              {rows ? "Review again" : "Review game"}
+              {rows ? tReview(locale, "panel.reviewAgain") : tReview(locale, "panel.reviewGame")}
             </Button>
           )}
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {points.length < 2 ? (
-          <p className="px-3 py-4 text-dense text-studio-faint">Play or open a game to review it.</p>
+          <p className="px-3 py-4 text-dense text-studio-faint">{tReview(locale, "panel.empty")}</p>
         ) : null}
-        {setupMode ? <p className="px-3 py-2 text-caption text-studio-warning-fg">Paused in setup.</p> : null}
+        {setupMode ? <p className="px-3 py-2 text-caption text-studio-warning-fg">{tReview(locale, "panel.pausedSetup")}</p> : null}
         {running && !setupMode ? (
           <div className="px-3 py-3 text-dense text-studio-muted">
             <div className="mb-1 flex items-center justify-between gap-2">
               <span>
-                Scoring moves at depth {REVIEW_PRESETS[preset].depth}… {progress.done}/{progress.total}
+                {reviewProgressText(locale, { depth: REVIEW_PRESETS[preset].depth, done: progress.done, total: progress.total })}
               </span>
               <span className="text-caption text-studio-faint">
                 {(() => {
                   const remaining = estimateRemainingMs(progress);
-                  return remaining == null ? "estimating…" : formatEta(remaining);
+                  return remaining == null ? tReview(locale, "panel.estimating") : formatReviewEta(locale, remaining);
                 })()}
               </span>
             </div>
             <div
               role="progressbar"
-              aria-label="Review progress"
+              aria-label={tReview(locale, "panel.progressLabel")}
               aria-valuemin={0}
               aria-valuemax={progress.total}
               aria-valuenow={progress.done}
@@ -162,12 +166,12 @@ export function ReviewPanel() {
         ) : null}
         {failed && !running ? (
           <p className="px-3 py-3 text-dense text-studio-warning-fg">
-            The engine stopped responding at {progress.done}/{progress.total} positions. Try the review again.
+            {reviewFailedText(locale, { done: progress.done, total: progress.total })}
           </p>
         ) : null}
         {cancelled && !running && !rows ? (
           <p className="px-3 py-3 text-dense text-studio-muted">
-            Review cancelled at {progress.done}/{progress.total} positions.
+            {reviewCancelledText(locale, { done: progress.done, total: progress.total })}
           </p>
         ) : null}
         {selected && selectedContext && !running ? (
@@ -187,6 +191,7 @@ export function ReviewPanel() {
             report={report}
             moments={moments}
             moveNotation={moveNotation}
+            locale={locale}
             onSelectMoment={goPath}
             openingName={openingName}
             lineNote={lineNote}

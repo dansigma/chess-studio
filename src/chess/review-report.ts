@@ -1,6 +1,8 @@
+import type { SiteLocale } from "../i18n/locale.ts";
 import type { GamePhase } from "./phases.ts";
 import { playerAccuracy } from "./review-accuracy.ts";
 import { countLabels, type ReviewLabel, type ReviewedMove, type TierLabel } from "./review.ts";
+import { reviewPlayerFallback } from "./review-strings.ts";
 
 export type ReviewSide = "w" | "b";
 
@@ -127,16 +129,16 @@ function buildSide(rows: ReportRow[], name: string, rating: number | null): Side
   };
 }
 
-export function buildReviewReport(rows: ReportRow[], headers: ReportHeaders): ReviewReport {
+export function buildReviewReport(rows: ReportRow[], headers: ReportHeaders, locale: SiteLocale = "en"): ReviewReport {
   return {
     white: buildSide(
       rows.filter((row) => row.side === "w"),
-      headers.White || "White",
+      headers.White || reviewPlayerFallback(locale, "w"),
       parseRating(headers.WhiteElo),
     ),
     black: buildSide(
       rows.filter((row) => row.side === "b"),
-      headers.Black || "Black",
+      headers.Black || reviewPlayerFallback(locale, "b"),
       parseRating(headers.BlackElo),
     ),
   };

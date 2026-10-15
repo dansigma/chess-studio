@@ -8,6 +8,7 @@ import type { ExplainLocale } from "@/src/chess/explain/locale";
 import { renderExplanation, uiText } from "@/src/chess/explain/render";
 import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
 import { REVIEW_TIERS } from "@/src/chess/review-tiers";
+import { tierName } from "@/src/chess/review-strings";
 import type { ReviewMoveRow } from "./useGameReview";
 import { marksForStatement } from "./why-marks";
 import { useWhyHover } from "./useWhyHover";
@@ -79,7 +80,7 @@ export function WhyBlock({ row, fenBefore, fenAfter, previous, locale, moveNotat
         <span className="text-dense font-semibold">{uiText(locale, "why")}</span>
         <span className="ml-auto flex items-center gap-1.5 text-caption text-studio-faint">
           <span className="font-medium text-studio-fg">{formatSan(row.san, moveNotation, mover)}</span>
-          {tier ? <span className={tier.className}>{tier.name}</span> : null}
+          {tier && row.label ? <span className={tier.className}>{tierName(locale, row.label)}</span> : null}
         </span>
       </button>
       {open && rendered ? (
