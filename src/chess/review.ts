@@ -1,7 +1,5 @@
 import { Chess, type Color, type PieceSymbol, type Square } from "chess.js";
 
-export const REVIEW_DEPTH = 12;
-
 const WIN_MULTIPLIER = -0.00368208;
 const PIECE_VALUE: Record<PieceSymbol, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 const CP_CEILING = 1000;
@@ -197,14 +195,6 @@ export function bookFlags(playedUcis: string[], replies: Array<readonly string[]
     flags[index] = true;
   }
   return flags;
-}
-
-export function harmonicAccuracy(values: number[]): number | null {
-  if (values.length === 0) {
-    return null;
-  }
-  const sum = values.reduce((total, value) => total + 1 / Math.max(value, 0.5), 0);
-  return Math.round((values.length / sum) * 10) / 10;
 }
 
 export function countLabels(labels: Array<ReviewLabel | null>): Record<ReviewLabel, number> {

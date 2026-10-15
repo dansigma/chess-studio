@@ -1,0 +1,237 @@
+import { Chess } from "chess.js";
+import { isNullMoveToken } from "./null-move.ts";
+import { dividePhases, phaseAt } from "./phases.ts";
+import { volatilityWeights, whiteWinChance } from "./review-accuracy.ts";
+import type { ReportRow } from "./review-report.ts";
+import {
+  bookFlags,
+  gradeMove,
+  hangsPieceOn,
+  isSacrificeOn,
+  lineHolds,
+  mergeBookLabel,
+  type PositionScore,
+} from "./review.ts";
+
+/** Lines analysed for every position; the 2nd/3rd scores drive "only move" detection. */
+export const REVIEW_LINES = 3;
+
+export const REVIEW_PRESETS = {
+  fast: { label: "Fast", depth: 10 },
+  standard: { label: "Standard", depth: 12 },
+  deep: { label: "Deep", depth: 16 },
+} as const;
+
+export type ReviewPreset = keyof typeof REVIEW_PRESETS;
+export const DEFAULT_REVIEW_PRESET: ReviewPreset = "standard";
+
+export const POSITION_TIMEOUT_MS = 25_000;
+const RECHECK_EXTRA_DEPTH = 6;
+const RECHECK_MIN_EXTRA_DEPTH = 4;
+const RECHECK_TIMEOUT_MS = 12_000;
+
+/** One scored line, always from White's point of view (pawns). */
+export type EvalLine = { whitePawns: number; uci: string | null };
+
+export type PositionEval = {
+  depth: number;
+  /** Best line first. */
+  lines: EvalLine[];
+};
+
+export type AnalyzeOptions = {
+  depth: number;
+  lines: number;
+  timeoutMs: number;
+  /** True for the first search of a run (clears engine hash). */
+  fresh: boolean;
+  /** Legal moves in the position; lets the adapter tell a cut-short search from a legitimately short one. */
+  legalMoves?: number;
+};
+
+/**
+ * Engine seam. `analyze` is awaited one position at a time and resolves with
+ * the best result so far (null when nothing was produced, e.g. cancelled or
+ * timed out before the first snapshot).
+ */
+export type ReviewEngine = {
+  analyze(fen: string, options: AnalyzeOptions): Promise<PositionEval | null>;
+};
+
+export type ReviewMove = { uci: string };
+
+/** A graded move; `index` is the 0-based position of the move in the reviewed line. */
+export type ReviewRow = ReportRow & { index: number };
+
+export type ReviewProgress = {
+  done: number;
+  total: number;
+  elapsedMs: number;
+};
+
+export type ReviewInput = {
+  /** FENs of the reviewed line, start position first (moves + 1 entries). */
+  fens: string[];
+  moves: ReviewMove[];
+  preset: ReviewPreset;
+  engine: ReviewEngine;
+  /** Masters replies per ply, as returned by the opening explorer (null = unknown). */
+  bookReplies?: () => Promise<Array<readonly string[] | null>>;
+  isCancelled?: () => boolean;
+  onProgress?: (progress: ReviewProgress) => void;
+  now?: () => number;
+};
+
+export type ReviewOutcome = { status: "done"; rows: ReviewRow[] } | { status: "cancelled" };
+
+function legalMoveCount(fen: string): number {
+  try {
+    return new Chess(fen).moves().length;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+function sideOf(fen: string): "w" | "b" {
+  return fen.split(" ")[1] === "b" ? "b" : "w";
+}
+
+export function toPositionScore(evaluation: PositionEval): PositionScore | null {
+  const best = evaluation.lines[0];
+  if (!best) {
+    return null;
+  }
+  return {
+    whitePawns: best.whitePawns,
+    bestUci: best.uci,
+    secondWhitePawns: evaluation.lines[1]?.whitePawns ?? null,
+    depth: evaluation.depth,
+  };
+}
+
+/** Remaining time from the measured per-position pace; null until something was measured. */
+export function estimateRemainingMs(progress: ReviewProgress): number | null {
+  if (progress.done <= 0 || progress.elapsedMs <= 0) {
+    return null;
+  }
+  return Math.round((progress.elapsedMs / progress.done) * (progress.total - progress.done));
+}
+
+/** Win-chance weights per move, from every position's white win chance (unscored positions repeat the last one). */
+function moveWeights(scores: Array<PositionScore | null>): number[] {
+  let last = 50;
+  const chances = scores.map((score) => {
+    if (score) {
+      last = whiteWinChance(score.whitePawns);
+    }
+    return last;
+  });
+  return volatilityWeights(chances);
+}
+
+export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
+  const { fens, moves, engine } = input;
+  const depth = REVIEW_PRESETS[input.preset].depth;
+  const now = input.now ?? Date.now;
+  const cancelled = () => input.isCancelled?.() ?? false;
+  const startedAt = now();
+  const total = fens.length;
+
+  // Book lookups run alongside the analysis; they never overlap engine calls.
+  const bookPromise = input.bookReplies?.().catch(() => []) ?? Promise.resolve([]);
+
+  const scores: Array<PositionScore | null> = [];
+  for (let index = 0; index < total; index += 1) {
+    if (cancelled()) {
+      return { status: "cancelled" };
+    }
+    input.onProgress?.({ done: index, total, elapsedMs: now() - startedAt });
+    const evaluation = await engine.analyze(fens[index], {
+      depth,
+      lines: REVIEW_LINES,
+      timeoutMs: POSITION_TIMEOUT_MS,
+      fresh: index === 0,
+      legalMoves: legalMoveCount(fens[index]),
+    });
+    scores.push(evaluation ? toPositionScore(evaluation) : null);
+  }
+  if (cancelled()) {
+    return { status: "cancelled" };
+  }
+  input.onProgress?.({ done: total, total, elapsedMs: now() - startedAt });
+
+  const replies = await bookPromise;
+  if (cancelled()) {
+    return { status: "cancelled" };
+  }
+  const inBook = bookFlags(
+    moves.map((move) => move.uci),
+    replies,
+  );
+  const division = dividePhases(fens);
+  const weights = moveWeights(scores);
+  const rows: ReviewRow[] = [];
+  // Win-chance points the previous mover lost; feeds "miss" detection.
+  let lastWinLoss = 0;
+
+  for (let index = 0; index < moves.length; index += 1) {
+    const before = scores[index];
+    const after = scores[index + 1];
+    const uci = moves[index].uci;
+    if (!before || !after || uci.length < 4 || isNullMoveToken(uci)) {
+      lastWinLoss = 0;
+      continue;
+    }
+    const beforeBoard = new Chess(fens[index]);
+    const afterBoard = new Chess(fens[index + 1]);
+    const side = sideOf(fens[index]);
+    const forced = beforeBoard.moves().length === 1;
+    const hanging = hangsPieceOn(beforeBoard, afterBoard, uci, side);
+    const sacrifice = isSacrificeOn(beforeBoard, afterBoard, side) || hanging;
+
+    let graded = gradeMove({
+      side,
+      playedUci: uci,
+      before,
+      afterWhitePawns: after.whitePawns,
+      sacrifice,
+      opponentLastLoss: lastWinLoss,
+    });
+    const negative =
+      graded.label === "inaccuracy" || graded.label === "mistake" || graded.label === "miss" || graded.label === "blunder";
+    if (!forced && negative && sacrifice && !cancelled()) {
+      const deeper = await engine.analyze(fens[index + 1], {
+        depth: depth + RECHECK_EXTRA_DEPTH,
+        lines: 1,
+        timeoutMs: RECHECK_TIMEOUT_MS,
+        fresh: false,
+        legalMoves: legalMoveCount(fens[index + 1]),
+      });
+      if (deeper && deeper.depth >= depth + RECHECK_MIN_EXTRA_DEPTH && deeper.lines[0] && lineHolds(side, before.whitePawns, deeper.lines[0].whitePawns)) {
+        graded = gradeMove({
+          side,
+          playedUci: uci,
+          before: { whitePawns: deeper.lines[0].whitePawns, bestUci: uci, secondWhitePawns: before.whitePawns },
+          afterWhitePawns: deeper.lines[0].whitePawns,
+          sacrifice: true,
+          opponentLastLoss: lastWinLoss,
+        });
+      }
+    }
+    if (cancelled()) {
+      return { status: "cancelled" };
+    }
+    lastWinLoss = graded.winLoss;
+    rows.push({
+      ...graded,
+      // A forced move has no alternative, so it carries no tier.
+      label: forced ? null : mergeBookLabel(inBook[index], graded.label),
+      index,
+      side,
+      phase: phaseAt(division, index + 1),
+      forced,
+      weight: weights[index],
+    });
+  }
+  return { status: "done", rows };
+}

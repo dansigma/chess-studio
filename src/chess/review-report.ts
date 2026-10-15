@@ -1,5 +1,6 @@
 import type { GamePhase } from "./phases.ts";
-import { countLabels, harmonicAccuracy, type ReviewLabel, type ReviewedMove } from "./review.ts";
+import { playerAccuracy } from "./review-accuracy.ts";
+import { countLabels, type ReviewLabel, type ReviewedMove } from "./review.ts";
 
 export type ReviewSide = "w" | "b";
 
@@ -8,6 +9,8 @@ export type ReportRow = ReviewedMove & {
   phase: GamePhase;
   /** Only one legal move was available; excluded from accuracy, ACPL and the game rating (like book moves). */
   forced?: boolean;
+  /** Volatility weight of this move for accuracy (see review-accuracy); 1 when absent. */
+  weight?: number;
 };
 
 export type ReportHeaders = Partial<Record<string, string>>;
@@ -101,7 +104,7 @@ export function estimateGameRating(rows: ReportRow[], headerRating: number | nul
 function buildSide(rows: ReportRow[], name: string, rating: number | null): SideReport {
   const acpl = averageCpLoss(rows);
   const accuracyOf = (subset: ReportRow[]) =>
-    harmonicAccuracy(scoredRows(subset).map((row) => row.accuracy));
+    playerAccuracy(scoredRows(subset).map((row) => ({ accuracy: row.accuracy, weight: row.weight })));
   return {
     name,
     rating,
@@ -109,7 +112,7 @@ function buildSide(rows: ReportRow[], name: string, rating: number | null): Side
     accuracy: accuracyOf(rows),
     acpl: acpl == null ? null : Math.round(acpl),
     gameRating: estimateGameRating(rows, rating),
-    counts: countLabels(rows.map((row) => row.label)),
+    counts: countLabels(rows.filter((row) => !row.forced).map((row) => row.label)),
     phases: {
       opening: accuracyOf(rows.filter((row) => row.phase === "opening")),
       middlegame: accuracyOf(rows.filter((row) => row.phase === "middlegame")),

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Chess } from "chess.js";
-import { MISS_BEST_WIN_CHANCE, MISS_OPPONENT_LOSS, MISS_OWN_LOSS, accuracyPercent, bookFlags, countLabels, gradeMove, hangsPiece, hangsPieceOn, harmonicAccuracy, isSacrifice, isSacrificeOn, lineHolds, mergeBookLabel, winChance, type PositionScore } from "./review.ts";
+import { MISS_BEST_WIN_CHANCE, MISS_OPPONENT_LOSS, MISS_OWN_LOSS, accuracyPercent, bookFlags, countLabels, gradeMove, hangsPiece, hangsPieceOn, isSacrifice, isSacrificeOn, lineHolds, mergeBookLabel, winChance, type PositionScore } from "./review.ts";
 
 function score(whitePawns: number, bestUci: string, secondWhitePawns: number | null = null): PositionScore {
   return { whitePawns, bestUci, secondWhitePawns };
@@ -116,10 +116,9 @@ test("book continues only while each played move is still a reply", () => {
   assert.deepEqual(bookFlags(["e2e4"], [null]), [false]);
 });
 
-test("accuracy stays in range and the harmonic mean punishes a bad move", () => {
+test("per-move accuracy stays in range", () => {
   assert.ok(accuracyPercent(20, 20) <= 100);
-  assert.equal(harmonicAccuracy([]), null);
-  assert.ok((harmonicAccuracy([100, 100, 20]) ?? 100) < 50);
+  assert.ok(accuracyPercent(1000, -1000) >= 0);
 });
 
 test("book never overrides brilliant, great, or best", () => {
