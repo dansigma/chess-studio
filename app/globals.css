@@ -306,19 +306,50 @@ body {
 }
 
 .dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action {
-  width: 16px;
-  height: 16px;
-  padding: 2px;
-  border-radius: 4px;
-  color: var(--studio-muted);
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  border-radius: 6px;
+  color: var(--studio-faint);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 150ms ease, color 150ms ease;
+  opacity: 0;
+  visibility: visible;
+  pointer-events: none;
+  transition: background-color 150ms ease, color 150ms ease, opacity 120ms ease;
+}
+
+/* SIG-955: compact tab close, visible only on tab hover/focus. The base
+   rule above hides the X at rest (including the active tab, neutralising
+   dockview's always-visible active-tab rule by source order); these reveal
+   it with a quick fade when the tab is hovered or keyboard-focused. */
+.dockview-theme-vs .dv-tab.dv-active-tab .dv-default-tab .dv-default-tab-action {
+  visibility: visible;
+  opacity: 0;
+}
+
+.dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action svg {
+  width: 12px;
+  height: 12px;
+}
+
+.dockview-theme-vs .dv-tab:hover .dv-default-tab .dv-default-tab-action,
+.dockview-theme-vs .dv-tab:focus-within .dv-default-tab .dv-default-tab-action,
+.dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (hover: none) {
+  .dockview-theme-vs .dv-tab.dv-active-tab .dv-default-tab .dv-default-tab-action {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action:hover {
-  border-radius: 4px;
+  border-radius: 6px;
   background-color: var(--studio-hover-strong);
   color: var(--studio-fg);
 }
