@@ -14,19 +14,19 @@ test("the starting position carries no threats", () => {
 test("mate-in-1 threat from the side that is not to move", () => {
   const set = computeThreats("r5k1/5ppp/8/8/8/8/5PPP/6K1 w - - 0 1");
   assert.equal(set.by, "b");
-  assert.deepEqual(ids(set), ["mate-in-1:a8a1"]);
+  assert.deepEqual(ids(set), ["mate-in-1:a8a1:g1"]);
   assert.deepEqual(set.threats[0]?.targets, ["g1"]);
 });
 
 test("hanging-capture: the opponent could take an undefended piece", () => {
   const set = computeThreats("4k3/8/8/3p4/4N3/8/8/4K3 w - - 0 1");
-  assert.deepEqual(ids(set), ["hanging-capture:d5e4"]);
+  assert.deepEqual(ids(set), ["hanging-capture:d5e4:n"]);
   assert.deepEqual(set.threats[0]?.targets, ["e4"]);
 });
 
 test("winning-capture: a cheaper piece attacks a defended one", () => {
   const set = computeThreats("4k3/8/8/3p4/4N3/5P2/8/4K3 w - - 0 1");
-  assert.deepEqual(ids(set), ["winning-capture:d5e4"]);
+  assert.deepEqual(ids(set), ["winning-capture:d5e4:n"]);
 });
 
 test("a defended piece attacked by an equal piece is no threat", () => {
@@ -36,7 +36,7 @@ test("a defended piece attacked by an equal piece is no threat", () => {
 
 test("fork: the middlegame fixture allows ...Qb6 hitting queen and rook", () => {
   const set = computeThreats(MIDDLEGAME);
-  assert.deepEqual(ids(set), ["fork:d8b6"]);
+  assert.deepEqual(ids(set), ["fork:d8b6:b2+a7"]);
   assert.deepEqual(set.threats[0]?.targets, ["b2", "a7"]);
 });
 
@@ -60,16 +60,16 @@ test("finished games and broken FENs are reported, not thrown", () => {
 test("threats to move use the real moves of the side to move", () => {
   const set = computeThreatsToMove("r3k3/8/8/8/8/8/8/Q3K3 w - - 0 1");
   assert.equal(set.by, "w");
-  assert.deepEqual(ids(set), ["hanging-capture:a1a8"]);
+  assert.deepEqual(ids(set), ["hanging-capture:a1a8:r"]);
 });
 
 test("compareThreats: the move neutralizes the threat it answers", () => {
   const result = compareThreats(MIDDLEGAME, "b2a1");
   assert.ok(result);
   assert.equal(result.mover, "w");
-  assert.deepEqual(ids(result.before), ["fork:d8b6"]);
+  assert.deepEqual(ids(result.before), ["fork:d8b6:b2+a7"]);
   assert.deepEqual(ids(result.after), []);
-  assert.deepEqual(result.neutralized.map((t) => t.id), ["fork:d8b6"]);
+  assert.deepEqual(result.neutralized.map((t) => t.id), ["fork:d8b6:b2+a7"]);
   assert.deepEqual(result.persisting, []);
   assert.deepEqual(result.exposed, []);
 });
@@ -77,7 +77,7 @@ test("compareThreats: the move neutralizes the threat it answers", () => {
 test("compareThreats: a move that leaves the threat standing", () => {
   const result = compareThreats(MIDDLEGAME, "g1h1");
   assert.ok(result);
-  assert.deepEqual(result.persisting.map((t) => t.id), ["fork:d8b6"]);
+  assert.deepEqual(result.persisting.map((t) => t.id), ["fork:d8b6:b2+a7"]);
   assert.deepEqual(result.neutralized, []);
 });
 
@@ -85,10 +85,10 @@ test("compareThreats: exposed and created threats", () => {
   const fen = "r3k3/8/8/8/8/8/8/Q3K3 w - - 0 1";
   const result = compareThreats(fen, "a1a3");
   assert.ok(result);
-  assert.deepEqual(ids(result.before), ["hanging-capture:a8a1"]);
-  assert.deepEqual(result.neutralized.map((t) => t.id), ["hanging-capture:a8a1"]);
-  assert.deepEqual(result.exposed.map((t) => t.id), ["hanging-capture:a8a3"]);
-  assert.deepEqual(ids(result.created), ["hanging-capture:a3a8"]);
+  assert.deepEqual(ids(result.before), ["hanging-capture:a8a1:q"]);
+  assert.deepEqual(result.neutralized.map((t) => t.id), ["hanging-capture:a8a1:q"]);
+  assert.deepEqual(result.exposed.map((t) => t.id), ["hanging-capture:a8a3:q"]);
+  assert.deepEqual(ids(result.created), ["hanging-capture:a3a8:r"]);
 });
 
 test("compareThreats: a move answering a check has no null-move threats before it", () => {
@@ -107,4 +107,18 @@ test("compareThreats rejects illegal or malformed moves", () => {
 test("threat results are memoized per FEN", () => {
   assert.equal(computeThreats(MIDDLEGAME), computeThreats(MIDDLEGAME));
   assert.equal(compareThreats(MIDDLEGAME, "b2a1"), compareThreats(MIDDLEGAME, "b2a1"));
+});
+
+test("a capturing promotion is one threat, not one per promotion piece", () => {
+  const set = computeThreatsToMove("r3k3/1P6/8/8/8/8/8/4K3 w - - 0 1");
+  const captures = set.threats.filter((t) => t.kind === "hanging-capture");
+  assert.equal(captures.length, 1);
+  assert.equal(captures[0]?.id, "hanging-capture:b7a8:r");
+});
+
+test("the same move against a different victim is a different threat", () => {
+  const rook = computeThreatsToMove("4k3/8/8/8/4p3/8/8/4RK2 w - - 0 1").threats.map((t) => t.id);
+  const knight = computeThreatsToMove("4k3/8/8/8/4n3/8/8/4RK2 w - - 0 1").threats.map((t) => t.id);
+  assert.ok(rook.includes("hanging-capture:e1e4:p"));
+  assert.ok(knight.includes("hanging-capture:e1e4:n"));
 });

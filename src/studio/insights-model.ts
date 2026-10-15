@@ -1,6 +1,7 @@
 // SIG-959: turns typed position facts into rows and board marks for the
 // Insights panel. Pure (no React, no store) so it is unit-testable.
 import type { ArrowMark, BoardMarks, MarkColor, SquareMark } from "@/src/chess/marks";
+import { diagonalSquares } from "../chess/facts/index";
 import type {
   Color,
   PieceFact,
@@ -8,10 +9,8 @@ import type {
   PositionFacts,
   Threat,
   ThreatKind,
-} from "@/src/chess/facts";
+} from "../chess/facts/index";
 import type { InsightsLabelKey } from "./insights-labels";
-
-const FILES = "abcdefgh";
 
 type MarkBuilder = { squares: SquareMark[]; arrows: ArrowMark[] };
 
@@ -38,11 +37,6 @@ function done(b: MarkBuilder): BoardMarks {
 export function fileSquares(file: string): string[] {
   return Array.from({ length: 8 }, (_, rank) => `${file}${rank + 1}`);
 }
-
-const DIAGONALS = {
-  a1h8: Array.from({ length: 8 }, (_, k) => `${FILES[k]}${k + 1}`),
-  h1a8: Array.from({ length: 8 }, (_, k) => `${FILES[7 - k]}${k + 1}`),
-} as const;
 
 export type PieceTag =
   | "hanging"
@@ -212,7 +206,7 @@ export function buildConcepts(facts: PositionFacts): ConceptItem[] {
         "long-diagonal",
         diagonal.controller,
         diagonal.pieces,
-        mergeBoardMarks([highlight([...DIAGONALS[diagonal.diagonal]], "B"), highlight(diagonal.pieces, "G")]),
+        mergeBoardMarks([highlight(diagonalSquares(diagonal.diagonal), "B"), highlight(diagonal.pieces, "G")]),
       ),
     );
   }
@@ -230,7 +224,7 @@ export function buildConcepts(facts: PositionFacts): ConceptItem[] {
     const b = builder();
     arrow(b, skewer.by, skewer.front, "R");
     arrow(b, skewer.front, skewer.behind, "R");
-    items.push(concept(`skewer:${skewer.by}`, "skewer", null, [skewer.by, skewer.front, skewer.behind], done(b)));
+    items.push(concept(`skewer:${skewer.by}:${skewer.front}:${skewer.behind}`, "skewer", null, [skewer.by, skewer.front, skewer.behind], done(b)));
   }
   for (const king of facts.kings) {
     const b = builder();

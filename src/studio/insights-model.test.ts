@@ -80,3 +80,11 @@ test("concepts list files, diagonals, 7th rank and pawn weaknesses with highligh
     assert.ok(item.marks.squares.length + item.marks.arrows.length > 0, item.id);
   }
 });
+
+test("two skewers by the same slider get distinct concept ids", () => {
+  const facts = computePositionFacts("r3k3/8/8/8/q7/6K1/8/R2q3r w - - 0 1");
+  assert.equal(facts.skewers.length, 2);
+  const ids = buildConcepts(facts).filter((item) => item.label === "skewer").map((item) => item.id);
+  assert.equal(ids.length, 2);
+  assert.equal(new Set(ids).size, 2);
+});

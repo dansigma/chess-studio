@@ -52,3 +52,10 @@ test("a bishop blocked by its own pawn does not control the diagonal", () => {
   const facts = computePositionFacts("4k3/8/8/8/3P4/8/1B6/4K3 w - - 0 1");
   assert.deepEqual(facts.diagonals, []);
 });
+
+test("a piece on the long diagonal is not in control when the path to a center is blocked", () => {
+  const blocked = computePositionFacts("7k/8/8/4P3/8/8/1B6/K7 w - - 0 1");
+  assert.equal(blocked.diagonals.find((d) => d.diagonal === "a1h8"), undefined);
+  const open = computePositionFacts("7k/8/8/8/8/8/1B6/K7 w - - 0 1");
+  assert.equal(open.diagonals.find((d) => d.diagonal === "a1h8")?.controller, "w");
+});

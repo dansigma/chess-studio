@@ -66,7 +66,7 @@ test("sacrifice: a rook takes a defended pawn", () => {
 
 test("the move that answers a threat lists it as neutralized", () => {
   const f = facts(MIDDLEGAME, "b2a1");
-  assert.deepEqual(f.threats.neutralized.map((t) => t.id), ["fork:d8b6"]);
+  assert.deepEqual(f.threats.neutralized.map((t) => t.id), ["fork:d8b6:b2+a7"]);
   assert.deepEqual(f.threats.exposed, []);
   assert.deepEqual(f.defends.sort(), ["a7", "d1"]);
 });

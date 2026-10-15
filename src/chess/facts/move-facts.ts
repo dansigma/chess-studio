@@ -1,29 +1,28 @@
-import { Chess } from "chess.js";
-import { sideMaterialOn } from "../review";
+import type { Chess } from "chess.js";
 import {
   PIECE_VALUE,
   analyze,
   attacksFrom,
   isSafeSquare,
-  opposite,
   parseFen,
   squareIndex,
   squareName,
 } from "./board";
 import { memoize } from "./cache";
-import { compareThreats, playUci } from "./threats";
+import { compareThreats, loadChess, playUci } from "./threats";
 import type { Color, MoveFacts, PieceType, PvFacts } from "./types";
 
-function loadChess(fen: string): Chess | null {
-  try {
-    return new Chess(fen);
-  } catch {
-    return null;
-  }
-}
-
+/** Material balance for `side` in pawns (own minus opponent's). */
 function balance(chess: Chess, side: Color): number {
-  return sideMaterialOn(chess, side) - sideMaterialOn(chess, opposite(side));
+  let total = 0;
+  for (const row of chess.board()) {
+    for (const piece of row) {
+      if (piece) {
+        total += piece.color === side ? PIECE_VALUE[piece.type] : -PIECE_VALUE[piece.type];
+      }
+    }
+  }
+  return total;
 }
 
 type PvRun = PvFacts & { lastMoverTurnDelta: number };

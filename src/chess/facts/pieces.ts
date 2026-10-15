@@ -1,9 +1,12 @@
 import {
   PIECE_VALUE,
   cheapest,
+  fileOf,
   isSafeSquare,
   opposite,
+  rankOf,
   sliderDirs,
+  squareIndex,
   squareName,
   step,
   type Analysis,
@@ -44,6 +47,23 @@ function rayContacts(board: Board): Contact[] {
     }
   }
   return out;
+}
+
+/** `square` lies on the segment from the pinner (inclusive) up to the king (exclusive). */
+function onPinLine(pinner: string, king: string, square: number): boolean {
+  const from = squareIndex(pinner);
+  const end = squareIndex(king);
+  if (from < 0 || end < 0) {
+    return false;
+  }
+  const dx = Math.sign(fileOf(end) - fileOf(from));
+  const dy = Math.sign(rankOf(end) - rankOf(from));
+  for (let cursor = from; cursor !== end && cursor >= 0; cursor = step(cursor, dx, dy)) {
+    if (cursor === square) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function movedBoard(board: Board, from: number, to: number): Board {
@@ -126,10 +146,15 @@ export function computePieceFacts(analysis: Analysis): {
       (defenderIdx.length === 0 || cheapest(board, attackerIdx) < PIECE_VALUE[piece.type]);
 
     const safeSquares: string[] = [];
+    const pinLine = pins.get(i);
     if (piece.type !== "p" && piece.type !== "k") {
       for (const to of targets) {
         const occupant = board[to];
         if (occupant?.color === piece.color || occupant?.type === "k") {
+          continue;
+        }
+        // An absolutely pinned piece may only move along the pin line.
+        if (pinLine?.kind === "absolute" && !onPinLine(pinLine.by, pinLine.to, to)) {
           continue;
         }
         if (occupant && PIECE_VALUE[occupant.type] >= PIECE_VALUE[piece.type]) {
@@ -140,7 +165,7 @@ export function computePieceFacts(analysis: Analysis): {
       }
     }
 
-    const pin = pins.get(i);
+    const pin = pinLine;
     const forward = piece.type === "p" ? step(i, 0, piece.color === "w" ? 1 : -1) : -1;
     pieces.push({
       square: squareName(i),

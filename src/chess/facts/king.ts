@@ -21,6 +21,8 @@ export function computeKingSafety(analysis: Analysis, castling: string): KingSaf
       king: castling.includes(color === "w" ? "K" : "k"),
       queen: castling.includes(color === "w" ? "Q" : "q"),
     };
+    // Heuristic: the FEN does not record whether the king castled, so no rights
+    // left plus a king on a castled square counts as castled.
     const castled =
       !canCastle.king && !canCastle.queen && CASTLED_SQUARES[color].includes(square);
 

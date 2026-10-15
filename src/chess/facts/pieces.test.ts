@@ -118,3 +118,9 @@ test("odd positions never throw: promotion rank, en passant, missing kings", () 
   }
   assert.equal(computePositionFacts("not a fen").valid, false);
 });
+
+test("an absolutely pinned piece only has safe squares along the pin line", () => {
+  const bishop = pieceAt("k3r3/8/8/8/8/8/4B3/4K3 w - - 0 1", "e2");
+  assert.equal(bishop.pinned?.kind, "absolute");
+  assert.deepEqual(bishop.safeSquares, []);
+});

@@ -10,6 +10,7 @@ import type { PositionFacts } from "./types";
 export * from "./types";
 export { compareThreats, computeThreats, computeThreatsToMove } from "./threats";
 export { computeMoveFacts } from "./move-facts";
+export { diagonalSquares } from "./lines";
 
 function emptyFacts(fen: string): PositionFacts {
   return {

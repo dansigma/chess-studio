@@ -48,7 +48,10 @@ function threatsFor(chess: Chess, by: Color): Threat[] {
 
   const add = (kind: ThreatKind, move: Move, targets: string[]) => {
     const uci = uciOf(move);
-    const id = `${kind}:${uci}`;
+    // Promotions share one id (the first, queen, wins); the victim is part of the
+    // id so the same move against a different piece is a different threat.
+    const victim = move.captured ?? targets.join("+");
+    const id = `${kind}:${move.from}${move.to}:${victim}`;
     if (!found.has(id)) {
       found.set(id, { id, kind, by, from: move.from, to: move.to, uci, targets });
     }
@@ -106,7 +109,7 @@ function threatsFor(chess: Chess, by: Color): Threat[] {
   );
 }
 
-function loadChess(fen: string): Chess | null {
+export function loadChess(fen: string): Chess | null {
   try {
     return new Chess(fen);
   } catch {

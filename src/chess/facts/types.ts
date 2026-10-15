@@ -132,7 +132,7 @@ export type PositionFacts = {
 export type ThreatKind = "mate-in-1" | "hanging-capture" | "winning-capture" | "fork";
 
 export type Threat = {
-  /** Stable id: `${kind}:${uci}`. */
+  /** Stable id: `${kind}:${from}${to}:${victim}` (promotions share one id). */
   id: string;
   kind: ThreatKind;
   by: Color;

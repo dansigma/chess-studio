@@ -63,6 +63,11 @@ const DIAGONALS: Array<{ id: "a1h8" | "h1a8"; squares: number[] }> = [
   { id: "h1a8", squares: Array.from({ length: 8 }, (_, k) => 7 + k * 7) },
 ];
 
+/** Square names of a long diagonal, from its rank-1 end to its rank-8 end. */
+export function diagonalSquares(id: "a1h8" | "h1a8"): string[] {
+  return (DIAGONALS.find((diagonal) => diagonal.id === id)?.squares ?? []).map(squareName);
+}
+
 /**
  * A bishop or queen "controls" a long diagonal when it stands on it with an
  * empty path to both central squares. Contested when both sides do.
@@ -78,14 +83,18 @@ export function computeDiagonalFacts(analysis: Analysis): DiagonalFact[] {
       if (!piece || (piece.type !== "b" && piece.type !== "q")) {
         return;
       }
+      // Every square between the piece and each center must be empty. A center
+      // holding an enemy piece does not block (it is contested); one holding a
+      // friendly piece does.
       const clear = centers.every((center) => {
         if (center === position) {
           return true;
         }
-        const lo = Math.min(center, position) + 1;
-        const hi = Math.max(center, position) - 1;
+        const lo = center > position ? position + 1 : center;
+        const hi = center > position ? center : position - 1;
         for (let k = lo; k <= hi; k++) {
-          if (board[squares[k] ?? -1]) {
+          const occupant = board[squares[k] ?? -1];
+          if (occupant && (k !== center || occupant.color === piece.color)) {
             return false;
           }
         }

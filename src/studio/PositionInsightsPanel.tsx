@@ -41,6 +41,8 @@ const TABS: Array<{ id: Tab; label: InsightsLabelKey }> = [
   { id: "concepts", label: "tabConcepts" },
 ];
 
+const previewKey = (fen: string) => `insights:${fen}`;
+
 const ROW =
   "flex w-full items-center gap-2 px-3 py-1 text-left text-dense hover:bg-studio-hover focus-visible:bg-studio-hover";
 
@@ -88,18 +90,27 @@ export function PositionInsightsPanel() {
   // "Before move" borrows the board's existing preview slot to show the
   // position the threats were computed on; it is dropped on any other state.
   const previewFen = showingBefore && !setupMode ? beforeFen : null;
+  // The slot is shared with the Engine panel, which clears it on hover-out and
+  // on FEN changes. Re-assert our preview whenever the slot goes empty, but
+  // never overwrite a preview that belongs to someone else.
+  const slotKey = useStudioStore((state) => state.enginePreview?.key ?? null);
+  useEffect(() => {
+    if (!previewFen || slotKey !== null) {
+      return;
+    }
+    setEnginePreview({ fen: previewFen, lastMove: parentMoveKey, key: previewKey(previewFen) });
+  }, [previewFen, parentMoveKey, slotKey, setEnginePreview]);
   useEffect(() => {
     if (!previewFen) {
       return;
     }
-    const key = `insights:${previewFen}`;
-    setEnginePreview({ fen: previewFen, lastMove: parentMoveKey, key });
+    const key = previewKey(previewFen);
     return () => {
       if (useStudioStore.getState().enginePreview?.key === key) {
         setEnginePreview(null);
       }
     };
-  }, [previewFen, parentMoveKey, setEnginePreview]);
+  }, [previewFen, setEnginePreview]);
 
   const baseMarks = useMemo<BoardMarks | null>(() => {
     if (tab !== "threats") {
