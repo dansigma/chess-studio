@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const sources: Record<string, string> = {
   dialog: readFileSync(new URL("./ui/Dialog.tsx", import.meta.url), "utf8"),
-  glyphMenu: readFileSync(new URL("./MoveGlyphMenu.tsx", import.meta.url), "utf8"),
+  glyphMenu: readFileSync(new URL("./NotationContextMenu.tsx", import.meta.url), "utf8"),
   contextMenu: readFileSync(new URL("./BoardContextMenu.tsx", import.meta.url), "utf8"),
   controls: readFileSync(new URL("./ui/Controls.tsx", import.meta.url), "utf8"),
   menuBar: readFileSync(new URL("./MenuBar.tsx", import.meta.url), "utf8"),
@@ -16,7 +16,7 @@ describe("studio overlay z tiers (SIG-912)", () => {
   it("renders app-modal overlays above the dockview sash tier", () => {
     for (const [name, source] of [
       ["Dialog", sources.dialog],
-      ["MoveGlyphMenu", sources.glyphMenu],
+      ["NotationContextMenu", sources.glyphMenu],
       ["BoardContextMenu", sources.contextMenu],
       ["Controls tooltip", sources.controls],
     ] as const) {
@@ -34,7 +34,7 @@ describe("studio overlay z tiers (SIG-912)", () => {
   it("leaves no bare z-50 on the raised overlay surfaces", () => {
     for (const [name, source] of [
       ["Dialog", sources.dialog],
-      ["MoveGlyphMenu", sources.glyphMenu],
+      ["NotationContextMenu", sources.glyphMenu],
       ["BoardContextMenu", sources.contextMenu],
     ] as const) {
       assert.ok(

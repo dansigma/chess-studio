@@ -12,7 +12,10 @@ function CommentText({ text }: { text?: string }) {
   if (!text) {
     return null;
   }
-  return <span className="px-1 text-studio-comment">{text}</span>;
+  // SIG-957: inline-block so long comments wrap inside the flex row instead
+  // of stretching it; break-words keeps long tokens (e.g. pasted analysis)
+  // from overflowing the notation pane.
+  return <span className="inline-block max-w-full break-words px-1 text-studio-comment">{text}</span>;
 }
 
 // SIG-857: memoized — a notation tree renders N tokens; without memo every
