@@ -99,7 +99,14 @@ export type ReviewInput = {
   now?: () => number;
 };
 
-export type ReviewOutcome = { status: "done"; rows: ReviewRow[] } | { status: "cancelled" };
+/** Consecutive positions without any engine result after which the run gives up. */
+export const MAX_CONSECUTIVE_MISSES = 3;
+
+export type ReviewOutcome =
+  | { status: "done"; rows: ReviewRow[] }
+  | { status: "cancelled" }
+  /** The engine stopped answering; grading further positions would only wait on timeouts. */
+  | { status: "failed" };
 
 function legalMoveCount(fen: string): number {
   try {
@@ -160,6 +167,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
   const bookPromise = input.bookReplies?.().catch(() => []) ?? Promise.resolve([]);
 
   const scores: Array<PositionScore | null> = [];
+  let misses = 0;
   for (let index = 0; index < total; index += 1) {
     if (cancelled()) {
       return { status: "cancelled" };
@@ -173,6 +181,10 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
       legalMoves: legalMoveCount(fens[index]),
     });
     scores.push(evaluation ? toPositionScore(evaluation) : null);
+    misses = evaluation ? 0 : misses + 1;
+    if (misses >= MAX_CONSECUTIVE_MISSES && !cancelled()) {
+      return { status: "failed" };
+    }
   }
   if (cancelled()) {
     return { status: "cancelled" };

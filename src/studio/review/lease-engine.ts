@@ -65,7 +65,8 @@ export function createLeaseEngine(lease: Lease, threads: number, isCancelled: ()
           lease.analyze(fen, options.depth, options.lines, threads, undefined, fresh);
         search(options.fresh);
         unsubscribe = lease.subscribe((info) => {
-          if (isCancelled()) {
+          if (isCancelled() || info.failed) {
+            // A failed worker never answers again: do not sit out the timeout.
             finish(null);
             return;
           }

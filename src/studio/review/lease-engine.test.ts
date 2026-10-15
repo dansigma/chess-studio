@@ -133,3 +133,13 @@ test("snapshots of another position are ignored and a cancel resolves null", asy
   fake.emit(info({ depth: 3, lines: [line(1, 5, "e2e4")] }));
   assert.equal(await pending, null);
 });
+
+test("a failed worker resolves immediately instead of waiting for the timeout", async () => {
+  const fake = fakeLease();
+  const engine = createLeaseEngine(fake.lease as never, 1, () => false);
+  const started = Date.now();
+  const pending = engine.analyze(FEN, { depth: 12, lines: 3, timeoutMs: 5000, fresh: true });
+  fake.emit(info({ failed: true, ready: false, running: true }));
+  assert.equal(await pending, null);
+  assert.ok(Date.now() - started < 1000);
+});

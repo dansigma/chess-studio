@@ -32,7 +32,7 @@ export function ReviewPanel() {
     () => variationPoints(board.tree, board.path),
     [board.tree, board.path],
   );
-  const { preset, setPreset, running, cancelled, progress, rows, start, cancel } = useGameReview({
+  const { preset, setPreset, running, cancelled, failed, progress, rows, start, cancel } = useGameReview({
     tree: board.tree,
     points,
     engineBuild,
@@ -159,6 +159,11 @@ export function ReviewPanel() {
               />
             </div>
           </div>
+        ) : null}
+        {failed && !running ? (
+          <p className="px-3 py-3 text-dense text-studio-warning-fg">
+            The engine stopped responding at {progress.done}/{progress.total} positions. Try the review again.
+          </p>
         ) : null}
         {cancelled && !running && !rows ? (
           <p className="px-3 py-3 text-dense text-studio-muted">

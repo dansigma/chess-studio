@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Fixes
+
+- Starting a review right after cancelling another one could leave the engine stuck, with each position
+  waiting out its timeout. The engine client now waits for a stopped search to report before starting the
+  next one. If the engine does stop answering, the review stops after a few positions with a message instead
+  of grinding through every timeout.
+
 ### Game Review explanations (SIG-961)
 
 - New "Why?" block in the Review panel for the move the board is on. It opens by default for Brilliant, Miss,

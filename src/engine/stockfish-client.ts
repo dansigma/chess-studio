@@ -178,6 +178,13 @@ export class StockfishEngine {
   } | null = null;
   private pendingSent = false;
   private barrierTerminator = false;
+  /**
+   * `go` commands whose `bestmove` has not arrived yet. A stopped search still owes
+   * its bestmove, so the next search must not start (ucinewgame/position/go) before
+   * it: some engine builds answer `isready` while the old search is still winding
+   * down, and a `ucinewgame` mid-search aborts the worker.
+   */
+  private outstandingSearches = 0;
   private readyokForCycle = false;
   readonly threaded = supportsEngineThreads();
 
@@ -227,6 +234,7 @@ export class StockfishEngine {
     this.pendingSent = false;
     this.barrierTerminator = false;
     this.readyokForCycle = false;
+    this.outstandingSearches = 0;
     this.listeners.clear();
     if (this.worker) {
       this.worker.onmessage = null;
@@ -248,10 +256,6 @@ export class StockfishEngine {
 
   analyze(fen: string, depth: number, multiPv: number, threads: number, searchMoves?: string, fresh = true): void {
     this.start();
-    // A search executing now still owes its bestmove; the batch must wait for it.
-    // Captured before clearing: flushPending runs after running is set, so it
-    // cannot observe the previous state itself.
-    const owesBestmove = this.searching && this.running;
     this.generation += 1;
     this.searching = false;
     this.fen = fen;
@@ -273,15 +277,15 @@ export class StockfishEngine {
       fresh,
     };
     this.emit();
-    this.flushPending(owesBestmove);
+    this.flushPending();
   }
 
-  private flushPending(owesBestmove = false): void {
+  private flushPending(): void {
     if (!this.worker || !this.pending || !this.ready || this.pendingSent) {
       return;
     }
     this.pendingSent = true;
-    this.barrierTerminator = owesBestmove;
+    this.barrierTerminator = this.outstandingSearches > 0;
     this.send("stop");
     this.send("isready");
   }
@@ -303,6 +307,7 @@ export class StockfishEngine {
       }
       this.send(`position fen ${p.fen}`);
       this.send(`go depth ${p.depthTarget}${p.searchMoves ? ` searchmoves ${p.searchMoves}` : ""}`);
+      this.outstandingSearches += 1;
       this.searching = true;
       this.running = true;
     }
@@ -334,9 +339,12 @@ export class StockfishEngine {
       return;
     }
     if (message.startsWith("bestmove")) {
+      this.outstandingSearches = Math.max(0, this.outstandingSearches - 1);
       if (this.pendingSent && this.barrierTerminator) {
-        this.barrierTerminator = false;
-        this.tryStart();
+        if (this.outstandingSearches === 0) {
+          this.barrierTerminator = false;
+          this.tryStart();
+        }
         return;
       }
       if (!this.searching) {

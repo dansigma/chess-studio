@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { Chess } from "chess.js";
 import {
+  MAX_CONSECUTIVE_MISSES,
   REVIEW_LINES,
   REVIEW_PRESETS,
   estimateRemainingMs,
@@ -258,4 +259,28 @@ test("rows carry what an explanation needs: played move, engine line and evaluat
     // A line without a continuation falls back to its first move.
     assert.deepEqual(outcome.rows[1].bestPv, []);
   }
+});
+
+test("a dead engine ends the run after a few positions instead of waiting on every timeout", async () => {
+  const log: string[] = [];
+  const engine: ReviewEngine = {
+    async analyze(fen) {
+      log.push(fen);
+      return null;
+    },
+  };
+  const outcome = await runReview({ fens: OPENING.fens, moves: OPENING.ucis.map((uci) => ({ uci })), preset: "fast", engine });
+  assert.equal(outcome.status, "failed");
+  assert.equal(log.length, MAX_CONSECUTIVE_MISSES);
+});
+
+test("a single missed position does not fail the run", async () => {
+  const script: Script = { 0: flat(0.2), 1: null, 2: flat(0.2), 3: null, 4: flat(0.2) };
+  const outcome = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "fast",
+    engine: fakeEngine(OPENING.fens, script).engine,
+  });
+  assert.equal(outcome.status, "done");
 });
