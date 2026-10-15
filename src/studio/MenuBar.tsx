@@ -46,10 +46,11 @@ export function MenuBar({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
   // SIG-857: root subscribes narrowly — only the account pill (user/email,
-  // boardCount, dirtyCount) and the help item (setAboutOpen) need store
-  // values here. File/edit/view menus own their subscriptions in
-  // MenuBarFileMenu/MenuBarEditMenu/MenuBarViewMenu, so the closed menubar
-  // no longer re-renders on board or settings changes.
+  // boardCount, dirtyCount), the help item (setAboutOpen), and the site nav
+  // locale (SIG-962) need store values here. File/edit/view menus own their
+  // subscriptions in MenuBarFileMenu/MenuBarEditMenu/MenuBarViewMenu, so the
+  // closed menubar no longer re-renders on board or unrelated settings changes
+  // (locale changes do re-render the nav labels, by design).
   const setActivity = useStudioStore((state) => state.setActivity);
   const boardCount = useStudioStore((state) => state.boards.length);
   const dirtyCount = useStudioStore(selectDirtyCount);
