@@ -45,6 +45,9 @@ export const MISS_BEST_WIN_CHANCE = 70; // the best move here reaches at least t
 export const MISS_OWN_LOSS = 10; // the played move loses at least this many points vs best
 
 // Non-best moves are split by win-chance loss: <= VERY_GOOD_LOSS very good, <= DECENT_LOSS decent.
+// The old "interesting" guard (win chance after the move > 45%) was dropped on
+// purpose: tiers depend only on the loss, so a near-best move in a lost position
+// is still "Very good".
 export const VERY_GOOD_LOSS = 2;
 export const DECENT_LOSS = 5;
 

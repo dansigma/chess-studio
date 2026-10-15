@@ -62,6 +62,13 @@ export function ReviewReportCard({ report, moments, moveNotation, onSelectMoment
         <span className="text-center text-2xl font-semibold tabular-nums">{white.accuracy ?? "—"}</span>
         <span className="text-center text-2xl font-semibold tabular-nums">{black.accuracy ?? "—"}</span>
       </div>
+      <div className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 px-3 py-1 text-dense">
+        <span className="text-caption text-studio-faint" title="Average centipawn loss per move (lower is better)">
+          Avg. loss
+        </span>
+        <span className="text-center tabular-nums text-studio-muted">{white.acpl ?? "—"}</span>
+        <span className="text-center tabular-nums text-studio-muted">{black.acpl ?? "—"}</span>
+      </div>
       {REPORT_PHASES.map((phase) => (
         <div key={phase.id} className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 px-3 py-1 text-dense">
           <span className="text-caption text-studio-faint">{phase.name}</span>

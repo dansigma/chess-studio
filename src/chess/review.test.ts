@@ -201,6 +201,8 @@ test("miss: squandering an advantage handed over by the opponent's error", () =>
   // Without an opponent error it is only a mistake.
   assert.equal(gradeMove(input).label, "mistake");
   assert.equal(gradeMove({ ...input, opponentLastLoss: 9 }).label, "mistake");
+  // The opponent threshold is inclusive.
+  assert.equal(gradeMove({ ...input, opponentLastLoss: MISS_OPPONENT_LOSS }).label, "miss");
 });
 
 test("miss needs the best move to reach 70% win chance", () => {

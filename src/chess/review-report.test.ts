@@ -70,6 +70,23 @@ test("short games show no game rating", () => {
   assert.deepEqual(estimateGameRating(rowsFor("w", 7, 30), 1500), { value: null, anchored: false });
 });
 
+test("book and forced moves do not count toward the rating threshold", () => {
+  const rows = [...rowsFor("w", 1, 30), ...Array.from({ length: 4 }, () => row("w", 0, "book")), ...Array.from({ length: 3 }, () => row("w", 0, "veryGood", { forced: true }))];
+  assert.equal(rows.length, 8);
+  assert.equal(estimateGameRating(rows, null).value, null);
+});
+
+test("the rating threshold applies per side inside a report", () => {
+  const report = buildReviewReport([...rowsFor("w", 6, 20), ...rowsFor("b", 10, 20)], {});
+  assert.equal(report.white.gameRating.value, null);
+  assert.equal(typeof report.black.gameRating.value, "number");
+});
+
+test("forced moves are left out of accuracy", () => {
+  const report = buildReviewReport([row("w", 0, "veryGood", { accuracy: 100 }), row("w", 0, "veryGood", { accuracy: 20, forced: true })], {});
+  assert.equal(report.white.accuracy, 100);
+});
+
 test("parseRating ignores missing or placeholder values", () => {
   assert.equal(parseRating("1850"), 1850);
   assert.equal(parseRating("?"), null);

@@ -6,7 +6,7 @@ export type ReviewSide = "w" | "b";
 export type ReportRow = ReviewedMove & {
   side: ReviewSide;
   phase: GamePhase;
-  /** Only one legal move was available; excluded from ACPL and the game rating. */
+  /** Only one legal move was available; excluded from accuracy, ACPL and the game rating (like book moves). */
   forced?: boolean;
 };
 
@@ -25,7 +25,7 @@ const LOSS_CAP_CP = 1000;
 const ELO_CEILING = 3100;
 const ELO_DECAY_PER_ACPL = 0.01;
 const ANCHOR_SENSITIVITY = 0.005;
-/** Fewer moves than this per side and the rating is not shown. */
+/** Fewer scored moves (book and forced excluded) than this per side and the rating is not shown. */
 export const MIN_MOVES_FOR_RATING = 8;
 
 export type GameRating = {
@@ -75,8 +75,12 @@ export function anchoredRating(rating: number, acpl: number): number {
   return rating * Math.exp(-ANCHOR_SENSITIVITY * (acpl - expectedAcpl(rating)));
 }
 
+function scoredRows(rows: ReportRow[]): ReportRow[] {
+  return rows.filter((row) => row.label !== "book" && !row.forced);
+}
+
 export function averageCpLoss(rows: ReportRow[]): number | null {
-  const scored = rows.filter((row) => row.label !== "book" && !row.forced);
+  const scored = scoredRows(rows);
   if (scored.length === 0) {
     return null;
   }
@@ -86,7 +90,7 @@ export function averageCpLoss(rows: ReportRow[]): number | null {
 
 export function estimateGameRating(rows: ReportRow[], headerRating: number | null): GameRating {
   const acpl = averageCpLoss(rows);
-  if (rows.length < MIN_MOVES_FOR_RATING || acpl == null) {
+  if (scoredRows(rows).length < MIN_MOVES_FOR_RATING || acpl == null) {
     return { value: null, anchored: false };
   }
   const anchored = headerRating != null;
@@ -97,7 +101,7 @@ export function estimateGameRating(rows: ReportRow[], headerRating: number | nul
 function buildSide(rows: ReportRow[], name: string, rating: number | null): SideReport {
   const acpl = averageCpLoss(rows);
   const accuracyOf = (subset: ReportRow[]) =>
-    harmonicAccuracy(subset.filter((row) => row.label !== "book").map((row) => row.accuracy));
+    harmonicAccuracy(scoredRows(subset).map((row) => row.accuracy));
   return {
     name,
     rating,
