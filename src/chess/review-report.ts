@@ -89,7 +89,6 @@ export function averageCpLoss(rows: ReportRow[]): number | null {
 }
 
 export function estimateGameRating(rows: ReportRow[], headerRating: number | null): GameRating {
-  const scored = scoredRows(rows);
   const acpl = averageCpLoss(rows);
   if (scoredRows(rows).length < MIN_MOVES_FOR_RATING || acpl == null) {
     return { value: null, anchored: false };
