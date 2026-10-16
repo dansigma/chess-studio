@@ -16,7 +16,7 @@ import {
   type ReviewStringKey,
 } from "./review-strings.ts";
 
-test("every review string key renders in both locales without leftover placeholders", () => {
+test("every review string key renders in both locales with matching placeholders", () => {
   const keys = new Set<string>(REVIEW_STRING_KEYS);
   assert.equal(keys.size, REVIEW_STRING_KEYS.length, "review string keys must be unique");
   for (const key of REVIEW_STRING_KEYS) {
@@ -33,8 +33,14 @@ test("every review string key renders in both locales without leftover placehold
       ["pt-br", pt],
     ] as const) {
       assert.ok(text.length > 0, `${locale}:${key} must not be empty`);
-      assert.ok(!text.includes("{") && !text.includes("}"), `${locale}:${key} has leftover braces: ${text}`);
     }
+    const enPlaceholders = (en.match(/\{([^}]+)\}/g) ?? []).sort();
+    const ptPlaceholders = (pt.match(/\{([^}]+)\}/g) ?? []).sort();
+    assert.deepEqual(
+      ptPlaceholders,
+      enPlaceholders,
+      `placeholders mismatch between EN and PT-BR for "${key}"`,
+    );
   }
 });
 
@@ -65,16 +71,16 @@ test("template helpers render whole PT-BR sentences and stay EN-identical", () =
 test("tier, phase, preset and player names have PT-BR parity", () => {
   const tiers = {
     brilliant: ["Genius", "Genial"],
-    great: ["Great", "Ótima"],
-    best: ["Perfect", "Perfeita"],
-    veryGood: ["Very good", "Muito boa"],
+    great: ["Great", "Ótimo"],
+    best: ["Perfect", "Perfeito"],
+    veryGood: ["Very good", "Muito bom"],
     decent: ["Decent", "Razoável"],
-    book: ["Textbook", "Teórica"],
+    book: ["Textbook", "Teórico"],
     inaccuracy: ["Imprecise", "Imprecisão"],
     mistake: ["Mistake", "Erro"],
-    miss: ["Miss", "Lance perdido"],
-    blunder: ["Blunder", "Gafe"],
-    forced: ["Forced", "Forçada"],
+    miss: ["Miss", "Perda"],
+    blunder: ["Blunder", "Capivarada"],
+    forced: ["Forced", "Forçado"],
   } as const;
   for (const [label, [en, pt] ] of Object.entries(tiers)) {
     assert.equal(tierName("en", label as keyof typeof tiers), en);
