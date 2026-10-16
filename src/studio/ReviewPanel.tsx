@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { REVIEW_PRESETS, estimateRemainingMs, type ReviewPreset } from "@/src/chess/review-engine";
-import { buildReviewReport, keyMoments } from "@/src/chess/review-report";
+import { buildReviewReport, evalSeries, keyMoments } from "@/src/chess/review-report";
 import {
   formatReviewEta,
   reviewCancelledText,
@@ -15,6 +15,14 @@ import {
 import { lookupBookOpening } from "@/src/lib/opening-book";
 import { resolveOpeningName } from "@/src/lib/opening-names";
 import { ReviewReportCard } from "./review/ReviewReportCard";
+import { ReviewEvalChart, type ReviewChartMoment } from "./review/ReviewEvalChart";
+import {
+  filterKeyMoments,
+  phaseSeparators,
+  prevNextIndices,
+  type SideFilter,
+  type TierGroup,
+} from "./review/review-chart";
 import { useGameReview } from "./review/useGameReview";
 import { WhyBlock } from "./review/WhyBlock";
 import { getNodeAt, pathAlongLine, pathsEqual, variationPoints } from "@/src/chess/tree";
@@ -127,6 +135,135 @@ export function ReviewPanel() {
   }, [displayRows, points, locale]);
   const lineNote = points[points.length - 1]?.path.some((index) => index !== 0) ? tReview(locale, "panel.lineNote") : null;
 
+  // SIG-967: chart filter state lives in the component (resets on line change).
+  const [sideFilter, setSideFilter] = useState<SideFilter>("both");
+  const [tierGroup, setTierGroup] = useState<TierGroup>("all");
+
+  // Reviewed-line identity: stable across cursor moves, changes on a new review.
+  const lineKey = useMemo(
+    () =>
+      displayRows
+        ? `${displayRows.length}|${displayRows[0]?.path.join(",") ?? ""}|${displayRows[displayRows.length - 1]?.path.join(",") ?? ""}`
+        : "none",
+    [displayRows],
+  );
+  const [lastLineKey, setLastLineKey] = useState(lineKey);
+  if (lastLineKey !== lineKey) {
+    // New reviewed line: reset filters during render (React-endorsed
+    // derived-state pattern — avoids a cascading setState-in-effect).
+    setLastLineKey(lineKey);
+    setSideFilter("both");
+    setTierGroup("all");
+  }
+
+  // Chart derivations: white-perspective eval per ply, phase separators,
+  // filtered key moments joined with row data, cursor ply (null off-line).
+  const series = useMemo(() => (displayRows ? evalSeries(displayRows) : []), [displayRows]);
+  const separators = useMemo(() => (displayRows ? phaseSeparators(displayRows) : []), [displayRows]);
+  const filteredMoments = useMemo(
+    () => filterKeyMoments(moments, { side: sideFilter, tierGroup }),
+    [moments, sideFilter, tierGroup],
+  );
+  const plyPaths = useMemo(
+    () => [points[0]?.path ?? [], ...(displayRows ? displayRows.map((row) => row.path) : [])],
+    [points, displayRows],
+  );
+  const currentIndex = useMemo(() => {
+    const found = plyPaths.findIndex((path) => pathsEqual(path, board.path));
+    return found === -1 ? null : found;
+  }, [plyPaths, board.path]);
+  const chartMoments = useMemo<ReviewChartMoment[]>(
+    () =>
+      filteredMoments.flatMap((row) =>
+        row.label == null
+          ? []
+          : [
+              {
+                path: row.path,
+                san: row.san,
+                side: row.side,
+                label: row.label,
+                moveIndex: row.index,
+                value: row.afterPawns,
+                lossCp: row.lossCp,
+              },
+            ],
+      ),
+    [filteredMoments],
+  );
+
+  // Position within the filtered order; prev/next walk game order, no wrap.
+  // Off-moment but on-line, anchor to the surrounding moments so Next jumps
+  // forward instead of staying disabled.
+  const selectedMomentIndex = useMemo(() => {
+    const found = filteredMoments.findIndex((row) => pathsEqual(row.path, board.path));
+    return found === -1 ? null : found;
+  }, [filteredMoments, board.path]);
+  const { prevMomentIndex, nextMomentIndex } = useMemo(() => {
+    if (selectedMomentIndex != null) {
+      const { prev, next } = prevNextIndices(filteredMoments.length, selectedMomentIndex);
+      return { prevMomentIndex: prev, nextMomentIndex: next };
+    }
+    if (currentIndex == null) {
+      return { prevMomentIndex: null, nextMomentIndex: null };
+    }
+    const nextIdx = chartMoments.findIndex((moment) => moment.moveIndex + 1 > currentIndex);
+    if (nextIdx === -1) {
+      return {
+        prevMomentIndex: filteredMoments.length > 0 ? filteredMoments.length - 1 : null,
+        nextMomentIndex: null,
+      };
+    }
+    return { prevMomentIndex: nextIdx > 0 ? nextIdx - 1 : null, nextMomentIndex: nextIdx };
+  }, [selectedMomentIndex, currentIndex, filteredMoments.length, chartMoments]);
+
+  // `[` / `]` walk the filtered moments. Guard editable targets so typing
+  // in notation inputs never navigates.
+  useEffect(() => {
+    if (!report) {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      if (event.key !== "[" && event.key !== "]") {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      const index = event.key === "[" ? prevMomentIndex : nextMomentIndex;
+      if (index == null) {
+        return;
+      }
+      const moment = filteredMoments[index];
+      if (moment) {
+        event.preventDefault();
+        goPath(moment.path);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [report, prevMomentIndex, nextMomentIndex, filteredMoments, goPath]);
+
+  const goToMoment = (index: number | null) => {
+    if (index == null) {
+      return;
+    }
+    const moment = filteredMoments[index];
+    if (moment) {
+      goPath(moment.path);
+    }
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-studio-panel text-body text-studio-fg">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-studio-border-subtle px-3 py-2">
@@ -228,14 +365,79 @@ export function ReviewPanel() {
             {!rows && previewRows ? (
               <p className="px-3 pt-2 text-caption text-studio-faint">{tReview(locale, "panel.partialNote")}</p>
             ) : null}
+            <div className="border-b border-studio-border-subtle px-3 py-2">
+              <div className="mb-1 text-caption uppercase tracking-wide text-studio-faint">
+                {tReview(locale, "chart.title")}
+              </div>
+              <ReviewEvalChart
+                series={series}
+                plyPaths={plyPaths}
+                moments={chartMoments}
+                separators={separators}
+                currentIndex={currentIndex}
+                moveNotation={moveNotation}
+                locale={locale}
+                ariaLabel={tReview(locale, "chart.ariaLabel")}
+                emptyText={tReview(locale, "chart.empty")}
+                onSelect={goPath}
+              />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-1 text-caption text-studio-muted">
+                  <span>{tReview(locale, "filter.side")}</span>
+                  <select
+                    value={sideFilter}
+                    onChange={(event) => setSideFilter(event.target.value as SideFilter)}
+                    className="h-6 rounded-md border border-studio-border-strong bg-studio-panel px-1 text-caption text-studio-fg"
+                  >
+                    <option value="both">{tReview(locale, "filter.sideBoth")}</option>
+                    <option value="w">{tReview(locale, "filter.sideWhite")}</option>
+                    <option value="b">{tReview(locale, "filter.sideBlack")}</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-1 text-caption text-studio-muted">
+                  <span>{tReview(locale, "filter.tierGroup")}</span>
+                  <select
+                    value={tierGroup}
+                    onChange={(event) => setTierGroup(event.target.value as TierGroup)}
+                    className="h-6 rounded-md border border-studio-border-strong bg-studio-panel px-1 text-caption text-studio-fg"
+                  >
+                    <option value="all">{tReview(locale, "filter.tierAll")}</option>
+                    <option value="brilliant">{tReview(locale, "filter.tierBrilliant")}</option>
+                    <option value="mistakes">{tReview(locale, "filter.tierMistakes")}</option>
+                    <option value="misses">{tReview(locale, "filter.tierMisses")}</option>
+                    <option value="blunders">{tReview(locale, "filter.tierBlunders")}</option>
+                  </select>
+                </label>
+                <span className="ml-auto flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={prevMomentIndex == null}
+                    onClick={() => goToMoment(prevMomentIndex)}
+                  >
+                    {tReview(locale, "moments.prev")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={nextMomentIndex == null}
+                    onClick={() => goToMoment(nextMomentIndex)}
+                  >
+                    {tReview(locale, "moments.next")}
+                  </Button>
+                </span>
+              </div>
+            </div>
             <ReviewReportCard
               report={report}
-              moments={moments}
+              moments={filteredMoments}
               moveNotation={moveNotation}
               locale={locale}
               onSelectMoment={goPath}
               openingName={openingName}
               lineNote={lineNote}
+              selectedPath={board.path}
+              hasUnfilteredMoments={moments.length > 0}
             />
           </>
         ) : null}
