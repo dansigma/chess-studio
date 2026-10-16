@@ -11,6 +11,7 @@ import { ENGINE_BUILDS, ENGINE_BUILD_INFO } from "@/src/engine/stockfish-client"
 import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "./color-scheme";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
+import { clearReviewCache } from "./review/review-cache";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -161,6 +162,13 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               options={NOTATION_DENSITY_IDS.map((id) => ({ id, label: NOTATION_DENSITIES[id].label }))}
               onChange={setNotationDensity}
             />
+          </Row>
+        </Section>
+        <Section title="Game Review">
+          <Row label="Saved reviews">
+            <Button variant="secondary" size="sm" onClick={() => clearReviewCache()}>
+              Clear saved reviews
+            </Button>
           </Row>
         </Section>
         <Section title="Language">
