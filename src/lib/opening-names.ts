@@ -19,7 +19,7 @@ export const PT_BR_OPENING_NAMES: Record<string, string> = {
   A13: "Abertura Inglesa",
   "A13|Reti Opening": "Abertura Réti",
   D17: "Defesa Eslava",
-  D02: "Sistema London",
+  D02: "Sistema Londres",
 };
 
 /** PT-BR book name when mapped, else the English fallback verbatim. EN always returns the fallback. */
