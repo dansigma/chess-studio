@@ -30,7 +30,9 @@
 - Forced moves (one legal reply) get a `forced` label, are listed apart from the tiers and are excluded from
   accuracy, average loss and tier counts.
 - Finished reviews are cached in memory per line, depth preset and engine build, so switching panels or
-  re-opening the same line is instant.
+  re-opening the same line is instant. They are also persisted in IndexedDB (SIG-965), so a reload,
+  a new tab or a deploy no longer discards minutes of analysis; saved reviews show a "Saved review"
+  hint and can be cleared via Settings → Game Review.
 - Progress bar with an estimated time and a Cancel button; cancelling keeps the progress made so far.
 - Each position is searched from a clean engine hash, so a review is not affected by Show threat or by
   restarted searches.

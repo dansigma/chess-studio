@@ -35,7 +35,7 @@ export function ReviewPanel() {
     () => variationPoints(board.tree, board.path),
     [board.tree, board.path],
   );
-  const { preset, setPreset, running, cancelled, failed, progress, rows, start, cancel } = useGameReview({
+  const { preset, setPreset, running, cancelled, failed, progress, rows, cached, start, cancel } = useGameReview({
     tree: board.tree,
     points,
     engineBuild,
@@ -187,15 +187,20 @@ export function ReviewPanel() {
           />
         ) : null}
         {report ? (
-          <ReviewReportCard
-            report={report}
-            moments={moments}
-            moveNotation={moveNotation}
-            locale={locale}
-            onSelectMoment={goPath}
-            openingName={openingName}
-            lineNote={lineNote}
-          />
+          <>
+            {cached ? (
+              <p className="px-3 pt-2 text-caption text-studio-faint">{tReview(locale, "panel.savedReview")}</p>
+            ) : null}
+            <ReviewReportCard
+              report={report}
+              moments={moments}
+              moveNotation={moveNotation}
+              locale={locale}
+              onSelectMoment={goPath}
+              openingName={openingName}
+              lineNote={lineNote}
+            />
+          </>
         ) : null}
       </div>
     </div>
