@@ -258,4 +258,50 @@ describe("SIG-944 board-edit slice", () => {
     store().openSharedPosition("nonsense");
     assert.equal(store().active().tree.startFen, "4k3/8/8/8/8/8/8/4K3 w - - 0 1", "invalid input is ignored");
   });
+
+  it("SIG-968 annotateReview applies edits with an undo snapshot, then undo restores", () => {
+    resetBoard();
+    const store = () => useStudioStore.getState();
+    store().openListedGame({ title: "Notes", moves: "e4 e5", openInNewBoard: true });
+
+    const before = store().active().tree;
+    const comment = "[Chess Studio review]\n[%eval 0.30]";
+    store().annotateReview([
+      { path: [0, 0], nags: [1], comment },
+      { path: [0], nags: undefined, comment: undefined },
+    ]);
+
+    const annotated = store().active();
+    assert.equal(annotated.dirty, true);
+    assert.deepEqual(getNodeAt(annotated.tree, [0, 0])?.nags, [1]);
+    assert.equal(getNodeAt(annotated.tree, [0, 0])?.comment, comment);
+    assert.equal(annotated.reviewAnnotateUndo !== undefined, true);
+    assert.deepEqual(annotated.reviewAnnotateUndo, before, "snapshot holds the pre-annotate tree");
+    assert.notEqual(annotated.tree, before, "annotate writes a new tree");
+
+    store().undoReviewAnnotations();
+    const restored = store().active();
+    assert.deepEqual(restored.tree, before, "undo restores the exact tree");
+    assert.equal(restored.reviewAnnotateUndo, undefined, "the snapshot is consumed");
+    assert.equal(restored.dirty, true);
+
+    store().undoReviewAnnotations();
+    assert.deepEqual(store().active().tree, before, "a second undo without a snapshot no-ops");
+  });
+
+  it("SIG-968 annotateReview with no edits leaves the board untouched", () => {
+    resetBoard();
+    const store = () => useStudioStore.getState();
+
+    store().annotateReview([]);
+    assert.equal(store().active().reviewAnnotateUndo, undefined);
+    assert.equal(store().active().dirty, true, "empty board starts dirty");
+
+    store().openListedGame({ title: "Notes", moves: "e4 e5", openInNewBoard: true });
+    const clean = store().active();
+    assert.equal(clean.dirty, false);
+    store().annotateReview([]);
+    assert.equal(store().active().reviewAnnotateUndo, undefined);
+    assert.equal(store().active().dirty, false, "an empty annotate is a no-op");
+  });
 });

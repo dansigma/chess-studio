@@ -4,6 +4,7 @@ import type { PieceSet } from "@/src/chess/piece-sets";
 import type { MoveNotation } from "@/src/chess/move-notation";
 import type { ColorScheme } from "@/src/studio/color-scheme";
 import type { GameTree, Path } from "@/src/chess/tree";
+import type { ReviewAnnotationEdit } from "@/src/chess/review-annotate";
 import type { SpacedRepetitionItem } from "@/src/chess/repertoire";
 import type { GameHeaders } from "@/src/chess/pgn";
 import type { BoardMarks, MarkColor } from "@/src/chess/marks";
@@ -39,6 +40,11 @@ export type BoardSession = {
   orientation: BoardOrientation;
   dirty: boolean;
   preview: boolean;
+  // SIG-968: pre-annotate snapshot for one level of "Undo annotations".
+  // Set by annotateReview, cleared by undoReviewAnnotations and by any
+  // wholesale tree replacement (import/load/setup/clone). Optional so all
+  // existing constructors stay valid; absent means "no undo available".
+  reviewAnnotateUndo?: GameTree;
 };
 
 export type EnginePreview = {
@@ -208,6 +214,10 @@ export type StudioState = {
   clearBoardMarks: () => void;
   toggleMoveNag: (nag: number, path?: Path) => void;
   clearMoveNags: (path?: Path) => void;
+  // SIG-968: applies pre-built review edits (NAGs/comments) to the active
+  // board in one write; stashes the pre-annotate tree for one undo level.
+  annotateReview: (edits: ReviewAnnotationEdit[]) => void;
+  undoReviewAnnotations: () => void;
   toggleBoardSquareMark: (square: string, color: MarkColor) => void;
   toggleBoardArrowMark: (from: string, to: string, color: MarkColor) => void;
   setHeaders: (headers: GameHeaders) => void;

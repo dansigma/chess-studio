@@ -243,6 +243,8 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         path,
         headers: imported.headers,
         preview: false,
+        // SIG-968: a fresh game replaces the tree — no annotate undo carries over.
+        reviewAnnotateUndo: undefined,
         dirty: true,
       };
       set((state) => ({
@@ -270,6 +272,8 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         tree: imported.tree,
         path,
         headers: imported.headers,
+        // SIG-968: a fresh game replaces the tree — drop any annotate undo.
+        reviewAnnotateUndo: undefined,
         dirty: true,
       })),
     }));
