@@ -4,9 +4,12 @@ import {
   REVIEW_STRING_KEYS,
   TABLES,
   formatReviewEta,
+  keyMomentAccessibleName,
   presetLabel,
   phaseName,
+  progressBucket,
   reviewCancelledText,
+  reviewCompleteText,
   reviewFailedText,
   reviewPresetOption,
   reviewProgressText,
@@ -108,4 +111,53 @@ test("unknown locale entries fall back to English", () => {
   for (const key of REVIEW_STRING_KEYS satisfies readonly ReviewStringKey[]) {
     assert.ok(tReview("en", key).length > 0);
   }
+});
+
+test("SIG-969: completion text, coarse bucketing and rich moment names", () => {
+  assert.equal(
+    reviewCompleteText("en", { done: 20, total: 20 }),
+    "Review complete: 20 of 20 moves scored.",
+  );
+  assert.equal(
+    reviewCompleteText("pt-br", { done: 20, total: 20 }),
+    "Revisão concluída: 20 de 20 lances avaliados.",
+  );
+  // ~10% coarse buckets: per-move progress stays silent, bucket edges announce.
+  assert.equal(progressBucket(0, 20), 0);
+  assert.equal(progressBucket(1, 20), 0);
+  assert.equal(progressBucket(2, 20), 1);
+  assert.equal(progressBucket(20, 20), 10);
+  assert.equal(progressBucket(0, 0), 0);
+  // Rich moment names: fullmove number + notation-aware SAN + tier + pawn loss.
+  assert.equal(
+    keyMomentAccessibleName("en", "english", {
+      moveNumber: 14,
+      san: "Nf3",
+      side: "w",
+      tier: "Blunder",
+      lossCp: 320,
+    }),
+    "Move 14, Nf3, Blunder, lost 3.2 pawns",
+  );
+  assert.equal(
+    keyMomentAccessibleName("pt-br", "english", {
+      moveNumber: 14,
+      san: "Nf3",
+      side: "w",
+      tier: "Capivarada",
+      lossCp: 320,
+    }),
+    "Lance 14, Nf3, Capivarada, perda de 3,2 peões",
+  );
+  // Zero/negative loss omits the pawns clause entirely.
+  assert.equal(
+    keyMomentAccessibleName("en", "english", {
+      moveNumber: 8,
+      san: "Nf3",
+      side: "w",
+      tier: "Brilliant",
+      lossCp: 0,
+    }),
+    "Move 8, Nf3, Brilliant",
+  );
 });

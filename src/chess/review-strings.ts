@@ -3,7 +3,8 @@
 // src/chess/explain/render.ts). Interpolated sentences are whole-sentence
 // template functions so PT-BR word order never comes from concatenation.
 import type { SiteLocale } from "../i18n/locale.ts";
-import { formatInteger } from "../i18n/format.ts";
+import { formatDecimal1, formatInteger } from "../i18n/format.ts";
+import { formatSan, type MoveNotation } from "./move-notation.ts";
 import type { GamePhase } from "./phases.ts";
 import type { ReviewLabel } from "./review.ts";
 import type { ReviewPreset } from "./review-engine.ts";
@@ -13,6 +14,7 @@ export const REVIEW_STRING_KEYS = [
   "panel.depthLabel",
   "panel.progressLabel",
   "panel.cancel",
+  "panel.reviewComplete",
   "panel.reviewAgain",
   "panel.reviewGame",
   "panel.resumeReview",
@@ -26,6 +28,7 @@ export const REVIEW_STRING_KEYS = [
   "report.avgLoss",
   "report.avgLossTitle",
   "report.gameRating",
+  "report.gameRatingShort",
   "report.ratingTooltip",
   "report.forcedTooltip",
   "report.keyMoments",
@@ -52,6 +55,8 @@ export const REVIEW_STRING_KEYS = [
   "filter.tierBlunders",
   "moments.prev",
   "moments.next",
+  "moments.accessibleLabel",
+  "moments.accessibleLabelNoLoss",
   "phase.opening",
   "phase.middlegame",
   "phase.endgame",
@@ -98,6 +103,7 @@ const EN: Record<ReviewStringKey, string> = {
   "panel.depthLabel": "Review depth",
   "panel.progressLabel": "Review progress",
   "panel.cancel": "Cancel",
+  "panel.reviewComplete": "Review complete: {done} of {total} moves scored.",
   "panel.reviewAgain": "Review again",
   "panel.reviewGame": "Review game",
   "panel.resumeReview": "Resume review",
@@ -111,6 +117,7 @@ const EN: Record<ReviewStringKey, string> = {
   "report.avgLoss": "Avg. loss",
   "report.avgLossTitle": "Average centipawn loss per move (lower is better)",
   "report.gameRating": "Game rating ⓘ",
+  "report.gameRatingShort": "Game rating",
   "report.ratingTooltip":
     "Estimated from each player's average centipawn loss (book and forced moves excluded). " +
     "When the game header has a rating, the estimate is scaled around it; a leading ≈ means the " +
@@ -141,6 +148,8 @@ const EN: Record<ReviewStringKey, string> = {
   "filter.tierBlunders": "Blunders",
   "moments.prev": "Previous moment",
   "moments.next": "Next moment",
+  "moments.accessibleLabel": "Move {number}, {san}, {tier}, lost {loss} pawns",
+  "moments.accessibleLabelNoLoss": "Move {number}, {san}, {tier}",
   "phase.opening": "Opening",
   "phase.middlegame": "Middlegame",
   "phase.endgame": "Endgame",
@@ -185,6 +194,7 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "panel.depthLabel": "Profundidade da análise",
   "panel.progressLabel": "Progresso da análise",
   "panel.cancel": "Cancelar",
+  "panel.reviewComplete": "Revisão concluída: {done} de {total} lances avaliados.",
   "panel.reviewAgain": "Analisar novamente",
   "panel.reviewGame": "Analisar partida",
   "panel.resumeReview": "Retomar análise",
@@ -198,6 +208,7 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "report.avgLoss": "Perda média",
   "report.avgLossTitle": "Perda média em centipeões por lance (quanto menor, melhor)",
   "report.gameRating": "Rating da partida ⓘ",
+  "report.gameRatingShort": "Rating da partida",
   "report.ratingTooltip":
     "Estimado a partir da perda média em centipeões de cada jogador (lances de livro e forçados excluídos). " +
     "Quando o cabeçalho da partida tem um rating, a estimativa é ajustada em torno dele; um ≈ inicial significa que o " +
@@ -228,6 +239,8 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "filter.tierBlunders": "Capivaradas",
   "moments.prev": "Momento anterior",
   "moments.next": "Próximo momento",
+  "moments.accessibleLabel": "Lance {number}, {san}, {tier}, perda de {loss} peões",
+  "moments.accessibleLabelNoLoss": "Lance {number}, {san}, {tier}",
   "phase.opening": "Abertura",
   "phase.middlegame": "Meio-jogo",
   "phase.endgame": "Final",
@@ -384,7 +397,42 @@ export function reviewResumeText(locale: SiteLocale, args: { done: number; total
   return locale === "pt-br" ? `Retomar análise ${done}/${total}` : `Resume review ${done}/${total}`;
 }
 
+/** "Review complete: 20 of 20 moves scored." — terminal live-region announcement. */
+export function reviewCompleteText(locale: SiteLocale, args: { done: number; total: number }): string {
+  return tReview(locale, "panel.reviewComplete")
+    .replace("{done}", formatInteger(locale, args.done))
+    .replace("{total}", formatInteger(locale, args.total));
+}
+
 /** "White"/"Black" / "Brancas"/"Pretas" — fallback when the PGN header has no player name. */
 export function reviewPlayerFallback(locale: SiteLocale, side: "w" | "b"): string {
   return tReview(locale, side === "w" ? "report.whiteFallback" : "report.blackFallback");
+}
+
+/** Coarse live-region bucket (0–10) so progress announcements fire at ~10% steps, never per move. */
+export function progressBucket(done: number, total: number): number {
+  if (total <= 0) {
+    return 0;
+  }
+  const pct = Math.min(1, Math.max(0, done / total));
+  return Math.min(10, Math.floor(pct * 10));
+}
+
+/** "Move 14, Nf3, Blunder, lost 3.2 pawns" / PT-BR — rich key-moment button name.
+ * Takes the display fullmove number (compute with moveNumberForPath(startFen,
+ * path.length) at the call site — the card never sees the tree start FEN). */
+export function keyMomentAccessibleName(
+  locale: SiteLocale,
+  moveNotation: MoveNotation,
+  args: { moveNumber: number; san: string; side: "w" | "b"; tier: string; lossCp: number },
+): string {
+  const number = formatInteger(locale, args.moveNumber);
+  const san = formatSan(args.san, moveNotation, args.side);
+  if (args.lossCp <= 0) {
+    const template = tReview(locale, "moments.accessibleLabelNoLoss");
+    return template.replace("{number}", number).replace("{san}", san).replace("{tier}", args.tier);
+  }
+  const template = tReview(locale, "moments.accessibleLabel");
+  const loss = formatDecimal1(locale, args.lossCp / 100);
+  return template.replace("{number}", number).replace("{san}", san).replace("{tier}", args.tier).replace("{loss}", loss);
 }
