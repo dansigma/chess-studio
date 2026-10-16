@@ -18,6 +18,7 @@ import { ReviewReportCard } from "./review/ReviewReportCard";
 import { ReviewEvalChart, type ReviewChartMoment } from "./review/ReviewEvalChart";
 import {
   filterKeyMoments,
+  chartSummary,
   phaseSeparators,
   prevNextIndices,
   type SideFilter,
@@ -377,7 +378,10 @@ export function ReviewPanel() {
                 currentIndex={currentIndex}
                 moveNotation={moveNotation}
                 locale={locale}
-                ariaLabel={tReview(locale, "chart.ariaLabel")}
+                ariaLabel={`${tReview(locale, "chart.ariaLabel")} — ${chartSummary(locale, {
+                  plies: series.length,
+                  moments: chartMoments.length,
+                })}`}
                 emptyText={tReview(locale, "chart.empty")}
                 onSelect={goPath}
               />

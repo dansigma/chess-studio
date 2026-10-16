@@ -4,8 +4,13 @@ import test from "node:test";
 import { evalSeries } from "@/src/chess/review-report.ts";
 import {
   REVIEW_CHART_CAP,
+  chartEvalText,
+  chartPlyLabel,
+  chartSummary,
   clampReviewPawns,
   filterKeyMoments,
+  formatChartEval,
+  isMatePawns,
   phaseSeparators,
   prevNextIndices,
   xAt,
@@ -144,4 +149,35 @@ test("prevNextIndices clamps at the ends with no wrap", () => {
   assert.deepEqual(prevNextIndices(3, 1), { prev: 0, next: 2 });
   assert.deepEqual(prevNextIndices(3, 2), { prev: 1, next: null });
   assert.deepEqual(prevNextIndices(1, 0), { prev: null, next: null });
+});
+
+test("hover tooltip text never leaks raw mate scores", () => {
+  // Mate markers must render as the localized "mate" label, not "900.0".
+  assert.equal(isMatePawns(900), true);
+  assert.equal(isMatePawns(-900), true);
+  assert.equal(isMatePawns(42), false);
+  assert.equal(formatChartEval("en", 900), formatChartEval("en", 5));
+  assert.equal(formatChartEval("en", -900), formatChartEval("en", -5));
+  assert.equal(chartEvalText("en", 900), "mate");
+  assert.equal(chartEvalText("en", -900), "mate");
+  assert.equal(chartEvalText("en", 0.5), "0.5");
+  assert.equal(chartEvalText("pt-br", 900), "mate");
+});
+
+test("plain-ply labels are localized", () => {
+  assert.equal(chartPlyLabel("en", 0), "Start");
+  assert.equal(chartPlyLabel("en", 12), "Ply 12");
+  assert.equal(chartPlyLabel("pt-br", 0), "Início");
+  assert.equal(chartPlyLabel("pt-br", 12), "Lance 12");
+});
+
+test("chartSummary describes the plotted line for screen readers", () => {
+  assert.equal(
+    chartSummary("en", { plies: 24, moments: 5 }),
+    "Review chart: 24 plies, 5 key moments",
+  );
+  assert.equal(
+    chartSummary("pt-br", { plies: 24, moments: 5 }),
+    "Gráfico da análise: 24 lances, 5 momentos-chave",
+  );
 });

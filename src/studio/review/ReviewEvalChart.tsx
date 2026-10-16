@@ -14,7 +14,7 @@ import type { ReviewLabel } from "@/src/chess/review";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { formatDecimal1 } from "@/src/i18n/format";
 import type { Path } from "@/src/chess/tree";
-import { xAt, yAt } from "./review-chart";
+import { chartEvalText, chartPlyLabel, xAt, yAt } from "./review-chart";
 
 export type ReviewChartMoment = {
   path: Path;
@@ -52,6 +52,9 @@ function momentTitle(
 ): string {
   const san = formatSan(moment.san, moveNotation, moment.side);
   const tier = tierName(locale, moment.label);
+  if (moment.lossCp <= 0) {
+    return `${san} · ${tier}`;
+  }
   const loss = formatDecimal1(locale, moment.lossCp / 100);
   return `${san} · ${tier} · -${loss}`;
 }
@@ -144,32 +147,13 @@ export function ReviewEvalChart({
             preserveAspectRatio="none"
             role="img"
             aria-label={ariaLabel}
-            tabIndex={0}
             onMouseLeave={() => setHover(null)}
             onMouseMove={(event) => setHover(indexFromClientX(event.clientX))}
-            onFocus={() => setHover((current) => current ?? currentIndex ?? 0)}
-            onKeyDown={(event) => {
-              if (count === 0) {
-                return;
-              }
-              const max = count - 1;
-              const current = Math.max(0, Math.min(hover ?? currentIndex ?? 0, max));
-              if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-                event.preventDefault();
-                setHover(Math.min(max, current + 1));
-              } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-                event.preventDefault();
-                setHover(Math.max(0, current - 1));
-              } else if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                selectPly(current);
-              }
-            }}
             onClick={(event) => {
               selectPly(indexFromClientX(event.clientX));
             }}
             onPointerDown={(event) => {
-              (event.target as Element).setPointerCapture?.(event.pointerId);
+              event.currentTarget.setPointerCapture?.(event.pointerId);
               selectPly(indexFromClientX(event.clientX));
             }}
             onPointerMove={(event) => {
@@ -252,9 +236,9 @@ export function ReviewEvalChart({
               momentTitle(locale, moveNotation, hoveredMoment)
             ) : (
               <>
-                {hover === 0 ? "Start" : `Ply ${hover}`}{" "}
+                {chartPlyLabel(locale, hover)}{" "}
                 <span className="text-studio-muted">
-                  {hoverEval != null ? formatDecimal1(locale, hoverEval) : "…"}
+                  {hoverEval != null ? chartEvalText(locale, hoverEval) : "…"}
                 </span>
               </>
             )}
@@ -262,7 +246,7 @@ export function ReviewEvalChart({
         ) : null}
         {count > 1 && hover != null ? (
           <span className="sr-only" aria-live="polite">
-            {hoveredMoment ? momentTitle(locale, moveNotation, hoveredMoment) : `Ply ${hover}`}
+            {hoveredMoment ? momentTitle(locale, moveNotation, hoveredMoment) : chartPlyLabel(locale, hover)}
           </span>
         ) : null}
       </div>

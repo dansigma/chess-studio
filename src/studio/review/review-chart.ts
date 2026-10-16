@@ -3,9 +3,18 @@
 // Geometry mirrors EvalGraphPanel (PAD_X = 28, PAD_Y = 16, PAWN_CAP = 5).
 import type { GamePhase } from "@/src/chess/phases";
 import { KEY_MOMENT_LABELS } from "@/src/chess/review-report";
+import { tReview } from "@/src/chess/review-strings";
+import { formatDecimal1, formatInteger } from "@/src/i18n/format";
+import type { SiteLocale } from "@/src/i18n/locale";
 import type { KeyMomentRow } from "./ReviewReportCard";
 
 export const REVIEW_CHART_CAP = 5;
+/**
+ * Raw white-perspective scores at or beyond ±this are mate markers
+ * (mirrors MATE_PAWNS in review-accuracy); the chart pins them to the
+ * rails instead of plotting them raw.
+ */
+export const REVIEW_MATE_PAWNS = 900;
 const CHART_PAD_X = 28;
 const CHART_PAD_Y = 16;
 
@@ -22,6 +31,42 @@ export const REVIEW_TIER_GROUPS: Record<Exclude<TierGroup, "all">, readonly stri
 
 export function clampReviewPawns(pawns: number): number {
   return Math.max(-REVIEW_CHART_CAP, Math.min(REVIEW_CHART_CAP, pawns));
+}
+
+/** True when a raw white-perspective eval is a mate marker rather than a pawn value. */
+export function isMatePawns(pawns: number): boolean {
+  return Math.abs(pawns) >= REVIEW_MATE_PAWNS;
+}
+
+function render(template: string, vars: Record<string, string>): string {
+  let out = template;
+  for (const [key, value] of Object.entries(vars)) {
+    out = out.replace(`{${key}}`, value);
+  }
+  return out;
+}
+
+/** "0.5" / "-2.3" — clamped pawn text for plain-ply hover tooltips (never "900.0"). */
+export function formatChartEval(locale: SiteLocale, pawns: number): string {
+  return formatDecimal1(locale, clampReviewPawns(pawns));
+}
+
+/** "mate" for mate markers, else the clamped pawn text. */
+export function chartEvalText(locale: SiteLocale, pawns: number): string {
+  return isMatePawns(pawns) ? tReview(locale, "chart.mate") : formatChartEval(locale, pawns);
+}
+
+/** "Start" / "Ply 12" — localized plain-ply label for hover tooltips and live regions. */
+export function chartPlyLabel(locale: SiteLocale, ply: number): string {
+  return ply === 0 ? tReview(locale, "chart.start") : render(tReview(locale, "chart.ply"), { ply: String(ply) });
+}
+
+/** "Review chart: 24 plies, 5 key moments" — dynamic chart summary for aria-label. */
+export function chartSummary(locale: SiteLocale, args: { plies: number; moments: number }): string {
+  return render(tReview(locale, "chart.summary"), {
+    plies: formatInteger(locale, args.plies),
+    moments: formatInteger(locale, args.moments),
+  });
 }
 
 export function yAt(pawns: number, height: number, padY: number = CHART_PAD_Y): number {
