@@ -7,7 +7,7 @@ import { REVIEW_TIERS } from "@/src/chess/review-tiers";
 import { REVIEW_LABELS, type ReviewLabel } from "@/src/chess/review";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { formatDecimal1, formatInteger } from "@/src/i18n/format";
-import type { Path } from "@/src/chess/tree";
+import { pathsEqual, type Path } from "@/src/chess/tree";
 
 export type KeyMomentRow = {
   path: Path;
@@ -25,6 +25,10 @@ type Props = {
   openingName?: string | null;
   /** Set when the reviewed line is not the main line. */
   lineNote?: string | null;
+  /** Board path, to highlight the active key-moment row. */
+  selectedPath?: Path | null;
+  /** True when filters hid every moment (shows report.noFilteredMoments). */
+  hasUnfilteredMoments?: boolean;
 };
 
 /** One decimal, so 86 shows as 86.0 (en) / 86,0 (pt-br) like the other column. */
@@ -52,7 +56,17 @@ function ratingText(side: SideReport, locale: SiteLocale): string {
   return anchored ? text : `≈ ${text}`;
 }
 
-export function ReviewReportCard({ report, moments, moveNotation, locale, onSelectMoment, openingName, lineNote }: Props) {
+export function ReviewReportCard({
+  report,
+  moments,
+  moveNotation,
+  locale,
+  onSelectMoment,
+  openingName,
+  lineNote,
+  selectedPath = null,
+  hasUnfilteredMoments = false,
+}: Props) {
   const { white, black } = report;
   const ratingTooltip = tReview(locale, "report.ratingTooltip");
   return (
@@ -127,18 +141,24 @@ export function ReviewReportCard({ report, moments, moveNotation, locale, onSele
       </div>
       <div className="px-3 py-2 text-caption uppercase tracking-wide text-studio-faint">{tReview(locale, "report.keyMoments")}</div>
       {moments.length === 0 ? (
-        <p className="px-3 pb-3 text-dense text-studio-faint">{tReview(locale, "report.noMistakes")}</p>
+        <p className="px-3 pb-3 text-dense text-studio-faint">
+          {tReview(locale, hasUnfilteredMoments ? "report.noFilteredMoments" : "report.noMistakes")}
+        </p>
       ) : (
         moments.map((row) => {
           if (!row.label) {
             return null;
           }
           const tier = REVIEW_TIERS[row.label];
+          const active = selectedPath != null && pathsEqual(row.path, selectedPath);
           return (
             <button
               key={row.path.join(".")}
               type="button"
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover"
+              aria-current={active ? "true" : undefined}
+              className={`flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover${
+                active ? " bg-studio-hover-strong" : ""
+              }`}
               onClick={() => onSelectMoment(row.path)}
             >
               <span className={`w-6 text-center font-semibold ${tier.className}`}>{tier.mark}</span>

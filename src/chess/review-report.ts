@@ -148,3 +148,17 @@ export function buildReviewReport(rows: ReportRow[], headers: ReportHeaders, loc
 export function keyMoments<T extends { label: ReviewLabel | null }>(rows: T[]): T[] {
   return rows.filter((row) => row.label != null && KEY_MOMENT_LABELS.has(row.label));
 }
+
+/**
+ * White-perspective evaluation per ply for the review chart (SIG-967).
+ * Series = [rows[0].beforePawns, ...rows.map(r => r.afterPawns)] (length =
+ * moves + 1, index = ply). Raw pawns pass through unclamped (mate shows as
+ * MATE_PAWNS = 900); clamping is a display concern in review-chart.ts.
+ * Empty rows → [].
+ */
+export function evalSeries(rows: Array<{ beforePawns: number; afterPawns: number }>): number[] {
+  if (rows.length === 0) {
+    return [];
+  }
+  return [rows[0].beforePawns, ...rows.map((row) => row.afterPawns)];
+}
