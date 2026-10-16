@@ -24,7 +24,7 @@ function moment(
   label: KeyMomentRow["label"],
   path: number[] = [0],
 ): KeyMomentRow {
-  return { path, san, side, label };
+  return { path, san, side, label, index: path.length - 1, lossCp: 0 };
 }
 
 test("evalSeries chains beforePawns then afterPawns, index = ply", () => {

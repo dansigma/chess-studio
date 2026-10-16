@@ -6,7 +6,9 @@ import { buildReviewReport, evalSeries, keyMoments } from "@/src/chess/review-re
 import { buildReviewSummary } from "@/src/chess/review-share";
 import {
   formatReviewEta,
+  progressBucket,
   reviewCancelledText,
+  reviewCompleteText,
   reviewFailedText,
   reviewPresetOption,
   reviewProgressText,
@@ -86,6 +88,51 @@ export function ReviewPanel() {
     engineThreads,
     setupMode,
   });
+
+  // SIG-969: coarse polite announcer — ~10% buckets via progressBucket, never
+  // per move. Covers running progress + fresh completion. Failed/cancelled
+  // rely on their visible role="status" nodes (no duplicate announcement).
+  const [liveMessage, setLiveMessage] = useState("");
+  const lastAnnouncedBucket = useRef(-1);
+  /* eslint-disable react-hooks/set-state-in-effect -- SIG-969: the announcer
+     intentionally syncs on progress-bucket changes (ref-gated, ~10% steps)
+     so per-move progress never reaches the live region as chatter. */
+  useEffect(() => {
+    if (running && !setupMode) {
+      const bucket = progressBucket(progress.done, progress.total);
+      if (bucket !== lastAnnouncedBucket.current) {
+        lastAnnouncedBucket.current = bucket;
+        if (progress.total > 0 && progress.done >= progress.total) {
+          setLiveMessage(reviewCompleteText(locale, { done: progress.done, total: progress.total }));
+        } else {
+          setLiveMessage(
+            reviewProgressText(locale, {
+              depth: REVIEW_PRESETS[preset].depth,
+              done: progress.done,
+              total: progress.total,
+            }),
+          );
+        }
+      }
+      return;
+    }
+    // Fresh completion lands here: running flipped false, rows present,
+    // progress pinned at total. Cached loads keep IDLE_PROGRESS so they stay
+    // silent. Failed/cancelled intentionally stay silent here — their visible
+    // role="status" nodes announce once without a duplicate.
+    if (!running && rows && progress.total > 0 && progress.done >= progress.total && lastAnnouncedBucket.current >= 0) {
+      lastAnnouncedBucket.current = -1;
+      setLiveMessage(reviewCompleteText(locale, { done: progress.done, total: progress.total }));
+      return;
+    }
+    if (!running) {
+      // Idle / cached loads stay silent: drop any stale completion text so a
+      // cached report never re-announces the previous run's totals.
+      lastAnnouncedBucket.current = -1;
+      setLiveMessage("");
+    }
+  }, [running, setupMode, progress, rows, locale, preset]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Finished report, else the read-only partial preview (SIG-966).
   const displayRows = rows ?? previewRows;
@@ -416,6 +463,12 @@ export function ReviewPanel() {
           <p className="px-3 py-4 text-dense text-studio-faint">{tReview(locale, "panel.empty")}</p>
         ) : null}
         {setupMode ? <p className="px-3 py-2 text-caption text-studio-warning-fg">{tReview(locale, "panel.pausedSetup")}</p> : null}
+        {/* SIG-969: single persistent polite node — coarse ~10% progress plus
+            fresh-completion. Never unmounted so SR never loses an announcement.
+            Failed/cancelled announce via their visible role="status" nodes. */}
+        <span className="sr-only" aria-live="polite">
+          {liveMessage}
+        </span>
         {running && !setupMode ? (
           <div className="px-3 py-3 text-dense text-studio-muted">
             <div className="mb-1 flex items-center justify-between gap-2">
@@ -435,6 +488,11 @@ export function ReviewPanel() {
               aria-valuemin={0}
               aria-valuemax={progress.total}
               aria-valuenow={progress.done}
+              aria-valuetext={reviewProgressText(locale, {
+                depth: REVIEW_PRESETS[preset].depth,
+                done: progress.done,
+                total: progress.total,
+              })}
               className="h-1.5 overflow-hidden rounded-full bg-studio-border-subtle"
             >
               <div
@@ -445,12 +503,12 @@ export function ReviewPanel() {
           </div>
         ) : null}
         {failed && !running ? (
-          <p className="px-3 py-3 text-dense text-studio-warning-fg">
+          <p role="status" className="px-3 py-3 text-dense text-studio-warning-fg">
             {reviewFailedText(locale, { done: progress.done, total: progress.total })}
           </p>
         ) : null}
         {cancelled && !running && !rows ? (
-          <p className="px-3 py-3 text-dense text-studio-muted">
+          <p role="status" className="px-3 py-3 text-dense text-studio-muted">
             {reviewCancelledText(locale, { done: progress.done, total: progress.total })}
           </p>
         ) : null}
@@ -569,6 +627,7 @@ export function ReviewPanel() {
                 lineNote={lineNote}
                 selectedPath={board.path}
                 hasUnfilteredMoments={moments.length > 0}
+                startFen={board.tree.startFen}
               />
             </div>
             <div className="flex items-center justify-between gap-2 px-3 py-2">
