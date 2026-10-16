@@ -173,7 +173,7 @@ export function ReviewPanel() {
     );
     setAnnotateOpen(false);
     annotateReview(edits);
-    setStatus(tReview(locale, "annotate.done"));
+    setStatus(tReview(locale, edits.length > 0 ? "annotate.done" : "annotate.upToDate"));
   };
   const openingName = useMemo(() => {
     if (!displayRows) {
