@@ -161,6 +161,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       tree: cloneTree(current.tree),
       path: [...current.path],
       headers: { ...current.headers },
+      // SIG-968: the snapshot belongs to the source board — a clone of an
+      // annotated tree starts with no undo (the tree itself carries the notes).
+      reviewAnnotateUndo: undefined,
       dirty: true,
       preview: false,
     };

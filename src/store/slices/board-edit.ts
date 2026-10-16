@@ -2,6 +2,7 @@ import { Chess } from "chess.js";
 import type { StateCreator } from "zustand";
 import {
   START_FEN,
+  cloneTree,
   createEmptyTree,
   deleteAfter,
   deleteVariation,
@@ -66,6 +67,8 @@ export type BoardEditSlice = Pick<
   | "clearBoardMarks"
   | "toggleMoveNag"
   | "clearMoveNags"
+  | "annotateReview"
+  | "undoReviewAnnotations"
   | "toggleBoardSquareMark"
   | "toggleBoardArrowMark"
   | "setHeaders"
@@ -110,6 +113,8 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         tree: imported.tree,
         path: imported.path,
         headers: imported.headers,
+        // SIG-968: a fresh import is a new game — drop any annotate undo.
+        reviewAnnotateUndo: undefined,
         dirty: true,
       })),
     }));
@@ -126,6 +131,8 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         tree: imported.tree,
         path: mainlinePathForFen(imported.tree, atFen),
         headers,
+        // SIG-968: a fresh game replaces the tree — drop any annotate undo.
+        reviewAnnotateUndo: undefined,
         dirty: false,
       };
       const previewMode = state.settings.gamePreviewEnabled && !args.openInNewBoard;
@@ -352,6 +359,59 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
       }),
     }));
   },
+  // SIG-968: bulk-applies pure review edits (NAGs + "[Chess Studio review]"
+  // comment blocks). Edits arrive address-complete from
+  // buildReviewAnnotations, so they apply directly by path with no review
+  // imports here — the snapshot holds the undo, not a recompute.
+  annotateReview: (edits) => {
+    if (edits.length === 0) {
+      return;
+    }
+    set((state) => ({
+      boards: withActive(state.boards, state.activeBoardId, (board) => {
+        let tree = board.tree;
+        for (const edit of edits) {
+          if (edit.nags !== undefined) {
+            tree = setNodeNags(tree, edit.path, edit.nags);
+          }
+          if (edit.comment !== undefined) {
+            // setNodeComment no-ops to undefined on empty, which strips a
+            // review block whose options produced no lines (evals + best-move
+            // off with no user text) — the intended re-annotate cleanup.
+            tree = setNodeComment(tree, edit.path, edit.comment);
+          }
+        }
+        if (tree === board.tree) {
+          return board;
+        }
+        return {
+          ...board,
+          tree,
+          // One level only: each annotate overwrites the prior snapshot, so
+          // undo always restores the tree as it was right before the latest
+          // annotate. cloneTree keeps the snapshot detached from later edits.
+          reviewAnnotateUndo: cloneTree(board.tree),
+          dirty: true,
+        };
+      }),
+    }));
+  },
+  undoReviewAnnotations: () => {
+    set((state) => ({
+      boards: withActive(state.boards, state.activeBoardId, (board) => {
+        if (!board.reviewAnnotateUndo) {
+          return board;
+        }
+        return {
+          ...board,
+          tree: board.reviewAnnotateUndo,
+          // Consumed: a second undo is a no-op until the next annotate.
+          reviewAnnotateUndo: undefined,
+          dirty: true,
+        };
+      }),
+    }));
+  },
   toggleBoardSquareMark: (square, color) => {
     set((state) => ({
       boards: withActive(state.boards, state.activeBoardId, (board) => {
@@ -423,6 +483,8 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
           tree: createEmptyTree(startFen),
           path: [],
           headers,
+          // SIG-968: setup replaces the tree — drop any annotate undo.
+          reviewAnnotateUndo: undefined,
           dirty: true,
         };
       }),
@@ -454,6 +516,8 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
           tree: createEmptyTree(startFen),
           path: [],
           headers,
+          // SIG-968: a shared position replaces the tree — drop annotate undo.
+          reviewAnnotateUndo: undefined,
           dirty: false,
         };
       }),

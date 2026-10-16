@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { REVIEW_PRESETS, estimateRemainingMs, type ReviewPreset } from "@/src/chess/review-engine";
 import { buildReviewReport, evalSeries, keyMoments } from "@/src/chess/review-report";
+import { buildReviewSummary } from "@/src/chess/review-share";
 import {
   formatReviewEta,
   reviewCancelledText,
@@ -26,10 +27,13 @@ import {
 } from "./review/review-chart";
 import { useGameReview } from "./review/useGameReview";
 import { WhyBlock } from "./review/WhyBlock";
-import { getNodeAt, pathAlongLine, pathsEqual, variationPoints } from "@/src/chess/tree";
+import { buildReviewAnnotations, type ReviewAnnotationOptions } from "@/src/chess/review-annotate";
+import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-board-image";
+import { getFenAt, getNodeAt, pathAlongLine, pathsEqual, variationPoints } from "@/src/chess/tree";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "./ui/Button";
+import { Dialog } from "./ui/Dialog";
 
 const PRESET_IDS = Object.keys(REVIEW_PRESETS) as ReviewPreset[];
 
@@ -40,7 +44,20 @@ export function ReviewPanel() {
   const engineThreads = useStudioStore((state) => state.settings.engineThreads);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const goPath = useStudioStore((state) => state.goPath);
+  const annotateReview = useStudioStore((state) => state.annotateReview);
+  const undoReviewAnnotations = useStudioStore((state) => state.undoReviewAnnotations);
+  const setStatus = useStudioStore((state) => state.setStatus);
   const locale = useStudioStore((state) => state.settings.locale);
+
+  // SIG-968: annotate options dialog (NAGs always written, these toggle the
+  // comment block lines). Local state — closing the dialog discards them.
+  const [annotateOpen, setAnnotateOpen] = useState(false);
+  const [annotateEvals, setAnnotateEvals] = useState(true);
+  const [annotateBestMove, setAnnotateBestMove] = useState(true);
+  const [annotateKeyMomentsOnly, setAnnotateKeyMomentsOnly] = useState(false);
+  // SIG-968: report-card PNG snapshot target. The ref wraps ReviewReportCard
+  // only — the card is untouched, the panel owns the image/share buttons.
+  const reportRef = useRef<HTMLDivElement | null>(null);
 
   const points = useMemo(
     () => variationPoints(board.tree, board.path),
@@ -121,6 +138,43 @@ export function ReviewPanel() {
     [displayRows, board.headers, locale],
   );
   const moments = useMemo(() => (displayRows ? keyMoments(displayRows) : []), [displayRows]);
+
+  // SIG-968: "Annotate game" reads the live tree for comments/NAGs (the pure
+  // builder merges with user text) and resolves each fenBefore from the tree —
+  // the rows own paths, never cached FENs. Undo consumes the one-level store
+  // snapshot; the dialog closes on confirm either way (empty edits also mean
+  // "nothing new to write", e.g. a re-annotate with identical options).
+  const confirmAnnotate = () => {
+    if (!displayRows) {
+      return;
+    }
+    const active = useStudioStore.getState().active();
+    const options: ReviewAnnotationOptions = {
+      evals: annotateEvals,
+      bestMove: annotateBestMove,
+      keyMomentsOnly: annotateKeyMomentsOnly,
+    };
+    const edits = buildReviewAnnotations(
+      locale,
+      displayRows.map((row) => {
+        const parent = points[row.index]?.path ?? [];
+        return {
+          path: row.path,
+          label: row.label,
+          afterPawns: row.afterPawns,
+          bestPv: row.bestPv,
+          playedUci: row.playedUci,
+          fenBefore: getFenAt(active.tree, parent),
+          comment: getNodeAt(active.tree, row.path)?.comment,
+          nags: getNodeAt(active.tree, row.path)?.nags,
+        };
+      }),
+      options,
+    );
+    setAnnotateOpen(false);
+    annotateReview(edits);
+    setStatus(tReview(locale, "annotate.done"));
+  };
   const openingName = useMemo(() => {
     if (!displayRows) {
       return null;
@@ -265,6 +319,60 @@ export function ReviewPanel() {
     }
   };
 
+  // SIG-968: report export. The ref wraps ReviewReportCard only so the PNG
+  // snapshots the card in the active theme (no buttons in frame). Copy falls
+  // back to download when clipboard image write is unavailable (same grain
+  // as MenuBarFileMenu copyBoardImage); the summary is localized plain text.
+  const copyReportImage = async () => {
+    const element = reportRef.current;
+    if (!element) {
+      return;
+    }
+    try {
+      const blob = await boardPngBlob(element);
+      try {
+        await copyPngToClipboard(blob);
+        setStatus(tReview(locale, "share.imageCopied"));
+      } catch {
+        downloadPng(blob, "chess-studio-review.png");
+        setStatus(tReview(locale, "share.imageDownloaded"));
+      }
+    } catch {
+      setStatus(tReview(locale, "share.imageFailed"));
+    }
+  };
+  const downloadReportImage = async () => {
+    const element = reportRef.current;
+    if (!element) {
+      return;
+    }
+    try {
+      const blob = await boardPngBlob(element);
+      downloadPng(blob, "chess-studio-review.png");
+      setStatus(tReview(locale, "share.imageDownloaded"));
+    } catch {
+      setStatus(tReview(locale, "share.imageFailed"));
+    }
+  };
+  const copyReviewSummary = async () => {
+    if (!report) {
+      return;
+    }
+    const text = buildReviewSummary(locale, {
+      report,
+      moments: filteredMoments,
+      moveNotation,
+      startFen: board.tree.startFen,
+      openingName,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus(tReview(locale, "share.copied"));
+    } catch {
+      setStatus(tReview(locale, "share.copyFailed"));
+    }
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-studio-panel text-body text-studio-fg">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-studio-border-subtle px-3 py-2">
@@ -367,8 +475,26 @@ export function ReviewPanel() {
               <p className="px-3 pt-2 text-caption text-studio-faint">{tReview(locale, "panel.partialNote")}</p>
             ) : null}
             <div className="border-b border-studio-border-subtle px-3 py-2">
-              <div className="mb-1 text-caption uppercase tracking-wide text-studio-faint">
-                {tReview(locale, "chart.title")}
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-caption uppercase tracking-wide text-studio-faint">
+                  {tReview(locale, "chart.title")}
+                </span>
+                <span className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={!board.reviewAnnotateUndo}
+                    onClick={() => {
+                      undoReviewAnnotations();
+                      setStatus(tReview(locale, "annotate.undone"));
+                    }}
+                  >
+                    {tReview(locale, "annotate.undo")}
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => setAnnotateOpen(true)}>
+                    {tReview(locale, "annotate.title")}
+                  </Button>
+                </span>
               </div>
               <ReviewEvalChart
                 series={series}
@@ -432,20 +558,65 @@ export function ReviewPanel() {
                 </span>
               </div>
             </div>
-            <ReviewReportCard
-              report={report}
-              moments={filteredMoments}
-              moveNotation={moveNotation}
-              locale={locale}
-              onSelectMoment={goPath}
-              openingName={openingName}
-              lineNote={lineNote}
-              selectedPath={board.path}
-              hasUnfilteredMoments={moments.length > 0}
-            />
+            <div ref={reportRef}>
+              <ReviewReportCard
+                report={report}
+                moments={filteredMoments}
+                moveNotation={moveNotation}
+                locale={locale}
+                onSelectMoment={goPath}
+                openingName={openingName}
+                lineNote={lineNote}
+                selectedPath={board.path}
+                hasUnfilteredMoments={moments.length > 0}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2 px-3 py-2">
+              <span className="text-caption uppercase tracking-wide text-studio-faint">
+                {tReview(locale, "share.title")}
+              </span>
+              <span className="flex flex-wrap items-center justify-end gap-2">
+                <Button size="sm" variant="secondary" onClick={copyReportImage}>
+                  {tReview(locale, "share.copyImage")}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={downloadReportImage}>
+                  {tReview(locale, "share.downloadImage")}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={copyReviewSummary}>
+                  {tReview(locale, "share.copySummary")}
+                </Button>
+              </span>
+            </div>
           </>
         ) : null}
       </div>
+      {annotateOpen ? (
+        <Dialog
+          title={tReview(locale, "annotate.title")}
+          onClose={() => setAnnotateOpen(false)}
+          footer={<Button onClick={confirmAnnotate}>{tReview(locale, "annotate.confirm")}</Button>}
+        >
+          <div className="flex flex-col gap-1.5">
+            {(
+              [
+                ["evals", annotateEvals, setAnnotateEvals],
+                ["bestMove", annotateBestMove, setAnnotateBestMove],
+                ["keyMomentsOnly", annotateKeyMomentsOnly, setAnnotateKeyMomentsOnly],
+              ] as const
+            ).map(([key, checked, setChecked]) => (
+              <label key={key} className="flex cursor-pointer items-center gap-2 text-dense text-studio-fg">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => setChecked(!checked)}
+                  className="h-4 w-4 accent-studio-accent"
+                />
+                {tReview(locale, `annotate.${key}`)}
+              </label>
+            ))}
+          </div>
+        </Dialog>
+      ) : null}
     </div>
   );
 }
