@@ -6,6 +6,7 @@ import { phaseName, reviewPlayerFallback, tierName, tReview } from "@/src/chess/
 import { REVIEW_TIERS } from "@/src/chess/review-tiers";
 import { REVIEW_LABELS, type ReviewLabel } from "@/src/chess/review";
 import type { SiteLocale } from "@/src/i18n/locale";
+import { formatDecimal1, formatInteger } from "@/src/i18n/format";
 import type { Path } from "@/src/chess/tree";
 
 export type KeyMomentRow = {
@@ -26,9 +27,9 @@ type Props = {
   lineNote?: string | null;
 };
 
-/** One decimal, so 86 shows as 86.0 like the other column. */
-function percent(value: number | null): string {
-  return value == null ? "—" : value.toFixed(1);
+/** One decimal, so 86 shows as 86.0 (en) / 86,0 (pt-br) like the other column. */
+function percent(value: number | null, locale: SiteLocale): string {
+  return value == null ? "—" : formatDecimal1(locale, value);
 }
 
 function PlayerHeader({ side, color }: { side: SideReport; color: string }) {
@@ -42,12 +43,13 @@ function PlayerHeader({ side, color }: { side: SideReport; color: string }) {
   );
 }
 
-function ratingText(side: SideReport): string {
+function ratingText(side: SideReport, locale: SiteLocale): string {
   const { value, anchored } = side.gameRating;
   if (value == null) {
     return "—";
   }
-  return anchored ? String(value) : `≈ ${value}`;
+  const text = formatInteger(locale, value);
+  return anchored ? text : `≈ ${text}`;
 }
 
 export function ReviewReportCard({ report, moments, moveNotation, locale, onSelectMoment, openingName, lineNote }: Props) {
@@ -68,21 +70,21 @@ export function ReviewReportCard({ report, moments, moveNotation, locale, onSele
       {lineNote ? <p className="px-3 py-1 text-caption text-studio-warning-fg">{lineNote}</p> : null}
       <div className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 border-b border-studio-border-subtle px-3 py-3">
         <span className="text-caption text-studio-faint">{tReview(locale, "report.accuracy")}</span>
-        <span className="text-center text-2xl font-semibold tabular-nums">{percent(white.accuracy)}</span>
-        <span className="text-center text-2xl font-semibold tabular-nums">{percent(black.accuracy)}</span>
+        <span className="text-center text-2xl font-semibold tabular-nums">{percent(white.accuracy, locale)}</span>
+        <span className="text-center text-2xl font-semibold tabular-nums">{percent(black.accuracy, locale)}</span>
       </div>
       <div className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 px-3 py-1 text-dense">
         <span className="text-caption text-studio-faint" title={tReview(locale, "report.avgLossTitle")}>
           {tReview(locale, "report.avgLoss")}
         </span>
-        <span className="text-center tabular-nums text-studio-muted">{white.acpl ?? "—"}</span>
-        <span className="text-center tabular-nums text-studio-muted">{black.acpl ?? "—"}</span>
+        <span className="text-center tabular-nums text-studio-muted">{white.acpl == null ? "—" : formatInteger(locale, white.acpl)}</span>
+        <span className="text-center tabular-nums text-studio-muted">{black.acpl == null ? "—" : formatInteger(locale, black.acpl)}</span>
       </div>
       {REPORT_PHASES.map((phase) => (
         <div key={phase.id} className="grid grid-cols-[88px_1fr_1fr] items-center gap-2 px-3 py-1 text-dense">
           <span className="text-caption text-studio-faint">{phaseName(locale, phase.id)}</span>
-          <span className="text-center tabular-nums text-studio-muted">{percent(white.phases[phase.id])}</span>
-          <span className="text-center tabular-nums text-studio-muted">{percent(black.phases[phase.id])}</span>
+          <span className="text-center tabular-nums text-studio-muted">{percent(white.phases[phase.id], locale)}</span>
+          <span className="text-center tabular-nums text-studio-muted">{percent(black.phases[phase.id], locale)}</span>
         </div>
       ))}
       <ul className="border-y border-studio-border-subtle py-1">
@@ -117,10 +119,10 @@ export function ReviewReportCard({ report, moments, moveNotation, locale, onSele
           {tReview(locale, "report.gameRating")}
         </span>
         <span className="text-center text-dense font-semibold tabular-nums" title={ratingTooltip}>
-          {ratingText(white)}
+          {ratingText(white, locale)}
         </span>
         <span className="text-center text-dense font-semibold tabular-nums" title={ratingTooltip}>
-          {ratingText(black)}
+          {ratingText(black, locale)}
         </span>
       </div>
       <div className="px-3 py-2 text-caption uppercase tracking-wide text-studio-faint">{tReview(locale, "report.keyMoments")}</div>

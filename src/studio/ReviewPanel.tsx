@@ -13,6 +13,7 @@ import {
   tReview,
 } from "@/src/chess/review-strings";
 import { lookupBookOpening } from "@/src/lib/opening-book";
+import { resolveOpeningName } from "@/src/lib/opening-names";
 import { ReviewReportCard } from "./review/ReviewReportCard";
 import { useGameReview } from "./review/useGameReview";
 import { WhyBlock } from "./review/WhyBlock";
@@ -118,11 +119,12 @@ export function ReviewPanel() {
     for (let index = points.length - 1; index > 0; index -= 1) {
       const opening = lookupBookOpening(points[index].fen);
       if (opening?.name) {
-        return opening.eco ? `${opening.eco} · ${opening.name}` : opening.name;
+        const name = resolveOpeningName(opening.eco, opening.name, locale);
+        return opening.eco ? `${opening.eco} · ${name}` : name;
       }
     }
     return null;
-  }, [displayRows, points]);
+  }, [displayRows, points, locale]);
   const lineNote = points[points.length - 1]?.path.some((index) => index !== 0) ? tReview(locale, "panel.lineNote") : null;
 
   return (

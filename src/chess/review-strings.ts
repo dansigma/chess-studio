@@ -3,6 +3,7 @@
 // src/chess/explain/render.ts). Interpolated sentences are whole-sentence
 // template functions so PT-BR word order never comes from concatenation.
 import type { SiteLocale } from "../i18n/locale.ts";
+import { formatInteger } from "../i18n/format.ts";
 import type { GamePhase } from "./phases.ts";
 import type { ReviewLabel } from "./review.ts";
 import type { ReviewPreset } from "./review-engine.ts";
@@ -214,15 +215,15 @@ export function reviewPresetOption(locale: SiteLocale, preset: ReviewPreset, dep
   return locale === "pt-br" ? `${label} (profundidade ${depth})` : `${label} (depth ${depth})`;
 }
 
-/** "~12s left" / "faltam ~12s"; "~2m 5s left" / "faltam ~2min 5s". Owns the seconds math. */
+/** "~12s left" / "~12s restantes"; "~2m 05s left" / "~2m 05s restantes". Owns the seconds math. */
 export function formatReviewEta(locale: SiteLocale, ms: number): string {
   const seconds = Math.max(1, Math.round(ms / 1000));
   if (seconds < 60) {
-    return locale === "pt-br" ? `faltam ~${seconds}s` : `~${seconds}s left`;
+    return locale === "pt-br" ? `~${seconds}s restantes` : `~${seconds}s left`;
   }
   const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return locale === "pt-br" ? `faltam ~${minutes}min ${rest}s` : `~${minutes}m ${rest}s left`;
+  const rest = String(seconds % 60).padStart(2, "0");
+  return locale === "pt-br" ? `~${minutes}m ${rest}s restantes` : `~${minutes}m ${rest}s left`;
 }
 
 /** "Scoring moves at depth 12… 3/20" / "Avaliando lances na profundidade 12… 3/20". */
@@ -230,30 +231,37 @@ export function reviewProgressText(
   locale: SiteLocale,
   args: { depth: number; done: number; total: number },
 ): string {
+  const depth = formatInteger(locale, args.depth);
+  const done = formatInteger(locale, args.done);
+  const total = formatInteger(locale, args.total);
   return locale === "pt-br"
-    ? `Avaliando lances na profundidade ${args.depth}… ${args.done}/${args.total}`
-    : `Scoring moves at depth ${args.depth}… ${args.done}/${args.total}`;
+    ? `Avaliando lances na profundidade ${depth}… ${done}/${total}`
+    : `Scoring moves at depth ${depth}… ${done}/${total}`;
 }
 
 /** "The engine stopped responding at 3/20 positions. Try the review again." + PT-BR. */
 export function reviewFailedText(locale: SiteLocale, args: { done: number; total: number }): string {
+  const done = formatInteger(locale, args.done);
+  const total = formatInteger(locale, args.total);
   return locale === "pt-br"
-    ? `O motor parou de responder em ${args.done}/${args.total} posições. Tente a análise novamente.`
-    : `The engine stopped responding at ${args.done}/${args.total} positions. Try the review again.`;
+    ? `O motor parou de responder em ${done}/${total} posições. Tente a análise novamente.`
+    : `The engine stopped responding at ${done}/${total} positions. Try the review again.`;
 }
 
 /** "Review cancelled at 3/20 positions." + PT-BR. */
 export function reviewCancelledText(locale: SiteLocale, args: { done: number; total: number }): string {
+  const done = formatInteger(locale, args.done);
+  const total = formatInteger(locale, args.total);
   return locale === "pt-br"
-    ? `Análise cancelada em ${args.done}/${args.total} posições.`
-    : `Review cancelled at ${args.done}/${args.total} positions.`;
+    ? `Análise cancelada em ${done}/${total} posições.`
+    : `Review cancelled at ${done}/${total} positions.`;
 }
 
 /** "Resume review 3/20" / "Retomar análise 3/20" — primary resume affordance with progress. */
 export function reviewResumeText(locale: SiteLocale, args: { done: number; total: number }): string {
-  return locale === "pt-br"
-    ? `Retomar análise ${args.done}/${args.total}`
-    : `Resume review ${args.done}/${args.total}`;
+  const done = formatInteger(locale, args.done);
+  const total = formatInteger(locale, args.total);
+  return locale === "pt-br" ? `Retomar análise ${done}/${total}` : `Resume review ${done}/${total}`;
 }
 
 /** "White"/"Black" / "Brancas"/"Pretas" — fallback when the PGN header has no player name. */

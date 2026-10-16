@@ -63,9 +63,13 @@ test("template helpers render whole PT-BR sentences and stay EN-identical", () =
   assert.equal(reviewPresetOption("en", "fast", 10), "Fast (depth 10)");
   assert.equal(reviewPresetOption("pt-br", "fast", 10), "Rápida (profundidade 10)");
   assert.equal(formatReviewEta("en", 12_000), "~12s left");
-  assert.equal(formatReviewEta("pt-br", 12_000), "faltam ~12s");
-  assert.equal(formatReviewEta("en", 125_000), "~2m 5s left");
-  assert.equal(formatReviewEta("pt-br", 125_000), "faltam ~2min 5s");
+  assert.equal(formatReviewEta("pt-br", 12_000), "~12s restantes");
+  assert.equal(formatReviewEta("en", 125_000), "~2m 05s left");
+  assert.equal(formatReviewEta("pt-br", 125_000), "~2m 05s restantes");
+  assert.equal(
+    reviewProgressText("pt-br", { depth: 12, done: 1234, total: 2450 }),
+    "Avaliando lances na profundidade 12… 1.234/2.450",
+  );
 });
 
 test("tier, phase, preset and player names have PT-BR parity", () => {
