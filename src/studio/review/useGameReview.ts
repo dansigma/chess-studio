@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DEFAULT_REVIEW_PRESET,
+  gradePreviewRows,
   runReview,
+  type ReviewPartial,
   type ReviewPreset,
   type ReviewProgress,
   type ReviewRow,
@@ -84,6 +86,13 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
   const [cancelled, setCancelled] = useState(false);
   const [failed, setFailed] = useState(false);
   const [progress, setProgress] = useState<ReviewProgress>(IDLE_PROGRESS);
+  // SIG-966: scored positions from the last cancelled/failed run, memory-only
+  // (never cached or persisted). Keyed by cacheKey: a line/preset/engine
+  // change discards it via the key-change branch below.
+  const [partial, setPartial] = useState<ReviewPartial | null>(null);
+  // Payload for the next run only; consumed by the run effect so a fresh
+  // start() never reuses scores.
+  const resumeRef = useRef<ReviewPartial | null>(null);
 
   const ucis = useMemo(
     () => points.slice(1).map((point) => getNodeAt(tree, point.path)?.uci ?? ""),
@@ -106,6 +115,8 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     setFreshRun(false);
     setProgress(IDLE_PROGRESS);
     setCore(getCachedReview(cacheKey));
+    // A line/preset/engine change discards the partial (SIG-966: edit game discards partial).
+    setPartial(null);
   }
 
   // SIG-965: async persistent lookup per line-key. The hot layer is checked
@@ -169,6 +180,10 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     let stopped = false;
     const isCancelled = () => stopped;
     const threads = Math.max(engineThreads, defaultEngineThreads());
+    // Payload for this run only: resume() stashes the partial here, start()
+    // leaves it null for a fresh run.
+    const resume = resumeRef.current;
+    resumeRef.current = null;
 
     void runReview({
       fens: line.points.map((point) => point.fen),
@@ -177,18 +192,33 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
       engine: createLeaseEngine(lease, threads, isCancelled),
       bookReplies: () => fetchBookReplies(line.tree, line.points, isCancelled),
       isCancelled,
+      resume: resume ?? undefined,
       onProgress: (value) => {
         if (!stopped) {
           setProgress(value);
         }
       },
     }).then((outcome) => {
-      if (stopped) {
+      if (outcome.status === "cancelled" || outcome.status === "failed") {
+        // A user cancel stops the effect (stopped=true) before the promise
+        // settles, so the partial must be kept even when stopped — but only
+        // when the line is still current. A key change already cleared the
+        // partial; the stale promise must not restore it.
+        if (line.cacheKey !== lineRef.current.cacheKey) {
+          return;
+        }
+        // Never cache or persist partials (SIG-966: memory-only).
+        setPartial(outcome.partial);
+        setRunning(false);
+        if (outcome.status === "failed") {
+          setFailed(true);
+        } else if (!stopped) {
+          // Engine-observed cancel without a user cancel() call.
+          setCancelled(true);
+        }
         return;
       }
-      if (outcome.status === "failed") {
-        setFailed(true);
-        setRunning(false);
+      if (stopped) {
         return;
       }
       if (outcome.status !== "done") {
@@ -205,6 +235,8 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
       );
       setCore(outcome.rows);
       setFreshRun(true);
+      // A finished run supersedes any partial it resumed from.
+      setPartial(null);
       setRunning(false);
     });
 
@@ -215,6 +247,9 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
   }, [running, setupMode, engineBuild, engineThreads, preset, cacheKey]);
 
   const start = useCallback(() => {
+    // Destructive fresh start: drop the partial (SIG-966, no confirm).
+    resumeRef.current = null;
+    setPartial(null);
     setCancelled(false);
     setFailed(false);
     setProgress({ done: 0, total: points.length, elapsedMs: 0 });
@@ -225,6 +260,26 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     setRunning(false);
     setCancelled(true);
   }, []);
+
+  // Positions with a score; progress.total is the move count (points.length)
+  // while partial.length is position-indexed (fens.length), so derive totals
+  // defensively from the stored array.
+  const scored = useMemo(() => partial?.filter((entry) => entry != null).length ?? 0, [partial]);
+  const partialTotal = partial?.length ?? 0;
+  // Resumable when the partial has at least one scored entry and there is no
+  // finished report to show.
+  const resumable = !running && scored > 0 && partialTotal > 0 && core == null;
+
+  const resume = useCallback(() => {
+    if (!partial) {
+      return;
+    }
+    resumeRef.current = partial;
+    setCancelled(false);
+    setFailed(false);
+    setProgress({ done: 0, total: points.length, elapsedMs: 0 });
+    setRunning(true);
+  }, [partial, points.length]);
 
   const rows = useMemo<ReviewMoveRow[] | null>(() => {
     if (!core) {
@@ -237,6 +292,45 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     });
   }, [core, points, tree]);
 
+  // Read-only preview of the scored prefix (SIG-966, req. 5 minimal): pure
+  // grading, no engine calls, no book/recheck. Shown only while there is no
+  // finished report.
+  const previewRows = useMemo<ReviewMoveRow[] | null>(() => {
+    if (core || !partial || scored === 0) {
+      return null;
+    }
+    const fens = points.map((point) => point.fen);
+    const graded = gradePreviewRows(
+      fens,
+      ucis.map((uci) => ({ uci })),
+      partial,
+    );
+    if (graded.length === 0) {
+      return null;
+    }
+    return graded.flatMap((row) => {
+      const point = points[row.index + 1];
+      const node = point ? getNodeAt(tree, point.path) : null;
+      return point && node ? [{ ...row, path: point.path, san: node.san }] : [];
+    });
+  }, [core, partial, scored, points, ucis, tree]);
+
   const cached = rows != null && !freshRun && !running;
-  return { preset, setPreset, running, cancelled, failed, progress, rows, cached, start, cancel };
+  return {
+    preset,
+    setPreset,
+    running,
+    cancelled,
+    failed,
+    progress,
+    rows,
+    cached,
+    start,
+    cancel,
+    resumable,
+    partialDone: scored,
+    partialTotal,
+    resume,
+    previewRows,
+  };
 }

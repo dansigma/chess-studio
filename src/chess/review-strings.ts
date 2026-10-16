@@ -14,6 +14,8 @@ export const REVIEW_STRING_KEYS = [
   "panel.cancel",
   "panel.reviewAgain",
   "panel.reviewGame",
+  "panel.resumeReview",
+  "panel.partialNote",
   "panel.savedReview",
   "panel.empty",
   "panel.pausedSetup",
@@ -57,6 +59,8 @@ const EN: Record<ReviewStringKey, string> = {
   "panel.cancel": "Cancel",
   "panel.reviewAgain": "Review again",
   "panel.reviewGame": "Review game",
+  "panel.resumeReview": "Resume review",
+  "panel.partialNote": "Partial review — resume to complete.",
   "panel.savedReview": "Saved review",
   "panel.empty": "Play or open a game to review it.",
   "panel.pausedSetup": "Paused in setup.",
@@ -102,6 +106,8 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "panel.cancel": "Cancelar",
   "panel.reviewAgain": "Analisar novamente",
   "panel.reviewGame": "Analisar partida",
+  "panel.resumeReview": "Retomar análise",
+  "panel.partialNote": "Análise parcial — retome para concluir.",
   "panel.savedReview": "Análise salva",
   "panel.empty": "Jogue ou abra uma partida para analisá-la.",
   "panel.pausedSetup": "Pausado na configuração.",
@@ -241,6 +247,13 @@ export function reviewCancelledText(locale: SiteLocale, args: { done: number; to
   return locale === "pt-br"
     ? `Análise cancelada em ${args.done}/${args.total} posições.`
     : `Review cancelled at ${args.done}/${args.total} positions.`;
+}
+
+/** "Resume review 3/20" / "Retomar análise 3/20" — primary resume affordance with progress. */
+export function reviewResumeText(locale: SiteLocale, args: { done: number; total: number }): string {
+  return locale === "pt-br"
+    ? `Retomar análise ${args.done}/${args.total}`
+    : `Resume review ${args.done}/${args.total}`;
 }
 
 /** "White"/"Black" / "Brancas"/"Pretas" — fallback when the PGN header has no player name. */
