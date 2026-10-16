@@ -97,16 +97,25 @@ export type ReviewInput = {
   isCancelled?: () => boolean;
   onProgress?: (progress: ReviewProgress) => void;
   now?: () => number;
+  /**
+   * Scores from an earlier cancelled/failed run, position-indexed like `fens`.
+   * Entries that are present and depth-match the preset are reused without an
+   * engine call; holes and depth mismatches are rescored. A length mismatch is
+   * ignored defensively (treated as a fresh run).
+   */
+  resume?: Array<PositionScore | null>;
 };
 
 /** Consecutive positions without any engine result after which the run gives up. */
 export const MAX_CONSECUTIVE_MISSES = 3;
 
+export type ReviewPartial = Array<PositionScore | null>;
+
 export type ReviewOutcome =
   | { status: "done"; rows: ReviewRow[] }
-  | { status: "cancelled" }
+  | { status: "cancelled"; partial: ReviewPartial }
   /** The engine stopped answering; grading further positions would only wait on timeouts. */
-  | { status: "failed" };
+  | { status: "failed"; partial: ReviewPartial };
 
 function legalMoveCount(fen: string): number {
   try {
@@ -144,7 +153,7 @@ export function estimateRemainingMs(progress: ReviewProgress): number | null {
 }
 
 /** Win-chance weights per move, from every position's white win chance (unscored positions repeat the last one). */
-function moveWeights(scores: Array<PositionScore | null>): number[] {
+export function moveWeights(scores: Array<PositionScore | null>): number[] {
   let last = 50;
   const chances = scores.map((score) => {
     if (score) {
@@ -153,6 +162,63 @@ function moveWeights(scores: Array<PositionScore | null>): number[] {
     return last;
   });
   return volatilityWeights(chances);
+}
+
+/**
+ * Pure grading of already-scored positions for the resume preview (SIG-966).
+ * No engine calls, no book labels (explorer replies are only fetched during a
+ * run) and no sacrifice recheck — the finished run re-grades everything from
+ * the full score array, so the preview is explicitly labelled partial.
+ */
+export function gradePreviewRows(
+  fens: string[],
+  moves: ReviewMove[],
+  scores: Array<PositionScore | null>,
+): ReviewRow[] {
+  const division = dividePhases(fens);
+  const weights = moveWeights(scores);
+  const rows: ReviewRow[] = [];
+  // Win-chance points the previous mover lost; feeds "miss" detection.
+  let lastWinLoss = 0;
+  for (let index = 0; index < moves.length; index += 1) {
+    const before = scores[index];
+    const after = scores[index + 1];
+    const uci = moves[index].uci;
+    if (!before || !after || uci.length < 4 || isNullMoveToken(uci)) {
+      lastWinLoss = 0;
+      continue;
+    }
+    const beforeBoard = new Chess(fens[index]);
+    const afterBoard = new Chess(fens[index + 1]);
+    const side = sideOf(fens[index]);
+    const forced = beforeBoard.moves().length === 1;
+    const hanging = hangsPieceOn(beforeBoard, afterBoard, uci, side);
+    const sacrifice = isSacrificeOn(beforeBoard, afterBoard, side) || hanging;
+    const graded = gradeMove({
+      side,
+      playedUci: uci,
+      before,
+      afterWhitePawns: after.whitePawns,
+      sacrifice,
+      opponentLastLoss: lastWinLoss,
+    });
+    lastWinLoss = graded.winLoss;
+    rows.push({
+      ...graded,
+      // A forced move has no alternative: it is labelled `forced` instead of a tier.
+      label: forced ? "forced" : graded.label,
+      index,
+      playedUci: uci,
+      side,
+      phase: phaseAt(division, index + 1),
+      forced,
+      weight: weights[index],
+      bestPv: before.bestPv ?? [],
+      beforePawns: before.whitePawns,
+      afterPawns: after.whitePawns,
+    });
+  }
+  return rows;
 }
 
 export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
@@ -168,32 +234,53 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
 
   const scores: Array<PositionScore | null> = [];
   let misses = 0;
+  // A length mismatch means the resume does not line up with this line: ignore it.
+  const resume = input.resume?.length === total ? input.resume : undefined;
+  const partialSoFar = (): ReviewPartial => {
+    const partial: ReviewPartial = [...scores];
+    while (partial.length < total) {
+      partial.push(null);
+    }
+    return partial;
+  };
+  const analyzeOptions = (fen: string): AnalyzeOptions => ({
+    depth,
+    lines: REVIEW_LINES,
+    timeoutMs: POSITION_TIMEOUT_MS,
+    fresh: true,
+    legalMoves: legalMoveCount(fen),
+  });
   for (let index = 0; index < total; index += 1) {
     if (cancelled()) {
-      return { status: "cancelled" };
+      return { status: "cancelled", partial: partialSoFar() };
     }
     input.onProgress?.({ done: index, total, elapsedMs: now() - startedAt });
-    const evaluation = await engine.analyze(fens[index], {
-      depth,
-      lines: REVIEW_LINES,
-      timeoutMs: POSITION_TIMEOUT_MS,
-      fresh: true,
-      legalMoves: legalMoveCount(fens[index]),
-    });
+    const carried = resume?.[index];
+    if (carried && carried.depth === depth) {
+      scores.push(carried);
+      misses = 0;
+      continue;
+    }
+    let evaluation = await engine.analyze(fens[index], analyzeOptions(fens[index]));
+    if (!evaluation && !cancelled()) {
+      // One extra fresh search before counting a miss (lease restarts already
+      // ran inside the first analyze; this covers a single dropped result).
+      evaluation = await engine.analyze(fens[index], analyzeOptions(fens[index]));
+    }
     scores.push(evaluation ? toPositionScore(evaluation) : null);
     misses = evaluation ? 0 : misses + 1;
     if (misses >= MAX_CONSECUTIVE_MISSES && !cancelled()) {
-      return { status: "failed" };
+      return { status: "failed", partial: partialSoFar() };
     }
   }
   if (cancelled()) {
-    return { status: "cancelled" };
+    return { status: "cancelled", partial: partialSoFar() };
   }
   input.onProgress?.({ done: total, total, elapsedMs: now() - startedAt });
 
   const replies = await bookPromise;
   if (cancelled()) {
-    return { status: "cancelled" };
+    return { status: "cancelled", partial: partialSoFar() };
   }
   const inBook = bookFlags(
     moves.map((move) => move.uci),
@@ -256,7 +343,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
       }
     }
     if (cancelled()) {
-      return { status: "cancelled" };
+      return { status: "cancelled", partial: partialSoFar() };
     }
     lastWinLoss = graded.winLoss;
     rows.push({

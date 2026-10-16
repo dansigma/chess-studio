@@ -9,6 +9,7 @@ import {
   reviewFailedText,
   reviewPresetOption,
   reviewProgressText,
+  reviewResumeText,
   tReview,
 } from "@/src/chess/review-strings";
 import { lookupBookOpening } from "@/src/lib/opening-book";
@@ -35,7 +36,23 @@ export function ReviewPanel() {
     () => variationPoints(board.tree, board.path),
     [board.tree, board.path],
   );
-  const { preset, setPreset, running, cancelled, failed, progress, rows, cached, start, cancel } = useGameReview({
+  const {
+    preset,
+    setPreset,
+    running,
+    cancelled,
+    failed,
+    progress,
+    rows,
+    cached,
+    start,
+    cancel,
+    resumable,
+    partialDone,
+    partialTotal,
+    resume,
+    previewRows,
+  } = useGameReview({
     tree: board.tree,
     points,
     engineBuild,
@@ -43,8 +60,14 @@ export function ReviewPanel() {
     setupMode,
   });
 
+  // Finished report, else the read-only partial preview (SIG-966).
+  const displayRows = rows ?? previewRows;
+
   // "Why?" follows the board: it explains the reviewed move the board is on.
-  const selected = useMemo(() => rows?.find((row) => pathsEqual(row.path, board.path)) ?? null, [rows, board.path]);
+  const selected = useMemo(
+    () => displayRows?.find((row) => pathsEqual(row.path, board.path)) ?? null,
+    [displayRows, board.path],
+  );
   const selectedContext = useMemo(() => {
     if (!selected) {
       return null;
@@ -84,12 +107,12 @@ export function ReviewPanel() {
   };
 
   const report = useMemo(
-    () => (rows ? buildReviewReport(rows, board.headers, locale) : null),
-    [rows, board.headers, locale],
+    () => (displayRows ? buildReviewReport(displayRows, board.headers, locale) : null),
+    [displayRows, board.headers, locale],
   );
-  const moments = useMemo(() => (rows ? keyMoments(rows) : []), [rows]);
+  const moments = useMemo(() => (displayRows ? keyMoments(displayRows) : []), [displayRows]);
   const openingName = useMemo(() => {
-    if (!rows) {
+    if (!displayRows) {
       return null;
     }
     for (let index = points.length - 1; index > 0; index -= 1) {
@@ -99,7 +122,7 @@ export function ReviewPanel() {
       }
     }
     return null;
-  }, [rows, points]);
+  }, [displayRows, points]);
   const lineNote = points[points.length - 1]?.path.some((index) => index !== 0) ? tReview(locale, "panel.lineNote") : null;
 
   return (
@@ -124,6 +147,15 @@ export function ReviewPanel() {
             <Button size="sm" onClick={cancel}>
               {tReview(locale, "panel.cancel")}
             </Button>
+          ) : resumable ? (
+            <>
+              <Button size="sm" variant="primary" disabled={setupMode} onClick={resume}>
+                {reviewResumeText(locale, { done: partialDone, total: partialTotal })}
+              </Button>
+              <Button size="sm" variant="secondary" disabled={setupMode || points.length < 2} onClick={start}>
+                {tReview(locale, "panel.reviewAgain")}
+              </Button>
+            </>
           ) : (
             <Button size="sm" variant="primary" disabled={setupMode || points.length < 2} onClick={start}>
               {rows ? tReview(locale, "panel.reviewAgain") : tReview(locale, "panel.reviewGame")}
@@ -190,6 +222,9 @@ export function ReviewPanel() {
           <>
             {cached ? (
               <p className="px-3 pt-2 text-caption text-studio-faint">{tReview(locale, "panel.savedReview")}</p>
+            ) : null}
+            {!rows && previewRows ? (
+              <p className="px-3 pt-2 text-caption text-studio-faint">{tReview(locale, "panel.partialNote")}</p>
             ) : null}
             <ReviewReportCard
               report={report}

@@ -271,7 +271,8 @@ test("a dead engine ends the run after a few positions instead of waiting on eve
   };
   const outcome = await runReview({ fens: OPENING.fens, moves: OPENING.ucis.map((uci) => ({ uci })), preset: "fast", engine });
   assert.equal(outcome.status, "failed");
-  assert.equal(log.length, MAX_CONSECUTIVE_MISSES);
+  // One retry per position: each of the 3 misses costs 2 analyze calls.
+  assert.equal(log.length, MAX_CONSECUTIVE_MISSES * 2);
 });
 
 test("a single missed position does not fail the run", async () => {
@@ -283,4 +284,117 @@ test("a single missed position does not fail the run", async () => {
     engine: fakeEngine(OPENING.fens, script).engine,
   });
   assert.equal(outcome.status, "done");
+});
+
+test("a cancelled run keeps its scored positions as a partial", async () => {
+  const script: Script = { 0: flat(0), 1: flat(0), 2: flat(0), 3: flat(0), 4: flat(0) };
+  const fake = fakeEngine(OPENING.fens, script);
+  const outcome = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "standard",
+    engine: fake.engine,
+    isCancelled: () => fake.log.length >= 2,
+  });
+  assert.equal(outcome.status, "cancelled");
+  if (outcome.status === "cancelled") {
+    assert.equal(outcome.partial.length, OPENING.fens.length);
+    assert.ok(outcome.partial[0]);
+    assert.ok(outcome.partial[1]);
+    assert.equal(outcome.partial[2], null);
+  }
+});
+
+test("a failed run keeps its scored prefix as a partial", async () => {
+  const script: Script = { 0: flat(0.2), 1: flat(0.2), 2: null, 3: null, 4: null };
+  const outcome = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "fast",
+    engine: fakeEngine(OPENING.fens, script).engine,
+  });
+  assert.equal(outcome.status, "failed");
+  if (outcome.status === "failed") {
+    assert.equal(outcome.partial.length, OPENING.fens.length);
+    assert.ok(outcome.partial[0]);
+    assert.ok(outcome.partial[1]);
+  }
+});
+
+test("resuming scores only the remainder and matches a fresh run", async () => {
+  const script: Script = { 0: flat(0.2), 1: flat(0.2), 2: flat(0.2), 3: flat(0.2), 4: flat(0.2) };
+  const interrupted = fakeEngine(OPENING.fens, script);
+  const cancelled = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "standard",
+    engine: interrupted.engine,
+    isCancelled: () => interrupted.log.length >= 2,
+  });
+  assert.equal(cancelled.status, "cancelled");
+  if (cancelled.status !== "cancelled") {
+    return;
+  }
+
+  const resumedLog: Array<{ fen: string; options: AnalyzeOptions }> = [];
+  const resumed = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "standard",
+    engine: fakeEngine(OPENING.fens, script, resumedLog).engine,
+    resume: cancelled.partial,
+  });
+  assert.equal(resumed.status, "done");
+  // Only the 3 unscored positions hit the engine; the scored prefix is reused.
+  assert.equal(resumedLog.length, 3);
+  assert.deepEqual(
+    resumedLog.map((entry) => entry.fen),
+    OPENING.fens.slice(2),
+  );
+
+  const fresh = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "standard",
+    engine: fakeEngine(OPENING.fens, script).engine,
+  });
+  assert.equal(fresh.status, "done");
+  if (resumed.status === "done" && fresh.status === "done") {
+    assert.deepEqual(resumed.rows, fresh.rows);
+  }
+});
+
+test("resume entries at a stale depth are rescored", async () => {
+  const script: Script = { 0: flat(0.2), 1: flat(0.2), 2: flat(0.2), 3: flat(0.2), 4: flat(0.2) };
+  const interrupted = fakeEngine(OPENING.fens, script);
+  const cancelled = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "standard",
+    engine: interrupted.engine,
+    isCancelled: () => interrupted.log.length >= 2,
+  });
+  assert.equal(cancelled.status, "cancelled");
+  if (cancelled.status !== "cancelled" || !cancelled.partial[0]) {
+    return;
+  }
+  const stale = [...cancelled.partial];
+  const first = stale[0];
+  if (!first) {
+    return;
+  }
+  stale[0] = { ...first, depth: REVIEW_PRESETS.standard.depth + 1 };
+
+  const resumedLog: Array<{ fen: string; options: AnalyzeOptions }> = [];
+  const resumed = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "standard",
+    engine: fakeEngine(OPENING.fens, script, resumedLog).engine,
+    resume: stale,
+  });
+  assert.equal(resumed.status, "done");
+  // The stale entry plus the 3 unscored positions are analysed.
+  assert.ok(resumedLog.some((entry) => entry.fen === OPENING.fens[0]));
+  assert.equal(resumedLog.length, 4);
 });
