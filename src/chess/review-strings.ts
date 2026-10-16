@@ -137,7 +137,7 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "preset.deep": "Profunda",
 };
 
-const TABLES: Record<SiteLocale, Partial<Record<ReviewStringKey, string>>> = {
+export const TABLES: Record<SiteLocale, Partial<Record<ReviewStringKey, string>>> = {
   en: EN,
   "pt-br": PT_BR,
 };

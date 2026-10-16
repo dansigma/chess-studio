@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   REVIEW_STRING_KEYS,
+  TABLES,
   formatReviewEta,
   presetLabel,
   phaseName,
@@ -15,14 +16,16 @@ import {
   type ReviewStringKey,
 } from "./review-strings.ts";
 
-function placeholders(text: string): string[] {
-  return [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
-}
-
 test("every review string key renders in both locales without leftover placeholders", () => {
   const keys = new Set<string>(REVIEW_STRING_KEYS);
   assert.equal(keys.size, REVIEW_STRING_KEYS.length, "review string keys must be unique");
   for (const key of REVIEW_STRING_KEYS) {
+    // No silent EN fallback: the pt-br table itself must define every key.
+    const ptRaw = TABLES["pt-br"]?.[key];
+    assert.ok(
+      typeof ptRaw === "string" && ptRaw.length > 0,
+      `pt-br:${key} is missing from the table (would silently fall back to English)`,
+    );
     const en = tReview("en", key);
     const pt = tReview("pt-br", key);
     for (const [locale, text] of [
@@ -32,8 +35,6 @@ test("every review string key renders in both locales without leftover placehold
       assert.ok(text.length > 0, `${locale}:${key} must not be empty`);
       assert.ok(!text.includes("{") && !text.includes("}"), `${locale}:${key} has leftover braces: ${text}`);
     }
-    // No key may silently fall back to English in PT-BR.
-    assert.notEqual(pt, `__missing:${key}`, `pt-br:${key} is missing`);
   }
 });
 
@@ -92,11 +93,9 @@ test("tier, phase, preset and player names have PT-BR parity", () => {
 });
 
 test("unknown locale entries fall back to English", () => {
-  // Simulate a partial table by deleting nothing — instead assert the fallback
-  // path returns English for a key whose PT-BR entry is temporarily absent.
-  // Here we only assert the EN table is complete for every declared key.
+  // The EN table must be complete for every declared key so the
+  // tReview() fallback path always has English to return.
   for (const key of REVIEW_STRING_KEYS satisfies readonly ReviewStringKey[]) {
     assert.ok(tReview("en", key).length > 0);
   }
-  void placeholders;
 });
