@@ -4,6 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
  * SIG-932: Playwright smoke tests for the primary Next.js path.
  * `webServer` builds + serves production Next so specs assert real behavior.
  * The sign-in spec self-skips without E2E_TEST_USER/E2E_TEST_PASSWORD secrets.
+ * SIG-970: NEXT_PUBLIC_E2E_REVIEW_FAKE=1 bakes the deterministic review engine
+ * into the e2e server build only (fails closed in production).
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -28,6 +30,7 @@ export default defineConfig({
     timeout: 240_000,
     env: {
       NEXT_ALIAS_WORKERD_STUB: "1",
+      NEXT_PUBLIC_E2E_REVIEW_FAKE: "1",
     },
   },
 });

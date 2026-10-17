@@ -13,6 +13,7 @@ import {
 import { getNodeAt, type GameTree, type Path, type VariationPoint } from "@/src/chess/tree";
 import { acquire } from "@/src/engine/shared-engine";
 import { defaultEngineThreads, type EngineBuild } from "@/src/engine/stockfish-client";
+import { createE2eFakeReviewEngine, isE2eFakeReviewEnabled } from "./e2e-fake-review-engine";
 import { createLeaseEngine } from "./lease-engine";
 import {
   getCachedReview,
@@ -176,7 +177,11 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
       return;
     }
     const line = lineRef.current;
-    const lease = acquire("review", engineBuild);
+    // SIG-970: deterministic e2e seam — no shared-engine lease, no worker.
+    // Trivially satisfies the SIG-950 engine-idle rule. Fails closed: production
+    // builds never set the flag, so this branch is unreachable there.
+    const useFake = isE2eFakeReviewEnabled();
+    const lease = useFake ? null : acquire("review", engineBuild);
     let stopped = false;
     const isCancelled = () => stopped;
     const threads = Math.max(engineThreads, defaultEngineThreads());
@@ -189,8 +194,10 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
       fens: line.points.map((point) => point.fen),
       moves: line.ucis.map((uci) => ({ uci })),
       preset,
-      engine: createLeaseEngine(lease, threads, isCancelled),
-      bookReplies: () => fetchBookReplies(line.tree, line.points, isCancelled),
+      engine: lease
+        ? createLeaseEngine(lease, threads, isCancelled)
+        : createE2eFakeReviewEngine({ delayMs: 40, isCancelled }),
+      bookReplies: useFake ? async () => [] : () => fetchBookReplies(line.tree, line.points, isCancelled),
       isCancelled,
       resume: resume ?? undefined,
       onProgress: (value) => {
@@ -242,7 +249,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
 
     return () => {
       stopped = true;
-      lease.release();
+      lease?.release();
     };
   }, [running, setupMode, engineBuild, engineThreads, preset, cacheKey]);
 
