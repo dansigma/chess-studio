@@ -89,12 +89,17 @@ export async function loadPlayerGames(
     throw error;
   }
   games.sort((a, b) => (b.playedAt ?? 0) - (a.playedAt ?? 0));
+  // Lichess/Chess.com fetchers stop at MAX_PLAYER_GAMES, so reaching it means
+  // there may be more (>=). Studio fetches more rows than the cap, so exactly
+  // MAX_PLAYER_GAMES is a complete list and only a longer one is truncated (>).
   if (source === "studio" && games.length > MAX_PLAYER_GAMES) {
     games = games.slice(0, MAX_PLAYER_GAMES);
     truncated = true;
     notice = `Showing the ${MAX_PLAYER_GAMES} most recent Studio games.`;
   }
   const payload: PlayerGamesResponse = { player, games, truncated, notice };
+  // Studio never caches (see `cacheable`). For the other sources, only a
+  // truncation notice may be cached; any other notice is kept out of the cache.
   if (cacheable && (!notice || truncated)) {
     gamesCache.set(cacheKey, { expires: Date.now() + GAMES_CACHE_TTL_MS, payload });
   }
