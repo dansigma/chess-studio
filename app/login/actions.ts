@@ -91,6 +91,19 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
     return { error: "Enter a password." };
   }
 
+  // Sign-in is throttled per IP and per normalized email. The email key stops
+  // a distributed guessing run against one account (many IPs); the IP key
+  // stops one client spraying many accounts. Both share the `limiter`
+  // instance (and RL_AUTH binding): keys are namespaced, so quotas are
+  // independent. The verdict is identical whether or not the email exists.
+  const headerStore = await headers();
+  const ip = clientIp(headerStore);
+  const ipVerdict = await limiter.checkAsync(rateLimitKey("signin", ip));
+  const emailVerdict = await limiter.checkAsync(rateLimitKey("signin-email", email));
+  if (!ipVerdict.ok || !emailVerdict.ok) {
+    return { error: "Too many attempts. Wait a few minutes and try again." };
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     return { error: signInError(error.message) };
