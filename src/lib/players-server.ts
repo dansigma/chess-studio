@@ -47,8 +47,11 @@ export async function loadPlayerGames(
   if (!isSource(source) || !username.trim()) {
     throw new Error("source and username are required");
   }
+  // SIG-1029: studio results depend on the caller's session (RLS exposes their
+  // private games), so they must never enter the process-wide cache.
+  const cacheable = source !== "studio";
   const cacheKey = `${source}:${username.trim().toLowerCase()}`;
-  const cached = gamesCache.get(cacheKey);
+  const cached = cacheable ? gamesCache.get(cacheKey) : undefined;
   if (cached && cached.expires > Date.now()) {
     const player: PlayerHit = {
       ...cached.payload.player,
@@ -86,8 +89,13 @@ export async function loadPlayerGames(
     throw error;
   }
   games.sort((a, b) => (b.playedAt ?? 0) - (a.playedAt ?? 0));
+  if (source === "studio" && games.length > MAX_PLAYER_GAMES) {
+    games = games.slice(0, MAX_PLAYER_GAMES);
+    truncated = true;
+    notice = `Showing the ${MAX_PLAYER_GAMES} most recent Studio games.`;
+  }
   const payload: PlayerGamesResponse = { player, games, truncated, notice };
-  if (!notice || truncated) {
+  if (cacheable && (!notice || truncated)) {
     gamesCache.set(cacheKey, { expires: Date.now() + GAMES_CACHE_TTL_MS, payload });
   }
   return payload;
