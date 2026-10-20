@@ -6,11 +6,9 @@ import { SITE_NAME } from "@/src/site/sections";
 import type { Course } from "@/src/courses/types";
 import { createPublicServerSupabase } from "@/src/lib/supabase/server";
 
-// ISR: the catalog revalidates every 60s. A newly published course appears
-// for visitors within the window; the publisher's own admin list is
-// client-fetched and the catalog refreshes on next navigation/refresh.
-// The fetch uses the cookie-free public client (no `cookies()` in the
-// render path), so the route stays statically renderable.
+// Rendered on demand: the root layout opts every page into dynamic rendering so the CSP
+// nonce from proxy.ts can be applied (SIG-1033); this replaces the former 60s ISR. The
+// fetch uses the cookie-free public client.
 //
 // NB: this page lives in the `(catalog)` group so the catalog skeleton in
 // `(catalog)/loading.tsx` does not wrap the `[slug]` segments. A loading
@@ -18,8 +16,6 @@ import { createPublicServerSupabase } from "@/src/lib/supabase/server";
 // page, and a `notFound()` thrown under a committed fallback keeps HTTP 200
 // (verified). With the skeleton scoped to the catalog, a missing
 // course/variation 404s with a real HTTP 404.
-export const revalidate = 60;
-
 export async function generateMetadata(): Promise<Metadata> {
   return {
     title: `Courses · ${SITE_NAME}`,

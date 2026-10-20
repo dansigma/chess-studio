@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { connection } from "next/server";
 import Script from "next/script";
 import type { ReactNode } from "react";
 import "./globals.css";
@@ -24,7 +25,10 @@ export const metadata: Metadata = {
   description: "Chess analysis studio with board, engine, notation, and opening explorer",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  // The CSP nonce (proxy.ts) can only be applied to server-rendered HTML, so opt every page into
+  // dynamic rendering. Prerendered HTML has no nonce and its scripts would be blocked by script-src.
+  await connection();
   return (
     <html
       lang="en"
