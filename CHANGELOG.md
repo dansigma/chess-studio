@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Security headers (SIG-1033)
+
+- Every page and API response now sends `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin` and, in production, `Strict-Transport-Security`
+  (1 year, includeSubDomains). `/login` and `/courses/admin` can no longer be framed.
+- A Content Security Policy is sent as `Content-Security-Policy-Report-Only` (set in `proxy.ts`, policy in
+  `src/lib/security-headers.ts`), so nothing is blocked yet; enforcing it is a one-line change once a deploy shows
+  no violations. Scripts are limited to the site itself plus inline scripts; there is no nonce, so pages keep their
+  static rendering and the course pages keep their 60s cache. The `/engine` assets and COOP/COEP on `/studio` are
+  unchanged.
+
 ### Sign-in and password security (SIG-1031)
 
 - Password sign-in is rate-limited per IP and per email: 10 attempts per 10 minutes each. Further attempts get
