@@ -2,19 +2,23 @@
 // English fallback (same grain as src/chess/explain/render.ts).
 import type { SiteLocale } from "./locale";
 
-export const SITE_STRING_KEYS = ["nav.courses", "nav.puzzles", "nav.studio"] as const;
+export const SITE_STRING_KEYS = ["nav.courses", "nav.puzzles", "nav.studio", "nav.privacy", "nav.terms"] as const;
 export type SiteStringKey = (typeof SITE_STRING_KEYS)[number];
 
 const EN: Record<SiteStringKey, string> = {
   "nav.courses": "Courses",
   "nav.puzzles": "Puzzles",
   "nav.studio": "Studio",
+  "nav.privacy": "Privacy",
+  "nav.terms": "Terms",
 };
 
 const PT_BR: Partial<Record<SiteStringKey, string>> = {
   "nav.courses": "Cursos",
   "nav.puzzles": "Exercícios",
   "nav.studio": "Estúdio",
+  "nav.privacy": "Privacidade",
+  "nav.terms": "Termos",
 };
 
 const TABLES: Record<SiteLocale, Partial<Record<SiteStringKey, string>>> = {
