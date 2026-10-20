@@ -21,6 +21,11 @@ export function emailIsCourseAdmin(email: string | null | undefined): boolean {
  * Super-admin check: `app_metadata.role` is written server-side only (service
  * role via `finishSignIn`); clients never set it, they only read it here.
  * Allowlisted emails must have a confirmed email address.
+ *
+ * `app_metadata.role === "admin"` is trusted without a network call because
+ * `finishSignIn` revokes it at sign-in once the user is no longer allowlisted
+ * (or unconfirmed). Revocation therefore takes effect at the user's next
+ * sign-in, not instantly.
  */
 export function isCourseSuperAdmin(
   user: Pick<User, "email" | "app_metadata"> & { email_confirmed_at?: string | null },
@@ -36,6 +41,8 @@ export function isCourseSuperAdmin(
  * `admin.auth.admin.updateUserById` in `finishSignIn`). Browser clients and RLS
  * policies never write `app_metadata`; they are read-only here.
  * Allowlisted emails must have a confirmed email address.
+ * `app_metadata.role === "admin"` is accepted as-is (granted and revoked by
+ * `finishSignIn` at sign-in); `profiles.role` is the fallback.
  */
 export async function userCanPublishCourses(
   supabase: SupabaseClient<Database>,

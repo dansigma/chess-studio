@@ -106,6 +106,8 @@ export function mockSupabaseModules(state: FakeSupabaseState): void {
 export interface FakeTableConfig {
   /** Row (or null) returned by the terminal `maybeSingle()` call. */
   maybeSingle?: unknown;
+  /** Error returned by `upsert` / `insert` on this table. */
+  writeError?: unknown;
 }
 
 export interface SupabaseCallLog {
@@ -125,12 +127,12 @@ export interface FakeSupabaseClient {
   authCalls: Array<{ method: string; args: unknown[] }>;
   from(table: string): {
     select(...args: unknown[]): FakeSelectable;
-    upsert(row: unknown): Promise<{ data: unknown; error: null }>;
-    insert(row: unknown): Promise<{ data: unknown; error: null }>;
+    upsert(row: unknown): Promise<{ data: unknown; error: unknown }>;
+    insert(row: unknown): Promise<{ data: unknown; error: unknown }>;
   };
   auth: {
     admin: {
-      updateUserById(id: string, attrs: unknown): Promise<{ data: unknown; error: null }>;
+      updateUserById(id: string, attrs: unknown): Promise<{ data: unknown; error: unknown }>;
     };
     signInWithPassword(...args: unknown[]): Promise<unknown>;
     signUp(...args: unknown[]): Promise<unknown>;
@@ -160,6 +162,8 @@ export function createFakeSupabase(
   options: {
     tables?: Record<string, FakeTableConfig>;
     auth?: FakeSupabaseAuthHandlers;
+    /** Error returned by `auth.admin.updateUserById`. */
+    updateUserError?: unknown;
   } = {},
 ): FakeSupabaseClient {
   const calls: SupabaseCallLog = { from: [], upsert: [], insert: [], updateUserById: [] };
@@ -184,11 +188,11 @@ export function createFakeSupabase(
         select: () => selectable(table),
         upsert: async (row: unknown) => {
           calls.upsert.push({ table, row });
-          return { data: row, error: null };
+          return { data: row, error: options.tables?.[table]?.writeError ?? null };
         },
         insert: async (row: unknown) => {
           calls.insert.push({ table, row });
-          return { data: row, error: null };
+          return { data: row, error: options.tables?.[table]?.writeError ?? null };
         },
       };
     },
@@ -196,7 +200,7 @@ export function createFakeSupabase(
       admin: {
         updateUserById: async (id: string, attrs: unknown) => {
           calls.updateUserById.push({ id, attrs });
-          return { data: { user: null }, error: null };
+          return { data: { user: null }, error: options.updateUserError ?? null };
         },
       },
       signInWithPassword: async (...args: unknown[]) => {

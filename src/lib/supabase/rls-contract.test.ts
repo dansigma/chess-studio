@@ -46,3 +46,24 @@ describe("sig-861 rls contract", () => {
     assert.ok(col < policy, "published_at must be created before the courses_select_published policy");
   });
 });
+
+describe("sig-1030 admin role lifecycle migration", () => {
+  const sig1030 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261020120000_sig1030_admin_role_lifecycle.sql"),
+    "utf8",
+  );
+
+  it("redefines handle_new_user as security definer with empty search_path", () => {
+    assert.ok(sig1030.includes("create or replace function private.handle_new_user()"));
+    assert.ok(/security definer/.test(sig1030));
+    assert.ok(/set search_path = ''/.test(sig1030));
+  });
+
+  it("assigns admin only for confirmed emails", () => {
+    const confirmed = sig1030.indexOf("new.email_confirmed_at is not null");
+    const listed = sig1030.indexOf("public.course_admins");
+    const grant = sig1030.indexOf("assigned := 'admin'");
+    assert.ok(confirmed !== -1 && listed !== -1 && grant !== -1, "trigger must check email_confirmed_at");
+    assert.ok(confirmed < grant && listed < grant, "checks must precede the admin assignment");
+  });
+});
