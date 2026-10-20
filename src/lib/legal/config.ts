@@ -4,17 +4,18 @@
  * Review banner shown at the top of both legal pages. Set to `false` (or delete the constant and
  * its use in LegalDocument) once the texts have been through legal review.
  */
-export const LEGAL_DRAFT_BANNER = true;
+export const LEGAL_DRAFT_BANNER = false;
 export const LEGAL_DRAFT_BANNER_TEXT = "Rascunho — sujeito a revisão jurídica";
 
-/** Placeholders to be replaced by the real company data before publication. */
-export const LEGAL_PLACEHOLDERS = {
-  company: "[RAZÃO SOCIAL]",
-  cnpj: "[CNPJ]",
-  address: "[ENDEREÇO]",
-  contact: "[E-MAIL DE CONTATO / ENCARREGADO (DPO)]",
-  date: "[DATA]",
-  forum: "[COMARCA]",
+/** Company data shown on both legal pages (controller of the personal data). */
+export const LEGAL_COMPANY = {
+  company: "Sigma Labs Tecnologia da Informação LTDA",
+  cnpj: "62.281.698/0001-18",
+  address: "Rua Pais Leme, 215, conj. 1713, Pinheiros, São Paulo/SP, CEP 05424-150",
+  contact: "contato@sigmalabs.com.br",
+  date: "20 de outubro de 2026",
+  dateEn: "October 20, 2026",
+  forum: "São Paulo/SP",
 } as const;
 
 export type LegalSection = {

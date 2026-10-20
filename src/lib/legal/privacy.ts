@@ -1,6 +1,6 @@
 // SIG-1057: Privacy Policy text (LGPD, Lei 13.709/2018). Draft pending legal review.
 // Every statement here must stay accurate to what the code does; update together with the code.
-import { LEGAL_PLACEHOLDERS as P, type LegalText } from "./config";
+import { LEGAL_COMPANY as P, type LegalText } from "./config";
 
 export const PRIVACY_PT: LegalText = {
   lang: "pt-BR",
@@ -136,7 +136,7 @@ export const PRIVACY_PT: LegalText = {
 export const PRIVACY_EN: LegalText = {
   lang: "en",
   title: "Privacy Policy (English version)",
-  updated: `Last updated: ${P.date}`,
+  updated: `Last updated: ${P.dateEn}`,
   intro: [
     "This is an English version of the Portuguese Privacy Policy above, provided for convenience. It explains how Xadrez Digital (the “Service”) processes personal data under the Brazilian General Data Protection Law (Law No. 13,709/2018, “LGPD”). If the two versions differ, the Portuguese version prevails.",
     "You can use game analysis as a guest without an account. In that case your data stays on your device only (see “Cookies and on-device storage”).",

@@ -1,5 +1,5 @@
 // SIG-1057: Terms of Use text. Draft pending legal review.
-import { LEGAL_PLACEHOLDERS as P, type LegalText } from "./config";
+import { LEGAL_COMPANY as P, type LegalText } from "./config";
 
 export const TERMS_PT: LegalText = {
   lang: "pt-BR",
@@ -113,7 +113,7 @@ export const TERMS_PT: LegalText = {
 export const TERMS_EN: LegalText = {
   lang: "en",
   title: "Terms of Use (English version)",
-  updated: `Last updated: ${P.date}`,
+  updated: `Last updated: ${P.dateEn}`,
   intro: [
     `This is an English version of the Portuguese Terms of Use above, provided for convenience; if they differ, the Portuguese version prevails. These Terms govern use of Xadrez Digital (the “Service”), offered by ${P.company}, CNPJ ${P.cnpj}, headquartered at ${P.address}. By creating an account or using the Service you confirm that you have read and agree to these Terms and the Privacy Policy.`,
   ],
