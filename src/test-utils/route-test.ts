@@ -140,6 +140,8 @@ export interface FakeSupabaseClient {
     signUp(...args: unknown[]): Promise<unknown>;
     resetPasswordForEmail(...args: unknown[]): Promise<unknown>;
     signOut(...args: unknown[]): Promise<unknown>;
+    getUser(...args: unknown[]): Promise<unknown>;
+    updateUser(...args: unknown[]): Promise<unknown>;
     exchangeCodeForSession(...args: unknown[]): Promise<unknown>;
   };
 }
@@ -149,6 +151,8 @@ export interface FakeSupabaseAuthHandlers {
   signUp?: (...args: unknown[]) => Promise<unknown>;
   resetPasswordForEmail?: (...args: unknown[]) => Promise<unknown>;
   signOut?: (...args: unknown[]) => Promise<unknown>;
+  getUser?: (...args: unknown[]) => Promise<unknown>;
+  updateUser?: (...args: unknown[]) => Promise<unknown>;
   exchangeCodeForSession?: (...args: unknown[]) => Promise<unknown>;
 }
 
@@ -228,6 +232,18 @@ export function createFakeSupabase(
         return options.auth?.signOut
           ? options.auth.signOut(...args)
           : { error: null };
+      },
+      getUser: async (...args: unknown[]) => {
+        authCalls.push({ method: "getUser", args });
+        return options.auth?.getUser
+          ? options.auth.getUser(...args)
+          : { data: { user: null }, error: null };
+      },
+      updateUser: async (...args: unknown[]) => {
+        authCalls.push({ method: "updateUser", args });
+        return options.auth?.updateUser
+          ? options.auth.updateUser(...args)
+          : { data: { user: null }, error: null };
       },
       exchangeCodeForSession: async (...args: unknown[]) => {
         authCalls.push({ method: "exchangeCodeForSession", args });

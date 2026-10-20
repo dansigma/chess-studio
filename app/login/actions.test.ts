@@ -239,6 +239,36 @@ test("signin success with an evil next redirects to /studio", async () => {
   assert.equal(redirectUrl(thrown), "/studio");
 });
 
+const TOO_MANY = { error: "Too many attempts. Wait a few minutes and try again." };
+
+test("signin rate-limits the 11th attempt from one IP without calling signInWithPassword", async () => {
+  const fake = serverWithAuth({
+    signInWithPassword: async () => ({ data: {}, error: new Error("Invalid login credentials") }),
+  });
+  const ip = nextTestIp();
+  let last: unknown = {};
+  for (let i = 0; i < 11; i += 1) {
+    withRequest(ip);
+    // Distinct emails so only the per-IP key trips.
+    last = await submitAuth({}, form({ mode: "signin", email: `ip-${ip}-${i}@example.com`, password: "secret1" }));
+  }
+  assert.deepEqual(last, TOO_MANY);
+  assert.equal(fake.authCalls.length, 10);
+});
+
+test("signin rate-limits the 11th attempt for one email across different IPs", async () => {
+  const fake = serverWithAuth({
+    signInWithPassword: async () => ({ data: {}, error: new Error("Invalid login credentials") }),
+  });
+  let last: unknown = {};
+  for (let i = 0; i < 11; i += 1) {
+    withRequest(nextTestIp());
+    last = await submitAuth({}, form({ mode: "signin", email: "Victim@Example.com", password: "secret1" }));
+  }
+  assert.deepEqual(last, TOO_MANY);
+  assert.equal(fake.authCalls.length, 10);
+});
+
 test("signOut signs out then redirects to /login", async () => {
   const fake = serverWithAuth({ signOut: async () => ({ error: null }) });
   withRequest();

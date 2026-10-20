@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, startTransition, useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,6 +12,8 @@ import {
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { Button } from "@/src/studio/ui/Button";
 import { AuthField, AuthLayout, AuthMessage, authInputClass } from "../AuthLayout";
+import type { AuthFormState } from "../actions";
+import { updatePassword } from "./actions";
 
 type Message = { tone: "info" | "error" | "success"; text: string };
 
@@ -20,8 +22,8 @@ export default function UpdatePasswordPage() {
   const supabase = createBrowserSupabase();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<Message | null>(null);
+  const [clientError, setClientError] = useState<string | null>(null);
+  const [state, formAction, busy] = useActionState(updatePassword, {} as AuthFormState);
   const [session, setSession] = useState<"checking" | "ready" | "missing">(supabase ? "checking" : "missing");
 
   useEffect(() => {
@@ -39,31 +41,36 @@ export default function UpdatePasswordPage() {
     };
   }, [supabase]);
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (!supabase) {
-      return;
+  useEffect(() => {
+    if (state.message) {
+      router.push("/studio");
+      router.refresh();
     }
+  }, [state.message, router]);
+
+  // Client-side checks are only a hint; the server action re-validates.
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     if (!isValidPassword(password)) {
-      setMessage({ tone: "error", text: passwordLengthError() });
+      setClientError(passwordLengthError());
       return;
     }
     if (password !== confirm) {
-      setMessage({ tone: "error", text: "Passwords don't match." });
+      setClientError("Passwords don't match.");
       return;
     }
-    setBusy(true);
-    setMessage(null);
-    const { error } = await supabase.auth.updateUser({ password });
-    setBusy(false);
-    if (error) {
-      setMessage({ tone: "error", text: error.message });
-      return;
-    }
-    setMessage({ tone: "success", text: "Password updated. Taking you to Studio…" });
-    router.push("/studio");
-    router.refresh();
+    setClientError(null);
+    const data = new FormData(event.currentTarget);
+    startTransition(() => formAction(data));
   }
+
+  const message: Message | null = clientError
+    ? { tone: "error", text: clientError }
+    : state.error
+      ? { tone: "error", text: state.error }
+      : state.message
+        ? { tone: "success", text: state.message }
+        : null;
 
   return (
     <AuthLayout>
@@ -83,7 +90,7 @@ export default function UpdatePasswordPage() {
           </Link>
         </div>
       ) : (
-        <form onSubmit={(event) => void onSubmit(event)} className="mt-6 space-y-4">
+        <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <AuthField
             id="new-password"
             label="New password"
@@ -91,6 +98,7 @@ export default function UpdatePasswordPage() {
           >
             <input
               id="new-password"
+              name="password"
               type="password"
               required
               minLength={MIN_PASSWORD_LENGTH}
@@ -104,6 +112,7 @@ export default function UpdatePasswordPage() {
           <AuthField id="confirm-password" label="Confirm password">
             <input
               id="confirm-password"
+              name="confirm"
               type="password"
               required
               minLength={MIN_PASSWORD_LENGTH}
