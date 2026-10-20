@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Sign-in and password security (SIG-1031)
+
+- Password sign-in is rate-limited per IP and per email: 10 attempts per 10 minutes each. Further attempts get
+  "Too many attempts. Wait a few minutes and try again.", with the same message whether or not the account exists.
+- Choosing a new password now goes through the server. It requires a valid session, enforces the 10-character
+  minimum and the confirmation match on the server, and is rate-limited per user and per IP. Leading and trailing
+  spaces are trimmed, as they already were at sign-up and sign-in.
+
 ### Fixes
 
 - Starting a review right after cancelling another one could leave the engine stuck, with each position

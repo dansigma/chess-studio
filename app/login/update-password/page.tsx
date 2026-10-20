@@ -51,11 +51,11 @@ export default function UpdatePasswordPage() {
   // Client-side checks are only a hint; the server action re-validates.
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isValidPassword(password)) {
+    if (!isValidPassword(password.trim())) {
       setClientError(passwordLengthError());
       return;
     }
-    if (password !== confirm) {
+    if (password.trim() !== confirm.trim()) {
       setClientError("Passwords don't match.");
       return;
     }

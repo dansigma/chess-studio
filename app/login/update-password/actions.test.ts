@@ -98,3 +98,37 @@ test("password updates are rate-limited per user", async () => {
   assert.deepEqual(last, { error: "Too many attempts. Wait a few minutes and try again." });
   assert.equal(updateCalls(fake).length, 10);
 });
+
+test("invalid submissions do not use up the rate-limit quota", async () => {
+  const fake = server("user-typos");
+  const ip = nextTestIp();
+  for (let i = 0; i < 15; i += 1) {
+    withRequest(ip);
+    await updatePassword({}, form({ password: "short", confirm: "short" }));
+  }
+  withRequest(ip);
+  const state = await updatePassword({}, form(GOOD));
+  assert.match(state.message ?? "", /Password updated/);
+  assert.equal(updateCalls(fake).length, 1);
+});
+
+test("password updates are rate-limited per IP across users", async () => {
+  const ip = nextTestIp();
+  let last: { error?: string } = {};
+  let calls = 0;
+  for (let i = 0; i < 11; i += 1) {
+    const fake = server(`user-ip-${i}`);
+    withRequest(ip);
+    last = await updatePassword({}, form(GOOD));
+    calls += updateCalls(fake).length;
+  }
+  assert.deepEqual(last, { error: "Too many attempts. Wait a few minutes and try again." });
+  assert.equal(calls, 10);
+});
+
+test("the new password is trimmed like at sign-in", async () => {
+  const fake = server("user-trim");
+  withRequest();
+  await updatePassword({}, form({ password: "  long-enough-pw  ", confirm: "long-enough-pw" }));
+  assert.deepEqual(updateCalls(fake)[0].args, [{ password: "long-enough-pw" }]);
+});

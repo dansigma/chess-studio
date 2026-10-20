@@ -11,9 +11,11 @@ import type { AuthFormState } from "../actions";
 // namespaced ("pwupdate"/"pwupdate-ip") so quotas stay independent.
 const limiter = createRouteLimiter({ limit: 10, windowMs: 10 * 60 * 1000, bindingName: "RL_AUTH" });
 
+// Trimmed like the sign-in and sign-up fields in ../actions.ts, so a password
+// set here can always be used to sign in.
 function field(formData: FormData, name: string): string {
   const value = formData.get(name);
-  return typeof value === "string" ? value : "";
+  return typeof value === "string" ? value.trim() : "";
 }
 
 export async function updatePassword(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -27,14 +29,8 @@ export async function updatePassword(_state: AuthFormState, formData: FormData):
     return { error: "This reset link is invalid or has expired. Request a new one from the sign-in page." };
   }
 
-  const ip = clientIp(await headers());
-  const userVerdict = await limiter.checkAsync(rateLimitKey("pwupdate", user.id));
-  const ipVerdict = await limiter.checkAsync(rateLimitKey("pwupdate-ip", ip));
-  if (!userVerdict.ok || !ipVerdict.ok) {
-    return { error: "Too many attempts. Wait a few minutes and try again." };
-  }
-
-  // Passwords are intentionally not trimmed.
+  // Validate before rate-limiting so typos never use up the quota; only
+  // submissions that would reach updateUser count.
   const password = field(formData, "password");
   const confirm = field(formData, "confirm");
   if (!isValidPassword(password)) {
@@ -42,6 +38,13 @@ export async function updatePassword(_state: AuthFormState, formData: FormData):
   }
   if (password !== confirm) {
     return { error: "Passwords don't match." };
+  }
+
+  const ip = clientIp(await headers());
+  const userVerdict = await limiter.checkAsync(rateLimitKey("pwupdate", user.id));
+  const ipVerdict = await limiter.checkAsync(rateLimitKey("pwupdate-ip", ip));
+  if (!userVerdict.ok || !ipVerdict.ok) {
+    return { error: "Too many attempts. Wait a few minutes and try again." };
   }
 
   const { error } = await supabase.auth.updateUser({ password });
