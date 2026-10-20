@@ -7,6 +7,13 @@ const isolation = [
 ];
 
 const nextConfig: NextConfig = {
+  // SIG-1057: English aliases for the (Portuguese) legal routes.
+  async redirects() {
+    return [
+      { source: "/privacy", destination: "/privacidade", permanent: true },
+      { source: "/terms", destination: "/termos", permanent: true },
+    ];
+  },
   async headers() {
     return [
       // NB: vinext's :path* matcher requires >=1 segment (Next.js matches zero+),

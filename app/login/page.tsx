@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { MIN_PASSWORD_LENGTH, passwordRequirementHint } from "@/src/lib/auth/password";
+import { oauthRedirectTo } from "@/src/lib/auth/oauth";
 import { safeAuthNext } from "@/src/lib/auth/redirect-path";
 import { Button } from "@/src/studio/ui/Button";
 import { submitAuth, type AuthFormState } from "./actions";
+import { GoogleIcon } from "./GoogleIcon";
 import { AuthField, AuthLayout, AuthMessage, authInputClass } from "./AuthLayout";
 
 type Mode = "signin" | "signup" | "reset";
@@ -26,7 +28,26 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState<Mode>("signin");
   const [state, formAction, pending] = useActionState(submitAuth, {} as AuthFormState);
+  const [oauthPending, setOauthPending] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
   const supabase = createBrowserSupabase();
+
+  // Runs in the browser on purpose: a server action would redirect cross-origin from a form
+  // submission, which the CSP `form-action 'self'` directive blocks once enforced.
+  async function signInWithGoogle() {
+    if (!supabase) return;
+    setOauthPending(true);
+    setOauthError(null);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: oauthRedirectTo(window.location.origin, next) },
+    });
+    if (error) {
+      setOauthError(error.message || "Could not start Google sign-in. Try again.");
+      setOauthPending(false);
+    }
+    // On success the browser is navigating to Google; keep the button disabled.
+  }
 
   function switchMode(nextMode: Mode) {
     setMode(nextMode);
@@ -57,6 +78,32 @@ function LoginForm() {
               {tab === "signin" ? "Sign in" : "Sign up"}
             </button>
           ))}
+        </div>
+      ) : null}
+
+      {mode !== "reset" && supabase ? (
+        <div className="mt-6">
+          <Button
+            type="button"
+            variant="secondary"
+            block
+            className="h-9 gap-2.5"
+            disabled={oauthPending}
+            onClick={signInWithGoogle}
+          >
+            <GoogleIcon />
+            {oauthPending ? "Redirecting…" : "Continue with Google"}
+          </Button>
+          {oauthError ? (
+            <div className="mt-3">
+              <AuthMessage tone="error">{oauthError}</AuthMessage>
+            </div>
+          ) : null}
+          <div className="mt-6 flex items-center gap-3 text-caption text-studio-faint" aria-hidden="true">
+            <span className="h-px flex-1 bg-studio-border" />
+            or
+            <span className="h-px flex-1 bg-studio-border" />
+          </div>
         </div>
       ) : null}
 
@@ -122,6 +169,18 @@ function LoginForm() {
           {pending ? "Please wait…" : submitLabel}
         </Button>
       </form>
+
+      <p className="mt-4 text-caption text-studio-faint">
+        By continuing, you agree to the{" "}
+        <Link href="/termos" className="text-studio-muted hover:text-studio-fg hover:underline">
+          Terms of Use
+        </Link>{" "}
+        and the{" "}
+        <Link href="/privacidade" className="text-studio-muted hover:text-studio-fg hover:underline">
+          Privacy Policy
+        </Link>
+        .
+      </p>
 
       <div className="mt-6 flex items-center justify-between text-dense">
         {mode === "reset" ? (

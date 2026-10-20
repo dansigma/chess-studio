@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Google sign-in and legal pages (SIG-1057)
+
+- The login page has a "Continue with Google" button on the sign-in and sign-up tabs. It starts the OAuth flow
+  from the browser (`signInWithOAuth`), so it does not depend on the CSP `form-action` directive, and returns
+  through the existing `/auth/callback`. The post-login target goes through `safeAuthNext` (helper in
+  `src/lib/auth/oauth.ts`). The button is hidden when Supabase is not configured.
+- New pages `/privacidade` (Privacy Policy, LGPD) and `/termos` (Terms of Use), statically rendered, with
+  Portuguese first and the English version below on the same page; `/privacy` and `/terms` redirect to them.
+  They carry a "Rascunho — sujeito a revisão jurídica" banner (`LEGAL_DRAFT_BANNER` in `src/lib/legal/config.ts`)
+  and placeholders (`[RAZÃO SOCIAL]`, `[CNPJ]`, `[ENDEREÇO]`, contact/DPO e-mail, `[DATA]`, `[COMARCA]`) that
+  must be filled in after legal review.
+- Links to both pages on the login page (consent line) and in a footer on the courses and puzzles pages.
+
 ### Security headers (SIG-1033)
 
 - Every page and API response now sends `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,

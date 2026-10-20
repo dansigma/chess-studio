@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { catalogCoursePercent, courseThemeLabel, isCourseTheme } from "./catalog";
+import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "./CourseChrome";
 import { courseSummaryText } from "./description";
 import { courseImageUrl } from "./media";
@@ -102,6 +103,7 @@ export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
           })}
         </div>
       </main>
+      <SiteFooter />
     </div>
   );
 }

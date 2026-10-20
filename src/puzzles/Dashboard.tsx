@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Crown } from "lucide-react";
+import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "@/src/courses/CourseChrome";
 import { Button } from "@/src/studio/ui/Button";
 import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
@@ -192,6 +193,7 @@ export function PuzzleDashboard() {
           </ul>
         ) : null}
       </main>
+      <SiteFooter />
     </div>
   );
 }
