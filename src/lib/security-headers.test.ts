@@ -4,7 +4,6 @@ import {
   CSP_HEADER,
   applySecurityHeaders,
   buildCsp,
-  generateNonce,
   staticSecurityHeaders,
 } from "./security-headers";
 
@@ -15,19 +14,19 @@ function directive(csp: string, name: string): string[] {
 }
 
 describe("security headers", () => {
-  const csp = buildCsp({ nonce: "abc", supabaseUrl: "https://proj.supabase.co/rest/v1" });
+  const csp = buildCsp({ supabaseUrl: "https://proj.supabase.co/rest/v1" });
 
   it("ships as Report-Only", () => {
     assert.equal(CSP_HEADER, "Content-Security-Policy-Report-Only");
   });
 
-  it("uses a nonce for scripts without unsafe-inline/unsafe-eval in production", () => {
+  it("allows same-origin and inline scripts plus WASM, and eval only in dev", () => {
     const script = directive(csp, "script-src");
-    assert.ok(script.includes("'nonce-abc'"));
+    assert.ok(script.includes("'self'"));
+    assert.ok(script.includes("'unsafe-inline'"));
     assert.ok(script.includes("'wasm-unsafe-eval'"));
-    assert.ok(!script.includes("'unsafe-inline'"));
     assert.ok(!script.includes("'unsafe-eval'"));
-    assert.ok(directive(buildCsp({ nonce: "x", isDev: true }), "script-src").includes("'unsafe-eval'"));
+    assert.ok(directive(buildCsp({ isDev: true }), "script-src").includes("'unsafe-eval'"));
   });
 
   it("locks down framing, objects and base", () => {
@@ -43,11 +42,6 @@ describe("security headers", () => {
     assert.ok(directive(csp, "frame-src").includes("https://www.youtube-nocookie.com"));
     assert.ok(directive(csp, "frame-src").includes("https://player.vimeo.com"));
     assert.ok(directive(csp, "worker-src").includes("blob:"));
-  });
-
-  it("generates unique base64 nonces", () => {
-    assert.notEqual(generateNonce(), generateNonce());
-    assert.match(generateNonce(), /^[A-Za-z0-9+/]+=*$/);
   });
 
   it("applies static headers, HSTS only in production, and always X-Frame-Options", () => {

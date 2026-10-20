@@ -7,11 +7,11 @@
 - Every page and API response now sends `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
   `Referrer-Policy: strict-origin-when-cross-origin` and, in production, `Strict-Transport-Security`
   (1 year, includeSubDomains). `/login` and `/courses/admin` can no longer be framed.
-- A nonce-based Content Security Policy is sent as `Content-Security-Policy-Report-Only` (set in `proxy.ts`,
-  policy in `src/lib/security-headers.ts`), so nothing is blocked yet; enforcing it is a one-line change once a
-  deploy shows no violations. The `/engine` assets and COOP/COEP on `/studio` are unchanged.
-- Pages are now rendered on demand so the nonce can be applied. The course catalog and course/lesson pages no
-  longer use the 60s ISR cache or prerendered params.
+- A Content Security Policy is sent as `Content-Security-Policy-Report-Only` (set in `proxy.ts`, policy in
+  `src/lib/security-headers.ts`), so nothing is blocked yet; enforcing it is a one-line change once a deploy shows
+  no violations. Scripts are limited to the site itself plus inline scripts; there is no nonce, so pages keep their
+  static rendering and the course pages keep their 60s cache. The `/engine` assets and COOP/COEP on `/studio` are
+  unchanged.
 
 ### Sign-in and password security (SIG-1031)
 

@@ -6,10 +6,14 @@ import { courseSummaryText } from "@/src/courses/description";
 import { SEED_COURSES } from "@/src/courses/seed";
 import { SITE_NAME } from "@/src/site/sections";
 import type { Course } from "@/src/courses/types";
+import { isSupabaseConfigured } from "@/src/lib/supabase/env";
 import { createPublicServerSupabase } from "@/src/lib/supabase/server";
 
-// Rendered on demand (no ISR / generateStaticParams): the root layout opts every page into dynamic
-// rendering so the CSP nonce from proxy.ts can be applied (SIG-1033).
+// ISR with on-demand params: pre-rendered slugs revalidate every 60s and a
+// newly published slug renders on first visit (dynamicParams), so visitors
+// see it within the window without a redeploy.
+export const revalidate = 60;
+export const dynamicParams = true;
 
 async function loadCourse(slug: string): Promise<{ course: Course | null; notice: string | null }> {
   const supabase = createPublicServerSupabase();
@@ -32,6 +36,32 @@ async function loadCourse(slug: string): Promise<{ course: Course | null; notice
     course: SEED_COURSES.find((course) => course.slug === slug) ?? null,
     notice: schemaMissing ? MISSING_SCHEMA_NOTICE : null,
   };
+}
+
+async function loadAllSlugs(): Promise<string[]> {
+  const slugs = new Set(SEED_COURSES.map((course) => course.slug));
+  const supabase = createPublicServerSupabase();
+  if (supabase) {
+    // SIG-861: drafts never pre-render — skip null published_at rows.
+    const { data } = await supabase.from("courses").select("slug, published_at").not("published_at", "is", null);
+    for (const row of data ?? []) {
+      if (typeof row.slug === "string" && row.slug) {
+        slugs.add(row.slug);
+      }
+    }
+  }
+  return [...slugs];
+}
+
+export async function generateStaticParams(): Promise<{ slug: string }[]> {
+  if (!isSupabaseConfigured()) {
+    return [];
+  }
+  try {
+    return (await loadAllSlugs()).map((slug) => ({ slug }));
+  } catch {
+    return [];
+  }
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {

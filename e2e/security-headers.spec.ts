@@ -9,7 +9,7 @@ test("/login is not frameable and carries a CSP", async ({ request }) => {
   expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
   const csp = headers["content-security-policy"] ?? headers["content-security-policy-report-only"];
   expect(csp).toContain("frame-ancestors 'none'");
-  expect(csp).toMatch(/script-src [^;]*'nonce-/);
+  expect(csp).toContain("object-src 'none'");
 });
 
 test("/studio keeps cross-origin isolation alongside the CSP", async ({ request }) => {

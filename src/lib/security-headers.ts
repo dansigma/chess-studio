@@ -15,15 +15,6 @@ export const COURSE_IMAGE_HOSTS = ["https://images.unsplash.com"] as const;
 export const PIECE_IMAGE_HOSTS = ["https://cdn.jsdelivr.net"] as const;
 export const VIDEO_EMBED_HOSTS = ["https://www.youtube-nocookie.com", "https://player.vimeo.com"] as const;
 
-export function generateNonce(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  let binary = "";
-  for (const b of bytes) {
-    binary += String.fromCharCode(b);
-  }
-  return btoa(binary);
-}
-
 function origin(value: string | undefined): string | null {
   if (!value) {
     return null;
@@ -37,12 +28,11 @@ function origin(value: string | undefined): string | null {
 }
 
 export type CspOptions = {
-  nonce: string;
   isDev?: boolean;
   supabaseUrl?: string;
 };
 
-export function buildCsp({ nonce, isDev = false, supabaseUrl }: CspOptions): string {
+export function buildCsp({ isDev = false, supabaseUrl }: CspOptions = {}): string {
   const supabase = origin(supabaseUrl);
   const supabaseWs = supabase ? supabase.replace(/^http/, "ws") : null;
   const list = (...parts: Array<string | null | readonly string[]>) =>
@@ -50,8 +40,10 @@ export function buildCsp({ nonce, isDev = false, supabaseUrl }: CspOptions): str
 
   const directives: Array<[string, string[]]> = [
     ["default-src", ["'self'"]],
-    // 'strict-dynamic' lets nonced Next scripts load chunks; 'wasm-unsafe-eval' is for Stockfish WASM.
-    ["script-src", list("'self'", `'nonce-${nonce}'`, "'strict-dynamic'", "'wasm-unsafe-eval'", isDev ? "'unsafe-eval'" : null)],
+    // No nonce: a nonce needs every page rendered per request, which would drop the ISR cache on the
+    // course pages. 'unsafe-inline' covers Next's inline bootstrap/flight scripts and LANG_BOOTSTRAP;
+    // 'wasm-unsafe-eval' is for Stockfish WASM. Moving to a nonce or hashes is a separate decision.
+    ["script-src", list("'self'", "'unsafe-inline'", "'wasm-unsafe-eval'", isDev ? "'unsafe-eval'" : null)],
     // React/Tailwind inline style attributes need 'unsafe-inline'.
     ["style-src", ["'self'", "'unsafe-inline'"]],
     ["img-src", list("'self'", "blob:", "data:", COURSE_IMAGE_HOSTS, PIECE_IMAGE_HOSTS, supabase)],
