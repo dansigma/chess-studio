@@ -38,7 +38,9 @@ describe("security headers", () => {
   it("allows the app's known external sources", () => {
     assert.ok(directive(csp, "connect-src").includes("https://proj.supabase.co"));
     assert.ok(directive(csp, "connect-src").includes("wss://proj.supabase.co"));
-    assert.ok(directive(csp, "img-src").includes("https://images.unsplash.com"));
+    // Legacy covers come from any https host (courseImageUrl), and file videos from any https URL.
+    assert.ok(directive(csp, "img-src").includes("https:"));
+    assert.ok(directive(csp, "media-src").includes("https:"));
     assert.ok(directive(csp, "frame-src").includes("https://www.youtube-nocookie.com"));
     assert.ok(directive(csp, "frame-src").includes("https://player.vimeo.com"));
     assert.ok(directive(csp, "worker-src").includes("blob:"));

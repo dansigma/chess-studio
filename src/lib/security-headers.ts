@@ -11,7 +11,6 @@
 export const CSP_HEADER = "Content-Security-Policy-Report-Only";
 
 /** Third-party hosts the browser talks to directly (everything else goes via /api/* proxies). */
-export const COURSE_IMAGE_HOSTS = ["https://images.unsplash.com"] as const;
 export const PIECE_IMAGE_HOSTS = ["https://cdn.jsdelivr.net"] as const;
 export const VIDEO_EMBED_HOSTS = ["https://www.youtube-nocookie.com", "https://player.vimeo.com"] as const;
 
@@ -46,10 +45,15 @@ export function buildCsp({ isDev = false, supabaseUrl }: CspOptions = {}): strin
     ["script-src", list("'self'", "'unsafe-inline'", "'wasm-unsafe-eval'", isDev ? "'unsafe-eval'" : null)],
     // React/Tailwind inline style attributes need 'unsafe-inline'.
     ["style-src", ["'self'", "'unsafe-inline'"]],
-    ["img-src", list("'self'", "blob:", "data:", COURSE_IMAGE_HOSTS, PIECE_IMAGE_HOSTS, supabase)],
+    // Any https host: published course covers predate the publish-time host allowlist
+    // (`courseCoverUrl`) and `courseImageUrl` still renders them from any https host, so a host list
+    // here would break those covers once the policy is enforced. Images cannot run script.
+    ["img-src", ["'self'", "blob:", "data:", "https:"]],
     ["font-src", ["'self'", "data:"]],
     // html-to-image re-fetches piece SVGs (CDN) when exporting the board.
     ["connect-src", list("'self'", PIECE_IMAGE_HOSTS, supabase, supabaseWs, isDev ? ["ws:", "http:"] : null)],
+    // Lesson videos of kind "file" (`courseVideo`: any https .mp4/.webm) play in <video>, which
+    // media-src governs (not frame-src); https: also covers redirects to another https host.
     ["media-src", ["'self'", "blob:", "https:"]],
     ["frame-src", [...VIDEO_EMBED_HOSTS]],
     ["worker-src", ["'self'", "blob:"]],
