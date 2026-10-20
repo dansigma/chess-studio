@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       return NextResponse.redirect(new URL("/login?error=auth", url.origin));
     }
     if (data.user) {
-      await finishSignIn(data.user.id, data.user.email, data.user.email_confirmed_at ?? null);
+      await finishSignIn(data.user.id, data.user.email, data.user.email_confirmed_at ?? null, data.user.app_metadata);
     }
   }
   return NextResponse.redirect(new URL(safeAuthNext(url.searchParams.get("next")), url.origin));

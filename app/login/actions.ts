@@ -96,7 +96,7 @@ export async function submitAuth(_state: AuthFormState, formData: FormData): Pro
     return { error: signInError(error.message) };
   }
   if (data.user) {
-    await finishSignIn(data.user.id, data.user.email, data.user.email_confirmed_at ?? null);
+    await finishSignIn(data.user.id, data.user.email, data.user.email_confirmed_at ?? null, data.user.app_metadata);
   }
   redirect(next);
 }

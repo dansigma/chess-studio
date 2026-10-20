@@ -53,7 +53,7 @@ cp .env.example .env.local
 Chess Studio uses Supabase for user authentication, saved boards, custom repertoires, puzzle training progress, and courses.
 
 ### Auth Setup & Security Note
-In the Supabase Dashboard under **Authentication -> Providers -> Email**, ensure that **Confirm email** is enabled. This prevents unconfirmed signups from claiming allowlisted administrator addresses configured in `COURSE_ADMINS`.
+In the Supabase Dashboard under **Authentication -> Providers -> Email**, ensure that **Confirm email** is enabled (local dev: `enable_confirmations = true` in `supabase/config.toml`). This prevents unconfirmed signups from claiming allowlisted administrator addresses configured in `COURSE_ADMINS`. The admin role is granted only to confirmed allowlisted emails and is revoked at the next sign-in if the email is removed from the allowlist.
 
 ### Applying Migrations Locally
 All database schemas, RLS policies, and triggers are tracked sequentially under `supabase/migrations/`:
