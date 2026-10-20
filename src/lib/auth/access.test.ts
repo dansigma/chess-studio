@@ -144,3 +144,22 @@ test("revoke write errors are logged, not thrown", async () => {
     spy.mock.restore();
   }
 });
+
+test("course_admins lookup failure leaves the admin role untouched", async () => {
+  const spy = mock.method(console, "error", () => {});
+  try {
+    const fake = createFakeSupabase({
+      tables: {
+        course_admins: { selectError: { message: "timeout" } },
+        profiles: { maybeSingle: { id: "u12", role: "admin" } },
+      },
+    });
+    installAdmin(fake);
+    await finishSignIn("u12", "table-admin@example.com", "2026-01-01T00:00:00Z", { role: "admin" });
+    assert.deepEqual(fake.calls.upsert, []);
+    assert.deepEqual(fake.calls.updateUserById, []);
+    assert.equal(spy.mock.callCount(), 1);
+  } finally {
+    spy.mock.restore();
+  }
+});

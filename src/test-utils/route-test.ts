@@ -108,6 +108,8 @@ export interface FakeTableConfig {
   maybeSingle?: unknown;
   /** Error returned by `upsert` / `insert` on this table. */
   writeError?: unknown;
+  /** Error returned by the terminal `maybeSingle()` call. */
+  selectError?: unknown;
 }
 
 export interface SupabaseCallLog {
@@ -119,7 +121,7 @@ export interface SupabaseCallLog {
 
 interface FakeSelectable {
   eq(col: string, val: unknown): FakeSelectable;
-  maybeSingle(): Promise<{ data: unknown; error: null }>;
+  maybeSingle(): Promise<{ data: unknown; error: unknown }>;
 }
 
 export interface FakeSupabaseClient {
@@ -170,7 +172,7 @@ export function createFakeSupabase(
   const authCalls: FakeSupabaseClient["authCalls"] = [];
   const resolveMaybeSingle = (table: string) => ({
     data: options.tables?.[table]?.maybeSingle ?? null,
-    error: null,
+    error: options.tables?.[table]?.selectError ?? null,
   });
   const selectable = (table: string): FakeSelectable => {
     const chain: FakeSelectable = {

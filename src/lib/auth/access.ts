@@ -1,7 +1,8 @@
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { emailIsCourseAdmin } from "./course-permissions";
 
-async function emailIsListedAdmin(email: string): Promise<boolean> {
+/** `null` when the `course_admins` lookup failed, so callers can skip role changes. */
+async function emailIsListedAdmin(email: string): Promise<boolean | null> {
   if (emailIsCourseAdmin(email)) {
     return true;
   }
@@ -9,7 +10,15 @@ async function emailIsListedAdmin(email: string): Promise<boolean> {
   if (!admin) {
     return false;
   }
-  const { data } = await admin.from("course_admins").select("email").eq("email", email.toLowerCase()).maybeSingle();
+  const { data, error } = await admin
+    .from("course_admins")
+    .select("email")
+    .eq("email", email.toLowerCase())
+    .maybeSingle();
+  if (error) {
+    console.error("[auth] finishSignIn: course_admins lookup failed", { error });
+    return null;
+  }
   return Boolean(data);
 }
 
@@ -27,7 +36,8 @@ async function emailIsListedAdmin(email: string): Promise<boolean> {
  *   takes effect; the permission checks trust `app_metadata.role` until then.
  *
  * Failures are logged with an `[auth]` prefix and never thrown, so a role
- * sync problem cannot break sign-in.
+ * sync problem cannot break sign-in. If the `course_admins` lookup itself
+ * fails, roles are left as they are (no grant, no revoke).
  *
  * @param appMetadata the user's current `app_metadata` (from the session user).
  */
@@ -42,8 +52,12 @@ export async function finishSignIn(
     return;
   }
   try {
-    const allow = Boolean(email && emailConfirmedAt && (await emailIsListedAdmin(email)));
-    if (allow) {
+    const listed = email && emailConfirmedAt ? await emailIsListedAdmin(email) : false;
+    if (listed === null) {
+      // Allowlist unknown: neither grant nor revoke on a transient failure.
+      return;
+    }
+    if (listed) {
       const { error: profileError } = await admin.from("profiles").upsert({ id: userId, role: "admin" });
       if (profileError) {
         console.error("[auth] finishSignIn: profile admin upsert failed", { userId, error: profileError });
