@@ -75,7 +75,7 @@ export const PRIVACY_PT: LegalText = {
       id: "retencao",
       title: "6. Por quanto tempo guardamos os dados",
       paragraphs: [
-        "Mantemos os dados da conta e o conteúdo salvo enquanto a conta existir. Ao excluir a conta, o conteúdo associado (tabuleiros, partidas, pastas, favoritos, progresso e configurações) é apagado do banco de dados, salvo o que precisarmos guardar para cumprir obrigação legal ou defender direitos. Registros técnicos (logs) são mantidos pelo período necessário à segurança e operação, conforme as configurações dos prestadores de infraestrutura.",
+        "Mantemos os dados da conta e o conteúdo salvo enquanto a conta existir. Ao excluir a conta, o conteúdo associado (tabuleiros, partidas, pastas, favoritos, progresso e configurações) é apagado do banco de dados, salvo o que precisarmos guardar para cumprir obrigação legal ou defender direitos. Cursos que você tenha publicado como autor podem continuar disponíveis aos alunos, sem vínculo com a sua conta. Registros técnicos (logs) são mantidos pelo período necessário à segurança e operação, conforme as configurações dos prestadores de infraestrutura.",
       ],
     },
     {
@@ -205,7 +205,7 @@ export const PRIVACY_EN: LegalText = {
       id: "retention",
       title: "6. Retention",
       paragraphs: [
-        "We keep account data and saved content while your account exists. When the account is deleted, the associated content (boards, games, folders, bookmarks, progress and settings) is removed from the database, except what we must keep to comply with legal obligations or defend rights. Technical logs are kept for the period needed for security and operations, according to our infrastructure providers' settings.",
+        "We keep account data and saved content while your account exists. When the account is deleted, the associated content (boards, games, folders, bookmarks, progress and settings) is removed from the database, except what we must keep to comply with legal obligations or defend rights. Courses you published as an author may remain available to students, no longer linked to your account. Technical logs are kept for the period needed for security and operations, according to our infrastructure providers' settings.",
       ],
     },
     {
