@@ -369,12 +369,15 @@ export type Database = {
       profiles: {
         Row: {
           id: string;
-          role: "student" | "admin";
+          role: "student" | "coach" | "admin";
+          // SIG-1049: "manual" = set from the admin UI; the sign-in sync keeps it.
+          role_source: "system" | "manual";
           created_at: string;
         };
         Insert: {
           id: string;
-          role?: "student" | "admin";
+          role?: "student" | "coach" | "admin";
+          role_source?: "system" | "manual";
           created_at?: string;
         };
         // SIG-861: no client-updatable columns. No update policy and no
@@ -392,6 +395,55 @@ export type Database = {
         };
         // SIG-861: deny-all RLS (no client select/insert/update/delete), so
         // no client-updatable columns exist. Service-role access.ts only writer.
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      // SIG-1049: deny-all RLS; service role only (role changes audit log).
+      role_changes: {
+        Row: {
+          id: string;
+          user_id: string;
+          old_role: string;
+          new_role: string;
+          changed_by: string | null;
+          reason: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          old_role: string;
+          new_role: string;
+          changed_by?: string | null;
+          reason: string;
+          created_at?: string;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      // SIG-1049: deny-all RLS; service role only. Only the SHA-256 hash of the
+      // invite token is stored.
+      coach_invites: {
+        Row: {
+          id: string;
+          email: string;
+          token_hash: string;
+          invited_by: string | null;
+          expires_at: string;
+          accepted_at: string | null;
+          revoked_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          token_hash: string;
+          invited_by?: string | null;
+          expires_at: string;
+          accepted_at?: string | null;
+          revoked_at?: string | null;
+          created_at?: string;
+        };
         Update: Record<string, never>;
         Relationships: [];
       };

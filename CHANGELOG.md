@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Coach role: database foundation (SIG-1049)
+
+- New migration `20261021120000_marketplace_roles.sql`: `profiles.role` now accepts `coach` (besides `student` and
+  `admin`), `profiles.role_source` (`system` or `manual`) records how a role was set, and two tables, `role_changes`
+  (audit log of role changes, with a required reason) and `coach_invites` (hashed, single-use, expiring invite tokens),
+  are created. Both tables are closed to clients (RLS deny-all, no grants); only the service role can use them.
+- No behavior changes yet: nothing reads the new role or tables until the following slices (authorization from the
+  database, role management, invites). The RLS contract test covers the new constraints and tables.
+
 ### CSP violation reports (SIG-1054, part 1)
 
 - New endpoint `POST /api/csp-report` that accepts both `application/csp-report` (`report-uri`) and
