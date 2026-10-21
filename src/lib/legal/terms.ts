@@ -1,4 +1,4 @@
-// SIG-1057: Terms of Use text. Draft pending legal review.
+// SIG-1057: Terms of Use text.
 import { LEGAL_COMPANY as P, type LegalText } from "./config";
 
 export const TERMS_PT: LegalText = {
@@ -6,7 +6,7 @@ export const TERMS_PT: LegalText = {
   title: "Termos de Uso",
   updated: `Última atualização: ${P.date}`,
   intro: [
-    `Estes Termos regem o uso do Xadrez Digital (o “Serviço”), oferecido por ${P.company}, CNPJ ${P.cnpj}, com sede em ${P.address}. Ao criar uma conta ou usar o Serviço, você declara que leu e concorda com estes Termos e com a Política de Privacidade.`,
+    `Estes Termos regem o uso do Xadrez Digital (o “Serviço”), operado por ${P.company}, que utiliza o nome fantasia ${P.tradeName}, CNPJ ${P.cnpj}, com sede em ${P.address}. Ao criar uma conta ou usar o Serviço, você declara que leu e concorda com estes Termos e com a Política de Privacidade.`,
   ],
   sections: [
     {
@@ -115,7 +115,7 @@ export const TERMS_EN: LegalText = {
   title: "Terms of Use (English version)",
   updated: `Last updated: ${P.dateEn}`,
   intro: [
-    `This is an English version of the Portuguese Terms of Use above, provided for convenience; if they differ, the Portuguese version prevails. These Terms govern use of Xadrez Digital (the “Service”), offered by ${P.company}, CNPJ ${P.cnpj}, headquartered at ${P.address}. By creating an account or using the Service you confirm that you have read and agree to these Terms and the Privacy Policy.`,
+    `This is an English version of the Portuguese Terms of Use above, provided for convenience; if they differ, the Portuguese version prevails. These Terms govern use of Xadrez Digital (the “Service”), operated by ${P.company}, trading as ${P.tradeName}, CNPJ ${P.cnpj}, headquartered at ${P.address}. By creating an account or using the Service you confirm that you have read and agree to these Terms and the Privacy Policy.`,
   ],
   sections: [
     {
