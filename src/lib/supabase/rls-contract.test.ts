@@ -67,3 +67,45 @@ describe("sig-1030 admin role lifecycle migration", () => {
     assert.ok(confirmed < grant && listed < grant, "checks must precede the admin assignment");
   });
 });
+
+describe("sig-1049 marketplace roles migration", () => {
+  const sig1049 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021120000_marketplace_roles.sql"),
+    "utf8",
+  );
+  const lines = sig1049.split("\n").map((line) => line.trim());
+
+  it("lets profiles.role be student, coach or admin and nothing else", () => {
+    assert.ok(sig1049.includes("drop constraint if exists profiles_role_check"));
+    assert.ok(sig1049.includes("check (role in ('student', 'coach', 'admin'))"));
+  });
+
+  it("adds role_source limited to system or manual", () => {
+    assert.ok(sig1049.includes("add column if not exists role_source text not null default 'system'"));
+    assert.ok(sig1049.includes("check (role_source in ('system', 'manual'))"));
+  });
+
+  for (const table of ["role_changes", "coach_invites"]) {
+    it(`keeps ${table} closed to clients (RLS on, no grants, no write policies)`, () => {
+      assert.ok(sig1049.includes(`alter table public.${table} enable row level security`));
+      assert.ok(sig1049.includes(`revoke all on table public.${table} from anon, authenticated`));
+      const writes = lines.filter(
+        (line) => new RegExp(`on public\\.${table}$`).test(line) && /for (insert|update|delete|all)/.test(line),
+      );
+      assert.deepEqual(writes, []);
+      assert.ok(sig1049.includes(`on public.${table}\n  for select to authenticated\n  using (false)`));
+    });
+  }
+
+  it("stores only a hash for invite tokens and a bounded reason for role changes", () => {
+    assert.ok(sig1049.includes("token_hash text not null unique"));
+    assert.ok(!/\btoken text\b/.test(sig1049));
+    assert.ok(sig1049.includes("check (email = lower(email))"));
+    assert.ok(sig1049.includes("char_length(btrim(reason)) between 3 and 500"));
+  });
+
+  it("does not add client write policies to profiles", () => {
+    const writes = lines.filter((line) => /on public\.profiles$/.test(line) && /for (insert|update|delete)/.test(line));
+    assert.deepEqual(writes, []);
+  });
+});
