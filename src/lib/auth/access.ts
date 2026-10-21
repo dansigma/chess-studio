@@ -30,10 +30,11 @@ async function emailIsListedAdmin(email: string): Promise<boolean | null> {
  * - Listed admin with a confirmed email: grants admin (profile + app_metadata).
  *   Fail-closed: unconfirmed or unknown confirmation state is never admin.
  * - Anyone else who currently holds admin (`appMetadata.role === "admin"` or
- *   `profiles.role === "admin"`) is revoked: profile set to student and
- *   `app_metadata.role` removed (GoTrue merges app_metadata and deletes keys
- *   set to null). This is how removal from `COURSE_ADMINS` / `course_admins`
- *   takes effect; the permission checks trust `app_metadata.role` until then.
+ *   `profiles.role === "admin"`) is revoked, unless the profile was promoted
+ *   by hand (`role_source === "manual"`): manual roles are left untouched.
+ *   This is how removal from `COURSE_ADMINS` / `course_admins` takes effect
+ *   for system roles; the permission checks read `profiles.role` from the
+ *   database, so revocation takes effect immediately.
  *
  * Failures are logged with an `[auth]` prefix and never thrown, so a role
  * sync problem cannot break sign-in. If the `course_admins` lookup itself
@@ -70,7 +71,7 @@ export async function finishSignIn(
       }
       return;
     }
-    const { data, error: selectError } = await admin.from("profiles").select("role").eq("id", userId).maybeSingle();
+    const { data, error: selectError } = await admin.from("profiles").select("role, role_source").eq("id", userId).maybeSingle();
     if (selectError) {
       console.error("[auth] finishSignIn: profile lookup failed", { userId, error: selectError });
     }
@@ -80,7 +81,9 @@ export async function finishSignIn(
         console.error("[auth] finishSignIn: profile student insert failed", { userId, error });
       }
     }
-    if (appMetadata?.role === "admin" || (data as { role?: string } | null)?.role === "admin") {
+    const profile = data as { role?: string; role_source?: string } | null;
+    const isManualAdmin = profile?.role === "admin" && profile?.role_source === "manual";
+    if (!isManualAdmin && (appMetadata?.role === "admin" || profile?.role === "admin")) {
       const { error: profileError } = await admin.from("profiles").upsert({ id: userId, role: "student" });
       if (profileError) {
         console.error("[auth] finishSignIn: profile admin revoke failed", { userId, error: profileError });

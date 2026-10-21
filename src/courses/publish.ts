@@ -1,6 +1,7 @@
 "use server";
 
-import { isCourseSuperAdmin, userCanPublishCourses } from "@/src/lib/auth/course-permissions";
+import { userCanPublishCourses } from "@/src/lib/auth/course-permissions";
+import { canAuthorCourses, getRole, isAdmin } from "@/src/lib/auth/roles";
 import type { Json } from "@/src/lib/supabase/database.types";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { createServerSupabase } from "@/src/lib/supabase/server";
@@ -37,14 +38,15 @@ async function requirePublisher(): Promise<
   if (!user?.email) {
     return { ok: false, error: "Sign in to publish a course." };
   }
-  if (!(await userCanPublishCourses(supabase, user))) {
+  const role = await getRole(supabase, user);
+  if (!isAdmin(role)) {
     return { ok: false, error: "This account cannot publish courses." };
   }
   const admin = serviceClient();
   if (!admin) {
     return { ok: false, error: "The server cannot publish courses yet." };
   }
-  return { ok: true, userId: user.id, superAdmin: isCourseSuperAdmin(user), admin };
+  return { ok: true, userId: user.id, superAdmin: isAdmin(role), admin };
 }
 
 export async function currentUserCanPublish(): Promise<boolean> {
@@ -57,6 +59,18 @@ export async function currentUserCanPublish(): Promise<boolean> {
     return false;
   }
   return userCanPublishCourses(supabase, data.user);
+}
+
+export async function currentUserCanAuthor(): Promise<boolean> {
+  const supabase = await createServerSupabase();
+  if (!supabase) {
+    return false;
+  }
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) {
+    return false;
+  }
+  return canAuthorCourses(await getRole(supabase, data.user));
 }
 
 function checkedCourse(input: Course): { course: Course; chapters: CourseChapter[] } | { error: string } {

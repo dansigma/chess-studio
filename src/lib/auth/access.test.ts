@@ -77,7 +77,7 @@ test("missing service client is a no-op", async () => {
 });
 
 test("previously admin (app_metadata), no longer listed: revoked", async () => {
-  const fake = createFakeSupabase({ tables: { profiles: { maybeSingle: { id: "u6", role: "admin" } } } });
+  const fake = createFakeSupabase({ tables: { profiles: { maybeSingle: { id: "u6", role: "admin", role_source: "system" } } } });
   installAdmin(fake);
   await finishSignIn("u6", "random@example.com", "2026-01-01T00:00:00Z", { role: "admin" });
   assert.deepEqual(fake.calls.upsert, [{ table: "profiles", row: { id: "u6", role: "student" } }]);
@@ -85,15 +85,37 @@ test("previously admin (app_metadata), no longer listed: revoked", async () => {
 });
 
 test("profile admin but no app_metadata role, unlisted: revoked", async () => {
-  const fake = createFakeSupabase({ tables: { profiles: { maybeSingle: { id: "u7", role: "admin" } } } });
+  const fake = createFakeSupabase({ tables: { profiles: { maybeSingle: { id: "u7", role: "admin", role_source: "system" } } } });
   installAdmin(fake);
   await finishSignIn("u7", "random@example.com", "2026-01-01T00:00:00Z", {});
   assert.deepEqual(fake.calls.upsert, [{ table: "profiles", row: { id: "u7", role: "student" } }]);
   assert.equal(fake.calls.updateUserById.length, 1);
 });
 
+test("manual admin is never revoked, even with stale app_metadata", async () => {
+  const fake = createFakeSupabase({
+    tables: { profiles: { maybeSingle: { id: "u7m", role: "admin", role_source: "manual" } } },
+  });
+  installAdmin(fake);
+  await finishSignIn("u7m", "random@example.com", "2026-01-01T00:00:00Z", { role: "admin" });
+  assert.deepEqual(fake.calls.upsert, []);
+  assert.deepEqual(fake.calls.updateUserById, []);
+  assert.deepEqual(fake.calls.insert, []);
+});
+
+test("manual admin without app_metadata claim is left untouched", async () => {
+  const fake = createFakeSupabase({
+    tables: { profiles: { maybeSingle: { id: "u7n", role: "admin", role_source: "manual" } } },
+  });
+  installAdmin(fake);
+  await finishSignIn("u7n", "random@example.com", "2026-01-01T00:00:00Z", {});
+  assert.deepEqual(fake.calls.upsert, []);
+  assert.deepEqual(fake.calls.updateUserById, []);
+  assert.deepEqual(fake.calls.insert, []);
+});
+
 test("admin whose email is unconfirmed is revoked", async () => {
-  const fake = createFakeSupabase({ tables: { profiles: { maybeSingle: { id: "u8", role: "admin" } } } });
+  const fake = createFakeSupabase({ tables: { profiles: { maybeSingle: { id: "u8", role: "admin", role_source: "system" } } } });
   installAdmin(fake);
   await finishSignIn("u8", "boss@example.com", null, { role: "admin" });
   assert.deepEqual(fake.calls.updateUserById, [{ id: "u8", attrs: { app_metadata: { role: null } } }]);
@@ -134,7 +156,7 @@ test("revoke write errors are logged, not thrown", async () => {
   });
   try {
     const fake = createFakeSupabase({
-      tables: { profiles: { maybeSingle: { id: "u11", role: "admin" }, writeError: { message: "x" } } },
+      tables: { profiles: { maybeSingle: { id: "u11", role: "admin", role_source: "system" }, writeError: { message: "x" } } },
       updateUserError: { message: "y" },
     });
     installAdmin(fake);
@@ -151,7 +173,7 @@ test("course_admins lookup failure leaves the admin role untouched", async () =>
     const fake = createFakeSupabase({
       tables: {
         course_admins: { selectError: { message: "timeout" } },
-        profiles: { maybeSingle: { id: "u12", role: "admin" } },
+        profiles: { maybeSingle: { id: "u12", role: "admin", role_source: "system" } },
       },
     });
     installAdmin(fake);
