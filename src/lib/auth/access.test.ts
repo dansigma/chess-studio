@@ -114,6 +114,17 @@ test("manual admin without app_metadata claim is left untouched", async () => {
   assert.deepEqual(fake.calls.insert, []);
 });
 
+test("manual coach with stale app_metadata admin claim is never revoked", async () => {
+  const fake = createFakeSupabase({
+    tables: { profiles: { maybeSingle: { id: "u7c", role: "coach", role_source: "manual" } } },
+  });
+  installAdmin(fake);
+  await finishSignIn("u7c", "random@example.com", "2026-01-01T00:00:00Z", { role: "admin" });
+  assert.deepEqual(fake.calls.upsert, []);
+  assert.deepEqual(fake.calls.updateUserById, []);
+  assert.deepEqual(fake.calls.insert, []);
+});
+
 test("admin whose email is unconfirmed is revoked", async () => {
   const fake = createFakeSupabase({ tables: { profiles: { maybeSingle: { id: "u8", role: "admin", role_source: "system" } } } });
   installAdmin(fake);

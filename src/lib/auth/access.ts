@@ -82,8 +82,8 @@ export async function finishSignIn(
       }
     }
     const profile = data as { role?: string; role_source?: string } | null;
-    const isManualAdmin = profile?.role === "admin" && profile?.role_source === "manual";
-    if (!isManualAdmin && (appMetadata?.role === "admin" || profile?.role === "admin")) {
+    const isManualRole = profile?.role_source === "manual";
+    if (!isManualRole && (appMetadata?.role === "admin" || profile?.role === "admin")) {
       const { error: profileError } = await admin.from("profiles").upsert({ id: userId, role: "student" });
       if (profileError) {
         console.error("[auth] finishSignIn: profile admin revoke failed", { userId, error: profileError });
