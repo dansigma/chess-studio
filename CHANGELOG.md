@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### CSP violation reports (SIG-1054, part 1)
+
+- New endpoint `POST /api/csp-report` that accepts both `application/csp-report` (`report-uri`) and
+  `application/reports+json` (Reporting API). It caps the body at 64 KB, allows 60 reports per minute per IP,
+  logs one line per violation (`csp-report <disposition> directive=… blocked=<host> path=<path>`, at most 20 per
+  request) and returns an empty response (it never echoes the input). Only the blocked host and the document path
+  are logged, never full URLs or query strings. The parsing lives in `src/lib/csp-report.ts`.
+- The CSP now has `report-uri /api/csp-report` and `report-to csp-endpoint`, and every response sends
+  `Reporting-Endpoints: csp-endpoint="/api/csp-report"`. The policy is still Report-Only; it gets enforced after a
+  week of production reports has been reviewed.
+- `proxy.ts` skips the Supabase session refresh for `/api/csp-report`, so a burst of reports costs no auth calls.
+- `readCapped` now also takes an incoming `Request`.
+
 ### Google sign-in and legal pages (SIG-1057)
 
 - The login page has a "Continue with Google" button on the sign-in and sign-up tabs. It starts the OAuth flow

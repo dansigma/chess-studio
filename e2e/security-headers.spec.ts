@@ -10,6 +10,32 @@ test("/login is not frameable and carries a CSP", async ({ request }) => {
   const csp = headers["content-security-policy"] ?? headers["content-security-policy-report-only"];
   expect(csp).toContain("frame-ancestors 'none'");
   expect(csp).toContain("object-src 'none'");
+  // SIG-1054: violations are reported to /api/csp-report.
+  expect(csp).toContain("report-uri /api/csp-report");
+  expect(csp).toContain("report-to csp-endpoint");
+  expect(headers["reporting-endpoints"]).toBe('csp-endpoint="/api/csp-report"');
+});
+
+test("/api/csp-report accepts both report formats and echoes nothing", async ({ request }) => {
+  const legacy = await request.post("/api/csp-report", {
+    headers: { "content-type": "application/csp-report" },
+    data: JSON.stringify({
+      "csp-report": { "document-uri": "http://localhost:3000/login", "effective-directive": "img-src", "blocked-uri": "https://e2e.example/x.png" },
+    }),
+  });
+  expect(legacy.status()).toBe(204);
+  expect(await legacy.text()).toBe("");
+
+  const batch = await request.post("/api/csp-report", {
+    headers: { "content-type": "application/reports+json" },
+    data: JSON.stringify([
+      { type: "csp-violation", url: "http://localhost:3000/login", body: { effectiveDirective: "img-src", blockedURL: "https://e2e.example/x.png" } },
+    ]),
+  });
+  expect(batch.status()).toBe(204);
+
+  const wrongType = await request.post("/api/csp-report", { data: { hello: "world" } });
+  expect(wrongType.status()).toBe(415);
 });
 
 test("/studio keeps cross-origin isolation alongside the CSP", async ({ request }) => {
