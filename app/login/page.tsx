@@ -4,23 +4,40 @@ import { Suspense, useActionState, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
+import { tAuth, type AuthMessage as AuthFormMessage, type AuthStringKey } from "@/src/i18n/auth-strings";
 import { MIN_PASSWORD_LENGTH, passwordRequirementHint } from "@/src/lib/auth/password";
 import { oauthRedirectTo } from "@/src/lib/auth/oauth";
 import { safeAuthNext } from "@/src/lib/auth/redirect-path";
 import { Button } from "@/src/studio/ui/Button";
+import { useStudioStore } from "@/src/store/studio-store";
 import { submitAuth, type AuthFormState } from "./actions";
 import { GoogleIcon } from "./GoogleIcon";
 import { AuthField, AuthLayout, AuthMessage, authInputClass } from "./AuthLayout";
 
 type Mode = "signin" | "signup" | "reset";
 
-const HEADINGS: Record<Mode, { title: string; subtitle: string }> = {
-  signin: { title: "Welcome back", subtitle: "Sign in to sync your boards, files and repertoires." },
-  signup: { title: "Create an account", subtitle: "Save your analysis and pick up where you left off." },
-  reset: { title: "Reset your password", subtitle: "We'll email you a link to choose a new password." },
+const HEADING_KEYS: Record<Mode, { title: AuthStringKey; subtitle: AuthStringKey }> = {
+  signin: { title: "auth.heading.signinTitle", subtitle: "auth.heading.signinSubtitle" },
+  signup: { title: "auth.heading.signupTitle", subtitle: "auth.heading.signupSubtitle" },
+  reset: { title: "auth.heading.resetTitle", subtitle: "auth.heading.resetSubtitle" },
 };
 
+const SUBMIT_KEYS: Record<Mode, AuthStringKey> = {
+  reset: "auth.submit.reset",
+  signup: "auth.submit.signup",
+  signin: "auth.submit.signin",
+};
+
+function authText(
+  locale: "en" | "pt-br",
+  message: AuthFormMessage | undefined,
+): string | null {
+  if (!message) return null;
+  return tAuth(locale, message.key, message.vars);
+}
+
 function LoginForm() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "";
   const authError = searchParams.get("error") === "auth";
@@ -29,7 +46,7 @@ function LoginForm() {
   const [mode, setMode] = useState<Mode>("signin");
   const [state, formAction, pending] = useActionState(submitAuth, {} as AuthFormState);
   const [oauthPending, setOauthPending] = useState(false);
-  const [oauthError, setOauthError] = useState<string | null>(null);
+  const [oauthError, setOauthError] = useState(false);
   const supabase = createBrowserSupabase();
 
   // Runs in the browser on purpose: a server action would redirect cross-origin from a form
@@ -37,13 +54,13 @@ function LoginForm() {
   async function signInWithGoogle() {
     if (!supabase) return;
     setOauthPending(true);
-    setOauthError(null);
+    setOauthError(false);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo: oauthRedirectTo(window.location.origin, next) },
     });
     if (error) {
-      setOauthError(error.message || "Could not start Google sign-in. Try again.");
+      setOauthError(true);
       setOauthPending(false);
     }
     // On success the browser is navigating to Google; keep the button disabled.
@@ -53,14 +70,14 @@ function LoginForm() {
     setMode(nextMode);
   }
 
-  const heading = HEADINGS[mode];
-  const submitLabel =
-    mode === "reset" ? "Send reset link" : mode === "signup" ? "Create account" : "Sign in";
+  const heading = HEADING_KEYS[mode];
+  const errorText = authText(locale, state.error);
+  const messageText = authText(locale, state.message);
 
   return (
     <AuthLayout>
-      <h1 className="text-2xl font-semibold tracking-tight">{heading.title}</h1>
-      <p className="mt-1.5 text-body text-studio-muted">{heading.subtitle}</p>
+      <h1 className="text-2xl font-semibold tracking-tight">{tAuth(locale, heading.title)}</h1>
+      <p className="mt-1.5 text-body text-studio-muted">{tAuth(locale, heading.subtitle)}</p>
 
       {mode !== "reset" ? (
         <div role="tablist" className="mt-6 grid grid-cols-2 rounded-lg bg-studio-selected p-1">
@@ -75,7 +92,7 @@ function LoginForm() {
                 mode === tab ? "bg-studio-tab text-studio-fg shadow-sm" : "text-studio-muted hover:text-studio-fg"
               }`}
             >
-              {tab === "signin" ? "Sign in" : "Sign up"}
+              {tab === "signin" ? tAuth(locale, "auth.tab.signin") : tAuth(locale, "auth.tab.signup")}
             </button>
           ))}
         </div>
@@ -92,16 +109,18 @@ function LoginForm() {
             onClick={signInWithGoogle}
           >
             <GoogleIcon />
-            {oauthPending ? "Redirecting…" : "Continue with Google"}
+            {oauthPending
+              ? tAuth(locale, "auth.google.redirecting")
+              : tAuth(locale, "auth.google.continue")}
           </Button>
           {oauthError ? (
             <div className="mt-3">
-              <AuthMessage tone="error">{oauthError}</AuthMessage>
+              <AuthMessage tone="error">{tAuth(locale, "auth.google.startError")}</AuthMessage>
             </div>
           ) : null}
           <div className="mt-6 flex items-center gap-3 text-caption text-studio-faint" aria-hidden="true">
             <span className="h-px flex-1 bg-studio-border" />
-            or
+            {tAuth(locale, "auth.divider.or")}
             <span className="h-px flex-1 bg-studio-border" />
           </div>
         </div>
@@ -111,11 +130,9 @@ function LoginForm() {
         <input type="hidden" name="mode" value={mode} />
         <input type="hidden" name="next" value={safeAuthNext(next)} />
         {!supabase ? (
-          <AuthMessage tone="info">
-            Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to enable accounts.
-          </AuthMessage>
+          <AuthMessage tone="info">{tAuth(locale, "auth.supabaseMissing")}</AuthMessage>
         ) : null}
-        <AuthField id="email" label="Email">
+        <AuthField id="email" label={tAuth(locale, "auth.field.email")}>
           <input
             id="email"
             name="email"
@@ -132,7 +149,7 @@ function LoginForm() {
         {mode !== "reset" ? (
           <AuthField
             id="password"
-            label="Password"
+            label={tAuth(locale, "auth.field.password")}
             trailing={
               mode === "signin" ? (
                 <button
@@ -140,10 +157,12 @@ function LoginForm() {
                   className="text-dense font-normal text-studio-accent-text hover:underline"
                   onClick={() => switchMode("reset")}
                 >
-                  Forgot password?
+                  {tAuth(locale, "auth.field.forgotPassword")}
                 </button>
               ) : (
-                <span className="text-caption font-normal text-studio-faint">{passwordRequirementHint()}</span>
+                <span className="text-caption font-normal text-studio-faint">
+                  {tAuth(locale, passwordRequirementHint().key, passwordRequirementHint().vars)}
+                </span>
               )
             }
           >
@@ -161,23 +180,23 @@ function LoginForm() {
           </AuthField>
         ) : null}
         {authError ? (
-          <AuthMessage tone="error">The confirmation link is invalid or expired. Try again.</AuthMessage>
+          <AuthMessage tone="error">{tAuth(locale, "auth.error.confirmLink")}</AuthMessage>
         ) : null}
-        {state.error ? <AuthMessage tone="error">{state.error}</AuthMessage> : null}
-        {state.message ? <AuthMessage tone="success">{state.message}</AuthMessage> : null}
+        {errorText ? <AuthMessage tone="error">{errorText}</AuthMessage> : null}
+        {messageText ? <AuthMessage tone="success">{messageText}</AuthMessage> : null}
         <Button type="submit" variant="primary" block disabled={pending || !supabase} className="h-9">
-          {pending ? "Please wait…" : submitLabel}
+          {pending ? tAuth(locale, "auth.submit.pending") : tAuth(locale, SUBMIT_KEYS[mode])}
         </Button>
       </form>
 
       <p className="mt-4 text-caption text-studio-faint">
-        By continuing, you agree to the{" "}
+        {tAuth(locale, "auth.consent.prefix")}{" "}
         <Link href="/termos" className="text-studio-muted hover:text-studio-fg hover:underline">
-          Terms of Use
+          {tAuth(locale, "auth.consent.terms")}
         </Link>{" "}
-        and the{" "}
+        {tAuth(locale, "auth.consent.middle")}{" "}
         <Link href="/privacidade" className="text-studio-muted hover:text-studio-fg hover:underline">
-          Privacy Policy
+          {tAuth(locale, "auth.consent.privacy")}
         </Link>
         .
       </p>
@@ -185,13 +204,13 @@ function LoginForm() {
       <div className="mt-6 flex items-center justify-between text-dense">
         {mode === "reset" ? (
           <button type="button" className="text-studio-muted hover:text-studio-fg" onClick={() => switchMode("signin")}>
-            ← Back to sign in
+            {tAuth(locale, "auth.backToSignin")}
           </button>
         ) : (
           <span />
         )}
         <Link href="/studio" className="text-studio-muted hover:text-studio-fg">
-          Continue as guest →
+          {tAuth(locale, "auth.guest")}
         </Link>
       </div>
     </AuthLayout>

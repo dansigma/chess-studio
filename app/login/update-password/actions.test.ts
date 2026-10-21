@@ -50,7 +50,7 @@ test("update without a session is rejected and never calls updateUser", async ()
   const fake = server(null);
   withRequest();
   const state = await updatePassword({}, form(GOOD));
-  assert.match(state.error ?? "", /invalid or has expired/);
+  assert.deepEqual(state.error, { key: "auth.update.invalidLink" });
   assert.equal(updateCalls(fake).length, 0);
 });
 
@@ -58,7 +58,7 @@ test("password below the minimum is rejected server-side without calling updateU
   const fake = server("user-short");
   withRequest();
   const state = await updatePassword({}, form({ password: "short", confirm: "short" }));
-  assert.deepEqual(state, { error: "Password must be at least 10 characters." });
+  assert.deepEqual(state, { error: { key: "auth.error.passwordTooShort", vars: { min: 10 } } });
   assert.equal(updateCalls(fake).length, 0);
 });
 
@@ -66,7 +66,7 @@ test("mismatched confirmation is rejected without calling updateUser", async () 
   const fake = server("user-mismatch");
   withRequest();
   const state = await updatePassword({}, form({ password: "long-enough-pw", confirm: "different-pw!" }));
-  assert.deepEqual(state, { error: "Passwords don't match." });
+  assert.deepEqual(state, { error: { key: "auth.error.passwordMismatch" } });
   assert.equal(updateCalls(fake).length, 0);
 });
 
@@ -75,7 +75,7 @@ test("valid password with a session calls updateUser", async () => {
   withRequest();
   const state = await updatePassword({}, form(GOOD));
   assert.equal(state.error, undefined);
-  assert.match(state.message ?? "", /Password updated/);
+  assert.deepEqual(state.message, { key: "auth.message.passwordUpdated" });
   const calls = updateCalls(fake);
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].args, [{ password: "long-enough-pw" }]);
@@ -85,17 +85,17 @@ test("updateUser failure maps to a generic error", async () => {
   server("user-fail", async () => ({ data: null, error: new Error("weak_password internals") }));
   withRequest();
   const state = await updatePassword({}, form(GOOD));
-  assert.deepEqual(state, { error: "Could not update the password. Try again." });
+  assert.deepEqual(state, { error: { key: "auth.error.updateFailed" } });
 });
 
 test("password updates are rate-limited per user", async () => {
   const fake = server("user-limited");
-  let last: { error?: string } = {};
+  let last: { error?: unknown } = {};
   for (let i = 0; i < 11; i += 1) {
     withRequest();
     last = await updatePassword({}, form(GOOD));
   }
-  assert.deepEqual(last, { error: "Too many attempts. Wait a few minutes and try again." });
+  assert.deepEqual(last, { error: { key: "auth.error.rateLimited" } });
   assert.equal(updateCalls(fake).length, 10);
 });
 
@@ -108,13 +108,13 @@ test("invalid submissions do not use up the rate-limit quota", async () => {
   }
   withRequest(ip);
   const state = await updatePassword({}, form(GOOD));
-  assert.match(state.message ?? "", /Password updated/);
+  assert.deepEqual(state.message, { key: "auth.message.passwordUpdated" });
   assert.equal(updateCalls(fake).length, 1);
 });
 
 test("password updates are rate-limited per IP across users", async () => {
   const ip = nextTestIp();
-  let last: { error?: string } = {};
+  let last: { error?: unknown } = {};
   let calls = 0;
   for (let i = 0; i < 11; i += 1) {
     const fake = server(`user-ip-${i}`);
@@ -122,7 +122,7 @@ test("password updates are rate-limited per IP across users", async () => {
     last = await updatePassword({}, form(GOOD));
     calls += updateCalls(fake).length;
   }
-  assert.deepEqual(last, { error: "Too many attempts. Wait a few minutes and try again." });
+  assert.deepEqual(last, { error: { key: "auth.error.rateLimited" } });
   assert.equal(calls, 10);
 });
 
