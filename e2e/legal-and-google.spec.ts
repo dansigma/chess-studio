@@ -6,6 +6,7 @@ test("/privacidade and /termos render", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Política de Privacidade");
   await expect(page.getByText("Rascunho — sujeito a revisão jurídica")).toHaveCount(0);
   await expect(page.getByText(/62\.281\.698\/0001-18/).first()).toBeVisible();
+  await expect(page.getByText(/contato@xadrez\.digital/).first()).toBeVisible();
   await expect(page.getByText(/\[(RAZÃO SOCIAL|CNPJ|DATA|COMARCA)\]/)).toHaveCount(0);
   await expect(page.getByRole("heading", { name: /Privacy Policy/ })).toBeVisible();
 

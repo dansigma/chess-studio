@@ -10,9 +10,9 @@
   `src/lib/auth/oauth.ts`). The button is hidden when Supabase is not configured.
 - New pages `/privacidade` (Privacy Policy, LGPD) and `/termos` (Terms of Use), statically rendered, with
   Portuguese first and the English version below on the same page; `/privacy` and `/terms` redirect to them.
-  The controller is Sigma Labs Tecnologia da Informação LTDA (CNPJ 62.281.698/0001-18, contato@sigmalabs.com.br),
-  last updated 20 October 2026, with São Paulo/SP as the chosen forum. Company data lives in
-  `src/lib/legal/config.ts`.
+  The controller is Sigma Labs Tecnologia da Informação LTDA, trading as Xadrez Digital (CNPJ 62.281.698/0001-18,
+  contato@xadrez.digital), last updated 21 October 2026, with São Paulo/SP as the chosen forum. Company data
+  lives in `src/lib/legal/config.ts`.
 - Links to both pages on the login page (consent line) and in a footer on the courses and puzzles pages.
 
 ### Security headers (SIG-1033)

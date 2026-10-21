@@ -1,4 +1,4 @@
-// SIG-1057: Privacy Policy text (LGPD, Lei 13.709/2018). Draft pending legal review.
+// SIG-1057: Privacy Policy text (LGPD, Lei 13.709/2018).
 // Every statement here must stay accurate to what the code does; update together with the code.
 import { LEGAL_COMPANY as P, type LegalText } from "./config";
 
@@ -15,7 +15,7 @@ export const PRIVACY_PT: LegalText = {
       id: "controlador",
       title: "1. Controlador e contato",
       paragraphs: [
-        `O controlador dos dados pessoais é ${P.company}, inscrita no CNPJ sob o nº ${P.cnpj}, com sede em ${P.address}.`,
+        `O controlador dos dados pessoais é ${P.company}, que utiliza o nome fantasia ${P.tradeName}, inscrita no CNPJ sob o nº ${P.cnpj}, com sede em ${P.address}.`,
         `Para dúvidas, solicitações sobre seus dados ou contato com o encarregado pelo tratamento de dados (DPO): ${P.contact}.`,
       ],
     },
@@ -146,7 +146,7 @@ export const PRIVACY_EN: LegalText = {
       id: "controller",
       title: "1. Controller and contact",
       paragraphs: [
-        `The data controller is ${P.company}, CNPJ ${P.cnpj}, headquartered at ${P.address}.`,
+        `The data controller is ${P.company}, trading as ${P.tradeName}, CNPJ ${P.cnpj}, headquartered at ${P.address}.`,
         `Questions, data requests or contact with the data protection officer (DPO): ${P.contact}.`,
       ],
     },
