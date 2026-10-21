@@ -51,14 +51,14 @@ test("unconfigured Supabase returns an error", async () => {
   serverState.server = null;
   withRequest();
   const state = await submitAuth({}, form({ mode: "signin", email: "a@b.c", password: "secret1" }));
-  assert.deepEqual(state, { error: "Supabase is not configured." });
+  assert.deepEqual(state, { error: { key: "auth.error.supabaseNotConfigured" } });
 });
 
 test("missing email is rejected before any Supabase call", async () => {
   const fake = serverWithAuth({});
   withRequest();
   const state = await submitAuth({}, form({ mode: "signin", email: "", password: "secret1" }));
-  assert.deepEqual(state, { error: "Enter an email address." });
+  assert.deepEqual(state, { error: { key: "auth.error.enterEmail" } });
   assert.deepEqual(fake.authCalls, []);
 });
 
@@ -68,9 +68,7 @@ test("reset success returns the generic message", async () => {
   });
   withRequest();
   const state = await submitAuth({}, form({ mode: "reset", email: "Player@Example.com" }));
-  assert.deepEqual(state, {
-    message: "If an account exists for that email, a reset link is on its way.",
-  });
+  assert.deepEqual(state, { message: { key: "auth.message.resetSent" } });
   assert.equal(fake.authCalls.length, 1);
   assert.equal(fake.authCalls[0].method, "resetPasswordForEmail");
   const [emailArg, optionsArg] = fake.authCalls[0].args as [string, { redirectTo: string }];
@@ -85,7 +83,7 @@ test("reset upstream error maps to a generic message", async () => {
   serverWithAuth({ resetPasswordForEmail: async () => ({ error: new Error("boom") }) });
   withRequest();
   const state = await submitAuth({}, form({ mode: "reset", email: "a@b.c" }));
-  assert.deepEqual(state, { error: "Could not send the reset link. Try again." });
+  assert.deepEqual(state, { error: { key: "auth.error.resetSendFailed" } });
 });
 
 test("reset rate-limits after 10 attempts from one IP", async () => {
@@ -96,7 +94,7 @@ test("reset rate-limits after 10 attempts from one IP", async () => {
     withRequest(ip);
     last = await submitAuth({}, form({ mode: "reset", email: "a@b.c" }));
   }
-  assert.deepEqual(last, { error: "Too many attempts. Wait a few minutes and try again." });
+  assert.deepEqual(last, TOO_MANY);
 });
 
 test("signup calls signUp with emailRedirectTo containing the safe next", async () => {
@@ -106,9 +104,7 @@ test("signup calls signUp with emailRedirectTo containing the safe next", async 
     {},
     form({ mode: "signup", email: "new@example.com", password: "secret1234", next: "/courses" }),
   );
-  assert.deepEqual(state, {
-    message: "Check your email to confirm your account, then sign in.",
-  });
+  assert.deepEqual(state, { message: { key: "auth.message.signupConfirm" } });
   assert.equal(fake.authCalls.length, 1);
   const [creds] = fake.authCalls[0].args as [
     { email: string; password: string; options: { emailRedirectTo: string } },
@@ -127,7 +123,7 @@ test("signup upstream error maps to a generic message", async () => {
     {},
     form({ mode: "signup", email: "new@example.com", password: "secret1234" }),
   );
-  assert.deepEqual(state, { error: "Could not create the account. Try again." });
+  assert.deepEqual(state, { error: { key: "auth.error.signupFailed" } });
 });
 
 test("short password on signup is rejected", async () => {
@@ -137,7 +133,7 @@ test("short password on signup is rejected", async () => {
     {},
     form({ mode: "signup", email: "a@b.c", password: "short" }),
   );
-  assert.deepEqual(state, { error: "Password must be at least 10 characters." });
+  assert.deepEqual(state, { error: { key: "auth.error.passwordTooShort", vars: { min: 10 } } });
   assert.deepEqual(fake.authCalls, []);
 });
 
@@ -148,7 +144,7 @@ test("empty password on signin is rejected", async () => {
     {},
     form({ mode: "signin", email: "a@b.c", password: "" }),
   );
-  assert.deepEqual(state, { error: "Enter a password." });
+  assert.deepEqual(state, { error: { key: "auth.error.enterPassword" } });
   assert.deepEqual(fake.authCalls, []);
 });
 
@@ -161,7 +157,7 @@ test("short password on signin is forwarded to signInWithPassword for legacy acc
     {},
     form({ mode: "signin", email: "legacy@example.com", password: "secret" }),
   );
-  assert.deepEqual(state, { error: "Email or password is incorrect." });
+  assert.deepEqual(state, { error: { key: "auth.error.invalidCredentials" } });
   assert.equal(fake.authCalls.length, 1);
   const [creds] = fake.authCalls[0].args as [{ email: string; password: string }];
   assert.equal(creds.password, "secret");
@@ -176,7 +172,7 @@ test("invalid credentials map to a friendly message", async () => {
     {},
     form({ mode: "signin", email: "a@b.c", password: "secret1" }),
   );
-  assert.deepEqual(state, { error: "Email or password is incorrect." });
+  assert.deepEqual(state, { error: { key: "auth.error.invalidCredentials" } });
 });
 
 test("unconfirmed email maps to the confirm-email message", async () => {
@@ -188,7 +184,7 @@ test("unconfirmed email maps to the confirm-email message", async () => {
     {},
     form({ mode: "signin", email: "a@b.c", password: "secret1" }),
   );
-  assert.deepEqual(state, { error: "Confirm your email, then sign in." });
+  assert.deepEqual(state, { error: { key: "auth.error.emailNotConfirmed" } });
 });
 
 test("signin success hands (id, email, confirmed) to finishSignIn then redirects", async () => {
@@ -239,7 +235,7 @@ test("signin success with an evil next redirects to /studio", async () => {
   assert.equal(redirectUrl(thrown), "/studio");
 });
 
-const TOO_MANY = { error: "Too many attempts. Wait a few minutes and try again." };
+const TOO_MANY = { error: { key: "auth.error.rateLimited" } };
 
 test("signin rate-limits the 11th attempt from one IP without calling signInWithPassword", async () => {
   const fake = serverWithAuth({
@@ -299,7 +295,7 @@ test("production: reset without NEXT_PUBLIC_SITE_URL fails closed and does not c
     });
     withRequest();
     const state = await submitAuth({}, form({ mode: "reset", email: "player@example.com" }));
-    assert.deepEqual(state, { error: "Could not send the reset link. Try again." });
+    assert.deepEqual(state, { error: { key: "auth.error.resetSendFailed" } });
     assert.equal(fake.authCalls.length, 0);
     assert.match(loggedError, /NEXT_PUBLIC_SITE_URL is required in production/);
   } finally {
@@ -332,7 +328,7 @@ test("production: signup without NEXT_PUBLIC_SITE_URL fails closed and does not 
       {},
       form({ mode: "signup", email: "player@example.com", password: "secret1234", next: "/courses" }),
     );
-    assert.deepEqual(state, { error: "Could not create the account. Try again." });
+    assert.deepEqual(state, { error: { key: "auth.error.signupFailed" } });
     assert.equal(fake.authCalls.length, 0);
     assert.match(loggedError, /NEXT_PUBLIC_SITE_URL is required in production/);
   } finally {

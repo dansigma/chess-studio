@@ -21,12 +21,12 @@ function field(formData: FormData, name: string): string {
 export async function updatePassword(_state: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const supabase = await createServerSupabase();
   if (!supabase) {
-    return { error: "Supabase is not configured." };
+    return { error: { key: "auth.error.supabaseNotConfigured" } };
   }
   const { data } = await supabase.auth.getUser();
   const user = data?.user;
   if (!user) {
-    return { error: "This reset link is invalid or has expired. Request a new one from the sign-in page." };
+    return { error: { key: "auth.update.invalidLink" } };
   }
 
   // Validate before rate-limiting so typos never use up the quota; only
@@ -37,19 +37,19 @@ export async function updatePassword(_state: AuthFormState, formData: FormData):
     return { error: passwordLengthError() };
   }
   if (password !== confirm) {
-    return { error: "Passwords don't match." };
+    return { error: { key: "auth.error.passwordMismatch" } };
   }
 
   const ip = clientIp(await headers());
   const userVerdict = await limiter.checkAsync(rateLimitKey("pwupdate", user.id));
   const ipVerdict = await limiter.checkAsync(rateLimitKey("pwupdate-ip", ip));
   if (!userVerdict.ok || !ipVerdict.ok) {
-    return { error: "Too many attempts. Wait a few minutes and try again." };
+    return { error: { key: "auth.error.rateLimited" } };
   }
 
   const { error } = await supabase.auth.updateUser({ password });
   if (error) {
-    return { error: "Could not update the password. Try again." };
+    return { error: { key: "auth.error.updateFailed" } };
   }
-  return { message: "Password updated. Taking you to Studio…" };
+  return { message: { key: "auth.message.passwordUpdated" } };
 }

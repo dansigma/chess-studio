@@ -9,20 +9,23 @@ import {
   passwordLengthError,
   passwordRequirementHint,
 } from "@/src/lib/auth/password";
+import { tAuth, type AuthMessage } from "@/src/i18n/auth-strings";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { Button } from "@/src/studio/ui/Button";
-import { AuthField, AuthLayout, AuthMessage, authInputClass } from "../AuthLayout";
+import { useStudioStore } from "@/src/store/studio-store";
+import { AuthField, AuthLayout, AuthMessage as AuthBanner, authInputClass } from "../AuthLayout";
 import type { AuthFormState } from "../actions";
 import { updatePassword } from "./actions";
 
 type Message = { tone: "info" | "error" | "success"; text: string };
 
 export default function UpdatePasswordPage() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const router = useRouter();
   const supabase = createBrowserSupabase();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [clientError, setClientError] = useState<string | null>(null);
+  const [clientError, setClientError] = useState<AuthMessage | null>(null);
   const [state, formAction, busy] = useActionState(updatePassword, {} as AuthFormState);
   const [session, setSession] = useState<"checking" | "ready" | "missing">(supabase ? "checking" : "missing");
 
@@ -56,7 +59,7 @@ export default function UpdatePasswordPage() {
       return;
     }
     if (password.trim() !== confirm.trim()) {
-      setClientError("Passwords don't match.");
+      setClientError({ key: "auth.error.passwordMismatch" });
       return;
     }
     setClientError(null);
@@ -64,37 +67,42 @@ export default function UpdatePasswordPage() {
     startTransition(() => formAction(data));
   }
 
-  const message: Message | null = clientError
-    ? { tone: "error", text: clientError }
+  const errorText = clientError
+    ? tAuth(locale, clientError.key, clientError.vars)
     : state.error
-      ? { tone: "error", text: state.error }
-      : state.message
-        ? { tone: "success", text: state.message }
-        : null;
+      ? tAuth(locale, state.error.key, state.error.vars)
+      : null;
+  const message: Message | null = errorText
+    ? { tone: "error", text: errorText }
+    : state.message
+      ? { tone: "success", text: tAuth(locale, state.message.key, state.message.vars) }
+      : null;
 
   return (
     <AuthLayout>
-      <h1 className="text-2xl font-semibold tracking-tight">Choose a new password</h1>
-      <p className="mt-1.5 text-body text-studio-muted">You&apos;ll use it the next time you sign in.</p>
+      <h1 className="text-2xl font-semibold tracking-tight">{tAuth(locale, "auth.update.title")}</h1>
+      <p className="mt-1.5 text-body text-studio-muted">{tAuth(locale, "auth.update.subtitle")}</p>
 
       {session === "missing" ? (
         <div className="mt-6 space-y-4">
-          <AuthMessage tone="error">
-            This reset link is invalid or has expired. Request a new one from the sign-in page.
-          </AuthMessage>
+          <AuthBanner tone="error">{tAuth(locale, "auth.update.invalidLink")}</AuthBanner>
           <Link
             href="/login"
             className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-studio-accent text-body font-medium text-studio-accent-fg hover:bg-studio-accent-strong"
           >
-            Back to sign in
+            {tAuth(locale, "auth.update.back")}
           </Link>
         </div>
       ) : (
         <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <AuthField
             id="new-password"
-            label="New password"
-            trailing={<span className="text-caption text-studio-faint">{passwordRequirementHint()}</span>}
+            label={tAuth(locale, "auth.update.newPassword")}
+            trailing={
+              <span className="text-caption text-studio-faint">
+                {tAuth(locale, passwordRequirementHint().key, passwordRequirementHint().vars)}
+              </span>
+            }
           >
             <input
               id="new-password"
@@ -109,7 +117,7 @@ export default function UpdatePasswordPage() {
               className={authInputClass}
             />
           </AuthField>
-          <AuthField id="confirm-password" label="Confirm password">
+          <AuthField id="confirm-password" label={tAuth(locale, "auth.update.confirmPassword")}>
             <input
               id="confirm-password"
               name="confirm"
@@ -122,9 +130,13 @@ export default function UpdatePasswordPage() {
               className={authInputClass}
             />
           </AuthField>
-          {message ? <AuthMessage tone={message.tone}>{message.text}</AuthMessage> : null}
+          {message ? <AuthBanner tone={message.tone}>{message.text}</AuthBanner> : null}
           <Button type="submit" variant="primary" block disabled={busy || session !== "ready"} className="h-9">
-            {session === "checking" ? "Checking link…" : busy ? "Saving…" : "Update password"}
+            {session === "checking"
+              ? tAuth(locale, "auth.update.checking")
+              : busy
+                ? tAuth(locale, "auth.update.saving")
+                : tAuth(locale, "auth.update.submit")}
           </Button>
         </form>
       )}
