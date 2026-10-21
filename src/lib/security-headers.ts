@@ -6,7 +6,13 @@
  * The CSP ships as Report-Only first. To enforce it, change CSP_HEADER to
  * "Content-Security-Policy" (one line); `frame-ancestors` is ignored in Report-Only, which is
  * why X-Frame-Options: DENY is always sent enforcing.
+ *
+ * Violations are reported to CSP_REPORT_PATH: `report-to` (Reporting API, via the
+ * `Reporting-Endpoints` header) for current browsers, `report-uri` for the rest (browsers that support
+ * `report-to` ignore `report-uri`).
  */
+
+import { CSP_REPORT_GROUP, CSP_REPORT_PATH } from "./csp-report";
 
 export const CSP_HEADER = "Content-Security-Policy-Report-Only";
 
@@ -61,6 +67,8 @@ export function buildCsp({ isDev = false, supabaseUrl }: CspOptions = {}): strin
     ["base-uri", ["'self'"]],
     ["form-action", ["'self'"]],
     ["frame-ancestors", ["'none'"]],
+    ["report-uri", [CSP_REPORT_PATH]],
+    ["report-to", [CSP_REPORT_GROUP]],
   ];
   return directives.map(([name, values]) => `${name} ${values.join(" ")}`).join("; ");
 }
@@ -71,6 +79,7 @@ export function staticSecurityHeaders(isProd: boolean): Record<string, string> {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "DENY",
+    "Reporting-Endpoints": `${CSP_REPORT_GROUP}="${CSP_REPORT_PATH}"`,
   };
   if (isProd) {
     headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";

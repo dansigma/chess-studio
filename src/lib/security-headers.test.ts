@@ -46,6 +46,12 @@ describe("security headers", () => {
     assert.ok(directive(csp, "worker-src").includes("blob:"));
   });
 
+  it("reports violations to /api/csp-report via report-uri and report-to", () => {
+    assert.deepEqual(directive(csp, "report-uri"), ["/api/csp-report"]);
+    assert.deepEqual(directive(csp, "report-to"), ["csp-endpoint"]);
+    assert.equal(staticSecurityHeaders(false)["Reporting-Endpoints"], 'csp-endpoint="/api/csp-report"');
+  });
+
   it("applies static headers, HSTS only in production, and always X-Frame-Options", () => {
     assert.equal(staticSecurityHeaders(false)["Strict-Transport-Security"], undefined);
     const res = new Response(null);
