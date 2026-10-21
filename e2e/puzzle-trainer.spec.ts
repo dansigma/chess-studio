@@ -138,7 +138,7 @@ test("puzzle trainer: rated solve escalates hints, awards xp and advances", asyn
   await expect(trainer).toContainText(`+${12 + Math.round(puzzle.rating / 40) + 8}`);
   await expect(award(page)).toHaveCount(1);
   await expect(award(page)).toHaveText(`+${12 + Math.round(puzzle.rating / 40) + 8}`);
-  await expect(trainer).toContainText(/Rating \d+ \+\d+/);
+  await expect(trainer).toContainText(/Rating [\d.,]+ \+\d+/);
 
   await trainer.getByRole("button", { name: "Next puzzle" }).click();
   await expect.poll(() => boardPuzzleId(page)).not.toBe(puzzle.id);
@@ -153,7 +153,7 @@ test("puzzle trainer: a rated miss names the best move and drops the rating", as
 
   await expect(bubbleTitle(page)).toHaveText("Incorrect");
   await expect(trainer).toContainText("Best move:");
-  await expect(trainer).toContainText(/Rating \d+ -\d+/);
+  await expect(trainer).toContainText(/Rating [\d.,]+ -\d+/);
   await expect(award(page)).toHaveCount(0);
 });
 
@@ -210,4 +210,20 @@ test("puzzle trainer: the daily puzzle solves and offers no continue button", as
   await expect(bubbleTitle(page)).toHaveText("Solved");
   await expect(trainer.getByRole("button", { name: "Next puzzle" })).toHaveCount(0);
   await expect(trainer.getByRole("link", { name: "Back to puzzles" })).toBeVisible();
+});
+
+/** SIG-1070: with the pt-br locale stored, /puzzles renders Portuguese. */
+test("puzzles dashboard renders Portuguese with the pt-br locale stored", async ({ page, context }) => {
+  await context.addInitScript(() => {
+    window.localStorage.setItem("studio-clone-settings", JSON.stringify({ locale: "pt-br" }));
+  });
+  await page.goto("/puzzles");
+  await expect(page.getByRole("heading", { name: "Problemas", level: 1 })).toBeVisible();
+  await expect(page.getByText("Começar o treino")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Problema do dia" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sequência" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Começar sequência" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Começar rush" })).toBeVisible();
+  await expect(page.getByText("Temas")).toBeVisible();
+  await expect(page.getByText("Start training")).toHaveCount(0);
 });
