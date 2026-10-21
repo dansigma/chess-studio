@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { AdminView } from "@/src/courses/AdminView";
-import { currentUserCanPublish } from "@/src/courses/publish";
+import { currentUserCanAuthor } from "@/src/courses/publish";
 
 export default async function CourseAdminPage() {
-  if (!(await currentUserCanPublish())) {
+  if (!(await currentUserCanAuthor())) {
     redirect("/courses");
   }
   return <AdminView />;

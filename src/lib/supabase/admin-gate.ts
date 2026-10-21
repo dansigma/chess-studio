@@ -6,7 +6,7 @@
  */
 export function adminDenyDestination(
   path: string,
-  options: { configured: boolean; hasUser: boolean; canPublish: boolean },
+  options: { configured: boolean; hasUser: boolean; canAuthor: boolean },
 ): string | null {
   if (path !== "/courses/admin" && !path.startsWith("/courses/admin/")) {
     return null;
@@ -17,7 +17,7 @@ export function adminDenyDestination(
   if (!options.hasUser) {
     return `/login?next=${encodeURIComponent(path)}`;
   }
-  if (!options.canPublish) {
+  if (!options.canAuthor) {
     return "/courses";
   }
   return null;
