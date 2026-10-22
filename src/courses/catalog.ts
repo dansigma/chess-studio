@@ -1,5 +1,6 @@
 import type { Json } from "@/src/lib/supabase/database.types";
 import type { SiteLocale } from "@/src/i18n/locale";
+import type { CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import { tCourse } from "@/src/i18n/course-strings";
 import { courseImageUrl } from "./media";
 import { COURSE_THEMES, type CatalogCourse, type Course, type CourseChapter, type CourseColor, type CourseTheme, type CourseVariation, type VariationProgress } from "./types";
@@ -61,12 +62,12 @@ export function courseSlugError(
   slug: string,
   existing: { id: string; slug: string }[],
   exceptId?: string,
-): string | null {
+): CourseAdminMessage | null {
   if (!slug) {
-    return "The course needs an address.";
+    return { key: "course.admin.error.needsAddress" };
   }
   if (existing.some((course) => course.slug === slug && course.id !== exceptId)) {
-    return "That address is already used by a course.";
+    return { key: "course.admin.error.addressInUse" };
   }
   return null;
 }
@@ -77,12 +78,12 @@ export function courseOwnershipError(
   existing: CourseOwnership | null | undefined,
   userId: string,
   superAdmin: boolean,
-): string | null {
+): CourseAdminMessage | null {
   if (!existing) return null;
   if (superAdmin) return null;
   if (existing.created_by === userId) return null;
-  if (existing.created_by === null) return "This course has no owner — a course admin must reclaim it.";
-  return "This course belongs to another publisher.";
+  if (existing.created_by === null) return { key: "course.admin.error.noOwner" };
+  return { key: "course.admin.error.belongsToOther" };
 }
 
 export function findPublishedConflict(

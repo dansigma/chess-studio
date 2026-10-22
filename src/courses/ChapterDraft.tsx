@@ -2,6 +2,8 @@
 
 import { useRef } from "react";
 import { ChevronDown, ChevronUp, Trash2, Upload } from "lucide-react";
+import { tCourseAdmin } from "@/src/i18n/course-admin-strings";
+import { useStudioStore } from "@/src/store/studio-store";
 import { IconButton, Button } from "@/src/studio/ui/Button";
 import type { CourseChapter } from "./types";
 
@@ -32,27 +34,38 @@ export function ChapterDraft({
   onMoveVariation: (index: number, direction: -1 | 1) => void;
   onRemoveVariation: (variationId: string) => void;
 }) {
+  const locale = useStudioStore((state) => state.settings.locale);
   const fileRef = useRef<HTMLInputElement>(null);
   return (
     <section className="rounded-xl border border-studio-border p-4">
       <div className="flex items-start gap-2">
         <label className="min-w-0 flex-1 text-caption text-studio-muted">
-          Chapter {index + 1}
+          {tCourseAdmin(locale, "course.admin.chapter.heading", { n: index + 1 })}
           <input
             value={chapter.title}
             onChange={(event) => onTitle(event.target.value)}
-            placeholder="Chapter title"
+            placeholder={tCourseAdmin(locale, "course.admin.chapter.titlePlaceholder")}
             className="mt-1 w-full rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-fg"
           />
         </label>
         <div className="mt-5 flex shrink-0 gap-0.5">
-          <IconButton label="Move chapter up" size="sm" disabled={index === 0} onClick={() => onMove(-1)}>
+          <IconButton
+            label={tCourseAdmin(locale, "course.admin.chapter.moveUp")}
+            size="sm"
+            disabled={index === 0}
+            onClick={() => onMove(-1)}
+          >
             <ChevronUp size={14} />
           </IconButton>
-          <IconButton label="Move chapter down" size="sm" disabled={index === total - 1} onClick={() => onMove(1)}>
+          <IconButton
+            label={tCourseAdmin(locale, "course.admin.chapter.moveDown")}
+            size="sm"
+            disabled={index === total - 1}
+            onClick={() => onMove(1)}
+          >
             <ChevronDown size={14} />
           </IconButton>
-          <IconButton label="Remove chapter" size="sm" onClick={onRemove}>
+          <IconButton label={tCourseAdmin(locale, "course.admin.chapter.remove")} size="sm" onClick={onRemove}>
             <Trash2 size={14} />
           </IconButton>
         </div>
@@ -64,11 +77,11 @@ export function ChapterDraft({
               <input
                 value={variation.title}
                 onChange={(event) => onVariationTitle(variation.id, event.target.value)}
-                placeholder="Line name"
+                placeholder={tCourseAdmin(locale, "course.admin.line.namePlaceholder")}
                 className="min-w-0 flex-1 rounded-lg border border-studio-border bg-studio-bg px-3 py-2 text-body text-studio-fg"
               />
               <IconButton
-                label="Move line up"
+                label={tCourseAdmin(locale, "course.admin.line.moveUp")}
                 size="sm"
                 disabled={variationIndex === 0}
                 onClick={() => onMoveVariation(variationIndex, -1)}
@@ -76,14 +89,18 @@ export function ChapterDraft({
                 <ChevronUp size={14} />
               </IconButton>
               <IconButton
-                label="Move line down"
+                label={tCourseAdmin(locale, "course.admin.line.moveDown")}
                 size="sm"
                 disabled={variationIndex === chapter.variations.length - 1}
                 onClick={() => onMoveVariation(variationIndex, 1)}
               >
                 <ChevronDown size={14} />
               </IconButton>
-              <IconButton label="Remove line" size="sm" onClick={() => onRemoveVariation(variation.id)}>
+              <IconButton
+                label={tCourseAdmin(locale, "course.admin.line.remove")}
+                size="sm"
+                onClick={() => onRemoveVariation(variation.id)}
+              >
                 <Trash2 size={14} />
               </IconButton>
             </div>
@@ -99,11 +116,11 @@ export function ChapterDraft({
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button variant="ghost" onClick={onAddLine}>
-          Add line
+          {tCourseAdmin(locale, "course.admin.line.add")}
         </Button>
         <Button variant="ghost" onClick={() => fileRef.current?.click()}>
           <Upload size={14} />
-          Upload PGN
+          {tCourseAdmin(locale, "course.admin.line.uploadPgn")}
         </Button>
         <input
           ref={fileRef}
@@ -119,9 +136,7 @@ export function ChapterDraft({
           }}
         />
       </div>
-      <p className="mt-2 text-caption text-studio-faint">
-        A commented PGN for this chapter. Each game in the file becomes a line.
-      </p>
+      <p className="mt-2 text-caption text-studio-faint">{tCourseAdmin(locale, "course.admin.line.pgnHint")}</p>
     </section>
   );
 }

@@ -3,8 +3,10 @@
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { Bold, Italic, List, Underline } from "lucide-react";
+import { tCourseAdmin } from "@/src/i18n/course-admin-strings";
+import { useStudioStore } from "@/src/store/studio-store";
 import { sanitizeCourseHtml } from "./description";
 
 /**
@@ -17,7 +19,7 @@ import { sanitizeCourseHtml } from "./description";
  * `<ol>` and CourseView styles it, so legacy/pasted `<ol>` must survive
  * `setContent`/paste instead of degrading to paragraphs.
  */
-const extensions = [
+const baseExtensions = [
   StarterKit.configure({
     blockquote: false,
     code: false,
@@ -30,9 +32,6 @@ const extensions = [
     strike: false,
     trailingNode: false,
   }),
-  Placeholder.configure({
-    placeholder: "Write the course description",
-  }),
 ];
 
 export function DescriptionField({
@@ -42,6 +41,13 @@ export function DescriptionField({
   value: string;
   onChange: (html: string) => void;
 }) {
+  const locale = useStudioStore((state) => state.settings.locale);
+  const placeholder = tCourseAdmin(locale, "course.admin.description.placeholder");
+  const ariaLabel = tCourseAdmin(locale, "course.admin.description.aria");
+  const extensions = useMemo(
+    () => [...baseExtensions, Placeholder.configure({ placeholder })],
+    [placeholder],
+  );
   const editor = useEditor(
     {
       extensions,
@@ -51,7 +57,7 @@ export function DescriptionField({
         attributes: {
           role: "textbox",
           "aria-multiline": "true",
-          "aria-label": "Course description",
+          "aria-label": ariaLabel,
           class:
             "min-h-36 px-3 py-2 text-body text-studio-fg outline-none [&_em]:italic [&_li+li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_u]:underline [&_ul]:list-disc [&_ul]:pl-5",
         },
@@ -89,25 +95,29 @@ export function DescriptionField({
   return (
     <div className="mt-1 overflow-hidden rounded-lg border border-studio-border bg-studio-chrome">
       <div className="flex gap-0.5 border-b border-studio-border px-1 py-1">
-        <FormatButton label="Bold" active={boldActive} onClick={() => editor?.chain().focus().toggleBold().run()}>
+        <FormatButton
+          label={tCourseAdmin(locale, "course.admin.toolbar.bold")}
+          active={boldActive}
+          onClick={() => editor?.chain().focus().toggleBold().run()}
+        >
           <Bold size={14} />
         </FormatButton>
         <FormatButton
-          label="Italic"
+          label={tCourseAdmin(locale, "course.admin.toolbar.italic")}
           active={italicActive}
           onClick={() => editor?.chain().focus().toggleItalic().run()}
         >
           <Italic size={14} />
         </FormatButton>
         <FormatButton
-          label="Underline"
+          label={tCourseAdmin(locale, "course.admin.toolbar.underline")}
           active={underlineActive}
           onClick={() => editor?.chain().focus().toggleUnderline().run()}
         >
           <Underline size={14} />
         </FormatButton>
         <FormatButton
-          label="Bullet list"
+          label={tCourseAdmin(locale, "course.admin.toolbar.bullet")}
           active={bulletListActive}
           onClick={() => editor?.chain().focus().toggleBulletList().run()}
         >
