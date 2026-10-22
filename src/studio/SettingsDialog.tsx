@@ -13,6 +13,7 @@ import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { clearReviewCache } from "./review/review-cache";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { LinkedAccountsSection } from "./LinkedAccountsSection";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -182,6 +183,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             />
           </Row>
         </Section>
+        <LinkedAccountsSection />
       </div>
     </Dialog>
   );

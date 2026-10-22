@@ -366,6 +366,28 @@ export type Database = {
         };
         Relationships: [];
       };
+      // SIG-1039: one public Lichess / Chess.com username per (user, source).
+      linked_accounts: {
+        Row: {
+          user_id: string;
+          source: "lichess" | "chesscom";
+          username: string;
+          last_synced_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          source: "lichess" | "chesscom";
+          username: string;
+          last_synced_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          username?: string;
+          last_synced_at?: string | null;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
