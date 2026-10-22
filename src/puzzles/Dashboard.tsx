@@ -5,26 +5,30 @@ import { useRouter } from "next/navigation";
 import { Crown } from "lucide-react";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "@/src/courses/CourseChrome";
+import { formatInteger } from "@/src/i18n/format";
+import { tPuzzle } from "@/src/i18n/puzzle-strings";
+import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
 import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
 import { loadPuzzleCatalog } from "./puzzle-client";
 import { hydratePuzzleProgress, progressSource } from "./progress";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import { THEME_CARDS, THEME_LABELS, type PuzzleMode, type PuzzleProgress } from "./types";
+import { THEME_CARDS, THEME_LABEL_KEYS, type PuzzleMode, type PuzzleProgress } from "./types";
 
-const MODE_LABELS: Record<PuzzleMode, string> = {
-  rated: "Rated",
-  streak: "Streak",
-  rush: "Rush",
-  daily: "Daily",
-};
+const MODE_KEYS = {
+  rated: "puzzle.mode.rated",
+  streak: "puzzle.mode.streak",
+  rush: "puzzle.mode.rush",
+  daily: "puzzle.mode.daily",
+} as const;
 
 export function PuzzleDashboard() {
   const router = useRouter();
+  const locale = useStudioStore((state) => state.settings.locale);
   const [progress, setProgress] = useState<PuzzleProgress | null>(null);
   const [puzzles, setPuzzles] = useState<CompiledPuzzle[]>([]);
   const [now, setNow] = useState<number | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<boolean>(false);
   const [source, setSource] = useState<"account" | "browser">("browser");
 
   useEffect(() => {
@@ -45,11 +49,11 @@ export function PuzzleDashboard() {
         setPuzzles(catalog);
         setNow(timestamp);
         setSource(progressSource());
-        setLoadError(null);
+        setLoadError(false);
       } catch (error) {
         console.error("Failed to load puzzle progress.", error);
         if (!cancel) {
-          setLoadError("Could not load your puzzle progress.");
+          setLoadError(true);
         }
       }
     })();
@@ -70,14 +74,18 @@ export function PuzzleDashboard() {
       <main className="mx-auto max-w-5xl px-6 py-8">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <div>
-            <h1 className="text-2xl font-semibold text-studio-fg">Puzzles</h1>
+            <h1 className="text-2xl font-semibold text-studio-fg">{tPuzzle(locale, "puzzle.dashboard.heading")}</h1>
             <p className="mt-2 max-w-2xl text-body text-studio-muted">
-              Find the best move. Rated training, a daily puzzle, a streak that ends on the first miss, and a 3-minute rush with three misses.
+              {tPuzzle(locale, "puzzle.dashboard.intro")}
             </p>
           </div>
           <div className="rounded-xl border border-studio-border bg-studio-chrome px-5 py-4">
-            <div className="text-caption uppercase tracking-wide text-studio-muted">Your rating</div>
-            <div className="mt-1 text-3xl font-semibold tabular-nums text-studio-fg">{progress?.rating ?? "—"}</div>
+            <div className="text-caption uppercase tracking-wide text-studio-muted">
+              {tPuzzle(locale, "puzzle.dashboard.yourRating")}
+            </div>
+            <div className="mt-1 text-3xl font-semibold tabular-nums text-studio-fg">
+              {progress ? formatInteger(locale, progress.rating) : "—"}
+            </div>
             <div className="mt-3 flex items-center gap-2">
               <span className="inline-flex items-center gap-1 text-caption tabular-nums text-studio-muted">
                 <Crown className="size-3 text-studio-warning-fg" aria-hidden />
@@ -91,54 +99,78 @@ export function PuzzleDashboard() {
               </div>
             </div>
             <Button className="mt-3" variant="primary" onClick={() => router.push("/puzzles/play?mode=rated")}>
-              Start training
+              {tPuzzle(locale, "puzzle.dashboard.startTraining")}
             </Button>
             {progress ? (
               <p className="mt-2 text-caption text-studio-muted">
-                {source === "account" ? "Saved to your account" : "Saved in this browser"}
+                {source === "account"
+                  ? tPuzzle(locale, "puzzle.dashboard.savedAccount")
+                  : tPuzzle(locale, "puzzle.dashboard.savedBrowser")}
               </p>
             ) : null}
-            {loadError ? <p className="mt-3 text-body text-studio-warning-fg">{loadError}</p> : null}
+            {loadError ? (
+              <p className="mt-3 text-body text-studio-warning-fg">{tPuzzle(locale, "puzzle.dashboard.loadError")}</p>
+            ) : null}
           </div>
         </div>
 
         <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Solved" value={progress ? String(progress.solved) : "—"} />
-          <Stat label="Accuracy" value={accuracy === null ? "—" : `${accuracy}%`} />
-          <Stat label="Streak" value={progress ? String(progress.streak) : "—"} />
-          <Stat label="Best streak" value={progress ? String(progress.bestStreak) : "—"} />
+          <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.solved")} value={progress ? formatInteger(locale, progress.solved) : "—"} />
+          <Stat
+            label={tPuzzle(locale, "puzzle.dashboard.stat.accuracy")}
+            value={accuracy === null ? "—" : `${formatInteger(locale, accuracy)}%`}
+          />
+          <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.streak")} value={progress ? formatInteger(locale, progress.streak) : "—"} />
+          <Stat
+            label={tPuzzle(locale, "puzzle.dashboard.stat.bestStreak")}
+            value={progress ? formatInteger(locale, progress.bestStreak) : "—"}
+          />
         </dl>
 
         <div className="mt-8 grid gap-4 lg:grid-cols-3">
           <ModeCard
-            title="Daily puzzle"
+            title={tPuzzle(locale, "puzzle.dashboard.daily.title")}
             detail={
               daily
-                ? `${playedToday ? "Solved today" : "Today"} · ${daily.rating}`
-                : "One puzzle, same for everyone today"
+                ? `${playedToday ? tPuzzle(locale, "puzzle.dashboard.daily.solvedToday") : tPuzzle(locale, "puzzle.dashboard.daily.today")} · ${formatInteger(locale, daily.rating)}`
+                : tPuzzle(locale, "puzzle.dashboard.daily.fallback")
             }
-            body="A single position for the day. It does not change your rating."
-            action={playedToday ? "Review" : "Play"}
+            body={tPuzzle(locale, "puzzle.dashboard.daily.body")}
+            action={
+              playedToday
+                ? tPuzzle(locale, "puzzle.dashboard.daily.review")
+                : tPuzzle(locale, "puzzle.dashboard.daily.play")
+            }
             onClick={() => router.push("/puzzles/play?mode=daily")}
           />
           <ModeCard
-            title="Streak"
-            detail={progress ? `Best ${progress.bestStreak}` : "Survive as long as you can"}
-            body="Puzzles get harder after each solve. The run ends on the first miss."
-            action="Start streak"
+            title={tPuzzle(locale, "puzzle.dashboard.streak.title")}
+            detail={
+              progress
+                ? tPuzzle(locale, "puzzle.dashboard.streak.best", { best: formatInteger(locale, progress.bestStreak) })
+                : tPuzzle(locale, "puzzle.dashboard.streak.fallback")
+            }
+            body={tPuzzle(locale, "puzzle.dashboard.streak.body")}
+            action={tPuzzle(locale, "puzzle.dashboard.streak.action")}
             onClick={() => router.push("/puzzles/play?mode=streak")}
           />
           <ModeCard
-            title="Rush"
-            detail={progress ? `Best ${progress.rushBest}` : "3:00"}
-            body="Three minutes. Score as many as you can. Three misses, or the clock, ends the run."
-            action="Start rush"
+            title={tPuzzle(locale, "puzzle.dashboard.rush.title")}
+            detail={
+              progress
+                ? tPuzzle(locale, "puzzle.dashboard.rush.best", { best: formatInteger(locale, progress.rushBest) })
+                : tPuzzle(locale, "puzzle.dashboard.rush.fallback")
+            }
+            body={tPuzzle(locale, "puzzle.dashboard.rush.body")}
+            action={tPuzzle(locale, "puzzle.dashboard.rush.action")}
             onClick={() => router.push("/puzzles/play?mode=rush")}
           />
         </div>
 
-        <h2 className="mt-10 text-title font-semibold text-studio-fg">Themes</h2>
-        <p className="mt-1 text-body text-studio-muted">Train one motif. These puzzles still count toward your rating.</p>
+        <h2 className="mt-10 text-title font-semibold text-studio-fg">
+          {tPuzzle(locale, "puzzle.dashboard.themesTitle")}
+        </h2>
+        <p className="mt-1 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.themesSubtitle")}</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {THEME_CARDS.map((theme) => {
             const count = puzzles.filter((puzzleItem) => puzzleItem.themes.includes(theme.id)).length;
@@ -150,33 +182,40 @@ export function PuzzleDashboard() {
                 className="rounded-xl border border-studio-border bg-studio-chrome px-4 py-3 text-left hover:border-studio-border-strong"
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-semibold text-studio-fg">{theme.label}</span>
+                  <span className="font-semibold text-studio-fg">{tPuzzle(locale, theme.labelKey)}</span>
                   <span className="text-caption tabular-nums text-studio-faint">{count}</span>
                 </div>
-                <p className="mt-1 text-body text-studio-muted">{theme.blurb}</p>
+                <p className="mt-1 text-body text-studio-muted">{tPuzzle(locale, theme.blurbKey)}</p>
               </button>
             );
           })}
         </div>
 
-        <h2 className="mt-10 text-title font-semibold text-studio-fg">Recent</h2>
+        <h2 className="mt-10 text-title font-semibold text-studio-fg">
+          {tPuzzle(locale, "puzzle.dashboard.recentTitle")}
+        </h2>
         {progress && progress.history.length === 0 ? (
-          <p className="mt-3 text-body text-studio-muted">No puzzles played yet.</p>
+          <p className="mt-3 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.recentEmpty")}</p>
         ) : null}
         {progress && progress.history.length > 0 ? (
           <ul className="mt-3 divide-y divide-studio-border overflow-hidden rounded-xl border border-studio-border bg-studio-chrome">
             {progress.history.map((entry, index) => {
               const puzzle = puzzles.find((item) => item.id === entry.id);
-              const themes = puzzle?.themes.slice(0, 2).map((item) => THEME_LABELS[item]).join(" · ");
+              const themes = puzzle?.themes
+                .slice(0, 2)
+                .map((item) => tPuzzle(locale, THEME_LABEL_KEYS[item]))
+                .join(" · ");
               return (
                 <li key={`${entry.id}-${entry.at}-${index}`} className="flex items-center justify-between gap-3 px-4 py-3">
                   <div>
                     <div className="text-body text-studio-fg">
-                      {entry.success ? "Solved" : "Missed"}
-                      {puzzle ? ` · ${puzzle.rating}` : ""}
+                      {entry.success
+                        ? tPuzzle(locale, "puzzle.dashboard.history.solved")
+                        : tPuzzle(locale, "puzzle.dashboard.history.missed")}
+                      {puzzle ? ` · ${formatInteger(locale, puzzle.rating)}` : ""}
                     </div>
                     <div className="text-caption text-studio-muted">
-                      {MODE_LABELS[entry.mode]}
+                      {tPuzzle(locale, MODE_KEYS[entry.mode satisfies PuzzleMode])}
                       {themes ? ` · ${themes}` : ""}
                     </div>
                   </div>

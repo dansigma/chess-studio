@@ -83,7 +83,9 @@ export function usePuzzleSession({
   const [strikes, setStrikes] = useState(0);
   const [sessionOver, setSessionOver] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RUSH_SECONDS);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<boolean>(false);
+  // SIG-1070: the display sentence resolves through the puzzle string table
+  // at the render site (Trainer), which owns the store locale.
 
   const catalogRef = useRef<CompiledPuzzle[]>([]);
   const sessionSolvedRef = useRef(0);
@@ -178,7 +180,7 @@ export function usePuzzleSession({
         const first = pickPuzzle(catalogRef.current, mode, theme, loaded, 0, exclude.current);
         if (!first) {
           setPuzzle(null);
-          setLoadError(null);
+          setLoadError(false);
           return;
         }
         exclude.current.add(first.id);
@@ -192,11 +194,11 @@ export function usePuzzleSession({
         setHintLevel(0);
         setReveal(false);
         setMiss(null);
-        setLoadError(null);
+        setLoadError(false);
       } catch (error) {
         console.error("Failed to load puzzle progress.", error);
         if (!cancel) {
-          setLoadError("Could not load your puzzle progress. Reload the page to try again.");
+          setLoadError(true);
         }
       }
     })();

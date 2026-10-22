@@ -1,3 +1,5 @@
+import type { PuzzleStringKey } from "@/src/i18n/puzzle-strings";
+
 export const PUZZLE_THEMES = [
   "mate",
   "mateIn1",
@@ -20,32 +22,35 @@ export const PUZZLE_MODES = ["rated", "streak", "rush", "daily"] as const;
 
 export type PuzzleMode = (typeof PUZZLE_MODES)[number];
 
-export const THEME_CARDS: { id: PuzzleTheme; label: string; blurb: string }[] = [
-  { id: "mate", label: "Mate", blurb: "Finish the game" },
-  { id: "fork", label: "Fork", blurb: "One move, two targets" },
-  { id: "pin", label: "Pin", blurb: "A piece that cannot step off" },
-  { id: "skewer", label: "Skewer", blurb: "The king moves, the piece falls" },
-  { id: "discoveredAttack", label: "Discovery", blurb: "Step aside and give check" },
-  { id: "backRank", label: "Back rank", blurb: "The king is boxed in" },
-  { id: "sacrifice", label: "Sacrifice", blurb: "Give material to mate" },
-  { id: "endgame", label: "Endgame", blurb: "Few pieces, one idea" },
-  { id: "promotion", label: "Promotion", blurb: "Turn a pawn into a piece" },
+// SIG-1070: theme display strings live in the puzzle string table
+// (puzzle.theme.label.<id> / puzzle.theme.blurb.<id>). Ids stay stable —
+// they are stored in progress data — so cards and labels carry string keys.
+export const THEME_CARDS: { id: PuzzleTheme; labelKey: PuzzleStringKey; blurbKey: PuzzleStringKey }[] = [
+  { id: "mate", labelKey: "puzzle.theme.label.mate", blurbKey: "puzzle.theme.blurb.mate" },
+  { id: "fork", labelKey: "puzzle.theme.label.fork", blurbKey: "puzzle.theme.blurb.fork" },
+  { id: "pin", labelKey: "puzzle.theme.label.pin", blurbKey: "puzzle.theme.blurb.pin" },
+  { id: "skewer", labelKey: "puzzle.theme.label.skewer", blurbKey: "puzzle.theme.blurb.skewer" },
+  { id: "discoveredAttack", labelKey: "puzzle.theme.label.discoveredAttack", blurbKey: "puzzle.theme.blurb.discoveredAttack" },
+  { id: "backRank", labelKey: "puzzle.theme.label.backRank", blurbKey: "puzzle.theme.blurb.backRank" },
+  { id: "sacrifice", labelKey: "puzzle.theme.label.sacrifice", blurbKey: "puzzle.theme.blurb.sacrifice" },
+  { id: "endgame", labelKey: "puzzle.theme.label.endgame", blurbKey: "puzzle.theme.blurb.endgame" },
+  { id: "promotion", labelKey: "puzzle.theme.label.promotion", blurbKey: "puzzle.theme.blurb.promotion" },
 ];
 
-export const THEME_LABELS: Record<PuzzleTheme, string> = {
-  mate: "Mate",
-  mateIn1: "Mate in 1",
-  mateIn2: "Mate in 2",
-  fork: "Fork",
-  pin: "Pin",
-  skewer: "Skewer",
-  discoveredAttack: "Discovered attack",
-  backRank: "Back rank",
-  sacrifice: "Sacrifice",
-  attraction: "Attraction",
-  endgame: "Endgame",
-  promotion: "Promotion",
-  middlegame: "Middlegame",
+export const THEME_LABEL_KEYS: Record<PuzzleTheme, PuzzleStringKey> = {
+  mate: "puzzle.theme.label.mate",
+  mateIn1: "puzzle.theme.label.mateIn1",
+  mateIn2: "puzzle.theme.label.mateIn2",
+  fork: "puzzle.theme.label.fork",
+  pin: "puzzle.theme.label.pin",
+  skewer: "puzzle.theme.label.skewer",
+  discoveredAttack: "puzzle.theme.label.discoveredAttack",
+  backRank: "puzzle.theme.label.backRank",
+  sacrifice: "puzzle.theme.label.sacrifice",
+  attraction: "puzzle.theme.label.attraction",
+  endgame: "puzzle.theme.label.endgame",
+  promotion: "puzzle.theme.label.promotion",
+  middlegame: "puzzle.theme.label.middlegame",
 };
 
 export type Puzzle = {

@@ -1,53 +1,58 @@
 import type { PuzzleTheme } from "./types";
+import type { SiteLocale } from "@/src/i18n/locale";
+import { tPuzzle } from "@/src/i18n/puzzle-strings";
 
-export function puzzleGoal(themes: readonly PuzzleTheme[]): string {
+// SIG-1070: coaching copy resolves through the puzzle string table so the
+// trainer panel follows the store locale. Helpers stay pure (locale is an
+// explicit parameter) to keep the node unit tests intact.
+export function puzzleGoal(themes: readonly PuzzleTheme[], locale: SiteLocale): string {
   if (themes.includes("mateIn1")) {
-    return "Mate in one move.";
+    return tPuzzle(locale, "puzzle.goal.mateIn1");
   }
   if (themes.includes("mateIn2")) {
-    return "Mate in two moves.";
+    return tPuzzle(locale, "puzzle.goal.mateIn2");
   }
   if (themes.includes("promotion")) {
-    return "Promote the pawn.";
+    return tPuzzle(locale, "puzzle.goal.promotion");
   }
   if (themes.includes("fork")) {
-    return "One move attacks two pieces. Find the fork.";
+    return tPuzzle(locale, "puzzle.goal.fork");
   }
   if (themes.includes("pin")) {
-    return "A piece is pinned. Win it.";
+    return tPuzzle(locale, "puzzle.goal.pin");
   }
   if (themes.includes("skewer")) {
-    return "Check the king. The piece behind it falls.";
+    return tPuzzle(locale, "puzzle.goal.skewer");
   }
   if (themes.includes("discoveredAttack")) {
-    return "Step aside and uncover a check.";
+    return tPuzzle(locale, "puzzle.goal.discoveredAttack");
   }
   if (themes.includes("backRank")) {
-    return "The king is stuck on the back rank.";
+    return tPuzzle(locale, "puzzle.goal.backRank");
   }
   if (themes.includes("sacrifice")) {
-    return "Give up material. The mate is worth it.";
+    return tPuzzle(locale, "puzzle.goal.sacrifice");
   }
   if (themes.includes("mate")) {
-    return "Find the checkmate.";
+    return tPuzzle(locale, "puzzle.goal.mate");
   }
-  return "Find the best move.";
+  return tPuzzle(locale, "puzzle.goal.fallback");
 }
 
-export function solvedPraise(streak: number): string {
+export function solvedPraise(streak: number, locale: SiteLocale): string {
   if (streak >= 5) {
-    return "These puzzles are coming easy.";
+    return tPuzzle(locale, "puzzle.praise.streak5");
   }
   if (streak === 4) {
-    return "Four in a row. Great work!";
+    return tPuzzle(locale, "puzzle.praise.streak4");
   }
   if (streak === 3) {
-    return "1-2-3 in a row. Great work!";
+    return tPuzzle(locale, "puzzle.praise.streak3");
   }
   if (streak === 2) {
-    return "Two in a row. Keep going.";
+    return tPuzzle(locale, "puzzle.praise.streak2");
   }
-  return "Great stuff!";
+  return tPuzzle(locale, "puzzle.praise.fallback");
 }
 
 export function squareAnchor(square: string, orientation: "white" | "black"): { x: number; y: number } | null {

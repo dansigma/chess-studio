@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import { Chess, type Square } from "chess.js";
 import { MARK_HEX } from "@/src/chess/marks";
+import type { SiteLocale } from "@/src/i18n/locale";
+import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { levelFromXp, type CompiledPuzzle } from "./engine";
 import { puzzleGoal, solvedPraise } from "./feedback";
 import type { PuzzleMode, PuzzleTheme } from "./types";
@@ -23,16 +25,20 @@ export function solverIndexFor(ply: number): number {
   return Math.floor(ply / 2) + 1;
 }
 
-export function modeLabelFor(mode: PuzzleMode): string {
-  return mode === "daily" ? "Daily puzzle" : mode === "streak" ? "Streak" : mode === "rush" ? "Rush" : "Rated";
+export function modeLabelFor(mode: PuzzleMode, locale: SiteLocale): string {
+  return tPuzzle(locale, mode === "daily" ? "puzzle.mode.daily" : mode === "streak" ? "puzzle.mode.streak" : mode === "rush" ? "puzzle.mode.rush" : "puzzle.mode.rated");
 }
 
-export function continueLabelFor(mode: PuzzleMode, sessionOver: boolean): string | null {
-  return mode === "daily" || mode === "rush" || sessionOver ? null : "Next puzzle";
+export function continueLabelFor(mode: PuzzleMode, sessionOver: boolean, locale: SiteLocale): string | null {
+  return mode === "daily" || mode === "rush" || sessionOver ? null : tPuzzle(locale, "puzzle.panel.continue");
 }
 
-export function solvedCountLabel(sessionSolved: number): string {
-  return `${sessionSolved} puzzle${sessionSolved === 1 ? "" : "s"} solved`;
+export function solvedCountLabel(sessionSolved: number, locale: SiteLocale): string {
+  return tPuzzle(
+    locale,
+    sessionSolved === 1 ? "puzzle.feedback.solvedCount.one" : "puzzle.feedback.solvedCount.other",
+    { count: sessionSolved },
+  );
 }
 
 export function bubbleCopy({
@@ -48,6 +54,7 @@ export function bubbleCopy({
   runStreak,
   sessionSolved,
   sideToMove,
+  locale,
 }: {
   mode: PuzzleMode;
   sessionOver: boolean;
@@ -61,37 +68,38 @@ export function bubbleCopy({
   runStreak: number;
   sessionSolved: number;
   sideToMove: string;
+  locale: SiteLocale;
 }): { title: string; body: string } {
   const title =
     sessionOver && mode === "rush" && secondsLeft === 0
-      ? "Time is up"
+      ? tPuzzle(locale, "puzzle.feedback.timeUp")
       : sessionOver && mode === "rush"
-        ? "Three misses"
+        ? tPuzzle(locale, "puzzle.feedback.threeMisses")
         : sessionOver && status === "failed"
-          ? "Streak over"
+          ? tPuzzle(locale, "puzzle.feedback.streakOver")
           : status === "solved"
-            ? "Solved"
+            ? tPuzzle(locale, "puzzle.feedback.solved")
             : status === "failed"
-              ? "Incorrect"
-              : `${sideToMove} to move`;
+              ? tPuzzle(locale, "puzzle.feedback.incorrect")
+              : tPuzzle(locale, "puzzle.feedback.sideToMove", { side: sideToMove });
   const body =
     sessionOver && mode === "rush"
-      ? solvedCountLabel(sessionSolved)
+      ? solvedCountLabel(sessionSolved, locale)
       : status === "solved"
-        ? solvedPraise(runStreak)
+        ? solvedPraise(runStreak, locale)
         : reveal && miss
-          ? `Best move: ${miss.san}`
+          ? tPuzzle(locale, "puzzle.panel.bestMove", { san: miss.san })
           : status === "failed"
-            ? "Look at the marked move."
+            ? tPuzzle(locale, "puzzle.feedback.lookAtMarked")
             : hintLevel > 1 && userTurn
-              ? "The move is marked."
+              ? tPuzzle(locale, "puzzle.feedback.moveMarked")
               : hintLevel === 1 && userTurn
-                ? "The piece to move is highlighted."
+                ? tPuzzle(locale, "puzzle.feedback.pieceHighlighted")
                 : userTurn
                   ? themes
-                    ? puzzleGoal(themes)
-                    : "Find the best move."
-                  : "Best move. Keep going.";
+                    ? puzzleGoal(themes, locale)
+                    : tPuzzle(locale, "puzzle.feedback.findBest")
+                  : tPuzzle(locale, "puzzle.feedback.bestMoveKeepGoing");
   return { title, body };
 }
 
@@ -166,7 +174,15 @@ export function boardHighlights({
   return { squareStyles, arrows };
 }
 
-export function usePuzzleFeedback({ mode, session }: { mode: PuzzleMode; session: PuzzleSession }) {
+export function usePuzzleFeedback({
+  mode,
+  session,
+  locale,
+}: {
+  mode: PuzzleMode;
+  session: PuzzleSession;
+  locale: SiteLocale;
+}) {
   const {
     puzzle,
     fen,
@@ -189,9 +205,9 @@ export function usePuzzleFeedback({ mode, session }: { mode: PuzzleMode; session
   const orientation = orientationFor(puzzle);
   const solverMoves = solverMovesFor(puzzle);
   const solverIndex = solverIndexFor(ply);
-  const modeLabel = modeLabelFor(mode);
-  const continueLabel = continueLabelFor(mode, sessionOver);
-  const sideToMove = orientation === "black" ? "Black" : "White";
+  const modeLabel = modeLabelFor(mode, locale);
+  const continueLabel = continueLabelFor(mode, sessionOver, locale);
+  const sideToMove = tPuzzle(locale, orientation === "black" ? "puzzle.side.black" : "puzzle.side.white");
   const runStreak = mode === "rush" ? sessionSolved : (progress?.streak ?? 0);
   const level = levelFromXp(progress?.xp ?? 0);
   const { title: bubbleTitle, body: bubbleBody } = bubbleCopy({
@@ -207,6 +223,7 @@ export function usePuzzleFeedback({ mode, session }: { mode: PuzzleMode; session
     runStreak,
     sessionSolved,
     sideToMove,
+    locale,
   });
   const { squareStyles, arrows } = boardHighlights({
     last,

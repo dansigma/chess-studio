@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { Check, ChevronRight, Crown, Flame, X } from "lucide-react";
+import type { SiteLocale } from "@/src/i18n/locale";
+import { formatInteger } from "@/src/i18n/format";
+import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { Button } from "@/src/studio/ui/Button";
-import { THEME_LABELS, type PuzzleMode, type PuzzleTheme } from "./types";
+import { THEME_LABEL_KEYS, type PuzzleMode, type PuzzleTheme } from "./types";
 import { RUSH_STRIKES, clock, type PuzzleSession } from "./use-puzzle-session";
 import type { PuzzleFeedback } from "./use-puzzle-feedback";
 
@@ -12,11 +15,13 @@ export function PuzzlePanel({
   theme,
   session,
   feedback,
+  locale,
 }: {
   mode: PuzzleMode;
   theme: PuzzleTheme | null;
   session: PuzzleSession;
   feedback: PuzzleFeedback;
+  locale: SiteLocale;
 }) {
   const {
     puzzle,
@@ -52,7 +57,7 @@ export function PuzzlePanel({
             {level.level}
           </span>
           {modeLabel}
-          {theme ? ` · ${THEME_LABELS[theme]}` : ""}
+          {theme ? ` · ${tPuzzle(locale, THEME_LABEL_KEYS[theme])}` : ""}
         </h1>
         {mode === "rush" ? (
           <span
@@ -63,7 +68,9 @@ export function PuzzlePanel({
             {clock(secondsLeft)}
           </span>
         ) : (
-          <span className="text-caption tabular-nums text-studio-muted">Puzzle {puzzle.rating}</span>
+          <span className="text-caption tabular-nums text-studio-muted">
+            {tPuzzle(locale, "puzzle.panel.puzzleRating", { rating: formatInteger(locale, puzzle.rating) })}
+          </span>
         )}
       </div>
 
@@ -73,11 +80,16 @@ export function PuzzlePanel({
           <p className="mt-1 text-body text-studio-muted">{bubbleBody}</p>
           {solverMoves > 1 && status === "playing" && !sessionOver ? (
             <p className="mt-1 text-caption text-studio-muted">
-              Move {Math.min(solverIndex, solverMoves)} of {solverMoves}
+              {tPuzzle(locale, "puzzle.panel.moveCounter", {
+                current: Math.min(solverIndex, solverMoves),
+                total: solverMoves,
+              })}
             </p>
           ) : null}
           {sessionOver && mode === "rush" && reveal && miss ? (
-            <p className="mt-1 text-caption text-studio-muted">Best move: {miss.san}</p>
+            <p className="mt-1 text-caption text-studio-muted">
+              {tPuzzle(locale, "puzzle.panel.bestMove", { san: miss.san })}
+            </p>
           ) : null}
         </div>
 
@@ -89,10 +101,15 @@ export function PuzzlePanel({
                 <span className="ml-2 text-title text-studio-success">+{gained}</span>
               ) : null}
             </p>
-            {mode === "rush" ? <p className="mt-1 text-caption text-studio-muted">Solved</p> : null}
+            {mode === "rush" ? (
+              <p className="mt-1 text-caption text-studio-muted">{tPuzzle(locale, "puzzle.panel.solved")}</p>
+            ) : null}
           </div>
           {mode === "rush" ? (
-            <p className="flex items-center gap-1" aria-label={`${strikes} of ${RUSH_STRIKES} misses`}>
+            <p
+              className="flex items-center gap-1"
+              aria-label={tPuzzle(locale, "puzzle.panel.missesAria", { strikes, total: RUSH_STRIKES })}
+            >
               {Array.from({ length: RUSH_STRIKES }, (_, index) => (
                 <X
                   key={index}
@@ -124,7 +141,8 @@ export function PuzzlePanel({
 
         {mode === "rated" || mode === "daily" ? (
           <p className="text-caption text-studio-muted">
-            Rating <span className="tabular-nums text-studio-fg">{progress.rating}</span>
+            {tPuzzle(locale, "puzzle.panel.rating")}{" "}
+            <span className="tabular-nums text-studio-fg">{formatInteger(locale, progress.rating)}</span>
             {delta !== null && delta !== 0 ? (
               <span className={delta > 0 ? "text-studio-success" : "text-studio-warning-fg"}>
                 {" "}
@@ -137,8 +155,8 @@ export function PuzzlePanel({
         {sessionOver ? (
           <p className="text-body text-studio-muted">
             {mode === "rush"
-              ? `Best ${progress.rushBest}`
-              : `${sessionSolved} in a row · best ${progress.bestStreak}`}
+              ? tPuzzle(locale, "puzzle.panel.bestScore", { value: formatInteger(locale, progress.rushBest) })
+              : tPuzzle(locale, "puzzle.panel.streakSummary", { solved: sessionSolved, best: progress.bestStreak })}
           </p>
         ) : null}
       </div>
@@ -151,9 +169,9 @@ export function PuzzlePanel({
               onClick={() => setHintLevel((current) => Math.min(2, current + 1))}
               disabled={hintLevel >= 2}
             >
-              Hint
+              {tPuzzle(locale, "puzzle.panel.hint")}
             </Button>
-            <Button onClick={giveUp}>Solution</Button>
+            <Button onClick={giveUp}>{tPuzzle(locale, "puzzle.panel.solution")}</Button>
           </div>
         ) : null}
         {status !== "playing" && continueLabel ? (
@@ -165,7 +183,9 @@ export function PuzzlePanel({
         ) : null}
         {sessionOver ? (
           <Button variant="primary" className="w-full" onClick={retry}>
-            {mode === "rush" ? "Play again" : "Try again"}
+            {mode === "rush"
+              ? tPuzzle(locale, "puzzle.panel.playAgain")
+              : tPuzzle(locale, "puzzle.panel.tryAgain")}
           </Button>
         ) : null}
         <Link
@@ -176,7 +196,9 @@ export function PuzzlePanel({
               : "text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
           }`}
         >
-          {status !== "playing" && mode === "daily" ? "Back to puzzles" : "Puzzles"}
+          {status !== "playing" && mode === "daily"
+            ? tPuzzle(locale, "puzzle.panel.backToPuzzles")
+            : tPuzzle(locale, "puzzle.panel.puzzles")}
         </Link>
       </div>
     </section>
