@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { bookmarkKey } from "@/src/lib/player-bookmarks";
 import type { PlayerColorFilter, PlayerHit } from "@/src/lib/player-types";
+import { tSidebar } from "@/src/i18n/studio-sidebar-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { PlayerHitRow } from "./PlayerHitRow";
 import { SearchInput } from "./ui/Controls";
 import { SidebarHint, SidebarPanel } from "./ui/Sidebar";
 
 export function SearchSidebar() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<PlayerHit[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,23 +69,23 @@ export function SearchSidebar() {
 
   return (
     <SidebarPanel
-      title="Search players"
+      title={tSidebar(locale, "sidebar.search.title")}
       header={
         <SearchInput
           value={query}
           onChange={setQuery}
-          placeholder="Lichess, Chess.com, or book…"
+          placeholder={tSidebar(locale, "sidebar.search.placeholder")}
           autoFocus
         />
       }
     >
       {visibleLoading ? (
         <p role="status" className="px-2 py-3 text-dense leading-5 text-studio-faint">
-          Searching…
+          {tSidebar(locale, "sidebar.search.searching")}
         </p>
       ) : null}
       {!visibleLoading && searching && visibleHits.length === 0 ? (
-        <SidebarHint>No players found.</SidebarHint>
+        <SidebarHint>{tSidebar(locale, "sidebar.search.noPlayers")}</SidebarHint>
       ) : null}
       {visibleHits.map((player) => (
         <PlayerHitRow
@@ -96,9 +98,7 @@ export function SearchSidebar() {
         />
       ))}
       {!searching ? (
-        <SidebarHint>
-          Type at least two letters to search Lichess, Chess.com, and the local sample book.
-        </SidebarHint>
+        <SidebarHint>{tSidebar(locale, "sidebar.search.hint")}</SidebarHint>
       ) : null}
     </SidebarPanel>
   );

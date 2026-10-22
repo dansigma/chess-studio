@@ -15,6 +15,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import { tSidebar } from "@/src/i18n/studio-sidebar-strings";
 import {
   isDescendantFolder,
   loadRemoteFiles,
@@ -38,6 +39,7 @@ type MoveItem =
   | { type: "database"; id: string; name: string; currentFolderId: string | null };
 
 export function FilesSidebar() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const files = useStudioStore((state) => state.files);
   const query = useStudioStore((state) => state.filesQuery);
   const user = useStudioStore((state) => state.user);
@@ -82,17 +84,20 @@ export function FilesSidebar() {
 
   async function refresh() {
     if (!user) {
-      setStatus("Files are stored in this browser");
+      setStatus(tSidebar(locale, "sidebar.files.storedLocal"));
       return;
     }
     const remote = await loadRemoteFiles(user.id);
     mergeRemoteFiles(remote);
-    setStatus("Files refreshed");
+    setStatus(tSidebar(locale, "sidebar.files.refreshed"));
   }
 
   function importFile(file: File) {
     void file.text().then((text) => {
-      importFileDatabase(file.name.replace(/\.pgn$/i, "") || "Database", text);
+      importFileDatabase(
+        file.name.replace(/\.pgn$/i, "") || tSidebar(locale, "sidebar.files.defaultDatabase"),
+        text,
+      );
       openStudioPanel("fileGames");
     });
   }
@@ -107,14 +112,14 @@ export function FilesSidebar() {
 
   return (
     <SidebarPanel
-      title="Files"
+      title={tSidebar(locale, "sidebar.files.title")}
       actions={
         <div className="flex items-center gap-0.5">
-          <IconButton label="Refresh" size="sm" className="text-studio-muted" onClick={() => void refresh()}>
+          <IconButton label={tSidebar(locale, "sidebar.files.refresh")} size="sm" className="text-studio-muted" onClick={() => void refresh()}>
             <RefreshCw size={14} />
           </IconButton>
           <IconButton
-            label="Search position across files"
+            label={tSidebar(locale, "sidebar.files.searchPosition")}
             size="sm"
             className="text-studio-muted"
             onClick={() => openStudioPanel("positionSearch")}
@@ -122,7 +127,7 @@ export function FilesSidebar() {
             <Search size={14} />
           </IconButton>
           <IconButton
-            label="Add"
+            label={tSidebar(locale, "sidebar.files.add")}
             size="sm"
             active={menuOpen}
             className="text-studio-muted"
@@ -132,27 +137,27 @@ export function FilesSidebar() {
           </IconButton>
         </div>
       }
-      header={<SearchInput id="files-search" value={query} onChange={setFilesQuery} placeholder="Search files" />}
+      header={<SearchInput id="files-search" value={query} onChange={setFilesQuery} placeholder={tSidebar(locale, "sidebar.files.searchPlaceholder")} />}
       overlay={
         <>
           {menuOpen ? (
             <>
               <button
                 className="fixed inset-0 z-10 cursor-default"
-                aria-label="Close menu"
+                aria-label={tSidebar(locale, "sidebar.files.closeMenu")}
                 onClick={() => setMenuOpen(false)}
               />
               <MenuSurface className="absolute right-2 top-11 z-20 min-w-52" onClose={() => setMenuOpen(false)}>
                 <MenuItem
-                  label="New folder"
+                  label={tSidebar(locale, "sidebar.files.newFolder")}
                   leading={<FolderPlus size={14} className="text-studio-faint" />}
                   onClick={() => {
-                    createFileFolder();
+                    createFileFolder(tSidebar(locale, "sidebar.files.newFolder"));
                     setMenuOpen(false);
                   }}
                 />
                 <MenuItem
-                  label="Import PGN database…"
+                  label={tSidebar(locale, "sidebar.files.importPgn")}
                   leading={<Upload size={14} className="text-studio-faint" />}
                   onClick={() => {
                     fileRef.current?.click();
@@ -160,7 +165,7 @@ export function FilesSidebar() {
                   }}
                 />
                 <MenuItem
-                  label="Paste PGN…"
+                  label={tSidebar(locale, "sidebar.files.pastePgn")}
                   leading={<ClipboardPaste size={14} className="text-studio-faint" />}
                   onClick={() => {
                     setPasteOpen(true);
@@ -172,7 +177,7 @@ export function FilesSidebar() {
           ) : null}
           {pasteOpen ? (
             <div className="absolute inset-0 z-30 flex flex-col bg-studio-panel p-3">
-              <h3 className="text-body font-semibold text-studio-fg">Paste PGN</h3>
+              <h3 className="text-body font-semibold text-studio-fg">{tSidebar(locale, "sidebar.files.pasteTitle")}</h3>
               <textarea
                 autoFocus
                 value={pasteText}
@@ -189,20 +194,20 @@ export function FilesSidebar() {
                     setPasteText("");
                   }}
                 >
-                  Cancel
+                  {tSidebar(locale, "sidebar.files.cancel")}
                 </Button>
                 <Button
                   size="sm"
                   variant="primary"
                   disabled={!pasteText.trim()}
                   onClick={() => {
-                    importFileDatabase("Pasted PGN", pasteText);
+                    importFileDatabase(tSidebar(locale, "sidebar.files.pastedPgn"), pasteText);
                     openStudioPanel("fileGames");
                     setPasteOpen(false);
                     setPasteText("");
                   }}
                 >
-                  Import
+                  {tSidebar(locale, "sidebar.files.import")}
                 </Button>
               </div>
             </div>
@@ -211,14 +216,14 @@ export function FilesSidebar() {
             <Dialog
               title={
                 moveItem.type === "folder"
-                  ? `Move folder "${moveItem.name}"`
-                  : `Move database "${moveItem.name}"`
+                  ? tSidebar(locale, "sidebar.files.moveFolder", { name: moveItem.name })
+                  : tSidebar(locale, "sidebar.files.moveDatabase", { name: moveItem.name })
               }
               onClose={() => setMoveItem(null)}
               width="w-[24rem]"
             >
               <div className="p-3">
-                <p className="mb-2 text-caption text-studio-muted">Select destination:</p>
+                <p className="mb-2 text-caption text-studio-muted">{tSidebar(locale, "sidebar.files.selectDestination")}</p>
                 <div className="max-h-72 overflow-y-auto space-y-0.5 rounded-md border border-studio-border bg-studio-base p-1">
                   <button
                     type="button"
@@ -238,7 +243,7 @@ export function FilesSidebar() {
                     }}
                   >
                     <Folder size={14} className="shrink-0 text-studio-faint" />
-                    <span className="font-medium">Root (no folder)</span>
+                    <span className="font-medium">{tSidebar(locale, "sidebar.files.rootNoFolder")}</span>
                   </button>
 
                   {tree.folderOptions.map((opt) => {
@@ -280,7 +285,7 @@ export function FilesSidebar() {
       }
     >
       {empty ? (
-        <SidebarHint>No databases yet. Use + to create a folder, import a PGN file or paste one.</SidebarHint>
+        <SidebarHint>{tSidebar(locale, "sidebar.files.empty")}</SidebarHint>
       ) : null}
       {tree.rootFolders.map((folderNode) => (
         <FolderNodeView
@@ -317,7 +322,7 @@ export function FilesSidebar() {
             })
           }
           onCreateSubfolder={(parentId) => {
-            createFileFolder("New folder", parentId);
+            createFileFolder(tSidebar(locale, "sidebar.files.newFolder"), parentId);
             setOpenFolders((prev) => new Set([...prev, parentId]));
           }}
           onDeleteFolder={deleteFileFolder}
@@ -419,6 +424,7 @@ function FolderNodeView({
   onSelectDatabase: (id: string) => void;
   onOpenGame: (database: FileDatabase, game: FileDatabase["games"][number]) => void;
 }) {
+  const locale = useStudioStore((state) => state.settings.locale);
   const expanded = openFolders.has(node.folder.id) || Boolean(query.trim());
   const isRenaming = renamingFolderId === node.folder.id;
 
@@ -461,8 +467,8 @@ function FolderNodeView({
           <div className="mr-1 hidden items-center gap-0.5 group-hover:flex">
             <button
               type="button"
-              title="New subfolder"
-              aria-label="New subfolder"
+              title={tSidebar(locale, "sidebar.files.newSubfolder")}
+              aria-label={tSidebar(locale, "sidebar.files.newSubfolder")}
               className="rounded p-1 text-studio-faint hover:text-studio-fg"
               onClick={(e) => {
                 e.stopPropagation();
@@ -473,8 +479,8 @@ function FolderNodeView({
             </button>
             <button
               type="button"
-              title="Rename"
-              aria-label="Rename folder"
+              title={tSidebar(locale, "sidebar.files.rename")}
+              aria-label={tSidebar(locale, "sidebar.files.renameFolder")}
               className="rounded p-1 text-studio-faint hover:text-studio-fg"
               onClick={(e) => {
                 e.stopPropagation();
@@ -485,8 +491,8 @@ function FolderNodeView({
             </button>
             <button
               type="button"
-              title="Move to…"
-              aria-label="Move folder"
+              title={tSidebar(locale, "sidebar.files.moveTo")}
+              aria-label={tSidebar(locale, "sidebar.files.moveFolderAria")}
               className="rounded p-1 text-studio-faint hover:text-studio-fg"
               onClick={(e) => {
                 e.stopPropagation();
@@ -497,8 +503,8 @@ function FolderNodeView({
             </button>
             <button
               type="button"
-              title="Delete folder"
-              aria-label="Delete folder"
+              title={tSidebar(locale, "sidebar.files.deleteFolder")}
+              aria-label={tSidebar(locale, "sidebar.files.deleteFolder")}
               className="rounded p-1 text-studio-faint hover:text-studio-danger"
               onClick={(e) => {
                 e.stopPropagation();
@@ -572,6 +578,7 @@ function DatabaseRow({
   onDelete: () => void;
   onMove: () => void;
 }) {
+  const locale = useStudioStore((state) => state.settings.locale);
   return (
     <div className={indent ? "ml-4 border-l border-studio-border pl-1" : ""}>
       <div className="group flex items-center rounded-md hover:bg-studio-hover">
@@ -593,8 +600,8 @@ function DatabaseRow({
         <div className="mr-1 hidden items-center gap-0.5 group-hover:flex">
           <button
             type="button"
-            title="Move to…"
-            aria-label="Move database"
+            title={tSidebar(locale, "sidebar.files.moveTo")}
+            aria-label={tSidebar(locale, "sidebar.files.moveDatabaseAria")}
             className="rounded p-1 text-studio-faint hover:text-studio-fg"
             onClick={(e) => {
               e.stopPropagation();
@@ -605,8 +612,8 @@ function DatabaseRow({
           </button>
           <button
             type="button"
-            title="Delete database"
-            aria-label="Delete database"
+            title={tSidebar(locale, "sidebar.files.deleteDatabase")}
+            aria-label={tSidebar(locale, "sidebar.files.deleteDatabase")}
             className="rounded p-1 text-studio-faint hover:text-studio-danger"
             onClick={(e) => {
               e.stopPropagation();

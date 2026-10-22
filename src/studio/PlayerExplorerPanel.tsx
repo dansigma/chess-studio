@@ -8,6 +8,7 @@ import { useActiveFen } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { BookmarkStar } from "./PlayerHitRow";
+import { tSidebar } from "@/src/i18n/studio-sidebar-strings";
 import { ResultBar } from "./ui/ResultBar";
 
 function Chip({
@@ -58,6 +59,7 @@ export function PlayerExplorerPanel() {
   const setResult = useStudioStore((state) => state.setPlayerResultFilter);
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
+  const locale = useStudioStore((state) => state.settings.locale);
   const fen = useActiveFen();
   const side = sideFromFen(fen);
   const togglePlayerBookmark = useStudioStore((state) => state.togglePlayerBookmark);
@@ -96,7 +98,11 @@ export function PlayerExplorerPanel() {
           <span>
             {visible.length} game{visible.length === 1 ? "" : "s"}
           </span>
-          <BookmarkStar active={bookmarked} onClick={() => togglePlayerBookmark(player)} />
+          <BookmarkStar
+            active={bookmarked}
+            title={tSidebar(locale, bookmarked ? "sidebar.player.removeBookmark" : "sidebar.player.bookmark")}
+            onClick={() => togglePlayerBookmark(player)}
+          />
         </span>
       </div>
       <div className="grid grid-cols-[64px_minmax(0,1fr)_minmax(96px,160px)] gap-3 border-b border-studio-border-subtle px-3 py-1.5 text-caption uppercase tracking-wider text-studio-faint">

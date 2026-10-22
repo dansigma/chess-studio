@@ -3,38 +3,52 @@
 import { useMemo, useState } from "react";
 import { Cloud, Database, Folder, Globe } from "lucide-react";
 import { fileExplorerSource, type ExplorerSource } from "@/src/lib/explorer-types";
+import { tSidebar, type StudioSidebarStringKey } from "@/src/i18n/studio-sidebar-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { SearchInput, SectionHeader } from "./ui/Controls";
 import { SidebarHint, SidebarItem, SidebarPanel } from "./ui/Sidebar";
 
 const PUBLIC_SOURCES: Array<{
   source: ExplorerSource;
+  // SIG-1074: brand titles ("Ultra Database", "Chess.com") stay literal EN;
+  // every other user-visible string goes through `tSidebar` at render time.
+  titleKey: StudioSidebarStringKey | null;
   title: string;
-  description: string;
+  descriptionKey: StudioSidebarStringKey;
   icon: typeof Database;
 }> = [
   {
     source: "curated",
-    title: "Curated Masters",
-    description: "Offline curated master database and position index",
+    titleKey: "sidebar.databases.curatedTitle",
+    title: "",
+    descriptionKey: "sidebar.databases.curatedDesc",
     icon: Database,
   },
   {
     source: "masters",
+    titleKey: null,
     title: "Ultra Database",
-    description: "Over-the-board master games · Lichess Masters",
+    descriptionKey: "sidebar.databases.ultraDesc",
     icon: Database,
   },
-  { source: "lichess", title: "Online Database", description: "Online games from Lichess", icon: Globe },
+  {
+    source: "lichess",
+    titleKey: "sidebar.databases.onlineTitle",
+    title: "",
+    descriptionKey: "sidebar.databases.onlineDesc",
+    icon: Globe,
+  },
   {
     source: "chesscom",
+    titleKey: null,
     title: "Chess.com",
-    description: "Published games of the open player",
+    descriptionKey: "sidebar.databases.chesscomDesc",
     icon: Cloud,
   },
 ];
 
 export function DatabasesSidebar() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const source = useStudioStore((state) => state.databaseSource);
   const files = useStudioStore((state) => state.files);
   const setDatabaseSource = useStudioStore((state) => state.setDatabaseSource);
@@ -43,10 +57,14 @@ export function DatabasesSidebar() {
 
   const publicSources = useMemo(
     () =>
-      PUBLIC_SOURCES.filter(
-        (item) => !needle || `${item.title} ${item.description}`.toLowerCase().includes(needle),
-      ),
-    [needle],
+      PUBLIC_SOURCES.filter((item) => {
+        if (!needle) {
+          return true;
+        }
+        const title = item.titleKey ? tSidebar(locale, item.titleKey) : item.title;
+        return `${title} ${tSidebar(locale, item.descriptionKey)}`.toLowerCase().includes(needle);
+      }),
+    [locale, needle],
   );
 
   const personal = useMemo(() => {
@@ -60,11 +78,11 @@ export function DatabasesSidebar() {
 
   return (
     <SidebarPanel
-      title="Databases"
-      meta={`${total} sources`}
-      header={<SearchInput value={query} onChange={setQuery} placeholder="Search databases" />}
+      title={tSidebar(locale, "sidebar.databases.title")}
+      meta={tSidebar(locale, total === 1 ? "sidebar.databases.sources.one" : "sidebar.databases.sources.other", { count: total })}
+      header={<SearchInput value={query} onChange={setQuery} placeholder={tSidebar(locale, "sidebar.databases.searchPlaceholder")} />}
     >
-      {publicSources.length > 0 ? <SectionHeader>Public</SectionHeader> : null}
+      {publicSources.length > 0 ? <SectionHeader>{tSidebar(locale, "sidebar.databases.public")}</SectionHeader> : null}
       {publicSources.map((item) => {
         const Icon = item.icon;
         return (
@@ -72,14 +90,14 @@ export function DatabasesSidebar() {
             key={item.source}
             selected={source === item.source}
             icon={<Icon size={16} />}
-            title={item.title}
-            description={item.description}
+            title={item.titleKey ? tSidebar(locale, item.titleKey) : item.title}
+            description={tSidebar(locale, item.descriptionKey)}
             onClick={() => setDatabaseSource(item.source)}
           />
         );
       })}
       {files.databases.length > 0 && personal.length > 0 ? (
-        <SectionHeader trailing={personal.length}>Personal</SectionHeader>
+        <SectionHeader trailing={personal.length}>{tSidebar(locale, "sidebar.databases.personal")}</SectionHeader>
       ) : null}
       {personal.map((database) => {
         const count = database.games.length;
@@ -95,7 +113,7 @@ export function DatabasesSidebar() {
         );
       })}
       {needle && publicSources.length === 0 && personal.length === 0 ? (
-        <SidebarHint>No matching databases.</SidebarHint>
+        <SidebarHint>{tSidebar(locale, "sidebar.databases.noMatch")}</SidebarHint>
       ) : null}
     </SidebarPanel>
   );

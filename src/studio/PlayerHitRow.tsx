@@ -1,19 +1,23 @@
 "use client";
 
 import { Bookmark } from "lucide-react";
+import { tSidebar } from "@/src/i18n/studio-sidebar-strings";
 import type { PlayerColorFilter, PlayerHit } from "@/src/lib/player-types";
+import { useStudioStore } from "@/src/store/studio-store";
 
 function ColorChip({
   label,
+  title,
   onClick,
 }: {
   label: "W" | "B";
+  title: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      title={label === "W" ? "Games as White" : "Games as Black"}
+      title={title}
       onClick={(event) => {
         event.stopPropagation();
         onClick();
@@ -27,15 +31,17 @@ function ColorChip({
 
 export function BookmarkStar({
   active,
+  title,
   onClick,
 }: {
   active: boolean;
+  title: string;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      title={active ? "Remove bookmark" : "Bookmark player"}
+      title={title}
       onClick={(event) => {
         event.stopPropagation();
         onClick();
@@ -64,6 +70,7 @@ export function PlayerHitRow({
   onOpen: (color?: PlayerColorFilter) => void;
   onToggleBookmark: () => void;
 }) {
+  const locale = useStudioStore((state) => state.settings.locale);
   return (
     <div
       className={`relative mb-px flex w-full items-center gap-2 rounded-md px-2 py-1.5 ${
@@ -71,13 +78,17 @@ export function PlayerHitRow({
       }`}
     >
       {active ? <span className="absolute inset-y-2 left-0 w-0.5 rounded bg-studio-accent" /> : null}
-      <BookmarkStar active={bookmarked} onClick={onToggleBookmark} />
+      <BookmarkStar
+        active={bookmarked}
+        title={tSidebar(locale, bookmarked ? "sidebar.player.removeBookmark" : "sidebar.player.bookmark")}
+        onClick={onToggleBookmark}
+      />
       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpen()}>
         <div className="truncate text-body text-studio-fg">{player.displayName}</div>
         <div className="truncate text-caption text-studio-faint">{player.subtitle}</div>
       </button>
-      <ColorChip label="W" onClick={() => onOpen("white")} />
-      <ColorChip label="B" onClick={() => onOpen("black")} />
+      <ColorChip label="W" title={tSidebar(locale, "sidebar.player.gamesWhite")} onClick={() => onOpen("white")} />
+      <ColorChip label="B" title={tSidebar(locale, "sidebar.player.gamesBlack")} onClick={() => onOpen("black")} />
     </div>
   );
 }
