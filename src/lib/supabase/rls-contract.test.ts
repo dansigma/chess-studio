@@ -68,6 +68,42 @@ describe("sig-1030 admin role lifecycle migration", () => {
   });
 });
 
+describe("sig-1039 linked_accounts migration", () => {
+  const sig1039 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021190000_linked_accounts.sql"),
+    "utf8",
+  );
+
+  it("enables RLS with own-row select, insert, update and delete policies", () => {
+    assert.ok(sig1039.includes("alter table public.linked_accounts enable row level security"));
+    for (const name of [
+      "linked_accounts_select_own",
+      "linked_accounts_insert_own",
+      "linked_accounts_update_own",
+      "linked_accounts_delete_own",
+    ]) {
+      assert.ok(sig1039.includes(`"${name}"`), `missing policy ${name}`);
+    }
+  });
+
+  it("wraps every auth check as a select subquery and grants only to authenticated", () => {
+    const bare = sig1039.match(/(?<![\w(])auth\.uid\(\)(?!\))/g) ?? [];
+    assert.equal(bare.length, 0, `found ${bare.length} unwrapped auth checks`);
+    assert.ok(sig1039.includes("(select auth.uid())"), "expected at least one wrapped auth check");
+    assert.ok(
+      sig1039.includes("grant select, insert, update, delete on public.linked_accounts to authenticated"),
+      "grants must be scoped to authenticated",
+    );
+    assert.ok(!/to (anon|public|service_role)/.test(sig1039), "no grants beyond authenticated");
+  });
+
+  it("constrains source to lichess/chesscom and usernames to 2-30 handle chars", () => {
+    assert.ok(sig1039.includes("primary key (user_id, source)"), "one account per site");
+    assert.ok(sig1039.includes("check (source in ('lichess', 'chesscom'))"));
+    assert.ok(sig1039.includes("username ~ '^[A-Za-z0-9_-]{2,30}$'"));
+  });
+});
+
 describe("sig-1049 marketplace roles migration", () => {
   const sig1049 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021120000_marketplace_roles.sql"),
