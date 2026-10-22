@@ -6,7 +6,7 @@ import type { Database } from "@/src/lib/supabase/database.types";
 
 export type MyGamesSource = "lichess" | "chesscom";
 
-type MyGamesInsert = Database["public"]["my_games"]["Insert"];
+export type MyGamesInsert = Database["public"]["Tables"]["my_games"]["Insert"];
 
 // Matches the migration check `octet_length(pgn) <= 1000000`.
 const MAX_PGN_BYTES = 1_000_000;

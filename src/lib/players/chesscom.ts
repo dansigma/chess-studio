@@ -154,9 +154,13 @@ export async function chesscomGamesSince(
   }
   // Chess.com has no `since` filter: walk month archives from the newest back
   // to (and including) the month containing sinceMs. A 90-day cold sync
-  // touches ~4 archives; the max cap bounds per-month work.
+  // touches ~4 archives; the max cap bounds per-month work, and the archive
+  // visit cap below bounds the walk when no archive URL matches the cutoff
+  // month (empty history or renamed layouts would otherwise fan out to every
+  // monthly archive — 100+ sequential 2 MB fetches for a decade-old account).
   const cutoff = sinceMs > 0 ? new Date(sinceMs) : null;
   const cutoffKey = cutoff ? `${cutoff.getUTCFullYear()}/${String(cutoff.getUTCMonth() + 1).padStart(2, "0")}` : null;
+  const MAX_ARCHIVES_PER_SYNC = 6;
   const urls: string[] = [];
   if (!cutoffKey) {
     // No lower bound: preserve the legacy display behavior (newest archives).
@@ -167,7 +171,7 @@ export async function chesscomGamesSince(
       }
     }
   } else {
-    for (let i = allUrls.length - 1; i >= 0; i -= 1) {
+    for (let i = allUrls.length - 1; i >= 0 && urls.length < MAX_ARCHIVES_PER_SYNC; i -= 1) {
       const archiveUrl = allUrls[i];
       if (!archiveUrl) {
         continue;

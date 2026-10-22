@@ -17,9 +17,17 @@ import { createServerSupabase } from "@/src/lib/supabase/server";
 export const MAX_SYNC_GAMES = 200;
 const FIRST_SYNC_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
 
-// 6 syncs/hour per user, 20/hour per IP (issue quotas). Hour windows are
-// enforced by the in-process fallback (Cloudflare bindings express 10s/60s
-// periods only) — same trade-off as the existing auth limiters.
+// 6 syncs/hour per user, 20/hour per IP (issue quotas). The fallback is the
+// authority for the hourly quotas: any anonymous/sec scan shares one
+// `unknown` IP bucket, so `checkAsync` rejects the 7th sync in the hour even
+// with no edge binding (covered by the 429 route test). On Cloudflare the
+// native binding only adds an edge burst cap (RL_AUTH: 10 req/60s per key,
+// RL_30_MIN: 30 req/60s per key — both ANDed with the fallback, which still
+// denies the 7th request in the hour). The binding caps are deliberately
+// roomier than the hourly quotas (10 > 6 and 30 > 20), so the edge burst cap
+// can never fire before the hourly quota on a fresh window and only adds an
+// independent per-minute burst ceiling on top — same split-quota pattern as
+// the auth limiters (see app/login/actions.ts).
 const userLimiter = createRouteLimiter({ limit: 6, windowMs: 60 * 60 * 1000, bindingName: "RL_AUTH" });
 const ipLimiter = createRouteLimiter({ limit: 20, windowMs: 60 * 60 * 1000, bindingName: "RL_30_MIN" });
 
@@ -58,6 +66,25 @@ function sinceMsFor(lastSyncedAt: string | null): number {
     }
   }
   return Date.now() - FIRST_SYNC_LOOKBACK_MS;
+}
+
+// Advance the per-account cursor to the newest *stored* row only. Games the
+// mapper skips (empty PGN → null) or that were already stored must not move
+// the cursor, otherwise unmappable games are never retried.
+async function updateLastSynced(
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabase>>>,
+  userId: string,
+  source: LinkedAccountSource,
+  newestIso: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("linked_accounts")
+    .update({ last_synced_at: newestIso })
+    .eq("user_id", userId)
+    .eq("source", source);
+  if (error) {
+    console.error("my-games sync last_synced_at update failed", { source, error });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -115,38 +142,55 @@ export async function POST(request: NextRequest) {
       .map((game) => playerGameToRow(user.id, account.source, game))
       .filter((row) => row !== null);
     if (rows.length > 0) {
-      // Plain `upsert` has no representation-selection change: it still
-      // returns the touched rows (default `returning=representation`), so
-      // `inserted` counts exclude the (user, source, external_id) hits that
-      // were skipped by `onConflict ... ignoreDuplicates`.
-      const { data: inserted, error } = await supabase
+      // postgrest-js resolves `onConflict ... ignoreDuplicates` against the
+      // `Prefer: return=representation&resolution=ignore-duplicates` contract,
+      // whose response rows omit conflict-skipped entries, so `inserted`
+      // normally counts only newly stored rows. That response shape is
+      // driver- and PostgREST-version-dependent, so don't trust it as the
+      // acceptance-critical `imported` count: diff against what's already
+      // stored first (`inserted` then only confirms the write succeeded).
+      const { data: existing, error: existingError } = await supabase
         .from("my_games")
-        .upsert(rows, { onConflict: "user_id,source,external_id", ignoreDuplicates: true });
-      if (error) {
-        console.error("my-games sync insert failed", { source: account.source, error });
+        .select("external_id")
+        .eq("user_id", user.id)
+        .eq("source", account.source)
+        .in(
+          "external_id",
+          rows.map((row) => row.external_id),
+        );
+      if (existingError) {
+        console.error("my-games sync pre-select failed", { source: account.source, error: existingError });
         entry.error = "unavailable";
         accounts.push(entry);
         continue;
       }
-      entry.imported = Array.isArray(inserted) ? inserted.length : 0;
-      imported += entry.imported;
-    }
-    const newest = games.reduce<number | null>(
-      (latest, game) =>
-        typeof game.playedAt === "number" && (latest === null || game.playedAt > latest)
-          ? game.playedAt
-          : latest,
-      null,
-    );
-    if (newest !== null) {
-      const { error } = await supabase
-        .from("linked_accounts")
-        .update({ last_synced_at: new Date(newest).toISOString() })
-        .eq("user_id", user.id)
-        .eq("source", account.source);
-      if (error) {
-        console.error("my-games sync last_synced_at update failed", { source: account.source, error });
+      const known = new Set(
+        (existing ?? []).map((row: { external_id: string }) => row.external_id),
+      );
+      const fresh = rows.filter((row) => !known.has(row.external_id));
+      if (fresh.length > 0) {
+        const { error } = await supabase
+          .from("my_games")
+          .upsert(fresh, { onConflict: "user_id,source,external_id", ignoreDuplicates: true });
+        if (error) {
+          console.error("my-games sync insert failed", { source: account.source, error });
+          entry.error = "unavailable";
+          accounts.push(entry);
+          continue;
+        }
+        entry.imported = fresh.length;
+        imported += entry.imported;
       }
+      const newestIso = fresh
+        .map((row) => row.played_at)
+        .filter((value): value is string => typeof value === "string" && value.length > 0)
+        .sort()
+        .at(-1);
+      if (newestIso !== undefined && newestIso.length > 0) {
+        await updateLastSynced(supabase, user.id, account.source, newestIso);
+      }
+      accounts.push(entry);
+      continue;
     }
     accounts.push(entry);
   }
