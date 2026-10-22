@@ -68,7 +68,7 @@ export function GameOpenRow({
       type="button"
       className={className}
       title={resolvedTitle}
-      aria-label={ariaLabel ?? resolvedTitle}
+      aria-label={ariaLabel}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}

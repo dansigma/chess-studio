@@ -95,8 +95,8 @@ test("curated source is recognized by parser, guards, and titles", () => {
   assert.equal(parseExplorerSource("curated"), "curated");
   assert.equal(isExplorerSource("curated"), true);
   assert.equal(isCloudExplorerSource("curated"), false);
-  assert.equal(explorerSourceTitle("curated", []), "Curated Masters (Offline)");
-  assert.equal(explorerSourceTitle("curated", [], "pt-br"), "Mestres selecionados (offline)");
+  assert.equal(explorerSourceTitle("curated", []), "Curated Masters");
+  assert.equal(explorerSourceTitle("curated", [], "pt-br"), "Mestres selecionados");
   assert.equal(explorerSourceTitle("lichess", []), "Online Database");
   assert.equal(explorerSourceTitle("lichess", [], "pt-br"), "Base de dados online");
   assert.equal(explorerSourceTitle("masters", []), "Ultra Database");

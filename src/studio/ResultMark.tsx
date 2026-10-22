@@ -58,7 +58,9 @@ export function ResultMark({ winner }: { winner: ResultWinner }) {
       ? tPanels(locale, "result.whiteWins")
       : winner === "black"
         ? tPanels(locale, "result.blackWins")
-        : tPanels(locale, "result.draw");
+        : winner === "draw"
+          ? tPanels(locale, "result.draw")
+          : undefined;
   if (winner === "white") {
     return (
       <span className="text-studio-fg" title={label}>
