@@ -104,6 +104,45 @@ describe("sig-1039 linked_accounts migration", () => {
   });
 });
 
+describe("sig-1088 my_games migration", () => {
+  const sig1088 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021200000_my_games.sql"),
+    "utf8",
+  );
+
+  it("enables RLS with own-row select, insert and delete policies (no update)", () => {
+    assert.ok(sig1088.includes("alter table public.my_games enable row level security"));
+    for (const name of ["my_games_select_own", "my_games_insert_own", "my_games_delete_own"]) {
+      assert.ok(sig1088.includes(`"${name}"`), `missing policy ${name}`);
+    }
+    assert.ok(!sig1088.includes("my_games_update_own"), "no client update policy on my_games");
+  });
+
+  it("wraps every auth check as a select subquery and grants only to authenticated", () => {
+    const bare = sig1088.match(/(?<![\w(])auth\.uid\(\)(?!\))/g) ?? [];
+    assert.equal(bare.length, 0, `found ${bare.length} unwrapped auth checks`);
+    assert.ok(sig1088.includes("(select auth.uid())"), "expected at least one wrapped auth check");
+    assert.ok(
+      sig1088.includes("grant select, insert, delete on public.my_games to authenticated"),
+      "grants must be scoped to authenticated",
+    );
+    assert.ok(!/to (anon|public|service_role)/.test(sig1088), "no grants beyond authenticated");
+  });
+
+  it("dedupes on (user_id, source, external_id) and indexes recent games", () => {
+    assert.ok(sig1088.includes("unique (user_id, source, external_id)"), "dedupe scope");
+    assert.ok(sig1088.includes("my_games_user_played_idx"), "recent-games index");
+    assert.ok(sig1088.includes("(user_id, played_at desc)"), "index order");
+  });
+
+  it("constrains source/color/result and caps pgn at 1 MB", () => {
+    assert.ok(sig1088.includes("check (source in ('lichess', 'chesscom'))"));
+    assert.ok(sig1088.includes("check (color in ('white', 'black'))"));
+    assert.ok(sig1088.includes("check (result in ('win', 'loss', 'draw'))"));
+    assert.ok(sig1088.includes("octet_length(pgn) <= 1000000"), "1 MB pgn cap");
+  });
+});
+
 describe("sig-1049 marketplace roles migration", () => {
   const sig1049 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021120000_marketplace_roles.sql"),
