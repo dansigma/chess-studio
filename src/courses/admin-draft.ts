@@ -1,4 +1,5 @@
 import { chapterTitleFromPgn, variationsFromChapterPgn } from "./chapter-pgn";
+import type { CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import type { Course, CourseChapter, CourseTheme, CourseVariation } from "./types";
 
 /** The editable shape of a course in the admin form: theme may still be unset. */
@@ -32,20 +33,20 @@ export function importChapterPgn(
   text: string,
   chapters: CourseChapter[],
   chapterId: string,
-): ChapterPgnUpdate | { error: string } | null {
+): ChapterPgnUpdate | { error: CourseAdminMessage } | null {
   if (text.length > MAX_PGN_CHARS) {
-    return { error: "That PGN file is too large." };
+    return { error: { key: "course.admin.error.pgnTooLarge" } };
   }
   const lines = variationsFromChapterPgn(text);
   if (lines.length === 0) {
-    return { error: "That PGN has no playable lines." };
+    return { error: { key: "course.admin.error.pgnNoLines" } };
   }
   const chapter = chapters.find((item) => item.id === chapterId);
   if (!chapter) {
     return null;
   }
   if (chapter.variations.length + lines.length > MAX_CHAPTER_LINES) {
-    return { error: "A chapter can have at most 40 lines." };
+    return { error: { key: "course.admin.error.tooManyLines" } };
   }
   return { lines, suggested: chapterTitleFromPgn(text) };
 }
