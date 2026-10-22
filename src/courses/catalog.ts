@@ -1,4 +1,6 @@
 import type { Json } from "@/src/lib/supabase/database.types";
+import type { SiteLocale } from "@/src/i18n/locale";
+import { tCourse } from "@/src/i18n/course-strings";
 import { courseImageUrl } from "./media";
 import { COURSE_THEMES, type CatalogCourse, type Course, type CourseChapter, type CourseColor, type CourseTheme, type CourseVariation, type VariationProgress } from "./types";
 
@@ -138,8 +140,8 @@ export function isCourseTheme(value: string): value is CourseTheme {
   return COURSE_THEMES.some((theme) => theme.id === value);
 }
 
-export function courseThemeLabel(theme: CourseTheme): string {
-  return COURSE_THEMES.find((item) => item.id === theme)?.label ?? "Openings";
+export function courseThemeLabel(theme: CourseTheme, locale: SiteLocale): string {
+  return tCourse(locale, `course.theme.label.${theme}`);
 }
 
 /** Select list shared by the course server components (one canonical read). */

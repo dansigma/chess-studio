@@ -14,7 +14,9 @@ import { shareBoardUrl, writeCourseStudyImport } from "@/src/chess/share-board";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button, IconButton } from "@/src/studio/ui/Button";
 import { lessonFrames, progressAfterStep, studentMoveMatches } from "./lesson";
-import { findVariation, loadProgress, saveVariationProgress } from "./store";
+import { PROGRESS_BROWSER_ONLY, findVariation, loadProgress, saveVariationProgress } from "./store";
+import { tCourse } from "@/src/i18n/course-strings";
+import { formatInteger } from "@/src/i18n/format";
 import { useCourseData } from "./use-courses";
 import { CourseChrome } from "./CourseChrome";
 import type { Course, CourseChapter, CourseVariation } from "./types";
@@ -27,6 +29,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   const [selected, setSelected] = useState<string | null>(null);
   const [lessonKey, setLessonKey] = useState<string | null>(null);
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
+  const locale = useStudioStore((state) => state.settings.locale);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const { progress: savedProgress, admin, ready: progressReady } = useCourseData();
@@ -68,7 +71,9 @@ export function LessonView({ course, variationId }: { course: Course; variationI
     setHint(false);
     setSelected(null);
     void saveVariationProgress(variationId, next).then((error) => {
-      if (error) {
+      if (error === PROGRESS_BROWSER_ONLY) {
+        setNotice(tCourse(locale, "course.lesson.browserOnlyFallback"));
+      } else if (error) {
         setNotice(error);
       }
     });
@@ -89,7 +94,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
       return false;
     }
     if (!studentMoveMatches(frame, from, to)) {
-      setNotice("That move is not in this line.");
+      setNotice(tCourse(locale, "course.lesson.notInLine"));
       setHint(true);
       setSelected(null);
       return false;
@@ -154,7 +159,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
     return (
       <div className="min-h-full bg-studio-bg">
         <CourseChrome admin={admin} />
-        <main className="px-6 py-10 text-studio-muted">Line not found.</main>
+        <main className="px-6 py-10 text-studio-muted">{tCourse(locale, "course.lesson.notFound")}</main>
       </div>
     );
   }
@@ -220,7 +225,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
             }}
           >
             <ExternalLink size={14} aria-hidden />
-            Open in Studio
+            {tCourse(locale, "course.lesson.openInStudio")}
           </Button>
         </div>
         <div
@@ -229,7 +234,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
           aria-valuenow={linePercent}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label="Line progress"
+          aria-label={tCourse(locale, "course.lesson.progressAria")}
         >
           <div className="h-full bg-studio-accent" style={{ width: `${linePercent}%` }} />
         </div>
@@ -291,25 +296,36 @@ export function LessonView({ course, variationId }: { course: Course; variationI
         </div>
         <section className="flex max-h-[min(42dvh,280px)] min-h-36 flex-col overflow-hidden rounded-xl border border-studio-border bg-studio-chrome lg:max-h-[calc(100dvh-8rem)] lg:min-h-0 lg:self-start">
           <div className="flex shrink-0 items-center gap-0.5 border-b border-studio-border px-1.5 py-1">
-            <IconButton label="Start" shortcut="Home" disabled={step === 0} onClick={() => go(0)}>
+            <IconButton label={tCourse(locale, "course.lesson.transport.start")} shortcut="Home" disabled={step === 0} onClick={() => go(0)}>
               <ChevronsLeft size={15} />
             </IconButton>
-            <IconButton label="Back" shortcut="←" disabled={step === 0} onClick={() => go(step - 1)}>
+            <IconButton label={tCourse(locale, "course.lesson.transport.back")} shortcut="←" disabled={step === 0} onClick={() => go(step - 1)}>
               <ChevronLeft size={15} />
             </IconButton>
-            <IconButton label="Forward" shortcut="→" disabled={waiting || done} onClick={playExpected}>
+            <IconButton label={tCourse(locale, "course.lesson.transport.forward")} shortcut="→" disabled={waiting || done} onClick={playExpected}>
               <ChevronRight size={15} />
             </IconButton>
             <span className="ml-auto px-2 text-caption tabular-nums text-studio-muted">
-              {step + 1} / {frames.length}
+              {tCourse(locale, "course.lesson.stepCounter", {
+                current: formatInteger(locale, step + 1),
+                total: formatInteger(locale, frames.length),
+              })}
             </span>
           </div>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-body leading-relaxed text-studio-fg">
-            {frame.san ? <p className="text-caption text-studio-muted">Previous move: {frame.san}</p> : null}
-            <p>{frame.comment || "Follow the line on the board."}</p>
-            {waiting && !hint ? <p className="font-medium text-studio-accent-text">Your turn</p> : null}
+            {frame.san ? (
+              <p className="text-caption text-studio-muted">
+                {tCourse(locale, "course.lesson.previousMove", { san: frame.san })}
+              </p>
+            ) : null}
+            <p>{frame.comment || tCourse(locale, "course.lesson.followLine")}</p>
+            {waiting && !hint ? (
+              <p className="font-medium text-studio-accent-text">{tCourse(locale, "course.lesson.yourTurn")}</p>
+            ) : null}
             {showAnswer ? (
-              <p className="font-medium text-studio-accent-text">Your move: {frame.move?.san}</p>
+              <p className="font-medium text-studio-accent-text">
+                {tCourse(locale, "course.lesson.yourMove", { san: frame.move?.san ?? "" })}
+              </p>
             ) : null}
             {notice ? (
               <p role="alert" className="rounded-lg bg-studio-warning-bg px-3 py-2 text-studio-warning-fg">
@@ -318,22 +334,22 @@ export function LessonView({ course, variationId }: { course: Course; variationI
             ) : null}
             {done ? (
               <p className="rounded-lg bg-studio-hover px-3 py-2 text-studio-success">
-                Line complete. This course progress has been updated.
+                {tCourse(locale, "course.lesson.complete")}
               </p>
             ) : null}
           </div>
           <div className="shrink-0 border-t border-studio-border p-3">
             {waiting ? (
               <p className="text-caption text-studio-muted">
-                {hint ? "Play the shown move on the board." : "Find the move on the board."}
+                {hint ? tCourse(locale, "course.lesson.hintShown") : tCourse(locale, "course.lesson.hintHidden")}
               </p>
             ) : done ? (
               <Link href={`/courses/${loaded.course.slug}`} className="text-body font-medium text-studio-accent-text">
-                Back to course
+                {tCourse(locale, "course.lesson.backToCourse")}
               </Link>
             ) : (
               <Button variant="primary" onClick={playExpected}>
-                Next
+                {tCourse(locale, "course.lesson.next")}
               </Button>
             )}
           </div>
