@@ -7,10 +7,12 @@ import {
   useStudioStore,
 } from "@/src/store/studio-store";
 import { closeBoardPanel, openBoardPanel } from "./dock-api";
+import { tSidebar } from "@/src/i18n/studio-sidebar-strings";
 import { IconButton } from "./ui/Button";
 import { SidebarItem, SidebarPanel } from "./ui/Sidebar";
 
 export function BoardsSidebar() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const boards = useStudioStore((state) => state.boards);
   const activeBoardId = useStudioStore((state) => state.activeBoardId);
   const pinPreviewBoard = useStudioStore((state) => state.pinPreviewBoard);
@@ -63,9 +65,9 @@ export function BoardsSidebar() {
 
   return (
     <SidebarPanel
-      title="Open boards"
+      title={tSidebar(locale, "sidebar.boards.title")}
       actions={
-        <IconButton label="New board" shortcut="Ctrl+N" size="sm" onClick={handleNewBoard}>
+        <IconButton label={tSidebar(locale, "sidebar.boards.newBoard")} shortcut="Ctrl+N" size="sm" onClick={handleNewBoard}>
           <Plus size={15} />
         </IconButton>
       }
@@ -77,7 +79,9 @@ export function BoardsSidebar() {
           title={
             <>
               {board.title}
-              {board.preview ? <span className="text-studio-faint"> · preview</span> : null}
+              {board.preview ? (
+                <span className="text-studio-faint"> {tSidebar(locale, "sidebar.boards.previewSuffix")}</span>
+              ) : null}
             </>
           }
           description={boardPreview(board)}
@@ -89,8 +93,8 @@ export function BoardsSidebar() {
               {board.preview ? (
                 <button
                   type="button"
-                  title="Keep this board (stop replacing it)"
-                  aria-label={`Keep ${board.title}`}
+                  title={tSidebar(locale, "sidebar.boards.keep")}
+                  aria-label={tSidebar(locale, "sidebar.boards.keepName", { title: board.title })}
                   className="flex h-6 w-6 items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg"
                   onClick={(event) => {
                     event.stopPropagation();
@@ -102,14 +106,14 @@ export function BoardsSidebar() {
               ) : null}
               <span className="relative flex h-6 w-6 items-center justify-center">
                 {signedIn && board.dirty ? (
-                  <span className="text-studio-warning-fg group-hover:hidden" title="Unsaved changes">
+                  <span className="text-studio-warning-fg group-hover:hidden" title={tSidebar(locale, "sidebar.boards.unsaved")}>
                     ●
                   </span>
                 ) : null}
                 <button
                   type="button"
-                  title="Close board"
-                  aria-label="Close board"
+                  title={tSidebar(locale, "sidebar.boards.close")}
+                  aria-label={tSidebar(locale, "sidebar.boards.close")}
                   className="absolute inset-0 hidden items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg group-focus-within:flex group-hover:flex focus-visible:flex"
                   onClick={() => handleCloseBoard(board.id)}
                 >
