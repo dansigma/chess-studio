@@ -388,6 +388,50 @@ export type Database = {
         };
         Relationships: [];
       };
+      // SIG-1088: imported recent games (My Games 2/5), one row per
+      // (user, source, external game id); sync route is the only writer.
+      my_games: {
+        Row: {
+          id: string;
+          user_id: string;
+          source: "lichess" | "chesscom";
+          external_id: string;
+          played_at: string | null;
+          color: "white" | "black" | null;
+          result: "win" | "loss" | "draw" | null;
+          time_class: string | null;
+          white: string | null;
+          black: string | null;
+          white_elo: number | null;
+          black_elo: number | null;
+          eco: string | null;
+          opening: string | null;
+          ply_count: number | null;
+          pgn: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          source: "lichess" | "chesscom";
+          external_id: string;
+          played_at?: string | null;
+          color?: "white" | "black" | null;
+          result?: "win" | "loss" | "draw" | null;
+          time_class?: string | null;
+          white?: string | null;
+          black?: string | null;
+          white_elo?: number | null;
+          black_elo?: number | null;
+          eco?: string | null;
+          opening?: string | null;
+          ply_count?: number | null;
+          pgn: string;
+          created_at?: string;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

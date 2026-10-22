@@ -191,8 +191,22 @@ export function lichessWinner(game: LichessGameJson): PlayerGame["winner"] {
   return null;
 }
 
-export async function lichessGames(username: string): Promise<PlayerGame[]> {
-  const url = `https://lichess.org/api/games/user/${encodeURIComponent(username)}?max=${MAX_PLAYER_GAMES}&clocks=false&evals=false&opening=true&moves=true`;
+export async function lichessGamesSince(
+  username: string,
+  sinceMs: number,
+  max: number,
+): Promise<PlayerGame[]> {
+  const params = new URLSearchParams({
+    max: String(max),
+    clocks: "false",
+    evals: "false",
+    opening: "true",
+    moves: "true",
+  });
+  if (sinceMs > 0) {
+    params.set("since", String(sinceMs));
+  }
+  const url = `https://lichess.org/api/games/user/${encodeURIComponent(username)}?${params.toString()}`;
   const response = await fetch(url, {
     headers: { ...lichessHeaders(), Accept: "application/x-ndjson" },
     signal: AbortSignal.timeout(GAMES_TIMEOUT_MS),
@@ -269,4 +283,8 @@ export async function lichessGames(username: string): Promise<PlayerGame[]> {
     });
   }
   return games;
+}
+
+export async function lichessGames(username: string): Promise<PlayerGame[]> {
+  return lichessGamesSince(username, 0, MAX_PLAYER_GAMES);
 }

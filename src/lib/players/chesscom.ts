@@ -133,7 +133,11 @@ export function compactChesscomGame(
   };
 }
 
-export async function chesscomGames(username: string): Promise<PlayerGame[]> {
+export async function chesscomGamesSince(
+  username: string,
+  sinceMs: number,
+  max: number,
+): Promise<PlayerGame[]> {
   const archivesResponse = await fetchTimeout(
     `https://api.chess.com/pub/player/${encodeURIComponent(username.toLowerCase())}/games/archives`,
     { headers: chesscomHeaders(), next: { revalidate: 300 } },
@@ -144,30 +148,58 @@ export async function chesscomGames(username: string): Promise<PlayerGame[]> {
   }
   const archivesText = await readCapped(archivesResponse, 512 * 1024);
   const archivesPayload = JSON.parse(archivesText) as { archives?: string[] };
-  const urls = (archivesPayload.archives ?? []).slice(-2);
-  const latestUrl = urls.at(-1);
-  if (!latestUrl) {
+  const allUrls = archivesPayload.archives ?? [];
+  if (allUrls.length === 0) {
     return [];
   }
-  const latest = await fetchArchive(latestUrl);
-  const ordered = latest.slice().reverse();
-  const games: PlayerGame[] = [];
-  const target = username.toLowerCase();
-  for (const raw of ordered) {
-    games.push(compactChesscomGame(raw, target, games.length));
-    if (games.length >= MAX_PLAYER_GAMES) {
-      return games;
+  // Chess.com has no `since` filter: walk month archives from the newest back
+  // to (and including) the month containing sinceMs. A 90-day cold sync
+  // touches ~4 archives; the max cap bounds per-month work, and the archive
+  // visit cap below bounds the walk when no archive URL matches the cutoff
+  // month (empty history or renamed layouts would otherwise fan out to every
+  // monthly archive — 100+ sequential 2 MB fetches for a decade-old account).
+  const cutoff = sinceMs > 0 ? new Date(sinceMs) : null;
+  const cutoffKey = cutoff ? `${cutoff.getUTCFullYear()}/${String(cutoff.getUTCMonth() + 1).padStart(2, "0")}` : null;
+  const MAX_ARCHIVES_PER_SYNC = 6;
+  const urls: string[] = [];
+  if (!cutoffKey) {
+    // No lower bound: preserve the legacy display behavior (newest archives).
+    for (let i = allUrls.length - 1; i >= 0 && urls.length < 2; i -= 1) {
+      const archiveUrl = allUrls[i];
+      if (archiveUrl) {
+        urls.push(archiveUrl);
+      }
     }
-  }
-  const previousUrl = urls.length > 1 ? urls[0] : undefined;
-  if (previousUrl && previousUrl !== latestUrl) {
-    const previous = await fetchArchive(previousUrl);
-    for (const raw of previous.slice().reverse()) {
-      games.push(compactChesscomGame(raw, target, games.length));
-      if (games.length >= MAX_PLAYER_GAMES) {
+  } else {
+    for (let i = allUrls.length - 1; i >= 0 && urls.length < MAX_ARCHIVES_PER_SYNC; i -= 1) {
+      const archiveUrl = allUrls[i];
+      if (!archiveUrl) {
+        continue;
+      }
+      urls.push(archiveUrl);
+      if (archiveUrl.includes(`/${cutoffKey}`)) {
         break;
       }
     }
   }
+  const games: PlayerGame[] = [];
+  const target = username.toLowerCase();
+  for (const archiveUrl of urls) {
+    const month = await fetchArchive(archiveUrl);
+    for (const raw of month.slice().reverse()) {
+      const playedAt = typeof raw.end_time === "number" ? raw.end_time * 1000 : null;
+      if (sinceMs > 0 && (playedAt === null || playedAt <= sinceMs)) {
+        continue;
+      }
+      games.push(compactChesscomGame(raw, target, games.length));
+      if (games.length >= max) {
+        return games;
+      }
+    }
+  }
   return games;
+}
+
+export async function chesscomGames(username: string): Promise<PlayerGame[]> {
+  return chesscomGamesSince(username, 0, MAX_PLAYER_GAMES);
 }
