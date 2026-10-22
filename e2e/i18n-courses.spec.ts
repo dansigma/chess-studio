@@ -11,7 +11,10 @@ test("courses renders Portuguese with the pt-br locale stored", async ({ page, c
   await expect(page.locator("main").getByRole("heading", { name: "Cursos" })).toBeVisible();
   await expect(page.locator("header nav").getByRole("link", { name: "Cursos" })).toBeVisible();
   await expect(page.locator("main").getByText("Courses")).toHaveCount(0);
-  await expect(page.locator("main").getByText("Todos os temas")).toBeVisible();
+  // "Todos os temas" renders as the selected <option> of the theme filter, which
+  // Playwright reports as hidden while the <select> is closed — assert its text
+  // on the option itself instead of visibility.
+  await expect(page.locator("main select option[value='']")).toHaveText("Todos os temas");
 });
 
 /** SIG-1071: the default locale keeps the English courses catalog. */
