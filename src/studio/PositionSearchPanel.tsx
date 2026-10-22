@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { searchFilesForPosition, type FilePositionHit } from "@/src/lib/files-explorer";
 import type { FileGame } from "@/src/lib/user-files";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { useStudioStore } from "@/src/store/studio-store";
 import { useActiveFen } from "@/src/store/hooks";
 import { IconButton } from "./ui/Button";
@@ -22,6 +23,7 @@ function resultLabel(winner: "white" | "black" | "draw" | null): string | null {
 }
 
 export function PositionSearchPanel() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const fen = useActiveFen();
   const databases = useStudioStore((state) => state.files.databases);
   const openFileGame = useStudioStore((state) => state.openFileGame);
@@ -76,7 +78,9 @@ export function PositionSearchPanel() {
   const total = hits.reduce((sum, hit) => sum + hit.games.length, 0);
   const stale = fen !== debouncedFen;
   const showLoading = loading || stale;
-  const side = fen.split(" ")[1] === "b" ? "Black to move" : "White to move";
+  const side = fen.split(" ")[1] === "b"
+    ? tPanels(locale, "search.blackToMove")
+    : tPanels(locale, "search.whiteToMove");
 
   return (
     <div className="flex h-full flex-col bg-studio-panel text-dense text-studio-fg">
@@ -86,11 +90,13 @@ export function PositionSearchPanel() {
         </span>
         {!showLoading ? (
           <span className="shrink-0 tabular-nums">
-            {total} {total === 1 ? "game" : "games"}
+            {total === 1
+              ? tPanels(locale, "search.count.one", { count: total })
+              : tPanels(locale, "search.count.other", { count: total })}
           </span>
         ) : null}
         <IconButton
-          label="Refresh position search"
+          label={tPanels(locale, "search.refresh")}
           size="sm"
           className="text-studio-muted"
           onClick={() => setRetryTick((tick) => tick + 1)}
@@ -101,10 +107,10 @@ export function PositionSearchPanel() {
       <div className="min-h-0 flex-1 overflow-auto" aria-busy={showLoading || undefined}>
         {showLoading ? (
           <div className="px-3 py-4 text-studio-faint" role="status">
-            Searching files…
+            {tPanels(locale, "search.loading")}
           </div>
         ) : total === 0 ? (
-          <div className="px-3 py-4 text-studio-faint">Not in any file</div>
+          <div className="px-3 py-4 text-studio-faint">{tPanels(locale, "search.empty")}</div>
         ) : (
           hits.map((hit) => (
             <div key={hit.databaseId} className="border-b border-studio-border-subtle last:border-b-0">
@@ -129,7 +135,7 @@ export function PositionSearchPanel() {
                     disabled={!fileGame}
                   >
                     <span className="min-w-0 flex-1 truncate">
-                      {row.whiteName} vs {row.blackName}
+                      {row.whiteName} {tPanels(locale, "notation.header.vs")} {row.blackName}
                       {row.event ? <span className="text-studio-faint"> · {row.event}</span> : null}
                     </span>
                     <span className="flex shrink-0 items-baseline gap-2 text-studio-faint">

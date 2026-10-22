@@ -149,19 +149,19 @@ test("annotationRows keeps move/position order and resolves side pairs by color"
 test("notation context menu keeps the approved item order, shortcuts, and overlay tier", () => {
   const source = readFileSync(new URL("./NotationContextMenu.tsx", import.meta.url), "utf8");
   const order = [
-    "Text after move",
-    "Text before move",
-    "Annotation",
-    "Promote variation",
-    "Make main line",
-    "Delete variation",
-    "Cut after this move",
-    "Insert null move",
+    "notation.menu.textAfter",
+    "notation.menu.textBefore",
+    "notation.menu.annotation",
+    "notation.menu.promote",
+    "notation.menu.makeMainline",
+    "notation.menu.deleteVariation",
+    "notation.menu.cutAfter",
+    "notation.menu.insertNull",
   ];
   let cursor = -1;
-  for (const label of order) {
-    const next = source.indexOf(`label="${label}"`);
-    assert.ok(next > cursor, `${label} should follow menu order`);
+  for (const key of order) {
+    const next = source.indexOf(key);
+    assert.ok(next > cursor, `${key} should follow menu order`);
     cursor = next;
   }
   for (const shortcut of ["Ctrl+A", "Ctrl+Shift+A", "Ctrl+↑", "Ctrl+Shift+↑", "Ctrl+Del"]) {
@@ -169,11 +169,17 @@ test("notation context menu keeps the approved item order, shortcuts, and overla
   }
   assert.ok(source.includes('shortcut="Del"'), "cut-after should hint Del");
   assert.ok(source.includes("z-[1100]"), "menu should use z-[1100] like BoardContextMenu");
-  assert.ok(source.includes('aria-label="Move actions"'), "menu should label the Move actions region");
+  assert.ok(
+    source.includes("notation.menu.moveActions"),
+    "menu should label the Move actions region",
+  );
   assert.ok(
     source.includes('data-annotation-submenu="true"'),
     "annotation submenu should be marked for keyboard nav",
   );
   assert.ok(source.includes("right-full"), "submenu should flip left near the right edge");
-  assert.ok(source.includes("Clear all glyphs"), "submenu should offer Clear all glyphs");
+  assert.ok(
+    source.includes("notation.menu.clearAll"),
+    "submenu should offer Clear all glyphs",
+  );
 });

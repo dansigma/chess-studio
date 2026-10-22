@@ -16,6 +16,8 @@ import {
 import { acquire } from "@/src/engine/shared-engine";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore, type CachedEval } from "@/src/store/studio-store";
+import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 
 export const GRAPH_WALK_DEPTH = 12;
 export const GRAPH_EVAL_THROTTLE_MS = 250;
@@ -35,6 +37,7 @@ function yAt(pawns: number, height: number): number {
 
 export function EvalGraphPanel() {
   const board = useActiveBoard();
+  const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
   const setupMode = useStudioStore((state) => state.setupMode);
   const goPath = useStudioStore((state) => state.goPath);
   const engineDepth = useStudioStore((state) => state.settings.engineDepth);
@@ -228,8 +231,8 @@ export function EvalGraphPanel() {
   const focusPoint = points.length > 0 ? points[Math.min(focusIndex, points.length - 1)] : null;
   const focusEval = focusPoint ? evalByFen[fenKey(focusPoint.fen)] : undefined;
   const focusText = focusPoint
-    ? `${focusPoint.san ? formatSan(focusPoint.san, moveNotation) : "Start"} ${focusEval?.label ?? "evaluating"}`
-    : "No moves";
+    ? `${focusPoint.san ? formatSan(focusPoint.san, moveNotation) : tPanels(locale, "graph.start")} ${focusEval?.label ?? tPanels(locale, "graph.evaluating")}`
+    : tPanels(locale, "graph.noMoves");
 
   function indexFromClientX(clientX: number): number {
     const rect = wrapRef.current?.getBoundingClientRect();
@@ -252,19 +255,19 @@ export function EvalGraphPanel() {
   return (
     <div className="relative flex h-full min-h-0 flex-col bg-studio-panel text-studio-fg">
       <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-1.5 text-caption text-studio-faint">
-        <span>Eval Graph</span>
+        <span>{tPanels(locale, "graph.title")}</span>
         <span>
           {setupMode
-            ? "Paused in setup"
+            ? tPanels(locale, "graph.paused")
             : filled === 0
-              ? "Analyzing…"
-              : `${filled}/${points.length}`}
+              ? tPanels(locale, "graph.analyzing")
+              : tPanels(locale, "graph.progress", { filled, total: points.length })}
         </span>
       </div>
       <div ref={wrapRef} className="relative min-h-0 flex-1">
         {points.length <= 1 ? (
           <div className="absolute inset-0 grid place-items-center text-dense text-studio-faint">
-            Make a move to plot the line.
+            {tPanels(locale, "graph.empty")}
           </div>
         ) : (
           <svg
@@ -272,7 +275,7 @@ export function EvalGraphPanel() {
             viewBox={`0 0 ${width} ${height}`}
             preserveAspectRatio="none"
             role="slider"
-            aria-label="Evaluation graph"
+            aria-label={tPanels(locale, "graph.label")}
             aria-valuemin={0}
             aria-valuemax={Math.max(0, points.length - 1)}
             aria-valuenow={Math.min(focusIndex, Math.max(0, points.length - 1))}
@@ -352,7 +355,7 @@ export function EvalGraphPanel() {
           <div className="pointer-events-none absolute right-2 top-2 rounded bg-studio-elevated px-2 py-1 text-caption text-studio-fg shadow">
             {hoverPoint.san
               ? formatSan(hoverPoint.san, moveNotation)
-              : "Start"}{" "}
+              : tPanels(locale, "graph.start")}{" "}
             <span className="text-studio-muted">{hoverEval?.label ?? "…"}</span>
           </div>
         ) : null}

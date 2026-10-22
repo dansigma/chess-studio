@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { getDueRepertoireMoves, repertoireMoves } from "@/src/chess/repertoire";
 import { getFenAt, getNodeAt } from "@/src/chess/tree";
 import { useActiveBoard } from "@/src/store/hooks";
@@ -10,6 +11,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 export function RepertoirePanel() {
   // SIG-857: shared active-board selector instead of the inline find.
   const board = useActiveBoard();
+  const locale = useStudioStore((state) => state.settings.locale);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const goPath = useStudioStore((state) => state.goPath);
   const training = useStudioStore((state) => state.training);
@@ -32,9 +34,11 @@ export function RepertoirePanel() {
     <div className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
       <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2">
         <div className="flex items-center gap-2">
-          <span className="text-caption uppercase tracking-wide text-studio-faint">Repertoire</span>
+          <span className="text-caption uppercase tracking-wide text-studio-faint">{tPanels(locale, "repertoire.title")}</span>
           <span className="rounded bg-studio-surface-raised px-1.5 py-0.5 text-dense font-mono text-studio-accent">
-            {dueCount} Due
+            {dueCount === 1
+              ? tPanels(locale, "repertoire.due.one", { count: dueCount })
+              : tPanels(locale, "repertoire.due.other", { count: dueCount })}
           </span>
         </div>
         <span className="flex gap-2">
@@ -46,7 +50,7 @@ export function RepertoirePanel() {
                   className="rounded bg-studio-accent px-2 py-1 text-dense text-studio-accent-fg hover:bg-studio-accent-strong"
                   onClick={startDueDrill}
                 >
-                  Drill Due
+                  {tPanels(locale, "repertoire.drillDue")}
                 </button>
               ) : (
                 <button
@@ -54,7 +58,7 @@ export function RepertoirePanel() {
                   className="rounded bg-studio-accent px-2 py-1 text-dense text-studio-accent-fg hover:bg-studio-accent-strong"
                   onClick={startTraining}
                 >
-                  Train again
+                  {tPanels(locale, "repertoire.trainAgain")}
                 </button>
               )}
               <button
@@ -62,7 +66,7 @@ export function RepertoirePanel() {
                 className="rounded px-2 py-1 text-dense text-studio-muted hover:text-studio-fg"
                 onClick={stopTraining}
               >
-                Stop
+                {tPanels(locale, "repertoire.stop")}
               </button>
             </>
           ) : (
@@ -72,7 +76,7 @@ export function RepertoirePanel() {
                 className="rounded bg-studio-hover-strong px-2 py-1 text-dense text-studio-fg hover:bg-studio-selected"
                 onClick={startTraining}
               >
-                Train
+                {tPanels(locale, "repertoire.train")}
               </button>
               <button
                 type="button"
@@ -80,7 +84,7 @@ export function RepertoirePanel() {
                 className="rounded bg-studio-accent px-2 py-1 text-dense text-studio-accent-fg hover:bg-studio-accent-strong disabled:cursor-not-allowed disabled:opacity-40"
                 onClick={startDueDrill}
               >
-                Drill Due
+                {tPanels(locale, "repertoire.drillDue")}
               </button>
             </>
           )}
@@ -90,11 +94,11 @@ export function RepertoirePanel() {
         {training ? (
           drillDueOnly ? (
             <div className="px-3 py-4 text-studio-muted">
-              Drilling due moves ({dueCount} remaining)
+              {tPanels(locale, "repertoire.drilling", { count: dueCount })}
             </div>
           ) : null
         ) : moves.length === 0 ? (
-          <div className="px-3 py-4 text-studio-faint">No moves stored here.</div>
+          <div className="px-3 py-4 text-studio-faint">{tPanels(locale, "repertoire.empty")}</div>
         ) : (
           moves.map((move) => (
             <button

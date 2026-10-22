@@ -159,41 +159,51 @@ export function fileDatabaseId(source: ExplorerSource): string | null {
   return source.startsWith("file:") ? source.slice(5) : null;
 }
 
+import type { SiteLocale } from "../i18n/locale.ts";
+import { tPanels } from "../i18n/studio-panel-strings.ts";
+
+/** Locale-aware source title. Personal database names pass through. */
 export function explorerSourceTitle(
   source: ExplorerSource,
   databases: Array<{ id: string; name: string }>,
+  locale: SiteLocale = "en",
 ): string {
   if (source === "curated") {
-    return "Curated Masters";
+    return tPanels(locale, "explorer.source.curated");
   }
   if (source === "masters") {
-    return "Ultra Database";
+    return tPanels(locale, "explorer.source.masters");
   }
   if (source === "lichess") {
-    return "Online Database";
+    return tPanels(locale, "explorer.source.lichess");
   }
   if (source === "chesscom") {
-    return "Chess.com";
+    return tPanels(locale, "explorer.source.chesscom");
   }
   const id = fileDatabaseId(source);
-  return databases.find((item) => item.id === id)?.name ?? "Personal";
+  const name = databases.find((item) => item.id === id)?.name;
+  if (name) {
+    return name;
+  }
+  return tPanels(locale, "explorer.source.personal");
 }
 
 export function explorerGamesTitle(
   source: ExplorerSource,
   databases: Array<{ id: string; name: string }>,
+  locale: SiteLocale = "en",
 ): string {
   if (source === "curated") {
-    return "Curated";
+    return tPanels(locale, "games.source.curated");
   }
   if (source === "masters") {
-    return "Ultra";
+    return tPanels(locale, "games.source.masters");
   }
   if (source === "lichess") {
-    return "Online";
+    return tPanels(locale, "games.source.lichess");
   }
   if (source === "chesscom") {
-    return "Chess.com";
+    return tPanels(locale, "games.source.chesscom");
   }
-  return explorerSourceTitle(source, databases);
+  return explorerSourceTitle(source, databases, locale);
 }

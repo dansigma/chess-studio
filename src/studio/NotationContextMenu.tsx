@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { nagGlyph } from "@/src/chess/nags";
 import type { Path } from "@/src/chess/tree";
+import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
 import { useMenuKeyDown } from "./ui/use-menu-keyboard";
 
@@ -51,6 +53,7 @@ export function notationMenuEnablement({
   setupMode,
   hasNags,
   hasMoveNag,
+  locale = "en",
 }: {
   pathLength: number;
   canPromote: boolean;
@@ -58,26 +61,27 @@ export function notationMenuEnablement({
   setupMode: boolean;
   hasNags: boolean;
   hasMoveNag?: boolean;
+  locale?: SiteLocale;
 }): NotationMenuEnablement {
   const atStart = pathLength === 0;
   const hasMoveEval = hasMoveNag ?? hasNags;
   return {
     textAfter: { disabled: false },
     textBefore: atStart
-      ? { disabled: true, reason: "At start" }
+      ? { disabled: true, reason: tPanels(locale, "notation.menu.atStart") }
       : { disabled: false },
     promote: canPromote
       ? { disabled: false }
-      : { disabled: true, reason: atStart ? "At start" : "Mainline" },
+      : { disabled: true, reason: atStart ? tPanels(locale, "notation.menu.atStart") : tPanels(locale, "notation.menu.mainline") },
     makeMainline: canMakeMainline
       ? { disabled: false }
-      : { disabled: true, reason: atStart ? "At start" : "Mainline" },
+      : { disabled: true, reason: atStart ? tPanels(locale, "notation.menu.atStart") : tPanels(locale, "notation.menu.mainline") },
     // Mirror the Edit menu: delete variation / cut after are always
     // enabled on a move (no disabled state today).
     deleteVariation: { disabled: false },
     cutAfter: { disabled: false },
     insertNull: setupMode
-      ? { disabled: true, reason: "In setup mode" }
+      ? { disabled: true, reason: tPanels(locale, "notation.menu.inSetupMode") }
       : { disabled: false },
     clearEval: hasMoveEval ? { disabled: false } : { disabled: true },
     clearAll: hasNags ? { disabled: false } : { disabled: true },
@@ -119,6 +123,9 @@ export type AnnotationRow = {
   key: string;
   nag: number;
   glyph: string;
+  /** SIG-1075: NAG/fixed-pair labels stay English — universal chess
+   * annotation vocabulary, same class as brand names. Only the menu chrome
+   * around them (section headers, items, reasons) is translated. */
   label: string;
   group: "move" | "position" | "other";
 };
@@ -221,6 +228,7 @@ export function NotationContextMenu({
   moveColor,
   nags,
   enabled,
+  locale = "en",
   onTextAfter,
   onTextBefore,
   onPromote,
@@ -237,6 +245,7 @@ export function NotationContextMenu({
   moveColor: "w" | "b";
   nags: number[];
   enabled: NotationMenuEnablement;
+  locale?: SiteLocale;
   onTextAfter: () => void;
   onTextBefore: () => void;
   onPromote: () => void;
@@ -359,9 +368,9 @@ export function NotationContextMenu({
   return (
     <div ref={rootRef} className="fixed z-[1100]" style={{ left, top }} onKeyDown={onRootKeyDown}>
       <MenuSurface className="min-w-60" onClose={onClose}>
-        <div role="menu" aria-label="Move actions">
+        <div role="menu" aria-label={tPanels(locale, "notation.menu.moveActions")}>
           <MenuItem
-            label="Text after move"
+            label={tPanels(locale, "notation.menu.textAfter")}
             shortcut="Ctrl+A"
             leading={<MessageSquare size={14} />}
             disabled={enabled.textAfter.disabled}
@@ -370,7 +379,7 @@ export function NotationContextMenu({
             onClick={closeAfter(onTextAfter)}
           />
           <MenuItem
-            label="Text before move"
+            label={tPanels(locale, "notation.menu.textBefore")}
             shortcut="Ctrl+Shift+A"
             leading={<MessageSquare size={14} />}
             disabled={enabled.textBefore.disabled}
@@ -380,20 +389,20 @@ export function NotationContextMenu({
           />
           <Submenu
             open={annotationOpen}
-            label="Annotation"
+            label={tPanels(locale, "notation.menu.annotation")}
             flipLeft={flipLeft}
             onOpen={() => setAnnotationOpen(true)}
             onClose={() => setAnnotationOpen(false)}
           >
             <div data-annotation-submenu="true">
               <MenuItem
-                label="None"
+                label={tPanels(locale, "notation.menu.none")}
                 disabled={enabled.clearEval.disabled}
                 onClick={closeAfter(onClearMoveEval)}
               />
               <MenuDivider />
               <div className="px-1 pb-1 text-[10px] uppercase tracking-wide text-studio-faint">
-                Move
+                {tPanels(locale, "notation.menu.sectionMove")}
               </div>
               {moveRows.map((row) => (
                 <MenuItem
@@ -405,7 +414,7 @@ export function NotationContextMenu({
               ))}
               <MenuDivider />
               <div className="px-1 pb-1 text-[10px] uppercase tracking-wide text-studio-faint">
-                Position
+                {tPanels(locale, "notation.menu.sectionPosition")}
               </div>
               {positionRows.map((row) => (
                 <MenuItem
@@ -417,7 +426,7 @@ export function NotationContextMenu({
               ))}
               <MenuDivider />
               <div className="px-1 pb-1 text-[10px] uppercase tracking-wide text-studio-faint">
-                Informant
+                {tPanels(locale, "notation.menu.sectionInformant")}
               </div>
               {otherRows.map((row) => (
                 <MenuItem
@@ -433,7 +442,7 @@ export function NotationContextMenu({
               ))}
               <MenuDivider />
               <MenuItem
-                label="Clear all glyphs"
+                label={tPanels(locale, "notation.menu.clearAll")}
                 disabled={enabled.clearAll.disabled}
                 onClick={closeAfter(onClearAll)}
               />
@@ -445,7 +454,7 @@ export function NotationContextMenu({
           </Submenu>
           <MenuDivider />
           <MenuItem
-            label="Promote variation"
+            label={tPanels(locale, "notation.menu.promote")}
             shortcut="Ctrl+↑"
             leading={<ArrowUp size={14} />}
             disabled={enabled.promote.disabled}
@@ -454,7 +463,7 @@ export function NotationContextMenu({
             onClick={closeAfter(onPromote)}
           />
           <MenuItem
-            label="Make main line"
+            label={tPanels(locale, "notation.menu.makeMainline")}
             shortcut="Ctrl+Shift+↑"
             leading={<ChevronsUp size={14} />}
             disabled={enabled.makeMainline.disabled}
@@ -463,7 +472,7 @@ export function NotationContextMenu({
             onClick={closeAfter(onMakeMainline)}
           />
           <MenuItem
-            label="Delete variation"
+            label={tPanels(locale, "notation.menu.deleteVariation")}
             shortcut="Ctrl+Del"
             leading={<Trash2 size={14} />}
             disabled={enabled.deleteVariation.disabled}
@@ -472,7 +481,7 @@ export function NotationContextMenu({
             onClick={closeAfter(onDeleteVariation)}
           />
           <MenuItem
-            label="Cut after this move"
+            label={tPanels(locale, "notation.menu.cutAfter")}
             shortcut="Del"
             leading={<Scissors size={14} />}
             disabled={enabled.cutAfter.disabled}
@@ -482,7 +491,7 @@ export function NotationContextMenu({
           />
           <MenuDivider />
           <MenuItem
-            label="Insert null move"
+            label={tPanels(locale, "notation.menu.insertNull")}
             leading={<ArrowRight size={14} />}
             disabled={enabled.insertNull.disabled}
             disabledReason={enabled.insertNull.reason}

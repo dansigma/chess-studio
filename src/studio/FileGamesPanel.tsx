@@ -1,11 +1,13 @@
 "use client";
 
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { openBoardPanel } from "./dock-api";
 import { GameOpenRow } from "./GameOpenRow";
 import { selectFileDatabase } from "./select-file-database";
 
 export function FileGamesPanel() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const databaseId = useStudioStore((state) => state.activeFileDatabaseId);
   const gameId = useStudioStore((state) => state.activeFileGameId);
   const databases = useStudioStore((state) => state.files.databases);
@@ -15,7 +17,7 @@ export function FileGamesPanel() {
   if (!database) {
     return (
       <div className="flex h-full items-center px-3 text-dense text-studio-faint">
-        Open a PGN to list its games.
+        {tPanels(locale, "files.openHint")}
       </div>
     );
   }
@@ -28,7 +30,7 @@ export function FileGamesPanel() {
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {database.games.length === 0 ? (
-          <div className="px-3 py-4 text-studio-faint">No games in this file.</div>
+          <div className="px-3 py-4 text-studio-faint">{tPanels(locale, "files.empty")}</div>
         ) : null}
         {database.games.map((game) => (
           <GameOpenRow

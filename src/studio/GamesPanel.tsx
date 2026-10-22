@@ -1,6 +1,7 @@
 "use client";
 
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { explorerGamesTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
 import { formatYearMonth } from "@/src/lib/game-date";
 import { openBoardPanel } from "./dock-api";
@@ -8,6 +9,7 @@ import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
 
 export function GamesPanel() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const explorer = useStudioStore((state) => state.explorer);
   const loading = useStudioStore((state) => state.explorerLoading);
   const openListedGame = useStudioStore((state) => state.openListedGame);
@@ -16,7 +18,7 @@ export function GamesPanel() {
   const databases = useStudioStore((state) => state.files.databases);
 
   async function openGame(game: ExplorerGameRow, openInNewBoard = false) {
-    setStatus("Loading game…");
+    setStatus(tPanels(locale, "games.loading"));
     try {
       if (game.pgn) {
         openListedGame({
@@ -33,7 +35,7 @@ export function GamesPanel() {
         return;
       }
       if (source !== "masters") {
-        setStatus("This game has no stored PGN.");
+        setStatus(tPanels(locale, "games.noPgn"));
         return;
       }
       const response = await fetch(`/api/masters-pgn?id=${encodeURIComponent(game.id)}`);
@@ -51,7 +53,7 @@ export function GamesPanel() {
       // SIG-911: same reveal as the inline-PGN path above.
       revealActiveBoard();
     } catch {
-      setStatus("Could not load that game.");
+      setStatus(tPanels(locale, "games.loadFailed"));
     }
   }
 
@@ -67,27 +69,29 @@ export function GamesPanel() {
   return (
     <div className="flex h-full flex-col bg-studio-panel text-dense text-studio-fg">
       <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-caption text-studio-faint">
-        <span>Games · {explorerGamesTitle(source, databases)}</span>
-        <span>{explorer?.games.length ?? 0} shown</span>
+        <span>{tPanels(locale, "games.title", { name: explorerGamesTitle(source, databases, locale) })}</span>
+        <span>{(explorer?.games.length ?? 0) === 1
+          ? tPanels(locale, "games.shown.one", { count: explorer?.games.length ?? 0 })
+          : tPanels(locale, "games.shown.other", { count: explorer?.games.length ?? 0 })}</span>
       </div>
       <div className="grid grid-cols-[44px_1fr_44px_1fr_44px_90px_64px_40px] gap-2 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
-        <span>Res.</span>
-        <span>White</span>
+        <span>{tPanels(locale, "games.column.result")}</span>
+        <span>{tPanels(locale, "games.column.white")}</span>
         <span></span>
-        <span>Black</span>
+        <span>{tPanels(locale, "games.column.black")}</span>
         <span></span>
-        <span>Event</span>
-        <span>Date</span>
-        <span>ECO</span>
+        <span>{tPanels(locale, "games.column.event")}</span>
+        <span>{tPanels(locale, "games.column.date")}</span>
+        <span>{tPanels(locale, "games.column.eco")}</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto" aria-busy={loading || undefined}>
         {loading ? (
           <div className="px-3 py-4 text-studio-faint" role="status">
-            Loading games…
+            {tPanels(locale, "games.loadingGames")}
           </div>
         ) : null}
         {!loading && (explorer?.games.length ?? 0) === 0 ? (
-          <div className="px-3 py-4 text-studio-faint">No games for this position.</div>
+          <div className="px-3 py-4 text-studio-faint">{tPanels(locale, "games.empty")}</div>
         ) : null}
         {explorer?.games.map((game) => (
           <GameOpenRow

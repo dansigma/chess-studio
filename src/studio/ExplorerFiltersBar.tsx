@@ -9,12 +9,15 @@ import {
   type ExplorerSpeed,
 } from "@/src/lib/explorer-filters";
 import { fileDatabaseId, type ExplorerSource } from "@/src/lib/explorer-types";
+import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { useStudioStore } from "@/src/store/studio-store";
 
-const SPEED_LABELS: Record<ExplorerSpeed, string> = {
-  bullet: "Bullet",
-  blitz: "Blitz",
-  rapid: "Rapid",
-  classical: "Classical",
+const SPEED_LABEL_KEYS: Record<ExplorerSpeed, Parameters<typeof tPanels>[1]> = {
+  bullet: "explorer.filter.bullet",
+  blitz: "explorer.filter.blitz",
+  rapid: "explorer.filter.rapid",
+  classical: "explorer.filter.classical",
 };
 
 function Chip({
@@ -48,6 +51,7 @@ export function ExplorerFiltersBar({
   filters: ExplorerFilters;
   onChange: (patch: Partial<ExplorerFilters>) => void;
 }) {
+  const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
   const personal = fileDatabaseId(source) != null;
   const showSpeed = source === "lichess" || source === "chesscom";
   const showRating = showSpeed || personal;
@@ -58,7 +62,7 @@ export function ExplorerFiltersBar({
         ? EXPLORER_SPEEDS.map((speed) => (
             <Chip
               key={speed}
-              label={SPEED_LABELS[speed]}
+              label={tPanels(locale, SPEED_LABEL_KEYS[speed])}
               active={filters.speeds.includes(speed)}
               onClick={() => onChange(toggleExplorerSpeed(filters, speed))}
             />
@@ -68,24 +72,26 @@ export function ExplorerFiltersBar({
         ? RATING_THRESHOLDS.map((rating) => (
             <Chip
               key={rating}
-              label={rating === 0 ? "All" : `${rating}+`}
+              label={rating === 0 ? tPanels(locale, "explorer.filter.all") : `${rating}+`}
               active={filters.minRating === rating}
               onClick={() => onChange({ minRating: rating })}
             />
           ))
         : null}
-      <YearField label="From" value={filters.sinceYear} onCommit={(sinceYear) => onChange({ sinceYear })} />
-      <YearField label="To" value={filters.untilYear} onCommit={(untilYear) => onChange({ untilYear })} />
+      <YearField label={tPanels(locale, "explorer.filter.from")} placeholder={tPanels(locale, "explorer.filter.year")} value={filters.sinceYear} onCommit={(sinceYear) => onChange({ sinceYear })} />
+      <YearField label={tPanels(locale, "explorer.filter.to")} placeholder={tPanels(locale, "explorer.filter.year")} value={filters.untilYear} onCommit={(untilYear) => onChange({ untilYear })} />
     </div>
   );
 }
 
 function YearField({
   label,
+  placeholder,
   value,
   onCommit,
 }: {
   label: string;
+  placeholder: string;
   value: number | null;
   onCommit: (year: number | null) => void;
 }) {
@@ -103,7 +109,7 @@ function YearField({
         inputMode="numeric"
         min={1400}
         max={2100}
-        placeholder="Year"
+        placeholder={placeholder}
         value={text}
         onChange={(event) => setText(event.target.value)}
         onBlur={() => {
