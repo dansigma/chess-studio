@@ -2,6 +2,7 @@
 
 import { useStudioStore } from "@/src/store/studio-store";
 import { SITE_LOCALES, SITE_LOCALE_LABELS, isSiteLocale } from "./locale";
+import { tStudioChrome } from "./studio-chrome-strings";
 
 // SIG-962: compact site-language selector rendered in every page chrome
 // (MenuBar + CourseChrome). Mirrors the Settings "Site language" row; both
@@ -13,7 +14,7 @@ export function LocaleSwitcher() {
   return (
     <select
       value={locale}
-      aria-label="Site language"
+      aria-label={tStudioChrome(locale, "chrome.locale.siteLanguage")}
       onChange={(event) => {
         if (isSiteLocale(event.target.value)) {
           setLocale(event.target.value);

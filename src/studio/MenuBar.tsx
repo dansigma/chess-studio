@@ -8,6 +8,7 @@ import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectDirtyCount, useStudioStore } from "@/src/store/studio-store";
 import { SITE_NAME, siteSections } from "@/src/site/sections";
 import { LocaleSwitcher } from "@/src/i18n/LocaleSwitcher";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 import { BrandLockup } from "./ui/BrandLockup";
 import { Dialog } from "./ui/Dialog";
@@ -21,10 +22,10 @@ type MenuKey = "file" | "edit" | "view" | "help" | "account" | null;
 type ViewSubmenu = "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
 
 const TOP_MENUS = [
-  ["file", "File"],
-  ["edit", "Edit"],
-  ["view", "View"],
-  ["help", "Help"],
+  ["file", "chrome.menu.file"],
+  ["edit", "chrome.menu.edit"],
+  ["view", "chrome.menu.view"],
+  ["help", "chrome.menu.help"],
 ] as const;
 
 function initials(email: string): string {
@@ -126,7 +127,7 @@ export function MenuBar({
         />
       );
     }
-    return <Item label={`About ${SITE_NAME}`} onClick={run(() => setAboutOpen(true))} />;
+    return <Item label={tStudioChrome(locale, "chrome.menu.aboutSite", { site: SITE_NAME })} onClick={run(() => setAboutOpen(true))} />;
   }
 
   return (
@@ -145,10 +146,10 @@ export function MenuBar({
       ))}
 
       {open ? (
-        <button className="fixed inset-0 z-10 cursor-default" onClick={close} aria-label="Close menu" />
+        <button className="fixed inset-0 z-10 cursor-default" onClick={close} aria-label={tStudioChrome(locale, "chrome.menu.closeMenu")} />
       ) : null}
 
-      {TOP_MENUS.map(([key, label]) => (
+      {TOP_MENUS.map(([key, labelKey]) => (
         <div key={key} className="relative z-20">
           <button
             type="button"
@@ -167,7 +168,7 @@ export function MenuBar({
               }
             }}
           >
-            {label}
+            {tStudioChrome(locale, labelKey)}
           </button>
           {open === key ? (
             <MenuSurface className="absolute left-0 top-[calc(100%+5px)]" onClose={close}>
@@ -203,16 +204,16 @@ export function MenuBar({
                   <div className="mt-0.5 flex items-center gap-1.5 text-caption text-studio-faint">
                     <span className={`h-1.5 w-1.5 rounded-full ${dirtyCount ? "bg-studio-warning-fg" : "bg-studio-success"}`} />
                     {dirtyCount
-                      ? `${dirtyCount} board${dirtyCount === 1 ? "" : "s"} waiting to sync`
-                      : "All boards synced"}
+                      ? tStudioChrome(locale, dirtyCount === 1 ? "chrome.account.waitingToSync.one" : "chrome.account.waitingToSync.other", { count: dirtyCount })
+                      : tStudioChrome(locale, "chrome.account.allSynced")}
                   </div>
                 </div>
                 <Divider />
-                <Item label="My boards" shortcut={String(boardCount)} onClick={run(() => setActivity("boards"))} />
-                <Item label="Settings…" onClick={run(() => setSettingsOpen(true))} />
+                <Item label={tStudioChrome(locale, "chrome.account.myBoards")} shortcut={String(boardCount)} onClick={run(() => setActivity("boards"))} />
+                <Item label={tStudioChrome(locale, "chrome.account.settings")} onClick={run(() => setSettingsOpen(true))} />
                 <Divider />
                 <Item
-                  label="Sign out"
+                  label={tStudioChrome(locale, "chrome.account.signOut")}
                   danger
                   onClick={run(() => {
                     void (async () => {
@@ -226,18 +227,18 @@ export function MenuBar({
           </>
         ) : (
           <Button size="sm" variant="ghost" className="border border-studio-border" onClick={() => router.push("/login")}>
-            Sign in
+            {tStudioChrome(locale, "chrome.account.signIn")}
           </Button>
         )}
       </div>
 
       {shareUrl ? (
         <Dialog
-          title="Share board"
+          title={tStudioChrome(locale, "chrome.share.title")}
           onClose={() => setShareUrl(null)}
-          footer={<Button onClick={() => setShareUrl(null)}>Done</Button>}
+          footer={<Button onClick={() => setShareUrl(null)}>{tStudioChrome(locale, "chrome.share.done")}</Button>}
         >
-          <p className="mb-3">Anyone with this link opens this position in a new board.</p>
+          <p className="mb-3">{tStudioChrome(locale, "chrome.share.body")}</p>
           <div className="flex h-[34px] items-center gap-2 rounded-lg border border-studio-border-strong bg-studio-panel pl-2.5 pr-1 text-studio-faint">
             <Link2 size={14} className="shrink-0" />
             <input
@@ -248,7 +249,7 @@ export function MenuBar({
             />
             <Button size="sm" variant="primary" className="h-[26px]" onClick={() => void copyShareUrl()}>
               {shareCopied ? <Check size={13} /> : <Copy size={13} />}
-              {shareCopied ? "Copied" : "Copy link"}
+              {shareCopied ? tStudioChrome(locale, "chrome.share.copied") : tStudioChrome(locale, "chrome.share.copyLink")}
             </Button>
           </div>
         </Dialog>
