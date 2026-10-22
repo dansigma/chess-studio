@@ -12,6 +12,7 @@ import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "./color-scheme";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { clearReviewCache } from "./review/review-cache";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -73,6 +74,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 export function SettingsDialog({ onClose }: { onClose: () => void }) {
+  const locale = useStudioStore((state) => state.settings.locale);
   const settings = useStudioStore((state) => state.settings);
   const setColorScheme = useStudioStore((state) => state.setColorScheme);
   const setBoardTheme = useStudioStore((state) => state.setBoardTheme);
@@ -88,32 +90,32 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
-      title="Settings"
+      title={tStudioChrome(locale, "chrome.settings.title")}
       onClose={onClose}
       width="w-[30rem]"
       footer={
         <Button variant="primary" onClick={onClose}>
-          Done
+          {tStudioChrome(locale, "chrome.settings.done")}
         </Button>
       }
     >
       <div className="grid gap-3">
-        <Section title="Appearance">
-          <Row label="Color scheme">
+        <Section title={tStudioChrome(locale, "chrome.settings.appearance")}>
+          <Row label={tStudioChrome(locale, "chrome.settings.colorScheme")}>
             <Select
               value={settings.colorScheme}
               options={COLOR_SCHEME_IDS.map((id) => ({ id, label: COLOR_SCHEMES[id].label }))}
               onChange={setColorScheme}
             />
           </Row>
-          <Row label="Board theme">
+          <Row label={tStudioChrome(locale, "chrome.settings.boardTheme")}>
             <Select<BoardTheme>
               value={settings.boardTheme}
               options={BOARD_THEME_IDS.map((id) => ({ id, label: BOARD_THEMES[id].label }))}
               onChange={setBoardTheme}
             />
           </Row>
-          <Row label="Piece set">
+          <Row label={tStudioChrome(locale, "chrome.settings.pieceSet")}>
             <Select
               value={settings.pieceSet}
               options={PIECE_SET_IDS.map((id) => ({ id, label: PIECE_SETS[id].label }))}
@@ -121,25 +123,25 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             />
           </Row>
         </Section>
-        <Section title="Board">
-          <Row label="Show coordinates">
-            <Toggle label="Show coordinates" checked={settings.showCoordinates} onChange={toggleCoordinates} />
+        <Section title={tStudioChrome(locale, "chrome.settings.board")}>
+          <Row label={tStudioChrome(locale, "chrome.settings.showCoordinates")}>
+            <Toggle label={tStudioChrome(locale, "chrome.settings.showCoordinates")} checked={settings.showCoordinates} onChange={toggleCoordinates} />
           </Row>
-          <Row label="Show evaluation bar">
-            <Toggle label="Show evaluation bar" checked={settings.showEvalBar} onChange={toggleEvalBar} />
+          <Row label={tStudioChrome(locale, "chrome.settings.showEvalBar")}>
+            <Toggle label={tStudioChrome(locale, "chrome.settings.showEvalBar")} checked={settings.showEvalBar} onChange={toggleEvalBar} />
           </Row>
-          <Row label="Move sound">
-            <Toggle label="Move sound" checked={settings.moveSound} onChange={toggleMoveSound} />
+          <Row label={tStudioChrome(locale, "chrome.settings.moveSound")}>
+            <Toggle label={tStudioChrome(locale, "chrome.settings.moveSound")} checked={settings.moveSound} onChange={toggleMoveSound} />
           </Row>
-          <Row label="Game preview mode">
+          <Row label={tStudioChrome(locale, "chrome.settings.gamePreview")}>
             <Toggle
-              label="Game preview mode"
+              label={tStudioChrome(locale, "chrome.settings.gamePreview")}
               checked={settings.gamePreviewEnabled}
               onChange={toggleGamePreview}
             />
           </Row>
         </Section>
-        <Section title="Engine">
+        <Section title={tStudioChrome(locale, "chrome.settings.engine")}>
           <Row label="Stockfish">
             <Select
               value={settings.engineBuild}
@@ -148,15 +150,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             />
           </Row>
         </Section>
-        <Section title="Notation">
-          <Row label="Move notation">
+        <Section title={tStudioChrome(locale, "chrome.settings.notation")}>
+          <Row label={tStudioChrome(locale, "chrome.settings.moveNotation")}>
             <Select
               value={settings.moveNotation}
               options={MOVE_NOTATION_IDS.map((id) => ({ id, label: MOVE_NOTATIONS[id].label }))}
               onChange={setMoveNotation}
             />
           </Row>
-          <Row label="Notation density">
+          <Row label={tStudioChrome(locale, "chrome.settings.notationDensity")}>
             <Select
               value={settings.notationDensity}
               options={NOTATION_DENSITY_IDS.map((id) => ({ id, label: NOTATION_DENSITIES[id].label }))}
@@ -164,15 +166,15 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             />
           </Row>
         </Section>
-        <Section title="Game Review">
-          <Row label="Saved reviews">
+        <Section title={tStudioChrome(locale, "chrome.settings.gameReview")}>
+          <Row label={tStudioChrome(locale, "chrome.settings.savedReviews")}>
             <Button variant="secondary" size="sm" onClick={() => clearReviewCache()}>
-              Clear saved reviews
+              {tStudioChrome(locale, "chrome.settings.clearReviews")}
             </Button>
           </Row>
         </Section>
-        <Section title="Language">
-          <Row label="Site language">
+        <Section title={tStudioChrome(locale, "chrome.settings.language")}>
+          <Row label={tStudioChrome(locale, "chrome.settings.siteLanguage")}>
             <Select
               value={settings.locale}
               options={SITE_LOCALES.map((id) => ({ id, label: SITE_LOCALE_LABELS[id] }))}

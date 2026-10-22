@@ -31,6 +31,7 @@ import { StatusBar } from "./StatusBar";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { BrandLockup } from "./ui/BrandLockup";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
@@ -59,6 +60,7 @@ export function StudioShell() {
   // by ExplorerPanel-as-bare + GamesPanel) in sync.
   const legacyExplorer = useExplorerData(source, explorerRetry);
   const status = useStudioStore((state) => state.statusMessage);
+  const locale = useStudioStore((state) => state.settings.locale);
   const dirtyRevision = useStudioStore((state) =>
     state.boards.map((board) => `${board.id}:${board.dirty ? "1" : "0"}`).join("|"),
   );
@@ -204,7 +206,7 @@ export function StudioShell() {
               useStudioStore.getState().markSaved(board.id, remoteId);
             }
           } catch {
-            useStudioStore.getState().setStatus("Could not save board.");
+            useStudioStore.getState().setStatus(tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.saveFailed"));
           }
         }
       })();
@@ -352,7 +354,7 @@ export function StudioShell() {
           openInNewBoard: true,
         });
       } catch {
-        useStudioStore.setState({ statusMessage: "Could not open that course line." });
+        useStudioStore.setState({ statusMessage: tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.courseLineFailed") });
       }
       return;
     }
@@ -427,21 +429,20 @@ export function StudioShell() {
           onClose={() => setAboutOpen(false)}
           footer={
             <Button variant="primary" onClick={() => setAboutOpen(false)}>
-              Close
+              {tStudioChrome(locale, "chrome.about.close")}
             </Button>
           }
         >
           <p className="mb-3">
-            Analysis GUI inspired by ChessMonitor Studio. No ChessMonitor assets or private
-            databases are used.
+            {tStudioChrome(locale, "chrome.about.body")}
           </p>
           <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-dense">
-            <dt className="text-studio-faint">Engine</dt>
-            <dd className="text-studio-fg">Stockfish 19 lite, runs locally</dd>
-            <dt className="text-studio-faint">Opening data</dt>
-            <dd className="text-studio-fg">Public Lichess explorer</dd>
-            <dt className="text-studio-faint">Storage</dt>
-            <dd className="text-studio-fg">Boards sync to your account when signed in</dd>
+            <dt className="text-studio-faint">{tStudioChrome(locale, "chrome.about.engineLabel")}</dt>
+            <dd className="text-studio-fg">{tStudioChrome(locale, "chrome.about.engineValue")}</dd>
+            <dt className="text-studio-faint">{tStudioChrome(locale, "chrome.about.openingLabel")}</dt>
+            <dd className="text-studio-fg">{tStudioChrome(locale, "chrome.about.openingValue")}</dd>
+            <dt className="text-studio-faint">{tStudioChrome(locale, "chrome.about.storageLabel")}</dt>
+            <dd className="text-studio-fg">{tStudioChrome(locale, "chrome.about.storageValue")}</dd>
           </dl>
         </Dialog>
       ) : null}

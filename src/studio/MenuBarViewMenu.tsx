@@ -8,6 +8,7 @@ import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
 import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "@/src/studio/color-scheme";
 import { OPEN_PANEL_ITEMS, openBoardPanel, openExplorerPanel, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
+import { tStudioChrome, type StudioChromeStringKey } from "@/src/i18n/studio-chrome-strings";
 
 function ThemeSwatch({ light, dark }: { light: string; dark: string }) {
   return (
@@ -60,6 +61,7 @@ export function MenuBarViewMenu({
   run: (action: () => void) => () => void;
 }) {
   const flip = useStudioStore((state) => state.flip);
+  const locale = useStudioStore((state) => state.settings.locale);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const showEvalBar = useStudioStore((state) => state.settings.showEvalBar);
   const gamePreviewEnabled = useStudioStore((state) => state.settings.gamePreviewEnabled);
@@ -81,22 +83,22 @@ export function MenuBarViewMenu({
 
   return (
     <>
-      <Item label="Flip board" shortcut="Ctrl+F" onMouseEnter={leaveSubmenu} onClick={run(flip)} />
+      <Item label={tStudioChrome(locale, "chrome.view.flip")} shortcut="Ctrl+F" onMouseEnter={leaveSubmenu} onClick={run(flip)} />
       <Divider />
-      <Item label="Show coordinates" checked={showCoordinates} onMouseEnter={leaveSubmenu} onClick={run(toggleCoordinates)} />
-      <Item label="Show evaluation bar" checked={showEvalBar} onMouseEnter={leaveSubmenu} onClick={run(toggleEvalBar)} />
-      <Item label="Game preview mode" checked={gamePreviewEnabled} onMouseEnter={leaveSubmenu} onClick={run(toggleGamePreview)} />
-      <Item label="Move sound" checked={moveSound} onMouseEnter={leaveSubmenu} onClick={run(toggleMoveSound)} />
+      <Item label={tStudioChrome(locale, "chrome.view.showCoordinates")} checked={showCoordinates} onMouseEnter={leaveSubmenu} onClick={run(toggleCoordinates)} />
+      <Item label={tStudioChrome(locale, "chrome.view.showEvalBar")} checked={showEvalBar} onMouseEnter={leaveSubmenu} onClick={run(toggleEvalBar)} />
+      <Item label={tStudioChrome(locale, "chrome.view.gamePreview")} checked={gamePreviewEnabled} onMouseEnter={leaveSubmenu} onClick={run(toggleGamePreview)} />
+      <Item label={tStudioChrome(locale, "chrome.view.moveSound")} checked={moveSound} onMouseEnter={leaveSubmenu} onClick={run(toggleMoveSound)} />
       <Item
-        label="Compact notation"
+        label={tStudioChrome(locale, "chrome.view.compactNotation")}
         checked={notationDensity === "compact"}
         onMouseEnter={leaveSubmenu}
         onClick={run(toggleNotationDensity)}
       />
       <Divider />
-      <Submenu label="Open panel" open={viewSub === "panel"} onOpen={() => setViewSub("panel")} onClose={leaveSubmenu}>
+      <Submenu label={tStudioChrome(locale, "chrome.view.openPanel")} open={viewSub === "panel"} onOpen={() => setViewSub("panel")} onClose={leaveSubmenu}>
         <Item
-          label="Board"
+          label={tStudioChrome(locale, "chrome.view.board")}
           onClick={run(() => {
             const active = selectActiveBoard(useStudioStore.getState());
             openBoardPanel(active.id, active.title);
@@ -105,12 +107,12 @@ export function MenuBarViewMenu({
         {/* SIG-908: a second explorer opens side by side with its own source
             (seeded from the sidebar-driven global source); the bare panel stays
             for the default single-explorer flow. */}
-        <Item label="Explorer" onClick={run(() => openExplorerPanel())} />
+        <Item label={tStudioChrome(locale, "chrome.view.explorer")} onClick={run(() => openExplorerPanel())} />
         {OPEN_PANEL_ITEMS.filter((item) => item.id !== "explorer").map((item) => (
-          <Item key={item.id} label={item.label} onClick={run(() => openStudioPanel(item.id))} />
+          <Item key={item.id} label={tStudioChrome(locale, `chrome.view.panel.${item.id}` as StudioChromeStringKey)} onClick={run(() => openStudioPanel(item.id))} />
         ))}
       </Submenu>
-      <Submenu label="Board theme" open={viewSub === "theme"} onOpen={() => setViewSub("theme")} onClose={leaveSubmenu}>
+      <Submenu label={tStudioChrome(locale, "chrome.view.boardTheme")} open={viewSub === "theme"} onOpen={() => setViewSub("theme")} onClose={leaveSubmenu}>
         {BOARD_THEME_IDS.map((id) => (
           <Item
             key={id}
@@ -121,12 +123,12 @@ export function MenuBarViewMenu({
           />
         ))}
       </Submenu>
-      <Submenu label="Piece set" open={viewSub === "pieces"} onOpen={() => setViewSub("pieces")} onClose={leaveSubmenu}>
+      <Submenu label={tStudioChrome(locale, "chrome.view.pieceSet")} open={viewSub === "pieces"} onOpen={() => setViewSub("pieces")} onClose={leaveSubmenu}>
         {PIECE_SET_IDS.map((id) => (
           <Item key={id} label={PIECE_SETS[id].label} checked={pieceSet === id} onClick={run(() => setPieceSet(id))} />
         ))}
       </Submenu>
-      <Submenu label="Color scheme" open={viewSub === "scheme"} onOpen={() => setViewSub("scheme")} onClose={leaveSubmenu}>
+      <Submenu label={tStudioChrome(locale, "chrome.view.colorScheme")} open={viewSub === "scheme"} onOpen={() => setViewSub("scheme")} onClose={leaveSubmenu}>
         {COLOR_SCHEME_IDS.map((id) => (
           <Item
             key={id}
@@ -136,7 +138,7 @@ export function MenuBarViewMenu({
           />
         ))}
       </Submenu>
-      <Submenu label="Move notation" open={viewSub === "notation"} onOpen={() => setViewSub("notation")} onClose={leaveSubmenu}>
+      <Submenu label={tStudioChrome(locale, "chrome.view.moveNotation")} open={viewSub === "notation"} onOpen={() => setViewSub("notation")} onClose={leaveSubmenu}>
         {MOVE_NOTATION_IDS.map((id) => (
           <Item
             key={id}
@@ -147,9 +149,9 @@ export function MenuBarViewMenu({
         ))}
       </Submenu>
       <Divider />
-      <Item label="Settings…" onMouseEnter={leaveSubmenu} onClick={run(onOpenSettings)} />
+      <Item label={tStudioChrome(locale, "chrome.view.settings")} onMouseEnter={leaveSubmenu} onClick={run(onOpenSettings)} />
       <Item
-        label="Reset view"
+        label={tStudioChrome(locale, "chrome.view.resetView")}
         onMouseEnter={leaveSubmenu}
         onClick={run(() => useStudioStore.getState().resetView())}
       />

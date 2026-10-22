@@ -10,15 +10,16 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useStudioStore, type ActivityView } from "@/src/store/studio-store";
+import { tStudioChrome, type StudioChromeStringKey } from "@/src/i18n/studio-chrome-strings";
 import { Tooltip } from "./ui/Controls";
 import { ChessboardIcon } from "./ui/ChessboardIcon";
 
-const items: { id: ActivityView; icon: typeof Search; title: string }[] = [
-  { id: "search", icon: Search, title: "Search" },
-  { id: "boards", icon: ChessboardIcon, title: "Open boards" },
-  { id: "databases", icon: Database, title: "Databases" },
-  { id: "files", icon: Folder, title: "Files" },
-  { id: "bookmarks", icon: Bookmark, title: "Bookmarks" },
+const items: { id: ActivityView; icon: typeof Search; titleKey: StudioChromeStringKey }[] = [
+  { id: "search", icon: Search, titleKey: "chrome.activity.search" },
+  { id: "boards", icon: ChessboardIcon, titleKey: "chrome.activity.boards" },
+  { id: "databases", icon: Database, titleKey: "chrome.activity.databases" },
+  { id: "files", icon: Folder, titleKey: "chrome.activity.files" },
+  { id: "bookmarks", icon: Bookmark, titleKey: "chrome.activity.bookmarks" },
 ];
 
 function ActivityButton({
@@ -59,6 +60,7 @@ function ActivityButton({
 }
 
 export function ActivityBar() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const activity = useStudioStore((state) => state.activity);
   const sidebarCollapsed = useStudioStore((state) => state.settings.sidebarCollapsed);
   const setActivity = useStudioStore((state) => state.setActivity);
@@ -72,7 +74,7 @@ export function ActivityBar() {
         return (
           <ActivityButton
             key={item.id}
-            label={item.title}
+            label={tStudioChrome(locale, item.titleKey)}
             active={active}
             onClick={() => {
               if (active) {
@@ -88,7 +90,7 @@ export function ActivityBar() {
       })}
       <div className="mt-auto">
         <ActivityButton
-          label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          label={tStudioChrome(locale, sidebarCollapsed ? "chrome.activity.expand" : "chrome.activity.collapse")}
           onClick={toggleSidebar}
         >
           {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
