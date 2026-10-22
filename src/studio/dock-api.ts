@@ -1,5 +1,7 @@
 import type { DockviewApi } from "dockview-react";
 import { persistDockLayout, useStudioStore } from "@/src/store/studio-store";
+import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tPanels, type StudioPanelStringKey } from "@/src/i18n/studio-panel-strings.ts";
 import {
   currentDockLayoutEpoch,
   DOCK_LAYOUT_VERSION,
@@ -21,20 +23,43 @@ export type StudioPanelId =
   | "fileGames"
   | "positionSearch";
 
-const PANEL_TITLES: Record<StudioPanelId, string> = {
-  engine: "Engine",
-  evalGraph: "Eval Graph",
-  review: "Game Review",
-  insights: "Insights",
-  notation: "Notation",
-  repertoire: "Repertoire",
-  explorer: "Ultra Database",
-  games: "Ultra Games",
-  fileGames: "Games",
-  positionSearch: "Position Search",
+const BOARD_TITLE: Record<SiteLocale, string> = {
+  en: "Board",
+  "pt-br": "Tabuleiro",
 };
 
-const BOARD_TITLE = "Board";
+/** Localized fallback for a per-board session tab title. */
+export function boardTitle(locale: SiteLocale, title: string): string {
+  return title || BOARD_TITLE[locale];
+}
+
+const STATIC_PANEL_KEYS: Record<StudioPanelId, StudioPanelStringKey> = {
+  engine: "panels.engine",
+  evalGraph: "panels.evalGraph",
+  review: "panels.review",
+  insights: "panels.insights",
+  notation: "panels.notation",
+  repertoire: "panels.repertoire",
+  explorer: "panels.explorer",
+  games: "panels.games",
+  fileGames: "panels.fileGames",
+  positionSearch: "panels.positionSearch",
+};
+
+/** Localized tab title for a static dock panel (player panels handled separately). */
+export function panelTitleForId(locale: SiteLocale, id: StudioPanelId): string {
+  return tPanels(locale, STATIC_PANEL_KEYS[id]);
+}
+
+/** Localized player-games tab title for a display name. */
+export function playerGamesTitle(locale: SiteLocale, title: string): string {
+  return tPanels(locale, "panels.playerGames", { title });
+}
+
+/** Localized player-explorer tab title (display name passes through). */
+export function playerExplorerTitle(locale: SiteLocale, title: string): string {
+  return tPanels(locale, "panels.playerExplorer", { title });
+}
 
 export function boardPanelId(boardId: string): string {
   return `board:${boardId}`;
@@ -88,8 +113,9 @@ export function firstExplorerPanel(api: DockviewApi) {
 export function explorerTitleForSource(
   source: ExplorerSource,
   databases: Array<{ id: string; name: string }> = useStudioStore.getState().files.databases,
+  locale: SiteLocale = "en",
 ): string {
-  return explorerSourceTitle(source, databases);
+  return explorerSourceTitle(source, databases, locale);
 }
 
 // SIG-908: open (or focus) an `explorer:<uid>` panel side by side. The uid is
@@ -101,6 +127,7 @@ export function openExplorerPanel(source?: ExplorerSource, explorerUid?: string)
   if (!dockApi) {
     return;
   }
+  const locale = currentLocale();
   const effective = source ?? useStudioStore.getState().databaseSource;
   const uid = explorerUid ?? crypto.randomUUID().slice(0, 8);
   const id = explorerPanelId(uid);
@@ -113,7 +140,7 @@ export function openExplorerPanel(source?: ExplorerSource, explorerUid?: string)
   dockApi.addPanel({
     id,
     component: "explorer",
-    title: explorerTitleForSource(effective),
+    title: explorerTitleForSource(effective, useStudioStore.getState().files.databases, locale),
     params: { explorerId: uid, source: effective },
     position: sibling ? { referencePanel: sibling.id, direction: "right" } : undefined,
   });
@@ -128,7 +155,7 @@ export function persistExplorerSource(panelId: string, source: ExplorerSource): 
     return;
   }
   panel.api.updateParameters({ ...panel.api.getParameters(), source });
-  panel.setTitle(explorerTitleForSource(source));
+  panel.setTitle(explorerTitleForSource(source, useStudioStore.getState().files.databases, currentLocale()));
   if (!dockApi) {
     return;
   }
@@ -160,67 +187,75 @@ export function registerStudioDock(api: DockviewApi | null): void {
   dockApi = api;
 }
 
+// SIG-1075: dock creation titles resolve from the current store locale so a
+// restored/pt-br session seeds localized tabs; runtime switches re-title via
+// the StudioDock locale effect (no panel recreation).
+function currentLocale(): SiteLocale {
+  return useStudioStore.getState().settings.locale;
+}
+
 export function seedDefaultLayout(api: DockviewApi, boardTitle: string, boardId: string): void {
+  const locale = currentLocale();
   const firstBoard = boardPanelId(boardId);
   api.addPanel({
     id: firstBoard,
     component: "board",
-    title: boardTitle || BOARD_TITLE,
+    title: boardTitle || BOARD_TITLE[locale],
     params: { boardId },
   });
   api.addPanel({
     id: "notation",
     component: "notation",
-    title: PANEL_TITLES.notation,
+    title: tPanels(locale, "panels.notation"),
     initialWidth: 460,
     position: { referencePanel: firstBoard, direction: "right" },
   });
   api.addPanel({
     id: "repertoire",
     component: "repertoire",
-    title: PANEL_TITLES.repertoire,
+    title: tPanels(locale, "panels.repertoire"),
     inactive: true,
     position: { referencePanel: "notation" },
   });
   api.addPanel({
     id: "engine",
     component: "engine",
-    title: PANEL_TITLES.engine,
+    title: tPanels(locale, "panels.engine"),
     initialHeight: 220,
     position: { referencePanel: firstBoard, direction: "below" },
   });
   api.addPanel({
     id: "evalGraph",
     component: "evalGraph",
-    title: PANEL_TITLES.evalGraph,
+    title: tPanels(locale, "panels.evalGraph"),
     inactive: true,
     position: { referencePanel: "engine" },
   });
   api.addPanel({
     id: "review",
     component: "review",
-    title: PANEL_TITLES.review,
+    title: tPanels(locale, "panels.review"),
     inactive: true,
     position: { referencePanel: "evalGraph" },
   });
   api.addPanel({
     id: "insights",
     component: "insights",
-    title: PANEL_TITLES.insights,
+    title: tPanels(locale, "panels.insights"),
     inactive: true,
     position: { referencePanel: "review" },
   });
   api.addPanel({
     id: "explorer",
     component: "explorer",
-    title: PANEL_TITLES.explorer,
+    title: tPanels(locale, "panels.explorer"),
     inactive: true,
     position: { referencePanel: "notation" },
   });
   api.addPanel({
     id: "games",
     component: "games",
-    title: PANEL_TITLES.games,
+    title: tPanels(locale, "panels.games"),
     inactive: true,
     position: { referencePanel: "notation" },
   });
@@ -239,12 +274,13 @@ export function openBoardPanel(boardId: string, title?: string): void {
     existing.api.setActive();
     return;
   }
+  const locale = currentLocale();
   const sibling = firstBoardPanel(dockApi);
   if (sibling) {
     dockApi.addPanel({
       id,
       component: "board",
-      title: title || BOARD_TITLE,
+      title: title || BOARD_TITLE[locale],
       params: { boardId },
       position: { referencePanel: sibling.id },
     });
@@ -254,7 +290,7 @@ export function openBoardPanel(boardId: string, title?: string): void {
   dockApi.addPanel({
     id,
     component: "board",
-    title: title || BOARD_TITLE,
+    title: title || BOARD_TITLE[locale],
     params: { boardId },
     position: reference ? { referencePanel: reference.id, direction: "left" } : undefined,
   });
@@ -280,6 +316,7 @@ export function openStudioPanel(id: StudioPanelId): void {
   }
 
   if (id === "engine" || id === "evalGraph" || id === "review" || id === "insights") {
+    const locale = currentLocale();
     const fallbackBoard = firstBoardPanel(dockApi);
     const reference =
       id === "review" || id === "insights"
@@ -290,7 +327,7 @@ export function openStudioPanel(id: StudioPanelId): void {
     dockApi.addPanel({
       id,
       component: id,
-      title: PANEL_TITLES[id],
+      title: panelTitleForId(locale, id),
       initialHeight: 220,
       position:
         id === "evalGraph" || id === "review" || id === "insights"
@@ -312,12 +349,17 @@ export function openStudioPanel(id: StudioPanelId): void {
   dockApi.addPanel({
     id,
     component: id,
-    title: PANEL_TITLES[id],
+    title: panelTitleForId(currentLocale(), id),
     initialWidth: id === "notation" ? 460 : undefined,
     position: reference ? { referencePanel: reference.id } : undefined,
   });
 }
 
+/**
+ * SIG-1075: OPEN_PANEL_ITEMS labels feed the View menu and stay English —
+ * the chrome slice owns menu copy via `chrome.view.panel.*`; the panels
+ * slice owns only tab titles (panelTitleForId). Do not translate here.
+ */
 export const OPEN_PANEL_ITEMS: Array<{ id: StudioPanelId; label: string }> = [
   { id: "notation", label: "Notation" },
   { id: "repertoire", label: "Repertoire" },

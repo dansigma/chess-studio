@@ -95,8 +95,23 @@ test("curated source is recognized by parser, guards, and titles", () => {
   assert.equal(parseExplorerSource("curated"), "curated");
   assert.equal(isExplorerSource("curated"), true);
   assert.equal(isCloudExplorerSource("curated"), false);
-  assert.equal(explorerSourceTitle("curated", []), "Curated Masters");
+  assert.equal(explorerSourceTitle("curated", []), "Curated Masters (Offline)");
+  assert.equal(explorerSourceTitle("curated", [], "pt-br"), "Mestres selecionados (offline)");
+  assert.equal(explorerSourceTitle("lichess", []), "Online Database");
+  assert.equal(explorerSourceTitle("lichess", [], "pt-br"), "Base de dados online");
+  assert.equal(explorerSourceTitle("masters", []), "Ultra Database");
+  assert.equal(explorerSourceTitle("masters", [], "pt-br"), "Ultra Database");
+  assert.equal(explorerSourceTitle("chesscom", []), "Chess.com");
+  assert.equal(explorerSourceTitle("chesscom", [], "pt-br"), "Chess.com");
+  assert.equal(
+    explorerSourceTitle("file:abc", [{ id: "abc", name: "Minha base" }], "pt-br"),
+    "Minha base",
+  );
+  assert.equal(explorerSourceTitle("file:missing", [], "pt-br"), "Pessoal");
   assert.equal(explorerGamesTitle("curated", []), "Curated");
+  assert.equal(explorerGamesTitle("curated", [], "pt-br"), "Selecionados");
+  assert.equal(explorerGamesTitle("masters", [], "pt-br"), "Ultra");
+  assert.equal(explorerGamesTitle("lichess", [], "pt-br"), "Online");
 
   const curatedResponse: ExplorerResponse = {
     ...valid,

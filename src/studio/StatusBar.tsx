@@ -29,7 +29,7 @@ export function StatusBar({ message }: { message: string | null }) {
       <span className="ml-auto flex shrink-0 items-center gap-3.5">
         <span className="flex items-center gap-1.5">
           <Database size={12} />
-          {explorerSourceTitle(source, databases)}
+          {explorerSourceTitle(source, databases, locale)}
         </span>
         <span className="flex items-center gap-1.5">
           <Cpu size={12} />

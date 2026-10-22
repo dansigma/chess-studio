@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
 export type BoardMenuState = {
   x: number;
@@ -11,6 +13,7 @@ export function BoardContextMenu({
   menu,
   showEvalBar,
   showThreat,
+  locale = "en",
   onFlip,
   onToggleEvalBar,
   onToggleThreat,
@@ -21,6 +24,7 @@ export function BoardContextMenu({
   menu: BoardMenuState;
   showEvalBar: boolean;
   showThreat: boolean;
+  locale?: SiteLocale;
   onFlip: () => void;
   onToggleEvalBar: () => void;
   onToggleThreat: () => void;
@@ -49,7 +53,7 @@ export function BoardContextMenu({
     <div ref={rootRef} className="fixed z-[1100]" style={{ left, top }}>
       <MenuSurface className="min-w-52" onClose={onClose}>
         <MenuItem
-          label="Flip board"
+          label={tPanels(locale, "panels.board.flip")}
           shortcut="Ctrl+F"
           onClick={() => {
             onFlip();
@@ -57,7 +61,7 @@ export function BoardContextMenu({
           }}
         />
         <MenuItem
-          label="Show evaluation bar"
+          label={tPanels(locale, "panels.board.showEvalBar")}
           checked={showEvalBar}
           onClick={() => {
             onToggleEvalBar();
@@ -65,7 +69,7 @@ export function BoardContextMenu({
           }}
         />
         <MenuItem
-          label="Show threat"
+          label={tPanels(locale, "panels.board.showThreat")}
           checked={showThreat}
           onClick={() => {
             onToggleThreat();
@@ -74,14 +78,14 @@ export function BoardContextMenu({
         />
         <MenuDivider />
         <MenuItem
-          label="Copy FEN"
+          label={tPanels(locale, "panels.board.copyFen")}
           onClick={() => {
             onCopyFen();
             onClose();
           }}
         />
         <MenuItem
-          label="Copy board image"
+          label={tPanels(locale, "panels.board.copyImage")}
           onClick={() => {
             onCopyImage();
             onClose();

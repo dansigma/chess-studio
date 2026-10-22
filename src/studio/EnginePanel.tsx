@@ -22,6 +22,7 @@ import {
 import { acquire, type SharedEngineLease } from "@/src/engine/shared-engine";
 import { useActiveFen, useSideToMove } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { fenKey } from "@/src/chess/tree";
 import { resolveEvalDisplay } from "@/src/lib/eval-cache";
 import { formatSanAtPly } from "@/src/chess/move-notation";
@@ -43,6 +44,7 @@ function moveNumberLabel(fen: string, side: "w" | "b", index: number): string | 
 }
 
 export function EnginePanel() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const fen = useActiveFen();
   const depthTarget = useStudioStore((state) => state.settings.engineDepth);
   const multiPv = useStudioStore((state) => state.settings.multiPv);
@@ -147,18 +149,18 @@ export function EnginePanel() {
   const maxCores = info.threaded ? maxHardwareThreads() : 1;
   const nps = formatNps(info.nps);
   const status = info.failed
-    ? "Engine failed to load"
+    ? tPanels(locale, "engine.status.failed")
     : !started
-    ? "Engine paused — press play"
+    ? tPanels(locale, "engine.status.paused")
     : !info.ready
-    ? "Loading engine…"
+    ? tPanels(locale, "engine.status.loading")
     : paused || !info.running
       ? info.depth >= depthTarget && info.depth > 0
-        ? "Max. depth reached"
-        : "Engine stopped"
+        ? tPanels(locale, "engine.status.maxDepth")
+        : tPanels(locale, "engine.status.stopped")
       : nps
-        ? `Analyzing · ${nps}`
-        : "Analyzing…";
+        ? tPanels(locale, "engine.status.analyzing", { nps })
+        : tPanels(locale, "engine.status.analyzingPlain");
   const placeholderLines = Math.max(0, multiPv - lines.length);
   const engineInfo = ENGINE_BUILD_INFO[engineBuild];
 
@@ -166,7 +168,7 @@ export function EnginePanel() {
     <div className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
       <div className="flex items-center gap-2 border-b border-studio-border px-2 py-1.5">
         <IconButton
-          label={paused || !info.running ? "Start engine" : "Pause engine"}
+          label={paused || !info.running ? tPanels(locale, "engine.start") : tPanels(locale, "engine.pause")}
           active={info.running && !paused}
           onClick={() => {
             if (info.running && !paused) {
@@ -202,13 +204,13 @@ export function EnginePanel() {
             <>
               <button
                 className="fixed inset-0 z-10 cursor-default"
-                aria-label="Close engine menu"
+                aria-label={tPanels(locale, "engine.closeMenu")}
                 onClick={() => setBuildOpen(false)}
               />
               <div
                 ref={buildMenuRef}
                 role="menu"
-                aria-label="Engine build"
+                aria-label={tPanels(locale, "engine.buildMenu")}
                 onKeyDown={handleBuildMenuKeyDown}
                 className="absolute left-0 top-8 z-20 w-64 rounded-[9px] border border-studio-border-strong bg-studio-elevated p-1.5 shadow-2xl"
               >
@@ -238,7 +240,7 @@ export function EnginePanel() {
                   );
                 })}
                 <p className="px-2 pb-1 pt-1.5 text-caption text-studio-faint">
-                  Standard downloads about 99 MB the first time you select it.
+                  {tPanels(locale, "engine.buildNote", { size: "99 MB" })}
                 </p>
               </div>
             </>
@@ -252,7 +254,9 @@ export function EnginePanel() {
               coresOpen ? "bg-studio-hover-strong text-studio-fg" : ""
             }`}
             onClick={() => setCoresOpen((open) => !open)}
-            title={`${threads} CPU cores`}
+            title={threads === 1
+              ? tPanels(locale, "engine.cores.title.one", { count: threads })
+              : tPanels(locale, "engine.cores.title.other", { count: threads })}
           >
             <Cpu size={14} />
             <span className="tabular-nums">{threads}</span>
@@ -261,12 +265,14 @@ export function EnginePanel() {
             <>
             <button
               className="fixed inset-0 z-10 cursor-default"
-              aria-label="Close CPU cores"
+              aria-label={tPanels(locale, "engine.closeCores")}
               onClick={() => setCoresOpen(false)}
             />
             <div className="absolute right-0 top-8 z-20 w-60 rounded-[9px] border border-studio-border-strong bg-studio-elevated p-3 shadow-2xl">
               <div className="mb-2 flex items-center justify-between text-dense text-studio-muted">
-                <span>CPU cores</span>
+                <span>{threads === 1
+                  ? tPanels(locale, "engine.cores.title.one", { count: threads })
+                  : tPanels(locale, "engine.cores.title.other", { count: threads })}</span>
                 <span className="font-semibold tabular-nums text-studio-fg">{threads}</span>
               </div>
               <input
@@ -279,10 +285,10 @@ export function EnginePanel() {
               />
               {!supportsEngineThreads() ? (
                 <p className="mt-2 text-caption text-studio-warning-fg">
-                  This browser is not cross-origin isolated, so Stockfish can only use 1 thread.
+                  {tPanels(locale, "engine.cores.singleThreadWarning")}
                 </p>
               ) : (
-                <p className="mt-2 text-caption text-studio-faint">{maxCores} available</p>
+                <p className="mt-2 text-caption text-studio-faint">{tPanels(locale, "engine.cores.available", { count: maxCores })}</p>
               )}
             </div>
             </>
@@ -292,7 +298,7 @@ export function EnginePanel() {
 
       <div className="flex items-center gap-2 border-b border-studio-border px-2 py-1.5">
         <Stepper
-          label="Depth"
+          label={tPanels(locale, "engine.depth")}
           value={
             <span>
               {display.depth}
@@ -311,7 +317,7 @@ export function EnginePanel() {
           <span className="truncate">{status}</span>
         </div>
         <Stepper
-          label="Lines"
+          label={tPanels(locale, "engine.lines")}
           value={multiPv}
           canDecrement={multiPv > MIN_LINES}
           canIncrement={multiPv < MAX_LINES}
@@ -319,7 +325,7 @@ export function EnginePanel() {
           onIncrement={() => setMultiPv(multiPv + 1)}
         />
         <IconButton
-          label="Insert all engine lines into notation"
+          label={tPanels(locale, "engine.insertLines")}
           disabled={lines.length === 0}
           onClick={() =>
             insertEngineLines(
@@ -422,7 +428,7 @@ export function EnginePanel() {
       </div>
       {display.label ? (
         <span className="sr-only">
-          Evaluation {display.label}
+          {tPanels(locale, "engine.evaluation", { label: display.label })}
         </span>
       ) : null}
     </div>

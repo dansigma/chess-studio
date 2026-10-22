@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { useStudioStore } from "@/src/store/studio-store";
 import { createSingleDoubleClick } from "./game-open-click";
 
 // SIG-910: shared game-row button. Single-click fires onOpen (preview);
@@ -14,6 +17,7 @@ export function GameOpenRow({
   className,
   title,
   ariaLabel,
+  locale,
   children,
 }: {
   onOpen: () => void;
@@ -21,8 +25,12 @@ export function GameOpenRow({
   className?: string;
   title?: string;
   ariaLabel?: string;
+  locale?: SiteLocale;
   children: ReactNode;
 }) {
+  const storeLocale = useStudioStore((state) => state.settings.locale);
+  const effectiveLocale = locale ?? storeLocale;
+  const resolvedTitle = title ?? tPanels(effectiveLocale, "row.openHint");
   const openRef = useRef(onOpen);
   const openNewRef = useRef(onOpenNew);
   const clickRef = useRef<ReturnType<typeof createSingleDoubleClick> | null>(null);
@@ -59,8 +67,8 @@ export function GameOpenRow({
     <button
       type="button"
       className={className}
-      title={title ?? "Open; double-click or Shift+Enter opens in a new board"}
-      aria-label={ariaLabel}
+      title={resolvedTitle}
+      aria-label={ariaLabel ?? resolvedTitle}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
