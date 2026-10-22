@@ -26,5 +26,5 @@ test("boards sidebar renders Portuguese with the pt-br locale stored", async ({ 
 
   // Boards is the default sidebar; assert its translated title + action directly.
   await expect(page.getByRole("heading", { name: "Tabuleiros abertos" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Novo tabuleiro" })).toBeVisible();
+  await expect(page.getByRole("complementary").getByRole("button", { name: "Novo tabuleiro" })).toBeVisible();
 });

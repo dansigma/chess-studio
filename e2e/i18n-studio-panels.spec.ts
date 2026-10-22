@@ -72,12 +72,13 @@ test("switching back to English through Settings restores English panels without
   await expect(page.getByText("Engine paused — press play")).toBeVisible();
 
   // Persisted settings now hold the English locale (proof the switch landed).
-  const stored = await context.storageState();
-  void stored;
-  const locale = await page.evaluate(
-    () => JSON.parse(window.localStorage.getItem("studio-clone-settings") ?? "{}").locale,
-  );
-  expect(locale).toBe("en");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(window.localStorage.getItem("studio-clone-settings") ?? "{}").locale,
+      ),
+    )
+    .toBe("en");
 });
 
 test("studio panels default to English without a stored locale", async ({ page }) => {
