@@ -34,7 +34,6 @@ function AccountRow({
   initialUsername,
   saving,
   removing,
-  error,
   justSaved,
   onSave,
   onRemove,
@@ -43,18 +42,14 @@ function AccountRow({
   initialUsername: string;
   saving: boolean;
   removing: boolean;
-  error: string | null;
   justSaved: boolean;
   onSave: (username: string) => void;
   onRemove: () => void;
 }) {
   const locale = useStudioStore((state) => state.settings.locale);
+  // SIG-1039: draft resets via `key` from the parent (key includes the saved
+  // username), so a save/remove/load remounts the row with a fresh draft.
   const [draft, setDraft] = useState(initialUsername);
-  const [lastSynced, setLastSynced] = useState(initialUsername);
-  if (initialUsername !== lastSynced) {
-    setLastSynced(initialUsername);
-    setDraft(initialUsername);
-  }
   const busy = saving || removing;
   return (
     <div className="flex items-center justify-between gap-4 py-2">
@@ -84,7 +79,6 @@ function AccountRow({
           </Button>
         )}
       </div>
-      {error && <span className="sr-only" role="alert">{error}</span>}
     </div>
   );
 }
@@ -204,12 +198,11 @@ export function LinkedAccountsSection() {
         <>
           {SOURCES.map((source) => (
             <AccountRow
-              key={source}
+              key={`${source}:${usernames[source]}`}
               source={source}
               initialUsername={usernames[source]}
               saving={pending === source}
               removing={removingSource === source}
-              error={error}
               justSaved={savedSource === source}
               onSave={(username) => handleSave(source, username)}
               onRemove={() => handleRemove(source)}
