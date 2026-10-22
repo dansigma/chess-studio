@@ -27,7 +27,8 @@ describe("course catalog", () => {
   it("accepts the four course themes", () => {
     assert.equal(isCourseTheme("tactics"), true);
     assert.equal(isCourseTheme("opening"), false);
-    assert.equal(courseThemeLabel("endgames"), "Endgames");
+    assert.equal(courseThemeLabel("endgames", "en"), "Endgames");
+    assert.equal(courseThemeLabel("endgames", "pt-br"), "Finais");
   });
 
   it("rejects an address that belongs to another course", () => {

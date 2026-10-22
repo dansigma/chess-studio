@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { siteSections } from "@/src/site/sections";
 import { BrandLockup } from "@/src/studio/ui/BrandLockup";
 import { LocaleSwitcher } from "@/src/i18n/LocaleSwitcher";
+import { tCourse } from "@/src/i18n/course-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 
 export function CourseChrome({
@@ -40,7 +41,7 @@ export function CourseChrome({
         })}
         {admin ? (
           <Link href="/courses/admin" className="rounded-md px-2 py-1 text-studio-accent-text hover:bg-studio-hover">
-            Create course
+            {tCourse(locale, "course.chrome.createCourse")}
           </Link>
         ) : null}
       </nav>

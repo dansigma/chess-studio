@@ -26,10 +26,12 @@ describe("course lessons", () => {
   });
 
   it("labels a line as new, in progress, or learned", () => {
-    assert.equal(lineProgressLabel(undefined, 8), "Not started");
-    assert.equal(lineProgressLabel({ step: 0, learned: false }, 8), "Not started");
-    assert.equal(lineProgressLabel({ step: 2, learned: false }, 8), "Continue · 3 / 8");
-    assert.equal(lineProgressLabel({ step: 4, learned: true }, 8), "Learned");
+    assert.equal(lineProgressLabel(undefined, 8, "en"), "Not started");
+    assert.equal(lineProgressLabel({ step: 0, learned: false }, 8, "en"), "Not started");
+    assert.equal(lineProgressLabel({ step: 2, learned: false }, 8, "en"), "Continue · 3 / 8");
+    assert.equal(lineProgressLabel({ step: 4, learned: true }, 8, "en"), "Learned");
+    assert.equal(lineProgressLabel({ step: 4, learned: true }, 8, "pt-br"), "Aprendida");
+    assert.equal(lineProgressLabel({ step: 2, learned: false }, 8, "pt-br"), "Continuar · 3 / 8");
   });
 
   it("marks a line learned only by stepping onto the last frame", () => {

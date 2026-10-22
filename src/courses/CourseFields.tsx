@@ -2,8 +2,9 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import { DescriptionField } from "./DescriptionField";
-import { isCourseColor, isCourseTheme, slugify } from "./catalog";
+import { courseThemeLabel, isCourseColor, isCourseTheme, slugify } from "./catalog";
 import type { CourseDraft } from "./admin-draft";
+import { useStudioStore } from "@/src/store/studio-store";
 import { COURSE_THEMES } from "./types";
 
 /** The course metadata fields above the chapter list (address through pieces). */
@@ -14,6 +15,7 @@ export function CourseFields({
   draft: CourseDraft;
   setDraft: Dispatch<SetStateAction<CourseDraft>>;
 }) {
+  const locale = useStudioStore((state) => state.settings.locale);
   return (
     <>
       <h1 className="text-xl font-semibold text-studio-fg">{draft.title.trim() || "Create a course"}</h1>
@@ -76,7 +78,7 @@ export function CourseFields({
           <option value="">Choose a theme</option>
           {COURSE_THEMES.map((theme) => (
             <option key={theme.id} value={theme.id}>
-              {theme.label}
+              {courseThemeLabel(theme.id, locale)}
             </option>
           ))}
         </select>
