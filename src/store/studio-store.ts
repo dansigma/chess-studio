@@ -203,6 +203,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       trainingStart: null,
       drillDueOnly: false,
       repertoireProgress: {},
+      mistakeExercises: {},
     } satisfies SessionResetPayload;
     set(sessionReset);
   },

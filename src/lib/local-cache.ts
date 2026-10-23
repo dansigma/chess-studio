@@ -11,6 +11,8 @@ export const PUZZLE_PROGRESS_KEY = "xadrez-digital.puzzles";
 export const COURSE_PROGRESS_OWNER_KEY = `${COURSE_PROGRESS_KEY}:owner`;
 export const REPERTOIRE_PROGRESS_KEY = "xd-repertoire-progress";
 export const REPERTOIRE_PROGRESS_OWNER_KEY = `${REPERTOIRE_PROGRESS_KEY}:owner`;
+export const MISTAKE_EXERCISES_KEY = "xd-mistake-exercises";
+export const MISTAKE_EXERCISES_OWNER_KEY = `${MISTAKE_EXERCISES_KEY}:owner`;
 
 export const USER_LOCAL_CACHE_KEYS = [
   COURSE_PROGRESS_KEY,
@@ -19,6 +21,8 @@ export const USER_LOCAL_CACHE_KEYS = [
   COURSE_PROGRESS_OWNER_KEY,
   REPERTOIRE_PROGRESS_KEY,
   REPERTOIRE_PROGRESS_OWNER_KEY,
+  MISTAKE_EXERCISES_KEY,
+  MISTAKE_EXERCISES_OWNER_KEY,
 ];
 
 function userCacheStorage(): Storage | null {

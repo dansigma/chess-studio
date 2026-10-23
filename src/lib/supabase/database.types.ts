@@ -369,6 +369,24 @@ export type Database = {
         };
         Relationships: [];
       };
+      // SIG-1096: one row per user holding mistake exercises with SRS state.
+      mistake_exercises: {
+        Row: {
+          user_id: string;
+          data: Json;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          data?: Json;
+          updated_at?: string;
+        };
+        Update: {
+          data?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       // SIG-1039: one public Lichess / Chess.com username per (user, source).
       linked_accounts: {
         Row: {

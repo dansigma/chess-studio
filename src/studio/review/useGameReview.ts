@@ -15,6 +15,13 @@ import { acquire } from "@/src/engine/shared-engine";
 import { clampThreads, type EngineBuild } from "@/src/engine/stockfish-client";
 import { createE2eFakeReviewEngine, isE2eFakeReviewEnabled } from "./e2e-fake-review-engine";
 import { createLeaseEngine } from "./lease-engine";
+import { extractMistakeExercises } from "@/src/chess/mistake-exercises";
+import type { ReviewSide } from "@/src/chess/review-report";
+import {
+  mergeNewExercises,
+  readLocalExercises,
+  saveExercises,
+} from "@/src/lib/mistake-exercises-store";
 import {
   getCachedReview,
   hydrateReviewCache,
@@ -36,9 +43,38 @@ type Options = {
   engineBuild: EngineBuild;
   engineThreads: number;
   setupMode: boolean;
+  userSide: ReviewSide;
+  userId: string | null;
 };
 
 const IDLE_PROGRESS: ReviewProgress = { done: 0, total: 0, elapsedMs: 0 };
+
+// SIG-1096: persist freshly extracted mistake exercises after a finished
+// review. Local-read + merge + save (no remote read on the completion path);
+// failures log with an `[exercises]` prefix and never break the review.
+export function captureMistakes(input: {
+  fens: string[];
+  rows: ReviewRow[];
+  userSide: ReviewSide;
+  userId: string | null;
+}): void {
+  try {
+    const incoming = extractMistakeExercises({
+      fens: input.fens,
+      rows: input.rows,
+      userSide: input.userSide,
+    });
+    if (incoming.length === 0) {
+      return;
+    }
+    const merged = mergeNewExercises(readLocalExercises(), incoming);
+    void saveExercises(merged, input.userId).catch((error) => {
+      console.warn("[exercises] save failed", error);
+    });
+  } catch (error) {
+    console.warn("[exercises] capture failed", error);
+  }
+}
 
 // SIG-1036: the review uses the user's thread setting, clamped by clampThreads
 // to what the machine and the page can support.
@@ -87,7 +123,7 @@ async function fetchBookReplies(tree: GameTree, points: VariationPoint[], isCanc
   return replies;
 }
 
-export function useGameReview({ tree, points, engineBuild, engineThreads, setupMode }: Options) {
+export function useGameReview({ tree, points, engineBuild, engineThreads, setupMode, userSide, userId }: Options) {
   const [preset, setPreset] = useState<ReviewPreset>(DEFAULT_REVIEW_PRESET);
   const [running, setRunning] = useState(false);
   const [cancelled, setCancelled] = useState(false);
@@ -173,9 +209,9 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
 
   // The run reads the latest line from a ref so a tree edit that leaves the line
   // unchanged (comments, NAGs) does not restart it.
-  const lineRef = useRef({ tree, points, ucis, cacheKey });
+  const lineRef = useRef({ tree, points, ucis, cacheKey, userSide, userId });
   useEffect(() => {
-    lineRef.current = { tree, points, ucis, cacheKey };
+    lineRef.current = { tree, points, ucis, cacheKey, userSide, userId };
   });
 
   useEffect(() => {
@@ -248,6 +284,13 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
       );
       setCore(outcome.rows);
       setFreshRun(true);
+      // SIG-1096: fresh runs only — cached/IndexedDB restores never reach here.
+      captureMistakes({
+        fens: line.points.map((point) => point.fen),
+        rows: outcome.rows,
+        userSide: line.userSide,
+        userId: line.userId,
+      });
       // A finished run supersedes any partial it resumed from.
       setPartial(null);
       setRunning(false);

@@ -24,6 +24,11 @@ import {
   readLocalRepertoireProgress,
   saveRepertoireProgress,
 } from "@/src/lib/repertoire-progress";
+import {
+  hydrateExercises,
+  readLocalExercises,
+  saveExercises,
+} from "@/src/lib/mistake-exercises-store";
 import { playMoveSound, shouldPlayMoveSound } from "@/src/chess/move-sound";
 import { emptyBoard, newId, nextActiveBoardId, withActive } from "./board-helpers";
 import { selectActiveBoard } from "./selectors";
@@ -58,6 +63,7 @@ export type BoardsSlice = Pick<
   | "trainingStart"
   | "drillDueOnly"
   | "repertoireProgress"
+  | "mistakeExercises"
   | "active"
   | "fen"
   | "lastMove"
@@ -81,6 +87,8 @@ export type BoardsSlice = Pick<
   | "recordRepertoireMove"
   | "setRepertoireProgress"
   | "hydrateRepertoire"
+  | "setMistakeExercises"
+  | "hydrateMistakeExercises"
   | "undo"
   | "redo"
   | "setBoardsHydrated"
@@ -102,6 +110,7 @@ export const initialBoardsState = {
   trainingStart: null,
   drillDueOnly: false,
   repertoireProgress: typeof window !== "undefined" ? readLocalRepertoireProgress() : {},
+  mistakeExercises: typeof window !== "undefined" ? readLocalExercises() : {},
 };
 
 export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> = (
@@ -509,6 +518,14 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
   hydrateRepertoire: async () => {
     const progress = await hydrateRepertoireProgress(get().user?.id ?? null);
     set({ repertoireProgress: progress });
+  },
+  setMistakeExercises: (exercises) => {
+    set({ mistakeExercises: exercises });
+    void saveExercises(exercises, get().user?.id ?? null);
+  },
+  hydrateMistakeExercises: async () => {
+    const exercises = await hydrateExercises(get().user?.id ?? null);
+    set({ mistakeExercises: exercises });
   },
   setBoardsHydrated: () => set({ boardsHydrated: true }),
   undo: () => get().back(),
