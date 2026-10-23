@@ -58,6 +58,7 @@ export type Database = {
           pgn: string;
           current_node_path: number[];
           orientation: "white" | "black";
+          repertoire_color: "white" | "black" | null;
           updated_at: string;
         };
         Insert: {
@@ -67,6 +68,7 @@ export type Database = {
           pgn: string;
           current_node_path?: number[];
           orientation?: "white" | "black";
+          repertoire_color?: "white" | "black" | null;
           updated_at?: string;
         };
         Update: {
@@ -74,6 +76,7 @@ export type Database = {
           pgn?: string;
           current_node_path?: number[];
           orientation?: "white" | "black";
+          repertoire_color?: "white" | "black" | null;
           updated_at?: string;
         };
         Relationships: [];

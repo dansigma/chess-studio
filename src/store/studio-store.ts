@@ -71,6 +71,7 @@ export {
   selectActivePathKey,
   selectBoard,
   selectDirtyCount,
+  selectRepertoireBoard,
 } from "./slices/selectors";
 export { DEFAULT_SETTINGS, SETTINGS_KEY, loadLocalSettings } from "./slices/settings";
 export { emptyBoard, newId, withActive, analysisFen } from "./slices/board-helpers";

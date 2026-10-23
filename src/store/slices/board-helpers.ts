@@ -20,6 +20,9 @@ export function emptyBoard(title = "Board", id = newId()): BoardSession {
     path: [],
     headers: {},
     orientation: "white",
+    // SIG-1092: new boards carry no repertoire mark; the mark is assigned
+    // explicitly via setBoardRepertoire, never inherited.
+    repertoireColor: null,
     dirty: true,
     preview: false,
   };

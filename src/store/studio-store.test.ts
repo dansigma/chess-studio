@@ -102,6 +102,7 @@ function residueBoard(): BoardSession {
     path: [],
     headers: { White: "A White", Black: "A Black" },
     orientation: "black",
+    repertoireColor: null,
     dirty: false,
     preview: false,
   };

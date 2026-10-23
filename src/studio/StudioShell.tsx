@@ -149,6 +149,12 @@ export function StudioShell() {
           path: row.current_node_path ?? imported.path,
           headers: imported.headers,
           orientation: row.orientation,
+          // SIG-1092: read the repertoire mark; unknown values fail closed
+          // to null so a bad row never claims a color.
+          repertoireColor:
+            row.repertoire_color === "white" || row.repertoire_color === "black"
+              ? row.repertoire_color
+              : null,
           dirty: false,
           preview: false,
         };
