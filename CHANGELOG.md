@@ -10,7 +10,8 @@
 - New migration `20261021220000_boards_repertoire_color.sql`: nullable `boards.repertoire_color` (`white`/`black`
   check) with partial unique index `boards_user_repertoire_color_uq` (no RLS change; own-row policies cover it).
 - The autosave persists unmarks before marks so moving the mark between two saved boards cannot collide on the
-  unique index. Guests keep marks session-only (in-memory; guest boards have no localStorage path).
+  unique index. Guests persist their boards locally (`studio-clone-guest-boards`: PGN + metadata), so marks survive
+  a browser reload; signing in clears the guest snapshot and loads the account boards from Supabase.
 
 ### Coach role: database foundation (SIG-1049)
 

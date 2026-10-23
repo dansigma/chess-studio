@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { useStudioStore } from "../studio-store.ts";
-import { selectRepertoireBoard } from "./selectors.ts";
+import {
+  compareRepertoirePersistOrder,
+  selectRepertoireBoard,
+} from "./selectors.ts";
 import { emptyBoard } from "./board-helpers.ts";
 
 // SIG-1092: one board per color holds the repertoire mark. These tests pin
@@ -69,16 +72,27 @@ describe("SIG-1092 repertoire mark", () => {
 });
 
 describe("SIG-1092 autosave ordering", () => {
-  it("unmarks sort before marks so the move persists without colliding", () => {
+  it("unmarks sort before marks through the production comparator", () => {
     const newHolder = { ...emptyBoard("New", "board-new"), repertoireColor: "white" as const, dirty: true };
     const oldHolder = { ...emptyBoard("Old", "board-old"), repertoireColor: null, dirty: true };
     const ordered = [newHolder, oldHolder]
       .filter((b) => b.dirty)
-      .sort((a, b) => Number(a.repertoireColor !== null) - Number(b.repertoireColor !== null));
+      .sort(compareRepertoirePersistOrder);
     assert.deepEqual(
       ordered.map((b) => b.id),
       ["board-old", "board-new"],
       "the unmark must persist before the mark to respect the partial unique index",
+    );
+  });
+
+  it("leaves non-dirty boards out and keeps unmarked order stable", () => {
+    const marked = { ...emptyBoard("Marked", "board-marked"), repertoireColor: "black" as const, dirty: true };
+    const clean = { ...emptyBoard("Clean", "board-clean"), repertoireColor: null, dirty: false };
+    const ordered = [marked, clean].filter((b) => b.dirty).sort(compareRepertoirePersistOrder);
+    assert.deepEqual(
+      ordered.map((b) => b.id),
+      ["board-marked"],
+      "only dirty boards enter the autosave pass",
     );
   });
 });

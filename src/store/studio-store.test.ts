@@ -4,6 +4,7 @@ import { START_FEN, createEmptyTree, getFenAt } from "../chess/tree.ts";
 import { importPgn } from "../chess/pgn.ts";
 import { getDueRepertoireMoves, repertoireMoveKey, type SpacedRepetitionItem } from "../chess/repertoire.ts";
 import { loadLocalBookmarks, saveLocalBookmarks, type PlayerBookmark } from "../lib/player-bookmarks.ts";
+import { clearGuestBoards, GUEST_BOARDS_KEY } from "../lib/guest-boards.ts";
 import type { PlayerGame, PlayerHit } from "../lib/player-types.ts";
 import { EMPTY_FILES, loadLocalFiles, saveLocalFiles, type FilesLibrary } from "../lib/user-files.ts";
 import { useStudioStore, selectActiveBoard, type BoardSession, type StudioSettings } from "./studio-store.ts";
@@ -181,6 +182,9 @@ function seedSignedInUser(user: { id: string; email: string | null }): SignedInS
   writes.length = 0;
   saveLocalFiles(FILES_A);
   saveLocalBookmarks([BOOKMARK_A]);
+  // SIG-1092: clearGuestBoards always writes removeItem (even when the key
+  // is absent) so the reset's write set carries the guest-boards key too.
+  clearGuestBoards();
   const cacheKeys = [...writes].sort();
   writes.length = 0;
   return { settings, layoutNonce: LAYOUT_NONCE, cacheKeys };
@@ -291,7 +295,8 @@ test("signing out wipes the previous user's session state and keeps global prefe
   assert.equal(state.layoutNonce, seed.layoutNonce, "dock layout nonce kept");
   assert.deepEqual(loadLocalFiles(), EMPTY_FILES, "files cache holds the empty library");
   assert.deepEqual(loadLocalBookmarks(), [], "bookmarks cache is empty");
-  assert.deepEqual([...writes].sort(), seed.cacheKeys, "the reset rewrote exactly the two caches");
+  assert.equal(storage.has(GUEST_BOARDS_KEY), false, "guest boards cache cleared");
+  assert.deepEqual([...writes].sort(), seed.cacheKeys, "the reset rewrote exactly the caches");
 });
 
 test("a direct user switch leaves zero residue from the previous account", () => {
@@ -312,7 +317,8 @@ test("a direct user switch leaves zero residue from the previous account", () =>
   assert.equal(state.layoutNonce, seed.layoutNonce, "dock layout nonce kept");
   assert.deepEqual(loadLocalFiles(), EMPTY_FILES, "files cache holds the empty library");
   assert.deepEqual(loadLocalBookmarks(), [], "bookmarks cache is empty");
-  assert.deepEqual([...writes].sort(), seed.cacheKeys, "the reset rewrote exactly the two caches");
+  assert.equal(storage.has(GUEST_BOARDS_KEY), false, "guest boards cache cleared");
+  assert.deepEqual([...writes].sort(), seed.cacheKeys, "the reset rewrote exactly the caches");
 });
 
 test("the reset re-seeds boards to the initial empty placeholder", () => {
