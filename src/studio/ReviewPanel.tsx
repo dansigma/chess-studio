@@ -50,7 +50,6 @@ export function ReviewPanel() {
   const undoReviewAnnotations = useStudioStore((state) => state.undoReviewAnnotations);
   const setStatus = useStudioStore((state) => state.setStatus);
   const locale = useStudioStore((state) => state.settings.locale);
-  const userId = useStudioStore((state) => state.user?.id ?? null);
 
   // SIG-968: annotate options dialog (NAGs always written, these toggle the
   // comment block lines). Local state — closing the dialog discards them.
@@ -89,7 +88,6 @@ export function ReviewPanel() {
     engineThreads,
     setupMode,
     userSide: board.orientation === "white" ? "w" : "b",
-    userId,
   });
 
   // SIG-969: coarse polite announcer — ~10% buckets via progressBucket, never

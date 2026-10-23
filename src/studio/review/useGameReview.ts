@@ -20,8 +20,9 @@ import type { ReviewSide } from "@/src/chess/review-report";
 import {
   mergeNewExercises,
   readLocalExercises,
-  saveExercises,
+  type MistakeExercisesMap,
 } from "@/src/lib/mistake-exercises-store";
+import { useStudioStore } from "@/src/store/studio-store";
 import {
   getCachedReview,
   hydrateReviewCache,
@@ -44,20 +45,21 @@ type Options = {
   engineThreads: number;
   setupMode: boolean;
   userSide: ReviewSide;
-  userId: string | null;
 };
 
 const IDLE_PROGRESS: ReviewProgress = { done: 0, total: 0, elapsedMs: 0 };
 
 // SIG-1096: persist freshly extracted mistake exercises after a finished
-// review. Local-read + merge + save (no remote read on the completion path);
-// failures log with an `[exercises]` prefix and never break the review.
+// review. Local-read + merge, then route the write through the zustand slice
+// (`setMistakeExercises`, which sets the live store and persists) so
+// `state.mistakeExercises` reflects reviews completed this session; returns
+// the merged map so callers can react without re-reading. Failures log with
+// an `[exercises]` prefix and never break the review.
 export function captureMistakes(input: {
   fens: string[];
   rows: ReviewRow[];
   userSide: ReviewSide;
-  userId: string | null;
-}): void {
+}): MistakeExercisesMap | null {
   try {
     const incoming = extractMistakeExercises({
       fens: input.fens,
@@ -65,14 +67,14 @@ export function captureMistakes(input: {
       userSide: input.userSide,
     });
     if (incoming.length === 0) {
-      return;
+      return null;
     }
     const merged = mergeNewExercises(readLocalExercises(), incoming);
-    void saveExercises(merged, input.userId).catch((error) => {
-      console.warn("[exercises] save failed", error);
-    });
+    useStudioStore.getState().setMistakeExercises(merged);
+    return merged;
   } catch (error) {
     console.warn("[exercises] capture failed", error);
+    return null;
   }
 }
 
@@ -123,7 +125,7 @@ async function fetchBookReplies(tree: GameTree, points: VariationPoint[], isCanc
   return replies;
 }
 
-export function useGameReview({ tree, points, engineBuild, engineThreads, setupMode, userSide, userId }: Options) {
+export function useGameReview({ tree, points, engineBuild, engineThreads, setupMode, userSide }: Options) {
   const [preset, setPreset] = useState<ReviewPreset>(DEFAULT_REVIEW_PRESET);
   const [running, setRunning] = useState(false);
   const [cancelled, setCancelled] = useState(false);
@@ -209,9 +211,9 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
 
   // The run reads the latest line from a ref so a tree edit that leaves the line
   // unchanged (comments, NAGs) does not restart it.
-  const lineRef = useRef({ tree, points, ucis, cacheKey, userSide, userId });
+  const lineRef = useRef({ tree, points, ucis, cacheKey, userSide });
   useEffect(() => {
-    lineRef.current = { tree, points, ucis, cacheKey, userSide, userId };
+    lineRef.current = { tree, points, ucis, cacheKey, userSide };
   });
 
   useEffect(() => {
@@ -289,7 +291,6 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
         fens: line.points.map((point) => point.fen),
         rows: outcome.rows,
         userSide: line.userSide,
-        userId: line.userId,
       });
       // A finished run supersedes any partial it resumed from.
       setPartial(null);
