@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { formatYearMonth } from "@/src/lib/game-date";
+import { formatTimeClass, formatYearMonth } from "@/src/lib/game-date";
 import { loadMyGames, MY_GAMES_PAGE_SIZE } from "@/src/lib/my-games/load-games";
 import { loadLinkedAccounts, type LinkedAccountSource } from "@/src/lib/my-games/linked-accounts";
 import type { PlayerGame } from "@/src/lib/player-types";
@@ -201,21 +201,29 @@ export function MyGamesSidebar() {
       {view === "empty" ? <SidebarHint>{tMyGames(locale, "myGames.empty")}</SidebarHint> : null}
       {view === "list" || (games.length > 0 && (gamesLoading || loadingMore)) ? (
         <>
-          {games.map((game) => (
-            <GameOpenRow
-              key={game.id}
-              className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px_64px] items-center gap-2 px-2 py-1.5 text-left text-dense hover:bg-studio-hover-subtle"
-              onOpen={() => openGame(game)}
-              onOpenNew={() => openGame(game, true)}
-            >
-              <ResultMark winner={game.winner} />
-              <span className="truncate">{game.whiteName}</span>
-              <span className="text-right text-studio-faint">{game.whiteRating ?? ""}</span>
-              <span className="truncate">{game.blackName}</span>
-              <span className="text-right text-studio-faint">{game.blackRating ?? ""}</span>
-              <span className="truncate text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
-            </GameOpenRow>
-          ))}
+          {games.map((game) => {
+            const detail = [formatTimeClass(game.timeClass), game.opening].filter(Boolean).join(" · ");
+            return (
+              <GameOpenRow
+                key={game.id}
+                className="w-full px-2 py-1.5 text-left text-dense hover:bg-studio-hover-subtle"
+                onOpen={() => openGame(game)}
+                onOpenNew={() => openGame(game, true)}
+              >
+                <span className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px_64px] items-center gap-2">
+                  <ResultMark winner={game.winner} />
+                  <span className="truncate">{game.whiteName}</span>
+                  <span className="text-right text-studio-faint">{game.whiteRating ?? ""}</span>
+                  <span className="truncate">{game.blackName}</span>
+                  <span className="text-right text-studio-faint">{game.blackRating ?? ""}</span>
+                  <span className="truncate text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
+                </span>
+                {detail ? (
+                  <span className="mt-0.5 block truncate pl-[52px] text-caption text-studio-faint">{detail}</span>
+                ) : null}
+              </GameOpenRow>
+            );
+          })}
           {hasMore ? (
             <div className="px-2 py-2">
               <Button variant="secondary" size="sm" disabled={loadingMore || syncing} onClick={handleLoadMore}>

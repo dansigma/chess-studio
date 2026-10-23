@@ -10,3 +10,13 @@ export function formatYearMonth(
   }
   return `${year}.${String(month).padStart(2, "0")}`;
 }
+
+export function formatTimeClass(timeClass: string | null | undefined): string {
+  if (!timeClass) {
+    return "";
+  }
+  if (timeClass === "daily") {
+    return "Daily";
+  }
+  return timeClass.charAt(0).toUpperCase() + timeClass.slice(1);
+}

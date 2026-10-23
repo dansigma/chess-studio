@@ -1,6 +1,12 @@
 // SIG-1089: paged client-side read of `public.my_games` (My Games 3/5).
 // Client param is `SupabaseClient<Database>` (same grain as
 // `src/lib/my-games/linked-accounts.ts`); tests cast a hand-rolled fake.
+// Pagination is offset-based (`{ limit, offset }`), not a `played_at`
+// keyset: `played_at` is nullable, and Postgres sorts nulls first on
+// `desc`, so any `lt(played_at)` cursor strands rows once a null-timestamp
+// row appears. Offset pagination with a stable order
+// (`played_at desc nulls last, id asc`) keeps every row reachable without
+// a second synchronized index.
 // `myGamesRowToPlayerGame` is the documented inverse of `playerGameToRow`
 // (`game-row.ts`): `event`/`moves` are lossy by schema design (my_games has
 // no event column and stores only `ply_count`), so they come back as
@@ -16,7 +22,7 @@ export const MY_GAMES_PAGE_SIZE = 50;
 export type MyGamesPage = {
   games: PlayerGame[];
   hasMore: boolean;
-  /** `played_at` of the last row in the page; `null` when there is no next page. */
+  /** Offset of the next page; `null` when there is no next page. */
   cursor: string | null;
 };
 
@@ -76,20 +82,38 @@ export function myGamesRowToPlayerGame(row: MyGamesRow): PlayerGame | null {
   };
 }
 
+function parseCursor(cursor: string | null | undefined): number | null {
+  if (cursor === null || cursor === undefined || cursor === "") {
+    return 0;
+  }
+  const offset = Number(cursor);
+  if (!Number.isInteger(offset) || offset < 0) {
+    return null;
+  }
+  return offset;
+}
+
 export async function loadMyGames(
   client: SupabaseClient<Database>,
   { limit = MY_GAMES_PAGE_SIZE, before }: { limit?: number; before?: string | null } = {},
 ): Promise<LoadMyGamesResult> {
+  const offset = parseCursor(before);
+  if (offset === null) {
+    return { ok: false, error: "unavailable" };
+  }
   const { data: authData, error: authError } = await client.auth.getUser();
   const userId = authError ? null : (authData.user?.id ?? null);
   if (!userId) {
     return { ok: false, error: "signed_out" };
   }
-  let query = client.from("my_games").select("*").order("played_at", { ascending: false });
-  if (before) {
-    query = query.lt("played_at", before);
-  }
-  const { data, error } = await query.limit(limit + 1);
+  // Stable order: newest first, null timestamps last, row id as tiebreaker
+  // (nulls never strand a page, duplicate timestamps never reorder rows).
+  const query = client
+    .from("my_games")
+    .select("*")
+    .order("played_at", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: true });
+  const { data, error } = await query.range(offset, offset + limit);
   if (error || !data) {
     return { ok: false, error: "unavailable" };
   }
@@ -99,12 +123,8 @@ export async function loadMyGames(
   const games = pageRows
     .map((row) => myGamesRowToPlayerGame(row))
     .filter((game): game is PlayerGame => game !== null);
-  // `played_at` is nullable: when the whole page lacks timestamps there is no
-  // usable cursor, so terminate pagination (`cursor: null`) instead of issuing
-  // a `lt(null)` query that would loop forever.
-  const lastPlayedAt = pageRows.length > 0 ? (pageRows[pageRows.length - 1]?.played_at ?? null) : null;
   return {
     ok: true,
-    page: { games, hasMore: hasMore && lastPlayedAt !== null, cursor: hasMore ? lastPlayedAt : null },
+    page: { games, hasMore, cursor: hasMore ? String(offset + limit) : null },
   };
 }

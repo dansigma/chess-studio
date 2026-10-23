@@ -36,31 +36,45 @@ function baseRow(overrides: Partial<Row> = {}): Row {
 
 function createFakeClient(options: {
   userId?: string | null;
-  rows?: Row[];
+  store?: Row[];
   selectError?: unknown;
   authError?: unknown;
 } = {}): {
   client: SupabaseClient<Database>;
-  calls: { from: string[]; lt: Array<[string, string]>; limit: Array<number | undefined> };
+  calls: {
+    from: string[];
+    orders: Array<{ column: string; ascending: boolean; nullsFirst?: boolean }>;
+    ranges: Array<[number, number]>;
+  };
 } {
-  const calls = { from: [] as string[], lt: [] as Array<[string, string]>, limit: [] as Array<number | undefined> };
-  const rows = options.rows ?? [];
+  const calls = {
+    from: [] as string[],
+    orders: [] as Array<{ column: string; ascending: boolean; nullsFirst?: boolean }>,
+    ranges: [] as Array<[number, number]>,
+  };
+  // `store` is the full ordered table (newest first, nulls last, id
+  // tiebreaker) — the fake pages through the same windows the real
+  // offset query would, so multi-page tests assert real continuation.
+  const store = options.store ?? [];
   const failSelect = options.selectError ?? null;
   const failAuth = options.authError ?? null;
   const query = {
-    lt(col: string, val: string) {
-      calls.lt.push([col, val]);
+    order(column: string, options?: { ascending?: boolean; nullsFirst?: boolean }) {
+      calls.orders.push({
+        column,
+        ascending: options?.ascending ?? true,
+        nullsFirst: options?.nullsFirst,
+      });
       return query;
     },
-    limit(n?: number) {
-      calls.limit.push(n);
-      return Promise.resolve({ data: failSelect ? null : rows, error: failSelect });
-    },
-    order() {
-      return query;
+    range(from: number, to: number) {
+      calls.ranges.push([from, to]);
+      // PostgREST `range()` is inclusive on both ends.
+      const slice = store.slice(from, to + 1);
+      return Promise.resolve({ data: failSelect ? null : slice, error: failSelect });
     },
     then(resolve: (value: { data: unknown; error: unknown }) => unknown) {
-      return resolve({ data: failSelect ? null : rows, error: failSelect });
+      return resolve({ data: failSelect ? null : store, error: failSelect });
     },
   };
   const client = {
@@ -181,8 +195,8 @@ describe("myGamesRowToPlayerGame", () => {
 
 describe("loadMyGames", () => {
   it("returns the first page newest-first with no cursor when short", async () => {
-    const { client } = createFakeClient({
-      rows: [baseRow({ played_at: "2026-10-20T12:00:00.000Z" }), baseRow({ external_id: "game-2", played_at: "2026-10-19T12:00:00.000Z" })],
+    const { client, calls } = createFakeClient({
+      store: [baseRow({ played_at: "2026-10-20T12:00:00.000Z" }), baseRow({ external_id: "game-2", played_at: "2026-10-19T12:00:00.000Z" })],
     });
     const result = await loadMyGames(client, { limit: 50 });
     assert.equal(result.ok, true);
@@ -192,11 +206,16 @@ describe("loadMyGames", () => {
     );
     assert.equal(result.ok && result.page.hasMore, false);
     assert.equal(result.ok && result.page.cursor, null);
+    assert.deepEqual(calls.orders, [
+      { column: "played_at", ascending: false, nullsFirst: false },
+      { column: "id", ascending: true, nullsFirst: undefined },
+    ]);
+    assert.deepEqual(calls.ranges, [[0, 50]]);
   });
 
-  it("over-fetches by one to detect more pages and cursors on the last played_at", async () => {
+  it("over-fetches by one to detect more pages and cursors on the next offset", async () => {
     const { client, calls } = createFakeClient({
-      rows: [
+      store: [
         baseRow({ played_at: "2026-10-20T12:00:00.000Z" }),
         baseRow({ external_id: "game-2", played_at: "2026-10-19T12:00:00.000Z" }),
         baseRow({ external_id: "game-3", played_at: "2026-10-18T12:00:00.000Z" }),
@@ -209,25 +228,69 @@ describe("loadMyGames", () => {
       ["game-1", "game-2"],
     );
     assert.equal(result.ok && result.page.hasMore, true);
-    assert.equal(result.ok && result.page.cursor, "2026-10-19T12:00:00.000Z");
-    assert.deepEqual(calls.limit, [3], "queries limit+1");
+    assert.equal(result.ok && result.page.cursor, "2");
+    assert.deepEqual(calls.ranges, [[0, 2]], "queries the offset window limit+1");
   });
 
-  it("passes before as a played_at upper bound", async () => {
-    const { client, calls } = createFakeClient({ rows: [] });
-    await loadMyGames(client, { limit: 50, before: "2026-10-19T12:00:00.000Z" });
-    assert.deepEqual(calls.lt, [["played_at", "2026-10-19T12:00:00.000Z"]]);
+  it("walks the whole list page by page through the cursor", async () => {
+    const store = [
+      baseRow({ id: "row-1", external_id: "game-1", played_at: "2026-10-20T12:00:00.000Z" }),
+      baseRow({ id: "row-2", external_id: "game-2", played_at: "2026-10-19T12:00:00.000Z" }),
+      baseRow({ id: "row-3", external_id: "game-3", played_at: "2026-10-18T12:00:00.000Z" }),
+    ];
+    const client = createFakeClient({ store }).client;
+    const first = await loadMyGames(client, { limit: 2 });
+    assert.equal(first.ok, true);
+    assert.deepEqual(
+      first.ok ? first.page.games.map((game) => game.id) : [],
+      ["game-1", "game-2"],
+    );
+    const before = first.ok ? first.page.cursor : null;
+    assert.equal(before, "2");
+    const second = await loadMyGames(client, { limit: 2, before });
+    assert.equal(second.ok, true);
+    assert.deepEqual(
+      second.ok ? second.page.games.map((game) => game.id) : [],
+      ["game-3"],
+    );
+    assert.equal(second.ok && second.page.hasMore, false);
+    assert.equal(second.ok && second.page.cursor, null);
   });
 
-  it("treats an all-null-timestamp page as terminal", async () => {
-    const { client } = createFakeClient({
-      rows: [baseRow({ played_at: null }), baseRow({ external_id: "game-2", played_at: null })],
+  it("never strands rows after a null-timestamp row mid-list", async () => {
+    const store = [
+      baseRow({ id: "row-1", external_id: "game-1", played_at: "2026-10-20T12:00:00.000Z" }),
+      baseRow({ id: "row-2", external_id: "game-2", played_at: null }),
+      baseRow({ id: "row-3", external_id: "game-3", played_at: "2026-10-18T12:00:00.000Z" }),
+    ];
+    const client = createFakeClient({ store }).client;
+    const first = await loadMyGames(client, { limit: 2 });
+    assert.equal(first.ok, true);
+    assert.deepEqual(
+      first.ok ? first.page.games.map((game) => game.id) : [],
+      ["game-1", "game-2"],
+      "null-timestamp rows stay in the list",
+    );
+    assert.equal(first.ok && first.page.hasMore, true);
+    const before = first.ok ? first.page.cursor : null;
+    assert.ok(before !== null, "a full page with null timestamps still paginates");
+    const second = await loadMyGames(client, { limit: 2, before });
+    assert.equal(second.ok, true);
+    assert.deepEqual(
+      second.ok ? second.page.games.map((game) => game.id) : [],
+      ["game-3"],
+      "rows after the null row are still reachable",
+    );
+  });
+
+  it("rejects an invalid cursor instead of querying", async () => {
+    const { client, calls } = createFakeClient({ store: [] });
+    assert.deepEqual(await loadMyGames(client, { limit: 50, before: "not-an-offset" }), {
+      ok: false,
+      error: "unavailable",
     });
-    const result = await loadMyGames(client, { limit: 1 });
-    assert.equal(result.ok, true);
-    assert.equal(result.ok && result.page.games.length, 1);
-    assert.equal(result.ok && result.page.hasMore, false);
-    assert.equal(result.ok && result.page.cursor, null);
+    assert.deepEqual(calls.from, [], "no request on an invalid cursor");
+    assert.deepEqual(calls.ranges, [], "no range query on an invalid cursor");
   });
 
   it("requires a signed-in user before any request", async () => {
