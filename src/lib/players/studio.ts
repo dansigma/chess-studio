@@ -17,6 +17,7 @@ export async function searchStudioDatabase(query: string): Promise<PlayerHit[]> 
   const { data } = await supabase
     .from("games")
     .select("white, black")
+    .eq("pending", false)
     .or(`white.ilike.%${needle}%,black.ilike.%${needle}%`)
     .limit(80);
   const known = new Set(hits.map((hit) => hit.username.toLowerCase()));
@@ -52,6 +53,7 @@ export async function studioGames(username: string): Promise<PlayerGame[]> {
   const { data } = await supabase
     .from("games")
     .select("id, white, black, white_elo, black_elo, event, date, eco, opening, result, pgn")
+    .eq("pending", false)
     .or(`white.ilike.%${needle}%,black.ilike.%${needle}%`)
     .limit(200);
   const seen = new Set(book.map((game) => game.id));

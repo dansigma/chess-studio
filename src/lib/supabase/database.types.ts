@@ -178,6 +178,7 @@ export type Database = {
         Row: {
           id: string;
           database_id: string;
+          pending: boolean;
           white: string;
           black: string;
           white_elo: number | null;
@@ -193,6 +194,7 @@ export type Database = {
         Insert: {
           id?: string;
           database_id: string;
+          pending?: boolean;
           white: string;
           black: string;
           white_elo?: number | null;
@@ -208,6 +210,7 @@ export type Database = {
         Update: {
           white?: string;
           black?: string;
+          pending?: boolean;
           pgn?: string;
         };
         Relationships: [];
@@ -610,6 +613,10 @@ export type Database = {
           popularity: number | null;
           nb_plays: number | null;
         }>;
+      };
+      swap_database_games: {
+        Args: { p_database_id: string };
+        Returns: number;
       };
     };
     Enums: Record<string, never>;

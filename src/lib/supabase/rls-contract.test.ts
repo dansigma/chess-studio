@@ -47,6 +47,36 @@ describe("sig-861 rls contract", () => {
   });
 });
 
+describe("sig-1037 games pending swap migration", () => {
+  const sig1037 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261023200000_games_pending_swap.sql"),
+    "utf8",
+  );
+
+  it("adds a pending flag defaulting to false with a partial index", () => {
+    assert.ok(sig1037.includes("add column if not exists pending boolean not null default false"), "missing pending column");
+    assert.ok(sig1037.includes("where pending"), "partial index must filter on pending");
+    assert.ok(sig1037.includes("games_database_pending_idx"), "missing partial index");
+  });
+
+  it("defines swap_database_games as security invoker with an empty search_path", () => {
+    assert.ok(sig1037.includes("create or replace function public.swap_database_games(p_database_id uuid)"));
+    assert.ok(/security invoker/.test(sig1037));
+    assert.ok(/set search_path = ''/.test(sig1037));
+  });
+
+  it("swaps in one transaction, returns the promoted count, and grants only to authenticated", () => {
+    assert.ok(sig1037.includes("delete from public.games where database_id = p_database_id and pending = false"));
+    assert.ok(sig1037.includes("update public.games set pending = false"));
+    assert.ok(sig1037.includes("get diagnostics promoted = row_count"));
+    assert.ok(
+      sig1037.includes("grant execute on function public.swap_database_games(uuid) to authenticated"),
+      "grant must be scoped to authenticated",
+    );
+    assert.ok(!/to (anon|public|service_role)/.test(sig1037), "no grants beyond authenticated");
+  });
+});
+
 describe("sig-1030 admin role lifecycle migration", () => {
   const sig1030 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261020120000_sig1030_admin_role_lifecycle.sql"),
