@@ -202,6 +202,33 @@ describe("sig-1042 puzzles migration", () => {
   });
 });
 
+describe("sig-1102 puzzles_window migration", () => {
+  const sig1102 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021260000_puzzles_sample.sql"),
+    "utf8",
+  );
+
+  it("samples public.puzzles with rating/theme/exclude filters in seed-stable order", () => {
+    assert.ok(sig1102.includes("create or replace function public.puzzles_window("), "missing function");
+    assert.ok(sig1102.includes("returns setof public.puzzles"), "must return table rows");
+    assert.ok(sig1102.includes("themes @> array[p_theme]"), "missing theme containment filter");
+    assert.ok(sig1102.includes("not (id = any (p_exclude))"), "missing exclude filter");
+    assert.ok(sig1102.includes("order by md5("), "must order seed-stably");
+    assert.ok(sig1102.includes("least(greatest("), "p_limit must be clamped");
+  });
+
+  it("is security invoker with an empty search_path and execute-only grants", () => {
+    assert.ok(sig1102.includes("security invoker"), "must run as the caller so table RLS applies");
+    assert.ok(!/security definer/.test(sig1102), "must not be security definer");
+    assert.ok(/set search_path = ''/.test(sig1102), "must pin an empty search_path");
+    assert.ok(
+      sig1102.includes("grant execute on function public.puzzles_window(int, int, text, int, bigint, text[])"),
+      "missing execute grant with the full signature",
+    );
+    assert.ok(sig1102.includes("to anon, authenticated"), "execute must cover anon + authenticated");
+  });
+});
+
 describe("sig-1049 marketplace roles migration", () => {
   const sig1049 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021120000_marketplace_roles.sql"),

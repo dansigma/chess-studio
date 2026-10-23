@@ -590,7 +590,28 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      // SIG-1102: seed-stable sampling over public.puzzles (serving slice).
+      puzzles_window: {
+        Args: {
+          p_min: number | null;
+          p_max: number | null;
+          p_theme: string | null;
+          p_limit: number | null;
+          p_seed: number | null;
+          p_exclude: string[] | null;
+        };
+        Returns: Array<{
+          id: string;
+          fen: string;
+          moves: string[];
+          rating: number;
+          themes: string[];
+          popularity: number | null;
+          nb_plays: number | null;
+        }>;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
