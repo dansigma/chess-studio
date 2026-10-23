@@ -48,11 +48,27 @@ test("mobile studio: no h-scroll, board and move strip, tap jumps", async ({ pag
   const strip = page.locator("[data-mobile-move-strip]");
   await expect(strip.getByRole("button", { name: "Nf3", exact: true })).toBeVisible();
 
-  // Tapping a move jumps the board position: after jumping to e4 (ply 1),
-  // the e5 pawn is gone from e7… actually e4 is white's move, so the white
-  // pawn sits on e4; assert via the active strip marker and the square.
+  // Tapping a move jumps the board position: after jumping to e4 (ply 1)
+  // the white pawn sits on e4, so the e4 square renders a white pawn piece
+  // and e2 renders no white pawn — a direct board-position readback, not
+  // just the strip marker.
   await strip.getByRole("button", { name: "e4", exact: true }).first().click();
   await expect(
     strip.getByRole("button", { name: "e4", exact: true }).first(),
   ).toHaveAttribute("aria-current", "step");
+  const e4 = board.locator('[data-square="e4"]');
+  const e2 = board.locator('[data-square="e2"]');
+  await expect(e4.locator('[data-piece="wP"]')).toHaveCount(1);
+  await expect(e2.locator('[data-piece="wP"]')).toHaveCount(0);
+
+  // The move controls stay reachable: strip and status bar are both inside
+  // the 844 px viewport (the mobile column fills the shell column instead
+  // of stacking a full viewport below MenuBar + StatusBar).
+  const stripBox = await strip.boundingBox();
+  expect(stripBox).not.toBeNull();
+  expect(stripBox!.y + stripBox!.height).toBeLessThanOrEqual(844);
+  await expect(page.locator(".studio-screen > footer")).toBeVisible();
+  const statusBox = await page.locator(".studio-screen > footer").boundingBox();
+  expect(statusBox).not.toBeNull();
+  expect(statusBox!.y + statusBox!.height).toBeLessThanOrEqual(844);
 });
