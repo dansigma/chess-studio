@@ -5,6 +5,8 @@ import { ActivityBar } from "./ActivityBar";
 import { BoardsSidebar } from "./BoardsSidebar";
 import { DatabasesSidebar } from "./DatabasesSidebar";
 import { MenuBar } from "./MenuBar";
+import { MobileStudio } from "./MobileStudio";
+import { useIsMobile } from "./use-is-mobile";
 import { FilesSidebar } from "./FilesSidebar";
 import { SearchSidebar } from "./SearchSidebar";
 import { MyGamesSidebar } from "./MyGamesSidebar";
@@ -86,6 +88,11 @@ export function StudioShell() {
   const forward = useStudioStore((state) => state.forward);
   const flip = useStudioStore((state) => state.flip);
   const user = useStudioStore((state) => state.user);
+  // SIG-1043: below 768 px the studio renders the separate single-column
+  // mobile layout instead of the desktop dock. Called unconditionally; only
+  // the render branch below differs. StudioDock is never mounted on mobile,
+  // so no desktop layout is read or written there.
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
@@ -369,6 +376,9 @@ export function StudioShell() {
     <>
     <div className="studio-screen flex h-screen flex-col overflow-hidden bg-studio-bg text-studio-fg">
       <MenuBar onOpenPgn={() => fileRef.current?.click()} />
+      {isMobile ? (
+        <MobileStudio />
+      ) : (
       <div className="flex min-h-0 flex-1">
         <ActivityBar />
         <div
@@ -407,6 +417,7 @@ export function StudioShell() {
           </div>
         </div>
       </div>
+      )}
       <StatusBar message={status} />
 
       <input
