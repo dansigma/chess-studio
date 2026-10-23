@@ -16,12 +16,31 @@ test("returns 503 when the ENGINE bucket is not configured", async () => {
   const res = await GET(new Request("http://app.test/engine/full/stockfish-19.wasm"), params(["full", "stockfish-19.wasm"]));
   assert.equal(res.status, 503);
   assert.equal(await res.text(), "Engine bucket not configured");
+  assert.equal(res.headers.get("Cache-Control"), "no-store");
+  assert.equal(res.headers.get("Cross-Origin-Opener-Policy"), "same-origin");
+  assert.equal(res.headers.get("Cross-Origin-Embedder-Policy"), "require-corp");
+  assert.equal(res.headers.get("Cross-Origin-Resource-Policy"), "same-origin");
 });
 
 test("returns 404 for a missing object", async () => {
   setCloudflareEnv({ ENGINE: fakeEngineBucket({}) });
   const res = await GET(new Request("http://app.test/engine/full/stockfish-19.wasm"), params(["full", "stockfish-19.wasm"]));
   assert.equal(res.status, 404);
+  assert.equal(res.headers.get("Cache-Control"), "no-store");
+  assert.equal(res.headers.get("Cross-Origin-Opener-Policy"), "same-origin");
+  assert.equal(res.headers.get("Cross-Origin-Embedder-Policy"), "require-corp");
+  assert.equal(res.headers.get("Cross-Origin-Resource-Policy"), "same-origin");
+});
+
+test("returns 500 with no-store when the bucket read fails", async () => {
+  setCloudflareEnv({ ENGINE: { get: async () => { throw new Error("r2 down"); } } });
+  const res = await GET(new Request("http://app.test/engine/full/stockfish-19.wasm"), params(["full", "stockfish-19.wasm"]));
+  assert.equal(res.status, 500);
+  assert.equal(await res.text(), "Engine unavailable");
+  assert.equal(res.headers.get("Cache-Control"), "no-store");
+  assert.equal(res.headers.get("Cross-Origin-Opener-Policy"), "same-origin");
+  assert.equal(res.headers.get("Cross-Origin-Embedder-Policy"), "require-corp");
+  assert.equal(res.headers.get("Cross-Origin-Resource-Policy"), "same-origin");
 });
 
 test("serves wasm with isolation headers and immutable caching", async () => {

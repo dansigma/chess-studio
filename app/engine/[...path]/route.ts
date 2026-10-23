@@ -28,6 +28,19 @@ type EngineBucket = {
 };
 
 const IMMUTABLE = "public, max-age=31536000, immutable";
+const NO_STORE = "no-store";
+
+function errorResponse(message: string, status: number): Response {
+  return new Response(message, {
+    status,
+    headers: {
+      "Cache-Control": NO_STORE,
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+      "Cross-Origin-Resource-Policy": "same-origin",
+    },
+  });
+}
 
 export async function GET(
   _request: Request,
@@ -37,11 +50,16 @@ export async function GET(
   const key = `engine/${path.join("/")}`;
   const bucket = (env as unknown as { ENGINE?: EngineBucket }).ENGINE;
   if (!bucket) {
-    return new Response("Engine bucket not configured", { status: 503 });
+    return errorResponse("Engine bucket not configured", 503);
   }
-  const object = await bucket.get(key);
+  let object: R2ObjectLike | null;
+  try {
+    object = await bucket.get(key);
+  } catch {
+    return errorResponse("Engine unavailable", 500);
+  }
   if (!object) {
-    return new Response("Not found", { status: 404 });
+    return errorResponse("Not found", 404);
   }
   const headers = new Headers();
   object.writeHttpMetadata(headers);
