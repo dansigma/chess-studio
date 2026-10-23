@@ -208,7 +208,14 @@ export function StudioShell() {
       return;
     }
     const handle = window.setTimeout(() => {
-      const dirtyBoards = useStudioStore.getState().boards.filter((b) => b.dirty);
+      const dirtyBoards = useStudioStore
+        .getState()
+        .boards.filter((b) => b.dirty)
+        // SIG-1092: persist unmarks before marks so moving the mark between
+        // two saved boards cannot collide on boards_user_repertoire_color_uq
+        // (array-order UPDATEs would otherwise fail when the new holder
+        // precedes the old one, and every retry repeats the same order).
+        .sort((a, b) => Number(a.repertoireColor !== null) - Number(b.repertoireColor !== null));
       if (dirtyBoards.length === 0) {
         return;
       }

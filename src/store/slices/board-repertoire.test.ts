@@ -67,3 +67,18 @@ describe("SIG-1092 repertoire mark", () => {
     assert.equal(state.boards.filter((b) => b.repertoireColor === "white").length, 1);
   });
 });
+
+describe("SIG-1092 autosave ordering", () => {
+  it("unmarks sort before marks so the move persists without colliding", () => {
+    const newHolder = { ...emptyBoard("New", "board-new"), repertoireColor: "white" as const, dirty: true };
+    const oldHolder = { ...emptyBoard("Old", "board-old"), repertoireColor: null, dirty: true };
+    const ordered = [newHolder, oldHolder]
+      .filter((b) => b.dirty)
+      .sort((a, b) => Number(a.repertoireColor !== null) - Number(b.repertoireColor !== null));
+    assert.deepEqual(
+      ordered.map((b) => b.id),
+      ["board-old", "board-new"],
+      "the unmark must persist before the mark to respect the partial unique index",
+    );
+  });
+});
