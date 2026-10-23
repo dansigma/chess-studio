@@ -4,6 +4,7 @@ import {
   Bookmark,
   Database,
   Folder,
+  History,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -20,6 +21,7 @@ const items: { id: ActivityView; icon: typeof Search; titleKey: StudioChromeStri
   { id: "databases", icon: Database, titleKey: "chrome.activity.databases" },
   { id: "files", icon: Folder, titleKey: "chrome.activity.files" },
   { id: "bookmarks", icon: Bookmark, titleKey: "chrome.activity.bookmarks" },
+  { id: "mygames", icon: History, titleKey: "chrome.activity.mygames" },
 ];
 
 function ActivityButton({

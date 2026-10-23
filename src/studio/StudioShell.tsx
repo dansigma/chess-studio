@@ -7,6 +7,7 @@ import { DatabasesSidebar } from "./DatabasesSidebar";
 import { MenuBar } from "./MenuBar";
 import { FilesSidebar } from "./FilesSidebar";
 import { SearchSidebar } from "./SearchSidebar";
+import { MyGamesSidebar } from "./MyGamesSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
 import { ResizeHandle } from "./ui/ResizeHandle";
@@ -385,6 +386,8 @@ export function StudioShell() {
                   <FilesSidebar />
                 ) : activity === "bookmarks" ? (
                   <BookmarksSidebar />
+                ) : activity === "mygames" ? (
+                  <MyGamesSidebar />
                 ) : (
                   <DatabasesSidebar />
                 )}
