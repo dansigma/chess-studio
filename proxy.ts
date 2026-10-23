@@ -1,6 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { updateSession } from "@/src/lib/supabase/middleware";
-import { CSP_REPORT_PATH } from "@/src/lib/csp-report";
 import { applySecurityHeaders, buildCsp } from "@/src/lib/security-headers";
 
 export async function proxy(request: NextRequest) {
@@ -9,10 +8,9 @@ export async function proxy(request: NextRequest) {
     isDev: !isProd,
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL,
   });
-  // CSP reports need no session; skip the Supabase round-trip so a burst of reports does not cost
-  // one auth call each.
-  const response =
-    request.nextUrl.pathname === CSP_REPORT_PATH ? NextResponse.next() : await updateSession(request);
+  // Non-admin paths return from `updateSession` without a Supabase round trip;
+  // security headers still apply to every response.
+  const response = await updateSession(request);
   applySecurityHeaders(response, csp, isProd);
   return response;
 }
