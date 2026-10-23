@@ -7,7 +7,7 @@ create or replace function public.puzzles_window(
   p_max int,
   p_theme text,
   p_limit int,
-  p_seed int,
+  p_seed bigint,
   p_exclude text[]
 )
 returns setof public.puzzles
@@ -23,5 +23,5 @@ as $$
   order by md5(id || coalesce(p_seed, 0)::text)
   limit least(greatest(coalesce(p_limit, 50), 1), 200);
 $$;
-grant execute on function public.puzzles_window(int, int, text, int, int, text[])
+grant execute on function public.puzzles_window(int, int, text, int, bigint, text[])
   to anon, authenticated;

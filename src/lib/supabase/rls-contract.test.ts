@@ -222,7 +222,7 @@ describe("sig-1102 puzzles_window migration", () => {
     assert.ok(!/security definer/.test(sig1102), "must not be security definer");
     assert.ok(/set search_path = ''/.test(sig1102), "must pin an empty search_path");
     assert.ok(
-      sig1102.includes("grant execute on function public.puzzles_window(int, int, text, int, int, text[])"),
+      sig1102.includes("grant execute on function public.puzzles_window(int, int, text, int, bigint, text[])"),
       "missing execute grant with the full signature",
     );
     assert.ok(sig1102.includes("to anon, authenticated"), "execute must cover anon + authenticated");
