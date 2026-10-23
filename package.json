@@ -7,7 +7,7 @@
     "build": "NEXT_ALIAS_WORKERD_STUB=1 next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-test-module-mocks --import ./scripts/test-resolve.mjs --test \"src/**/*.test.ts\" \"app/**/*.test.ts\"",
+    "test": "node --experimental-test-module-mocks --import ./scripts/test-resolve.mjs --test \"src/**/*.test.ts\" \"app/**/*.test.ts\" \"scripts/**/*.test.mjs\"",
     "test:e2e": "playwright test",
     "dev:vinext": "vite dev --port 3001",
     "build:vinext": "vite build",

@@ -90,6 +90,21 @@ If applying migrations to a hosted Supabase project without the CLI, execute all
 - `20261007120000_sig861_rls_indexes_drafts.sql` (RLS index optimizations and course drafts)
 - `20261013000000_nested_folders.sql` (hierarchical folder structure for saved games)
 - `20261013120000_repertoire_progress.sql` (opening repertoire training progress)
+- `20261021250000_puzzles.sql` (curated Lichess puzzle subset table, read-only for clients)
+
+## Puzzle dataset
+
+The trainer's large puzzle pool comes from the [Lichess open database](https://database.lichess.org/#puzzles) (CC0 — no rights reserved; thanks to Lichess and its players for publishing millions of rated puzzles). The raw `lichess_db_puzzle.csv.zst` is never committed; instead a curated subset (~60,000 puzzles, popularity ≥ 85, ≥ 500 plays, balanced by 100-point rating band and theme) is built and loaded into `public.puzzles`:
+
+```bash
+# 1. Download + decompress the upstream dump, then build the subset
+node scripts/lichess-puzzles/build-subset.mjs lichess_db_puzzle.csv puzzles-subset.csv --size 60000
+
+# 2. Load into the database (after SIG-1102 is deployed)
+\copy public.puzzles(id,fen,moves,rating,themes,popularity,nb_plays) from 'puzzles-subset.csv' csv header
+```
+
+Only Lichess theme tags that map onto the app's 13 themes (see `scripts/lichess-puzzles/map-themes.mjs`) are kept; the rest of the import rules (first-move application, SAN conversion, balancing) are covered by the 12-row fixture in `scripts/lichess-puzzles/fixtures/`.
 
 ## Stockfish Engine Architecture
 

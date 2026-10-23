@@ -174,6 +174,34 @@ describe("sig-1090 my_games review summary migration", () => {
   });
 });
 
+describe("sig-1042 puzzles migration", () => {
+  const sig1042 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021250000_puzzles.sql"),
+    "utf8",
+  );
+
+  it("creates a read-only public puzzles table with odd-length lines and rating/theme indexes", () => {
+    assert.ok(sig1042.includes("create table if not exists public.puzzles"));
+    assert.ok(sig1042.includes("check (cardinality(moves) % 2 = 1)"), "solver-to-move odd line");
+    assert.ok(sig1042.includes("puzzles_rating_idx"), "missing rating index");
+    assert.ok(sig1042.includes("puzzles_themes_idx"), "missing themes GIN index");
+    assert.ok(sig1042.includes("using gin (themes)"), "themes index must be GIN");
+  });
+
+  it("enables RLS with a select-only policy and select-only grants", () => {
+    assert.ok(sig1042.includes("alter table public.puzzles enable row level security"));
+    assert.ok(sig1042.includes('"puzzles_select"'), "missing select policy");
+    assert.ok(sig1042.includes("for select to anon, authenticated"), "select must cover anon + authenticated");
+    const lines = sig1042.split("\n").map((line) => line.trim());
+    const writes = lines.filter(
+      (line) => /on public\.puzzles$/.test(line) && /for (insert|update|delete|all)/.test(line),
+    );
+    assert.deepEqual(writes, [], "no client write policy on puzzles");
+    assert.ok(sig1042.includes("grant select on public.puzzles to anon, authenticated"), "select-only grant");
+    assert.ok(!/grant\s+(?!select\b)\w+.*on public\.puzzles/.test(sig1042), "no non-select grant on puzzles");
+  });
+});
+
 describe("sig-1049 marketplace roles migration", () => {
   const sig1049 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021120000_marketplace_roles.sql"),
