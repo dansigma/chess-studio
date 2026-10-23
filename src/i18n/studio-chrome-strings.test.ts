@@ -16,6 +16,13 @@ test("every studio chrome string key renders non-empty in both locales", () => {
   }
 });
 
+test("my games activity title is translated", () => {
+  assert.equal(tStudioChrome("en", "chrome.activity.mygames"), "My Games");
+  const ptBr = tStudioChrome("pt-br", "chrome.activity.mygames");
+  assert.ok(ptBr.length > 0, "pt-br:chrome.activity.mygames must not be empty");
+  assert.notEqual(ptBr, tStudioChrome("en", "chrome.activity.mygames"));
+});
+
 test("studio chrome interpolated strings render whole sentences with vars", () => {
   assert.equal(
     tStudioChrome("en", "chrome.account.waitingToSync.other", { count: 3 }),

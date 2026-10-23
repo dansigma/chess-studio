@@ -28,7 +28,7 @@ import type {
 } from "@/src/lib/user-files";
 
 export type BoardOrientation = "white" | "black";
-export type ActivityView = "search" | "boards" | "databases" | "files" | "bookmarks";
+export type ActivityView = "search" | "boards" | "databases" | "files" | "bookmarks" | "mygames";
 
 export type BoardSession = {
   id: string;
