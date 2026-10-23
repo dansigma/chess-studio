@@ -184,6 +184,33 @@ export function isMoveEvalNag(nag: number): boolean {
   return MOVE_EVAL_NAGS.has(nag);
 }
 
+/**
+ * Scroll-dismiss decision for the notation context menu (SIG-1130).
+ * Returns true when a capture-phase scroll event originates inside the
+ * menu root — e.g. the annotation submenu's own overflow list — and must
+ * be ignored. Scrolls from anywhere else (notation list, document) still
+ * dismiss the menu. Kept pure so it is unit-testable without a DOM.
+ */
+export function shouldIgnoreMenuScroll(
+  target: unknown,
+  root: { contains(node: Node): boolean } | null,
+): boolean {
+  // No DOM globals referenced here (no `instanceof Node`) so this stays
+  // runnable under plain `node --test`, which has no DOM.
+  if (
+    root === null ||
+    target === null ||
+    (typeof target !== "object" && typeof target !== "function")
+  ) {
+    return false;
+  }
+  try {
+    return root.contains(target as Node);
+  } catch {
+    return false;
+  }
+}
+
 function Submenu({
   open,
   label,
@@ -275,7 +302,12 @@ export function NotationContextMenu({
         onClose();
       }
     }
-    function onScrollCapture() {
+    function onScrollCapture(event: Event) {
+      // Ignore scrolls from inside the menu itself (e.g. the annotation
+      // submenu's overflow list) — only outside scrolls dismiss.
+      if (shouldIgnoreMenuScroll(event.target, rootRef.current)) {
+        return;
+      }
       onClose();
     }
     function onBlur() {
