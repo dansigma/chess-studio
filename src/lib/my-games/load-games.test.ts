@@ -124,6 +124,7 @@ describe("myGamesRowToPlayerGame", () => {
       userAccuracy: null,
       opponentAccuracy: null,
       reviewedAt: null,
+      mistakeCounts: null,
     });
   });
 
@@ -170,6 +171,67 @@ describe("myGamesRowToPlayerGame", () => {
     assert.equal(game?.userAccuracy, 82.5);
     assert.equal(game?.opponentAccuracy, 77.25);
     assert.equal(game?.reviewedAt, "2026-10-22T10:00:00.000Z");
+  });
+
+  it("maps valid mistake_counts into MistakeCounts", () => {
+    const mistakeCounts = {
+      opening: { inaccuracy: 1, mistake: 0, miss: 2, blunder: 0 },
+      middlegame: { inaccuracy: 0, mistake: 1, miss: 0, blunder: 1 },
+      endgame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+    };
+    const game = myGamesRowToPlayerGame(
+      baseRow({ mistake_counts: mistakeCounts }) as unknown as MyGamesRow,
+    );
+    assert.deepEqual(game?.mistakeCounts, mistakeCounts);
+  });
+
+  it("maps malformed mistake_counts to null without throwing", () => {
+    const malformed = [
+      "not-an-object",
+      42,
+      ["opening"],
+      { opening: "nope" },
+      { opening: null, middlegame: null, endgame: null },
+      // Missing one tier in the opening phase.
+      {
+        opening: { inaccuracy: 1, mistake: 0, miss: 0 },
+        middlegame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+        endgame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+      },
+      // Negative and non-finite counts fail closed.
+      {
+        opening: { inaccuracy: -1, mistake: 0, miss: 0, blunder: 0 },
+        middlegame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+        endgame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+      },
+      {
+        opening: { inaccuracy: Number.NaN, mistake: 0, miss: 0, blunder: 0 },
+        middlegame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+        endgame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+      },
+    ];
+    for (const mistakeCounts of malformed) {
+      const game = myGamesRowToPlayerGame(
+        baseRow({ mistake_counts: mistakeCounts }) as unknown as MyGamesRow,
+      );
+      assert.equal(game?.mistakeCounts, null, JSON.stringify(mistakeCounts));
+    }
+    // Unknown extra keys are ignored, not rejected.
+    const withExtras = myGamesRowToPlayerGame(
+      baseRow({
+        mistake_counts: {
+          opening: { inaccuracy: 1, mistake: 0, miss: 0, blunder: 0, blunder2: 9 },
+          middlegame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+          endgame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+          endgame2: { inaccuracy: 5, mistake: 5, miss: 5, blunder: 5 },
+        },
+      }) as unknown as MyGamesRow,
+    );
+    assert.deepEqual(withExtras?.mistakeCounts, {
+      opening: { inaccuracy: 1, mistake: 0, miss: 0, blunder: 0 },
+      middlegame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+      endgame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+    });
   });
 
   it("defaults null color to white and skips empty ids or pgn", () => {

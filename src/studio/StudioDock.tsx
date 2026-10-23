@@ -20,6 +20,7 @@ import { FileGamesPanel } from "./FileGamesPanel";
 import { GamesPanel } from "./GamesPanel";
 import { NotationPanel } from "./NotationPanel";
 import { PositionSearchPanel } from "./PositionSearchPanel";
+import { MyStatsPanel } from "./MyStatsPanel";
 import { RepertoirePanel } from "./RepertoirePanel";
 import { PlayerExplorerPanel } from "./PlayerExplorerPanel";
 import { PlayerGamesPanel } from "./PlayerGamesPanel";
@@ -86,6 +87,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   games: Library,
   fileGames: FileText,
   positionSearch: Search,
+  myStats: ChartSpline,
   "player-explorer": UserSearch,
   "player-games": Users,
 };
@@ -176,6 +178,7 @@ const components = {
   games: () => <GamesPanel />,
   fileGames: () => <FileGamesPanel />,
   positionSearch: () => <PositionSearchPanel />,
+  myStats: () => <MyStatsPanel />,
   playerExplorer: () => <PlayerExplorerPanel />,
   playerGames: () => <PlayerGamesPanel />,
 };
@@ -206,6 +209,22 @@ function ensureInsightsPanel(api: DockviewReadyEvent["api"]): void {
     id: "insights",
     component: "insights",
     title: panelTitleForId(locale, "insights"),
+    inactive: true,
+    position: reference ? { referencePanel: reference.id } : undefined,
+  });
+}
+
+function ensureMyStatsPanel(api: DockviewReadyEvent["api"]): void {
+  if (api.getPanel("myStats")) {
+    return;
+  }
+  const locale = useStudioStore.getState().settings.locale;
+  // Stats sits with the analysis panels (review/insights group).
+  const reference = api.getPanel("insights") ?? api.getPanel("review") ?? api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
+  api.addPanel({
+    id: "myStats",
+    component: "myStats",
+    title: panelTitleForId(locale, "myStats"),
     inactive: true,
     position: reference ? { referencePanel: reference.id } : undefined,
   });
@@ -426,7 +445,7 @@ export function StudioDock() {
       if (id === "fileGames") {
         continue;
       }
-      if (id === "engine" || id === "evalGraph" || id === "review" || id === "insights" || id === "notation" || id === "repertoire" || id === "positionSearch") {
+      if (id === "engine" || id === "evalGraph" || id === "review" || id === "insights" || id === "myStats" || id === "notation" || id === "repertoire" || id === "positionSearch") {
         panel.setTitle(panelTitleForId(locale, id));
       }
     }
@@ -497,6 +516,7 @@ export function StudioDock() {
         ensureRepertoirePanel(api);
         ensureReviewPanel(api);
         ensureInsightsPanel(api);
+        ensureMyStatsPanel(api);
       });
     });
     const saved = takeQueuedDockLayout() ?? readStoredDockLayout();
@@ -508,6 +528,7 @@ export function StudioDock() {
       ensureRepertoirePanel(api);
       ensureReviewPanel(api);
       ensureInsightsPanel(api);
+      ensureMyStatsPanel(api);
     });
     // SIG-907: focus→active so notation/engine/explorer follow the focused
     // board panel. Guard on "different + exists" — setActiveBoard clears

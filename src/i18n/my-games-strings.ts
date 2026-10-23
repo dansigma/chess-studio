@@ -23,6 +23,19 @@ export const MY_GAMES_STRING_KEYS = [
   "myGames.reviewing",
   "myGames.cancel",
   "myGames.reviewFailed",
+  "myGames.stats",
+  "myGames.statsTitle",
+  "myGames.statsEmpty",
+  "myGames.statsTrend",
+  "myGames.statsByOpening",
+  "myGames.statsByPhase",
+  "myGames.statsWhite",
+  "myGames.statsBlack",
+  "myGames.statsGames",
+  "myGames.statsWins",
+  "myGames.statsDraws",
+  "myGames.statsLosses",
+  "myGames.statsScore",
 ] as const;
 
 export type MyGamesStringKey = (typeof MY_GAMES_STRING_KEYS)[number];
@@ -47,6 +60,19 @@ const EN: Record<MyGamesStringKey, string> = {
   "myGames.reviewing": "Reviewing {done} of {total}…",
   "myGames.cancel": "Cancel",
   "myGames.reviewFailed": "Skipped {count} game without review",
+  "myGames.stats": "Stats",
+  "myGames.statsTitle": "My stats",
+  "myGames.statsEmpty": "Review at least 3 games to see your stats.",
+  "myGames.statsTrend": "Accuracy trend",
+  "myGames.statsByOpening": "Results by opening",
+  "myGames.statsByPhase": "Mistakes by phase",
+  "myGames.statsWhite": "White",
+  "myGames.statsBlack": "Black",
+  "myGames.statsGames": "Games",
+  "myGames.statsWins": "W",
+  "myGames.statsDraws": "D",
+  "myGames.statsLosses": "L",
+  "myGames.statsScore": "Score",
 };
 
 const PT_BR: Record<MyGamesStringKey, string> = {
@@ -69,6 +95,19 @@ const PT_BR: Record<MyGamesStringKey, string> = {
   "myGames.reviewing": "Revisando {done} de {total}…",
   "myGames.cancel": "Cancelar",
   "myGames.reviewFailed": "Ignorada {count} partida sem revisão",
+  "myGames.stats": "Estatísticas",
+  "myGames.statsTitle": "Minhas estatísticas",
+  "myGames.statsEmpty": "Revise pelo menos 3 partidas para ver suas estatísticas.",
+  "myGames.statsTrend": "Evolução da precisão",
+  "myGames.statsByOpening": "Resultados por abertura",
+  "myGames.statsByPhase": "Erros por fase",
+  "myGames.statsWhite": "Brancas",
+  "myGames.statsBlack": "Pretas",
+  "myGames.statsGames": "Partidas",
+  "myGames.statsWins": "V",
+  "myGames.statsDraws": "E",
+  "myGames.statsLosses": "D",
+  "myGames.statsScore": "Aproveitamento",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;
