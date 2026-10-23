@@ -116,6 +116,7 @@ The application supports two Stockfish 19 engine builds:
 2. **Stockfish 19 full (NNUE)**:
    - Files: `stockfish-19-single.wasm` and `full/stockfish-19.wasm` (~95 MB each).
    - Because Cloudflare Workers static assets have a 25 MiB file size limit, full WASM binaries are **not** committed to git or bundled in static assets. Instead, in production they are served dynamically from the Cloudflare R2 bucket `chess-studio-engine` via `app/engine/[...path]/route.ts`.
+   - `public/engine/full/stockfish.worker.js` looks like a duplicate of `stockfish-19.js` but must stay next to it: the threaded build spawns its pthread workers by that filename (guarded by `src/engine/engine-assets.test.ts`).
 
 ### Local Development with Full Engine (Optional)
 Local development works out-of-the-box with the bundled lite engine. To test the full NNUE engine locally:
