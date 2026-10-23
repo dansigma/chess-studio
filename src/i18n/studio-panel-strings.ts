@@ -233,6 +233,7 @@ export const STUDIO_PANEL_STRING_KEYS = [
   "panels.games",
   "panels.fileGames",
   "panels.positionSearch",
+  "panels.myStats",
   "panels.playerGames",
   "panels.playerExplorer",
 ] as const;
@@ -457,6 +458,7 @@ const EN: Record<StudioPanelStringKey, string> = {
   "panels.games": "Ultra Games",
   "panels.fileGames": "Games",
   "panels.positionSearch": "Position Search",
+  "panels.myStats": "My Stats",
   "panels.playerGames": "{title} — games",
   "panels.playerExplorer": "{title}",
 };
@@ -679,6 +681,7 @@ const PT_BR: Record<StudioPanelStringKey, string> = {
   "panels.games": "Ultra Games",
   "panels.fileGames": "Partidas",
   "panels.positionSearch": "Busca de posição",
+  "panels.myStats": "Minhas estatísticas",
   "panels.playerGames": "{title} — partidas",
   "panels.playerExplorer": "{title}",
 };

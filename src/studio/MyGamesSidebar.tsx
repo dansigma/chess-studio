@@ -14,7 +14,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { ChartSpline, RefreshCw } from "lucide-react";
 import { formatTimeClass, formatYearMonth } from "@/src/lib/game-date";
 import { loadMyGames, MY_GAMES_PAGE_SIZE } from "@/src/lib/my-games/load-games";
 import { loadLinkedAccounts, type LinkedAccountSource } from "@/src/lib/my-games/linked-accounts";
@@ -39,7 +39,7 @@ import { defaultEngineThreads } from "@/src/engine/stockfish-client";
 import { createE2eFakeReviewEngine, isE2eFakeReviewEnabled } from "./review/e2e-fake-review-engine";
 import { createLeaseEngine } from "./review/lease-engine";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
-import { openBoardPanel } from "./dock-api";
+import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
 import { Button, IconButton } from "./ui/Button";
@@ -339,9 +339,18 @@ export function MyGamesSidebar() {
       meta={games.length > 0 ? games.length : undefined}
       actions={
         user ? (
-          <IconButton label={syncLabel} size="sm" disabled={syncing || gamesLoading} onClick={handleSync}>
-            <RefreshCw size={14} className={syncing ? "animate-spin" : undefined} />
-          </IconButton>
+          <>
+            <IconButton
+              label={tMyGames(locale, "myGames.stats")}
+              size="sm"
+              onClick={() => openStudioPanel("myStats")}
+            >
+              <ChartSpline size={14} />
+            </IconButton>
+            <IconButton label={syncLabel} size="sm" disabled={syncing || gamesLoading} onClick={handleSync}>
+              <RefreshCw size={14} className={syncing ? "animate-spin" : undefined} />
+            </IconButton>
+          </>
         ) : undefined
       }
       header={

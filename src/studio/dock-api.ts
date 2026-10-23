@@ -21,7 +21,8 @@ export type StudioPanelId =
   | "explorer"
   | "games"
   | "fileGames"
-  | "positionSearch";
+  | "positionSearch"
+  | "myStats";
 
 const BOARD_TITLE: Record<SiteLocale, string> = {
   en: "Board",
@@ -44,6 +45,7 @@ const STATIC_PANEL_KEYS: Record<StudioPanelId, StudioPanelStringKey> = {
   games: "panels.games",
   fileGames: "panels.fileGames",
   positionSearch: "panels.positionSearch",
+  myStats: "panels.myStats",
 };
 
 /** Localized tab title for a static dock panel (player panels handled separately). */
@@ -371,4 +373,5 @@ export const OPEN_PANEL_ITEMS: Array<{ id: StudioPanelId; label: string }> = [
   { id: "games", label: "Ultra Games" },
   { id: "fileGames", label: "Games" },
   { id: "positionSearch", label: "Position Search" },
+  { id: "myStats", label: "My Stats" },
 ];

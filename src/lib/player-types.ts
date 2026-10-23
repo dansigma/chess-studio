@@ -1,3 +1,5 @@
+import type { MistakeCounts } from "./my-games/review-queue";
+
 export type PlayerSource = "lichess" | "chesscom" | "studio";
 
 export type PlayerColorFilter = "all" | "white" | "black";
@@ -39,6 +41,10 @@ export type PlayerGame = {
   userAccuracy?: number | null;
   opponentAccuracy?: number | null;
   reviewedAt?: string | null;
+  // SIG-1091: per-phase mistake counts for the user's side (stats panel).
+  // Mapped from `my_games.mistake_counts` with validation; null when the game
+  // is unreviewed or the stored JSON is malformed.
+  mistakeCounts?: MistakeCounts | null;
 };
 
 export type PlayerGamesResponse = {

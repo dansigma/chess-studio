@@ -13,7 +13,9 @@
 // `null`/`undefined` — both shapes `importPlayerGame` already accepts.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlayerGame } from "@/src/lib/player-types";
-import type { Database } from "@/src/lib/supabase/database.types";
+import type { Database, Json } from "@/src/lib/supabase/database.types";
+import type { MistakeCounts, MistakeTier } from "./review-queue";
+import type { GamePhase } from "@/src/chess/phases";
 
 export type MyGamesRow = Database["public"]["Tables"]["my_games"]["Row"];
 
@@ -38,6 +40,37 @@ function playedAtMs(playedAt: string | null): number | null {
   }
   const ms = Date.parse(playedAt);
   return Number.isNaN(ms) ? null : ms;
+}
+
+const MISTAKE_PHASES: readonly GamePhase[] = ["opening", "middlegame", "endgame"];
+const MISTAKE_TIERS: readonly MistakeTier[] = ["inaccuracy", "mistake", "miss", "blunder"];
+
+/** SIG-1091: validates `my_games.mistake_counts` JSON into `MistakeCounts`.
+ * Fail-closed: any malformed fragment yields `null` (never fabricated counts).
+ * Unknown extra keys are ignored. */
+function toMistakeCounts(value: Json | null): MistakeCounts | null {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const record = value as Record<string, Json | undefined>;
+  const out = {} as MistakeCounts;
+  for (const phase of MISTAKE_PHASES) {
+    const phaseValue = record[phase];
+    if (phaseValue == null || typeof phaseValue !== "object" || Array.isArray(phaseValue)) {
+      return null;
+    }
+    const tiers = phaseValue as Record<string, Json | undefined>;
+    const counts = {} as Record<MistakeTier, number>;
+    for (const tier of MISTAKE_TIERS) {
+      const count = tiers[tier];
+      if (typeof count !== "number" || !Number.isFinite(count) || count < 0) {
+        return null;
+      }
+      counts[tier] = count;
+    }
+    out[phase] = counts;
+  }
+  return out;
 }
 
 export function myGamesRowToPlayerGame(row: MyGamesRow): PlayerGame | null {
@@ -84,6 +117,7 @@ export function myGamesRowToPlayerGame(row: MyGamesRow): PlayerGame | null {
     userAccuracy: row.user_accuracy ?? null,
     opponentAccuracy: row.opponent_accuracy ?? null,
     reviewedAt: row.reviewed_at ?? null,
+    mistakeCounts: toMistakeCounts(row.mistake_counts),
   };
 }
 
