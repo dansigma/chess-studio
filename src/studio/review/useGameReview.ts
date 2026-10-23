@@ -12,7 +12,7 @@ import {
 } from "@/src/chess/review-engine";
 import { getNodeAt, type GameTree, type Path, type VariationPoint } from "@/src/chess/tree";
 import { acquire } from "@/src/engine/shared-engine";
-import { defaultEngineThreads, type EngineBuild } from "@/src/engine/stockfish-client";
+import { clampThreads, type EngineBuild } from "@/src/engine/stockfish-client";
 import { createE2eFakeReviewEngine, isE2eFakeReviewEnabled } from "./e2e-fake-review-engine";
 import { createLeaseEngine } from "./lease-engine";
 import {
@@ -39,6 +39,12 @@ type Options = {
 };
 
 const IDLE_PROGRESS: ReviewProgress = { done: 0, total: 0, elapsedMs: 0 };
+
+// SIG-1036: the review uses the user's thread setting, clamped by clampThreads
+// to what the machine and the page can support.
+export function reviewThreads(engineThreads: number): number {
+  return clampThreads(engineThreads);
+}
 
 // SIG-965: one-shot session hydration shared across hook instances. Kicked off
 // lazily on first mount (client only); every lookup awaits it so a reload shows
@@ -184,7 +190,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     const lease = useFake ? null : acquire("review", engineBuild);
     let stopped = false;
     const isCancelled = () => stopped;
-    const threads = Math.max(engineThreads, defaultEngineThreads());
+    const threads = reviewThreads(engineThreads);
     // Payload for this run only: resume() stashes the partial here, start()
     // leaves it null for a fresh run.
     const resume = resumeRef.current;
