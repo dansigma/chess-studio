@@ -13,7 +13,10 @@ type Row = {
   nb_plays: number | null;
 };
 
-const holder: { rpcImpl: (() => Promise<{ data: Row[] | null; error: unknown }>) | null; fromImpl: (() => unknown) | null } = {
+const holder: {
+  rpcImpl: ((fn: string, args: unknown) => Promise<{ data: Row[] | null; error: unknown }>) | null;
+  fromImpl: (() => unknown) | null;
+} = {
   rpcImpl: null,
   fromImpl: null,
 };
@@ -21,11 +24,7 @@ const holder: { rpcImpl: (() => Promise<{ data: Row[] | null; error: unknown }>)
 mock.module("@/src/lib/supabase/server.ts", {
   namedExports: {
     createPublicServerSupabase: () => ({
-      rpc: (fn: string, args: unknown) => {
-        void fn;
-        void args;
-        return holder.rpcImpl?.();
-      },
+      rpc: (fn: string, args: unknown) => holder.rpcImpl?.(fn, args),
       from: (table: string) => {
         void table;
         return holder.fromImpl?.();
@@ -87,6 +86,17 @@ test("queryPuzzleTable returns null when the table is empty or errors", async ()
   assert.equal(await queryPuzzleTable({ minRating: 1400, maxRating: 1600 }), null);
   holder.rpcImpl = async () => ({ data: null, error: new Error("db down") });
   assert.equal(await queryPuzzleTable({ minRating: 1400, maxRating: 1600 }), null);
+});
+
+test("queryPuzzleTable passes large seeds above int4 max to the RPC intact", async () => {
+  let seedSeen: number | null = null;
+  holder.rpcImpl = (async (_fn: string, args: unknown) => {
+    seedSeen = (args as { p_seed: number | null }).p_seed;
+    return { data: [GOOD_ROW], error: null };
+  }) as typeof holder.rpcImpl;
+  const result = await queryPuzzleTable({ minRating: 1400, maxRating: 1600, seed: 3000000000 });
+  assert.ok(result);
+  assert.equal(seedSeen, 3000000000);
 });
 
 test("queryPuzzleTable skips bad rows and warns once", async () => {

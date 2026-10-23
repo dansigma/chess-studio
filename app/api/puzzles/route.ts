@@ -15,6 +15,13 @@ const limiter = createRouteLimiter({ limit: 60, windowMs: 60_000, bindingName: "
  * SIG-1102: table-first sampling. The `puzzles_window` function clamps to
  * 200 rows, so offset requests and large limits stay on the in-memory
  * catalog rather than silently truncating.
+ *
+ * Contract note: windowed table hits serve a single capped page, so
+ * `total` is page-relative (`items.length`) on this path, while the catalog
+ * fallback below keeps the pre-pagination total from `queryPuzzles`. No
+ * client consumer reads `X-Total-Count`/envelope `total` today
+ * (`loadPuzzleCatalog` only reads the array body), so the page-relative
+ * total is safe; `route.test.ts` pins it.
  */
 async function queryTableFirst(queryOpts: PuzzleQueryOptions): Promise<PuzzleQueryResult> {
   const windowed = queryOpts.sample || queryOpts.minRating !== undefined || queryOpts.maxRating !== undefined;

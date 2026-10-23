@@ -137,6 +137,7 @@ test("windowed request uses the table when available", async () => {
     exclude: undefined,
     seed: undefined,
   });
+  // Windowed table hits are single capped pages, so total is page-relative.
   assert.equal(res.headers.get("X-Total-Count"), "2");
   storeHolder.tableRows = null;
 });
