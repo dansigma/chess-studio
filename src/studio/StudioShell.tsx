@@ -173,6 +173,11 @@ export function StudioShell() {
       if (cancelled) {
         return;
       }
+      // SIG-1096: mistake exercises hydrate alongside repertoire progress.
+      await useStudioStore.getState().hydrateMistakeExercises();
+      if (cancelled) {
+        return;
+      }
       // SIG-907: boards query settled — the dock may now prune orphan
       // `board:*` panels whose sessions never arrived.
       setBoardsHydrated();

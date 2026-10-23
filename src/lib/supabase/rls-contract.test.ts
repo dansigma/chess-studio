@@ -259,6 +259,43 @@ describe("sig-1102 puzzles_window migration", () => {
   });
 });
 
+describe("sig-1096 mistake_exercises migration", () => {
+  const sig1096 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021230000_mistake_exercises.sql"),
+    "utf8",
+  );
+
+  it("creates a per-user mistake_exercises table with a 256 KB data cap", () => {
+    assert.ok(sig1096.includes("create table if not exists public.mistake_exercises"));
+    assert.ok(sig1096.includes("user_id uuid primary key references auth.users (id) on delete cascade"));
+    assert.ok(sig1096.includes("data jsonb not null default '{}'::jsonb"));
+    assert.ok(sig1096.includes("mistake_exercises_data_size"), "missing size constraint");
+    assert.ok(sig1096.includes("pg_column_size(data) < 262144"), "256 KB data cap");
+  });
+
+  it("enables RLS with own-row select, insert and update policies", () => {
+    assert.ok(sig1096.includes("alter table public.mistake_exercises enable row level security"));
+    for (const name of [
+      "mistake_exercises_select_own",
+      "mistake_exercises_insert_own",
+      "mistake_exercises_update_own",
+    ]) {
+      assert.ok(sig1096.includes(`"${name}"`), `missing policy ${name}`);
+    }
+  });
+
+  it("wraps every auth check as a select subquery and grants only to authenticated", () => {
+    const bare = sig1096.match(/(?<![\w(])auth\.uid\(\)(?!\))/g) ?? [];
+    assert.equal(bare.length, 0, `found ${bare.length} unwrapped auth checks`);
+    assert.ok(sig1096.includes("(select auth.uid())"), "expected at least one wrapped auth check");
+    assert.ok(
+      sig1096.includes("grant select, insert, update on public.mistake_exercises to authenticated"),
+      "grants must be scoped to authenticated",
+    );
+    assert.ok(!/to (anon|public|service_role)/.test(sig1096), "no grants beyond authenticated");
+  });
+});
+
 describe("sig-1049 marketplace roles migration", () => {
   const sig1049 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021120000_marketplace_roles.sql"),
