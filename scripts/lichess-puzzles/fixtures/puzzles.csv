@@ -1,0 +1,13 @@
+PuzzleId,FEN,Moves,Rating,RatingDeviation,Popularity,NbPlays,Themes,GameUrl,OpeningTags
+qgd-fork-01,rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1,d2d4 d7d5 c2c4 e7e6,1450,80,92,1200,fork middlegame,https://lichess.org/abc1,
+ital-pin-02,rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1,e2e4 e7e5 g1f3 b8c6,1620,75,90,800,pin middlegame quietMove,https://lichess.org/abc2,
+even-drop-03,rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1,e2e4 e7e5 g1f3,1500,70,95,900,fork middlegame,https://lichess.org/abc3,
+illegal-drop-04,rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1,e2e4 e7e9,1510,70,95,900,pin middlegame,https://lichess.org/abc4,
+unmapped-skip-05,rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1,e7e5 g1f3 b8c6 f1c4,1550,70,95,900,short long,https://lichess.org/abc5,
+mixed-keep-06,r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3,g8f6 e1g1,1700,65,88,700,sacrifice quietMove middlegame,https://lichess.org/abc6,
+lowpop-filter-07,rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1,d7d5 c2c4 e7e6 b1c3,1480,70,60,2000,fork middlegame,https://lichess.org/abc7,
+lowplays-filter-08,rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq - 0 1,d7d5 c2c4 e7e6 b1c3,1480,70,95,100,fork middlegame,https://lichess.org/abc8,
+promo-09,4k3/2P5/8/8/8/8/8/4K3 b - - 0 1,e8e7 c7c8q,1250,90,91,600,promotion endgame,https://lichess.org/abc9,
+mate-scholar-10,rnbqkbnr/pppp1ppp/8/4p3/8/5P2/PPPPP1PP/RNBQKBNR w KQkq - 0 2,g2g4 d8h4,900,110,99,5000,mate mateIn1 backRankMate,https://lichess.org/abc10,
+mate2-line-11,rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1,e7e5 g1f3 b8c6 f1b5,1850,60,87,750,mate mateIn2 pin,https://lichess.org/abc11,
+skewer-band-12,rnbqkbnr/ppp2ppp/8/3pp3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1,e4d5 d8d5,2100,55,86,650,skewer middlegame,https://lichess.org/abc12,

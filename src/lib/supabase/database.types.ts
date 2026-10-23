@@ -448,6 +448,37 @@ export type Database = {
         };
         Relationships: [];
       };
+      // SIG-1042: curated Lichess puzzle subset (slice 1/3, data side only).
+      // Read-only for clients; loaded offline via \copy (serving in SIG-1102).
+      puzzles: {
+        Row: {
+          id: string;
+          fen: string;
+          moves: string[];
+          rating: number;
+          themes: string[];
+          popularity: number | null;
+          nb_plays: number | null;
+        };
+        Insert: {
+          id: string;
+          fen: string;
+          moves: string[];
+          rating: number;
+          themes: string[];
+          popularity?: number | null;
+          nb_plays?: number | null;
+        };
+        Update: {
+          fen?: string;
+          moves?: string[];
+          rating?: number;
+          themes?: string[];
+          popularity?: number | null;
+          nb_plays?: number | null;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
