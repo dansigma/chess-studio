@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { adminDenyDestination } from "./admin-gate.ts";
+import { adminDenyDestination, isAdminGatePath } from "./admin-gate.ts";
 
 describe("sig-889 adminDenyDestination", () => {
   it("denies /courses/admin to /courses when Supabase is unconfigured", () => {
@@ -33,5 +33,22 @@ describe("sig-889 adminDenyDestination", () => {
     assert.equal(adminDenyDestination("/courses/admin", { configured: true, hasUser: true, canAuthor: true }), null);
     assert.equal(adminDenyDestination("/courses", { configured: false, hasUser: false, canAuthor: false }), null);
     assert.equal(adminDenyDestination("/courses/french", { configured: true, hasUser: false, canAuthor: false }), null);
+  });
+});
+
+describe("sig-1038 isAdminGatePath", () => {
+  it("matches /courses/admin and paths under it", () => {
+    assert.equal(isAdminGatePath("/courses/admin"), true);
+    assert.equal(isAdminGatePath("/courses/admin/"), true);
+    assert.equal(isAdminGatePath("/courses/admin/drafts"), true);
+  });
+
+  it("does not match lookalike or unrelated paths", () => {
+    assert.equal(isAdminGatePath("/courses/adminx"), false);
+    assert.equal(isAdminGatePath("/courses/administrator"), false);
+    assert.equal(isAdminGatePath("/courses"), false);
+    assert.equal(isAdminGatePath("/studio"), false);
+    assert.equal(isAdminGatePath("/api/explorer"), false);
+    assert.equal(isAdminGatePath("/puzzles"), false);
   });
 });
