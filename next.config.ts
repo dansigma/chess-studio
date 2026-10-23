@@ -28,10 +28,11 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/engine/:path*",
-        headers: [
-          ...isolation,
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
+        // NB: no Cache-Control here — the route sets immutable on success and
+        // no-store on errors itself; a rule-level header would apply to error
+        // responses too (SIG-1106). Static files under public/engine keep
+        // immutable caching via public/_headers.
+        headers: isolation,
       },
       {
         source: "/engine/:path*.wasm",
