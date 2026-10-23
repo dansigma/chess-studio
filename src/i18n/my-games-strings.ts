@@ -17,6 +17,12 @@ export const MY_GAMES_STRING_KEYS = [
   "myGames.loadMore",
   "myGames.error.unavailable",
   "myGames.error.upstream",
+  "myGames.selectAll",
+  "myGames.reviewSelected",
+  "myGames.reviewAllUnreviewed",
+  "myGames.reviewing",
+  "myGames.cancel",
+  "myGames.reviewFailed",
 ] as const;
 
 export type MyGamesStringKey = (typeof MY_GAMES_STRING_KEYS)[number];
@@ -35,6 +41,12 @@ const EN: Record<MyGamesStringKey, string> = {
   "myGames.loadMore": "Load more",
   "myGames.error.unavailable": "Could not load your games. Try again.",
   "myGames.error.upstream": "One account failed to sync — your other games are shown.",
+  "myGames.selectAll": "Select all",
+  "myGames.reviewSelected": "Review selected",
+  "myGames.reviewAllUnreviewed": "Review all unreviewed",
+  "myGames.reviewing": "Reviewing {done} of {total}…",
+  "myGames.cancel": "Cancel",
+  "myGames.reviewFailed": "Skipped {count} game without review",
 };
 
 const PT_BR: Record<MyGamesStringKey, string> = {
@@ -51,6 +63,12 @@ const PT_BR: Record<MyGamesStringKey, string> = {
   "myGames.loadMore": "Carregar mais",
   "myGames.error.unavailable": "Não foi possível carregar suas partidas. Tente novamente.",
   "myGames.error.upstream": "Uma conta falhou ao sincronizar — seus outros jogos são exibidos.",
+  "myGames.selectAll": "Selecionar todas",
+  "myGames.reviewSelected": "Revisar selecionadas",
+  "myGames.reviewAllUnreviewed": "Revisar todas não revisadas",
+  "myGames.reviewing": "Revisando {done} de {total}…",
+  "myGames.cancel": "Cancelar",
+  "myGames.reviewFailed": "Ignorada {count} partida sem revisão",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

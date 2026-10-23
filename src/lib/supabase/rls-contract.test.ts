@@ -110,12 +110,14 @@ describe("sig-1088 my_games migration", () => {
     "utf8",
   );
 
-  it("enables RLS with own-row select, insert and delete policies (no update)", () => {
+  it("enables RLS with own-row select, insert and delete policies (no full-table update)", () => {
     assert.ok(sig1088.includes("alter table public.my_games enable row level security"));
     for (const name of ["my_games_select_own", "my_games_insert_own", "my_games_delete_own"]) {
       assert.ok(sig1088.includes(`"${name}"`), `missing policy ${name}`);
     }
-    assert.ok(!sig1088.includes("my_games_update_own"), "no client update policy on my_games");
+    // SIG-1090 adds the narrow my_games_update_review_own policy in its own
+    // migration; the base migration must not open a full-table update.
+    assert.ok(!sig1088.includes("my_games_update_own"), "no full-table client update on my_games");
   });
 
   it("wraps every auth check as a select subquery and grants only to authenticated", () => {
@@ -140,6 +142,35 @@ describe("sig-1088 my_games migration", () => {
     assert.ok(sig1088.includes("check (color in ('white', 'black'))"));
     assert.ok(sig1088.includes("check (result in ('win', 'loss', 'draw'))"));
     assert.ok(sig1088.includes("octet_length(pgn) <= 1000000"), "1 MB pgn cap");
+  });
+});
+
+describe("sig-1090 my_games review summary migration", () => {
+  const sig1090 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021210000_my_games_review_summary.sql"),
+    "utf8",
+  );
+
+  it("adds the four review-summary columns with a 2 KB mistake_counts cap", () => {
+    for (const column of ["user_accuracy real", "opponent_accuracy real", "reviewed_at timestamptz", "mistake_counts jsonb"]) {
+      assert.ok(sig1090.includes(`add column if not exists ${column}`), `missing column ${column}`);
+    }
+    assert.ok(sig1090.includes("my_games_mistake_counts_size"), "missing size constraint");
+    assert.ok(sig1090.includes("pg_column_size(mistake_counts) < 2048"), "2 KB mistake_counts cap");
+  });
+
+  it("adds a narrow own-row update policy and a column-scoped grant", () => {
+    assert.ok(sig1090.includes('"my_games_update_review_own"'), "missing review update policy");
+    assert.ok(sig1090.includes("for update"), "policy must be update-only");
+    assert.ok(sig1090.includes("using ((select auth.uid()) = user_id)"), "missing using clause");
+    assert.ok(sig1090.includes("with check ((select auth.uid()) = user_id)"), "missing with-check clause");
+    assert.ok(
+      sig1090.includes("grant update (user_accuracy, opponent_accuracy, reviewed_at, mistake_counts)"),
+      "grant must be limited to the four review columns",
+    );
+    const bare = sig1090.match(/(?<![\w(])auth\.uid\(\)(?!\))/g) ?? [];
+    assert.equal(bare.length, 0, `found ${bare.length} unwrapped auth checks`);
+    assert.ok(!/to (anon|public|service_role)/.test(sig1090), "no grants beyond authenticated");
   });
 });
 

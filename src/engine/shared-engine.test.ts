@@ -325,8 +325,41 @@ test("release from the active slot stops the orphaned search", () => {
 });
 
 test("slots typecheck as the EngineSlot union", () => {
-  const slots: EngineSlot[] = ["engine", "graph", "review", "threat"];
-  assert.deepEqual(slots.length, 4);
+  const slots: EngineSlot[] = ["engine", "graph", "review", "threat", "batch"];
+  assert.deepEqual(slots.length, 5);
+});
+
+test("SIG-1090: batch is preempted by graph and resumes on graph release", () => {
+  setup();
+  const batch = acquire("batch", "lite");
+  const graph = acquire("graph", "lite");
+  activeSearch(batch, FEN_C);
+  const w = worker();
+  w.sent.length = 0;
+  // Graph outranks batch: the batch search is preempted via the SIG-850 barrier.
+  graph.analyze(FEN_A, 12, 1, 1);
+  assert.deepEqual(w.sent, ["stop", "isready"]);
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_A}`));
+  // Graph releases: the stashed batch params resume.
+  w.sent.length = 0;
+  graph.release();
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_C}`));
+  batch.release();
+});
+
+test("SIG-1090: batch never preempts review — it queues instead", () => {
+  setup();
+  const batch = acquire("batch", "lite");
+  const review = acquire("review", "lite");
+  activeSearch(review, FEN_B);
+  const w = worker();
+  w.sent.length = 0;
+  batch.analyze(FEN_C, 12, 1, 1);
+  assert.deepEqual(w.sent, []);
+  batch.release();
+  review.release();
 });
 
 test("SIG-950: acquire alone boots no worker; first analyze does", () => {

@@ -63,6 +63,8 @@ export function myGamesRowToPlayerGame(row: MyGamesRow): PlayerGame | null {
   const date = playedAt === null ? null : new Date(playedAt);
   return {
     id: row.external_id,
+    // The row id is the batch-review write-back key (see PlayerGame.rowId).
+    rowId: row.id,
     winner,
     whiteName: row.white ?? "?",
     whiteRating: row.white_elo,
@@ -79,6 +81,9 @@ export function myGamesRowToPlayerGame(row: MyGamesRow): PlayerGame | null {
     color,
     playerResult,
     playedAt,
+    userAccuracy: row.user_accuracy ?? null,
+    opponentAccuracy: row.opponent_accuracy ?? null,
+    reviewedAt: row.reviewed_at ?? null,
   };
 }
 

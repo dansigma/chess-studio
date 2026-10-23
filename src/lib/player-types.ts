@@ -31,6 +31,14 @@ export type PlayerGame = {
   color: "white" | "black";
   playerResult: "win" | "loss" | "draw" | null;
   playedAt: number | null;
+  // SIG-1090: batch review provenance. `rowId` is the `public.my_games` row id
+  // (the review write-back key); `id` stays the external game id for openers.
+  // Loaded games without a linked row (`rowId: null`, e.g. explorer hits) are
+  // not reviewable and never join the batch queue.
+  rowId?: string | null;
+  userAccuracy?: number | null;
+  opponentAccuracy?: number | null;
+  reviewedAt?: string | null;
 };
 
 export type PlayerGamesResponse = {

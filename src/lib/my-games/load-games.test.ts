@@ -104,6 +104,7 @@ describe("myGamesRowToPlayerGame", () => {
     const game = myGamesRowToPlayerGame(baseRow() as unknown as MyGamesRow);
     assert.deepEqual(game, {
       id: "game-1",
+      rowId: "row-1",
       winner: "white",
       whiteName: "Magnus",
       whiteRating: 2800,
@@ -120,6 +121,9 @@ describe("myGamesRowToPlayerGame", () => {
       color: "white",
       playerResult: "win",
       playedAt: Date.parse("2026-10-20T12:00:00.000Z"),
+      userAccuracy: null,
+      opponentAccuracy: null,
+      reviewedAt: null,
     });
   });
 
@@ -152,6 +156,20 @@ describe("myGamesRowToPlayerGame", () => {
     assert.equal(game?.whiteName, "?");
     assert.equal(game?.whiteRating, null);
     assert.equal(game?.opening, null);
+    assert.equal(game?.rowId, "row-1");
+  });
+
+  it("maps review summary columns, preserving nulls", () => {
+    const game = myGamesRowToPlayerGame(
+      baseRow({
+        user_accuracy: 82.5,
+        opponent_accuracy: 77.25,
+        reviewed_at: "2026-10-22T10:00:00.000Z",
+      }) as unknown as MyGamesRow,
+    );
+    assert.equal(game?.userAccuracy, 82.5);
+    assert.equal(game?.opponentAccuracy, 77.25);
+    assert.equal(game?.reviewedAt, "2026-10-22T10:00:00.000Z");
   });
 
   it("defaults null color to white and skips empty ids or pgn", () => {
