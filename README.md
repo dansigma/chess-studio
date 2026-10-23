@@ -47,6 +47,9 @@ cp .env.example .env.local
 | `COURSE_ADMINS` | Server-only | Optional | Comma-separated list of email addresses permitted to create and publish courses (e.g. `admin@example.com,coach@example.com`). Also validated against `public.course_admins`. |
 | `SUPABASE_JWKS_URL` | Server-only | Optional | Supabase auth JWKS endpoint for JWT verification (e.g. `https://your-project.supabase.co/auth/v1/.well-known/jwks.json`). |
 | `LICHESS_TOKEN` | Server / Client | Optional | Personal OAuth token from [lichess.org/account/oauth/token](https://lichess.org/account/oauth/token) (no scopes required). Without it, live Lichess explorer stats return 401 and the app falls back to the built-in master sample book. |
+| `RESEND_API_KEY` | Server-only | Optional | Resend API key for transactional email (coach invites, receipts, reminders). Without it, `sendEmail()` is a no-op that logs once and returns `{ ok: false, reason: "not_configured" }`. |
+| `EMAIL_FROM` | Server-only | Optional | Override for the email sender identity. Defaults to `"Xadrez Digital" <no-reply@xadrez.digital>`. |
+| `EMAIL_REPLY_TO` | Server-only | Optional | Override for the email reply-to address. Defaults to `contato@xadrez.digital`. |
 
 ## Supabase & Database Migrations
 
