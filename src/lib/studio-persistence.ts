@@ -37,6 +37,7 @@ export async function persistBoardRecord(
         pgn: exportPgn(board.tree, board.headers),
         current_node_path: board.path,
         orientation: board.orientation,
+        repertoire_color: board.repertoireColor,
         updated_at: new Date().toISOString(),
       })
       .eq("id", board.remoteId);
@@ -53,6 +54,7 @@ export async function persistBoardRecord(
       pgn: exportPgn(board.tree, board.headers),
       current_node_path: board.path,
       orientation: board.orientation,
+      repertoire_color: board.repertoireColor,
       updated_at: new Date().toISOString(),
     })
     .select("id")

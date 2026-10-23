@@ -39,6 +39,9 @@ export type BoardSession = {
   path: Path;
   headers: GameHeaders;
   orientation: BoardOrientation;
+  // SIG-1092: repertoire mark — which color this board is the repertoire
+  // for, if any. One board per color per user (partial unique index).
+  repertoireColor: BoardOrientation | null;
   dirty: boolean;
   preview: boolean;
   // SIG-968: pre-annotate snapshot for one level of "Undo annotations".
@@ -239,6 +242,7 @@ export type StudioState = {
   setMistakeExercises: (exercises: MistakeExercisesMap) => void;
   hydrateMistakeExercises: () => Promise<void>;
   renameActive: (title: string) => void;
+  setBoardRepertoire: (boardId: string, color: BoardOrientation | null) => void;
   setExplorer: (data: ExplorerResponse | null) => void;
   setExplorerLoading: (loading: boolean) => void;
   setExplorerError: (error: string | null) => void;

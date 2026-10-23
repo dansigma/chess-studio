@@ -76,6 +76,7 @@ export type BoardEditSlice = Pick<
   | "setSetupMode"
   | "applySetupFen"
   | "openSharedPosition"
+  | "setBoardRepertoire"
 >;
 
 export const initialBoardEditState = {
@@ -94,6 +95,25 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         orientation: board.orientation === "white" ? "black" : "white",
         dirty: true,
       })),
+    }));
+  },
+  // SIG-1092: mark one board per color as the repertoire. Setting a color
+  // clears it from any other board holding it (so the partial unique index
+  // holds) and marks both old and new holders dirty so the debounced
+  // auto-save persists the unmark too. Passing null only clears this board.
+  setBoardRepertoire: (boardId, color) => {
+    set((state) => ({
+      boards: state.boards.map((board) => {
+        if (board.id === boardId) {
+          return board.repertoireColor === color
+            ? board
+            : { ...board, repertoireColor: color, dirty: true };
+        }
+        if (color !== null && board.repertoireColor === color) {
+          return { ...board, repertoireColor: null, dirty: true };
+        }
+        return board;
+      }),
     }));
   },
   importPgnText: (pgn, title) => {

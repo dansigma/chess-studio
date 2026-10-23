@@ -173,6 +173,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       // SIG-968: the snapshot belongs to the source board — a clone of an
       // annotated tree starts with no undo (the tree itself carries the notes).
       reviewAnnotateUndo: undefined,
+      // SIG-1092: a clone is a new board, not a second holder of the mark.
+      repertoireColor: null,
       dirty: true,
       preview: false,
     };
