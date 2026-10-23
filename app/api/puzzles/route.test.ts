@@ -1,9 +1,27 @@
 // Tests for the puzzles API route: single-item lookup, query validation,
 // pagination/envelope/sample behavior, and rate limiting
 // (see `.artifacts/plans/issue-932.md` Phase 3).
-import test from "node:test";
+// SIG-1102: table-first coverage via a mocked `puzzle-store` holder.
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { makeGetRequest, nextTestIp } from "@/src/test-utils/route-test.ts";
+import type { CompiledPuzzle } from "@/src/puzzles/engine.ts";
+
+const storeHolder: {
+  tableRows: CompiledPuzzle[] | null;
+  tableRowById: Record<string, unknown>;
+  lastTableQuery: Record<string, unknown> | null;
+} = { tableRows: null, tableRowById: {}, lastTableQuery: null };
+
+mock.module("@/src/puzzles/puzzle-store.ts", {
+  namedExports: {
+    queryPuzzleTable: async (options: Record<string, unknown>) => {
+      storeHolder.lastTableQuery = options;
+      return storeHolder.tableRows;
+    },
+    fetchPuzzleRowById: async (id: string) => storeHolder.tableRowById[id] ?? null,
+  },
+});
 
 const { GET } = await import("./route.ts");
 
@@ -96,4 +114,51 @@ test("rate-limits after 60 requests from one IP", async () => {
     last = { status: res.status };
   }
   assert.equal(last.status, 429);
+});
+
+test("windowed request uses the table when available", async () => {
+  const { compilePuzzle } = await import("@/src/puzzles/engine.ts");
+  const { PUZZLE_CATALOG } = await import("@/src/puzzles/catalog.ts");
+  const rows = [PUZZLE_CATALOG[0]!, PUZZLE_CATALOG[3]!].map((puzzle) => compilePuzzle(puzzle));
+  storeHolder.tableRows = rows;
+  storeHolder.tableRowById = {};
+  storeHolder.lastTableQuery = null;
+  const { res, body } = await get("?minRating=1400&maxRating=1600&limit=2");
+  assert.equal(res.status, 200);
+  assert.deepEqual(
+    (body as CompiledPuzzle[]).map((p) => p.id),
+    rows.map((p) => p.id),
+  );
+  assert.deepEqual(storeHolder.lastTableQuery, {
+    minRating: 1400,
+    maxRating: 1600,
+    theme: undefined,
+    limit: 2,
+    exclude: undefined,
+    seed: undefined,
+  });
+  assert.equal(res.headers.get("X-Total-Count"), "2");
+  storeHolder.tableRows = null;
+});
+
+test("windowed request falls back to the catalog when the table returns null", async () => {
+  storeHolder.tableRows = null;
+  storeHolder.tableRowById = {};
+  const { res, body } = await get("?minRating=1500&maxRating=1500&limit=5");
+  assert.equal(res.status, 200);
+  assert.ok(Array.isArray(body));
+  for (const puzzle of body as CompiledPuzzle[]) {
+    assert.ok(puzzle.rating >= 1500 && puzzle.rating <= 1500);
+  }
+});
+
+test("single id lookup prefers the table row", async () => {
+  const { PUZZLE_CATALOG } = await import("@/src/puzzles/catalog.ts");
+  const raw = PUZZLE_CATALOG[0]!;
+  storeHolder.tableRows = null;
+  storeHolder.tableRowById = { [raw.id]: raw };
+  const { res, body } = await get(`?id=${raw.id}`);
+  assert.equal(res.status, 200);
+  assert.equal((body as { id: string }).id, raw.id);
+  storeHolder.tableRowById = {};
 });

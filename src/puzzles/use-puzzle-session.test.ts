@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PUZZLE_CATALOG } from "./catalog.ts";
 import { compilePuzzle, dailyPuzzle, type CompiledPuzzle } from "./engine.ts";
-import { RUSH_STRIKES, clock, nextSessionScore, pickPuzzle, rushAfterMiss } from "./use-puzzle-session";
+import { RUSH_STRIKES, clock, loadWindowedCatalog, nextSessionScore, pickPuzzle, ratingWindowRequests, rushAfterMiss } from "./use-puzzle-session";
 
 const template = compilePuzzle(PUZZLE_CATALOG[0]);
 
@@ -81,4 +81,38 @@ test("pickPuzzle shifts the target by mode and solved count", () => {
     assert.equal(pickPuzzle(puzzles, "rush", null, { rating: 1200 }, 0, new Set())?.id, "low");
     assert.equal(pickPuzzle(puzzles, "streak", null, { rating: 1200 }, 5, new Set())?.id, "high");
   });
+});
+
+test("ratingWindowRequests widens by 100 up to four attempts", () => {
+  assert.deepEqual(ratingWindowRequests(1500), [
+    { minRating: 1400, maxRating: 1600 },
+    { minRating: 1300, maxRating: 1700 },
+    { minRating: 1200, maxRating: 1800 },
+    { minRating: 1100, maxRating: 1900 },
+  ]);
+});
+
+test("ratingWindowRequests clamps the lower bound at zero", () => {
+  assert.deepEqual(ratingWindowRequests(50)[0], { minRating: 0, maxRating: 150 });
+});
+
+test("loadWindowedCatalog stops at the first window with enough puzzles", async () => {
+  const calls: Array<{ minRating?: number; maxRating?: number }> = [];
+  const loader = async (options?: { minRating?: number; maxRating?: number }) => {
+    calls.push({ minRating: options?.minRating, maxRating: options?.maxRating });
+    return calls.length === 1 ? [candidate("thin", 1200)] : [1, 2, 3, 4, 5, 6].map((n) => candidate(`p${n}`, 1200 + n));
+  };
+  const catalog = await loadWindowedCatalog("rated", null, 1200, 0, new Set(), loader as never);
+  assert.equal(catalog.length, 6);
+  assert.deepEqual(calls, [
+    { minRating: 1100, maxRating: 1300 },
+    { minRating: 1000, maxRating: 1400 },
+  ]);
+});
+
+test("loadWindowedCatalog returns the widest window when all are thin", async () => {
+  const loader = async () => [candidate("only", 1200)];
+  const catalog = await loadWindowedCatalog("rated", null, 1200, 0, new Set(), loader as never);
+  assert.equal(catalog.length, 1);
+  assert.equal(catalog[0]?.id, "only");
 });

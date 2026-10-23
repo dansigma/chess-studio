@@ -48,8 +48,61 @@ export function pickPuzzle(
   return windowed[Math.floor(Math.random() * windowed.length)] ?? ranked[0] ?? null;
 }
 
+/**
+ * SIG-1102: rating windows for the windowed table load, widest last. The
+ * session tries each window in order and stops at the first with enough
+ * puzzles, so rated mode draws within ±100 whenever the table has them.
+ */
+export function ratingWindowRequests(
+  target: number,
+  attempts = 4,
+  step = 100,
+): Array<{ minRating: number; maxRating: number }> {
+  const windows: Array<{ minRating: number; maxRating: number }> = [];
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const half = step * (attempt + 1);
+    windows.push({
+      minRating: Math.max(0, Math.floor(target - half)),
+      maxRating: Math.ceil(target + half),
+    });
+  }
+  return windows;
+}
+
 export function nextSessionScore(success: boolean, solved: number): number {
   return success ? solved + 1 : solved;
+}
+
+/**
+ * SIG-1102: load the rating window around the session target, widening on
+ * thin results. Daily mode is excluded by the caller (date-keyed identity
+ * comes from the full catalog).
+ */
+export async function loadWindowedCatalog(
+  mode: PuzzleMode,
+  theme: PuzzleTheme | null,
+  rating: number,
+  solvedInSession: number,
+  exclude: ReadonlySet<string>,
+  loader: typeof loadPuzzleCatalog = loadPuzzleCatalog,
+): Promise<CompiledPuzzle[]> {
+  const seed = (Math.random() * 0xffffffff) >>> 0;
+  let widest: CompiledPuzzle[] = [];
+  for (const window of ratingWindowRequests(sessionTarget(rating, solvedInSession, mode))) {
+    const catalog = await loader({
+      minRating: window.minRating,
+      maxRating: window.maxRating,
+      theme: theme ?? undefined,
+      limit: 50,
+      exclude: [...exclude],
+      seed,
+    });
+    widest = catalog;
+    if (catalog.length >= 5) {
+      return catalog;
+    }
+  }
+  return widest;
 }
 
 export function rushAfterMiss(strikes: number, secondsLeft: number): { strikes: number; over: boolean } {
@@ -160,10 +213,14 @@ export function usePuzzleSession({
       try {
         const supabase = createBrowserSupabase();
         const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-        const [loaded, catalog] = await Promise.all([
-          hydratePuzzleProgress(user?.id ?? null),
-          loadPuzzleCatalog(),
-        ]);
+        const loaded = await hydratePuzzleProgress(user?.id ?? null);
+        if (cancel) {
+          return;
+        }
+        const catalog =
+          mode === "daily"
+            ? await loadPuzzleCatalog()
+            : await loadWindowedCatalog(mode, theme, loaded.rating, 0, exclude.current);
         if (cancel) {
           return;
         }

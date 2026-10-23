@@ -231,6 +231,9 @@ export function PuzzleDashboard() {
             })}
           </ul>
         ) : null}
+        <p className="mt-8 text-center text-caption text-studio-faint">
+          {tPuzzle(locale, "puzzle.dashboard.credit")}
+        </p>
       </main>
       <SiteFooter />
     </div>
