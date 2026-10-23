@@ -3,7 +3,11 @@
 // The three dock panels (EnginePanel, EvalGraphPanel, ReviewPanel) previously
 // each owned a `StockfishEngine` worker (~99MB on the standard build). This
 // module owns one resident worker for the active build and arbitrates access
-// by slot priority: threat (4) > review (3) > engine (2) > graph (1).
+// by slot priority: threat (4) > review (3) > engine (2) > graph (1) > batch (0).
+//
+// The `batch` slot (SIG-1090) is the background My Games review queue: the
+// lowest priority, so every interactive slot preempts it and it resumes via
+// the same stashed-params / promote() path. No extra worker is created.
 //
 // The `threat` slot (SIG-906) is a one-shot: the Show-threat hook acquires it,
 // analyzes the null-move FEN once, then stops/releases so the preempted victim
@@ -37,7 +41,7 @@ import {
   type EngineInfo,
 } from "./stockfish-client";
 
-export type EngineSlot = "engine" | "graph" | "review" | "threat";
+export type EngineSlot = "engine" | "graph" | "review" | "threat" | "batch";
 
 export type EngineSlotListener = (info: EngineInfo) => void;
 
@@ -46,6 +50,7 @@ const SLOT_PRIORITY: Record<EngineSlot, number> = {
   review: 3,
   engine: 2,
   graph: 1,
+  batch: 0,
 };
 
 export type SharedEngineLease = {

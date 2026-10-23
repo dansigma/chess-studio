@@ -390,6 +390,9 @@ export type Database = {
       };
       // SIG-1088: imported recent games (My Games 2/5), one row per
       // (user, source, external game id); sync route is the only writer.
+      // SIG-1090: batch review summaries (My Games 4/5) — the only
+      // client-updatable columns (see my_games_update_review_own + column
+      // grant in 20261021210000_my_games_review_summary.sql).
       my_games: {
         Row: {
           id: string;
@@ -409,6 +412,10 @@ export type Database = {
           ply_count: number | null;
           pgn: string;
           created_at: string;
+          user_accuracy: number | null;
+          opponent_accuracy: number | null;
+          reviewed_at: string | null;
+          mistake_counts: Json | null;
         };
         Insert: {
           id?: string;
@@ -428,8 +435,17 @@ export type Database = {
           ply_count?: number | null;
           pgn: string;
           created_at?: string;
+          user_accuracy?: number | null;
+          opponent_accuracy?: number | null;
+          reviewed_at?: string | null;
+          mistake_counts?: Json | null;
         };
-        Update: Record<string, never>;
+        Update: {
+          user_accuracy?: number | null;
+          opponent_accuracy?: number | null;
+          reviewed_at?: string | null;
+          mistake_counts?: Json | null;
+        };
         Relationships: [];
       };
       profiles: {
