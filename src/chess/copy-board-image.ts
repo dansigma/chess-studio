@@ -1,6 +1,5 @@
-import { toBlob } from "html-to-image";
-
 export async function boardPngBlob(element: HTMLElement): Promise<Blob> {
+  const { toBlob } = await import("html-to-image");
   const blob = await toBlob(element, {
     pixelRatio: 2,
     cacheBust: true,
