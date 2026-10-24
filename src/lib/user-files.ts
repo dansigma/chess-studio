@@ -303,17 +303,30 @@ async function insertChunks<T>(
   return null;
 }
 
-export async function persistRemoteFolder(folder: FileFolder, userId: string): Promise<void> {
+export const FOLDER_CYCLE_MESSAGE = "A folder can't be moved inside itself or one of its subfolders.";
+
+export function folderWriteErrorMessage(error: { message?: string } | null): string | null {
+  if (!error) {
+    return null;
+  }
+  if (typeof error.message === "string" && error.message.includes("folder_cycle")) {
+    return FOLDER_CYCLE_MESSAGE;
+  }
+  return error.message ?? "Could not save the folder.";
+}
+
+export async function persistRemoteFolder(folder: FileFolder, userId: string): Promise<string | null> {
   const supabase = createBrowserSupabase();
   if (!supabase) {
-    return;
+    return null;
   }
-  await supabase.from("user_folders").upsert({
+  const { error } = await supabase.from("user_folders").upsert({
     id: folder.id,
     user_id: userId,
     name: folder.name,
     parent_id: folder.parentId,
   });
+  return folderWriteErrorMessage(error);
 }
 
 export async function deleteRemoteFolder(folderId: string): Promise<void> {

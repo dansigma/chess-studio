@@ -129,6 +129,11 @@ jobs:
       - name: Verify migration status
         run: supabase migration list --local
 
+      - name: Verify folder cycle protection
+        run: >
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          -v ON_ERROR_STOP=1 -f supabase/tests/folder_cycles.sql
+
       # A deny-all table must still declare a policy (see course_admins_no_client_access
       # ... using (false) at supabase/migrations/20260928210000_profiles_and_admins.sql:29-32):
       # RLS on with zero rows in pg_policies is a violation, indistinguishable from
