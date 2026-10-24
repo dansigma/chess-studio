@@ -154,6 +154,21 @@ npx tsc --noEmit
 npm run test:e2e
 ```
 
+## Dependency audit
+
+Production dependencies are audited on every CI run by `node scripts/audit-gate.mjs`
+(fails on any unallowlisted `high`/`critical` advisory from `npm audit --omit=dev`).
+Advisories with no usable fix are listed in `audit-allowlist.json` with a reason
+and an `expires` date (90 days out); expired entries fail the gate, and stale
+entries (matching no current advisory) are printed so they can be removed:
+
+```bash
+node scripts/audit-gate.mjs
+```
+
+Dependabot covers npm updates weekly. When an allowlist entry nears expiry,
+check whether an upgrade fixes it, then renew or remove the entry.
+
 ## Build & Deployment
 
 ### 1. Next.js Standard Build
