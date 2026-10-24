@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   canMoveFolder,
+  FOLDER_CYCLE_MESSAGE,
+  folderWriteErrorMessage,
   getDescendantFolderIds,
   isDescendantFolder,
   loadLocalFiles,
@@ -69,6 +71,19 @@ test("canMoveFolder prevents cycles and invalid targets", () => {
 
   // Moving to nonexistent folder is blocked
   assert.equal(canMoveFolder(folders, "f1", "nonexistent"), false);
+});
+
+test("folderWriteErrorMessage maps the folder_cycle database error", () => {
+  assert.equal(
+    folderWriteErrorMessage({ message: "folder_cycle" }),
+    FOLDER_CYCLE_MESSAGE,
+  );
+  assert.equal(
+    folderWriteErrorMessage({ message: 'update "user_folders" failed: folder_cycle' }),
+    FOLDER_CYCLE_MESSAGE,
+  );
+  assert.equal(folderWriteErrorMessage({ message: "folder_parent_owner" }), "folder_parent_owner");
+  assert.equal(folderWriteErrorMessage(null), null);
 });
 
 test("localFiles roundtrip preserves parentId and migrates legacy entries", () => {
