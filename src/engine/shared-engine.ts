@@ -104,14 +104,22 @@ function disposeIdleUnderlying(): void {
   if (liveLeases.size !== 0 || !underlying) {
     return;
   }
-  tapUnsubscribe?.();
-  tapUnsubscribe = null;
   underlying.dispose();
   underlying = null;
   currentBuild = null;
-  activeSlot = null;
-  pendingBySlot.clear();
-  lastParamsBySlot.clear();
+}
+
+function attachTap(): void {
+  if (!underlying || tapUnsubscribe) {
+    return;
+  }
+  // Service tap: runs before any lease wrapper's listener (attached first),
+  // never delivers to panels, only detects natural completion.
+  tapUnsubscribe = underlying.subscribe((snapshot) => {
+    if (!snapshot.running && snapshot.ready && !snapshot.failed) {
+      maybeAutoPromoteOnCompletion();
+    }
+  });
 }
 
 /** Schedule promotion when the active search completes on its own. */
@@ -142,13 +150,7 @@ function ensureUnderlying(build: EngineBuild): StockfishEngine {
   }
   if (!underlying) {
     underlying = new StockfishEngine(build);
-    // Service tap: runs before any lease wrapper's listener (attached first),
-    // never delivers to panels, only detects natural completion.
-    tapUnsubscribe = underlying.subscribe((snapshot) => {
-      if (!snapshot.running && snapshot.ready && !snapshot.failed) {
-        maybeAutoPromoteOnCompletion();
-      }
-    });
+    attachTap();
   }
   return underlying;
 }
@@ -294,8 +296,15 @@ class LeaseImpl implements SharedEngineLease {
       underlying?.stopSearch();
       promote();
     }
-    if (liveLeases.size === 0 && idleDisposeTimer === null) {
-      idleDisposeTimer = setTimeout(disposeIdleUnderlying, ENGINE_IDLE_DISPOSE_MS);
+    if (liveLeases.size === 0) {
+      tapUnsubscribe?.();
+      tapUnsubscribe = null;
+      activeSlot = null;
+      pendingBySlot.clear();
+      lastParamsBySlot.clear();
+      if (idleDisposeTimer === null) {
+        idleDisposeTimer = setTimeout(disposeIdleUnderlying, ENGINE_IDLE_DISPOSE_MS);
+      }
     }
   };
 }
@@ -303,6 +312,7 @@ class LeaseImpl implements SharedEngineLease {
 export function acquire(slot: EngineSlot, build: EngineBuild): SharedEngineLease {
   cancelIdleDispose();
   ensureUnderlying(build);
+  attachTap();
   const lease = new LeaseImpl(slot, build);
   liveLeases.add(lease);
   return lease;
