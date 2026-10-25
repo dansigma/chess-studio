@@ -10,8 +10,10 @@ import { useStudioStore } from "@/src/store/studio-store";
 
 export function CourseChrome({
   admin = false,
+  isAdmin = false,
 }: {
   admin?: boolean;
+  isAdmin?: boolean;
 }) {
   const pathname = usePathname();
   const locale = useStudioStore((state) => state.settings.locale);
@@ -39,6 +41,11 @@ export function CourseChrome({
             </Link>
           );
         })}
+        {isAdmin ? (
+          <Link href="/admin/users" className="rounded-md px-2 py-1 text-studio-accent-text hover:bg-studio-hover">
+            {tCourse(locale, "course.chrome.adminUsers")}
+          </Link>
+        ) : null}
         {admin ? (
           <Link href="/courses/admin" className="rounded-md px-2 py-1 text-studio-accent-text hover:bg-studio-hover">
             {tCourse(locale, "course.chrome.createCourse")}

@@ -21,7 +21,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 export function CourseView({ course }: { course: Course }) {
   const router = useRouter();
   const locale = useStudioStore((state) => state.settings.locale);
-  const { progress, admin, signedIn, source } = useCourseData();
+  const { progress, admin, isAdmin, signedIn, source } = useCourseData();
 
   const frameCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -42,7 +42,7 @@ export function CourseView({ course }: { course: Course }) {
 
   return (
     <div className="min-h-full bg-studio-bg">
-      <CourseChrome admin={admin} />
+      <CourseChrome admin={admin} isAdmin={isAdmin} />
       <main className="mx-auto max-w-3xl px-6 py-8">
         <div className="flex items-start gap-4">
           <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-studio-border bg-studio-hover">

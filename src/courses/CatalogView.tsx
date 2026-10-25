@@ -15,13 +15,13 @@ import { useCourseData } from "./use-courses";
 
 export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
   const locale = useStudioStore((state) => state.settings.locale);
-  const { progress, admin, ready, signedIn, source } = useCourseData();
+  const { progress, admin, isAdmin, ready, signedIn, source } = useCourseData();
   const [theme, setTheme] = useState<CourseTheme | "">("");
   const visible = theme ? courses.filter((course) => course.theme === theme) : courses;
 
   return (
     <div className="min-h-full bg-studio-bg">
-      <CourseChrome admin={admin} />
+      <CourseChrome admin={admin} isAdmin={isAdmin} />
       <main className="mx-auto max-w-5xl px-6 py-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>

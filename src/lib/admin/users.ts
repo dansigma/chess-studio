@@ -1,7 +1,7 @@
 import "server-only";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
 
-export const ADMIN_USERS_PAGE_SIZE = 20;
+export const ADMIN_USERS_PAGE_SIZE = 50;
 
 export type RoleChangeCode =
   | "invalid_role"
