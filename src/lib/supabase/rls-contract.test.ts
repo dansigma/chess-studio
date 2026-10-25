@@ -451,3 +451,58 @@ describe("sig-1061 role management RPCs migration", () => {
     assert.ok(sig1061.includes("least(greatest("), "p_limit must be clamped");
   });
 });
+
+describe("sig-1062 accept_coach_invite migration", () => {
+  const sig1062 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021140000_accept_coach_invite.sql"),
+    "utf8",
+  );
+
+  it("defines a locked, security-definer function with an empty search_path", () => {
+    assert.ok(sig1062.includes("create or replace function public.accept_coach_invite(p_token_hash text, p_email text, p_user_id uuid)"));
+    assert.ok(sig1062.includes("returns jsonb"));
+    assert.ok(/security definer/.test(sig1062));
+    assert.ok(/set search_path = ''/.test(sig1062));
+    assert.ok(sig1062.includes("for update"), "invite row must be locked before guards");
+  });
+
+  it("enforces the guard chain in order", () => {
+    for (const code of [
+      "invalid",
+      "not_found",
+      "expired",
+      "revoked",
+      "consumed",
+      "email_mismatch",
+      "role_unchanged",
+      "accepted",
+    ]) {
+      assert.ok(sig1062.includes(`'${code}'`), `missing guard code ${code}`);
+    }
+    const order = ["invalid", "not_found", "expired", "revoked", "consumed", "email_mismatch", "role_unchanged", "accepted"];
+    const positions = order.map((code) => sig1062.indexOf(`'${code}'`));
+    assert.deepEqual([...positions].sort((a, b) => a - b), positions, "guards out of order");
+  });
+
+  it("promotes student to coach with a manual stamp and an audit row", () => {
+    assert.ok(sig1062.includes("set role = 'coach', role_source = 'manual'"));
+    assert.ok(sig1062.includes("insert into public.role_changes"));
+    assert.ok(sig1062.includes("'coach invite accepted'"));
+    assert.ok(sig1062.includes("accepted_at = now()"), "invite must be marked consumed");
+  });
+
+  it("grants execute only to the service role", () => {
+    assert.ok(
+      sig1062.includes("grant execute on function public.accept_coach_invite(text, text, uuid) to service_role"),
+      "missing service_role grant",
+    );
+    assert.ok(
+      sig1062.includes("revoke all on function public.accept_coach_invite(text, text, uuid)"),
+      "missing revoke-all",
+    );
+    assert.ok(
+      !/grant execute on function public\.accept_coach_invite\([^)]*\) to (authenticated|anon|public)/.test(sig1062),
+      "function must not be granted to clients",
+    );
+  });
+});
