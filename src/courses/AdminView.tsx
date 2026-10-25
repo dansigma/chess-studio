@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { tCourseAdmin } from "@/src/i18n/course-admin-strings";
+import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
 import { ChapterDraft } from "./ChapterDraft";
 import { CourseChrome } from "./CourseChrome";
@@ -16,6 +18,7 @@ import { useAdminSession } from "./use-admin-session";
 
 export function AdminView() {
   const router = useRouter();
+  const locale = useStudioStore((state) => state.settings.locale);
   const {
     allowed,
     courses,
@@ -35,12 +38,12 @@ export function AdminView() {
   async function save() {
     const title = draft.title.trim();
     if (!title) {
-      setError("The course needs a title.");
+      setError({ key: "course.admin.error.needsTitle" });
       return;
     }
     const theme = draft.theme;
     if (!isCourseTheme(theme)) {
-      setError("Choose a course theme.");
+      setError({ key: "course.admin.error.chooseTheme" });
       return;
     }
     const normalized = normalizeChapters(draft.chapters);
@@ -49,7 +52,7 @@ export function AdminView() {
       return;
     }
     if (!hasPlayableContent(normalized.chapters)) {
-      setError("Add at least one chapter with a playable line before publishing.");
+      setError({ key: "course.admin.error.needsPlayableLine" });
       return;
     }
     setSaving(true);
@@ -68,7 +71,7 @@ export function AdminView() {
     }
     setCourses((current) => [result.course, ...current.filter((course) => course.id !== result.course.id)]);
     setDraft(result.course);
-    setError("");
+    setError(null);
     router.refresh();
   }
 
@@ -80,13 +83,14 @@ export function AdminView() {
       <div className="min-h-full bg-studio-bg">
         <CourseChrome />
         <main className="mx-auto max-w-lg px-6 py-12">
-          <h1 className="text-xl font-semibold text-studio-fg">Administrators only</h1>
+          <h1 className="text-xl font-semibold text-studio-fg">
+            {tCourseAdmin(locale, "course.admin.gated.heading")}
+          </h1>
           <p className="mt-3 text-body text-studio-muted">
-            Sign in with an administrator account to create courses. Student accounts can study
-            courses, and only an administrator can open this page.
+            {tCourseAdmin(locale, "course.admin.gated.body")}
           </p>
           <Button className="mt-6" onClick={() => router.push("/login?next=/courses/admin")}>
-            Sign in
+            {tCourseAdmin(locale, "course.admin.gated.signin")}
           </Button>
         </main>
       </div>
@@ -108,10 +112,10 @@ export function AdminView() {
           <Button
             onClick={() => {
               setDraft(emptyCourse());
-              setError("");
+              setError(null);
             }}
           >
-            New course
+            {tCourseAdmin(locale, "course.admin.newCourse")}
           </Button>
           <ul className="mt-4 space-y-1">
             {courses.map((course) => (
@@ -146,7 +150,7 @@ export function AdminView() {
               onMove={(direction) => moveChapter(chapterIndex, direction)}
               onRemove={() => {
                 const hasLines = chapter.variations.some((variation) => variation.pgn.trim() || variation.title.trim());
-                if (hasLines && !window.confirm("Remove this chapter?")) {
+                if (hasLines && !window.confirm(tCourseAdmin(locale, "course.admin.confirm.removeChapter"))) {
                   return;
                 }
                 setDraft((current) => ({
@@ -180,28 +184,32 @@ export function AdminView() {
               })
             }
           >
-            Add chapter
+            {tCourseAdmin(locale, "course.admin.addChapter")}
           </Button>
 
-          <p className="text-caption text-studio-muted">
-            Save the title and description first. Chapters can be named, reordered, and filled in afterwards.
-          </p>
-          {error ? <p className="text-body text-studio-warning-fg">{error}</p> : null}
+          <p className="text-caption text-studio-muted">{tCourseAdmin(locale, "course.admin.saveHint")}</p>
+          {error ? (
+            <p className="text-body text-studio-warning-fg">{tCourseAdmin(locale, error.key, error.vars)}</p>
+          ) : null}
           {courses.some((course) => course.id === draft.id) ? (
             <p className="text-caption text-studio-muted">
-              {draft.publishedAt != null ? "Published — visible to every student." : "Unpublished draft — only you can preview it."}
+              {draft.publishedAt != null
+                ? tCourseAdmin(locale, "course.admin.status.published")
+                : tCourseAdmin(locale, "course.admin.status.draft")}
             </p>
           ) : null}
           <div className="flex gap-2">
             <Button type="submit" variant="primary" disabled={saving}>
-              {saving ? "Saving…" : "Save course"}
+              {saving
+                ? tCourseAdmin(locale, "course.admin.saving")
+                : tCourseAdmin(locale, "course.admin.saveCourse")}
             </Button>
             {courses.some((course) => course.id === draft.id) && draft.publishedAt != null ? (
               <Button
                 variant="ghost"
                 disabled={saving}
                 onClick={() => {
-                  if (!window.confirm("Unpublish this course? Students will no longer see it.")) {
+                  if (!window.confirm(tCourseAdmin(locale, "course.admin.confirm.unpublish"))) {
                     return;
                   }
                   setSaving(true);
@@ -215,12 +223,12 @@ export function AdminView() {
                       current.map((course) => (course.id === draft.id ? { ...course, publishedAt: null } : course)),
                     );
                     setDraft((current) => ({ ...current, publishedAt: null }));
-                    setError("");
+                    setError(null);
                     router.refresh();
                   });
                 }}
               >
-                Unpublish
+                {tCourseAdmin(locale, "course.admin.unpublish")}
               </Button>
             ) : null}
             {courses.some((course) => course.id === draft.id) ? (
@@ -228,7 +236,7 @@ export function AdminView() {
                 variant="ghost"
                 disabled={saving}
                 onClick={() => {
-                  if (!window.confirm("Delete this course for every student?")) {
+                  if (!window.confirm(tCourseAdmin(locale, "course.admin.confirm.delete"))) {
                     return;
                   }
                   void removePublishedCourse(draft.id).then((result) => {
@@ -238,11 +246,11 @@ export function AdminView() {
                     }
                     refresh(courses.filter((course) => course.id !== draft.id));
                     setDraft(emptyCourse());
-                    setError("");
+                    setError(null);
                   });
                 }}
               >
-                Delete
+                {tCourseAdmin(locale, "course.admin.delete")}
               </Button>
             ) : null}
           </div>

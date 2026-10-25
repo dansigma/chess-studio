@@ -5,14 +5,18 @@ import { ActivityBar } from "./ActivityBar";
 import { BoardsSidebar } from "./BoardsSidebar";
 import { DatabasesSidebar } from "./DatabasesSidebar";
 import { MenuBar } from "./MenuBar";
+import { MobileStudio } from "./MobileStudio";
+import { useIsMobile } from "./use-is-mobile";
 import { FilesSidebar } from "./FilesSidebar";
 import { SearchSidebar } from "./SearchSidebar";
+import { MyGamesSidebar } from "./MyGamesSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
 import { ResizeHandle } from "./ui/ResizeHandle";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { importPgn } from "@/src/chess/pgn";
+import { clearGuestBoards, loadGuestBoards, saveGuestBoards } from "@/src/lib/guest-boards";
 import { useExplorerData } from "./use-explorer-data";
 import {
   forgetRemoteDockSync,
@@ -23,6 +27,7 @@ import {
   useStudioStore,
   type BoardSession,
 } from "@/src/store/studio-store";
+import { compareRepertoirePersistOrder } from "@/src/store/slices/selectors";
 import { loadRemoteFiles } from "@/src/lib/user-files";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
@@ -31,6 +36,7 @@ import { StatusBar } from "./StatusBar";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { BrandLockup } from "./ui/BrandLockup";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
@@ -59,8 +65,31 @@ export function StudioShell() {
   // by ExplorerPanel-as-bare + GamesPanel) in sync.
   const legacyExplorer = useExplorerData(source, explorerRetry);
   const status = useStudioStore((state) => state.statusMessage);
+  const locale = useStudioStore((state) => state.settings.locale);
   const dirtyRevision = useStudioStore((state) =>
     state.boards.map((board) => `${board.id}:${board.dirty ? "1" : "0"}`).join("|"),
+  );
+  // SIG-1092: guest boards have no remote row — persist the session list
+  // (PGN + metadata) locally so the repertoire mark survives a reload. The
+  // signature covers content that matters across reloads (moves, headers,
+  // orientation, marks, session set), not just the dirty flags.
+  const guestBoardsSignature = useStudioStore((state) =>
+    state.user || typeof window === "undefined"
+      ? null
+      : JSON.stringify({
+          activeBoardId: state.activeBoardId,
+          boards: state.boards
+            .filter((board) => !board.preview)
+            .map((board) => [
+              board.id,
+              board.title,
+              board.path.join(","),
+              board.headers,
+              board.orientation,
+              board.repertoireColor,
+              board.tree,
+            ]),
+        }),
   );
   const aboutOpen = useStudioStore((state) => state.aboutOpen);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
@@ -83,6 +112,11 @@ export function StudioShell() {
   const forward = useStudioStore((state) => state.forward);
   const flip = useStudioStore((state) => state.flip);
   const user = useStudioStore((state) => state.user);
+  // SIG-1043: below 768 px the studio renders the separate single-column
+  // mobile layout instead of the desktop dock. Called unconditionally; only
+  // the render branch below differs. StudioDock is never mounted on mobile,
+  // so no desktop layout is read or written there.
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
@@ -102,8 +136,18 @@ export function StudioShell() {
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
+    // SIG-1092: guests hydrate from the local guest-board snapshot so the
+    // repertoire mark (and position) survive a browser reload. Corrupt or
+    // missing payloads fall back to the in-memory placeholder. Runs even
+    // when Supabase is unconfigured (no remote to load either way).
+    if (!user) {
+      const guest = loadGuestBoards();
+      if (guest) {
+        useStudioStore.setState({ boards: guest.boards, activeBoardId: guest.activeBoardId });
+      }
+    }
     if (!supabase || !user) {
-      // SIG-907: guests have nothing to load — mark hydrated immediately so
+      // SIG-907: guests have nothing remote to load — mark hydrated immediately so
       // the dock may prune orphan `board:*` panels without waiting.
       setBoardsHydrated();
       return;
@@ -139,6 +183,12 @@ export function StudioShell() {
           path: row.current_node_path ?? imported.path,
           headers: imported.headers,
           orientation: row.orientation,
+          // SIG-1092: read the repertoire mark; unknown values fail closed
+          // to null so a bad row never claims a color.
+          repertoireColor:
+            row.repertoire_color === "white" || row.repertoire_color === "black"
+              ? row.repertoire_color
+              : null,
           dirty: false,
           preview: false,
         };
@@ -163,6 +213,11 @@ export function StudioShell() {
       if (cancelled) {
         return;
       }
+      // SIG-1096: mistake exercises hydrate alongside repertoire progress.
+      await useStudioStore.getState().hydrateMistakeExercises();
+      if (cancelled) {
+        return;
+      }
       // SIG-907: boards query settled — the dock may now prune orphan
       // `board:*` panels whose sessions never arrived.
       setBoardsHydrated();
@@ -177,8 +232,29 @@ export function StudioShell() {
       forgetRemoteDockSync();
       return;
     }
+    // SIG-1092: guest and account board stores are disjoint — a signed-in
+    // session hydrates from Supabase, so drop the guest local snapshot to
+    // avoid re-hydrating it on the next sign-out.
+    clearGuestBoards();
     void syncRemoteDockLayout(user.id);
   }, [user]);
+
+  // SIG-1092: persist the guest session list locally (debounced) so the
+  // repertoire mark survives a browser reload. Guests never hit the remote
+  // auto-save below; accounts never touch the guest snapshot.
+  useEffect(() => {
+    if (user || guestBoardsSignature === null) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      const state = useStudioStore.getState();
+      if (state.user) {
+        return;
+      }
+      saveGuestBoards(state.boards, state.activeBoardId);
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [guestBoardsSignature, user]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -192,7 +268,14 @@ export function StudioShell() {
       return;
     }
     const handle = window.setTimeout(() => {
-      const dirtyBoards = useStudioStore.getState().boards.filter((b) => b.dirty);
+      const dirtyBoards = useStudioStore
+        .getState()
+        .boards.filter((b) => b.dirty)
+        // SIG-1092: persist unmarks before marks so moving the mark between
+        // two saved boards cannot collide on boards_user_repertoire_color_uq
+        // (compareRepertoirePersistOrder keeps the assertion on production
+        // code instead of a copy of the comparator).
+        .sort(compareRepertoirePersistOrder);
       if (dirtyBoards.length === 0) {
         return;
       }
@@ -204,7 +287,7 @@ export function StudioShell() {
               useStudioStore.getState().markSaved(board.id, remoteId);
             }
           } catch {
-            useStudioStore.getState().setStatus("Could not save board.");
+            useStudioStore.getState().setStatus(tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.saveFailed"));
           }
         }
       })();
@@ -352,7 +435,7 @@ export function StudioShell() {
           openInNewBoard: true,
         });
       } catch {
-        useStudioStore.setState({ statusMessage: "Could not open that course line." });
+        useStudioStore.setState({ statusMessage: tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.courseLineFailed") });
       }
       return;
     }
@@ -366,6 +449,9 @@ export function StudioShell() {
     <>
     <div className="studio-screen flex h-screen flex-col overflow-hidden bg-studio-bg text-studio-fg">
       <MenuBar onOpenPgn={() => fileRef.current?.click()} />
+      {isMobile ? (
+        <MobileStudio />
+      ) : (
       <div className="flex min-h-0 flex-1">
         <ActivityBar />
         <div
@@ -383,6 +469,8 @@ export function StudioShell() {
                   <FilesSidebar />
                 ) : activity === "bookmarks" ? (
                   <BookmarksSidebar />
+                ) : activity === "mygames" ? (
+                  <MyGamesSidebar />
                 ) : (
                   <DatabasesSidebar />
                 )}
@@ -402,6 +490,7 @@ export function StudioShell() {
           </div>
         </div>
       </div>
+      )}
       <StatusBar message={status} />
 
       <input
@@ -427,21 +516,20 @@ export function StudioShell() {
           onClose={() => setAboutOpen(false)}
           footer={
             <Button variant="primary" onClick={() => setAboutOpen(false)}>
-              Close
+              {tStudioChrome(locale, "chrome.about.close")}
             </Button>
           }
         >
           <p className="mb-3">
-            Analysis GUI inspired by ChessMonitor Studio. No ChessMonitor assets or private
-            databases are used.
+            {tStudioChrome(locale, "chrome.about.body")}
           </p>
           <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-dense">
-            <dt className="text-studio-faint">Engine</dt>
-            <dd className="text-studio-fg">Stockfish 19 lite, runs locally</dd>
-            <dt className="text-studio-faint">Opening data</dt>
-            <dd className="text-studio-fg">Public Lichess explorer</dd>
-            <dt className="text-studio-faint">Storage</dt>
-            <dd className="text-studio-fg">Boards sync to your account when signed in</dd>
+            <dt className="text-studio-faint">{tStudioChrome(locale, "chrome.about.engineLabel")}</dt>
+            <dd className="text-studio-fg">{tStudioChrome(locale, "chrome.about.engineValue")}</dd>
+            <dt className="text-studio-faint">{tStudioChrome(locale, "chrome.about.openingLabel")}</dt>
+            <dd className="text-studio-fg">{tStudioChrome(locale, "chrome.about.openingValue")}</dd>
+            <dt className="text-studio-faint">{tStudioChrome(locale, "chrome.about.storageLabel")}</dt>
+            <dd className="text-studio-fg">{tStudioChrome(locale, "chrome.about.storageValue")}</dd>
           </dl>
         </Dialog>
       ) : null}

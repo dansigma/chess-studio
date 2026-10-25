@@ -20,6 +20,7 @@ import { FileGamesPanel } from "./FileGamesPanel";
 import { GamesPanel } from "./GamesPanel";
 import { NotationPanel } from "./NotationPanel";
 import { PositionSearchPanel } from "./PositionSearchPanel";
+import { MyStatsPanel } from "./MyStatsPanel";
 import { RepertoirePanel } from "./RepertoirePanel";
 import { PlayerExplorerPanel } from "./PlayerExplorerPanel";
 import { PlayerGamesPanel } from "./PlayerGamesPanel";
@@ -47,14 +48,20 @@ import {
 import {
   boardIdFromPanelId,
   boardPanelId,
+  boardTitle,
   closeBoardPanel,
   consumeProgrammaticBoardClose,
   explorerTitleForSource,
   firstBoardPanel,
   openBoardPanel,
+  panelTitleForId,
+  playerExplorerTitle,
+  playerGamesTitle,
   registerStudioDock,
   seedDefaultLayout,
 } from "./dock-api";
+import { explorerGamesTitle } from "@/src/lib/explorer-types";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import {
   currentDockLayoutEpoch,
   DOCK_LAYOUT_VERSION,
@@ -80,6 +87,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   games: Library,
   fileGames: FileText,
   positionSearch: Search,
+  myStats: ChartSpline,
   "player-explorer": UserSearch,
   "player-games": Users,
 };
@@ -103,6 +111,7 @@ function StudioTab(props: IDockviewPanelHeaderProps) {
 // hosts at least one `board:*` panel; per-tab close is the default
 // DockviewDefaultTab close action (handled by onDidRemovePanel → closeBoard).
 function BoardGroupHeaderActions(props: IDockviewHeaderActionsProps) {
+  const locale = useStudioStore((state) => state.settings.locale);
   const isBoardGroup = props.panels.some((panel) => isBoardPanelId(panel.id));
   if (!isBoardGroup) {
     return null;
@@ -111,14 +120,14 @@ function BoardGroupHeaderActions(props: IDockviewHeaderActionsProps) {
     useStudioStore.getState().newBoard();
     const state = useStudioStore.getState();
     const active = selectActiveBoard(state);
-    openBoardPanel(active.id, active.title);
+    openBoardPanel(active.id, boardTitle(state.settings.locale, active.title));
   }
   return (
     <div className="flex h-full items-center pr-1">
       <button
         type="button"
-        title="New board (Ctrl+N)"
-        aria-label="New board"
+        title={tPanels(locale, "panels.board.newBoardHint", { shortcut: "Ctrl+N" })}
+        aria-label={tPanels(locale, "panels.board.newBoard")}
         onClick={handleNewBoard}
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-studio-fg hover:bg-studio-hover-strong"
       >
@@ -169,6 +178,7 @@ const components = {
   games: () => <GamesPanel />,
   fileGames: () => <FileGamesPanel />,
   positionSearch: () => <PositionSearchPanel />,
+  myStats: () => <MyStatsPanel />,
   playerExplorer: () => <PlayerExplorerPanel />,
   playerGames: () => <PlayerGamesPanel />,
 };
@@ -177,12 +187,13 @@ function ensureReviewPanel(api: DockviewReadyEvent["api"]): void {
   if (api.getPanel("review")) {
     return;
   }
+  const locale = useStudioStore.getState().settings.locale;
   // SIG-907: bare `board` id is retired; fall back to any `board:*` panel.
   const reference = api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
   api.addPanel({
     id: "review",
     component: "review",
-    title: "Game Review",
+    title: panelTitleForId(locale, "review"),
     inactive: true,
     position: reference ? { referencePanel: reference.id } : undefined,
   });
@@ -192,11 +203,28 @@ function ensureInsightsPanel(api: DockviewReadyEvent["api"]): void {
   if (api.getPanel("insights")) {
     return;
   }
+  const locale = useStudioStore.getState().settings.locale;
   const reference = api.getPanel("review") ?? api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
   api.addPanel({
     id: "insights",
     component: "insights",
-    title: "Insights",
+    title: panelTitleForId(locale, "insights"),
+    inactive: true,
+    position: reference ? { referencePanel: reference.id } : undefined,
+  });
+}
+
+function ensureMyStatsPanel(api: DockviewReadyEvent["api"]): void {
+  if (api.getPanel("myStats")) {
+    return;
+  }
+  const locale = useStudioStore.getState().settings.locale;
+  // Stats sits with the analysis panels (review/insights group).
+  const reference = api.getPanel("insights") ?? api.getPanel("review") ?? api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
+  api.addPanel({
+    id: "myStats",
+    component: "myStats",
+    title: panelTitleForId(locale, "myStats"),
     inactive: true,
     position: reference ? { referencePanel: reference.id } : undefined,
   });
@@ -206,44 +234,49 @@ function ensureRepertoirePanel(api: DockviewReadyEvent["api"]): void {
   if (api.getPanel("repertoire")) {
     return;
   }
+  const locale = useStudioStore.getState().settings.locale;
   // SIG-907: bare `board` id is retired; fall back to any `board:*` panel.
   const reference = api.getPanel("notation") ?? api.getPanel("explorer") ?? firstBoardPanel(api);
   api.addPanel({
     id: "repertoire",
     component: "repertoire",
-    title: "Repertoire",
+    title: panelTitleForId(locale, "repertoire"),
     inactive: true,
     position: reference ? { referencePanel: reference.id } : undefined,
   });
 }
 
 function ensurePlayerPanels(api: DockviewReadyEvent["api"], title: string) {
+  const locale = useStudioStore.getState().settings.locale;
+  const explorerTitle = playerExplorerTitle(locale, title);
+  const gamesTitle = playerGamesTitle(locale, title);
   const explorer = api.getPanel("player-explorer");
   if (!explorer) {
     api.addPanel({
       id: "player-explorer",
       component: "playerExplorer",
-      title,
+      title: explorerTitle,
       position: { referencePanel: "notation" },
     });
   } else {
-    explorer.setTitle(title);
+    explorer.setTitle(explorerTitle);
   }
   const games = api.getPanel("player-games");
   if (!games) {
     api.addPanel({
       id: "player-games",
       component: "playerGames",
-      title: `${title} — games`,
+      title: gamesTitle,
       position: { referencePanel: "notation" },
     });
   } else {
-    games.setTitle(`${title} — games`);
+    games.setTitle(gamesTitle);
   }
   api.getPanel("player-games")?.api.setActive();
 }
 
 export function StudioDock() {
+  const locale = useStudioStore((state) => state.settings.locale);
   // SIG-907: per-board title signature so every `board:*` tab tracks its own
   // session (id+title only — moves must not re-run the title effect).
   const boardTitles = useStudioStore((state) =>
@@ -254,7 +287,7 @@ export function StudioDock() {
   const playerName = useStudioStore((state) => state.playerProfile?.displayName ?? null);
   const fileGamesTitle = useStudioStore((state) => {
     const database = state.files.databases.find((item) => item.id === state.activeFileDatabaseId);
-    return database?.name ?? "Games";
+    return database?.name ?? panelTitleForId(state.settings.locale, "fileGames");
   });
   // SIG-907: hydration gate — restore places verbatim until remote boards
   // settle, then prunes orphan `board:*` panels whose sessions never arrived.
@@ -272,7 +305,7 @@ export function StudioDock() {
   function seedFor(api: DockviewApi): void {
     const state = useStudioStore.getState();
     const active = selectActiveBoard(state);
-    seedDefaultLayout(api, active.title || "Board", active.id);
+    seedDefaultLayout(api, boardTitle(state.settings.locale, active.title), active.id);
   }
 
   function disposePanelSubscriptions(): void {
@@ -324,9 +357,9 @@ export function StudioDock() {
       return;
     }
     for (const board of useStudioStore.getState().boards) {
-      api.getPanel(boardPanelId(board.id))?.setTitle(board.title || "Board");
+      api.getPanel(boardPanelId(board.id))?.setTitle(boardTitle(locale, board.title));
     }
-  }, [boardTitles]);
+  }, [boardTitles, locale]);
 
   useEffect(() => {
     const api = apiRef.current;
@@ -334,7 +367,7 @@ export function StudioDock() {
       return;
     }
     ensurePlayerPanels(api, playerName);
-  }, [playerKey, playerName]);
+  }, [playerKey, playerName, locale]);
 
   // SIG-908: per-explorer tab titles. Dynamic `explorer:<uid>` panels own
   // their source in dock params (`persistExplorerSource` sets the title at
@@ -355,14 +388,68 @@ export function StudioDock() {
       }
       const raw = (panel.api.getParameters() as { source?: unknown } | undefined)?.source;
       const source = parseExplorerSource(raw) ?? state.databaseSource;
-      panel.setTitle(explorerTitleForSource(source, state.files.databases));
+      panel.setTitle(explorerTitleForSource(source, state.files.databases, locale));
     }
-    api.getPanel("explorer")?.setTitle(explorerTitleForSource(state.databaseSource, state.files.databases));
-  }, [explorerTitles]);
+    api.getPanel("explorer")?.setTitle(explorerTitleForSource(state.databaseSource, state.files.databases, locale));
+  }, [explorerTitles, locale]);
 
   useEffect(() => {
     apiRef.current?.getPanel("fileGames")?.setTitle(fileGamesTitle);
-  }, [fileGamesTitle]);
+  }, [fileGamesTitle, locale]);
+
+  // SIG-1075: runtime locale re-title for every static dock tab. Per-board
+  // `board:*` sessions keep their own titles (handled by the boardTitles
+  // effect) and `fileGames` keeps its database-name title (handled by the
+  // fileGamesTitle effect above); `explorer:*` dynamic panels and the bare
+  // `explorer`/`games` tabs resolve from their source against the library
+  // snapshot. No panel is recreated, so layout and board state are untouched.
+  useEffect(() => {
+    const api = apiRef.current;
+    if (!api) {
+      return;
+    }
+    const state = useStudioStore.getState();
+    for (const panel of api.panels) {
+      const id = panel.id;
+      if (isBoardPanelId(id)) {
+        continue;
+      }
+      if (isExplorerPanelId(id)) {
+        const raw = (panel.api.getParameters() as { source?: unknown } | undefined)?.source;
+        const source = parseExplorerSource(raw) ?? state.databaseSource;
+        panel.setTitle(explorerTitleForSource(source, state.files.databases, locale));
+        continue;
+      }
+      if (id === "player-explorer") {
+        const name = state.playerProfile?.displayName;
+        if (name) {
+          panel.setTitle(playerExplorerTitle(locale, name));
+        }
+        continue;
+      }
+      if (id === "player-games") {
+        const name = state.playerProfile?.displayName;
+        if (name) {
+          panel.setTitle(playerGamesTitle(locale, name));
+        }
+        continue;
+      }
+      if (id === "explorer") {
+        panel.setTitle(explorerTitleForSource(state.databaseSource, state.files.databases, locale));
+        continue;
+      }
+      if (id === "games") {
+        panel.setTitle(explorerGamesTitle(state.databaseSource, state.files.databases, locale));
+        continue;
+      }
+      if (id === "fileGames") {
+        continue;
+      }
+      if (id === "engine" || id === "evalGraph" || id === "review" || id === "insights" || id === "myStats" || id === "notation" || id === "repertoire" || id === "positionSearch") {
+        panel.setTitle(panelTitleForId(locale, id));
+      }
+    }
+  }, [locale, boardTitles, explorerTitles, fileGamesTitle, playerKey, playerName]);
 
   // SIG-907: hydration-gated orphan prune. Restore places verbatim (remote
   // boards may not have hydrated yet); once boardsHydrated flips, close any
@@ -388,7 +475,7 @@ export function StudioDock() {
       const next = useStudioStore.getState();
       const active = selectActiveBoard(next);
       runWithoutSave(() => {
-        openBoardPanel(active.id, active.title || "Board");
+        openBoardPanel(active.id, boardTitle(next.settings.locale, active.title));
       });
     }
   }, [boardsHydrated]);
@@ -429,6 +516,7 @@ export function StudioDock() {
         ensureRepertoirePanel(api);
         ensureReviewPanel(api);
         ensureInsightsPanel(api);
+        ensureMyStatsPanel(api);
       });
     });
     const saved = takeQueuedDockLayout() ?? readStoredDockLayout();
@@ -440,6 +528,7 @@ export function StudioDock() {
       ensureRepertoirePanel(api);
       ensureReviewPanel(api);
       ensureInsightsPanel(api);
+      ensureMyStatsPanel(api);
     });
     // SIG-907: focus→active so notation/engine/explorer follow the focused
     // board panel. Guard on "different + exists" — setActiveBoard clears
@@ -486,7 +575,7 @@ export function StudioDock() {
         const next = useStudioStore.getState();
         const active = selectActiveBoard(next);
         runWithoutSave(() => {
-          openBoardPanel(active.id, active.title || "Board");
+          openBoardPanel(active.id, boardTitle(next.settings.locale, active.title));
         });
       }),
     ];

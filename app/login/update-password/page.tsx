@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, startTransition, useActionState, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -9,19 +9,24 @@ import {
   passwordLengthError,
   passwordRequirementHint,
 } from "@/src/lib/auth/password";
+import { tAuth, type AuthMessage } from "@/src/i18n/auth-strings";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { Button } from "@/src/studio/ui/Button";
-import { AuthField, AuthLayout, AuthMessage, authInputClass } from "../AuthLayout";
+import { useStudioStore } from "@/src/store/studio-store";
+import { AuthField, AuthLayout, AuthMessage as AuthBanner, authInputClass } from "../AuthLayout";
+import type { AuthFormState } from "../actions";
+import { updatePassword } from "./actions";
 
 type Message = { tone: "info" | "error" | "success"; text: string };
 
 export default function UpdatePasswordPage() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const router = useRouter();
   const supabase = createBrowserSupabase();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<Message | null>(null);
+  const [clientError, setClientError] = useState<AuthMessage | null>(null);
+  const [state, formAction, busy] = useActionState(updatePassword, {} as AuthFormState);
   const [session, setSession] = useState<"checking" | "ready" | "missing">(supabase ? "checking" : "missing");
 
   useEffect(() => {
@@ -39,58 +44,69 @@ export default function UpdatePasswordPage() {
     };
   }, [supabase]);
 
-  async function onSubmit(event: FormEvent) {
+  useEffect(() => {
+    if (state.message) {
+      router.push("/studio");
+      router.refresh();
+    }
+  }, [state.message, router]);
+
+  // Client-side checks are only a hint; the server action re-validates.
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!supabase) {
+    if (!isValidPassword(password.trim())) {
+      setClientError(passwordLengthError());
       return;
     }
-    if (!isValidPassword(password)) {
-      setMessage({ tone: "error", text: passwordLengthError() });
+    if (password.trim() !== confirm.trim()) {
+      setClientError({ key: "auth.error.passwordMismatch" });
       return;
     }
-    if (password !== confirm) {
-      setMessage({ tone: "error", text: "Passwords don't match." });
-      return;
-    }
-    setBusy(true);
-    setMessage(null);
-    const { error } = await supabase.auth.updateUser({ password });
-    setBusy(false);
-    if (error) {
-      setMessage({ tone: "error", text: error.message });
-      return;
-    }
-    setMessage({ tone: "success", text: "Password updated. Taking you to Studio…" });
-    router.push("/studio");
-    router.refresh();
+    setClientError(null);
+    const data = new FormData(event.currentTarget);
+    startTransition(() => formAction(data));
   }
+
+  const errorText = clientError
+    ? tAuth(locale, clientError.key, clientError.vars)
+    : state.error
+      ? tAuth(locale, state.error.key, state.error.vars)
+      : null;
+  const message: Message | null = errorText
+    ? { tone: "error", text: errorText }
+    : state.message
+      ? { tone: "success", text: tAuth(locale, state.message.key, state.message.vars) }
+      : null;
 
   return (
     <AuthLayout>
-      <h1 className="text-2xl font-semibold tracking-tight">Choose a new password</h1>
-      <p className="mt-1.5 text-body text-studio-muted">You&apos;ll use it the next time you sign in.</p>
+      <h1 className="text-2xl font-semibold tracking-tight">{tAuth(locale, "auth.update.title")}</h1>
+      <p className="mt-1.5 text-body text-studio-muted">{tAuth(locale, "auth.update.subtitle")}</p>
 
       {session === "missing" ? (
         <div className="mt-6 space-y-4">
-          <AuthMessage tone="error">
-            This reset link is invalid or has expired. Request a new one from the sign-in page.
-          </AuthMessage>
+          <AuthBanner tone="error">{tAuth(locale, "auth.update.invalidLink")}</AuthBanner>
           <Link
             href="/login"
             className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-studio-accent text-body font-medium text-studio-accent-fg hover:bg-studio-accent-strong"
           >
-            Back to sign in
+            {tAuth(locale, "auth.update.back")}
           </Link>
         </div>
       ) : (
-        <form onSubmit={(event) => void onSubmit(event)} className="mt-6 space-y-4">
+        <form onSubmit={onSubmit} className="mt-6 space-y-4">
           <AuthField
             id="new-password"
-            label="New password"
-            trailing={<span className="text-caption text-studio-faint">{passwordRequirementHint()}</span>}
+            label={tAuth(locale, "auth.update.newPassword")}
+            trailing={
+              <span className="text-caption text-studio-faint">
+                {tAuth(locale, passwordRequirementHint().key, passwordRequirementHint().vars)}
+              </span>
+            }
           >
             <input
               id="new-password"
+              name="password"
               type="password"
               required
               minLength={MIN_PASSWORD_LENGTH}
@@ -101,9 +117,10 @@ export default function UpdatePasswordPage() {
               className={authInputClass}
             />
           </AuthField>
-          <AuthField id="confirm-password" label="Confirm password">
+          <AuthField id="confirm-password" label={tAuth(locale, "auth.update.confirmPassword")}>
             <input
               id="confirm-password"
+              name="confirm"
               type="password"
               required
               minLength={MIN_PASSWORD_LENGTH}
@@ -113,9 +130,13 @@ export default function UpdatePasswordPage() {
               className={authInputClass}
             />
           </AuthField>
-          {message ? <AuthMessage tone={message.tone}>{message.text}</AuthMessage> : null}
+          {message ? <AuthBanner tone={message.tone}>{message.text}</AuthBanner> : null}
           <Button type="submit" variant="primary" block disabled={busy || session !== "ready"} className="h-9">
-            {session === "checking" ? "Checking link…" : busy ? "Saving…" : "Update password"}
+            {session === "checking"
+              ? tAuth(locale, "auth.update.checking")
+              : busy
+                ? tAuth(locale, "auth.update.saving")
+                : tAuth(locale, "auth.update.submit")}
           </Button>
         </form>
       )}

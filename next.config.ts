@@ -7,6 +7,13 @@ const isolation = [
 ];
 
 const nextConfig: NextConfig = {
+  // SIG-1057: English aliases for the (Portuguese) legal routes.
+  async redirects() {
+    return [
+      { source: "/privacy", destination: "/privacidade", permanent: true },
+      { source: "/terms", destination: "/termos", permanent: true },
+    ];
+  },
   async headers() {
     return [
       // NB: vinext's :path* matcher requires >=1 segment (Next.js matches zero+),
@@ -21,10 +28,11 @@ const nextConfig: NextConfig = {
       },
       {
         source: "/engine/:path*",
-        headers: [
-          ...isolation,
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
+        // NB: no Cache-Control here — the route sets immutable on success and
+        // no-store on errors itself; a rule-level header would apply to error
+        // responses too (SIG-1106). Static files under public/engine keep
+        // immutable caching via public/_headers.
+        headers: isolation,
       },
       {
         source: "/engine/:path*.wasm",

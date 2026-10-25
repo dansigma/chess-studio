@@ -6,12 +6,15 @@ export class UpstreamPayloadTooLargeError extends Error {
 }
 
 /**
- * Reads a Response body as text with a strict byte cap.
+ * Reads a Response (or incoming Request) body as text with a strict byte cap.
  * Rejects immediately if Content-Length header exceeds maxBytes.
  * Streams the body tracking cumulative chunk byteLength, cancelling the reader
  * and rejecting if the total bytes exceed maxBytes.
  */
-export async function readCapped(response: Response, maxBytes: number): Promise<string> {
+export async function readCapped(
+  response: Pick<Response, "headers" | "body">,
+  maxBytes: number,
+): Promise<string> {
   if (maxBytes < 0) {
     throw new UpstreamPayloadTooLargeError(`Invalid maxBytes limit: ${maxBytes}`);
   }

@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { mock } from "node:test";
 import {
   acquire,
+  ENGINE_IDLE_DISPOSE_MS,
   resetSharedEngineForTests,
   type EngineSlot,
   type SharedEngineLease,
@@ -325,8 +326,41 @@ test("release from the active slot stops the orphaned search", () => {
 });
 
 test("slots typecheck as the EngineSlot union", () => {
-  const slots: EngineSlot[] = ["engine", "graph", "review", "threat"];
-  assert.deepEqual(slots.length, 4);
+  const slots: EngineSlot[] = ["engine", "graph", "review", "threat", "batch"];
+  assert.deepEqual(slots.length, 5);
+});
+
+test("SIG-1090: batch is preempted by graph and resumes on graph release", () => {
+  setup();
+  const batch = acquire("batch", "lite");
+  const graph = acquire("graph", "lite");
+  activeSearch(batch, FEN_C);
+  const w = worker();
+  w.sent.length = 0;
+  // Graph outranks batch: the batch search is preempted via the SIG-850 barrier.
+  graph.analyze(FEN_A, 12, 1, 1);
+  assert.deepEqual(w.sent, ["stop", "isready"]);
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_A}`));
+  // Graph releases: the stashed batch params resume.
+  w.sent.length = 0;
+  graph.release();
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_C}`));
+  batch.release();
+});
+
+test("SIG-1090: batch never preempts review — it queues instead", () => {
+  setup();
+  const batch = acquire("batch", "lite");
+  const review = acquire("review", "lite");
+  activeSearch(review, FEN_B);
+  const w = worker();
+  w.sent.length = 0;
+  batch.analyze(FEN_C, 12, 1, 1);
+  assert.deepEqual(w.sent, []);
+  batch.release();
+  review.release();
 });
 
 test("SIG-950: acquire alone boots no worker; first analyze does", () => {
@@ -344,6 +378,66 @@ test("SIG-950: acquire alone boots no worker; first analyze does", () => {
   w.emit("readyok");
   assert.ok(w.sent.some((msg) => msg.startsWith("go depth")));
   engine.release();
+});
+
+test("SIG-1079: release then re-acquire within the grace period reuses the worker", () => {
+  setup();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const graph = acquire("graph", "lite");
+    activeSearch(graph, FEN_A);
+    assert.equal(instances.length, 1);
+    graph.release();
+    mock.timers.tick(1000);
+    const next = acquire("graph", "lite");
+    next.analyze(FEN_B, 12, 1, 1);
+    assert.equal(instances.length, 1);
+    next.release();
+    mock.timers.tick(ENGINE_IDLE_DISPOSE_MS);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("SIG-1079: release then waiting past the delay disposes the worker exactly once", () => {
+  setup();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const graph = acquire("graph", "lite");
+    activeSearch(graph, FEN_A);
+    const w = worker();
+    graph.release();
+    assert.equal(w.terminated, false);
+    mock.timers.tick(ENGINE_IDLE_DISPOSE_MS);
+    assert.equal(w.terminated, true);
+    const next = acquire("graph", "lite");
+    next.analyze(FEN_B, 12, 1, 1);
+    assert.equal(instances.length, 2);
+    next.release();
+    mock.timers.tick(ENGINE_IDLE_DISPOSE_MS);
+    const count = instances.length;
+    mock.timers.tick(ENGINE_IDLE_DISPOSE_MS * 2);
+    assert.equal(instances.length, count);
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("SIG-1079: 20 consecutive release/acquire cycles of the graph slot use one worker", () => {
+  setup();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    for (let i = 0; i < 20; i++) {
+      const graph = acquire("graph", "lite");
+      graph.analyze(FEN_A, 12, 1, 1);
+      graph.release();
+      mock.timers.tick(100);
+    }
+    assert.equal(instances.length, 1);
+    mock.timers.tick(ENGINE_IDLE_DISPOSE_MS);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test("threat preempts engine and engine resumes on threat stop", () => {

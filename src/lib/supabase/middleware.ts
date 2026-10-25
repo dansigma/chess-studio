@@ -1,9 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { userCanPublishCourses } from "@/src/lib/auth/course-permissions";
+import { canAuthorCourses, getRole } from "@/src/lib/auth/roles";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { getSupabasePublicKey, getSupabaseUrl, isSupabaseConfigured } from "@/src/lib/supabase/env";
-import { adminDenyDestination } from "@/src/lib/supabase/admin-gate";
+import { adminDenyDestination, isAdminGatePath } from "@/src/lib/supabase/admin-gate";
 
 function redirectWithSession(url: URL, sessionResponse: NextResponse) {
   const redirect = NextResponse.redirect(url);
@@ -32,10 +32,15 @@ function redirectToDestination(request: NextRequest, destination: string, sessio
 }
 
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request });
   const path = request.nextUrl.pathname;
+  // Only `/courses/admin*` needs the session: every other path's gate decision
+  // is `null` regardless of auth state, so return before creating a client.
+  if (!isAdminGatePath(path)) {
+    return NextResponse.next({ request });
+  }
+  let response = NextResponse.next({ request });
   if (!isSupabaseConfigured()) {
-    const denied = adminDenyDestination(path, { configured: false, hasUser: false, canPublish: false });
+    const denied = adminDenyDestination(path, { configured: false, hasUser: false, canAuthor: false });
     if (denied) {
       return redirectToDestination(request, denied, response);
     }
@@ -68,9 +73,9 @@ export async function updateSession(request: NextRequest) {
   const denied = data.user
     ? adminDenyDestination(
         path,
-        { configured: true, hasUser: true, canPublish: await userCanPublishCourses(supabase, data.user) },
+        { configured: true, hasUser: true, canAuthor: canAuthorCourses(await getRole(supabase, data.user)) },
       )
-    : adminDenyDestination(path, { configured: true, hasUser: false, canPublish: false });
+    : adminDenyDestination(path, { configured: true, hasUser: false, canAuthor: false });
   if (denied) {
     return redirectToDestination(request, denied, response);
   }

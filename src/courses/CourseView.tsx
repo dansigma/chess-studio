@@ -7,16 +7,20 @@ import { Check, Circle, CircleDot, ExternalLink } from "lucide-react";
 import { importPgn } from "@/src/chess/pgn";
 import { writeCourseStudyImport } from "@/src/chess/share-board";
 import { courseThemeLabel } from "./catalog";
+import { tCourse } from "@/src/i18n/course-strings";
+import { formatInteger } from "@/src/i18n/format";
 import { lessonFrames, lineProgressLabel } from "./lesson";
-import { CourseSummary } from "./DescriptionField";
+import { CourseSummary } from "./CourseSummary";
 import { courseImageUrl, courseVideo } from "./media";
 import { CourseChrome } from "./CourseChrome";
 import { coursePercent, courseVariationIds } from "./store";
 import type { Course } from "./types";
 import { useCourseData } from "./use-courses";
+import { useStudioStore } from "@/src/store/studio-store";
 
 export function CourseView({ course }: { course: Course }) {
   const router = useRouter();
+  const locale = useStudioStore((state) => state.settings.locale);
   const { progress, admin, signedIn, source } = useCourseData();
 
   const frameCounts = useMemo(() => {
@@ -49,7 +53,8 @@ export function CourseView({ course }: { course: Course }) {
           </div>
           <div className="min-w-0">
             <p className="text-caption uppercase tracking-wide text-studio-faint">
-              {courseThemeLabel(course.theme)} · {course.color === "black" ? "Black pieces" : "White pieces"}
+              {courseThemeLabel(course.theme, locale)} ·{" "}
+              {tCourse(locale, course.color === "black" ? "course.course.pieces.black" : "course.course.pieces.white")}
             </p>
             <h1 className="mt-1 text-2xl font-semibold text-studio-fg">{course.title}</h1>
           </div>
@@ -77,10 +82,23 @@ export function CourseView({ course }: { course: Course }) {
         ) : null}
         {variationIds.length > 0 ? <div className="mt-5">
           <div className="mb-1 flex justify-between gap-3 text-caption text-studio-muted">
-            <span>Course progress</span>
+            <span>{tCourse(locale, "course.course.progressHeading")}</span>
             <span>
-              {learnedCount} of {variationIds.length} learned
-              {startedCount > 0 ? ` · ${startedCount} in progress` : ""}
+              {tCourse(locale, "course.course.learnedSummary", {
+                learned: formatInteger(locale, learnedCount),
+                total: formatInteger(locale, variationIds.length),
+              })}
+              {startedCount > 0
+                ? ` · ${
+                    startedCount === 1
+                      ? tCourse(locale, "course.course.inProgress.one", {
+                          count: formatInteger(locale, startedCount),
+                        })
+                      : tCourse(locale, "course.course.inProgress.other", {
+                          count: formatInteger(locale, startedCount),
+                        })
+                  }`
+                : ""}
             </span>
           </div>
           <div
@@ -89,20 +107,20 @@ export function CourseView({ course }: { course: Course }) {
             aria-valuenow={percent}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label="Course progress"
+            aria-label={tCourse(locale, "course.course.progressAria")}
           >
             <div className="h-full rounded-full bg-studio-accent" style={{ width: `${percent}%` }} />
           </div>
           {source === "account" ? (
-            <p className="mt-2 text-caption text-studio-muted">Saved to your account.</p>
+            <p className="mt-2 text-caption text-studio-muted">{tCourse(locale, "course.course.savedAccount")}</p>
           ) : signedIn ? (
-            <p className="mt-2 text-caption text-studio-warning-fg">Progress is saved only in this browser.</p>
+            <p className="mt-2 text-caption text-studio-warning-fg">{tCourse(locale, "course.catalog.browserOnly")}</p>
           ) : (
             <p className="mt-2 text-caption text-studio-muted">
               <Link href="/login" className="text-studio-accent-text">
-                Sign in
+                {tCourse(locale, "course.common.signIn")}
               </Link>{" "}
-              to keep progress on your account.
+              {tCourse(locale, "course.catalog.signinSuffix")}
             </p>
           )}
         </div> : null}
@@ -112,14 +130,14 @@ export function CourseView({ course }: { course: Course }) {
             <section key={chapter.id} className="overflow-hidden rounded-xl border border-studio-border">
               <header className="bg-studio-chrome px-4 py-3">
                 <div className="text-caption uppercase tracking-wide text-studio-muted">
-                  Chapter {chapterIndex + 1}
+                  {tCourse(locale, "course.course.chapterHeading", { n: formatInteger(locale, chapterIndex + 1) })}
                 </div>
                 <h2 className="text-body font-semibold text-studio-fg">{chapter.title}</h2>
               </header>
               <ul>
                 {chapter.variations.map((variation) => {
                   const saved = progress[variation.id];
-                  const label = lineProgressLabel(saved, frameCounts[variation.id] ?? 0);
+                  const label = lineProgressLabel(saved, frameCounts[variation.id] ?? 0, locale);
                   const learned = Boolean(saved?.learned);
                   const started = !learned && (saved?.step ?? 0) > 0;
                   return (
@@ -145,8 +163,10 @@ export function CourseView({ course }: { course: Course }) {
                         </Link>
                         <button
                           type="button"
-                          title="Open in Studio"
-                          aria-label={`Open ${variation.title} in Studio`}
+                          title={tCourse(locale, "course.course.openInStudio")}
+                          aria-label={tCourse(locale, "course.course.openInStudioAria", {
+                            title: variation.title,
+                          })}
                           className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
                           onClick={() => {
                             const written = writeCourseStudyImport({

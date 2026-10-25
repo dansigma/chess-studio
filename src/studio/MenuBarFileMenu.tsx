@@ -9,6 +9,7 @@ import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-
 import { printActiveBoard } from "./print-board";
 import { closeBoardPanel, openBoardPanel, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item } from "./ui/Menu";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 
 // SIG-857: file-menu subscriptions live here so the closed MenuBar root does
 // not re-render on board changes. The only value subscription is the active
@@ -26,6 +27,7 @@ export function MenuBarFileMenu({
   run: (action: () => void) => () => void;
 }) {
   const activeTitle = useStudioStore((state) => selectActiveBoard(state).title);
+  const locale = useStudioStore((state) => state.settings.locale);
   const setStatus = useStudioStore((state) => state.setStatus);
   const exportActivePgn = useStudioStore((state) => state.exportActivePgn);
   const openPgnSource = useStudioStore((state) => state.openPgnSource);
@@ -61,7 +63,7 @@ export function MenuBarFileMenu({
 
   async function copyPgn() {
     await navigator.clipboard.writeText(exportActivePgn());
-    setStatus("PGN copied to clipboard");
+    setStatus(tStudioChrome(locale, "chrome.status.pgnCopied"));
     close();
   }
 
@@ -70,9 +72,9 @@ export function MenuBarFileMenu({
       const active = useStudioStore.getState().active();
       const fen = fenToCopy(getFenAt(active.tree, active.path));
       await navigator.clipboard.writeText(fen);
-      setStatus("FEN copied to clipboard");
+      setStatus(tStudioChrome(locale, "chrome.status.fenCopied"));
     } catch {
-      setStatus("Could not copy FEN");
+      setStatus(tStudioChrome(locale, "chrome.status.fenFailed"));
     }
     close();
   }
@@ -84,12 +86,12 @@ export function MenuBarFileMenu({
       const active = useStudioStore.getState().active();
       const fen = fenToCopy(getFenAt(active.tree, active.path));
       if (!isLegalSetupFen(fen)) {
-        setStatus("This position cannot be shared");
+        setStatus(tStudioChrome(locale, "chrome.status.cannotShare"));
         return;
       }
       url = shareBoardUrl(window.location.origin, fen);
     } catch {
-      setStatus("This position cannot be shared");
+      setStatus(tStudioChrome(locale, "chrome.status.cannotShare"));
       return;
     }
     let copied = false;
@@ -105,7 +107,7 @@ export function MenuBarFileMenu({
   async function copyBoardImage() {
     const element = boardImageElement();
     if (!element) {
-      setStatus("Board is not open");
+      setStatus(tStudioChrome(locale, "chrome.status.boardNotOpen"));
       close();
       return;
     }
@@ -113,13 +115,13 @@ export function MenuBarFileMenu({
       const blob = await boardPngBlob(element);
       try {
         await copyPngToClipboard(blob);
-        setStatus("Board image copied");
+        setStatus(tStudioChrome(locale, "chrome.status.imageCopied"));
       } catch {
         downloadPng(blob, "board.png");
-        setStatus("Board image downloaded");
+        setStatus(tStudioChrome(locale, "chrome.status.imageDownloaded"));
       }
     } catch {
-      setStatus("Could not copy the board image");
+      setStatus(tStudioChrome(locale, "chrome.status.imageFailed"));
     }
     close();
   }
@@ -141,13 +143,13 @@ export function MenuBarFileMenu({
       const remoteId = await persistBoard(active);
       if (!remoteId) {
         downloadPgn(`${active.title}.pgn`);
-        setStatus("Saved as PGN file (sign in to save in the cloud)");
+        setStatus(tStudioChrome(locale, "chrome.status.savedPgnFile"));
         return;
       }
       useStudioStore.getState().markSaved(active.id, remoteId);
-      setStatus("Board saved");
+      setStatus(tStudioChrome(locale, "chrome.status.boardSaved"));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Save failed");
+      setStatus(error instanceof Error ? error.message : tStudioChrome(locale, "chrome.status.saveFailed"));
     }
     close();
   }
@@ -166,22 +168,22 @@ export function MenuBarFileMenu({
 
   return (
     <>
-      <Item label="New empty board" shortcut="Ctrl+N" onClick={run(handleNewBoard)} />
-      <Item label="Open PGN…" shortcut="Ctrl+O" onClick={run(onOpenPgn)} />
-      <Item label="Open from clipboard" onClick={() => void openClipboard()} />
+      <Item label={tStudioChrome(locale, "chrome.file.newBoard")} shortcut="Ctrl+N" onClick={run(handleNewBoard)} />
+      <Item label={tStudioChrome(locale, "chrome.file.openPgn")} shortcut="Ctrl+O" onClick={run(onOpenPgn)} />
+      <Item label={tStudioChrome(locale, "chrome.file.openClipboard")} onClick={() => void openClipboard()} />
       <Divider />
-      <Item label="Save" shortcut="Ctrl+S" onClick={() => void saveBoard()} />
-      <Item label="Save as…" shortcut="Ctrl+Shift+S" onClick={() => downloadPgn(`${activeTitle}.pgn`)} />
-      <Item label="Export PGN" onClick={() => downloadPgn(`${activeTitle}.pgn`)} />
+      <Item label={tStudioChrome(locale, "chrome.file.save")} shortcut="Ctrl+S" onClick={() => void saveBoard()} />
+      <Item label={tStudioChrome(locale, "chrome.file.saveAs")} shortcut="Ctrl+Shift+S" onClick={() => downloadPgn(`${activeTitle}.pgn`)} />
+      <Item label={tStudioChrome(locale, "chrome.file.exportPgn")} onClick={() => downloadPgn(`${activeTitle}.pgn`)} />
       <Divider />
-      <Item label="Copy PGN" onClick={() => void copyPgn()} />
-      <Item label="Copy FEN" onClick={() => void copyFen()} />
-      <Item label="Copy board image" onClick={() => void copyBoardImage()} />
-      <Item label="Share board…" onClick={() => void shareBoard()} />
-      <Item label="Print" shortcut="Ctrl+P" onClick={() => void printBoard()} />
+      <Item label={tStudioChrome(locale, "chrome.file.copyPgn")} onClick={() => void copyPgn()} />
+      <Item label={tStudioChrome(locale, "chrome.file.copyFen")} onClick={() => void copyFen()} />
+      <Item label={tStudioChrome(locale, "chrome.file.copyImage")} onClick={() => void copyBoardImage()} />
+      <Item label={tStudioChrome(locale, "chrome.file.share")} onClick={() => void shareBoard()} />
+      <Item label={tStudioChrome(locale, "chrome.file.print")} shortcut="Ctrl+P" onClick={() => void printBoard()} />
       <Divider />
-      <Item label="Clone board" onClick={run(handleCloneBoard)} />
-      <Item label="Close board" shortcut="Ctrl+Q" onClick={run(handleCloseBoard)} />
+      <Item label={tStudioChrome(locale, "chrome.file.clone")} onClick={run(handleCloneBoard)} />
+      <Item label={tStudioChrome(locale, "chrome.file.closeBoard")} shortcut="Ctrl+Q" onClick={run(handleCloseBoard)} />
     </>
   );
 }

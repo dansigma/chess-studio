@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { currentDockLayoutEpoch, type DockLayoutSnapshot } from "@/src/studio/dock-layout";
 import { recentSans } from "@/src/chess/pgn";
 import { saveLocalBookmarks } from "@/src/lib/player-bookmarks";
+import { clearGuestBoards } from "@/src/lib/guest-boards";
 import { purgeUserLocalCaches } from "@/src/lib/local-cache";
 import { resetCourseProgressState } from "@/src/courses/store";
 import { EMPTY_FILES, saveLocalFiles } from "@/src/lib/user-files";
@@ -71,6 +72,7 @@ export {
   selectActivePathKey,
   selectBoard,
   selectDirtyCount,
+  selectRepertoireBoard,
 } from "./slices/selectors";
 export { DEFAULT_SETTINGS, SETTINGS_KEY, loadLocalSettings } from "./slices/settings";
 export { emptyBoard, newId, withActive, analysisFen } from "./slices/board-helpers";
@@ -161,7 +163,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     // them with the files/bookmarks so the next account never reads the
     // previous user's rows. Anonymous trial data is safe: this reset only
     // runs on an account change with a previous user, never on anon login.
+    // SIG-1092: guest boards are local-only — drop them too so the guest
+    // snapshot never leaks into the next account (sign-in carries the live
+    // in-memory boards; the shell clears the snapshot again on user set).
     purgeUserLocalCaches();
+    clearGuestBoards();
     resetCourseProgressState();
     saveLocalFiles(EMPTY_FILES);
     saveLocalBookmarks([]);
@@ -203,6 +209,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       trainingStart: null,
       drillDueOnly: false,
       repertoireProgress: {},
+      mistakeExercises: {},
     } satisfies SessionResetPayload;
     set(sessionReset);
   },

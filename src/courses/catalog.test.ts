@@ -27,13 +27,16 @@ describe("course catalog", () => {
   it("accepts the four course themes", () => {
     assert.equal(isCourseTheme("tactics"), true);
     assert.equal(isCourseTheme("opening"), false);
-    assert.equal(courseThemeLabel("endgames"), "Endgames");
+    assert.equal(courseThemeLabel("endgames", "en"), "Endgames");
+    assert.equal(courseThemeLabel("endgames", "pt-br"), "Finais");
   });
 
   it("rejects an address that belongs to another course", () => {
-    assert.equal(courseSlugError("caro-kann", SEED_COURSES, "other"), "That address is already used by a course.");
+    assert.deepEqual(courseSlugError("caro-kann", SEED_COURSES, "other"), {
+      key: "course.admin.error.addressInUse",
+    });
     assert.equal(courseSlugError("caro-kann", SEED_COURSES, "caro-kann"), null);
-    assert.equal(courseSlugError("", SEED_COURSES), "The course needs an address.");
+    assert.deepEqual(courseSlugError("", SEED_COURSES), { key: "course.admin.error.needsAddress" });
   });
 
   it("drops malformed chapters from a published course", () => {
@@ -83,10 +86,9 @@ describe("course catalog", () => {
   });
 
   it("rejects a publisher overwriting another publisher's course", () => {
-    assert.equal(
-      courseOwnershipError({ created_by: "owner-1" }, "user-2", false),
-      "This course belongs to another publisher.",
-    );
+    assert.deepEqual(courseOwnershipError({ created_by: "owner-1" }, "user-2", false), {
+      key: "course.admin.error.belongsToOther",
+    });
   });
 
   it("allows a super-admin to publish over any course", () => {
@@ -95,10 +97,9 @@ describe("course catalog", () => {
   });
 
   it("rejects a non-super-admin mutating an orphan course", () => {
-    assert.equal(
-      courseOwnershipError({ created_by: null }, "user-1", false),
-      "This course has no owner — a course admin must reclaim it.",
-    );
+    assert.deepEqual(courseOwnershipError({ created_by: null }, "user-1", false), {
+      key: "course.admin.error.noOwner",
+    });
   });
 
   it("maps published_at through toCourse and detects visibility", () => {

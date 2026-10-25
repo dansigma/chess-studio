@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hitFromLichessUser, lichessGames, lichessWinner } from "./lichess.ts";
+import { hitFromLichessUser, lichessGames, lichessGamesSince, lichessWinner } from "./lichess.ts";
 import { mockFetch } from "@/src/test-utils/route-test.ts";
 import { UpstreamPayloadTooLargeError } from "../read-capped.ts";
 
@@ -74,6 +74,40 @@ test("lichessGames skips malformed NDJSON lines and returns valid games", async 
   assert.equal(games.length, 2);
   assert.equal(games[0].id, "game1");
   assert.equal(games[1].id, "game2");
+});
+
+test("lichessGamesSince sends since and max params", async (t) => {
+  const seen: string[] = [];
+  mockFetch(t, (url) => {
+    if (url.includes("api/games/user/hikaru")) {
+      seen.push(url);
+      return new Response("", { status: 200, headers: { "Content-Type": "application/x-ndjson" } });
+    }
+    return null;
+  });
+
+  await lichessGamesSince("hikaru", 1_700_000_000_000, 200);
+  assert.equal(seen.length, 1);
+  const params = new URL(seen[0] ?? "").searchParams;
+  assert.equal(params.get("since"), "1700000000000");
+  assert.equal(params.get("max"), "200");
+});
+
+test("lichessGamesSince omits since when sinceMs is zero", async (t) => {
+  const seen: string[] = [];
+  mockFetch(t, (url) => {
+    if (url.includes("api/games/user/hikaru")) {
+      seen.push(url);
+      return new Response("", { status: 200, headers: { "Content-Type": "application/x-ndjson" } });
+    }
+    return null;
+  });
+
+  await lichessGamesSince("hikaru", 0, 80);
+  assert.equal(seen.length, 1);
+  const params = new URL(seen[0] ?? "").searchParams;
+  assert.equal(params.get("since"), null);
+  assert.equal(params.get("max"), "80");
 });
 
 test("lichessGames throws UpstreamPayloadTooLargeError when response exceeds cap", async (t) => {

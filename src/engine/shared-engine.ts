@@ -3,7 +3,11 @@
 // The three dock panels (EnginePanel, EvalGraphPanel, ReviewPanel) previously
 // each owned a `StockfishEngine` worker (~99MB on the standard build). This
 // module owns one resident worker for the active build and arbitrates access
-// by slot priority: threat (4) > review (3) > engine (2) > graph (1).
+// by slot priority: threat (4) > review (3) > engine (2) > graph (1) > batch (0).
+//
+// The `batch` slot (SIG-1090) is the background My Games review queue: the
+// lowest priority, so every interactive slot preempts it and it resumes via
+// the same stashed-params / promote() path. No extra worker is created.
 //
 // The `threat` slot (SIG-906) is a one-shot: the Show-threat hook acquires it,
 // analyzes the null-move FEN once, then stops/releases so the preempted victim
@@ -37,7 +41,7 @@ import {
   type EngineInfo,
 } from "./stockfish-client";
 
-export type EngineSlot = "engine" | "graph" | "review" | "threat";
+export type EngineSlot = "engine" | "graph" | "review" | "threat" | "batch";
 
 export type EngineSlotListener = (info: EngineInfo) => void;
 
@@ -46,6 +50,7 @@ const SLOT_PRIORITY: Record<EngineSlot, number> = {
   review: 3,
   engine: 2,
   graph: 1,
+  batch: 0,
 };
 
 export type SharedEngineLease = {
@@ -73,6 +78,11 @@ type AnalyzeParams = {
   fresh: boolean;
 };
 
+// When the last lease is released the worker is kept alive for this grace
+// period (SIG-1079) so navigation that immediately re-acquires (e.g. the
+// EvalGraphPanel walk) reuses the worker instead of reloading the WASM.
+export const ENGINE_IDLE_DISPOSE_MS = 5000;
+
 let underlying: StockfishEngine | null = null;
 let currentBuild: EngineBuild | null = null;
 let activeSlot: EngineSlot | null = null;
@@ -80,6 +90,37 @@ const pendingBySlot = new Map<EngineSlot, AnalyzeParams>();
 const lastParamsBySlot = new Map<EngineSlot, AnalyzeParams>();
 const liveLeases = new Set<LeaseImpl>();
 let tapUnsubscribe: (() => void) | null = null;
+let idleDisposeTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cancelIdleDispose(): void {
+  if (idleDisposeTimer !== null) {
+    clearTimeout(idleDisposeTimer);
+    idleDisposeTimer = null;
+  }
+}
+
+function disposeIdleUnderlying(): void {
+  idleDisposeTimer = null;
+  if (liveLeases.size !== 0 || !underlying) {
+    return;
+  }
+  underlying.dispose();
+  underlying = null;
+  currentBuild = null;
+}
+
+function attachTap(): void {
+  if (!underlying || tapUnsubscribe) {
+    return;
+  }
+  // Service tap: runs before any lease wrapper's listener (attached first),
+  // never delivers to panels, only detects natural completion.
+  tapUnsubscribe = underlying.subscribe((snapshot) => {
+    if (!snapshot.running && snapshot.ready && !snapshot.failed) {
+      maybeAutoPromoteOnCompletion();
+    }
+  });
+}
 
 /** Schedule promotion when the active search completes on its own. */
 function maybeAutoPromoteOnCompletion(): void {
@@ -109,13 +150,7 @@ function ensureUnderlying(build: EngineBuild): StockfishEngine {
   }
   if (!underlying) {
     underlying = new StockfishEngine(build);
-    // Service tap: runs before any lease wrapper's listener (attached first),
-    // never delivers to panels, only detects natural completion.
-    tapUnsubscribe = underlying.subscribe((snapshot) => {
-      if (!snapshot.running && snapshot.ready && !snapshot.failed) {
-        maybeAutoPromoteOnCompletion();
-      }
-    });
+    attachTap();
   }
   return underlying;
 }
@@ -264,18 +299,20 @@ class LeaseImpl implements SharedEngineLease {
     if (liveLeases.size === 0) {
       tapUnsubscribe?.();
       tapUnsubscribe = null;
-      underlying?.dispose();
-      underlying = null;
-      currentBuild = null;
       activeSlot = null;
       pendingBySlot.clear();
       lastParamsBySlot.clear();
+      if (idleDisposeTimer === null) {
+        idleDisposeTimer = setTimeout(disposeIdleUnderlying, ENGINE_IDLE_DISPOSE_MS);
+      }
     }
   };
 }
 
 export function acquire(slot: EngineSlot, build: EngineBuild): SharedEngineLease {
+  cancelIdleDispose();
   ensureUnderlying(build);
+  attachTap();
   const lease = new LeaseImpl(slot, build);
   liveLeases.add(lease);
   return lease;
@@ -283,6 +320,7 @@ export function acquire(slot: EngineSlot, build: EngineBuild): SharedEngineLease
 
 /** Test-only: tear down all module state between cases. */
 export function resetSharedEngineForTests(): void {
+  cancelIdleDispose();
   tapUnsubscribe?.();
   tapUnsubscribe = null;
   underlying?.dispose();

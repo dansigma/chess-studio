@@ -1,3 +1,5 @@
+import type { MistakeCounts } from "./my-games/review-queue";
+
 export type PlayerSource = "lichess" | "chesscom" | "studio";
 
 export type PlayerColorFilter = "all" | "white" | "black";
@@ -31,6 +33,18 @@ export type PlayerGame = {
   color: "white" | "black";
   playerResult: "win" | "loss" | "draw" | null;
   playedAt: number | null;
+  // SIG-1090: batch review provenance. `rowId` is the `public.my_games` row id
+  // (the review write-back key); `id` stays the external game id for openers.
+  // Loaded games without a linked row (`rowId: null`, e.g. explorer hits) are
+  // not reviewable and never join the batch queue.
+  rowId?: string | null;
+  userAccuracy?: number | null;
+  opponentAccuracy?: number | null;
+  reviewedAt?: string | null;
+  // SIG-1091: per-phase mistake counts for the user's side (stats panel).
+  // Mapped from `my_games.mistake_counts` with validation; null when the game
+  // is unreviewed or the stored JSON is malformed.
+  mistakeCounts?: MistakeCounts | null;
 };
 
 export type PlayerGamesResponse = {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import { appendChapterPgn, emptyCourse, importChapterPgn, type CourseDraft } from "./admin-draft";
 import { moveListItem } from "./draft";
 import type { CourseChapter, CourseVariation } from "./types";
@@ -10,7 +11,7 @@ import type { CourseChapter, CourseVariation } from "./types";
  * reported through the caller's `setError` so the admin form keeps a single
  * error slot alongside the session state.
  */
-export function useAdminDraft(setError: (message: string) => void) {
+export function useAdminDraft(setError: (message: CourseAdminMessage | null) => void) {
   const [draft, setDraft] = useState<CourseDraft>(emptyCourse);
   const draftRef = useRef(draft);
   useEffect(() => {
@@ -60,7 +61,7 @@ export function useAdminDraft(setError: (message: string) => void) {
     try {
       text = await file.text();
     } catch {
-      setError("That PGN file could not be read.");
+      setError({ key: "course.admin.error.pgnUnreadable" });
       return;
     }
     const update = importChapterPgn(text, draftRef.current.chapters, chapterId);
@@ -75,7 +76,7 @@ export function useAdminDraft(setError: (message: string) => void) {
       ...current,
       chapters: appendChapterPgn(current.chapters, chapterId, update),
     }));
-    setError("");
+    setError(null);
   }
 
   return { draft, setDraft, updateChapter, updateVariation, moveChapter, moveVariation, addChapterPgn };

@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { canMakeMainline, canPromote, getNodeAt, moveNumberForPath, plyColor, type Path } from "@/src/chess/tree";
 import { useActiveBoard, useActivePathKey } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { formatSan } from "@/src/chess/move-notation";
 import { GameInfoDialog } from "./GameInfoDialog";
 import { NotationCommentEditor } from "./NotationCommentEditor";
@@ -16,6 +17,7 @@ import { displayDate, displayEvent } from "./notation-format";
 import { useNotationCommentDraft } from "./use-notation-comment-draft";
 
 export function NotationPanel() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const board = useActiveBoard();
   const back = useStudioStore((state) => state.back);
   const forward = useStudioStore((state) => state.forward);
@@ -46,7 +48,7 @@ export function NotationPanel() {
   const currentBefore = current?.commentBefore ?? "";
   const date = displayDate(board.headers.Date);
   const event = displayEvent(board.headers.Event);
-  const result = pgnResultCaption(board.headers.Result);
+  const result = pgnResultCaption(board.headers.Result, locale);
   const commentOpen = editor === "comment";
   const commentBeforeOpen = editor === "commentBefore";
   const headersOpen = editor === "headers";
@@ -69,12 +71,12 @@ export function NotationPanel() {
   const currentPath = useActivePathKey();
   const moveLabel = useMemo(() => {
     if (!current) {
-      return "start position";
+      return tPanels(locale, "notation.panel.startPosition");
     }
     const color = plyColor(board.tree.startFen, board.path.length);
     const number = moveNumberForPath(board.tree.startFen, board.path.length);
     return `${number}${color === "w" ? "." : "..."} ${formatSan(current.san, moveNotation, color)}`;
-  }, [board.path, board.tree.startFen, current, moveNotation]);
+  }, [board.path, board.tree.startFen, current, locale, moveNotation]);
 
   // SIG-857: stabilized so memoized Line rows skip re-render unless their
   // props (nodes/path/collapsed/currentPath) actually change.
@@ -118,6 +120,7 @@ export function NotationPanel() {
     setupMode,
     hasNags: menuNags.length > 0,
     hasMoveNag: menuHasMoveNag,
+    locale,
   });
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
@@ -128,12 +131,14 @@ export function NotationPanel() {
         headers={board.headers}
         date={date}
         event={event}
+        locale={locale}
         onEdit={() => setEditor("headers")}
       />
 
       <NotationToolbar
         path={board.path}
         commentOpen={commentOpen}
+        locale={locale}
         onStart={toStart}
         onBack={back}
         onForward={forward}
@@ -156,7 +161,7 @@ export function NotationPanel() {
           </div>
         ) : null}
         {board.tree.children.length === 0 ? (
-          <div className="text-studio-faint">Make a move on the board.</div>
+          <div className="text-studio-faint">{tPanels(locale, "notation.panel.empty")}</div>
         ) : (
           <div className={compact ? "inline leading-5" : "flex flex-wrap items-center gap-0.5"}>
             <Line
@@ -187,6 +192,7 @@ export function NotationPanel() {
         <NotationCommentEditor
           commentBefore={commentBeforeOpen}
           moveLabel={moveLabel}
+          locale={locale}
           value={draftComment}
           onChange={setDraftComment}
           onCommit={commitDraftComment}
@@ -200,6 +206,7 @@ export function NotationPanel() {
           moveColor={menuMoveColor}
           nags={menuNags}
           enabled={menuEnabled}
+          locale={locale}
           onTextAfter={() => setEditor("comment")}
           onTextBefore={() => setEditor("commentBefore")}
           onPromote={promote}
@@ -225,6 +232,7 @@ export function NotationPanel() {
       {headersOpen ? (
         <GameInfoDialog
           headers={board.headers}
+          locale={locale}
           onClose={() => setEditor(null)}
           onSave={(headers) => {
             setHeaders(headers);

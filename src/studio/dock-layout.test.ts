@@ -308,6 +308,30 @@ test("the position search panel survives sanitize", () => {
   assert.equal(snapshot.dock.activeGroup, "g");
 });
 
+test("the my stats panel survives sanitize", () => {
+  const myStats = { id: "myStats", contentComponent: "myStats", title: "My Stats" };
+  const snapshot = sanitizeDockLayout({
+    version: DOCK_LAYOUT_VERSION,
+    dock: {
+      grid: {
+        root: {
+          type: "branch",
+          data: [{ type: "leaf", data: { id: "g", views: ["myStats", "notation"], activeView: "myStats" } }],
+        },
+        width: 100,
+        height: 100,
+        orientation: "HORIZONTAL",
+      },
+      panels: { myStats, notation },
+      activeGroup: "g",
+    },
+  });
+
+  assert.ok(snapshot);
+  assert.deepEqual(Object.keys(snapshot.dock.panels).sort(), ["myStats", "notation"]);
+  assert.equal(snapshot.dock.activeGroup, "g");
+});
+
 test("a mismatched component or a stale version is rejected", () => {
   assert.equal(
     sanitizeDockLayout({

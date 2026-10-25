@@ -3,12 +3,14 @@
 import { useEffect, useMemo } from "react";
 import { formatYearMonth } from "@/src/lib/game-date";
 import type { PlayerGame, PlayerGamesResponse } from "@/src/lib/player-types";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
 import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
 
 export function PlayerGamesPanel() {
+  const locale = useStudioStore((state) => state.settings.locale);
   const player = useStudioStore((state) => state.playerProfile);
   const games = useStudioStore((state) => state.playerGames);
   const loading = useStudioStore((state) => state.playerGamesLoading);
@@ -78,7 +80,7 @@ export function PlayerGamesPanel() {
 
   function openGame(game: PlayerGame, openInNewBoard = false) {
     if (!game.pgn && !game.moves) {
-      setStatus("No PGN available for that game.");
+      setStatus(tPanels(locale, "players.noPgn"));
       return;
     }
     importPlayerGame(game, { openInNewBoard });
@@ -92,10 +94,15 @@ export function PlayerGamesPanel() {
     openBoardPanel(active.id, active.title);
   }
 
+  const countString =
+    visible.length === 1
+      ? tPanels(locale, "players.count.one", { count: visible.length })
+      : tPanels(locale, "players.count.other", { count: visible.length });
+
   if (!player) {
     return (
       <div className="flex h-full items-center justify-center bg-studio-panel text-sm text-studio-faint">
-        Search a player to load their games.
+        {tPanels(locale, "players.searchGames")}
       </div>
     );
   }
@@ -103,10 +110,9 @@ export function PlayerGamesPanel() {
   return (
     <div className="flex h-full flex-col bg-studio-panel text-dense text-studio-fg">
       <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-caption text-studio-faint">
-        <span className="truncate">Games: {player.displayName}</span>
+        <span className="truncate">{tPanels(locale, "players.gamesTitle", { name: player.displayName })}</span>
         <span>
-          {visible.length} game{visible.length === 1 ? "" : "s"}
-          {notice ? " · recent first" : ""}
+          {notice ? tPanels(locale, "players.countNote", { count: countString }) : countString}
         </span>
       </div>
       {notice ? (
@@ -115,21 +121,21 @@ export function PlayerGamesPanel() {
         </div>
       ) : null}
       <div className="grid grid-cols-[44px_1fr_44px_1fr_44px_64px] gap-2 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
-        <span>Res.</span>
-        <span>White</span>
+        <span>{tPanels(locale, "games.column.result")}</span>
+        <span>{tPanels(locale, "games.column.white")}</span>
         <span></span>
-        <span>Black</span>
+        <span>{tPanels(locale, "games.column.black")}</span>
         <span></span>
-        <span>Date</span>
+        <span>{tPanels(locale, "games.column.date")}</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto" aria-busy={loading || undefined}>
         {loading ? (
           <div className="px-3 py-4 text-studio-faint" role="status">
-            Loading games…
+            {tPanels(locale, "players.loading")}
           </div>
         ) : null}
         {!loading && visible.length === 0 ? (
-          <div className="px-3 py-4 text-studio-faint">No games for this player.</div>
+          <div className="px-3 py-4 text-studio-faint">{tPanels(locale, "players.empty")}</div>
         ) : null}
         {visible.map((game) => (
           <GameOpenRow

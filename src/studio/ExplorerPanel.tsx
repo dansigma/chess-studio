@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { fileExplorerSource, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
+import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { useStudioStore } from "@/src/store/studio-store";
 import { ExplorerFiltersBar } from "./ExplorerFiltersBar";
 import { Badge } from "./ui/Controls";
@@ -110,6 +112,7 @@ function ExplorerChrome({
   onSourceChange: (source: ExplorerSource) => void;
   onDuplicate: () => void;
 }) {
+  const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const filters = useStudioStore((state) => state.settings.explorerFilters);
@@ -130,7 +133,7 @@ function ExplorerChrome({
     <div className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
       <div className="flex items-center gap-1 border-b border-studio-border-subtle px-3 py-2">
         <select
-          aria-label="Explorer source"
+          aria-label={tPanels(locale, "explorer.sourceLabel")}
           value={effectiveSource}
           onChange={(event) => {
             const next = parseExplorerSource(event.target.value);
@@ -140,23 +143,25 @@ function ExplorerChrome({
           }}
           className="min-w-0 flex-1 truncate rounded-md border border-transparent bg-transparent px-1 py-0.5 text-dense font-semibold text-studio-fg outline-none hover:border-studio-border focus:border-studio-accent"
         >
-          <option value="curated">Curated Masters (Offline)</option>
-          <option value="masters">Ultra Database</option>
-          <option value="lichess">Online Database</option>
-          <option value="chesscom">Chess.com</option>
+          <option value="curated">{tPanels(locale, "explorer.source.curated")}</option>
+          <option value="masters">{tPanels(locale, "explorer.source.masters")}</option>
+          <option value="lichess">{tPanels(locale, "explorer.source.lichess")}</option>
+          <option value="chesscom">{tPanels(locale, "explorer.source.chesscom")}</option>
           {databases.map((database) => (
             <option key={database.id} value={fileExplorerSource(database.id)}>
               {database.name}
             </option>
           ))}
-          {knownSources.has(effectiveSource) ? null : <option value={effectiveSource}>Personal</option>}
+          {knownSources.has(effectiveSource) ? null : <option value={effectiveSource}>{tPanels(locale, "explorer.source.personal")}</option>}
         </select>
         {explorer ? (
           <span className="shrink-0 text-caption tabular-nums text-studio-faint">
-            {totalGames.toLocaleString()} {totalGames === 1 ? "game" : "games"}
+            {totalGames === 1
+              ? tPanels(locale, "explorer.count.one", { count: totalGames.toLocaleString() })
+              : tPanels(locale, "explorer.count.other", { count: totalGames.toLocaleString() })}
           </span>
         ) : null}
-        <IconButton label="Open explorer in split view" size="sm" onClick={onDuplicate}>
+        <IconButton label={tPanels(locale, "explorer.splitView")} size="sm" onClick={onDuplicate}>
           <Plus size={15} />
         </IconButton>
       </div>
@@ -174,20 +179,20 @@ function ExplorerChrome({
       ) : null}
       {error ? (
         <div className="border-b border-studio-border-subtle bg-studio-warning-bg px-3 py-2 text-caption text-studio-warning-fg">
-          Couldn&apos;t load the explorer. Try again.{" "}
+          {tPanels(locale, "explorer.error")}{" "}
           <button type="button" className="underline" onClick={onRetry}>
-            Retry
+            {tPanels(locale, "explorer.errorRetry")}
           </button>
         </div>
       ) : null}
       <div
         className={`${ROW_GRID} relative border-b border-studio-border-subtle py-1.5 text-caption uppercase tracking-wider text-studio-faint`}
       >
-        <span>Move</span>
-        <span>Games</span>
-        <span>White · Draw · Black</span>
+        <span>{tPanels(locale, "explorer.column.move")}</span>
+        <span>{tPanels(locale, "explorer.column.games")}</span>
+        <span>{tPanels(locale, "explorer.column.split")}</span>
         {loading ? (
-          <span className="absolute inset-x-0 -bottom-px h-0.5 overflow-hidden" role="progressbar" aria-label="Loading explorer">
+          <span className="absolute inset-x-0 -bottom-px h-0.5 overflow-hidden" role="progressbar" aria-label={tPanels(locale, "explorer.loading")}>
             <span className="absolute inset-y-0 w-1/3 animate-[studio-progress_1.1s_ease-in-out_infinite] bg-studio-accent" />
           </span>
         ) : null}
@@ -197,17 +202,18 @@ function ExplorerChrome({
         aria-busy={loading || undefined}
       >
         {loading && !explorer ? (
-          <div className="px-3 py-4 text-dense text-studio-faint" role="status">Loading explorer…</div>
+          <div className="px-3 py-4 text-dense text-studio-faint" role="status">{tPanels(locale, "explorer.loadingLabel")}</div>
         ) : null}
         {!loading && !error && !hasMoves ? (
-          <div className="px-3 py-4 text-dense text-studio-faint">No games for this position.</div>
+          <div className="px-3 py-4 text-dense text-studio-faint">{tPanels(locale, "explorer.empty")}</div>
         ) : null}
         {explorer?.moves.map((row) => {
           const share = totalGames > 0 ? (row.games / totalGames) * 100 : 0;
+          const rowGames = row.games.toLocaleString();
           return (
             <button
               key={row.uci}
-              title={`${row.games.toLocaleString()} games`}
+              title={tPanels(locale, "explorer.rowGames", { count: rowGames })}
               className={`${ROW_GRID} w-full py-1.5 text-left hover:bg-studio-hover`}
               onClick={() => {
                 const from = row.uci.slice(0, 2);
@@ -238,10 +244,12 @@ function ExplorerChrome({
       </div>
       {explorer && hasMoves ? (
         <div className={`${ROW_GRID} border-t border-studio-border py-1.5 text-dense`}>
-          <span className="font-semibold text-studio-muted">Total</span>
+          <span className="font-semibold text-studio-muted">{tPanels(locale, "explorer.total")}</span>
           <span className="flex items-center gap-2">
             <span className="w-11 shrink-0 text-right tabular-nums">{compactCount.format(totalGames)}</span>
-            <span className="text-caption text-studio-faint">{explorer.moves.length} {explorer.moves.length === 1 ? "move" : "moves"}</span>
+            <span className="text-caption text-studio-faint">{explorer.moves.length === 1
+              ? tPanels(locale, "explorer.moves.one", { count: explorer.moves.length })
+              : tPanels(locale, "explorer.moves.other", { count: explorer.moves.length })}</span>
           </span>
           <ResultBar white={explorer.white} draws={explorer.draws} black={explorer.black} />
         </div>

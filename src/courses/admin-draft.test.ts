@@ -33,17 +33,17 @@ describe("importChapterPgn", () => {
 
   it("rejects a file larger than one million characters", () => {
     const result = importChapterPgn("x".repeat(1_000_001), [chapter("c1", 0)], "c1");
-    assert.deepEqual(result, { error: "That PGN file is too large." });
+    assert.deepEqual(result, { error: { key: "course.admin.error.pgnTooLarge" } });
   });
 
   it("rejects a file with no playable lines", () => {
     const result = importChapterPgn("[Event \"Empty\"]\n\n*", [chapter("c1", 0)], "c1");
-    assert.deepEqual(result, { error: "That PGN has no playable lines." });
+    assert.deepEqual(result, { error: { key: "course.admin.error.pgnNoLines" } });
   });
 
   it("rejects a file that would push the chapter past 40 lines", () => {
     const result = importChapterPgn(FILE, [chapter("c1", 39)], "c1");
-    assert.deepEqual(result, { error: "A chapter can have at most 40 lines." });
+    assert.deepEqual(result, { error: { key: "course.admin.error.tooManyLines" } });
   });
 
   it("accepts a file that lands exactly on the 40-line cap", () => {

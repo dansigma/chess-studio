@@ -20,7 +20,25 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testIgnore: /mobile-studio\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      // SIG-1043: mobile studio slice — 390x844 touch viewport with a
+      // phone UA. devices["iPhone 14"] defaults to WebKit, which this
+      // repo does not install; spread the desktop-Chromium base (Chromium
+      // browser) and add the mobile viewport + touch + iPhone UA instead,
+      // so both projects run on the installed Chromium browser.
+      name: "mobile",
+      testMatch: /mobile-studio\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+        isMobile: true,
+        userAgent:
+          "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.0.0 Mobile/15E148 Safari/604.1",
+      },
     },
   ],
   webServer: {

@@ -5,6 +5,7 @@ import { Chessboard, type PieceRenderObject } from "react-chessboard";
 import { Eraser, MousePointer2, X } from "lucide-react";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { getFenAt } from "@/src/chess/tree";
 import {
   BLACK_SETUP_PIECES,
@@ -54,6 +55,7 @@ function PieceButton({
 export function SetupBoardPanel() {
   const board = useActiveBoard();
   const settings = useStudioStore((state) => state.settings);
+  const locale = settings.locale;
   const applySetupFen = useStudioStore((state) => state.applySetupFen);
   const setSetupMode = useStudioStore((state) => state.setSetupMode);
   const sourceFen = getFenAt(board.tree, board.path);
@@ -97,10 +99,10 @@ export function SetupBoardPanel() {
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-studio-panel">
       <div className="flex items-center gap-1 border-b border-studio-border px-2 py-1.5">
         <Button size="sm" variant="primary" disabled={Boolean(error)} onClick={() => applySetupFen(fen)}>
-          Apply
+          {tPanels(locale, "panels.setup.apply")}
         </Button>
         <IconButton
-          label="Cursor"
+          label={tPanels(locale, "panels.setup.cursor")}
           active={tool === "cursor"}
           className={tool === "cursor" ? "" : "text-studio-muted"}
           onClick={() => setTool("cursor")}
@@ -108,14 +110,14 @@ export function SetupBoardPanel() {
           <MousePointer2 size={15} />
         </IconButton>
         <IconButton
-          label="Remove piece"
+          label={tPanels(locale, "panels.setup.removePiece")}
           active={tool === "trash"}
           className={tool === "trash" ? "" : "text-studio-muted"}
           onClick={() => setTool("trash")}
         >
           <Eraser size={15} />
         </IconButton>
-        <IconButton label="Close setup" className="ml-auto" onClick={() => setSetupMode(false)}>
+        <IconButton label={tPanels(locale, "panels.setup.close")} className="ml-auto" onClick={() => setSetupMode(false)}>
           <X size={15} />
         </IconButton>
       </div>
@@ -205,7 +207,7 @@ export function SetupBoardPanel() {
               position.turn === "w" ? "bg-studio-win" : "bg-studio-loss"
             }`}
           />
-          {position.turn === "w" ? "White to play" : "Black to play"}
+          {position.turn === "w" ? tPanels(locale, "panels.setup.whiteToPlay") : tPanels(locale, "panels.setup.blackToPlay")}
         </Button>
         <input
           value={fenText}
@@ -216,7 +218,7 @@ export function SetupBoardPanel() {
               applyFenText();
             }
           }}
-          placeholder="Paste a FEN"
+          placeholder={tPanels(locale, "panels.setup.pasteFen")}
           className="h-7 min-w-0 flex-1 rounded-md border border-transparent bg-studio-selected px-2 font-mono text-caption text-studio-fg outline-none focus:border-studio-accent"
         />
       </div>

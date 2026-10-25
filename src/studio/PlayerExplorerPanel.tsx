@@ -3,11 +3,13 @@
 import { useMemo } from "react";
 import type { PlayerColorFilter, PlayerGame, PlayerResultFilter } from "@/src/lib/player-types";
 import { bookmarkKey } from "@/src/lib/player-bookmarks";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { playerMoveStatsFromIndex, buildPlayerIndex } from "@/src/lib/player-stats";
 import { useActiveFen } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { BookmarkStar } from "./PlayerHitRow";
+import { tSidebar } from "@/src/i18n/studio-sidebar-strings";
 import { ResultBar } from "./ui/ResultBar";
 
 function Chip({
@@ -58,6 +60,7 @@ export function PlayerExplorerPanel() {
   const setResult = useStudioStore((state) => state.setPlayerResultFilter);
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
+  const locale = useStudioStore((state) => state.settings.locale);
   const fen = useActiveFen();
   const side = sideFromFen(fen);
   const togglePlayerBookmark = useStudioStore((state) => state.togglePlayerBookmark);
@@ -73,7 +76,7 @@ export function PlayerExplorerPanel() {
   if (!player) {
     return (
       <div className="flex h-full items-center justify-center bg-studio-panel text-sm text-studio-faint">
-        Search a player to see their openings.
+        {tPanels(locale, "players.searchOpenings")}
       </div>
     );
   }
@@ -83,35 +86,51 @@ export function PlayerExplorerPanel() {
       <div className="flex flex-wrap items-center gap-1 border-b border-studio-border-subtle px-2 py-1.5">
         {(["all", "white", "black"] as const).map((value) => (
           <Chip key={value} active={color === value} onClick={() => setColor(value)}>
-            {value === "all" ? "All" : value === "white" ? "White" : "Black"}
+            {value === "all"
+              ? tPanels(locale, "players.filter.all")
+              : value === "white"
+                ? tPanels(locale, "players.filter.white")
+                : tPanels(locale, "players.filter.black")}
           </Chip>
         ))}
         <span className="mx-1 h-4 w-px bg-studio-hover" />
         {(["all", "win", "loss", "draw"] as const).map((value) => (
           <Chip key={value} active={result === value} onClick={() => setResult(value)}>
-            {value === "all" ? "All" : value === "win" ? "Won" : value === "loss" ? "Lost" : "Draw"}
+            {value === "all"
+              ? tPanels(locale, "players.filter.all")
+              : value === "win"
+                ? tPanels(locale, "players.filter.won")
+                : value === "loss"
+                  ? tPanels(locale, "players.filter.lost")
+                  : tPanels(locale, "players.filter.draw")}
           </Chip>
         ))}
         <span className="ml-auto flex items-center gap-1 pr-1 text-caption text-studio-faint">
           <span>
-            {visible.length} game{visible.length === 1 ? "" : "s"}
+            {visible.length === 1
+              ? tPanels(locale, "players.count.one", { count: visible.length })
+              : tPanels(locale, "players.count.other", { count: visible.length })}
           </span>
-          <BookmarkStar active={bookmarked} onClick={() => togglePlayerBookmark(player)} />
+          <BookmarkStar
+            active={bookmarked}
+            title={tSidebar(locale, bookmarked ? "sidebar.player.removeBookmark" : "sidebar.player.bookmark")}
+            onClick={() => togglePlayerBookmark(player)}
+          />
         </span>
       </div>
       <div className="grid grid-cols-[64px_minmax(0,1fr)_minmax(96px,160px)] gap-3 border-b border-studio-border-subtle px-3 py-1.5 text-caption uppercase tracking-wider text-studio-faint">
-        <span>Move</span>
-        <span>Games</span>
-        <span>White · Draw · Black</span>
+        <span>{tPanels(locale, "players.column.move")}</span>
+        <span>{tPanels(locale, "players.column.games")}</span>
+        <span>{tPanels(locale, "players.column.split")}</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto" aria-busy={loading || undefined}>
         {loading ? (
           <div className="px-3 py-4 text-studio-faint" role="status">
-            Loading games…
+            {tPanels(locale, "players.loading")}
           </div>
         ) : null}
         {!loading && moves.length === 0 ? (
-          <div className="px-3 py-4 text-studio-faint">No games reach this position.</div>
+          <div className="px-3 py-4 text-studio-faint">{tPanels(locale, "players.rowEmpty")}</div>
         ) : null}
         {moves.map((row) => {
           return (

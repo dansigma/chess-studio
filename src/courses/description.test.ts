@@ -114,7 +114,9 @@ describe("course draft", () => {
     const invalid = normalizeChapters([
       { id: "ch-1", title: "One", variations: [{ id: "v", title: "Main", pgn: "{only a comment}" }] },
     ]);
-    assert.equal("error" in invalid, true);
+    assert.deepEqual(invalid, {
+      error: { key: "course.admin.error.lineNoMoves", vars: { title: "Main" } },
+    });
   });
 
   it("keeps a commented line", () => {

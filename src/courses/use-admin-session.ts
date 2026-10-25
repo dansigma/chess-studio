@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { tCourseAdmin, type CourseAdminMessage } from "@/src/i18n/course-admin-strings";
+import { useStudioStore } from "@/src/store/studio-store";
 import { findPublishedConflict, isCourseId, isCourseTheme } from "./catalog";
 import { currentUserCanPublish, publishCourse } from "./publish";
 import {
@@ -15,15 +17,16 @@ import type { Course } from "./types";
 /**
  * Publisher session for the course admin: whether the account may publish, the
  * published library, and the browser-local drafts with their import/discard
- * flows. `router.refresh()` is called after an import so the server-rendered
- * catalog re-hydrates for the publisher.
+ * flows. Failures are `CourseAdminMessage` keys resolved to the site locale at
+ * render, since server actions never know the locale.
  */
 export function useAdminSession() {
   const router = useRouter();
+  const locale = useStudioStore((state) => state.settings.locale);
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [localDrafts, setLocalDrafts] = useState<Course[]>([]);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<CourseAdminMessage | null>(null);
   const [importingId, setImportingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,7 +87,7 @@ export function useAdminSession() {
         return;
       }
       if (published.error) {
-        setError(published.error);
+        setError({ key: "course.admin.error.loadFailed" });
         setCourses(published.courses);
         return;
       }
@@ -102,7 +105,10 @@ export function useAdminSession() {
 
   async function importLocalDraft(course: Course) {
     const conflict = findPublishedConflict(course.id, courses);
-    if (conflict && !window.confirm(`Replace the published course “${conflict.title}” with this browser draft?`)) {
+    if (
+      conflict &&
+      !window.confirm(tCourseAdmin(locale, "course.admin.confirm.replaceDraft", { title: conflict.title }))
+    ) {
       return;
     }
     setImportingId(course.id);
@@ -119,9 +125,9 @@ export function useAdminSession() {
       setCourses((current) => [result.course, ...current.filter((item) => item.id !== result.course.id)]);
       setLocalDrafts((current) => current.filter((item) => item.id !== course.id));
       if (!removeLocalCustomDraft(course.id)) {
-        setError("Published, but the browser copy could not be removed — it may reappear on reload.");
+        setError({ key: "course.admin.error.staleCopy" });
       } else {
-        setError("");
+        setError(null);
       }
       router.refresh();
     } finally {
@@ -130,7 +136,7 @@ export function useAdminSession() {
   }
 
   function discardLocalDrafts() {
-    if (!window.confirm("Discard the drafts saved in this browser? This cannot be undone.")) {
+    if (!window.confirm(tCourseAdmin(locale, "course.admin.confirm.discardDrafts"))) {
       return;
     }
     clearLocalCustomCourses();

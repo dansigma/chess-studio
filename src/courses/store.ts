@@ -242,6 +242,13 @@ function persistLocalProgress(): void {
   writeCourseProgressOwner(accountUserId);
 }
 
+/**
+ * Stable fallback code (never English): the caller maps it through
+ * `course.lesson.browserOnlyFallback`. A display string here would bypass the
+ * locale tables — LessonView renders this return value as the lesson notice.
+ */
+export const PROGRESS_BROWSER_ONLY = "browser-only" as const;
+
 export async function saveVariationProgress(variationId: string, progress: VariationProgress): Promise<string | null> {
   progressCache = { ...progressCache, [variationId]: progress };
   if (!accountUserId) {
@@ -251,7 +258,7 @@ export async function saveVariationProgress(variationId: string, progress: Varia
   const supabase = createBrowserSupabase();
   if (!supabase) {
     persistLocalProgress();
-    return "Progress stayed in this browser.";
+    return PROGRESS_BROWSER_ONLY;
   }
   const { error } = await supabase.from("course_progress").upsert({
     user_id: accountUserId,
@@ -262,7 +269,7 @@ export async function saveVariationProgress(variationId: string, progress: Varia
   });
   if (error) {
     persistLocalProgress();
-    return "Progress stayed in this browser.";
+    return PROGRESS_BROWSER_ONLY;
   }
   persistLocalProgress();
   return null;

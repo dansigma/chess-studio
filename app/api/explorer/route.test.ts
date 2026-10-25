@@ -243,3 +243,76 @@ test("backs off Lichess upstream queries when upstream has recently failed", asy
   assert.equal(fetchCount, 2);
 });
 
+const RUY = "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3";
+const SCANDI = "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2";
+const SICILIAN = "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2";
+const ALEKHINE = "rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2";
+
+test("a masters failure does not block the lichess source", async (t) => {
+  state.server = createFakeSupabase();
+  state.service = createFakeSupabase();
+  const live = {
+    white: 10,
+    draws: 5,
+    black: 7,
+    opening: null,
+    moves: [],
+    topGames: [],
+    recentGames: [],
+  };
+  mockFetch(t, (fetchUrl) => {
+    if (fetchUrl.includes("/masters?")) {
+      return jsonResponse({ error: "down" }, 500);
+    }
+    return jsonResponse(live);
+  });
+  const masters = await get(RUY, "masters");
+  assert.equal(masters.res.status, 200);
+  assert.equal(typeof (masters.body as { notice?: unknown }).notice, "string");
+
+  const lichess = await get(SCANDI, "lichess");
+  assert.equal(lichess.res.status, 200);
+  assert.equal((lichess.body as { white: number }).white, 10);
+});
+
+test("an oversized upstream body falls back to the book/empty payload", async (t) => {
+  state.server = createFakeSupabase();
+  state.service = createFakeSupabase();
+  const big = `{"white":1,"draws":0,"black":0,"moves":[],"padding":"${"x".repeat(600 * 1024)}"}`;
+  mockFetch(t, () => {
+    return new Response(big, {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  });
+  const { res, body } = await get(SICILIAN, "lichess");
+  assert.equal(res.status, 200);
+  const payload = body as { source: string; notice?: unknown };
+  assert.equal(payload.source, "lichess");
+  assert.equal(typeof payload.notice, "string");
+});
+
+test("a failing cache write still returns 200 and logs once", async (t) => {
+  state.server = createFakeSupabase();
+  state.service = createFakeSupabase({
+    tables: { explorer_cache: { writeError: { code: "UPSET_FAIL", message: "boom" } } },
+  });
+  mockFetch(t, () => {
+    return jsonResponse({ white: 10, draws: 5, black: 7, moves: [], topGames: [], recentGames: [] });
+  });
+  const errors: unknown[][] = [];
+  const originalError = console.error;
+  console.error = (...args: unknown[]) => {
+    errors.push(args);
+  };
+  t.after(() => {
+    console.error = originalError;
+  });
+  const { res, body } = await get(ALEKHINE, "lichess");
+  assert.equal(res.status, 200);
+  assert.equal((body as { source: string; white: number }).source, "lichess");
+  assert.equal((body as { source: string; white: number }).white, 10);
+  assert.equal(errors.length, 1);
+  assert.match(String(errors[0][0]), /\[explorer\] cache write failed/);
+});
+

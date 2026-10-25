@@ -1,10 +1,13 @@
 "use client";
 
+import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { Button } from "./ui/Button";
 
 export function NotationCommentEditor({
   commentBefore,
   moveLabel,
+  locale = "en",
   value,
   onChange,
   onCommit,
@@ -12,6 +15,7 @@ export function NotationCommentEditor({
 }: {
   commentBefore: boolean;
   moveLabel: string;
+  locale?: SiteLocale;
   value: string;
   onChange: (value: string) => void;
   onCommit: () => void;
@@ -20,7 +24,7 @@ export function NotationCommentEditor({
   return (
     <div className="border-t border-studio-border bg-studio-chrome p-3">
       <div className="mb-1.5 text-caption uppercase tracking-wider text-studio-faint">
-        {commentBefore ? "Comment before" : "Comment"} · {moveLabel}
+        {commentBefore ? tPanels(locale, "comment.before") : tPanels(locale, "comment.title")} · {moveLabel}
       </div>
       <textarea
         value={value}
@@ -36,8 +40,8 @@ export function NotationCommentEditor({
         }}
         placeholder={
           commentBefore
-            ? "Write a note that appears before this move…"
-            : "Write a note for this move or the starting position…"
+            ? tPanels(locale, "comment.placeholderBefore")
+            : tPanels(locale, "comment.placeholder")
         }
         className="h-24 w-full resize-none rounded-md border border-studio-border-strong bg-studio-panel px-2 py-1.5 text-body text-studio-fg outline-none focus:border-studio-accent"
         autoFocus
@@ -51,7 +55,7 @@ export function NotationCommentEditor({
             onClose();
           }}
         >
-          Done
+          {tPanels(locale, "comment.done")}
         </Button>
       </div>
     </div>

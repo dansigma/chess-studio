@@ -44,24 +44,34 @@ test("solverIndexFor tracks the solver's move number", () => {
 });
 
 test("modeLabelFor names each mode", () => {
-  assert.equal(modeLabelFor("daily"), "Daily puzzle");
-  assert.equal(modeLabelFor("streak"), "Streak");
-  assert.equal(modeLabelFor("rush"), "Rush");
-  assert.equal(modeLabelFor("rated"), "Rated");
+  assert.equal(modeLabelFor("daily", "en"), "Daily puzzle");
+  assert.equal(modeLabelFor("streak", "en"), "Streak");
+  assert.equal(modeLabelFor("rush", "en"), "Rush");
+  assert.equal(modeLabelFor("rated", "en"), "Rated");
+});
+
+test("modeLabelFor renders Portuguese labels", () => {
+  assert.equal(modeLabelFor("daily", "pt-br"), "Problema do dia");
+  assert.equal(modeLabelFor("streak", "pt-br"), "Sequência");
+  assert.equal(modeLabelFor("rush", "pt-br"), "Rush");
+  assert.equal(modeLabelFor("rated", "pt-br"), "Com rating");
 });
 
 test("continueLabelFor only offers a next puzzle when the session keeps going", () => {
-  assert.equal(continueLabelFor("rated", false), "Next puzzle");
-  assert.equal(continueLabelFor("streak", false), "Next puzzle");
-  assert.equal(continueLabelFor("rated", true), null);
-  assert.equal(continueLabelFor("daily", false), null);
-  assert.equal(continueLabelFor("rush", false), null);
+  assert.equal(continueLabelFor("rated", false, "en"), "Next puzzle");
+  assert.equal(continueLabelFor("streak", false, "en"), "Next puzzle");
+  assert.equal(continueLabelFor("rated", true, "en"), null);
+  assert.equal(continueLabelFor("daily", false, "en"), null);
+  assert.equal(continueLabelFor("rush", false, "en"), null);
+  assert.equal(continueLabelFor("rated", false, "pt-br"), "Próximo problema");
 });
 
 test("solvedCountLabel pluralises the rush tally", () => {
-  assert.equal(solvedCountLabel(0), "0 puzzles solved");
-  assert.equal(solvedCountLabel(1), "1 puzzle solved");
-  assert.equal(solvedCountLabel(7), "7 puzzles solved");
+  assert.equal(solvedCountLabel(0, "en"), "0 puzzles solved");
+  assert.equal(solvedCountLabel(1, "en"), "1 puzzle solved");
+  assert.equal(solvedCountLabel(7, "en"), "7 puzzles solved");
+  assert.equal(solvedCountLabel(1, "pt-br"), "1 problema resolvido");
+  assert.equal(solvedCountLabel(5, "pt-br"), "5 problemas resolvidos");
 });
 
 test("bubbleCopy titles the rush session states", () => {
@@ -75,6 +85,7 @@ test("bubbleCopy titles the rush session states", () => {
     runStreak: 0,
     sessionSolved: 4,
     sideToMove: "White",
+    locale: "en" as const,
   };
   assert.equal(
     bubbleCopy({ ...base, sessionOver: true, secondsLeft: 0, status: "playing" }).title,
@@ -98,6 +109,7 @@ test("bubbleCopy titles the remaining statuses", () => {
     runStreak: 0,
     sessionSolved: 0,
     sideToMove: "Black",
+    locale: "en" as const,
   };
   assert.equal(bubbleCopy({ ...base, sessionOver: true, status: "failed" }).title, "Streak over");
   assert.equal(bubbleCopy({ ...base, sessionOver: false, status: "solved" }).title, "Solved");
@@ -118,6 +130,7 @@ test("bubbleCopy body follows the session state", () => {
     runStreak: 1,
     sessionSolved: 0,
     sideToMove: "White",
+    locale: "en" as const,
   };
   assert.equal(bubbleCopy({ ...base, status: "solved" }).body, "Great stuff!");
   assert.equal(bubbleCopy({ ...base, status: "solved", runStreak: 3 }).body, "1-2-3 in a row. Great work!");
@@ -144,8 +157,35 @@ test("bubbleCopy announces the rush tally when the run is over", () => {
     runStreak: 0,
     sessionSolved: 5,
     sideToMove: "White",
+    locale: "en",
   });
   assert.equal(body, "5 puzzles solved");
+});
+
+test("bubbleCopy renders Portuguese titles and bodies", () => {
+  const base = {
+    mode: "rated" as const,
+    secondsLeft: 0,
+    sessionOver: false,
+    reveal: false,
+    miss: null,
+    hintLevel: 0,
+    userTurn: true,
+    themes: [] as const,
+    runStreak: 1,
+    sessionSolved: 0,
+    sideToMove: "Brancas",
+    locale: "pt-br" as const,
+  };
+  assert.equal(bubbleCopy({ ...base, status: "solved", sideToMove: "Brancas" }).body, "Muito bem!");
+  assert.equal(
+    bubbleCopy({ ...base, status: "failed", reveal: true, miss: MISS }).body,
+    "Melhor lance: Qh5",
+  );
+  assert.equal(
+    bubbleCopy({ ...base, status: "playing", sideToMove: "Pretas" }).title,
+    "Pretas a jogar",
+  );
 });
 
 test("destinationSquares lists legal targets for the selected piece", () => {

@@ -122,10 +122,10 @@ export function libraryFromPgn(name: string, pgn: string, folderId: string | nul
 export async function persistRemoteDatabase(
   database: FileDatabase,
   userId: string,
-): Promise<{ remoteId: string | null; indexError: string | null }> {
+): Promise<{ remoteId: string | null; indexError: string | null; saveError: string | null }> {
   const supabase = createBrowserSupabase();
   if (!supabase) {
-    return { remoteId: null, indexError: null };
+    return { remoteId: null, indexError: null, saveError: null };
   }
   let remoteId = database.remoteId;
   if (!remoteId) {
@@ -135,13 +135,13 @@ export async function persistRemoteDatabase(
         user_id: userId,
         name: database.name,
         kind: "personal",
-        game_count: database.games.length,
+        game_count: 0,
         folder_id: database.folderId,
       })
       .select("id")
       .single();
     if (error || !data) {
-      return { remoteId: null, indexError: null };
+      return { remoteId: null, indexError: null, saveError: error?.message ?? "Could not create the remote database." };
     }
     remoteId = data.id;
   } else {
@@ -149,11 +149,9 @@ export async function persistRemoteDatabase(
       .from("game_databases")
       .update({
         name: database.name,
-        game_count: database.games.length,
         folder_id: database.folderId,
       })
       .eq("id", remoteId);
-    await supabase.from("games").delete().eq("database_id", remoteId);
   }
   if (database.games.length > 0) {
     const prepared = database.games.map((game) => {
@@ -166,6 +164,7 @@ export async function persistRemoteDatabase(
         row: {
           id,
           database_id: remoteId,
+          pending: true,
           white: headers.White ?? game.white,
           black: headers.Black ?? game.black,
           white_elo: headerNumber(headers.WhiteElo),
@@ -180,10 +179,26 @@ export async function persistRemoteDatabase(
         },
       };
     });
-    const { error } = await supabase.from("games").insert(prepared.map((item) => item.row));
-    if (error) {
-      return { remoteId, indexError: null };
+    const insertError = await insertChunks(
+      prepared.map((item) => item.row),
+      (chunk) => supabase.from("games").insert(chunk),
+      200,
+    );
+    if (insertError) {
+      await supabase.from("games").delete().eq("database_id", remoteId).eq("pending", true);
+      return { remoteId, indexError: null, saveError: insertError };
     }
+    const { data: promoted, error: swapError } = await supabase.rpc("swap_database_games", {
+      p_database_id: remoteId,
+    });
+    if (swapError) {
+      await supabase.from("games").delete().eq("database_id", remoteId).eq("pending", true);
+      return { remoteId, indexError: null, saveError: swapError.message };
+    }
+    await supabase
+      .from("game_databases")
+      .update({ game_count: promoted ?? prepared.length })
+      .eq("id", remoteId);
     const indexError = await writePositionIndex(
       supabase,
       remoteId,
@@ -193,11 +208,18 @@ export async function persistRemoteDatabase(
         result: item.row.result,
       })),
     );
-    return { remoteId, indexError };
+    return { remoteId, indexError, saveError: null };
   } else {
+    const { error: swapError } = await supabase.rpc("swap_database_games", {
+      p_database_id: remoteId,
+    });
+    if (swapError) {
+      return { remoteId, indexError: null, saveError: swapError.message };
+    }
+    await supabase.from("game_databases").update({ game_count: 0 }).eq("id", remoteId);
     await supabase.from("position_stats").delete().eq("database_id", remoteId);
   }
-  return { remoteId, indexError: null };
+  return { remoteId, indexError: null, saveError: null };
 }
 
 function headerNumber(value: string | undefined): number | null {
@@ -267,12 +289,13 @@ async function writePositionIndex(
   return null;
 }
 
-async function insertChunks<T extends PositionRow | StatRow>(
+async function insertChunks<T>(
   rows: T[],
   insert: (chunk: T[]) => PromiseLike<{ error: { message: string } | null }>,
+  size = 400,
 ): Promise<string | null> {
-  for (let index = 0; index < rows.length; index += 400) {
-    const { error } = await insert(rows.slice(index, index + 400));
+  for (let index = 0; index < rows.length; index += size) {
+    const { error } = await insert(rows.slice(index, index + size));
     if (error) {
       return error.message;
     }
@@ -280,17 +303,30 @@ async function insertChunks<T extends PositionRow | StatRow>(
   return null;
 }
 
-export async function persistRemoteFolder(folder: FileFolder, userId: string): Promise<void> {
+export const FOLDER_CYCLE_MESSAGE = "A folder can't be moved inside itself or one of its subfolders.";
+
+export function folderWriteErrorMessage(error: { message?: string } | null): string | null {
+  if (!error) {
+    return null;
+  }
+  if (typeof error.message === "string" && error.message.includes("folder_cycle")) {
+    return FOLDER_CYCLE_MESSAGE;
+  }
+  return error.message ?? "Could not save the folder.";
+}
+
+export async function persistRemoteFolder(folder: FileFolder, userId: string): Promise<string | null> {
   const supabase = createBrowserSupabase();
   if (!supabase) {
-    return;
+    return null;
   }
-  await supabase.from("user_folders").upsert({
+  const { error } = await supabase.from("user_folders").upsert({
     id: folder.id,
     user_id: userId,
     name: folder.name,
     parent_id: folder.parentId,
   });
+  return folderWriteErrorMessage(error);
 }
 
 export async function deleteRemoteFolder(folderId: string): Promise<void> {
@@ -330,7 +366,8 @@ export async function loadRemoteFiles(userId: string): Promise<FilesLibrary> {
     const { data: games } = await supabase
       .from("games")
       .select("id, white, black, event, result, pgn")
-      .eq("database_id", row.id);
+      .eq("database_id", row.id)
+      .eq("pending", false);
     result.push({
       id: crypto.randomUUID(),
       remoteId: row.id,

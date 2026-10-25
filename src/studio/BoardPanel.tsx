@@ -21,14 +21,23 @@ import { boardSquareStyles } from "@/src/chess/board-themes";
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { boardImageElement, fenToCopy, publishVisibleFen } from "@/src/chess/copy-board";
 import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-board-image";
+import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { Button } from "./ui/Button";
 import { useDialogFocus } from "./ui/use-dialog-focus";
 
+const PROMOTION_PIECE_KEYS: Record<string, Parameters<typeof tPanels>[1]> = {
+  q: "panels.board.promoteQueen",
+  r: "panels.board.promoteRook",
+  b: "panels.board.promoteBishop",
+  n: "panels.board.promoteKnight",
+};
+
 const PROMOTION_PIECES = [
-  { piece: "q", label: "Queen" },
-  { piece: "r", label: "Rook" },
-  { piece: "b", label: "Bishop" },
-  { piece: "n", label: "Knight" },
+  { piece: "q" },
+  { piece: "r" },
+  { piece: "b" },
+  { piece: "n" },
 ] as const;
 
 type PendingDraw = {
@@ -37,6 +46,7 @@ type PendingDraw = {
 };
 
 export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) {
+  const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
   const activeBoardId = useActiveBoardId();
   const board = useStudioStore((state) => selectBoard(state, boardIdProp));
   const isActive = board.id === activeBoardId;
@@ -69,6 +79,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const flip = useStudioStore((state) => state.flip);
+  const setBoardRepertoire = useStudioStore((state) => state.setBoardRepertoire);
   const setActiveBoard = useStudioStore((state) => state.setActiveBoard);
   // SIG-907: split panels are fully interactive. Mutations stay
   // active-board-scoped in the store, so ensure this session is active
@@ -395,16 +406,16 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
             className="absolute inset-0 z-10 flex items-center justify-center bg-studio-scrim"
             role="dialog"
             aria-modal="true"
-            aria-label="Choose promotion piece"
+            aria-label={tPanels(locale, "panels.board.promoteDialog")}
             data-promotion-open
           >
             <div
               ref={promotionRef}
               className="flex flex-col gap-2 rounded-[10px] border border-studio-border-strong bg-studio-elevated p-3 shadow-2xl"
             >
-              <span className="text-caption uppercase tracking-wider text-studio-faint">Promote to</span>
+              <span className="text-caption uppercase tracking-wider text-studio-faint">{tPanels(locale, "panels.board.promoteTo")}</span>
               <div className="flex gap-1.5">
-                {PROMOTION_PIECES.map(({ piece, label }) => (
+                {PROMOTION_PIECES.map(({ piece }) => (
                   <Button
                     key={piece}
                     onClick={() => {
@@ -413,12 +424,12 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
                       setPromotion(null);
                     }}
                   >
-                    {label}
+                    {tPanels(locale, PROMOTION_PIECE_KEYS[piece])}
                   </Button>
                 ))}
               </div>
               <Button variant="ghost" size="sm" onClick={() => setPromotion(null)}>
-                Cancel
+                {tPanels(locale, "panels.board.cancel")}
               </Button>
             </div>
           </div>
@@ -430,19 +441,33 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
           menu={boardMenu}
           showEvalBar={showEvalBar}
           showThreat={showThreat}
+          repertoireColor={board.repertoireColor}
+          locale={locale}
           onFlip={() => {
             ensureActive();
             flip();
           }}
           onToggleEvalBar={toggleEvalBar}
           onToggleThreat={() => setShowThreat(!showThreat)}
+          onMarkWhite={() => {
+            ensureActive();
+            setBoardRepertoire(board.id, "white");
+          }}
+          onMarkBlack={() => {
+            ensureActive();
+            setBoardRepertoire(board.id, "black");
+          }}
+          onClearMark={() => {
+            ensureActive();
+            setBoardRepertoire(board.id, null);
+          }}
           onCopyFen={() => {
             void (async () => {
               try {
                 await navigator.clipboard.writeText(fenToCopy(fen));
-                setStatus("FEN copied to clipboard");
+                setStatus(tPanels(locale, "panels.board.fenCopied"));
               } catch {
-                setStatus("Could not copy FEN");
+                setStatus(tPanels(locale, "panels.board.fenCopyFailed"));
               }
             })();
           }}
@@ -450,20 +475,20 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
             void (async () => {
               const element = boardImageElement();
               if (!element) {
-                setStatus("Board is not open");
+                setStatus(tPanels(locale, "panels.board.notOpen"));
                 return;
               }
               try {
                 const blob = await boardPngBlob(element);
                 try {
                   await copyPngToClipboard(blob);
-                  setStatus("Board image copied");
+                  setStatus(tPanels(locale, "panels.board.imageCopied"));
                 } catch {
                   downloadPng(blob, "board.png");
-                  setStatus("Board image downloaded");
+                  setStatus(tPanels(locale, "panels.board.imageDownloaded"));
                 }
               } catch {
-                setStatus("Could not copy the board image");
+                setStatus(tPanels(locale, "panels.board.imageCopyFailed"));
               }
             })();
           }}

@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { CourseChrome } from "@/src/courses/CourseChrome";
+import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { PuzzleBoard } from "./PuzzleBoard";
 import { PuzzlePanel } from "./PuzzlePanel";
@@ -18,6 +19,7 @@ export function PuzzleTrainer() {
   const mode: PuzzleMode = isPuzzleMode(modeParam) ? modeParam : "rated";
   const theme: PuzzleTheme | null = modeParam === "daily" || !isPuzzleTheme(themeParam) ? null : themeParam;
 
+  const locale = useStudioStore((state) => state.settings.locale);
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
@@ -25,16 +27,18 @@ export function PuzzleTrainer() {
 
   const scoring = usePuzzleScoring(mode);
   const session = usePuzzleSession({ mode, theme, moveSound, scoring });
-  const feedback = usePuzzleFeedback({ mode, session });
+  const feedback = usePuzzleFeedback({ mode, session, locale });
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-studio-bg">
       <CourseChrome />
       {session.loadError ? (
-        <main className="px-6 py-10 text-body text-studio-warning-fg">{session.loadError}</main>
+        <main className="px-6 py-10 text-body text-studio-warning-fg">
+          {tPuzzle(locale, "puzzle.trainer.loadError")}
+        </main>
       ) : !scoring.progress || !session.puzzle || !session.fen ? (
         <main className="px-6 py-10 text-body text-studio-muted" role="status">
-          Loading puzzle…
+          {tPuzzle(locale, "puzzle.trainer.loading")}
         </main>
       ) : (
         <div className="mx-auto grid min-h-0 w-full max-w-5xl flex-1 grid-rows-[minmax(0,1fr)_auto] gap-3 px-4 py-3 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:grid-rows-1 lg:gap-6 lg:py-6">
@@ -45,7 +49,7 @@ export function PuzzleTrainer() {
             pieceSet={pieceSet}
             showCoordinates={showCoordinates}
           />
-          <PuzzlePanel mode={mode} theme={theme} session={session} feedback={feedback} />
+          <PuzzlePanel mode={mode} theme={theme} session={session} feedback={feedback} locale={locale} />
         </div>
       )}
     </div>

@@ -1,5 +1,7 @@
 import { Chess, type Square } from "chess.js";
 import type { GameTree, TreeNode } from "@/src/chess/tree";
+import type { SiteLocale } from "@/src/i18n/locale";
+import { tCourse } from "@/src/i18n/course-strings";
 import type { CourseColor, VariationProgress } from "./types";
 
 export type LessonMove = {
@@ -89,19 +91,23 @@ export function studentMoveMatches(frame: LessonFrame, from: string, to: string)
   return studentMoveCandidates(frame.fen, from, to).some((uci) => moveMatches(frame, uci));
 }
 
-export function lineProgressLabel(progress: VariationProgress | undefined, frameCount: number): string {
+export function lineProgressLabel(
+  progress: VariationProgress | undefined,
+  frameCount: number,
+  locale: SiteLocale,
+): string {
   if (progress?.learned) {
-    return "Learned";
+    return tCourse(locale, "course.line.learned");
   }
   const step = progress?.step ?? 0;
   if (step <= 0) {
-    return "Not started";
+    return tCourse(locale, "course.line.notStarted");
   }
   if (frameCount > 0) {
     const place = Math.min(step + 1, frameCount);
-    return `Continue · ${place} / ${frameCount}`;
+    return tCourse(locale, "course.line.continue", { place, total: frameCount });
   }
-  return "Continue";
+  return tCourse(locale, "course.line.continueBare");
 }
 
 /** Learned sticks once earned, and only a one-step advance onto the last frame earns it. */

@@ -1,0 +1,115 @@
+// SIG-1089: My Games sidebar strings. Strict EN + PT-BR tables via
+// `createT` (same grain as `linked-accounts-strings.ts`): a missing PT-BR
+// key fails `tsc`. Title values must match `chrome.activity.mygames`
+// (asserted in the test) so the activity bar and the panel agree.
+import { createT } from "./create-t.ts";
+
+export const MY_GAMES_STRING_KEYS = [
+  "myGames.title",
+  "myGames.sync",
+  "myGames.syncing",
+  "myGames.synced.one",
+  "myGames.synced.other",
+  "myGames.linkAccountHint",
+  "myGames.signInHint",
+  "myGames.loading",
+  "myGames.empty",
+  "myGames.loadMore",
+  "myGames.error.unavailable",
+  "myGames.error.upstream",
+  "myGames.selectAll",
+  "myGames.reviewSelected",
+  "myGames.reviewAllUnreviewed",
+  "myGames.reviewing",
+  "myGames.cancel",
+  "myGames.reviewFailed",
+  "myGames.stats",
+  "myGames.statsTitle",
+  "myGames.statsEmpty",
+  "myGames.statsTrend",
+  "myGames.statsByOpening",
+  "myGames.statsByPhase",
+  "myGames.statsWhite",
+  "myGames.statsBlack",
+  "myGames.statsGames",
+  "myGames.statsWins",
+  "myGames.statsDraws",
+  "myGames.statsLosses",
+  "myGames.statsScore",
+] as const;
+
+export type MyGamesStringKey = (typeof MY_GAMES_STRING_KEYS)[number];
+
+const EN: Record<MyGamesStringKey, string> = {
+  "myGames.title": "My Games",
+  "myGames.sync": "Sync",
+  "myGames.syncing": "Syncing…",
+  "myGames.synced.one": "Synced {count} new game",
+  "myGames.synced.other": "Synced {count} new games",
+  "myGames.linkAccountHint":
+    "Link your Lichess or Chess.com account in Settings → Linked accounts to import your games.",
+  "myGames.signInHint": "Sign in to see your imported games.",
+  "myGames.loading": "Loading your games…",
+  "myGames.empty": "No imported games yet. Link an account and press Sync.",
+  "myGames.loadMore": "Load more",
+  "myGames.error.unavailable": "Could not load your games. Try again.",
+  "myGames.error.upstream": "One account failed to sync — your other games are shown.",
+  "myGames.selectAll": "Select all",
+  "myGames.reviewSelected": "Review selected",
+  "myGames.reviewAllUnreviewed": "Review all unreviewed",
+  "myGames.reviewing": "Reviewing {done} of {total}…",
+  "myGames.cancel": "Cancel",
+  "myGames.reviewFailed": "Skipped {count} game without review",
+  "myGames.stats": "Stats",
+  "myGames.statsTitle": "My stats",
+  "myGames.statsEmpty": "Review at least 3 games to see your stats.",
+  "myGames.statsTrend": "Accuracy trend",
+  "myGames.statsByOpening": "Results by opening",
+  "myGames.statsByPhase": "Mistakes by phase",
+  "myGames.statsWhite": "White",
+  "myGames.statsBlack": "Black",
+  "myGames.statsGames": "Games",
+  "myGames.statsWins": "W",
+  "myGames.statsDraws": "D",
+  "myGames.statsLosses": "L",
+  "myGames.statsScore": "Score",
+};
+
+const PT_BR: Record<MyGamesStringKey, string> = {
+  "myGames.title": "Minhas partidas",
+  "myGames.sync": "Sincronizar",
+  "myGames.syncing": "Sincronizando…",
+  "myGames.synced.one": "Sincronizada {count} nova partida",
+  "myGames.synced.other": "Sincronizadas {count} novas partidas",
+  "myGames.linkAccountHint":
+    "Vincule sua conta do Lichess ou Chess.com em Configurações → Contas vinculadas para importar suas partidas.",
+  "myGames.signInHint": "Entre para ver suas partidas importadas.",
+  "myGames.loading": "Carregando suas partidas…",
+  "myGames.empty": "Nenhuma partida importada ainda. Vincule uma conta e pressione Sincronizar.",
+  "myGames.loadMore": "Carregar mais",
+  "myGames.error.unavailable": "Não foi possível carregar suas partidas. Tente novamente.",
+  "myGames.error.upstream": "Uma conta falhou ao sincronizar — seus outros jogos são exibidos.",
+  "myGames.selectAll": "Selecionar todas",
+  "myGames.reviewSelected": "Revisar selecionadas",
+  "myGames.reviewAllUnreviewed": "Revisar todas não revisadas",
+  "myGames.reviewing": "Revisando {done} de {total}…",
+  "myGames.cancel": "Cancelar",
+  "myGames.reviewFailed": "Ignorada {count} partida sem revisão",
+  "myGames.stats": "Estatísticas",
+  "myGames.statsTitle": "Minhas estatísticas",
+  "myGames.statsEmpty": "Revise pelo menos 3 partidas para ver suas estatísticas.",
+  "myGames.statsTrend": "Evolução da precisão",
+  "myGames.statsByOpening": "Resultados por abertura",
+  "myGames.statsByPhase": "Erros por fase",
+  "myGames.statsWhite": "Brancas",
+  "myGames.statsBlack": "Pretas",
+  "myGames.statsGames": "Partidas",
+  "myGames.statsWins": "V",
+  "myGames.statsDraws": "E",
+  "myGames.statsLosses": "D",
+  "myGames.statsScore": "Aproveitamento",
+};
+
+export const TABLES = { en: EN, "pt-br": PT_BR } as const;
+
+export const tMyGames = createT(EN, PT_BR);

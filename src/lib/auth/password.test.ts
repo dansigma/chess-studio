@@ -25,10 +25,22 @@ describe("password validation", () => {
     assert.equal(isValidPassword(1234567890), false);
   });
 
-  it("formats error messages and helper hints", () => {
-    assert.equal(passwordLengthError(), "Password must be at least 10 characters.");
-    assert.equal(passwordLengthError(8), "Password must be at least 8 characters.");
-    assert.equal(passwordRequirementHint(), "At least 10 characters");
-    assert.equal(passwordRequirementHint(8), "At least 8 characters");
+  it("returns translation keys with interpolation vars", () => {
+    assert.deepEqual(passwordLengthError(), {
+      key: "auth.error.passwordTooShort",
+      vars: { min: 10 },
+    });
+    assert.deepEqual(passwordLengthError(8), {
+      key: "auth.error.passwordTooShort",
+      vars: { min: 8 },
+    });
+    assert.deepEqual(passwordRequirementHint(), {
+      key: "auth.hint.passwordRequirement",
+      vars: { min: 10 },
+    });
+    assert.deepEqual(passwordRequirementHint(8), {
+      key: "auth.hint.passwordRequirement",
+      vars: { min: 8 },
+    });
   });
 });

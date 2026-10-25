@@ -47,13 +47,16 @@ cp .env.example .env.local
 | `COURSE_ADMINS` | Server-only | Optional | Comma-separated list of email addresses permitted to create and publish courses (e.g. `admin@example.com,coach@example.com`). Also validated against `public.course_admins`. |
 | `SUPABASE_JWKS_URL` | Server-only | Optional | Supabase auth JWKS endpoint for JWT verification (e.g. `https://your-project.supabase.co/auth/v1/.well-known/jwks.json`). |
 | `LICHESS_TOKEN` | Server / Client | Optional | Personal OAuth token from [lichess.org/account/oauth/token](https://lichess.org/account/oauth/token) (no scopes required). Without it, live Lichess explorer stats return 401 and the app falls back to the built-in master sample book. |
+| `RESEND_API_KEY` | Server-only | Optional | Resend API key for transactional email (coach invites, receipts, reminders). Without it, `sendEmail()` is a no-op that logs once and returns `{ ok: false, reason: "not_configured" }`. |
+| `EMAIL_FROM` | Server-only | Optional | Override for the email sender identity. Defaults to `"Xadrez Digital" <no-reply@xadrez.digital>`. |
+| `EMAIL_REPLY_TO` | Server-only | Optional | Override for the email reply-to address. Defaults to `contato@xadrez.digital`. |
 
 ## Supabase & Database Migrations
 
 Chess Studio uses Supabase for user authentication, saved boards, custom repertoires, puzzle training progress, and courses.
 
 ### Auth Setup & Security Note
-In the Supabase Dashboard under **Authentication -> Providers -> Email**, ensure that **Confirm email** is enabled. This prevents unconfirmed signups from claiming allowlisted administrator addresses configured in `COURSE_ADMINS`.
+In the Supabase Dashboard under **Authentication -> Providers -> Email**, ensure that **Confirm email** is enabled (local dev: `enable_confirmations = true` in `supabase/config.toml`). This prevents unconfirmed signups from claiming allowlisted administrator addresses configured in `COURSE_ADMINS`. The admin role is granted only to confirmed allowlisted emails and is revoked at the next sign-in if the email is removed from the allowlist.
 
 ### Applying Migrations Locally
 All database schemas, RLS policies, and triggers are tracked sequentially under `supabase/migrations/`:
@@ -87,6 +90,21 @@ If applying migrations to a hosted Supabase project without the CLI, execute all
 - `20261007120000_sig861_rls_indexes_drafts.sql` (RLS index optimizations and course drafts)
 - `20261013000000_nested_folders.sql` (hierarchical folder structure for saved games)
 - `20261013120000_repertoire_progress.sql` (opening repertoire training progress)
+- `20261021250000_puzzles.sql` (curated Lichess puzzle subset table, read-only for clients)
+
+## Puzzle dataset
+
+The trainer's large puzzle pool comes from the [Lichess open database](https://database.lichess.org/#puzzles) (CC0 — no rights reserved; thanks to Lichess and its players for publishing millions of rated puzzles). The raw `lichess_db_puzzle.csv.zst` is never committed; instead a curated subset (~60,000 puzzles, popularity ≥ 85, ≥ 500 plays, balanced by 100-point rating band and theme) is built and loaded into `public.puzzles`:
+
+```bash
+# 1. Download + decompress the upstream dump, then build the subset
+node scripts/lichess-puzzles/build-subset.mjs lichess_db_puzzle.csv puzzles-subset.csv --size 60000
+
+# 2. Load into the database (after SIG-1102 is deployed)
+\copy public.puzzles(id,fen,moves,rating,themes,popularity,nb_plays) from 'puzzles-subset.csv' csv header
+```
+
+Only Lichess theme tags that map onto the app's 13 themes (see `scripts/lichess-puzzles/map-themes.mjs`) are kept; the rest of the import rules (first-move application, SAN conversion, balancing) are covered by the 12-row fixture in `scripts/lichess-puzzles/fixtures/`.
 
 ## Stockfish Engine Architecture
 
@@ -98,6 +116,7 @@ The application supports two Stockfish 19 engine builds:
 2. **Stockfish 19 full (NNUE)**:
    - Files: `stockfish-19-single.wasm` and `full/stockfish-19.wasm` (~95 MB each).
    - Because Cloudflare Workers static assets have a 25 MiB file size limit, full WASM binaries are **not** committed to git or bundled in static assets. Instead, in production they are served dynamically from the Cloudflare R2 bucket `chess-studio-engine` via `app/engine/[...path]/route.ts`.
+   - `public/engine/full/stockfish.worker.js` looks like a duplicate of `stockfish-19.js` but must stay next to it: the threaded build spawns its pthread workers by that filename (guarded by `src/engine/engine-assets.test.ts`).
 
 ### Local Development with Full Engine (Optional)
 Local development works out-of-the-box with the bundled lite engine. To test the full NNUE engine locally:
@@ -134,6 +153,21 @@ npx tsc --noEmit
 # Run Playwright end-to-end smoke tests
 npm run test:e2e
 ```
+
+## Dependency audit
+
+Production dependencies are audited on every CI run by `node scripts/audit-gate.mjs`
+(fails on any unallowlisted `high`/`critical` advisory from `npm audit --omit=dev`).
+Advisories with no usable fix are listed in `audit-allowlist.json` with a reason
+and an `expires` date (90 days out); expired entries fail the gate, and stale
+entries (matching no current advisory) are printed so they can be removed:
+
+```bash
+node scripts/audit-gate.mjs
+```
+
+Dependabot covers npm updates weekly. When an allowlist entry nears expiry,
+check whether an upgrade fixes it, then renew or remove the entry.
 
 ## Build & Deployment
 

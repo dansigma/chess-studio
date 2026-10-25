@@ -184,8 +184,10 @@ test("a failed puzzle does not award points", () => {
 });
 
 test("coach lines and the award anchor follow the side to move", () => {
-  assert.match(puzzleGoal(["mateIn1", "mate"]), /Mate in one/);
-  assert.match(solvedPraise(3), /1-2-3/);
+  assert.match(puzzleGoal(["mateIn1", "mate"], "en"), /Mate in one/);
+  assert.match(solvedPraise(3, "en"), /1-2-3/);
+  assert.match(puzzleGoal(["mateIn1", "mate"], "pt-br"), /Mate em um/);
+  assert.match(solvedPraise(3, "pt-br"), /1-2-3/);
   const white = squareAnchor("a1", "white");
   const black = squareAnchor("a1", "black");
   assert.ok(white && black);
