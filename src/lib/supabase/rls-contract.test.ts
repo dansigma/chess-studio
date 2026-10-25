@@ -390,3 +390,57 @@ describe("sig-1050 course status and tier migration", () => {
     assert.ok(sig1050.includes("new.status = 'published'"), "trigger must stamp on publish");
   });
 });
+
+describe("sig-1061 role management RPCs migration", () => {
+  const sig1061 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021130000_role_management_rpcs.sql"),
+    "utf8",
+  );
+
+  for (const [name, namedArgs, shortArgs] of [
+    ["public.set_user_role", "(p_user_id uuid, p_new_role text, p_changed_by uuid, p_reason text)", "(uuid, text, uuid, text)"],
+    ["public.admin_list_users", "(p_search text, p_role text, p_limit int, p_offset int)", "(text, text, int, int)"],
+  ]) {
+    const fn = `${name}${shortArgs}`;
+    it(`defines ${fn} as security definer with an empty search_path`, () => {
+      assert.ok(sig1061.includes(`create or replace function ${name}${namedArgs}`), `missing function ${fn}`);
+      assert.ok(/security definer/.test(sig1061));
+      assert.ok(/set search_path = ''/.test(sig1061));
+    });
+
+    it(`grants ${fn} to service_role only`, () => {
+      assert.ok(
+        sig1061.includes(`revoke execute on function ${fn} from public, anon, authenticated`),
+        `missing revoke for ${fn}`,
+      );
+      assert.ok(
+        sig1061.includes(`grant execute on function ${fn} to service_role`),
+        `missing service_role grant for ${fn}`,
+      );
+    });
+  }
+
+  it("guards set_user_role against bad input, self-demotion, no-ops and last-admin loss", () => {
+    for (const code of ["invalid_role", "invalid_reason", "not_found", "own_role", "unchanged", "last_admin"]) {
+      assert.ok(sig1061.includes(`raise exception '${code}'`), `missing ${code} guard`);
+    }
+  });
+
+  it("serializes set_user_role with an advisory lock and a locked profile row", () => {
+    assert.ok(sig1061.includes("pg_advisory_xact_lock(hashtext('set_user_role'))"), "missing advisory lock");
+    assert.ok(sig1061.includes("for update"), "missing FOR UPDATE row lock");
+  });
+
+  it("writes role_source = 'manual' and the role_changes audit row on success", () => {
+    assert.ok(sig1061.includes("role_source = 'manual'"), "must mark manual roles");
+    assert.ok(sig1061.includes("insert into public.role_changes"), "must audit the change");
+  });
+
+  it("lists users from auth.users with a bounded page and a total count", () => {
+    assert.ok(sig1061.includes("join public.profiles"), "must join profiles for roles");
+    assert.ok(sig1061.includes("strpos(lower("), "search must be a case-insensitive substring without LIKE wildcards");
+    assert.ok(sig1061.includes("count(*) over ()"), "must return the total alongside the page");
+    assert.ok(sig1061.includes("least(greatest("), "p_limit must be clamped");
+  });
+});
+});
