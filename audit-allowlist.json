@@ -1,0 +1,9 @@
+{
+  "entries": [
+    {
+      "id": "GHSA-mrhx-c7xc-m3w5",
+      "reason": "zod memory-exhaustion advisory pulled in via the @cloudflare/config toolchain (vinext/cloudflare dev chain); fix requires a beta-line @cloudflare/vite-plugin or cf upgrade, not viable now",
+      "expires": "2027-01-22"
+    }
+  ]
+}
