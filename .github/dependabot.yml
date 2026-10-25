@@ -34,3 +34,18 @@ updates:
       - dependency-name: "typescript"
         update-types:
           - "version-update:semver-major"
+
+  # Keep the actions used by the workflows current. Without this entry nothing
+  # upgrades them, and the runner deprecates the bundled Node version under
+  # them on a schedule (the annotations already warn about Node 20 on
+  # actions/checkout@v4 and actions/setup-node@v4). All of them move in one
+  # pull request because a workflow is only as good as its oldest action.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        patterns:
+          - "*"
