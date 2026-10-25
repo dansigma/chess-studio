@@ -16,6 +16,7 @@ import { ResizeHandle } from "./ui/ResizeHandle";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { importPgn } from "@/src/chess/pgn";
+import { clearGuestBoards, loadGuestBoards, saveGuestBoards } from "@/src/lib/guest-boards";
 import { useExplorerData } from "./use-explorer-data";
 import {
   forgetRemoteDockSync,
@@ -26,6 +27,7 @@ import {
   useStudioStore,
   type BoardSession,
 } from "@/src/store/studio-store";
+import { compareRepertoirePersistOrder } from "@/src/store/slices/selectors";
 import { loadRemoteFiles } from "@/src/lib/user-files";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
@@ -66,6 +68,28 @@ export function StudioShell() {
   const locale = useStudioStore((state) => state.settings.locale);
   const dirtyRevision = useStudioStore((state) =>
     state.boards.map((board) => `${board.id}:${board.dirty ? "1" : "0"}`).join("|"),
+  );
+  // SIG-1092: guest boards have no remote row — persist the session list
+  // (PGN + metadata) locally so the repertoire mark survives a reload. The
+  // signature covers content that matters across reloads (moves, headers,
+  // orientation, marks, session set), not just the dirty flags.
+  const guestBoardsSignature = useStudioStore((state) =>
+    state.user || typeof window === "undefined"
+      ? null
+      : JSON.stringify({
+          activeBoardId: state.activeBoardId,
+          boards: state.boards
+            .filter((board) => !board.preview)
+            .map((board) => [
+              board.id,
+              board.title,
+              board.path.join(","),
+              board.headers,
+              board.orientation,
+              board.repertoireColor,
+              board.tree,
+            ]),
+        }),
   );
   const aboutOpen = useStudioStore((state) => state.aboutOpen);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
@@ -112,8 +136,18 @@ export function StudioShell() {
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
+    // SIG-1092: guests hydrate from the local guest-board snapshot so the
+    // repertoire mark (and position) survive a browser reload. Corrupt or
+    // missing payloads fall back to the in-memory placeholder. Runs even
+    // when Supabase is unconfigured (no remote to load either way).
+    if (!user) {
+      const guest = loadGuestBoards();
+      if (guest) {
+        useStudioStore.setState({ boards: guest.boards, activeBoardId: guest.activeBoardId });
+      }
+    }
     if (!supabase || !user) {
-      // SIG-907: guests have nothing to load — mark hydrated immediately so
+      // SIG-907: guests have nothing remote to load — mark hydrated immediately so
       // the dock may prune orphan `board:*` panels without waiting.
       setBoardsHydrated();
       return;
@@ -149,6 +183,12 @@ export function StudioShell() {
           path: row.current_node_path ?? imported.path,
           headers: imported.headers,
           orientation: row.orientation,
+          // SIG-1092: read the repertoire mark; unknown values fail closed
+          // to null so a bad row never claims a color.
+          repertoireColor:
+            row.repertoire_color === "white" || row.repertoire_color === "black"
+              ? row.repertoire_color
+              : null,
           dirty: false,
           preview: false,
         };
@@ -173,6 +213,11 @@ export function StudioShell() {
       if (cancelled) {
         return;
       }
+      // SIG-1096: mistake exercises hydrate alongside repertoire progress.
+      await useStudioStore.getState().hydrateMistakeExercises();
+      if (cancelled) {
+        return;
+      }
       // SIG-907: boards query settled — the dock may now prune orphan
       // `board:*` panels whose sessions never arrived.
       setBoardsHydrated();
@@ -187,8 +232,29 @@ export function StudioShell() {
       forgetRemoteDockSync();
       return;
     }
+    // SIG-1092: guest and account board stores are disjoint — a signed-in
+    // session hydrates from Supabase, so drop the guest local snapshot to
+    // avoid re-hydrating it on the next sign-out.
+    clearGuestBoards();
     void syncRemoteDockLayout(user.id);
   }, [user]);
+
+  // SIG-1092: persist the guest session list locally (debounced) so the
+  // repertoire mark survives a browser reload. Guests never hit the remote
+  // auto-save below; accounts never touch the guest snapshot.
+  useEffect(() => {
+    if (user || guestBoardsSignature === null) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      const state = useStudioStore.getState();
+      if (state.user) {
+        return;
+      }
+      saveGuestBoards(state.boards, state.activeBoardId);
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [guestBoardsSignature, user]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -202,7 +268,14 @@ export function StudioShell() {
       return;
     }
     const handle = window.setTimeout(() => {
-      const dirtyBoards = useStudioStore.getState().boards.filter((b) => b.dirty);
+      const dirtyBoards = useStudioStore
+        .getState()
+        .boards.filter((b) => b.dirty)
+        // SIG-1092: persist unmarks before marks so moving the mark between
+        // two saved boards cannot collide on boards_user_repertoire_color_uq
+        // (compareRepertoirePersistOrder keeps the assertion on production
+        // code instead of a copy of the comparator).
+        .sort(compareRepertoirePersistOrder);
       if (dirtyBoards.length === 0) {
         return;
       }

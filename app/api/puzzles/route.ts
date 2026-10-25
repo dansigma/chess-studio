@@ -1,13 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 import { PUZZLES } from "@/src/puzzles/puzzle-data";
-import { queryPuzzles, isPuzzleTheme, type PuzzleQueryOptions } from "@/src/puzzles/query";
+import { compilePuzzle } from "@/src/puzzles/engine";
+import { fetchPuzzleRowById, queryPuzzleTable, type PuzzleTableQuery } from "@/src/puzzles/puzzle-store";
+import { queryPuzzles, isPuzzleTheme, type PuzzleQueryOptions, type PuzzleQueryResult } from "@/src/puzzles/query";
 
 const CACHE_HEADERS = {
   "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400",
 };
 
 const limiter = createRouteLimiter({ limit: 60, windowMs: 60_000, bindingName: "RL_60_MIN" });
+
+/**
+ * SIG-1102: table-first sampling. The `puzzles_window` function clamps to
+ * 200 rows, so offset requests and large limits stay on the in-memory
+ * catalog rather than silently truncating.
+ *
+ * Contract note: windowed table hits serve a single capped page, so
+ * `total` is page-relative (`items.length`) on this path, while the catalog
+ * fallback below keeps the pre-pagination total from `queryPuzzles`. No
+ * client consumer reads `X-Total-Count`/envelope `total` today
+ * (`loadPuzzleCatalog` only reads the array body), so the page-relative
+ * total is safe; `route.test.ts` pins it.
+ */
+async function queryTableFirst(queryOpts: PuzzleQueryOptions): Promise<PuzzleQueryResult> {
+  const windowed = queryOpts.sample || queryOpts.minRating !== undefined || queryOpts.maxRating !== undefined;
+  const limit = queryOpts.limit ?? 50;
+  if (windowed && queryOpts.offset === undefined && limit <= 200) {
+    const tableOpts: PuzzleTableQuery = {
+      minRating: queryOpts.minRating,
+      maxRating: queryOpts.maxRating,
+      theme: queryOpts.theme,
+      limit,
+      exclude: queryOpts.exclude ? [...queryOpts.exclude] : undefined,
+      seed: queryOpts.seed ?? (queryOpts.sample ? (Math.random() * 0xffffffff) >>> 0 : undefined),
+    };
+    const table = await queryPuzzleTable(tableOpts);
+    if (table) {
+      const excluded = queryOpts.exclude ? new Set(queryOpts.exclude) : null;
+      const items = excluded ? table.filter((puzzle) => !excluded.has(puzzle.id)) : table;
+      return { items, total: items.length };
+    }
+  }
+  return queryPuzzles(PUZZLES, queryOpts);
+}
 
 export async function GET(request: NextRequest) {
   const ip = clientIp(request.headers);
@@ -21,10 +57,18 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get("id");
 
-  // Single-item lookup
+  // Single-item lookup: table first, catalog fallback.
   if (id !== null) {
     if (!/^[a-zA-Z0-9-]{1,80}$/.test(id)) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
+    const row = await fetchPuzzleRowById(id);
+    if (row) {
+      try {
+        return NextResponse.json(compilePuzzle(row), { headers: CACHE_HEADERS });
+      } catch {
+        console.warn(`[puzzles] skipping table row ${row.id} that failed to compile`);
+      }
     }
     const puzzle = PUZZLES.find((item) => item.id === id);
     if (!puzzle) {
@@ -102,7 +146,7 @@ export async function GET(request: NextRequest) {
     queryOpts.sample = true;
   }
 
-  const { items, total } = queryPuzzles(PUZZLES, queryOpts);
+  const { items, total } = await queryTableFirst(queryOpts);
 
   const headers: Record<string, string> = {
     ...CACHE_HEADERS,

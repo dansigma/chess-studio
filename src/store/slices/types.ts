@@ -7,6 +7,7 @@ import type { GameTree, Path } from "@/src/chess/tree";
 import type { ReviewAnnotationEdit } from "@/src/chess/review-annotate";
 import type { SpacedRepetitionItem } from "@/src/chess/repertoire";
 import type { GameHeaders } from "@/src/chess/pgn";
+import type { MistakeExercisesMap } from "@/src/lib/mistake-exercises-store";
 import type { BoardMarks, MarkColor } from "@/src/chess/marks";
 import type {
   PlayerColorFilter,
@@ -38,6 +39,9 @@ export type BoardSession = {
   path: Path;
   headers: GameHeaders;
   orientation: BoardOrientation;
+  // SIG-1092: repertoire mark — which color this board is the repertoire
+  // for, if any. One board per color per user (partial unique index).
+  repertoireColor: BoardOrientation | null;
   dirty: boolean;
   preview: boolean;
   // SIG-968: pre-annotate snapshot for one level of "Undo annotations".
@@ -232,7 +236,13 @@ export type StudioState = {
   recordRepertoireMove: (fen: string, uci: string, correct: boolean) => void;
   setRepertoireProgress: (progress: Record<string, SpacedRepetitionItem>) => void;
   hydrateRepertoire: () => Promise<void>;
+  // SIG-1096: persisted mistake exercises with SRS state, hydrated on login
+  // like repertoire progress; consumed by the practice slice (SIG-1097).
+  mistakeExercises: MistakeExercisesMap;
+  setMistakeExercises: (exercises: MistakeExercisesMap) => void;
+  hydrateMistakeExercises: () => Promise<void>;
   renameActive: (title: string) => void;
+  setBoardRepertoire: (boardId: string, color: BoardOrientation | null) => void;
   setExplorer: (data: ExplorerResponse | null) => void;
   setExplorerLoading: (loading: boolean) => void;
   setExplorerError: (error: string | null) => void;

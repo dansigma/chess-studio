@@ -5,8 +5,6 @@ import { toJson } from "@/src/lib/supabase/database.types";
 import {
   isExplorerResponse,
   type CloudExplorerSource,
-  type ExplorerGameRow,
-  type ExplorerMoveRow,
   type ExplorerResponse,
 } from "@/src/lib/explorer-types";
 import { filtersAreDefault, filtersFromSearchParams, lichessFilterQuery } from "@/src/lib/explorer-filters";
@@ -16,52 +14,17 @@ import { lookupOpeningIndex } from "@/src/lib/opening-index";
 import { createLruCache } from "@/src/lib/lru";
 import { isExplorerFen } from "@/src/lib/request-validation";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
+import { _resetExplorerUpstreamForTest, fetchExplorerUpstream } from "@/src/lib/explorer-upstream.ts";
 
 const memoryCache = createLruCache<string, { payload: ExplorerResponse; fetchedAt: number }>(500);
 const limiter = createRouteLimiter({ limit: 60, windowMs: 60_000, bindingName: "RL_60_MIN" });
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const FALLBACK_CACHE_TTL_MS = 1000 * 60 * 2;
-const LICHESS_BACKOFF_MS = 1000 * 30;
-
-let lichessBackoffUntil = 0;
 
 export function _resetExplorerStateForTest() {
   memoryCache.clear();
-  lichessBackoffUntil = 0;
+  _resetExplorerUpstreamForTest();
 }
-
-type LichessPlayer = {
-  name?: string;
-  rating?: number;
-};
-
-type LichessGame = {
-  id?: string;
-  winner?: string | null;
-  white?: LichessPlayer;
-  black?: LichessPlayer;
-  year?: number;
-  month?: number;
-};
-
-type LichessMove = {
-  san?: string;
-  uci?: string;
-  white?: number;
-  draws?: number;
-  black?: number;
-  averageRating?: number;
-};
-
-type LichessExplorer = {
-  white?: number;
-  draws?: number;
-  black?: number;
-  opening?: { eco?: string; name?: string } | null;
-  moves?: LichessMove[];
-  topGames?: LichessGame[];
-  recentGames?: LichessGame[];
-};
 
 function isSource(value: string | null): value is "masters" | "lichess" | "curated" {
   return value === "masters" || value === "lichess" || value === "curated";
@@ -73,116 +36,6 @@ function cacheKey(source: CloudExplorerSource, fen: string): string {
 
 function lichessToken(): string | undefined {
   return process.env.LICHESS_TOKEN ?? process.env.LICHESS_API_TOKEN;
-}
-
-function mapGame(
-  game: LichessGame,
-  opening: ExplorerResponse["opening"],
-): ExplorerGameRow {
-  const winner =
-    game.winner === "white" || game.winner === "black"
-      ? game.winner
-      : game.winner === "draw"
-        ? "draw"
-        : null;
-  return {
-    id: game.id ?? "",
-    winner,
-    whiteName: game.white?.name ?? "Unknown",
-    whiteRating: game.white?.rating ?? null,
-    blackName: game.black?.name ?? "Unknown",
-    blackRating: game.black?.rating ?? null,
-    year: game.year ?? null,
-    month: game.month ?? null,
-    event: game.year ? String(game.year) : null,
-    eco: opening?.eco ?? null,
-    opening: opening?.name ?? null,
-  };
-}
-
-function mapResponse(
-  source: CloudExplorerSource,
-  fen: string,
-  data: LichessExplorer,
-): ExplorerResponse {
-  const opening =
-    data.opening?.eco || data.opening?.name
-      ? { eco: data.opening.eco ?? "", name: data.opening.name ?? "" }
-      : null;
-  const moves: ExplorerMoveRow[] = (data.moves ?? [])
-    .filter((move) => move.san && move.uci)
-    .map((move) => ({
-      san: move.san as string,
-      uci: move.uci as string,
-      white: move.white ?? 0,
-      draws: move.draws ?? 0,
-      black: move.black ?? 0,
-      games: (move.white ?? 0) + (move.draws ?? 0) + (move.black ?? 0),
-      averageRating: move.averageRating ?? null,
-    }));
-  const games = [...(data.topGames ?? []), ...(data.recentGames ?? [])]
-    .filter((game) => game.id)
-    .map((game) => mapGame(game, opening));
-  const unique = new Map<string, ExplorerGameRow>();
-  for (const game of games) {
-    unique.set(game.id, game);
-  }
-  return {
-    source,
-    fen,
-    white: data.white ?? 0,
-    draws: data.draws ?? 0,
-    black: data.black ?? 0,
-    opening,
-    moves,
-    games: [...unique.values()],
-  };
-}
-
-async function fetchLichess(
-  source: "masters" | "lichess",
-  fen: string,
-  filterQuery: string,
-): Promise<ExplorerResponse | null> {
-  if (Date.now() < lichessBackoffUntil) {
-    return null;
-  }
-  const token = lichessToken();
-  const endpoints =
-    source === "masters"
-      ? [
-          `https://explorer.lichess.ovh/masters?fen=${encodeURIComponent(fen)}&source=opening${filterQuery}`,
-          `https://explorer.lichess.org/masters?fen=${encodeURIComponent(fen)}&source=opening${filterQuery}`,
-        ]
-      : [
-          `https://explorer.lichess.ovh/lichess?variant=standard&fen=${encodeURIComponent(fen)}&source=opening${filterQuery}`,
-          `https://explorer.lichess.org/lichess?variant=standard&fen=${encodeURIComponent(fen)}&source=opening${filterQuery}`,
-        ];
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "User-Agent": "StudioClone/0.1 (chess analysis)",
-  };
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint, {
-        headers,
-        cache: "no-store",
-        signal: AbortSignal.timeout(8000),
-      });
-      if (response.ok) {
-        lichessBackoffUntil = 0;
-        const raw = (await response.json()) as LichessExplorer;
-        return mapResponse(source, fen, raw);
-      }
-    } catch {
-      // try the fallback host
-    }
-  }
-  lichessBackoffUntil = Date.now() + LICHESS_BACKOFF_MS;
-  return null;
 }
 
 export async function GET(request: NextRequest) {
@@ -251,7 +104,7 @@ export async function GET(request: NextRequest) {
   }
 
   const token = lichessToken();
-  const live = await fetchLichess(sourceParam, fen, filterQuery);
+  const live = await fetchExplorerUpstream(sourceParam, fen, filterQuery);
   const payload =
     live ??
     (!token && filtered
@@ -271,12 +124,23 @@ export async function GET(request: NextRequest) {
 
   const service = filtered || payload.notice ? null : createServiceSupabase();
   if (service) {
-    await service.from("explorer_cache").upsert({
-      source: sourceParam,
-      fen,
-      payload: toJson(payload satisfies ExplorerResponse),
-      fetched_at: new Date().toISOString(),
-    });
+    try {
+      const { error } = await service.from("explorer_cache").upsert({
+        source: sourceParam,
+        fen,
+        payload: toJson(payload satisfies ExplorerResponse),
+        fetched_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.error("[explorer] cache write failed", {
+          code: (error as { code?: unknown })?.code ?? "unknown",
+        });
+      }
+    } catch (error) {
+      console.error("[explorer] cache write failed", {
+        code: (error as { code?: unknown })?.code ?? "unknown",
+      });
+    }
   }
 
   return NextResponse.json(payload);

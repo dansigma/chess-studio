@@ -47,6 +47,36 @@ describe("sig-861 rls contract", () => {
   });
 });
 
+describe("sig-1037 games pending swap migration", () => {
+  const sig1037 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261023200000_games_pending_swap.sql"),
+    "utf8",
+  );
+
+  it("adds a pending flag defaulting to false with a partial index", () => {
+    assert.ok(sig1037.includes("add column if not exists pending boolean not null default false"), "missing pending column");
+    assert.ok(sig1037.includes("where pending"), "partial index must filter on pending");
+    assert.ok(sig1037.includes("games_database_pending_idx"), "missing partial index");
+  });
+
+  it("defines swap_database_games as security invoker with an empty search_path", () => {
+    assert.ok(sig1037.includes("create or replace function public.swap_database_games(p_database_id uuid)"));
+    assert.ok(/security invoker/.test(sig1037));
+    assert.ok(/set search_path = ''/.test(sig1037));
+  });
+
+  it("swaps in one transaction, returns the promoted count, and grants only to authenticated", () => {
+    assert.ok(sig1037.includes("delete from public.games where database_id = p_database_id and pending = false"));
+    assert.ok(sig1037.includes("update public.games set pending = false"));
+    assert.ok(sig1037.includes("get diagnostics promoted = row_count"));
+    assert.ok(
+      sig1037.includes("grant execute on function public.swap_database_games(uuid) to authenticated"),
+      "grant must be scoped to authenticated",
+    );
+    assert.ok(!/to (anon|public|service_role)/.test(sig1037), "no grants beyond authenticated");
+  });
+});
+
 describe("sig-1030 admin role lifecycle migration", () => {
   const sig1030 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261020120000_sig1030_admin_role_lifecycle.sql"),
@@ -199,6 +229,70 @@ describe("sig-1042 puzzles migration", () => {
     assert.deepEqual(writes, [], "no client write policy on puzzles");
     assert.ok(sig1042.includes("grant select on public.puzzles to anon, authenticated"), "select-only grant");
     assert.ok(!/grant\s+(?!select\b)\w+.*on public\.puzzles/.test(sig1042), "no non-select grant on puzzles");
+  });
+});
+
+describe("sig-1102 puzzles_window migration", () => {
+  const sig1102 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021260000_puzzles_sample.sql"),
+    "utf8",
+  );
+
+  it("samples public.puzzles with rating/theme/exclude filters in seed-stable order", () => {
+    assert.ok(sig1102.includes("create or replace function public.puzzles_window("), "missing function");
+    assert.ok(sig1102.includes("returns setof public.puzzles"), "must return table rows");
+    assert.ok(sig1102.includes("themes @> array[p_theme]"), "missing theme containment filter");
+    assert.ok(sig1102.includes("not (id = any (p_exclude))"), "missing exclude filter");
+    assert.ok(sig1102.includes("order by md5("), "must order seed-stably");
+    assert.ok(sig1102.includes("least(greatest("), "p_limit must be clamped");
+  });
+
+  it("is security invoker with an empty search_path and execute-only grants", () => {
+    assert.ok(sig1102.includes("security invoker"), "must run as the caller so table RLS applies");
+    assert.ok(!/security definer/.test(sig1102), "must not be security definer");
+    assert.ok(/set search_path = ''/.test(sig1102), "must pin an empty search_path");
+    assert.ok(
+      sig1102.includes("grant execute on function public.puzzles_window(int, int, text, int, bigint, text[])"),
+      "missing execute grant with the full signature",
+    );
+    assert.ok(sig1102.includes("to anon, authenticated"), "execute must cover anon + authenticated");
+  });
+});
+
+describe("sig-1096 mistake_exercises migration", () => {
+  const sig1096 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021230000_mistake_exercises.sql"),
+    "utf8",
+  );
+
+  it("creates a per-user mistake_exercises table with a 256 KB data cap", () => {
+    assert.ok(sig1096.includes("create table if not exists public.mistake_exercises"));
+    assert.ok(sig1096.includes("user_id uuid primary key references auth.users (id) on delete cascade"));
+    assert.ok(sig1096.includes("data jsonb not null default '{}'::jsonb"));
+    assert.ok(sig1096.includes("mistake_exercises_data_size"), "missing size constraint");
+    assert.ok(sig1096.includes("pg_column_size(data) < 262144"), "256 KB data cap");
+  });
+
+  it("enables RLS with own-row select, insert and update policies", () => {
+    assert.ok(sig1096.includes("alter table public.mistake_exercises enable row level security"));
+    for (const name of [
+      "mistake_exercises_select_own",
+      "mistake_exercises_insert_own",
+      "mistake_exercises_update_own",
+    ]) {
+      assert.ok(sig1096.includes(`"${name}"`), `missing policy ${name}`);
+    }
+  });
+
+  it("wraps every auth check as a select subquery and grants only to authenticated", () => {
+    const bare = sig1096.match(/(?<![\w(])auth\.uid\(\)(?!\))/g) ?? [];
+    assert.equal(bare.length, 0, `found ${bare.length} unwrapped auth checks`);
+    assert.ok(sig1096.includes("(select auth.uid())"), "expected at least one wrapped auth check");
+    assert.ok(
+      sig1096.includes("grant select, insert, update on public.mistake_exercises to authenticated"),
+      "grants must be scoped to authenticated",
+    );
+    assert.ok(!/to (anon|public|service_role)/.test(sig1096), "no grants beyond authenticated");
   });
 });
 

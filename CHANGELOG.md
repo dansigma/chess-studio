@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Repertoire board marks (SIG-1092)
+
+- A board can be marked as the White or Black repertoire from the board context menu ("Use as White repertoire" /
+  "Use as Black repertoire", plus "Remove repertoire mark" when marked; EN + PT-BR). Each user holds at most one
+  board per color: marking a second board moves the mark, clearing the first.
+- New migration `20261021220000_boards_repertoire_color.sql`: nullable `boards.repertoire_color` (`white`/`black`
+  check) with partial unique index `boards_user_repertoire_color_uq` (no RLS change; own-row policies cover it).
+- The autosave persists unmarks before marks so moving the mark between two saved boards cannot collide on the
+  unique index. Guests persist their boards locally (`studio-clone-guest-boards`: PGN + metadata), so marks survive
+  a browser reload; signing in clears the guest snapshot and loads the account boards from Supabase.
+
 ### Coach role: database foundation (SIG-1049)
 
 - New migration `20261021120000_marketplace_roles.sql`: `profiles.role` now accepts `coach` (besides `student` and

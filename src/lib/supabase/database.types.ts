@@ -58,6 +58,7 @@ export type Database = {
           pgn: string;
           current_node_path: number[];
           orientation: "white" | "black";
+          repertoire_color: "white" | "black" | null;
           updated_at: string;
         };
         Insert: {
@@ -67,6 +68,7 @@ export type Database = {
           pgn: string;
           current_node_path?: number[];
           orientation?: "white" | "black";
+          repertoire_color?: "white" | "black" | null;
           updated_at?: string;
         };
         Update: {
@@ -74,6 +76,7 @@ export type Database = {
           pgn?: string;
           current_node_path?: number[];
           orientation?: "white" | "black";
+          repertoire_color?: "white" | "black" | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -178,6 +181,7 @@ export type Database = {
         Row: {
           id: string;
           database_id: string;
+          pending: boolean;
           white: string;
           black: string;
           white_elo: number | null;
@@ -193,6 +197,7 @@ export type Database = {
         Insert: {
           id?: string;
           database_id: string;
+          pending?: boolean;
           white: string;
           black: string;
           white_elo?: number | null;
@@ -208,6 +213,7 @@ export type Database = {
         Update: {
           white?: string;
           black?: string;
+          pending?: boolean;
           pgn?: string;
         };
         Relationships: [];
@@ -350,6 +356,24 @@ export type Database = {
         Relationships: [];
       };
       repertoire_progress: {
+        Row: {
+          user_id: string;
+          data: Json;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          data?: Json;
+          updated_at?: string;
+        };
+        Update: {
+          data?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      // SIG-1096: one row per user holding mistake exercises with SRS state.
+      mistake_exercises: {
         Row: {
           user_id: string;
           data: Json;
@@ -590,7 +614,32 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      // SIG-1102: seed-stable sampling over public.puzzles (serving slice).
+      puzzles_window: {
+        Args: {
+          p_min: number | null;
+          p_max: number | null;
+          p_theme: string | null;
+          p_limit: number | null;
+          p_seed: number | null;
+          p_exclude: string[] | null;
+        };
+        Returns: Array<{
+          id: string;
+          fen: string;
+          moves: string[];
+          rating: number;
+          themes: string[];
+          popularity: number | null;
+          nb_plays: number | null;
+        }>;
+      };
+      swap_database_games: {
+        Args: { p_database_id: string };
+        Returns: number;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

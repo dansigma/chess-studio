@@ -1,4 +1,4 @@
-import type { BoardSession } from "./types";
+import type { BoardOrientation, BoardSession } from "./types";
 
 type ActiveBoardState = {
   boards: BoardSession[];
@@ -29,6 +29,25 @@ export const selectBoard = (
     ? (state.boards.find((board) => board.id === boardId) ??
       selectActiveBoard(state))
     : selectActiveBoard(state);
+
+// SIG-1092: the board marked as the repertoire for a color, if any.
+// At most one board holds a given color (enforced by setBoardRepertoire and
+// the partial unique index); returns null when none is marked.
+export const selectRepertoireBoard = (
+  state: { boards: BoardSession[] },
+  color: BoardOrientation,
+): BoardSession | null =>
+  state.boards.find((board) => board.repertoireColor === color) ?? null;
+
+// SIG-1092: autosave persist order. Moving the mark dirties both the old
+// and new holders; persisting the mark UPDATE before the unmark UPDATE
+// collides on boards_user_repertoire_color_uq when the new holder precedes
+// the old one in `boards` order (and every retry repeats the same order).
+// Unmarks sort first so the unique-slot handoff never overlaps.
+export const compareRepertoirePersistOrder = (
+  a: Pick<BoardSession, "repertoireColor">,
+  b: Pick<BoardSession, "repertoireColor">,
+): number => Number(a.repertoireColor !== null) - Number(b.repertoireColor !== null);
 
 // SIG-857: primitive derivations so menu chrome re-renders only when the
 // count changes instead of on every boards array identity change.

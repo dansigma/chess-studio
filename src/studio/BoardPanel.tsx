@@ -79,6 +79,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const flip = useStudioStore((state) => state.flip);
+  const setBoardRepertoire = useStudioStore((state) => state.setBoardRepertoire);
   const setActiveBoard = useStudioStore((state) => state.setActiveBoard);
   // SIG-907: split panels are fully interactive. Mutations stay
   // active-board-scoped in the store, so ensure this session is active
@@ -440,6 +441,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
           menu={boardMenu}
           showEvalBar={showEvalBar}
           showThreat={showThreat}
+          repertoireColor={board.repertoireColor}
           locale={locale}
           onFlip={() => {
             ensureActive();
@@ -447,6 +449,18 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
           }}
           onToggleEvalBar={toggleEvalBar}
           onToggleThreat={() => setShowThreat(!showThreat)}
+          onMarkWhite={() => {
+            ensureActive();
+            setBoardRepertoire(board.id, "white");
+          }}
+          onMarkBlack={() => {
+            ensureActive();
+            setBoardRepertoire(board.id, "black");
+          }}
+          onClearMark={() => {
+            ensureActive();
+            setBoardRepertoire(board.id, null);
+          }}
           onCopyFen={() => {
             void (async () => {
               try {

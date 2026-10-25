@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tRepertoire } from "@/src/i18n/repertoire-strings.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
 export type BoardMenuState = {
@@ -13,10 +14,14 @@ export function BoardContextMenu({
   menu,
   showEvalBar,
   showThreat,
+  repertoireColor = null,
   locale = "en",
   onFlip,
   onToggleEvalBar,
   onToggleThreat,
+  onMarkWhite,
+  onMarkBlack,
+  onClearMark,
   onCopyFen,
   onCopyImage,
   onClose,
@@ -24,10 +29,14 @@ export function BoardContextMenu({
   menu: BoardMenuState;
   showEvalBar: boolean;
   showThreat: boolean;
+  repertoireColor?: "white" | "black" | null;
   locale?: SiteLocale;
   onFlip: () => void;
   onToggleEvalBar: () => void;
   onToggleThreat: () => void;
+  onMarkWhite: () => void;
+  onMarkBlack: () => void;
+  onClearMark: () => void;
   onCopyFen: () => void;
   onCopyImage: () => void;
   onClose: () => void;
@@ -76,6 +85,32 @@ export function BoardContextMenu({
             onClose();
           }}
         />
+        <MenuDivider />
+        <MenuItem
+          label={tRepertoire(locale, "repertoire.mark.useWhite")}
+          checked={repertoireColor === "white"}
+          onClick={() => {
+            onMarkWhite();
+            onClose();
+          }}
+        />
+        <MenuItem
+          label={tRepertoire(locale, "repertoire.mark.useBlack")}
+          checked={repertoireColor === "black"}
+          onClick={() => {
+            onMarkBlack();
+            onClose();
+          }}
+        />
+        {repertoireColor !== null ? (
+          <MenuItem
+            label={tRepertoire(locale, "repertoire.mark.remove")}
+            onClick={() => {
+              onClearMark();
+              onClose();
+            }}
+          />
+        ) : null}
         <MenuDivider />
         <MenuItem
           label={tPanels(locale, "panels.board.copyFen")}

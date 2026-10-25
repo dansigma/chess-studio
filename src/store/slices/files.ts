@@ -83,7 +83,11 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     });
     const user = get().user;
     if (user) {
-      void persistRemoteFolder(folder, user.id);
+      void persistRemoteFolder(folder, user.id).then((saveError) => {
+        if (saveError) {
+          set({ statusMessage: saveError });
+        }
+      });
     }
   },
   renameFileFolder: (id, name) => {
@@ -106,7 +110,11 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     });
     const user = get().user;
     if (user && updatedFolder) {
-      void persistRemoteFolder(updatedFolder, user.id);
+      void persistRemoteFolder(updatedFolder, user.id).then((saveError) => {
+        if (saveError) {
+          set({ statusMessage: saveError });
+        }
+      });
     }
   },
   moveFileFolder: (id, targetParentId) => {
@@ -129,7 +137,11 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     });
     const user = get().user;
     if (user && movedFolder) {
-      void persistRemoteFolder(movedFolder, user.id);
+      void persistRemoteFolder(movedFolder, user.id).then((saveError) => {
+        if (saveError) {
+          set({ statusMessage: saveError });
+        }
+      });
     }
     return true;
   },
@@ -149,7 +161,11 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     });
     const user = get().user;
     if (user && updatedDatabase) {
-      void persistRemoteDatabase(updatedDatabase, user.id);
+      void persistRemoteDatabase(updatedDatabase, user.id).then(({ saveError }) => {
+        if (saveError) {
+          set({ statusMessage: "Database moved, but the remote copy could not be saved." });
+        }
+      });
     }
   },
   importFileDatabase: (name, pgn, folderId = null, options) => {
@@ -179,8 +195,10 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     });
     const user = get().user;
     if (user) {
-      void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError }) => {
-        if (indexError) {
+      void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError, saveError }) => {
+        if (saveError) {
+          set({ statusMessage: "Games imported, but the remote copy could not be saved." });
+        } else if (indexError) {
           set({ statusMessage: "Games imported, but the position index could not be saved." });
         }
         if (!remoteId) {

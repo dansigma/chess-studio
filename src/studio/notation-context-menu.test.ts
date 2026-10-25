@@ -7,6 +7,7 @@ import {
   isMoveEvalNag,
   notationMenuEnablement,
   resolveSideNag,
+  shouldIgnoreMenuScroll,
 } from "./NotationContextMenu.tsx";
 
 test("notationMenuEnablement disables text-before/promote/make-mainline at start", () => {
@@ -144,6 +145,25 @@ test("annotationRows keeps move/position order and resolves side pairs by color"
   assert.equal(black.get("pair-time-severe"), 139);
   assert.equal(white.get("nag-140"), 140);
   assert.equal(white.get("nag-146"), 146);
+});
+
+test("shouldIgnoreMenuScroll ignores internal scrolls, keeps outside-scroll dismiss", () => {
+  const inside = { tag: "submenu-scroll-container" };
+  const outside = { tag: "notation-list" };
+  const root = {
+    contains(node: unknown) {
+      return node === inside;
+    },
+  };
+  // Scroll from the annotation submenu's own overflow list: ignored.
+  assert.equal(shouldIgnoreMenuScroll(inside, root), true);
+  // Scroll from the notation list behind the menu: still dismisses.
+  assert.equal(shouldIgnoreMenuScroll(outside, root), false);
+  // Null root (menu unmounted) or null/non-object targets: never ignore.
+  assert.equal(shouldIgnoreMenuScroll(inside, null), false);
+  assert.equal(shouldIgnoreMenuScroll(null, root), false);
+  assert.equal(shouldIgnoreMenuScroll(undefined, root), false);
+  assert.equal(shouldIgnoreMenuScroll("scroll", root), false);
 });
 
 test("notation context menu keeps the approved item order, shortcuts, and overlay tier", () => {

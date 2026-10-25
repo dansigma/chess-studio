@@ -87,6 +87,7 @@ export function ReviewPanel() {
     engineBuild,
     engineThreads,
     setupMode,
+    userSide: board.orientation === "white" ? "w" : "b",
   });
 
   // SIG-969: coarse polite announcer — ~10% buckets via progressBucket, never
