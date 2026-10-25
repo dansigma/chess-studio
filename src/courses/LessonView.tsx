@@ -32,7 +32,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   const locale = useStudioStore((state) => state.settings.locale);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
-  const { progress: savedProgress, admin, ready: progressReady } = useCourseData();
+  const { progress: savedProgress, admin, isAdmin, ready: progressReady } = useCourseData();
 
   const loaded: {
     course: Course;
@@ -158,7 +158,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   if (!loaded) {
     return (
       <div className="min-h-full bg-studio-bg">
-        <CourseChrome admin={admin} />
+        <CourseChrome admin={admin} isAdmin={isAdmin} />
         <main className="px-6 py-10 text-studio-muted">{tCourse(locale, "course.lesson.notFound")}</main>
       </div>
     );
@@ -195,7 +195,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-studio-bg">
-      <CourseChrome admin={admin} />
+      <CourseChrome admin={admin} isAdmin={isAdmin} />
       <div className="shrink-0 border-b border-studio-border bg-studio-chrome px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">

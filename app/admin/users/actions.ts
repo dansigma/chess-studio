@@ -2,8 +2,9 @@
 
 import { headers } from "next/headers";
 import { getRole, isAdmin } from "@/src/lib/auth/roles";
-import { ADMIN_USERS_PAGE_SIZE, changeUserRole, listUsers } from "@/src/lib/admin/users";
-import type { AdminListUser, RoleChangeCode } from "@/src/lib/admin/users";
+import { changeUserRole, listUsers } from "@/src/lib/admin/users";
+import type { RoleChangeCode } from "@/src/lib/admin/users";
+import type { AdminListUser } from "@/src/admin/user-list";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 
@@ -120,5 +121,3 @@ export async function changeRoleAction(input: {
   }
   return { ok: true, data: { oldRole: result.oldRole } };
 }
-
-export { ADMIN_USERS_PAGE_SIZE };

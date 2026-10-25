@@ -62,6 +62,18 @@ export async function currentUserCanPublish(): Promise<boolean> {
   return userCanPublishCourses(supabase, data.user);
 }
 
+export async function currentUserIsAdmin(): Promise<boolean> {
+  const supabase = await createServerSupabase();
+  if (!supabase) {
+    return false;
+  }
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) {
+    return false;
+  }
+  return isAdmin(await getRole(supabase, data.user));
+}
+
 export async function currentUserCanAuthor(): Promise<boolean> {
   const supabase = await createServerSupabase();
   if (!supabase) {

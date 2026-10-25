@@ -1,7 +1,9 @@
 import "server-only";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
+import { ADMIN_USERS_PAGE_SIZE, type AdminListUser } from "@/src/admin/user-list";
 
-export const ADMIN_USERS_PAGE_SIZE = 20;
+export { ADMIN_USERS_PAGE_SIZE };
+export type { AdminListUser };
 
 export type RoleChangeCode =
   | "invalid_role"
@@ -11,18 +13,6 @@ export type RoleChangeCode =
   | "unchanged"
   | "last_admin"
   | "unavailable";
-
-export type AdminListUser = {
-  id: string;
-  email: string;
-  role: string;
-  created_at: string;
-  email_confirmed: boolean;
-  // v_total from admin_list_users: the filtered count over ALL matches,
-  // repeated on every returned row. Out-of-range pages return zero rows,
-  // so the lib reads the total via admin_count_users instead.
-  total: number;
-};
 
 export type ChangeUserRoleInput = {
   userId: string;

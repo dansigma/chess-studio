@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import { currentUserCanPublish } from "./publish";
+import { currentUserCanPublish, currentUserIsAdmin } from "./publish";
 import { hydrateProgress, progressSource } from "./store";
 import type { VariationProgress } from "./types";
 
@@ -18,6 +18,7 @@ import type { VariationProgress } from "./types";
 export function useCourseData() {
   const [progress, setProgress] = useState<Record<string, VariationProgress>>({});
   const [admin, setAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [source, setSource] = useState<"account" | "browser">("browser");
@@ -27,9 +28,10 @@ export function useCourseData() {
     void (async () => {
       const supabase = createBrowserSupabase();
       const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-      const [nextProgress, canPublish] = await Promise.all([
+      const [nextProgress, canPublish, adminFlag] = await Promise.all([
         hydrateProgress(user?.id ?? null),
         user ? currentUserCanPublish() : Promise.resolve(false),
+        user ? currentUserIsAdmin() : Promise.resolve(false),
       ]);
       if (cancel) {
         return;
@@ -37,6 +39,7 @@ export function useCourseData() {
       setProgress(nextProgress);
       setSignedIn(Boolean(user));
       setAdmin(canPublish);
+      setIsAdmin(adminFlag);
       setSource(progressSource());
       setReady(true);
     })();
@@ -45,5 +48,5 @@ export function useCourseData() {
     };
   }, []);
 
-  return { progress, admin, ready, signedIn, source, setProgress };
+  return { progress, admin, isAdmin, ready, signedIn, source, setProgress };
 }

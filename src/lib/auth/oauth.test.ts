@@ -18,7 +18,14 @@ test("keeps an allowed next, encoded", () => {
 });
 
 test("rejects external and non-allowlisted next", () => {
-  for (const bad of ["https://evil.example/studio", "//evil.example", "/\\evil", "/admin", "javascript:alert(1)"]) {
+  for (const bad of ["https://evil.example/studio", "//evil.example", "/\\evil", "javascript:alert(1)"]) {
     assert.equal(oauthRedirectTo(ORIGIN, bad), FALLBACK, bad);
   }
+});
+
+test("keeps an allowed /admin next, encoded", () => {
+  assert.equal(
+    oauthRedirectTo(ORIGIN, "/admin/users"),
+    `${ORIGIN}/auth/callback?next=${encodeURIComponent("/admin/users")}`,
+  );
 });
