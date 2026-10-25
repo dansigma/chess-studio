@@ -337,3 +337,56 @@ describe("sig-1049 marketplace roles migration", () => {
     assert.deepEqual(writes, []);
   });
 });
+
+describe("sig-1050 course status and tier migration", () => {
+  const sig1050 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021270000_course_status_and_tier.sql"),
+    "utf8",
+  );
+
+  it("adds status with the five review states", () => {
+    assert.ok(sig1050.includes("add column if not exists status text not null default 'draft'"));
+    assert.ok(sig1050.includes("check (status in ('draft', 'in_review', 'published', 'rejected', 'archived'))"));
+  });
+
+  it("backfills published from published_at and drops the auto-publish default", () => {
+    const backfill = sig1050.indexOf("set status = 'published' where published_at is not null");
+    const dropDefault = sig1050.indexOf("alter column published_at drop default");
+    assert.ok(backfill !== -1, "missing status backfill");
+    assert.ok(dropDefault !== -1, "missing drop default");
+    assert.ok(backfill < dropDefault, "backfill must precede dropping the published_at default");
+  });
+
+  it("adds the tier, price, currency, author, and review-note columns with checks", () => {
+    assert.ok(sig1050.includes("add column if not exists access_tier text not null default 'free'"));
+    assert.ok(sig1050.includes("check (access_tier in ('free', 'premium', 'paid'))"));
+    assert.ok(sig1050.includes("add column if not exists price_cents integer"));
+    assert.ok(sig1050.includes("check ((access_tier = 'paid') = (price_cents is not null))"));
+    assert.ok(sig1050.includes("add column if not exists currency text not null default 'BRL'"));
+    assert.ok(sig1050.includes("check (currency = 'BRL')"));
+    assert.ok(sig1050.includes("add column if not exists author_display_name text"));
+    assert.ok(sig1050.includes("review_note is null or char_length(review_note) <= 500"));
+  });
+
+  it("keeps the published policy on status and no client write policies", () => {
+    assert.ok(sig1050.includes('"courses_select_published"'), "missing policy");
+    assert.ok(sig1050.includes("for select to anon, authenticated"), "policy must cover anon + authenticated");
+    assert.ok(sig1050.includes("using (status = 'published')"), "policy must use status");
+    const lines1050 = sig1050.split("\n").map((line) => line.trim());
+    const writes = lines1050.filter(
+      (line) => /on public\.courses$/.test(line) && /for (insert|update|delete|all)/.test(line),
+    );
+    assert.deepEqual(writes, [], "no client write policy on courses");
+  });
+
+  it("replaces the published index with a status partial index", () => {
+    assert.ok(sig1050.includes("courses_status_published_idx"), "missing status index");
+    assert.ok(sig1050.includes("where status = 'published'"), "index must filter on status");
+  });
+
+  it("syncs published_at from status in a trigger", () => {
+    assert.ok(sig1050.includes("courses_sync_published_at"), "missing trigger");
+    assert.ok(sig1050.includes("set search_path = ''"), "function must pin the search path");
+    assert.ok(sig1050.includes("new.status = 'published'"), "trigger must stamp on publish");
+  });
+});

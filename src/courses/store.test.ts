@@ -42,6 +42,9 @@ function makeDraft(id: string): Course {
     theme: "openings",
     color: "white",
     chapters: [],
+    status: "draft",
+    accessTier: "free",
+    priceCents: null,
   };
 }
 
@@ -230,6 +233,33 @@ describe("readLocalCustomCourses validation", () => {
     assert.deepEqual(readLocalCustomCourses(), [
       { ...makeDraft(DRAFT_A), coverUrl: "https://example.com/cover.png", builtin: true, publishedAt: null },
     ]);
+  });
+
+  it("defaults status/tier on legacy rows and validates present values (SIG-1050)", () => {
+    resetStorage();
+    const legacy = { id: DRAFT_A, theme: "openings", color: "white", chapters: [] };
+    const paid = {
+      ...makeDraft(DRAFT_B),
+      status: "in_review",
+      accessTier: "paid",
+      priceCents: 1990,
+      authorName: "Coach Ana",
+      reviewNote: "Looks good",
+    };
+    const garbage = { ...makeDraft(DRAFT_A), status: "live", accessTier: "gold", priceCents: -5 };
+    writeRawCache(CUSTOM_COURSES_KEY, JSON.stringify([legacy, paid, garbage]));
+    const [legacyCourse, paidCourse, garbageCourse] = readLocalCustomCourses();
+    assert.equal(legacyCourse?.status, "draft");
+    assert.equal(legacyCourse?.accessTier, "free");
+    assert.equal(legacyCourse?.priceCents, null);
+    assert.equal(paidCourse?.status, "in_review");
+    assert.equal(paidCourse?.accessTier, "paid");
+    assert.equal(paidCourse?.priceCents, 1990);
+    assert.equal(paidCourse?.authorName, "Coach Ana");
+    assert.equal(paidCourse?.reviewNote, "Looks good");
+    assert.equal(garbageCourse?.status, "draft");
+    assert.equal(garbageCourse?.accessTier, "free");
+    assert.equal(garbageCourse?.priceCents, null);
   });
 
   it("toLocalDraftCourse returns null for non-objects", () => {

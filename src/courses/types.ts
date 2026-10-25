@@ -9,6 +9,10 @@ export const COURSE_THEMES: readonly { id: CourseTheme; label: string }[] = [
   { id: "endgames", label: "Endgames" },
 ];
 
+export type CourseStatus = "draft" | "in_review" | "published" | "rejected" | "archived";
+
+export type CourseAccessTier = "free" | "premium" | "paid";
+
 export type CourseVariation = {
   id: string;
   title: string;
@@ -33,9 +37,23 @@ export type Course = {
   chapters: CourseChapter[];
   builtin?: boolean;
   /**
+   * SIG-1050 review workflow. status is the source of truth for visibility
+   * (published = visible to anon).
+   */
+  status: CourseStatus;
+  /** SIG-1050 access tier: free by default; paid requires priceCents. */
+  accessTier: CourseAccessTier;
+  /** SIG-1050 price in cents (BRL); non-null exactly when paid. */
+  priceCents: number | null;
+  /** SIG-1050 coach display name (nullable). */
+  authorName?: string;
+  /** SIG-1050 reviewer note (nullable). */
+  reviewNote?: string | null;
+  /**
    * SIG-861: null = draft (invisible to anon), string = published at.
    * Undefined = pre-published_at row (seed / browser-local draft), treated
-   * as always-published by the catalog merge.
+   * as always-published by the catalog merge. Kept in sync with status by
+   * the courses_sync_published_at trigger; SIG-1050 keeps the column.
    */
   publishedAt?: string | null;
 };

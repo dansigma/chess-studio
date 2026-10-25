@@ -16,6 +16,9 @@ export function emptyCourse(): CourseDraft {
     theme: "",
     color: "black",
     chapters: [],
+    status: "draft",
+    accessTier: "free",
+    priceCents: null,
   };
 }
 

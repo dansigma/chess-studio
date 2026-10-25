@@ -3,7 +3,7 @@ import type { SiteLocale } from "@/src/i18n/locale";
 import type { CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import { tCourse } from "@/src/i18n/course-strings";
 import { courseImageUrl } from "./media";
-import { COURSE_THEMES, type CatalogCourse, type Course, type CourseChapter, type CourseColor, type CourseTheme, type CourseVariation, type VariationProgress } from "./types";
+import { COURSE_THEMES, type CatalogCourse, type Course, type CourseAccessTier, type CourseChapter, type CourseColor, type CourseStatus, type CourseTheme, type CourseVariation, type VariationProgress } from "./types";
 
 export function slugify(title: string): string {
   return title
@@ -141,13 +141,21 @@ export function isCourseTheme(value: string): value is CourseTheme {
   return COURSE_THEMES.some((theme) => theme.id === value);
 }
 
+export function isCourseStatus(value: string): value is CourseStatus {
+  return value === "draft" || value === "in_review" || value === "published" || value === "rejected" || value === "archived";
+}
+
+export function isCourseAccessTier(value: string): value is CourseAccessTier {
+  return value === "free" || value === "premium" || value === "paid";
+}
+
 export function courseThemeLabel(theme: CourseTheme, locale: SiteLocale): string {
   return tCourse(locale, `course.theme.label.${theme}`);
 }
 
 /** Select list shared by the course server components (one canonical read). */
 export const COURSE_SELECT_FIELDS =
-  "id, slug, title, summary, color, theme, chapters, cover_url, video_url, published_at" as const;
+  "id, slug, title, summary, color, theme, chapters, cover_url, video_url, published_at, status, access_tier, price_cents, currency, author_display_name, review_note" as const;
 
 export type CourseRow = {
   id: string;
@@ -160,10 +168,27 @@ export type CourseRow = {
   color: string;
   chapters: Json;
   published_at: string | null;
+  /** SIG-1050: absent on rows selected before the migration (legacy fallback). */
+  status?: string | null;
+  access_tier?: string | null;
+  price_cents?: number | null;
+  currency?: string | null;
+  author_display_name?: string | null;
+  review_note?: string | null;
 };
 
-/** True when the row is visible to anon (SIG-861 draft lifecycle). */
-export function isPublishedCourse(row: Pick<CourseRow, "published_at"> | Pick<Course, "publishedAt">): boolean {
+/**
+ * True when the row is visible to anon. SIG-1050: status is the source of
+ * truth; rows (or local drafts) without a status fall back to published_at.
+ */
+export function isPublishedCourse(
+  row:
+    | Pick<CourseRow, "published_at"> & Partial<Pick<CourseRow, "status">>
+    | Pick<Course, "publishedAt"> & Partial<Pick<Course, "status">>,
+): boolean {
+  if ("status" in row && row.status !== undefined && row.status !== null) {
+    return row.status === "published";
+  }
   return "published_at" in row ? row.published_at !== null : row.publishedAt !== null;
 }
 
@@ -172,6 +197,17 @@ export function toCourse(row: CourseRow): Course | null {
   if (!isCourseColor(row.color) || !isCourseTheme(row.theme)) {
     return null;
   }
+  // SIG-1050: fail closed on unknown status/tier, mirroring color/theme.
+  const rawStatus = row.status == null ? "published" : row.status;
+  if (!isCourseStatus(rawStatus)) {
+    return null;
+  }
+  const status: CourseStatus = rawStatus;
+  const rawTier = row.access_tier == null ? "free" : row.access_tier;
+  if (!isCourseAccessTier(rawTier)) {
+    return null;
+  }
+  const accessTier: CourseAccessTier = rawTier;
   return {
     id: row.id,
     slug: row.slug,
@@ -183,6 +219,11 @@ export function toCourse(row: CourseRow): Course | null {
     color: row.color,
     chapters: parseChapters(row.chapters),
     builtin: false,
+    status,
+    accessTier,
+    priceCents: row.price_cents ?? null,
+    authorName: row.author_display_name ?? undefined,
+    reviewNote: row.review_note ?? null,
     publishedAt: row.published_at,
   };
 }

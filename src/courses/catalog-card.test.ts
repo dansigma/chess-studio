@@ -13,6 +13,9 @@ function course(): Course {
     videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     theme: "openings",
     color: "black",
+    status: "published",
+    accessTier: "free",
+    priceCents: null,
     chapters: [
       {
         id: "advance",

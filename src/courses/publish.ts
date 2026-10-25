@@ -171,6 +171,8 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
   // Json-compatible shape, so this needs no cast to reach the column type.
   const chaptersJson: Json = checked.chapters;
   // SIG-861: publishing means visible to anon — stamp published_at.
+  // SIG-1050: status is the source of truth; write both (the trigger is a
+  // backstop for out-of-band writes).
   // Point-read ownership keeps the race window minimal; the residual upsert
   // race is between trusted publishers (LOW, accepted).
   const publishedAt = new Date().toISOString();
@@ -187,11 +189,12 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
     created_by: existingRow ? existingRow.created_by : gate.userId,
     updated_at: publishedAt,
     published_at: publishedAt,
+    status: "published",
   });
   if (error) {
     return { ok: false, error: { key: databaseError(error) } };
   }
-  return { ok: true, course: { ...checked.course, publishedAt } };
+  return { ok: true, course: { ...checked.course, status: "published" as const, publishedAt } };
 }
 
 export async function unpublishCourse(id: string): Promise<{ ok: true } | { ok: false; error: CourseAdminMessage }> {
@@ -212,7 +215,7 @@ export async function unpublishCourse(id: string): Promise<{ ok: true } | { ok: 
   }
   const { error } = await gate.admin
     .from("courses")
-    .update({ published_at: null, updated_at: new Date().toISOString() })
+    .update({ status: "draft", published_at: null, updated_at: new Date().toISOString() })
     .eq("id", id);
   if (error) {
     return { ok: false, error: { key: databaseError(error) } };
