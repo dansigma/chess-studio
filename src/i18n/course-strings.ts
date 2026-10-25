@@ -72,6 +72,7 @@ export const COURSE_STRING_KEYS = [
   "course.drafts.importing",
   "course.drafts.discardAll",
   "course.chrome.createCourse",
+  "course.chrome.adminUsers",
   "course.theme.label.openings",
   "course.theme.label.strategy",
   "course.theme.label.tactics",

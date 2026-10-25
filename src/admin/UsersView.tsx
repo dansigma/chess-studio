@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { changeRoleAction, listUsersAction, type AdminUsersCode } from "@/app/admin/users/actions";
-import type { AdminListUser } from "@/src/lib/admin/users";
-import { ADMIN_USERS_PAGE_SIZE } from "@/src/lib/admin/users";
+import type { AdminListUser } from "@/src/admin/user-list";
+import { ADMIN_USERS_PAGE_SIZE } from "@/src/admin/user-list";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Dialog } from "@/src/studio/ui/Dialog";
 import { adminUsersErrorKey, canChangeRole, isReasonValid } from "./rules";
-import { tAdminUsers } from "./strings";
+import { tAdminUsers, type AdminUsersStringKey } from "./strings";
 
 type UsersViewProps = {
   initialUsers: AdminListUser[];
@@ -15,7 +15,11 @@ type UsersViewProps = {
   currentUserId: string;
 };
 
-const ROLE_OPTIONS = ["student", "coach", "admin"] as const;
+const ROLE_OPTIONS = [
+  { value: "student", labelKey: "admin.users.roleStudent" },
+  { value: "coach", labelKey: "admin.users.roleCoach" },
+  { value: "admin", labelKey: "admin.users.roleAdmin" },
+] as const satisfies ReadonlyArray<{ value: string; labelKey: AdminUsersStringKey }>;
 
 export function UsersView({ initialUsers, initialTotal, currentUserId }: UsersViewProps) {
   const locale = useStudioStore((state) => state.settings.locale);
@@ -103,8 +107,8 @@ export function UsersView({ initialUsers, initialTotal, currentUserId }: UsersVi
           <select value={role} onChange={(event) => setRole(event.target.value)}>
             <option value="">{tAdminUsers(locale, "admin.users.roleAll")}</option>
             {ROLE_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {tAdminUsers(locale, `admin.users.role${option[0]!.toUpperCase()}${option.slice(1)}` as never)}
+              <option key={option.value} value={option.value}>
+                {tAdminUsers(locale, option.labelKey)}
               </option>
             ))}
           </select>
