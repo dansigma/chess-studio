@@ -74,6 +74,11 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    # A hung step inherits GitHub's 6-hour default. The whole suite normally
+    # finishes in under 2 minutes, and the slowest legitimate run so far was
+    # ~8 minutes (cold Playwright download), so 15 gives ample headroom while
+    # still failing fast when the job wedges.
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -90,6 +95,11 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
+        # `npx playwright install --with-deps` has hung here for 20+ minutes on
+        # a cache miss even though it usually takes under a minute. Cap the
+        # step so the browser download cannot eat the whole job budget; the
+        # slowest successful install observed was ~7 minutes.
+        timeout-minutes: 10
         run: npx playwright install chromium --with-deps
 
       # Smoke specs run against a production build served by Playwright's
