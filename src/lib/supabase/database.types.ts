@@ -582,6 +582,9 @@ export type Database = {
       };
       // SIG-1049: deny-all RLS; service role only. Only the SHA-256 hash of the
       // invite token is stored.
+      // SIG-1062: Update lists the service-writable columns (revoked_at on
+      // revoke/resend); clients still have no update path (deny-all RLS, no
+      // grants, no client policies).
       coach_invites: {
         Row: {
           id: string;
@@ -603,7 +606,9 @@ export type Database = {
           revoked_at?: string | null;
           created_at?: string;
         };
-        Update: Record<string, never>;
+        Update: {
+          revoked_at?: string | null;
+        };
         Relationships: [];
       };
       player_bookmarks: {
@@ -681,6 +686,11 @@ export type Database = {
       admin_count_users: {
         Args: { p_search: string | null; p_role: string | null };
         Returns: number;
+      };
+      // SIG-1062: single-use coach invite acceptance (service role only).
+      accept_coach_invite: {
+        Args: { p_token_hash: string; p_email: string; p_user_id: string };
+        Returns: { ok: boolean; code: string };
       };
     };
     Enums: Record<string, never>;

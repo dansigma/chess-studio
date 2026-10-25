@@ -22,6 +22,19 @@
 - No behavior changes yet: nothing reads the new role or tables until the following slices (authorization from the
   database, role management, invites). The RLS contract test covers the new constraints and tables.
 
+### Coach invites: create, revoke and accept, server side (SIG-1062)
+
+- New migration `20261021140000_accept_coach_invite.sql`: `accept_coach_invite` (security definer, empty search path,
+  execute granted only to the service role) locks the invite row and enforces the guard chain (`invalid`, `not_found`,
+  `expired`, `revoked`, `consumed`, `email_mismatch`, `role_unchanged` — admins are never downgraded). On success it
+  marks the invite consumed, promotes `student` to `coach` with `role_source = 'manual'`, and writes a `role_changes`
+  audit row (`coach invite accepted`).
+- New module `src/lib/admin/coach-invites.ts` (service role only): `createInvite` mints a 32-byte base64url token valid
+  7 days and stores only its SHA-256 hash (the raw token is returned once for the admin to copy — no email is sent);
+  `revokeInvite`, `resendInvite` (revoke + fresh token), `listInvites`, and `acceptInvite` (confirmed email required,
+  hash-then-RPC) complete the slice. Every function takes the caller's `getRole`-resolved role and throws `forbidden`
+  for non-admins; the RLS contract test pins the migration and the unit suite covers the module.
+
 ### CSP violation reports (SIG-1054, part 1)
 
 - New endpoint `POST /api/csp-report` that accepts both `application/csp-report` (`report-uri`) and
