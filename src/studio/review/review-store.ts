@@ -39,6 +39,8 @@ export interface StoreBackend {
   delete(key: string): Promise<void>;
   clear(): Promise<void>;
   entries(): Promise<PersistedReviewRecord[]>;
+  /** Close the underlying connection, if any. Optional so test doubles stay untouched. */
+  close?(): Promise<void>;
 }
 
 function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
@@ -83,7 +85,26 @@ export function createIndexedDbBackend(): StoreBackend {
       return Promise.reject(new Error("IndexedDB unavailable"));
     }
     if (!dbPromise) {
-      dbPromise = openDatabase();
+      dbPromise = openDatabase().then((opened) => {
+        // SIG-1105: a future schema upgrade notifies open connections via
+        // versionchange; close ours so the upgrade is never blocked, and drop
+        // the cached promise so the next operation reopens the database.
+        try {
+          opened.onversionchange = () => {
+            try {
+              opened.close();
+            } finally {
+              dbPromise = null;
+            }
+          };
+          opened.onclose = () => {
+            dbPromise = null;
+          };
+        } catch {
+          // Silent: handler wiring must never break the open.
+        }
+        return opened;
+      });
       // A failed open must not poison later attempts (e.g. transient block).
       dbPromise.catch(() => {
         dbPromise = null;
@@ -126,6 +147,18 @@ export function createIndexedDbBackend(): StoreBackend {
         return Array.isArray(all) ? (all as PersistedReviewRecord[]) : [];
       } catch {
         return [];
+      }
+    },
+    async close() {
+      const pending = dbPromise;
+      dbPromise = null;
+      if (!pending) {
+        return;
+      }
+      try {
+        (await pending).close();
+      } catch {
+        // Silent: closing is best-effort.
       }
     },
   };
@@ -223,4 +256,34 @@ export function createReviewStore(backend?: StoreBackend): ReviewStore {
       }
     },
   };
+}
+
+// SIG-1105: one shared store (and therefore one IndexedDB connection) per tab.
+// Module-level means one JS realm per tab; created lazily on first use so SSR
+// and node:test never touch IndexedDB at module load.
+let sharedBackend: StoreBackend | null = null;
+let sharedStore: ReviewStore | null = null;
+
+/** Shared failure-safe review store over a single IndexedDB backend. */
+export function getReviewStore(): ReviewStore {
+  if (!sharedStore) {
+    sharedBackend = createIndexedDbBackend();
+    sharedStore = createReviewStore(sharedBackend);
+  }
+  return sharedStore;
+}
+
+/** Drop the singleton and close its connection. Tests only; never rejects. */
+export async function resetReviewStoreForTests(): Promise<void> {
+  const backend = sharedBackend;
+  sharedBackend = null;
+  sharedStore = null;
+  if (!backend?.close) {
+    return;
+  }
+  try {
+    await backend.close();
+  } catch {
+    // Silent: teardown is best-effort.
+  }
 }
