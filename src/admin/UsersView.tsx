@@ -175,8 +175,8 @@ export function UsersView({ initialUsers, initialTotal, currentUserId }: UsersVi
             {tAdminUsers(locale, "admin.users.dialog.roleLabel")}
             <select value={dialogRole} onChange={(event) => setDialogRole(event.target.value)}>
               {ROLE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
+                <option key={option.value} value={option.value}>
+                  {tAdminUsers(locale, option.labelKey)}
                 </option>
               ))}
             </select>
