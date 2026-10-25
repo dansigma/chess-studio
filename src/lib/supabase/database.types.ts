@@ -661,6 +661,27 @@ export type Database = {
         Args: { p_database_id: string };
         Returns: number;
       };
+      // SIG-1061: role management RPCs (admin users backend, service role only).
+      set_user_role: {
+        Args: { p_user_id: string; p_new_role: string; p_changed_by: string; p_reason: string };
+        Returns: string;
+      };
+      admin_list_users: {
+        Args: { p_search: string | null; p_role: string | null; p_limit: number | null; p_offset: number | null };
+        Returns: Array<{
+          id: string;
+          email: string;
+          role: string;
+          created_at: string;
+          email_confirmed: boolean;
+          total: number;
+        }>;
+      };
+      // SIG-1061: filtered user count for admin_list_users empty pages.
+      admin_count_users: {
+        Args: { p_search: string | null; p_role: string | null };
+        Returns: number;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
