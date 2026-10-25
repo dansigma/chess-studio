@@ -46,6 +46,9 @@ export function useAdminSession() {
             theme: "openings",
             color: "white",
             chapters: [],
+            status: "published",
+            accessTier: "free",
+            priceCents: null,
           },
         ]);
         setLocalDrafts([
@@ -60,6 +63,9 @@ export function useAdminSession() {
               { id: "c-1", title: "One", variations: [] },
               { id: "c-2", title: "Two", variations: [] },
             ],
+            status: "draft",
+            accessTier: "free",
+            priceCents: null,
           },
           {
             id: "22222222-2222-4222-8222-222222222222",
@@ -69,6 +75,9 @@ export function useAdminSession() {
             theme: "strategy",
             color: "white",
             chapters: [{ id: "c-3", title: "Only", variations: [] }],
+            status: "draft",
+            accessTier: "free",
+            priceCents: null,
           },
         ]);
         return;

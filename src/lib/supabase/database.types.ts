@@ -280,10 +280,20 @@ export type Database = {
           video_url: string | null;
           created_by: string | null;
           updated_at: string;
-          // SIG-861: nullable draft/published lifecycle. published_at null =
-          // draft invisible to anon (courses_select_published), non-null =
-          // visible to everyone. Backfilled from updated_at; default now().
+          // SIG-861: publication timestamp, kept in sync with status by the
+          // courses_sync_published_at trigger (null unless published).
           published_at: string | null;
+          // SIG-1050: review workflow; status is the source of truth for
+          // visibility (published = visible to anon via
+          // courses_select_published).
+          status: "draft" | "in_review" | "published" | "rejected" | "archived";
+          review_note: string | null;
+          // SIG-1050: access_tier free/premium/paid; price_cents non-null
+          // exactly when paid; currency is BRL-only.
+          access_tier: "free" | "premium" | "paid";
+          price_cents: number | null;
+          currency: string;
+          author_display_name: string | null;
         };
         Insert: {
           id: string;
@@ -298,6 +308,12 @@ export type Database = {
           created_by?: string | null;
           updated_at?: string;
           published_at?: string | null;
+          status?: "draft" | "in_review" | "published" | "rejected" | "archived";
+          review_note?: string | null;
+          access_tier?: "free" | "premium" | "paid";
+          price_cents?: number | null;
+          currency?: string;
+          author_display_name?: string | null;
         };
         Update: {
           slug?: string;
@@ -310,6 +326,12 @@ export type Database = {
           video_url?: string | null;
           updated_at?: string;
           published_at?: string | null;
+          status?: "draft" | "in_review" | "published" | "rejected" | "archived";
+          review_note?: string | null;
+          access_tier?: "free" | "premium" | "paid";
+          price_cents?: number | null;
+          currency?: string;
+          author_display_name?: string | null;
         };
         Relationships: [];
       };

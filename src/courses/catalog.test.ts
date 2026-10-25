@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseTheme, isPublishedCourse, mergeCourseLists, parseChapters, toCourse } from "./catalog.ts";
+import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseAccessTier, isCourseStatus, isCourseTheme, isPublishedCourse, mergeCourseLists, parseChapters, toCourse } from "./catalog.ts";
 import { SEED_COURSES } from "./seed-data.ts";
 import type { Course } from "./types.ts";
 
@@ -15,6 +15,9 @@ describe("course catalog", () => {
         theme: "openings",
         color: "black",
         chapters: [],
+        status: "published",
+        accessTier: "free",
+        priceCents: null,
       },
     ];
     const merged = mergeCourseLists(published, SEED_COURSES);
@@ -116,9 +119,74 @@ describe("course catalog", () => {
     };
     const published = toCourse({ ...base, published_at: "2026-10-07T00:00:00.000Z" });
     assert.equal(published?.publishedAt, "2026-10-07T00:00:00.000Z");
+    // SIG-1050: legacy rows without status default to published/free.
+    assert.equal(published?.status, "published");
+    assert.equal(published?.accessTier, "free");
+    assert.equal(published?.priceCents, null);
     assert.equal(isPublishedCourse({ published_at: "2026-10-07T00:00:00.000Z" }), true);
     const draft = toCourse({ ...base, published_at: null });
     assert.equal(draft?.publishedAt, null);
     assert.equal(isPublishedCourse({ published_at: null }), false);
+  });
+
+  it("prefers status over published_at for visibility (SIG-1050)", () => {
+    assert.equal(isPublishedCourse({ status: "published", published_at: null }), true);
+    assert.equal(isPublishedCourse({ status: "draft", published_at: "2026-10-07T00:00:00.000Z" }), false);
+    for (const status of ["draft", "in_review", "rejected", "archived"] as const) {
+      assert.equal(isPublishedCourse({ status, published_at: "2026-10-07T00:00:00.000Z" }), false);
+    }
+    assert.equal(isPublishedCourse({ status: "published", publishedAt: null }), true);
+    assert.equal(isPublishedCourse({ status: "in_review", publishedAt: "2026-10-07T00:00:00.000Z" }), false);
+  });
+
+  it("maps the status and tier columns through toCourse (SIG-1050)", () => {
+    const base = {
+      id: "11111111-1111-4111-8111-111111111111",
+      slug: "french",
+      title: "French",
+      summary: "",
+      cover_url: null,
+      video_url: null,
+      theme: "openings",
+      color: "black",
+      chapters: [],
+      published_at: "2026-10-07T00:00:00.000Z",
+    };
+    const paid = toCourse({
+      ...base,
+      status: "in_review",
+      access_tier: "paid",
+      price_cents: 1990,
+      currency: "BRL",
+      author_display_name: "Coach Ana",
+      review_note: "Needs a better intro",
+    });
+    assert.equal(paid?.status, "in_review");
+    assert.equal(paid?.accessTier, "paid");
+    assert.equal(paid?.priceCents, 1990);
+    assert.equal(paid?.authorName, "Coach Ana");
+    assert.equal(paid?.reviewNote, "Needs a better intro");
+    assert.equal(isPublishedCourse({ status: paid!.status, published_at: "2026-10-07T00:00:00.000Z" }), false);
+  });
+
+  it("rejects unknown status or tier values in toCourse (SIG-1050)", () => {
+    const base = {
+      id: "11111111-1111-4111-8111-111111111111",
+      slug: "french",
+      title: "French",
+      summary: "",
+      cover_url: null,
+      video_url: null,
+      theme: "openings",
+      color: "black",
+      chapters: [],
+      published_at: "2026-10-07T00:00:00.000Z",
+    };
+    assert.equal(toCourse({ ...base, status: "live" }), null);
+    assert.equal(toCourse({ ...base, access_tier: "gold" }), null);
+    assert.equal(isCourseStatus("published"), true);
+    assert.equal(isCourseStatus("live"), false);
+    assert.equal(isCourseAccessTier("paid"), true);
+    assert.equal(isCourseAccessTier("gold"), false);
   });
 });

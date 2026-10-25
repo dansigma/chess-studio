@@ -36,6 +36,9 @@ export const SEED_COURSES: Course[] = [
     theme: "openings",
     color: "black",
     builtin: true,
+    status: "published",
+    accessTier: "free",
+    priceCents: null,
     chapters: [
       {
         id: "advance",

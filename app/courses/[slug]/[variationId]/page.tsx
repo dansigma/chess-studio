@@ -45,7 +45,8 @@ async function loadAllLines(): Promise<{ slug: string; variationId: string }[]> 
   const supabase = createPublicServerSupabase();
   const published: Course[] = [];
   if (supabase) {
-    const { data } = await supabase.from("courses").select(COURSE_SELECT_FIELDS).not("published_at", "is", null);
+    // SIG-1050: status is the source of truth for pre-render filtering.
+    const { data } = await supabase.from("courses").select(COURSE_SELECT_FIELDS).eq("status", "published");
     for (const row of data ?? []) {
       const course = toCourse(row);
       // SIG-861: drafts never pre-render (mirrors [slug] loadAllSlugs).

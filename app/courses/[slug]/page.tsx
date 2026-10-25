@@ -42,8 +42,9 @@ async function loadAllSlugs(): Promise<string[]> {
   const slugs = new Set(SEED_COURSES.map((course) => course.slug));
   const supabase = createPublicServerSupabase();
   if (supabase) {
-    // SIG-861: drafts never pre-render — skip null published_at rows.
-    const { data } = await supabase.from("courses").select("slug, published_at").not("published_at", "is", null);
+    // SIG-861: drafts never pre-render — skip non-published rows.
+    // SIG-1050: status is the source of truth.
+    const { data } = await supabase.from("courses").select("slug").eq("status", "published");
     for (const row of data ?? []) {
       if (typeof row.slug === "string" && row.slug) {
         slugs.add(row.slug);

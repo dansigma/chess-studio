@@ -9,7 +9,7 @@ import {
   writeCourseProgressOwner,
   writeRawCache,
 } from "../lib/local-cache";
-import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isCourseColor, isCourseId, isCourseTheme, isMissingSchemaError, parseChapters, toCourse } from "./catalog";
+import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isCourseAccessTier, isCourseColor, isCourseId, isCourseStatus, isCourseTheme, isMissingSchemaError, parseChapters, toCourse } from "./catalog";
 import { mergeProgress } from "./progress";
 import type { Course, CourseChapter } from "./types";
 import type { VariationProgress } from "./types";
@@ -90,6 +90,9 @@ export function toLocalDraftCourse(value: unknown): Course | null {
     theme,
     color,
     chapters,
+    status: "draft",
+    accessTier: "free",
+    priceCents: null,
   };
   if (typeof row.coverUrl === "string") {
     course.coverUrl = row.coverUrl;
@@ -108,6 +111,17 @@ export function toLocalDraftCourse(value: unknown): Course | null {
     // published (anon-invisible rows never reach this store), so default
     // an explicit null (= draft) to keep the admin copy honest.
     course.publishedAt = null;
+  }
+  // SIG-1050: rows predating the status/tier columns carry none of these
+  // keys; default them (draft/free) and validate present values.
+  course.status = typeof row.status === "string" && isCourseStatus(row.status) ? row.status : "draft";
+  course.accessTier = typeof row.accessTier === "string" && isCourseAccessTier(row.accessTier) ? row.accessTier : "free";
+  course.priceCents = typeof row.priceCents === "number" && Number.isInteger(row.priceCents) && row.priceCents > 0 ? row.priceCents : null;
+  if (typeof row.authorName === "string") {
+    course.authorName = row.authorName;
+  }
+  if (typeof row.reviewNote === "string" || row.reviewNote === null) {
+    course.reviewNote = row.reviewNote;
   }
   return course;
 }

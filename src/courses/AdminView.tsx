@@ -220,9 +220,11 @@ export function AdminView() {
                       return;
                     }
                     setCourses((current) =>
-                      current.map((course) => (course.id === draft.id ? { ...course, publishedAt: null } : course)),
+                      current.map((course) =>
+                        course.id === draft.id ? { ...course, status: "draft" as const, publishedAt: null } : course,
+                      ),
                     );
-                    setDraft((current) => ({ ...current, publishedAt: null }));
+                    setDraft((current) => ({ ...current, status: "draft" as const, publishedAt: null }));
                     setError(null);
                     router.refresh();
                   });
