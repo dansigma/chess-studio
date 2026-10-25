@@ -10,7 +10,7 @@ import { courseThemeLabel } from "./catalog";
 import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
 import { lessonFrames, lineProgressLabel } from "./lesson";
-import { CourseSummary } from "./DescriptionField";
+import { CourseSummary } from "./CourseSummary";
 import { courseImageUrl, courseVideo } from "./media";
 import { CourseChrome } from "./CourseChrome";
 import { coursePercent, courseVariationIds } from "./store";
