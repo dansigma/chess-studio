@@ -400,6 +400,7 @@ describe("sig-1061 role management RPCs migration", () => {
   for (const [name, namedArgs, shortArgs] of [
     ["public.set_user_role", "(p_user_id uuid, p_new_role text, p_changed_by uuid, p_reason text)", "(uuid, text, uuid, text)"],
     ["public.admin_list_users", "(p_search text, p_role text, p_limit int, p_offset int)", "(text, text, int, int)"],
+    ["public.admin_count_users", "(p_search text, p_role text)", "(text, text)"],
   ]) {
     const fn = `${name}${shortArgs}`;
     it(`defines ${fn} as security definer with an empty search_path`, () => {
@@ -420,6 +421,13 @@ describe("sig-1061 role management RPCs migration", () => {
     });
   }
 
+  it("counts unpaged matches with the same filters via admin_count_users", () => {
+    assert.ok(sig1061.includes("create or replace function public.admin_count_users(p_search text, p_role text)"));
+    assert.ok(sig1061.includes("returns bigint"));
+    assert.ok(sig1061.includes("revoke execute on function public.admin_count_users(text, text) from public, anon, authenticated"));
+    assert.ok(sig1061.includes("grant execute on function public.admin_count_users(text, text) to service_role"));
+  });
+
   it("guards set_user_role against bad input, self-demotion, no-ops and last-admin loss", () => {
     for (const code of ["invalid_role", "invalid_reason", "not_found", "own_role", "unchanged", "last_admin"]) {
       assert.ok(sig1061.includes(`raise exception '${code}'`), `missing ${code} guard`);
@@ -439,8 +447,7 @@ describe("sig-1061 role management RPCs migration", () => {
   it("lists users from auth.users with a bounded page and a total count", () => {
     assert.ok(sig1061.includes("join public.profiles"), "must join profiles for roles");
     assert.ok(sig1061.includes("strpos(lower("), "search must be a case-insensitive substring without LIKE wildcards");
-    assert.ok(sig1061.includes("count(*) over ()"), "must return the total alongside the page");
+    assert.ok(sig1061.includes("select count(*) into v_total"), "must count the full filtered set, not the page window");
     assert.ok(sig1061.includes("least(greatest("), "p_limit must be clamped");
   });
-});
 });

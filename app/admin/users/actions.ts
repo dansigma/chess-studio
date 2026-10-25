@@ -12,13 +12,11 @@ import { createServerSupabase } from "@/src/lib/supabase/server";
 // "admin-users-ip") so quotas stay independent.
 const limiter = createRouteLimiter({ limit: 30, windowMs: 60 * 1000, bindingName: "RL_AUTH" });
 
-export type AdminUsersCode = RoleChangeCode | "forbidden" | "rate_limited";
+export type AdminUsersCode = RoleChangeCode | "forbidden" | "rate_limited" | "invalid_page";
 
 export type AdminUsersActionResult<T> = { ok: true; data: T } | { ok: false; code: AdminUsersCode };
 
-async function requireAdmin(): Promise<
-  { ok: true; userId: string } | { ok: false; code: "forbidden" | "rate_limited" }
-> {
+async function adminCaller(): Promise<{ ok: true; userId: string } | { ok: false; code: "forbidden" }> {
   const supabase = await createServerSupabase();
   if (!supabase) {
     return { ok: false, code: "forbidden" };
@@ -31,13 +29,20 @@ async function requireAdmin(): Promise<
   if (!isAdmin(await getRole(supabase, user))) {
     return { ok: false, code: "forbidden" };
   }
+  return { ok: true, userId: user.id };
+}
+
+// Quota is consumed only after inputs validate (mirroring
+// app/login/update-password/actions.ts), so malformed requests never burn
+// the shared per-IP bucket.
+async function consumeAdminQuota(userId: string): Promise<{ ok: true } | { ok: false; code: "rate_limited" }> {
   const ip = clientIp(await headers());
-  const userVerdict = await limiter.checkAsync(rateLimitKey("admin-users", user.id));
+  const userVerdict = await limiter.checkAsync(rateLimitKey("admin-users", userId));
   const ipVerdict = await limiter.checkAsync(rateLimitKey("admin-users-ip", ip));
   if (!userVerdict.ok || !ipVerdict.ok) {
     return { ok: false, code: "rate_limited" };
   }
-  return { ok: true, userId: user.id };
+  return { ok: true };
 }
 
 export async function listUsersAction(input: {
@@ -45,15 +50,19 @@ export async function listUsersAction(input: {
   role?: string;
   page?: number;
 }): Promise<AdminUsersActionResult<{ users: AdminListUser[]; total: number }>> {
-  const gate = await requireAdmin();
-  if (!gate.ok) {
-    return gate;
-  }
   if (input.role !== undefined && input.role !== "" && !["student", "coach", "admin"].includes(input.role)) {
     return { ok: false, code: "invalid_role" };
   }
-  if (input.page !== undefined && (!Number.isFinite(input.page) || Math.floor(input.page) < 1)) {
-    return { ok: false, code: "unavailable" };
+  if (input.page !== undefined && (!Number.isFinite(input.page) || !Number.isInteger(input.page) || input.page < 1)) {
+    return { ok: false, code: "invalid_page" };
+  }
+  const gate = await adminCaller();
+  if (!gate.ok) {
+    return gate;
+  }
+  const quota = await consumeAdminQuota(gate.userId);
+  if (!quota.ok) {
+    return quota;
   }
   return listUsers({ search: input.search, role: input.role, page: input.page });
 }
@@ -63,10 +72,6 @@ export async function changeRoleAction(input: {
   newRole: string;
   reason: string;
 }): Promise<AdminUsersActionResult<{ oldRole: string }>> {
-  const gate = await requireAdmin();
-  if (!gate.ok) {
-    return gate;
-  }
   if (!["student", "coach", "admin"].includes(input.newRole)) {
     return { ok: false, code: "invalid_role" };
   }
@@ -75,6 +80,14 @@ export async function changeRoleAction(input: {
   }
   if (typeof input.reason !== "string" || input.reason.trim().length < 3 || input.reason.trim().length > 500) {
     return { ok: false, code: "invalid_reason" };
+  }
+  const gate = await adminCaller();
+  if (!gate.ok) {
+    return gate;
+  }
+  const quota = await consumeAdminQuota(gate.userId);
+  if (!quota.ok) {
+    return quota;
   }
   const result = await changeUserRole({
     userId: input.userId,

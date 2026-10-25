@@ -18,6 +18,9 @@ export type AdminListUser = {
   role: string;
   created_at: string;
   email_confirmed: boolean;
+  // v_total from admin_list_users: the filtered count over ALL matches,
+  // repeated on every returned row. Out-of-range pages return zero rows,
+  // so the lib reads the total via admin_count_users instead.
   total: number;
 };
 
@@ -60,9 +63,11 @@ export async function listUsers(input: {
     return { ok: false, code: "unavailable" };
   }
   const page = Math.max(1, Math.floor(input.page ?? 1) || 1);
+  const search = input.search?.trim() ? input.search : null;
+  const role = input.role?.trim() ? input.role : null;
   const { data, error } = await admin.rpc("admin_list_users", {
-    p_search: input.search?.trim() ? input.search : null,
-    p_role: input.role?.trim() ? input.role : null,
+    p_search: search,
+    p_role: role,
     p_limit: ADMIN_USERS_PAGE_SIZE,
     p_offset: (page - 1) * ADMIN_USERS_PAGE_SIZE,
   });
@@ -70,7 +75,20 @@ export async function listUsers(input: {
     return { ok: false, code: toRoleChangeCode(errorMessage(error)) };
   }
   const users = (data ?? []) as AdminListUser[];
-  return { ok: true, data: { users, total: users[0]?.total ?? 0 } };
+  const firstTotal = users[0]?.total;
+  if (users.length > 0 && typeof firstTotal === "number") {
+    return { ok: true, data: { users, total: firstTotal } };
+  }
+  // Empty page (no matches, or past the last row): count separately so the
+  // admin UI can tell "no users match" from "page past the end".
+  const { data: totalData, error: totalError } = await admin.rpc("admin_count_users", {
+    p_search: search,
+    p_role: role,
+  });
+  if (totalError) {
+    return { ok: false, code: toRoleChangeCode(errorMessage(totalError)) };
+  }
+  return { ok: true, data: { users, total: typeof totalData === "number" ? totalData : 0 } };
 }
 
 export async function changeUserRole(

@@ -677,6 +677,11 @@ export type Database = {
           total: number;
         }>;
       };
+      // SIG-1061: filtered user count for admin_list_users empty pages.
+      admin_count_users: {
+        Args: { p_search: string | null; p_role: string | null };
+        Returns: number;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

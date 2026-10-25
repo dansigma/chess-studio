@@ -126,7 +126,7 @@ test("changeRoleAction maps each RPC error code", async () => {
   }
 });
 
-test("invalid inputs are rejected before the RPC runs", async () => {
+test("invalid inputs are rejected before touching auth or the RPC", async () => {
   server(ADMIN, "admin");
   const svc = serviceOk();
   withRequest();
@@ -141,6 +141,12 @@ test("invalid inputs are rejected before the RPC runs", async () => {
   );
   withRequest();
   assert.deepEqual(await listUsersAction({ role: "superadmin" }), { ok: false, code: "invalid_role" });
+  withRequest();
+  assert.deepEqual(await listUsersAction({ page: 0 }), { ok: false, code: "invalid_page" });
+  withRequest();
+  assert.deepEqual(await listUsersAction({ page: 1.5 }), { ok: false, code: "invalid_page" });
+  withRequest();
+  assert.deepEqual(await listUsersAction({ page: Number.NaN }), { ok: false, code: "invalid_page" });
   assert.equal(svc.rpc.length, 0);
 });
 

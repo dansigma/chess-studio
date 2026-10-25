@@ -25,7 +25,7 @@ function installService(handler: RpcHandler, calls: Array<{ name: string; args: 
 }
 
 function rpcError(code: string) {
-  return { data: null, error: new Error(`rpc failed: ${code}`) };
+  return { data: null as unknown, error: new Error(`rpc failed: ${code}`) };
 }
 
 test("service client missing: both functions return unavailable", async () => {
@@ -99,6 +99,39 @@ test("listUsers clamps pages below 1 to the first page and blanks to null", asyn
     p_limit: ADMIN_USERS_PAGE_SIZE,
     p_offset: 0,
   });
+});
+
+test("listUsers keeps the total on an empty out-of-range page", async () => {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  // One matching user overall; page 2 returns no rows but the separate
+  // count still reports the full filtered total.
+  installService(async (name, args) => {
+    if (name === "admin_list_users") {
+      const offset = args.p_offset as number;
+      return {
+        data: offset === 0
+          ? [{ id: "u1", email: "a@example.com", role: "coach", created_at: "2026-01-01", email_confirmed: true, total: 1 }]
+          : [],
+        error: null,
+      };
+    }
+    assert.equal(name, "admin_count_users");
+    return { data: 1, error: null };
+  }, calls);
+  const result = await listUsers({ search: "example", page: 2 });
+  assert.deepEqual(result, { ok: true, data: { users: [], total: 1 } });
+  assert.deepEqual(calls.map((call) => call.name), ["admin_list_users", "admin_count_users"]);
+});
+
+test("listUsers maps count errors on empty pages", async () => {
+  const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+  installService(async (name) => {
+    if (name === "admin_list_users") {
+      return { data: [], error: null };
+    }
+    return { data: null, error: new Error("rpc failed: invalid_role") };
+  }, calls);
+  assert.deepEqual(await listUsers({ role: "superadmin" }), { ok: false, code: "invalid_role" });
 });
 
 test("listUsers maps invalid_role and unknown errors", async () => {

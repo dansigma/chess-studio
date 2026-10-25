@@ -1,6 +1,6 @@
 -- SIG-1061: role management RPCs (admin UI backend).
 --
--- Two service-role-only functions for the /admin/users backend:
+-- Three service-role-only functions for the /admin/users backend:
 -- * set_user_role atomically changes a role (profile update plus
 --   role_changes audit row) and is safe against races: it serializes
 --   concurrent calls with pg_advisory_xact_lock, locks the profile row
@@ -10,7 +10,12 @@
 -- * admin_list_users joins auth.users (the only place emails live) with
 --   profiles, because the client cannot read auth.users. Search is an
 --   escaped case-insensitive email substring (strpos, no LIKE wildcards).
--- Both are security definer with an empty search_path, revoked from every
+--   The filtered total rides on every row (v_total), so the first page is
+--   self-describing; out-of-range pages return zero rows and the lib reads
+--   the total via admin_count_users instead.
+-- * admin_count_users returns just the filtered total for the same filters,
+--   so empty pages past the last row still report the right count.
+-- All are security definer with an empty search_path, revoked from every
 -- client role and granted only to service_role. Access goes through the
 -- service client (src/lib/admin/users.ts), never from the browser.
 
@@ -68,13 +73,18 @@ declare
   v_limit int := least(greatest(coalesce(p_limit, 20), 1), 100);
   v_offset int := greatest(coalesce(p_offset, 0), 0);
   v_search text := nullif(btrim(coalesce(p_search, '')), '');
+  v_total bigint;
 begin
   if p_role is not null and p_role not in ('student', 'coach', 'admin') then
     raise exception 'invalid_role';
   end if;
+  select count(*) into v_total
+  from auth.users u
+  join public.profiles p on p.id = u.id
+  where (v_search is null or strpos(lower(u.email), lower(v_search)) > 0)
+    and (p_role is null or p.role = p_role);
   return query
-  select u.id, u.email::text, p.role, u.created_at, (u.email_confirmed_at is not null),
-         count(*) over ()::bigint
+  select u.id, u.email::text, p.role, u.created_at, (u.email_confirmed_at is not null), v_total
   from auth.users u
   join public.profiles p on p.id = u.id
   where (v_search is null or strpos(lower(u.email), lower(v_search)) > 0)
@@ -86,3 +96,28 @@ $$;
 
 revoke execute on function public.admin_list_users(text, text, int, int) from public, anon, authenticated;
 grant execute on function public.admin_list_users(text, text, int, int) to service_role;
+
+create or replace function public.admin_count_users(p_search text, p_role text)
+returns bigint
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_search text := nullif(btrim(coalesce(p_search, '')), '');
+  v_total bigint;
+begin
+  if p_role is not null and p_role not in ('student', 'coach', 'admin') then
+    raise exception 'invalid_role';
+  end if;
+  select count(*) into v_total
+  from auth.users u
+  join public.profiles p on p.id = u.id
+  where (v_search is null or strpos(lower(u.email), lower(v_search)) > 0)
+    and (p_role is null or p.role = p_role);
+  return v_total;
+end;
+$$;
+
+revoke execute on function public.admin_count_users(text, text) from public, anon, authenticated;
+grant execute on function public.admin_count_users(text, text) to service_role;
