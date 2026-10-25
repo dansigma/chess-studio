@@ -31,7 +31,7 @@ import {
   reviewCacheKey,
   setCachedReview,
 } from "./review-cache";
-import { createReviewStore } from "./review-store";
+import { getReviewStore } from "./review-store";
 
 export type ReviewMoveRow = ReviewRow & {
   path: Path;
@@ -194,7 +194,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
         if (stale) {
           return;
         }
-        const rows = await createReviewStore().loadReview(key);
+        const rows = await getReviewStore().loadReview(key);
         if (stale || !rows) {
           return;
         }
