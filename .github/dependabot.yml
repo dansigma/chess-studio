@@ -1,6 +1,36 @@
 version: 2
+
 updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+
+    # Packages that must move together stay in one pull request. Dependabot
+    # bumps a single dependency per update by default, which is what broke
+    # #116 and #115: each bump could not resolve against its own family.
+    groups:
+      # @tiptap/starter-kit pins @tiptap/core to an exact version, so every
+      # @tiptap/* package has to move in the same commit (#116).
+      tiptap:
+        patterns:
+          - "@tiptap/*"
+      # vinext pulls react-server-dom-webpack, which peers on an exact react
+      # version. React and the framework therefore move together (#115).
+      react-stack:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "vinext"
+          - "@types/react"
+          - "@types/react-dom"
+
+    ignore:
+      # TypeScript 7 changed the ScriptTarget enum and the test toolchain still
+      # reads the old values with `ts.ScriptTarget.ESNext`, so `Run tests`
+      # crashes before a single test executes (#71). Majors are held until
+      # eslint, vitest and their TS utilities declare support.
+      - dependency-name: "typescript"
+        update-types:
+          - "version-update:semver-major"
