@@ -51,8 +51,8 @@ jobs:
           set -euo pipefail
           number=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.pull_requests[0].number // empty')
           if [ -z "$number" ]; then
-            number=$(gh api "repos/$REPO/commits/$SHA/pulls" \
-              --jq 'map(select(.state == "open")) | .[0].number // empty')
+            # Singular endpoint: the plural one is deprecated.
+            number=$(gh api "repos/$REPO/commits/$SHA/pull" --jq '.number // empty' 2>/dev/null || true)
           fi
           if [ -z "$number" ]; then
             echo "No open pull request for $SHA; nothing to report."
@@ -81,7 +81,7 @@ jobs:
             echo "**Failed jobs**"
             echo "$jobs" | jq -r '.jobs[]
               | select(.conclusion == "failure" or .conclusion == "timed_out")
-              | "- `" + .name + "` â " + .html_url'
+              | "- `" + .name + "` - " + .html_url'
             echo
             echo "**Passed jobs**"
             echo "$jobs" | jq -r '.jobs[]
@@ -104,8 +104,7 @@ jobs:
         run: |
           set -euo pipefail
           existing=$(gh api --paginate "repos/$REPO/issues/$PR/comments?per_page=100" \
-            --jq ".[] | select(.body | startswith(\"<!-- factory-ci-failure:$SHA -->\")) | .id" \
-            | head -n 1)
+            --jq "[.[] | select(.body | startswith(\"<!-- factory-ci-failure:$SHA -->\")) | .id] | first // empty")
           jq -Rs '{body: .}' body.md > payload.json
           if [ -n "${existing:-}" ]; then
             gh api -X PATCH "repos/$REPO/issues/comments/$existing" --input payload.json > /dev/null
