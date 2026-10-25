@@ -1,12 +1,26 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
+import dynamic from "next/dynamic";
 import { tCourseAdmin } from "@/src/i18n/course-admin-strings";
-import { DescriptionField } from "./DescriptionField";
 import { courseThemeLabel, isCourseColor, isCourseTheme, slugify } from "./catalog";
 import type { CourseDraft } from "./admin-draft";
 import { useStudioStore } from "@/src/store/studio-store";
 import { COURSE_THEMES } from "./types";
+
+const DescriptionField = dynamic(() => import("./DescriptionField").then((m) => m.DescriptionField), {
+  ssr: false,
+  loading: () => <DescriptionFieldPlaceholder />,
+});
+
+function DescriptionFieldPlaceholder() {
+  const locale = useStudioStore((state) => state.settings.locale);
+  return (
+    <div className="mt-1 min-h-36 rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-faint">
+      {tCourseAdmin(locale, "course.admin.description.loading")}
+    </div>
+  );
+}
 
 /** The course metadata fields above the chapter list (address through pieces). */
 export function CourseFields({

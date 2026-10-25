@@ -4,6 +4,8 @@ import {
   MAX_PERSISTED_BYTES,
   MAX_PERSISTED_REVIEWS,
   createReviewStore,
+  getReviewStore,
+  resetReviewStoreForTests,
   type PersistedReviewRecord,
   type StoreBackend,
 } from "./review-store";
@@ -116,4 +118,137 @@ test("clearReviews empties the store", async () => {
   await store.saveReview("k1", { preset: "standard", engineBuild: "lite", moves: 1, cacheKey: "sync:k" }, rows);
   await store.clearReviews();
   assert.equal(backend.map.size, 0);
+});
+
+// SIG-1105: minimal fake IndexedDB so the singleton + versionchange behavior
+// of the real createIndexedDbBackend is exercised without a browser.
+type FakeDb = {
+  onversionchange: (() => void) | null;
+  onclose: (() => void) | null;
+  closeCalls: number;
+  close(): void;
+  transaction(): { objectStore(): Record<string, unknown> };
+};
+
+function installFakeIndexedDb() {
+  const dbs: FakeDb[] = [];
+  let openCalls = 0;
+  const stored: PersistedReviewRecord[] = [
+    { ...makeRecord("seed", 1) },
+  ];
+  const makeRequest = <T>(value: T) => {
+    const request = { result: value } as unknown as IDBRequest<T> & {
+      onsuccess: (() => void) | null;
+      onerror: (() => void) | null;
+    };
+    request.onsuccess = null;
+    request.onerror = null;
+    // requestToPromise assigns onsuccess synchronously after this returns;
+    // fire it on a microtask like a real completed request.
+    queueMicrotask(() => {
+      try {
+        request.onsuccess?.();
+      } catch {
+        // Ignored: resolution already captured result.
+      }
+    });
+    return request;
+  };
+  const fakeDb = (): FakeDb => {
+    const db: FakeDb = {
+      onversionchange: null,
+      onclose: null,
+      closeCalls: 0,
+      close() {
+        db.closeCalls += 1;
+      },
+      transaction() {
+        const storeStub = {
+          getAll: () => makeRequest<PersistedReviewRecord[]>([...stored]),
+          get: () => makeRequest<PersistedReviewRecord | undefined>(stored[0]),
+          put: () => makeRequest<void>(undefined),
+          delete: () => makeRequest<void>(undefined),
+          clear: () => makeRequest<void>(undefined),
+        };
+        return { objectStore: () => storeStub };
+      },
+    };
+    return db;
+  };
+  const realIndexedDb = (globalThis as { indexedDB?: unknown }).indexedDB;
+  const g = globalThis as unknown as {
+    indexedDB: {
+      open(name: string, version?: number): IDBOpenDBRequest;
+    };
+  };
+  g.indexedDB = {
+    open() {
+      openCalls += 1;
+      const db = fakeDb();
+      dbs.push(db);
+      const request = {
+        result: db,
+        onupgradeneeded: null as (() => void) | null,
+        onsuccess: null as (() => void) | null,
+        onerror: null as (() => void) | null,
+        onblocked: null as (() => void) | null,
+      } as unknown as IDBOpenDBRequest & {
+        onsuccess: (() => void) | null;
+      };
+      // Resolve like a real open: upgrade (skipped, guarded by try) then success.
+      queueMicrotask(() => {
+        try {
+          (request as unknown as { onupgradeneeded: (() => void) | null }).onupgradeneeded?.();
+        } catch {
+          // Ignored: the fake db has no objectStoreNames.
+        }
+        request.onsuccess?.();
+      });
+      return request;
+    },
+  };
+  return {
+    dbs,
+    openCalls: () => openCalls,
+    restore() {
+      if (realIndexedDb === undefined) {
+        delete (globalThis as { indexedDB?: unknown }).indexedDB;
+      } else {
+        (globalThis as { indexedDB?: unknown }).indexedDB = realIndexedDb;
+      }
+    },
+  };
+}
+
+test("getReviewStore returns the same instance and opens the database once", async () => {
+  await resetReviewStoreForTests();
+  const fake = installFakeIndexedDb();
+  try {
+    assert.equal(getReviewStore(), getReviewStore());
+    await getReviewStore().loadAllByRecency();
+    await getReviewStore().loadAllByRecency();
+    assert.equal(fake.openCalls(), 1);
+  } finally {
+    await resetReviewStoreForTests();
+    fake.restore();
+  }
+});
+
+test("versionchange closes the connection and the next operation reopens it", async () => {
+  await resetReviewStoreForTests();
+  const fake = installFakeIndexedDb();
+  try {
+    await getReviewStore().loadAllByRecency();
+    assert.equal(fake.openCalls(), 1);
+    const db = fake.dbs[0];
+    assert.ok(db);
+    assert.equal(typeof db.onversionchange, "function");
+    db.onversionchange?.();
+    assert.equal(db.closeCalls, 1);
+    await getReviewStore().loadAllByRecency();
+    assert.equal(fake.openCalls(), 2);
+  } finally {
+    await resetReviewStoreForTests();
+    fake.restore();
+  }
 });

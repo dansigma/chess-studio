@@ -103,7 +103,7 @@ export function clearReviewCache(): void {
   // enough that this stays safe under node:test (no IndexedDB touched at
   // module load — the backend opens the DB only on first use, guarded).
   void import("./review-store")
-    .then(({ createReviewStore }) => createReviewStore().clearReviews())
+    .then(({ getReviewStore }) => getReviewStore().clearReviews())
     .catch(() => undefined);
 }
 
@@ -135,9 +135,9 @@ export function persistReview(
   try {
     void (async () => {
       try {
-        const { createReviewStore } = await import("./review-store");
+        const { getReviewStore } = await import("./review-store");
         const key = await persistentReviewKey(fens, ucis, preset, engineBuild);
-        await createReviewStore().saveReview(
+        await getReviewStore().saveReview(
           key,
           { preset, engineBuild, moves: ucis.length, cacheKey },
           rows,
@@ -158,8 +158,8 @@ export function persistReview(
  */
 export async function hydrateReviewCache(): Promise<void> {
   try {
-    const { createReviewStore } = await import("./review-store");
-    const all = await createReviewStore().loadAllByRecency();
+    const { getReviewStore } = await import("./review-store");
+    const all = await getReviewStore().loadAllByRecency();
     for (const entry of all) {
       if (typeof entry.cacheKey === "string" && Array.isArray(entry.rows)) {
         insertHot(entry.cacheKey, entry.rows as ReviewRow[]);
