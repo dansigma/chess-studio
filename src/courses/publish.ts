@@ -13,7 +13,8 @@ import { hasPlayableContent, normalizeChapters } from "./draft";
 import { courseCoverUrl, courseVideo } from "./media";
 import { SEED_COURSES } from "./seed";
 import { canTransition, type TransitionReason } from "./status";
-import type { Course, CourseChapter, CourseStatus } from "./types";
+import { validateTierAndPrice } from "./author-actions";
+import type { Course, CourseAccessTier, CourseChapter, CourseStatus } from "./types";
 
 function serviceClient() {
   return createServiceSupabase();
@@ -164,6 +165,19 @@ export async function currentUserCanAuthor(): Promise<boolean> {
   return canAuthorCourses(await getRole(supabase, data.user));
 }
 
+/** SIG-1114: role for the coach authoring screen (null = signed-out/unknown). */
+export async function currentUserRole(): Promise<Role | null> {
+  const supabase = await createServerSupabase();
+  if (!supabase) {
+    return null;
+  }
+  const { data } = await supabase.auth.getUser();
+  if (!data.user) {
+    return null;
+  }
+  return getRole(supabase, data.user);
+}
+
 function checkedCourse(input: Course): { course: Course; chapters: CourseChapter[] } | { error: CourseAdminMessage } {
   const title = input.title.trim();
   if (!title || title.length > 120) {
@@ -177,6 +191,19 @@ function checkedCourse(input: Course): { course: Course; chapters: CourseChapter
   }
   if (!isCourseTheme(input.theme)) {
     return { error: { key: "course.admin.error.chooseTheme" } };
+  }
+  // SIG-1114: tier/price invariant (paid needs positive-int cents, other
+  // tiers must carry none) — checked before the write so both draft saves
+  // and admin publishes fail with invalidPrice instead of publishFailed.
+  const tier: CourseAccessTier = input.accessTier === "paid" || input.accessTier === "premium" ? input.accessTier : "free";
+  const rawPrice = typeof input.priceCents === "number" ? input.priceCents : null;
+  const tierPrice = validateTierAndPrice(tier, rawPrice);
+  if (!tierPrice.ok) {
+    return { error: { key: tierPrice.error } };
+  }
+  const authorName = input.authorName?.trim() ?? "";
+  if (authorName.length > 120) {
+    return { error: { key: "course.admin.error.authorNameTooLong" } };
   }
   const summary = sanitizeCourseHtml(input.summary);
   if (summary.length > 8000) {
@@ -213,6 +240,9 @@ function checkedCourse(input: Course): { course: Course; chapters: CourseChapter
       videoUrl: videoInput || undefined,
       chapters,
       builtin: false,
+      accessTier: tier,
+      priceCents: rawPrice,
+      authorName: authorName || undefined,
     },
     chapters,
   };
@@ -305,6 +335,9 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
     updated_at: publishedAt,
     published_at: publishedAt,
     status: "published",
+    access_tier: checked.course.accessTier,
+    price_cents: checked.course.priceCents,
+    author_display_name: checked.course.authorName?.trim() || null,
   });
   if (error) {
     return { ok: false, error: { key: databaseError(error) } };
@@ -455,10 +488,9 @@ export async function saveCourseDraft(input: Course): Promise<{ ok: true; course
     }
   }
   const chaptersJson: Json = checked.chapters;
-  const priceCents =
-    typeof checked.course.priceCents === "number" && Number.isInteger(checked.course.priceCents) && checked.course.priceCents > 0
-      ? checked.course.priceCents
-      : null;
+  // checkedCourse already enforced the tier/price invariant, so pass the
+  // normalized values straight through (no silent nulling).
+  const priceCents = checked.course.priceCents;
   const now = new Date().toISOString();
   const { error } = await gate.admin.from("courses").upsert({
     id: checked.course.id,

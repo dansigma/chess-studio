@@ -5,25 +5,29 @@ import { useRouter } from "next/navigation";
 import { tCourseAdmin, type CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { findPublishedConflict, isCourseId, isCourseTheme } from "./catalog";
-import { currentUserCanPublish, publishCourse } from "./publish";
+import { currentUserCanAuthor, currentUserRole, publishCourse, saveCourseDraft } from "./publish";
 import {
   clearLocalCustomCourses,
-  fetchPublishedCourses,
+  fetchAuthorCourses,
   readLocalCustomCourses,
   removeLocalCustomDraft,
 } from "./store";
+import type { Role } from "@/src/lib/auth/roles";
 import type { Course } from "./types";
 
 /**
- * Publisher session for the course admin: whether the account may publish, the
- * published library, and the browser-local drafts with their import/discard
- * flows. Failures are `CourseAdminMessage` keys resolved to the site locale at
- * render, since server actions never know the locale.
+ * Publisher session for the course admin: whether the account may author,
+ * the role-scoped course list (admin: everything, coach: own courses), and
+ * the browser-local drafts with their import/discard flows. Failures are
+ * `CourseAdminMessage` keys resolved to the site locale at render, since
+ * server actions never know the locale.
  */
 export function useAdminSession() {
   const router = useRouter();
   const locale = useStudioStore((state) => state.settings.locale);
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [role, setRole] = useState<Role | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [localDrafts, setLocalDrafts] = useState<Course[]>([]);
   const [error, setError] = useState<CourseAdminMessage | null>(null);
@@ -37,6 +41,8 @@ export function useAdminSession() {
         new URLSearchParams(window.location.search).has("previewDrafts")
       ) {
         setAllowed(true);
+        setRole("admin");
+        setUserId(null);
         setCourses([
           {
             id: "11111111-1111-4111-8111-111111111111",
@@ -82,16 +88,46 @@ export function useAdminSession() {
         ]);
         return;
       }
-      const allowedToPublish = await currentUserCanPublish();
+      // SIG-1114: gate on authoring (admin + coach), not publishing.
+      const [allowedToAuthor, userRole] = await Promise.all([currentUserCanAuthor(), currentUserRole()]);
       if (cancel) {
         return;
       }
-      if (!allowedToPublish) {
+      if (!allowedToAuthor || (userRole !== "admin" && userRole !== "coach")) {
         setAllowed(false);
         return;
       }
       setAllowed(true);
-      const published = await fetchPublishedCourses();
+      setRole(userRole);
+      if (userRole === "coach") {
+        // SIG-1114: the signed-in id scopes the own-courses query. Read it
+        // from the browser session (no RLS-safe server read for this).
+        const { createBrowserSupabase } = await import("@/src/lib/supabase/client");
+        const browser = createBrowserSupabase();
+        const { data } = browser ? await browser.auth.getUser() : { data: { user: null } };
+        const coachId = data.user?.id ?? null;
+        setUserId(coachId);
+        if (cancel) {
+          return;
+        }
+        if (!coachId) {
+          setAllowed(false);
+          return;
+        }
+        const own = await fetchAuthorCourses({ userId: coachId, role: userRole });
+        if (cancel) {
+          return;
+        }
+        if (own.error) {
+          setError({ key: "course.admin.error.loadFailed" });
+          setCourses(own.courses);
+          return;
+        }
+        setCourses(own.courses);
+        setLocalDrafts(readLocalCustomCourses());
+        return;
+      }
+      const published = await fetchAuthorCourses({ userId: null, role: userRole });
       if (cancel) {
         return;
       }
@@ -122,11 +158,14 @@ export function useAdminSession() {
     }
     setImportingId(course.id);
     try {
-      const result = await publishCourse({
+      // SIG-1114: coaches import through the draft gate (publishCourse is
+      // admin-only and would reject them); admins keep the publish path.
+      const payload = {
         ...course,
         id: isCourseId(course.id) ? course.id : crypto.randomUUID(),
         theme: isCourseTheme(course.theme) ? course.theme : "openings",
-      });
+      };
+      const result = role === "coach" ? await saveCourseDraft(payload) : await publishCourse(payload);
       if (!result.ok) {
         setError(result.error);
         return;
@@ -154,6 +193,8 @@ export function useAdminSession() {
 
   return {
     allowed,
+    role,
+    userId,
     courses,
     setCourses,
     localDrafts,

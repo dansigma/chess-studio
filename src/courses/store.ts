@@ -13,6 +13,7 @@ import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isCourseAccessTier, isCour
 import { mergeProgress } from "./progress";
 import type { Course, CourseChapter } from "./types";
 import type { VariationProgress } from "./types";
+import type { Role } from "@/src/lib/auth/roles";
 
 export { courseSlugError, slugify } from "./catalog";
 
@@ -174,6 +175,65 @@ export async function fetchPublishedCourses(): Promise<{ courses: Course[]; erro
     .from("courses")
     .select(COURSE_SELECT_FIELDS)
     .order("updated_at", { ascending: false });
+  if (error) {
+    const missing = isMissingSchemaError(error);
+    return {
+      courses: [],
+      error: missing ? MISSING_SCHEMA_NOTICE : "Published courses could not be loaded.",
+    };
+  }
+  const courses: Course[] = [];
+  for (const row of data ?? []) {
+    const course = toCourse(row);
+    if (course) {
+      courses.push(course);
+    }
+  }
+  return { courses, error: null };
+}
+
+/**
+ * SIG-1114: author-scoped list for the coach authoring screen. Admin runs
+ * the same unfiltered query as before; a coach adds an explicit
+ * `created_by` filter on top of the RLS own-drafts policy (defense in depth).
+ * Everyone else gets an empty list (the page gate already blocks them).
+ */
+export async function fetchAuthorCourses(input: {
+  userId: string | null;
+  role: Role | null;
+}): Promise<{ courses: Course[]; error: string | null }> {
+  const supabase = createBrowserSupabase();
+  if (!supabase) {
+    return { courses: [], error: null };
+  }
+  if (input.role !== "admin" && input.role !== "coach") {
+    return { courses: [], error: null };
+  }
+  const query = supabase.from("courses").select(COURSE_SELECT_FIELDS).order("updated_at", { ascending: false });
+  if (input.role === "admin") {
+    const { data, error } = await query;
+    if (error) {
+      const missing = isMissingSchemaError(error);
+      return {
+        courses: [],
+        error: missing ? MISSING_SCHEMA_NOTICE : "Published courses could not be loaded.",
+      };
+    }
+    const courses: Course[] = [];
+    for (const row of data ?? []) {
+      const course = toCourse(row);
+      if (course) {
+        courses.push(course);
+      }
+    }
+    return { courses, error: null };
+  }
+  // Coach: own courses only. RLS already scopes to own drafts + published,
+  // the explicit created_by filter is defense in depth.
+  if (!input.userId) {
+    return { courses: [], error: null };
+  }
+  const { data, error } = await query.eq("created_by", input.userId);
   if (error) {
     const missing = isMissingSchemaError(error);
     return {
