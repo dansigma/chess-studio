@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/src/lib/supabase/server";
+import { createPublicServerSupabase } from "@/src/lib/supabase/server";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { toJson } from "@/src/lib/supabase/database.types";
 import {
@@ -38,6 +38,27 @@ function lichessToken(): string | undefined {
   return process.env.LICHESS_TOKEN ?? process.env.LICHESS_API_TOKEN;
 }
 
+/**
+ * Cache-Control for explorer successes. Payloads are public (position data
+ * does not depend on the user); `notice`/filtered payloads are fallbacks and
+ * cache only briefly; curated index output is effectively immutable.
+ */
+function explorerCacheHeaders(payload: ExplorerResponse, filtered: boolean): string {
+  if (payload.source === "curated") {
+    return "public, max-age=3600";
+  }
+  if (filtered || payload.notice) {
+    return "public, max-age=30, s-maxage=60";
+  }
+  return "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400";
+}
+
+function cachedJson(payload: ExplorerResponse, filtered: boolean) {
+  return NextResponse.json(payload, {
+    headers: { "Cache-Control": explorerCacheHeaders(payload, filtered) },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const fen = request.nextUrl.searchParams.get("fen");
   const sourceParam = request.nextUrl.searchParams.get("source");
@@ -61,24 +82,27 @@ export async function GET(request: NextRequest) {
   }
 
   const filters = filtersFromSearchParams(request.nextUrl.searchParams);
+  const filtered = !filtersAreDefault(filters);
 
   if (sourceParam === "curated") {
     const payload = lookupCuratedIndex(fen, filters, lookupOpeningIndex);
-    return NextResponse.json(payload);
+    return cachedJson(payload, filtered);
   }
 
-  const filtered = !filtersAreDefault(filters);
   const filterQuery = lichessFilterQuery(sourceParam, filters);
   const key = filtered ? `${cacheKey(sourceParam, fen)}|${filterQuery}` : cacheKey(sourceParam, fen);
   const memory = memoryCache.get(key);
   if (memory) {
     const ttl = memory.payload.notice ? FALLBACK_CACHE_TTL_MS : CACHE_TTL_MS;
     if (Date.now() - memory.fetchedAt < ttl) {
-      return NextResponse.json(memory.payload);
+      return cachedJson(memory.payload, filtered);
     }
   }
 
-  const supabase = await createServerSupabase();
+  // Cookie-free read: explorer_cache is publicly selectable (anon, SIG-839),
+  // so the shared cache needs no session — no cookies() in this path, and no
+  // Set-Cookie / Vary: Cookie on the responses below.
+  const supabase = createPublicServerSupabase();
   if (supabase && !filtered) {
     const { data } = await supabase
       .from("explorer_cache")
@@ -90,7 +114,7 @@ export async function GET(request: NextRequest) {
       const payload = data.payload;
       if (!payload.notice) {
         memoryCache.set(key, { payload, fetchedAt: Date.now() });
-        return NextResponse.json(payload);
+        return cachedJson(payload, filtered);
       }
     }
   }
@@ -99,7 +123,7 @@ export async function GET(request: NextRequest) {
     const local = lookupOpeningIndex(fen);
     if (local && local.moves.length > 0) {
       memoryCache.set(key, { payload: local, fetchedAt: Date.now() });
-      return NextResponse.json(local);
+      return cachedJson(local, filtered);
     }
   }
 
@@ -143,5 +167,5 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json(payload);
+  return cachedJson(payload, filtered);
 }

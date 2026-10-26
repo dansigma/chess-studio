@@ -81,6 +81,7 @@ export function jsonResponse(body: unknown, status = 200): Response {
 export interface FakeSupabaseState {
   server?: unknown;
   service?: unknown;
+  public?: unknown;
 }
 
 /**
@@ -93,7 +94,7 @@ export function mockSupabaseModules(state: FakeSupabaseState): void {
   mock.module("@/src/lib/supabase/server.ts", {
     namedExports: {
       createServerSupabase: async () => state.server ?? null,
-      createPublicServerSupabase: () => null,
+      createPublicServerSupabase: () => state.public ?? null,
     },
   });
   mock.module("@/src/lib/supabase/admin.ts", {
