@@ -8,6 +8,7 @@ import {
   SEARCH_TIMEOUT_MS,
   UA,
   fetchTimeout,
+  mapWithConcurrency,
   playerResult,
 } from "./shared";
 import { readCapped } from "../read-capped";
@@ -26,39 +27,48 @@ export type ChesscomPlayer = {
 };
 
 export async function searchChesscom(query: string): Promise<PlayerHit[]> {
+  const candidates = usernameCandidates(query);
+  const fetched = await mapWithConcurrency(candidates, 2, (candidate) => lookupChesscomCandidate(candidate));
   const hits: PlayerHit[] = [];
   const seen = new Set<string>();
-  for (const candidate of usernameCandidates(query)) {
-    try {
-      const response = await fetchTimeout(
-        `https://api.chess.com/pub/player/${encodeURIComponent(candidate.toLowerCase())}`,
-        { headers: chesscomHeaders(), cache: "no-store" },
-        SEARCH_TIMEOUT_MS,
-      );
-      if (!response.ok) {
-        continue;
-      }
-      const player = (await response.json()) as ChesscomPlayer;
-      const username = player.username ?? candidate.toLowerCase();
-      const key = username.toLowerCase();
-      if (seen.has(key)) {
-        continue;
-      }
-      seen.add(key);
-      const display = usableDisplayName(player.name, username);
-      hits.push({
-        id: `chesscom:${username}`,
-        source: "chesscom",
-        username,
-        displayName: player.title ? `${player.title} ${display}` : display,
-        subtitle: `Chess.com · ${username}`,
-        title: player.title,
-      });
-    } catch {
-      // try remaining candidates
+  for (const hit of fetched) {
+    if (!hit) {
+      continue;
     }
+    const key = hit.username.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    hits.push(hit);
   }
   return hits;
+}
+
+async function lookupChesscomCandidate(candidate: string): Promise<PlayerHit | null> {
+  try {
+    const response = await fetchTimeout(
+      `https://api.chess.com/pub/player/${encodeURIComponent(candidate.toLowerCase())}`,
+      { headers: chesscomHeaders(), cache: "no-store" },
+      SEARCH_TIMEOUT_MS,
+    );
+    if (!response.ok) {
+      return null;
+    }
+    const player = (await response.json()) as ChesscomPlayer;
+    const username = player.username ?? candidate.toLowerCase();
+    const display = usableDisplayName(player.name, username);
+    return {
+      id: `chesscom:${username}`,
+      source: "chesscom",
+      username,
+      displayName: player.title ? `${player.title} ${display}` : display,
+      subtitle: `Chess.com · ${username}`,
+      title: player.title,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export type ChesscomArchiveGame = {

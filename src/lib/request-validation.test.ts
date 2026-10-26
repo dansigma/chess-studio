@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isExplorerFen, isPlayerUsername, isSearchQuery, isStudioPlayerName } from "./request-validation.ts";
+import {
+  isDisplayText,
+  isExplorerFen,
+  isPlayerUsername,
+  isSearchQuery,
+  isStudioPlayerName,
+} from "./request-validation.ts";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const START_FEN_NO_COUNTERS = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -";
@@ -54,4 +60,18 @@ test("studio names allow Last, First spellings the strict username rejects", () 
   assert.equal(isStudioPlayerName("a" + String.fromCharCode(10) + "b"), false);
   assert.equal(isStudioPlayerName(String.fromCharCode(0) + "abc"), false);
   assert.equal(isStudioPlayerName("Capablanca\u202e, Jose"), false);
+});
+
+test("display text allows absent values and enforces the max length", () => {
+  assert.equal(isDisplayText(undefined, 80), true);
+  assert.equal(isDisplayText(null, 80), true);
+  assert.equal(isDisplayText("Hikaru", 80), true);
+  assert.equal(isDisplayText("a".repeat(80), 80), true);
+  assert.equal(isDisplayText("a".repeat(81), 80), false);
+  assert.equal(isDisplayText("a".repeat(120), 120), true);
+  assert.equal(isDisplayText("a".repeat(121), 120), false);
+  assert.equal(isDisplayText("", 80), false);
+  assert.equal(isDisplayText("   ", 80), false);
+  assert.equal(isDisplayText("a" + String.fromCharCode(10) + "b", 80), false);
+  assert.equal(isDisplayText(42 as unknown as string, 80), false);
 });

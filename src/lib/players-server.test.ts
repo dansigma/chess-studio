@@ -2,9 +2,21 @@
 // shared through the process-wide games cache; lichess caching is unchanged.
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
-import type { PlayerGame } from "@/src/lib/player-types.ts";
+import type { PlayerGame, PlayerHit } from "@/src/lib/player-types.ts";
 
-const state = { viewer: "A", studioCalls: 0, lichessCalls: 0, studioCount: 1 };
+function hit(id: string, source: PlayerHit["source"]): PlayerHit {
+  return { id, source, username: id, displayName: id, subtitle: source };
+}
+
+const state = {
+  viewer: "A",
+  studioCalls: 0,
+  lichessCalls: 0,
+  studioCount: 1,
+  failLichess: false,
+  failChesscom: false,
+  failStudio: false,
+};
 
 function game(id: string, playedAt: number): PlayerGame {
   return {
@@ -27,7 +39,12 @@ function game(id: string, playedAt: number): PlayerGame {
 
 mock.module("@/src/lib/players/studio.ts", {
   namedExports: {
-    searchStudioDatabase: async () => [],
+    searchStudioDatabase: async () => {
+      if (state.failStudio) {
+        throw new Error("studio down");
+      }
+      return [hit("studio:club-night", "studio")];
+    },
     studioGames: async () => {
       state.studioCalls += 1;
       if (state.studioCount > 1) {
@@ -39,7 +56,12 @@ mock.module("@/src/lib/players/studio.ts", {
 });
 mock.module("@/src/lib/players/lichess.ts", {
   namedExports: {
-    searchLichess: async () => [],
+    searchLichess: async () => {
+      if (state.failLichess) {
+        throw new Error("lichess down");
+      }
+      return [hit("lichess:hikaru", "lichess")];
+    },
     lichessGames: async () => {
       state.lichessCalls += 1;
       return [game("li1", 1)];
@@ -47,11 +69,19 @@ mock.module("@/src/lib/players/lichess.ts", {
   },
 });
 mock.module("@/src/lib/players/chesscom.ts", {
-  namedExports: { searchChesscom: async () => [], chesscomGames: async () => [] },
+  namedExports: {
+    searchChesscom: async () => {
+      if (state.failChesscom) {
+        throw new Error("chesscom down");
+      }
+      return [hit("chesscom:hikaru", "chesscom")];
+    },
+    chesscomGames: async () => [],
+  },
 });
 mock.module("@/src/lib/players/fide.ts", { namedExports: { searchFidePlayers: async () => [] } });
 
-const { loadPlayerGames } = await import("@/src/lib/players-server.ts");
+const { loadPlayerGames, searchPlayers } = await import("@/src/lib/players-server.ts");
 
 test("studio games are never shared between sessions", async () => {
   state.viewer = "A";
@@ -78,4 +108,52 @@ test("lichess results are still cached", async () => {
   const again = await loadPlayerGames("lichess", "hikaru", "Hikaru N");
   assert.equal(state.lichessCalls, 1);
   assert.equal(again.player.displayName, "Hikaru N");
+});
+
+test("searchPlayers merges all sources with no failures", async () => {
+  state.failLichess = false;
+  state.failChesscom = false;
+  state.failStudio = false;
+  const result = await searchPlayers("hikaru");
+  assert.deepEqual(result.failedSources, []);
+  assert.deepEqual(
+    result.players.map((player) => player.id),
+    ["studio:club-night", "chesscom:hikaru", "lichess:hikaru"],
+  );
+});
+
+test("searchPlayers reports the one source that failed", async () => {
+  state.failLichess = true;
+  state.failChesscom = false;
+  state.failStudio = false;
+  try {
+    const result = await searchPlayers("hikaru");
+    assert.deepEqual(result.failedSources, ["lichess"]);
+    assert.deepEqual(
+      result.players.map((player) => player.id),
+      ["studio:club-night", "chesscom:hikaru"],
+    );
+  } finally {
+    state.failLichess = false;
+  }
+});
+
+test("searchPlayers reports all three sources when every source fails", async () => {
+  state.failLichess = true;
+  state.failChesscom = true;
+  state.failStudio = true;
+  try {
+    const result = await searchPlayers("hikaru");
+    assert.deepEqual(result.players, []);
+    assert.deepEqual(result.failedSources, ["lichess", "chesscom", "studio"]);
+  } finally {
+    state.failLichess = false;
+    state.failChesscom = false;
+    state.failStudio = false;
+  }
+});
+
+test("searchPlayers returns empty without failures for short queries", async () => {
+  const result = await searchPlayers("x");
+  assert.deepEqual(result, { players: [], failedSources: [] });
 });
