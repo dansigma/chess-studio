@@ -110,18 +110,49 @@ export interface FakeTableConfig {
   writeError?: unknown;
   /** Error returned by the terminal `maybeSingle()` call. */
   selectError?: unknown;
+  /** Rows returned when a `select().eq()` chain is awaited directly (no terminal call). */
+  selectRows?: unknown[] | null;
+  /** Error returned by `update()` on this table. */
+  updateError?: unknown;
+  /** Error returned by `delete()` on this table. */
+  deleteError?: unknown;
+  /** Rows returned by the terminal `select()` of a `delete()` chain. */
+  deletedRows?: unknown[] | null;
 }
 
 export interface SupabaseCallLog {
   from: string[];
   upsert: Array<{ table: string; row: unknown }>;
   insert: Array<{ table: string; row: unknown }>;
+  update: Array<{ table: string; row: unknown }>;
+  deleted: Array<{ table: string }>;
   updateUserById: Array<{ id: string; attrs: unknown }>;
 }
 
 interface FakeSelectable {
   eq(col: string, val: unknown): FakeSelectable;
   maybeSingle(): Promise<{ data: unknown; error: unknown }>;
+  then<TResult1 = { data: unknown; error: unknown }, TResult2 = never>(
+    onfulfilled?: ((value: { data: unknown; error: unknown }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): PromiseLike<TResult1 | TResult2>;
+}
+
+interface FakeUpdateChain {
+  eq(col: string, val: unknown): FakeUpdateChain;
+  then<TResult1 = { data: unknown; error: unknown }, TResult2 = never>(
+    onfulfilled?: ((value: { data: unknown; error: unknown }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): PromiseLike<TResult1 | TResult2>;
+}
+
+interface FakeDeleteChain {
+  eq(col: string, val: unknown): FakeDeleteChain;
+  select(...args: unknown[]): Promise<{ data: unknown; error: unknown }>;
+  then<TResult1 = { data: unknown; error: unknown }, TResult2 = never>(
+    onfulfilled?: ((value: { data: unknown; error: unknown }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): PromiseLike<TResult1 | TResult2>;
 }
 
 export interface FakeSupabaseClient {
@@ -131,6 +162,8 @@ export interface FakeSupabaseClient {
     select(...args: unknown[]): FakeSelectable;
     upsert(row: unknown): Promise<{ data: unknown; error: unknown }>;
     insert(row: unknown): Promise<{ data: unknown; error: unknown }>;
+    update(row: unknown): FakeUpdateChain;
+    delete(): FakeDeleteChain;
   };
   auth: {
     admin: {
@@ -158,8 +191,12 @@ export interface FakeSupabaseAuthHandlers {
 
 /**
  * Chainable query-builder fake covering exactly the chains routes use:
- * `from(t).select(..).eq(..)[.eq(..)].maybeSingle()`, `from(t).upsert(row)`,
- * `from(t).insert(row)`, `auth.admin.updateUserById(id, attrs)`, plus the auth
+ * `from(t).select(..).eq(..)[.eq(..)].maybeSingle()`,
+ * `from(t).select(..).eq(..)` awaited directly (slug pre-checks),
+ * `from(t).upsert(row)`, `from(t).insert(row)`,
+ * `from(t).update(row).eq(..)` (SIG-1113 course review actions),
+ * `from(t).delete().eq(..)[.eq(..).select(..)]` (SIG-1113 course removal),
+ * `auth.admin.updateUserById(id, attrs)`, plus the auth
  * methods actions/callback use (`signInWithPassword`, `signUp`,
  * `resetPasswordForEmail`, `signOut`, `exchangeCodeForSession`). Auth calls
  * are recorded in `authCalls` and answered by per-test `handlers`.
@@ -172,16 +209,23 @@ export function createFakeSupabase(
     updateUserError?: unknown;
   } = {},
 ): FakeSupabaseClient {
-  const calls: SupabaseCallLog = { from: [], upsert: [], insert: [], updateUserById: [] };
+  const calls: SupabaseCallLog = { from: [], upsert: [], insert: [], update: [], deleted: [], updateUserById: [] };
   const authCalls: FakeSupabaseClient["authCalls"] = [];
   const resolveMaybeSingle = (table: string) => ({
     data: options.tables?.[table]?.maybeSingle ?? null,
     error: options.tables?.[table]?.selectError ?? null,
   });
   const selectable = (table: string): FakeSelectable => {
+    // Awaiting the chain directly (no terminal call) resolves the raw
+    // select rows — the real client is thenable the same way.
     const chain: FakeSelectable = {
       eq: () => chain,
       maybeSingle: async () => resolveMaybeSingle(table),
+      then: (onfulfilled, onrejected) =>
+        Promise.resolve({
+          data: options.tables?.[table]?.selectRows ?? null,
+          error: options.tables?.[table]?.selectError ?? null,
+        }).then(onfulfilled, onrejected),
     };
     return chain;
   };
@@ -199,6 +243,37 @@ export function createFakeSupabase(
         insert: async (row: unknown) => {
           calls.insert.push({ table, row });
           return { data: row, error: options.tables?.[table]?.writeError ?? null };
+        },
+        update: (row: unknown) => {
+          calls.update.push({ table, row });
+          const updateChain: FakeUpdateChain = {
+            eq: () => updateChain,
+            then: (onfulfilled, onrejected) =>
+              Promise.resolve({
+                data: [row],
+                error: options.tables?.[table]?.updateError ?? null,
+              }).then(onfulfilled, onrejected),
+          };
+          return updateChain;
+        },
+        delete: () => {
+          calls.deleted.push({ table });
+          const deleteChain: FakeDeleteChain = {
+            eq: () => deleteChain,
+            select: async () => ({
+              data: options.tables?.[table]?.deletedRows ?? [{ id: "deleted" }],
+              error: options.tables?.[table]?.deleteError ?? null,
+            }),
+            // The super-admin path awaits the chain directly
+            // (`delete().eq(id)`); a thenable resolves success so existing
+            // `const { error } = await ...` call sites see no error.
+            then: (onfulfilled, onrejected) =>
+              Promise.resolve({
+                data: options.tables?.[table]?.deletedRows ?? [{ id: "deleted" }],
+                error: options.tables?.[table]?.deleteError ?? null,
+              }).then(onfulfilled, onrejected),
+          };
+          return deleteChain;
         },
       };
     },

@@ -86,6 +86,9 @@ export const COURSE_ADMIN_STRING_KEYS = [
   "course.admin.error.pgnUnreadable",
   "course.admin.error.loadFailed",
   "course.admin.error.staleCopy",
+  "course.admin.error.not_owner",
+  "course.admin.error.invalid_status_change",
+  "course.admin.error.note_required",
 ] as const;
 
 export type CourseAdminStringKey = (typeof COURSE_ADMIN_STRING_KEYS)[number];
@@ -175,6 +178,9 @@ const EN: Record<CourseAdminStringKey, string> = {
   "course.admin.error.pgnUnreadable": "That PGN file could not be read.",
   "course.admin.error.loadFailed": "Published courses could not be loaded.",
   "course.admin.error.staleCopy": "Published, but the browser copy could not be removed — it may reappear on reload.",
+  "course.admin.error.not_owner": "You can only change your own courses.",
+  "course.admin.error.invalid_status_change": "This course cannot change status like that.",
+  "course.admin.error.note_required": "A review note of 3 to 500 characters is required.",
 };
 
 const PT_BR: Record<CourseAdminStringKey, string> = {
@@ -256,6 +262,9 @@ const PT_BR: Record<CourseAdminStringKey, string> = {
   "course.admin.error.pgnUnreadable": "Não foi possível ler esse arquivo PGN.",
   "course.admin.error.loadFailed": "Não foi possível carregar os cursos publicados.",
   "course.admin.error.staleCopy": "Publicado, mas a cópia do navegador não pôde ser removida — ela pode reaparecer ao recarregar.",
+  "course.admin.error.not_owner": "Você só pode alterar os seus próprios cursos.",
+  "course.admin.error.invalid_status_change": "Este curso não pode mudar de situação dessa forma.",
+  "course.admin.error.note_required": "É necessária uma nota de revisão de 3 a 500 caracteres.",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;
