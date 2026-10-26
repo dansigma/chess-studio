@@ -4,6 +4,7 @@ import type { PieceSet } from "@/src/chess/piece-sets";
 import type { MoveNotation } from "@/src/chess/move-notation";
 import type { ColorScheme } from "@/src/studio/color-scheme";
 import type { GameTree, Path } from "@/src/chess/tree";
+import type { DeviationEvent } from "@/src/chess/repertoire-deviation";
 import type { ReviewAnnotationEdit } from "@/src/chess/review-annotate";
 import type { SpacedRepetitionItem } from "@/src/chess/repertoire";
 import type { GameHeaders } from "@/src/chess/pgn";
@@ -243,6 +244,8 @@ export type StudioState = {
   hydrateMistakeExercises: () => Promise<void>;
   renameActive: (title: string) => void;
   setBoardRepertoire: (boardId: string, color: BoardOrientation | null) => void;
+  trainDeviationLine: (event: DeviationEvent, color: BoardOrientation) => void;
+  addGapToRepertoire: (event: DeviationEvent, color: BoardOrientation) => void;
   setExplorer: (data: ExplorerResponse | null) => void;
   setExplorerLoading: (loading: boolean) => void;
   setExplorerError: (error: string | null) => void;

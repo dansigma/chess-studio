@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Repertoire deviation fixes: "Train this line" / "Add to repertoire" (SIG-1094)
+
+- New pure helpers in `src/chess/repertoire-actions.ts`: `findPathToPosition` (DFS pre-order path to a FEN,
+  transposition-aware), `withMoveDue` (marks a repertoire move due, preserves interval/ease), and
+  `addOpponentMove` (appends the opponent novelty once via `playMove` dedupe).
+- New store actions in `src/store/slices/repertoire-actions.ts`: `trainDeviationLine` activates the side's
+  repertoire board at the deviation position, marks the repertoire's own move due, and starts training there;
+  `addGapToRepertoire` derives the post-move FEN from the event via chess.js, appends the novelty once, selects
+  it, and asks for the user's reply. Both fail closed with an explanatory status when no board is marked.
+- My Games rows and the Review panel render the one-click fix ("Train this line" for user deviations, "Add to
+  repertoire" for opponent gaps; EN + PT-BR), disabled with an explanatory tooltip when the side has no marked
+  repertoire board.
+- Six new keys in `src/i18n/repertoire-strings.ts` (EN + PT-BR).
+
 ### Repertoire deviations in My Games + Review (SIG-1093)
 
 - New `src/lib/my-games/deviation-for-game.ts`: `deviationForGame({ pgn, color, repertoireTree | null })` returns the

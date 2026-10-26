@@ -15,6 +15,7 @@ import { createBoardsSlice } from "./slices/boards";
 import { createEngineSlice } from "./slices/engine";
 import { DEFAULT_SETTINGS, createSettingsSlice } from "./slices/settings";
 import { createBoardEditSlice } from "./slices/board-edit";
+import { createRepertoireActionsSlice } from "./slices/repertoire-actions";
 import { createDockSlice } from "./slices/dock";
 import {
   forgetRemoteDockSync as _forgetRemoteDockSync,
@@ -91,6 +92,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   ...createSettingsSlice(set, get, undefined as never),
   // SIG-944: board-edit/import/setup actions live in slices/board-edit.ts.
   ...createBoardEditSlice(set, get, undefined as never),
+  // SIG-1094: deviation one-click fixes live in slices/repertoire-actions.ts.
+  ...createRepertoireActionsSlice(set, get, undefined as never),
   // SIG-944: dock layout state/actions live in slices/dock.ts.
   ...createDockSlice(set, get, undefined as never),
   setActivity: (activity) =>
