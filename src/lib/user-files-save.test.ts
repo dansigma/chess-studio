@@ -258,11 +258,11 @@ test("persistRemoteDatabase: over-1 MB pgn is rejected client-side without touch
   const { calls } = installFakeSupabase();
 
   const oversized = { ...makePgnGame(0), pgn: `1. e4 e5 *${"e".repeat(1_000_000)}` };
-  const result = await persistRemoteDatabase({ ...databaseWithGames(0), games: [oversized] }, "user-1");
+  const result = await persistRemoteDatabase({ ...databaseWithGames(0), remoteId: null, games: [oversized] }, "user-1");
 
+  assert.equal(result.remoteId, null);
   assert.equal(result.saveError, "One game is larger than 1 MB and was not saved.");
-  assert.ok(calls.every((call) => call.op !== "insert-games"), "no games may be sent");
-  assert.ok(!calls.some((call) => call.op === "rpc-swap"), "swap must not run after a client-side rejection");
+  assert.deepEqual(calls, [], "no database request may run before the client-side size check");
 });
 
 test("persistRemoteDatabase: success swaps once after the last chunk and updates game_count from the swap", async () => {

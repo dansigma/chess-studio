@@ -121,9 +121,17 @@ export function libraryFromPgn(name: string, pgn: string, folderId: string | nul
 
 export const MAX_GAME_PGN_BYTES = 1_000_000;
 
-export type SaveErrorCode = "pgn_too_large" | "too_many_games" | "too_many_databases" | "save_failed";
+export type SaveErrorCode =
+  | "pgn_too_large"
+  | "board_too_large"
+  | "layout_too_large"
+  | "too_many_games"
+  | "too_many_databases"
+  | "save_failed";
 
 export const GAME_PGN_TOO_LARGE_MESSAGE = "One game is larger than 1 MB and was not saved.";
+export const BOARD_PGN_TOO_LARGE_MESSAGE = "One board is larger than 2 MB and was not saved.";
+export const LAYOUT_TOO_LARGE_MESSAGE = "The layout is larger than 256 KB and was not saved.";
 export const TOO_MANY_GAMES_MESSAGE = "This database holds more than 5,000 games. Remove some games and try again.";
 export const TOO_MANY_DATABASES_MESSAGE = "You can keep up to 50 personal databases. Delete one to add another.";
 
@@ -143,10 +151,10 @@ export function databaseSaveErrorMessage(error: { message?: string; code?: strin
       return GAME_PGN_TOO_LARGE_MESSAGE;
     }
     if (message.includes("boards_pgn_size")) {
-      return "One board is larger than 2 MB and was not saved.";
+      return BOARD_PGN_TOO_LARGE_MESSAGE;
     }
     if (message.includes("user_settings_layout_size")) {
-      return "The layout is larger than 256 KB and was not saved.";
+      return LAYOUT_TOO_LARGE_MESSAGE;
     }
     return "Some content exceeds the size limit and was not saved.";
   }
@@ -162,6 +170,9 @@ export async function persistRemoteDatabase(
     return { remoteId: null, indexError: null, saveError: null };
   }
   let remoteId = database.remoteId;
+  if (database.games.some((game) => new TextEncoder().encode(game.pgn).length > MAX_GAME_PGN_BYTES)) {
+    return { remoteId, indexError: null, saveError: GAME_PGN_TOO_LARGE_MESSAGE };
+  }
   if (!remoteId) {
     const { data, error } = await supabase
       .from("game_databases")
@@ -188,10 +199,6 @@ export async function persistRemoteDatabase(
       .eq("id", remoteId);
   }
   if (database.games.length > 0) {
-    const oversized = database.games.some((game) => new TextEncoder().encode(game.pgn).length > MAX_GAME_PGN_BYTES);
-    if (oversized) {
-      return { remoteId, indexError: null, saveError: GAME_PGN_TOO_LARGE_MESSAGE };
-    }
     const prepared = database.games.map((game) => {
       const imported = importPgn(game.pgn);
       const headers = imported.headers;
