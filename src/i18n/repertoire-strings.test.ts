@@ -24,3 +24,42 @@ test("repertoire mark entries are translated", () => {
   assert.equal(tRepertoire("en", "repertoire.mark.remove"), "Remove repertoire mark");
   assert.equal(tRepertoire("pt-br", "repertoire.mark.remove"), "Remover marca de repertório");
 });
+
+test("repertoire deviation sentences are translated", () => {
+  assert.equal(
+    tRepertoire("en", "repertoire.deviation.leftBadge", { move: "7…Nf6" }),
+    "Left your repertoire at 7…Nf6",
+  );
+  assert.equal(
+    tRepertoire("pt-br", "repertoire.deviation.leftBadge", { move: "7…Nf6" }),
+    "Você saiu do repertório em 7…Nf6",
+  );
+  assert.equal(
+    tRepertoire("en", "repertoire.deviation.gapBadge", { move: "9…h5" }),
+    "Opponent novelty at 9…h5",
+  );
+  assert.equal(
+    tRepertoire("pt-br", "repertoire.deviation.gapBadge", { move: "9…h5" }),
+    "Novidade do adversário em 9…h5",
+  );
+  assert.equal(tRepertoire("en", "repertoire.deviation.lineEnded"), "Line ended");
+  assert.equal(tRepertoire("pt-br", "repertoire.deviation.lineEnded"), "Linha encerrada");
+  assert.ok(tRepertoire("en", "repertoire.deviation.noRepertoireHint").length > 0);
+  assert.ok(tRepertoire("pt-br", "repertoire.deviation.noRepertoireHint").length > 0);
+  assert.equal(
+    tRepertoire("en", "repertoire.deviation.reviewUser", { played: "7…Nf6", repertoire: "7…Be7" }),
+    "You left your repertoire at 7…Nf6; your line is 7…Be7",
+  );
+  assert.equal(
+    tRepertoire("pt-br", "repertoire.deviation.reviewUser", { played: "7…Nf6", repertoire: "7…Be7" }),
+    "Você saiu do repertório em 7…Nf6; sua linha é 7…Be7",
+  );
+  assert.equal(
+    tRepertoire("en", "repertoire.deviation.reviewGap", { played: "9…h5" }),
+    "Your repertoire has no answer to 9…h5",
+  );
+  assert.equal(
+    tRepertoire("pt-br", "repertoire.deviation.reviewGap", { played: "9…h5" }),
+    "Seu repertório não tem resposta para 9…h5",
+  );
+});

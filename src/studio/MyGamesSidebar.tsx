@@ -13,9 +13,10 @@
 // analysis (same cache key as the interactive hook).
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChartSpline, RefreshCw } from "lucide-react";
 import { formatTimeClass, formatYearMonth } from "@/src/lib/game-date";
+import { deviationBadgeText, deviationForGame } from "@/src/lib/my-games/deviation-for-game";
 import { loadMyGames, MY_GAMES_PAGE_SIZE } from "@/src/lib/my-games/load-games";
 import { loadLinkedAccounts, type LinkedAccountSource } from "@/src/lib/my-games/linked-accounts";
 import {
@@ -29,6 +30,7 @@ import {
 } from "@/src/lib/my-games/review-queue";
 import type { PlayerGame } from "@/src/lib/player-types";
 import { tMyGames } from "@/src/i18n/my-games-strings";
+import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { tPanels } from "@/src/i18n/studio-panel-strings";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
@@ -333,6 +335,30 @@ export function MyGamesSidebar() {
   const view = myGamesViewState({ user, linkedLoading, gamesLoading, linkedCount, games });
   const syncLabel = syncing ? tMyGames(locale, "myGames.syncing") : tMyGames(locale, "myGames.sync");
 
+  // SIG-1093: repertoire trees for the badge lookup. Primitive-stable
+  // subscriptions (tree identity + mark ids) so badges recompute only when
+  // the games page or a repertoire board changes — never on unrelated
+  // board edits or keystrokes.
+  const whiteRepTree = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "white")?.tree ?? null);
+  const blackRepTree = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "black")?.tree ?? null);
+  const badges = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const game of games) {
+      const tree = game.color === "white" ? whiteRepTree : blackRepTree;
+      const text = deviationBadgeText(
+        locale,
+        deviationForGame({ pgn: game.pgn, color: game.color, repertoireTree: tree }),
+      );
+      if (text) {
+        map.set(game.rowId ?? game.id, text);
+      }
+    }
+    return map;
+  }, [games, whiteRepTree, blackRepTree, locale]);
+  const needsRepHint = games.some((game) =>
+    game.color === "white" ? whiteRepTree === null : blackRepTree === null,
+  );
+
   return (
     <SidebarPanel
       title={tStudioChrome(locale, "chrome.activity.mygames")}
@@ -364,6 +390,8 @@ export function MyGamesSidebar() {
                 ? tMyGames(locale, "myGames.reviewFailed", { count: notice.count })
                 : tMyGames(locale, notice.key === "upstream" ? "myGames.error.upstream" : "myGames.error.unavailable")}
           </p>
+        ) : needsRepHint ? (
+          <p className="text-caption text-studio-muted">{tRepertoire(locale, "repertoire.deviation.noRepertoireHint")}</p>
         ) : undefined
       }
     >
@@ -421,6 +449,7 @@ export function MyGamesSidebar() {
             const detail = [formatTimeClass(game.timeClass), game.opening].filter(Boolean).join(" · ");
             const rowId = game.rowId ?? null;
             const checked = rowId != null && selected.has(rowId);
+            const badge = badges.get(game.rowId ?? game.id) ?? null;
             return (
               <div key={game.id} className="flex items-start gap-1 px-1">
                 {rowId != null && game.pgn?.trim() ? (
@@ -456,6 +485,9 @@ export function MyGamesSidebar() {
                     <span className="mt-0.5 block pl-[52px] text-caption tabular-nums text-studio-accent-text">
                       {Math.round(game.userAccuracy)}
                     </span>
+                  ) : null}
+                  {badge ? (
+                    <span className="mt-0.5 block truncate pl-[52px] text-caption text-studio-muted">{badge}</span>
                   ) : null}
                 </GameOpenRow>
               </div>

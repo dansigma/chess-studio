@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Repertoire deviations in My Games + Review (SIG-1093)
+
+- New `src/lib/my-games/deviation-for-game.ts`: `deviationForGame({ pgn, color, repertoireTree | null })` returns the
+  SIG-1040 deviation event or `null` (no repertoire marked for the side, or missing/empty/unparseable PGN), plus
+  `deviationBadgeText` / `deviationReviewText` sentence builders over whole-sentence EN + PT-BR templates.
+- My Games rows show a compact badge against the marked repertoire board for the row's color ("Left your repertoire at
+  7…Nf6" / "Opponent novelty at 9…h5" / "Line ended"; nothing when no repertoire is marked, with a one-line hint in the
+  list header pointing to the board menu). Badges are memoized per page + repertoire trees.
+- The Review panel shows a single deviation line below the report card for the active board's orientation ("You left
+  your repertoire at 7…Nf6; your line is 7…Be7" / "Your repertoire has no answer to 9…h5"), engine-independent.
+- Six new keys in `src/i18n/repertoire-strings.ts` (EN + PT-BR).
+
 ### Repertoire board marks (SIG-1092)
 
 - A board can be marked as the White or Black repertoire from the board context menu ("Use as White repertoire" /
