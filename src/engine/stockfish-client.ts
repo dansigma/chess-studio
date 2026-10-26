@@ -92,7 +92,15 @@ function applyUci(chess: Chess, uci: string) {
   return chess.move({ from, to, promotion });
 }
 
+/** Test hook (SIG-1080): counts SAN resolutions via the emit-time cache. */
+export let pvSanComputations = 0;
+
+export function resetPvSanComputationsForTests(): void {
+  pvSanComputations = 0;
+}
+
 function pvToSan(fen: string, pv: string[]): string[] {
+  pvSanComputations += 1;
   const chess = new Chess(fen);
   const sans: string[] = [];
   for (const uci of pv) {
@@ -125,7 +133,7 @@ export function positionAfterPv(
   return { fen: chess.fen(), lastMove };
 }
 
-function parseInfo(line: string, fen: string): EngineLine | null {
+function parseInfo(line: string): Omit<EngineLine, "pvSan"> | null {
   if (!line.startsWith("info ") || !line.includes(" pv ")) {
     return null;
   }
@@ -145,7 +153,6 @@ function parseInfo(line: string, fen: string): EngineLine | null {
     scoreCp: cpMatch ? Number(cpMatch[1]) : null,
     mate: mateMatch ? Number(mateMatch[1]) : null,
     pvUci,
-    pvSan: pvToSan(fen, pvUci),
     bound: boundMatch ? (boundMatch[1] as "upper" | "lower") : null,
   };
 }
@@ -158,7 +165,9 @@ export class StockfishEngine {
   private depthTarget = 22;
   private multiPv = 2;
   private threads = 1;
-  private lines: EngineLine[] = [];
+  private lines: Omit<EngineLine, "pvSan">[] = [];
+  // SIG-1080: pvSan is resolved at emit time only for emitted lines, cached
+  // per distinct (fen, pv) so an unchanged line is not recomputed.
   private depth = 0;
   private nps = 0;
   private nodes = 0;
@@ -186,6 +195,7 @@ export class StockfishEngine {
    */
   private outstandingSearches = 0;
   private readyokForCycle = false;
+  private pvSanCache = new Map<string, string[]>();
   readonly threaded = supportsEngineThreads();
 
   constructor(build: EngineBuild = "lite") {
@@ -263,6 +273,7 @@ export class StockfishEngine {
     this.multiPv = clampLines(multiPv);
     this.threads = this.threaded ? clampThreads(threads) : 1;
     this.lines = [];
+    this.pvSanCache.clear();
     this.depth = 0;
     this.nps = 0;
     this.nodes = 0;
@@ -365,7 +376,7 @@ export class StockfishEngine {
     if (nodesMatch) {
       this.nodes = Number(nodesMatch[1]);
     }
-    const parsed = parseInfo(message, this.fen);
+    const parsed = parseInfo(message);
     if (!parsed) {
       if (npsMatch || nodesMatch) {
         this.emit();
@@ -386,17 +397,32 @@ export class StockfishEngine {
     this.emit();
   }
 
+  private resolvePvSan(pvUci: string[]): string[] {
+    const key = `${this.fen}\n${pvUci.join(" ")}`;
+    const cached = this.pvSanCache.get(key);
+    if (cached) {
+      return cached;
+    }
+    const san = pvToSan(this.fen, pvUci);
+    if (this.pvSanCache.size >= 500) {
+      this.pvSanCache.clear();
+    }
+    this.pvSanCache.set(key, san);
+    return san;
+  }
+
   private snapshot(): EngineInfo {
+    const fen = this.fen;
     return {
       depth: this.depth,
       running: this.running,
       ready: this.ready,
       failed: this.failed,
-      lines: this.lines,
+      lines: this.lines.map((line) => ({ ...line, pvSan: this.resolvePvSan(line.pvUci) })),
       nps: this.nps,
       nodes: this.nodes,
       threaded: this.threaded,
-      fen: this.fen,
+      fen,
     };
   }
 
