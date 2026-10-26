@@ -25,8 +25,7 @@ test("repertoire mark entries are translated", () => {
   assert.equal(tRepertoire("pt-br", "repertoire.mark.remove"), "Remover marca de repertório");
 });
 
-test("repertoire deviation sentences are translated", () => {
-  assert.equal(
+test("repertoire deviation sentences are translated", () => {  assert.equal(
     tRepertoire("en", "repertoire.deviation.leftBadge", { move: "7…Nf6" }),
     "Left your repertoire at 7…Nf6",
   );
@@ -61,5 +60,38 @@ test("repertoire deviation sentences are translated", () => {
   assert.equal(
     tRepertoire("pt-br", "repertoire.deviation.reviewGap", { played: "9…h5" }),
     "Seu repertório não tem resposta para 9…h5",
+  );
+});
+
+test("repertoire deviation action sentences are translated", () => {
+  assert.equal(tRepertoire("en", "repertoire.deviation.trainLine"), "Train this line");
+  assert.equal(tRepertoire("pt-br", "repertoire.deviation.trainLine"), "Treinar esta linha");
+  assert.equal(tRepertoire("en", "repertoire.deviation.addGap"), "Add to repertoire");
+  assert.equal(tRepertoire("pt-br", "repertoire.deviation.addGap"), "Adicionar ao repertório");
+  assert.equal(
+    tRepertoire("en", "repertoire.deviation.noBoard"),
+    "Mark a board as your White or Black repertoire from the board menu first.",
+  );
+  assert.equal(
+    tRepertoire("pt-br", "repertoire.deviation.noBoard"),
+    "Marque um tabuleiro como seu repertório de Brancas ou Pretas no menu do tabuleiro primeiro.",
+  );
+  assert.equal(
+    tRepertoire("en", "repertoire.deviation.gapAdded"),
+    "Opponent move added — now play your reply.",
+  );
+  assert.equal(
+    tRepertoire("pt-br", "repertoire.deviation.gapAdded"),
+    "Lance do adversário adicionado — agora jogue sua resposta.",
+  );
+  assert.ok(tRepertoire("en", "repertoire.deviation.gapInvalid").length > 0);
+  assert.ok(tRepertoire("pt-br", "repertoire.deviation.gapInvalid").length > 0);
+  assert.equal(
+    tRepertoire("en", "repertoire.deviation.missingLine"),
+    "That line is no longer in the repertoire.",
+  );
+  assert.equal(
+    tRepertoire("pt-br", "repertoire.deviation.missingLine"),
+    "Essa linha não está mais no repertório.",
   );
 });

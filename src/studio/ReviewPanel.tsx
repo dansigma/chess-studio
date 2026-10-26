@@ -29,9 +29,10 @@ import {
 } from "./review/review-chart";
 import { useGameReview } from "./review/useGameReview";
 import { WhyBlock } from "./review/WhyBlock";
-import { DeviationLine } from "./review/DeviationLine";
+import { DeviationAction, DeviationLine } from "./review/DeviationLine";
 import { deviationReviewText } from "@/src/lib/my-games/deviation-for-game";
-import { findDeviation } from "@/src/chess/repertoire-deviation";
+import { tRepertoire } from "@/src/i18n/repertoire-strings";
+import { findDeviation, type DeviationEvent } from "@/src/chess/repertoire-deviation";
 import { buildReviewAnnotations, type ReviewAnnotationOptions } from "@/src/chess/review-annotate";
 import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-board-image";
 import { getFenAt, getNodeAt, pathAlongLine, pathsEqual, variationPoints } from "@/src/chess/tree";
@@ -196,20 +197,39 @@ export function ReviewPanel() {
   // chain). Engine-independent: renders before/without any review rows.
   // When the active board IS the repertoire board the event is trivially
   // `none`, so no self-comparison special-case is needed.
+  // SIG-1094: the same event drives the one-click fix button below the
+  // line; the component stays presentational (button + dispatch live here).
   const repertoireTree = useStudioStore((state) =>
     board.orientation === "white"
       ? (state.boards.find((b) => b.repertoireColor === "white")?.tree ?? null)
       : (state.boards.find((b) => b.repertoireColor === "black")?.tree ?? null),
   );
-  const deviationLine = useMemo(() => {
+  const deviationEvent: DeviationEvent | null = useMemo(() => {
     if (!repertoireTree || board.tree.children.length === 0) {
       return null;
     }
-    return deviationReviewText(
-      locale,
-      findDeviation({ repertoire: repertoireTree, game: board.tree, userColor: board.orientation }),
-    );
-  }, [repertoireTree, board.tree, board.orientation, locale]);
+    return findDeviation({ repertoire: repertoireTree, game: board.tree, userColor: board.orientation });
+  }, [repertoireTree, board.tree, board.orientation]);
+  const deviationLine = useMemo(() => {
+    if (!deviationEvent) {
+      return null;
+    }
+    return deviationReviewText(locale, deviationEvent);
+  }, [deviationEvent, locale]);
+  const trainDeviationLine = useStudioStore((state) => state.trainDeviationLine);
+  const addGapToRepertoire = useStudioStore((state) => state.addGapToRepertoire);
+  const deviationAction =
+    deviationEvent?.kind === "user_deviation"
+      ? {
+          label: tRepertoire(locale, "repertoire.deviation.trainLine"),
+          onClick: () => trainDeviationLine(deviationEvent, board.orientation),
+        }
+      : deviationEvent?.kind === "opponent_gap"
+        ? {
+            label: tRepertoire(locale, "repertoire.deviation.addGap"),
+            onClick: () => addGapToRepertoire(deviationEvent, board.orientation),
+          }
+        : null;
 
   // SIG-968: "Annotate game" reads the live tree for comments/NAGs (the pure
   // builder merges with user text) and resolves each fenBefore from the tree —
@@ -656,6 +676,9 @@ export function ReviewPanel() {
               />
             </div>
             {deviationLine ? <DeviationLine text={deviationLine} /> : null}
+            {deviationAction ? (
+              <DeviationAction label={deviationAction.label} onClick={deviationAction.onClick} />
+            ) : null}
             <div className="flex items-center justify-between gap-2 px-3 py-2">
               <span className="text-caption uppercase tracking-wide text-studio-faint">
                 {tReview(locale, "share.title")}

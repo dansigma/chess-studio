@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChartSpline, RefreshCw } from "lucide-react";
 import { formatTimeClass, formatYearMonth } from "@/src/lib/game-date";
 import { deviationBadgeText, deviationForGame } from "@/src/lib/my-games/deviation-for-game";
+import type { DeviationEvent } from "@/src/chess/repertoire-deviation";
 import { loadMyGames, MY_GAMES_PAGE_SIZE } from "@/src/lib/my-games/load-games";
 import { loadLinkedAccounts, type LinkedAccountSource } from "@/src/lib/my-games/linked-accounts";
 import {
@@ -339,19 +340,35 @@ export function MyGamesSidebar() {
   // subscriptions (tree identity + mark ids) so badges recompute only when
   // the games page or a repertoire board changes — never on unrelated
   // board edits or keystrokes.
+  // SIG-1094: the same memo also keeps the per-row event for the one-click
+  // fix buttons (computed once per row, never called twice).
   const whiteRepTree = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "white")?.tree ?? null);
   const blackRepTree = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "black")?.tree ?? null);
-  const badges = useMemo(() => {
-    const map = new Map<string, string>();
+  const whiteRepBoardId = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "white")?.id ?? null);
+  const blackRepBoardId = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "black")?.id ?? null);
+  const trainDeviationLine = useStudioStore((state) => state.trainDeviationLine);
+  const addGapToRepertoire = useStudioStore((state) => state.addGapToRepertoire);
+  const rowBadges = useMemo(() => {
+    const map = new Map<string, { text: string; fix: { label: string; kind: "user_deviation" | "opponent_gap"; event: DeviationEvent } | null }>();
     for (const game of games) {
       const tree = game.color === "white" ? whiteRepTree : blackRepTree;
-      const text = deviationBadgeText(
-        locale,
-        deviationForGame({ pgn: game.pgn, color: game.color, repertoireTree: tree }),
-      );
-      if (text) {
-        map.set(game.rowId ?? game.id, text);
+      const event = deviationForGame({ pgn: game.pgn, color: game.color, repertoireTree: tree });
+      const text = deviationBadgeText(locale, event);
+      if (!text) {
+        continue;
       }
+      const fix =
+        event && (event.kind === "user_deviation" || event.kind === "opponent_gap")
+          ? {
+              label:
+                event.kind === "user_deviation"
+                  ? tRepertoire(locale, "repertoire.deviation.trainLine")
+                  : tRepertoire(locale, "repertoire.deviation.addGap"),
+              kind: event.kind,
+              event,
+            }
+          : null;
+      map.set(game.rowId ?? game.id, { text, fix });
     }
     return map;
   }, [games, whiteRepTree, blackRepTree, locale]);
@@ -449,7 +466,11 @@ export function MyGamesSidebar() {
             const detail = [formatTimeClass(game.timeClass), game.opening].filter(Boolean).join(" · ");
             const rowId = game.rowId ?? null;
             const checked = rowId != null && selected.has(rowId);
-            const badge = badges.get(game.rowId ?? game.id) ?? null;
+            const row = rowBadges.get(game.rowId ?? game.id) ?? null;
+            const badge = row?.text ?? null;
+            const fix = row?.fix ?? null;
+            const repMissing =
+              game.color === "white" ? whiteRepBoardId === null : blackRepBoardId === null;
             return (
               <div key={game.id} className="flex items-start gap-1 px-1">
                 {rowId != null && game.pgn?.trim() ? (
@@ -488,6 +509,27 @@ export function MyGamesSidebar() {
                   ) : null}
                   {badge ? (
                     <span className="mt-0.5 block truncate pl-[52px] text-caption text-studio-muted">{badge}</span>
+                  ) : null}
+                  {fix ? (
+                    <span className="mt-0.5 block pl-[52px]">
+                      <button
+                        type="button"
+                        title={repMissing ? tRepertoire(locale, "repertoire.deviation.noBoard") : fix.label}
+                        aria-label={fix.label}
+                        disabled={repMissing}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (fix.kind === "user_deviation") {
+                            trainDeviationLine(fix.event, game.color);
+                          } else {
+                            addGapToRepertoire(fix.event, game.color);
+                          }
+                        }}
+                        className="text-caption font-medium text-studio-accent-text hover:underline disabled:cursor-default disabled:text-studio-disabled disabled:hover:no-underline"
+                      >
+                        {fix.label}
+                      </button>
+                    </span>
                   ) : null}
                 </GameOpenRow>
               </div>
