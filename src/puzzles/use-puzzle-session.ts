@@ -147,6 +147,9 @@ export function usePuzzleSession({
   const exclude = useRef(new Set<string>());
   const fenRef = useRef("");
   const advanceTimer = useRef<number | null>(null);
+  // SIG-1103: solve-time clock. Stamped when a puzzle is shown, read when the
+  // attempt commits — time is measured, never limited.
+  const shownAtRef = useRef<number>(0);
 
   useEffect(() => {
     fenRef.current = fen;
@@ -162,6 +165,7 @@ export function usePuzzleSession({
   function showPuzzle(next: CompiledPuzzle) {
     clearAdvance();
     resetResult();
+    shownAtRef.current = Date.now();
     setPuzzle(next);
     setFen(next.fen);
     setPly(0);
@@ -175,7 +179,8 @@ export function usePuzzleSession({
 
   function commit(success: boolean, currentPuzzle: CompiledPuzzle) {
     const score = nextSessionScore(success, sessionSolvedRef.current);
-    if (!applyScore(success, currentPuzzle, score)) {
+    const ms = Math.max(0, Date.now() - shownAtRef.current);
+    if (!applyScore(success, currentPuzzle, score, ms)) {
       return;
     }
     sessionSolvedRef.current = score;

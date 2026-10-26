@@ -94,6 +94,8 @@ test("rated success updates rating and streak", () => {
     puzzleRating: 1200,
     sessionScore: 1,
     now,
+    themes: [],
+    ms: null,
   });
   assert.equal(next.rating, 1216);
   assert.equal(next.solved, 1);
@@ -107,6 +109,8 @@ test("rated success updates rating and streak", () => {
     puzzleRating: 1200,
     sessionScore: 1,
     now,
+    themes: [],
+    ms: null,
   });
   assert.equal(missed.streak, 0);
   assert.equal(missed.bestStreak, 1);
@@ -124,6 +128,8 @@ test("the daily puzzle is stable and counts once", () => {
     puzzleRating: 750,
     sessionScore: 1,
     now,
+    themes: [],
+    ms: null,
   });
   const twice = applyResult(once, {
     id: "queen-corridor",
@@ -132,6 +138,8 @@ test("the daily puzzle is stable and counts once", () => {
     puzzleRating: 750,
     sessionScore: 1,
     now: later,
+    themes: [],
+    ms: null,
   });
   assert.equal(twice.solved, 1);
   assert.equal(twice.rating, 1200);
@@ -157,6 +165,8 @@ test("rush keeps the best score and leaves the rating alone", () => {
     puzzleRating: 880,
     sessionScore: 4,
     now,
+    themes: [],
+    ms: null,
   });
   assert.equal(next.rating, 1200);
   assert.equal(next.rushBest, 4);
@@ -179,8 +189,137 @@ test("a failed puzzle does not award points", () => {
     puzzleRating: 800,
     sessionScore: 0,
     now,
+    themes: [],
+    ms: null,
   });
   assert.equal(missed.xp, 0);
+});
+
+test("rated success and failure record per-motif stats", () => {
+  const now = new Date(2026, 8, 28, 12).getTime();
+  const afterFork = applyResult(emptyProgress(), {
+    id: "knight-fork-queen",
+    mode: "rated",
+    success: true,
+    puzzleRating: 1200,
+    sessionScore: 1,
+    now,
+    themes: ["fork"],
+    ms: 8000,
+  });
+  assert.deepEqual(afterFork.motifs.fork, {
+    attempts: 1,
+    solved: 1,
+    timedAttempts: 1,
+    totalMs: 8000,
+    recent: "1",
+  });
+  const afterPin = applyResult(afterFork, {
+    id: "queenside-pin",
+    mode: "rated",
+    success: false,
+    puzzleRating: 1200,
+    sessionScore: 1,
+    now,
+    themes: ["pin"],
+    ms: null,
+  });
+  assert.deepEqual(afterPin.motifs.pin, {
+    attempts: 1,
+    solved: 0,
+    timedAttempts: 0,
+    totalMs: 0,
+    recent: "0",
+  });
+  // The fork entry is untouched by the pin attempt.
+  assert.deepEqual(afterPin.motifs.fork, afterFork.motifs.fork);
+});
+
+test("motif recording covers streak, rush and daily but skips other modes", () => {
+  const now = new Date(2026, 8, 28, 12).getTime();
+  for (const mode of ["streak", "rush", "daily"] as const) {
+    const next = applyResult(emptyProgress(), {
+      id: `${mode}-puzzle`,
+      mode,
+      success: true,
+      puzzleRating: 1200,
+      sessionScore: 1,
+      now,
+      themes: ["fork"],
+      ms: 1000,
+    });
+    assert.equal(next.motifs.fork?.attempts, 1, mode);
+  }
+  const other = applyResult(emptyProgress(), {
+    id: "future-puzzle",
+    mode: "mistakes" as never,
+    success: true,
+    puzzleRating: 1200,
+    sessionScore: 1,
+    now,
+    themes: ["fork"],
+    ms: 1000,
+  });
+  assert.deepEqual(other.motifs, {});
+});
+
+test("repeated daily on the same day records no motif stats", () => {
+  const now = new Date(2026, 8, 28, 12).getTime();
+  const later = new Date(2026, 8, 28, 18).getTime();
+  const once = applyResult(emptyProgress(), {
+    id: "queen-corridor",
+    mode: "daily",
+    success: true,
+    puzzleRating: 750,
+    sessionScore: 1,
+    now,
+    themes: ["fork"],
+    ms: 5000,
+  });
+  assert.equal(once.motifs.fork?.attempts, 1);
+  const twice = applyResult(once, {
+    id: "queen-corridor",
+    mode: "daily",
+    success: true,
+    puzzleRating: 750,
+    sessionScore: 1,
+    now: later,
+    themes: ["fork"],
+    ms: 5000,
+  });
+  assert.deepEqual(twice.motifs, once.motifs);
+});
+
+test("motif recent caps at ten and multi-theme puzzles record each theme once", () => {
+  const now = new Date(2026, 8, 28, 12).getTime();
+  let progress = emptyProgress();
+  for (let index = 0; index < 12; index += 1) {
+    progress = applyResult(progress, {
+      id: `fork-${index}`,
+      mode: "rated",
+      success: index % 2 === 0,
+      puzzleRating: 1200,
+      sessionScore: 1,
+      now: now + index,
+      themes: ["fork", "fork"],
+      ms: null,
+    });
+  }
+  assert.equal(progress.motifs.fork?.attempts, 12);
+  assert.equal(progress.motifs.fork?.recent, "1010101010");
+  const multi = applyResult(emptyProgress(), {
+    id: "mate-fork",
+    mode: "rated",
+    success: true,
+    puzzleRating: 1200,
+    sessionScore: 1,
+    now,
+    themes: ["mate", "fork"],
+    ms: 2000,
+  });
+  assert.equal(multi.motifs.mate?.attempts, 1);
+  assert.equal(multi.motifs.fork?.attempts, 1);
+  assert.equal(multi.motifs.fork?.totalMs, 2000);
 });
 
 test("coach lines and the award anchor follow the side to move", () => {
