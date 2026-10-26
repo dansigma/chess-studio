@@ -12,6 +12,8 @@ test("applyPuzzleResult reports rating delta and xp gained for a win", () => {
     puzzleRating: 1200,
     sessionScore: 1,
     now: 1_700_000_000_000,
+    themes: [],
+    ms: null,
   };
 
   const { next, delta, gained } = applyPuzzleResult(current, attempt);
@@ -31,6 +33,8 @@ test("applyPuzzleResult reports a negative delta and no xp for a loss", () => {
     puzzleRating: 1200,
     sessionScore: 0,
     now: 1_700_000_000_000,
+    themes: [],
+    ms: null,
   });
 
   assert.equal(delta, -16, "rating drops 16");
@@ -47,6 +51,8 @@ test("applyPuzzleResult reports no change when applyResult short-circuits", () =
     puzzleRating: 1200,
     sessionScore: 1,
     now,
+    themes: [],
+    ms: null,
   };
   const current = { ...emptyProgress(), daily: dateKey(now) };
 
@@ -66,6 +72,8 @@ test("applyPuzzleResult keeps non-rated modes from changing the rating", () => {
     puzzleRating: 1800,
     sessionScore: 4,
     now: 1_700_000_000_000,
+    themes: [],
+    ms: null,
   });
 
   assert.equal(next.rating, current.rating, "streak mode does not touch the rating");

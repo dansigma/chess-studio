@@ -32,7 +32,12 @@ export function usePuzzleScoring(mode: PuzzleMode) {
   }, []);
 
   const commit = useCallback(
-    (success: boolean, currentPuzzle: CompiledPuzzle, sessionScore: number): boolean => {
+    (
+      success: boolean,
+      currentPuzzle: CompiledPuzzle,
+      sessionScore: number,
+      ms: number | null = null,
+    ): boolean => {
       const current = progressRef.current;
       if (!current || recorded.current) {
         return false;
@@ -45,6 +50,8 @@ export function usePuzzleScoring(mode: PuzzleMode) {
         puzzleRating: currentPuzzle.rating,
         sessionScore,
         now: Date.now(),
+        themes: currentPuzzle.themes,
+        ms,
       });
       progressRef.current = next;
       setProgress(next);

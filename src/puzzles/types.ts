@@ -68,6 +68,18 @@ export type PuzzleModeAttempt = {
   puzzleRating: number;
   sessionScore: number;
   now: number;
+  themes: PuzzleTheme[];
+  ms: number | null;
+};
+
+// SIG-1103: per-motif solve stats. `recent` holds the last 10 results as
+// "1"/"0" (newest last). Ids stay stable — they are stored in progress data.
+export type MotifStat = {
+  attempts: number;
+  solved: number;
+  timedAttempts: number;
+  totalMs: number;
+  recent: string;
 };
 
 export type PuzzleHistoryEntry = {
@@ -88,4 +100,5 @@ export type PuzzleProgress = {
   daily: string;
   xp: number;
   history: PuzzleHistoryEntry[];
+  motifs: Record<string, MotifStat>;
 };

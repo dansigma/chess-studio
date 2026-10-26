@@ -244,6 +244,36 @@ describe("mergePuzzleProgress", () => {
       merged,
     );
   });
+
+  it("merges motifs per theme by max attempts and stays idempotent", () => {
+    const local = progress({
+      motifs: {
+        fork: { attempts: 5, solved: 4, timedAttempts: 5, totalMs: 40_000, recent: "11110" },
+        pin: { attempts: 9, solved: 3, timedAttempts: 0, totalMs: 0, recent: "000000000" },
+      },
+    });
+    const remote = progress({
+      motifs: {
+        fork: { attempts: 12, solved: 6, timedAttempts: 12, totalMs: 96_000, recent: "1010101010" },
+        skewer: { attempts: 3, solved: 3, timedAttempts: 3, totalMs: 9_000, recent: "111" },
+      },
+    });
+    const merged = mergePuzzleProgress(local, remote, null, null);
+    // Per theme the entry with more attempts wins.
+    assert.deepEqual(merged.motifs.fork, remote.motifs.fork);
+    assert.deepEqual(merged.motifs.pin, local.motifs.pin);
+    assert.deepEqual(merged.motifs.skewer, remote.motifs.skewer);
+    assert.deepEqual(mergePuzzleProgress(merged, merged, null, null), merged);
+  });
+
+  it("loads old progress without motifs as an empty table", () => {
+    const raw = JSON.parse(JSON.stringify(progress({ solved: 4 })));
+    delete raw.motifs;
+    const loaded = normalizeProgress(raw);
+    assert.deepEqual(loaded.motifs, {});
+    const merged = mergePuzzleProgress(progress({ solved: 4 }), normalizeProgress(raw), null, null);
+    assert.deepEqual(merged.motifs, {});
+  });
 });
 
 describe("hydratePuzzleProgress ownership", () => {

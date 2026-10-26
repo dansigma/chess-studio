@@ -7,7 +7,7 @@ import {
   writeRawCache,
 } from "../lib/local-cache";
 import { emptyProgress, normalizeProgress } from "./engine";
-import type { PuzzleHistoryEntry, PuzzleProgress } from "./types";
+import type { MotifStat, PuzzleHistoryEntry, PuzzleProgress } from "./types";
 
 let puzzleAccountUserId: string | null = null;
 let puzzleOnAccount = false;
@@ -109,6 +109,17 @@ export function mergePuzzleProgress(
     }
   }
   const history = [...byId.values()].sort((a, b) => b.at - a.at);
+  // SIG-1103: motifs merge per theme by max attempts (ties keep the account
+  // side, matching the streak/daily tie rule). Max is a fixed point, so
+  // merging a merge result with itself is idempotent.
+  const localMotifs = local.motifs ?? {};
+  const remoteMotifs = remote.motifs ?? {};
+  const motifs: Record<string, MotifStat> = {};
+  for (const key of new Set([...Object.keys(localMotifs), ...Object.keys(remoteMotifs)])) {
+    const l = localMotifs[key];
+    const r = remoteMotifs[key];
+    motifs[key] = !l ? r : !r ? l : r.attempts >= l.attempts ? r : l;
+  }
   return normalizeProgress({
     rating: Math.max(local.rating, remote.rating),
     solved: Math.max(local.solved, remote.solved),
@@ -119,6 +130,7 @@ export function mergePuzzleProgress(
     daily,
     xp: Math.max(local.xp, remote.xp),
     history,
+    motifs,
   });
 }
 

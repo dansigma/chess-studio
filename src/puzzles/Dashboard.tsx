@@ -10,6 +10,7 @@ import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
 import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
+import { motifSummary, weakestMotif } from "./motif-stats";
 import { loadPuzzleCatalog } from "./puzzle-client";
 import { hydratePuzzleProgress, progressSource } from "./progress";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
@@ -67,6 +68,10 @@ export function PuzzleDashboard() {
   const attempts = progress ? progress.solved + progress.failed : 0;
   const accuracy = progress && attempts > 0 ? Math.round((progress.solved / attempts) * 100) : null;
   const level = levelFromXp(progress?.xp ?? 0);
+  // SIG-1103: per-motif rows, sorted by attempts desc; the weakest-motif
+  // button reuses the existing `?mode=rated&theme=` deep link into training.
+  const motifRows = progress ? motifSummary(progress) : [];
+  const weakest = progress ? weakestMotif(progress) : null;
 
   return (
     <div className="min-h-full bg-studio-bg">
@@ -190,6 +195,97 @@ export function PuzzleDashboard() {
             );
           })}
         </div>
+
+        {motifRows.length > 0 ? (
+          <>
+            <h2 className="mt-10 text-title font-semibold text-studio-fg">
+              {tPuzzle(locale, "puzzle.dashboard.motifsTitle")}
+            </h2>
+            <p className="mt-1 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.motifsSubtitle")}</p>
+            <div className="mt-4 overflow-hidden rounded-xl border border-studio-border bg-studio-chrome">
+              <table className="w-full text-body">
+                <thead>
+                  <tr className="text-left text-caption uppercase tracking-wide text-studio-muted">
+                    <th scope="col" className="px-4 py-2 font-medium">
+                      {tPuzzle(locale, "puzzle.dashboard.themesTitle")}
+                    </th>
+                    <th scope="col" className="px-4 py-2 text-right font-medium tabular-nums">
+                      {tPuzzle(locale, "puzzle.dashboard.motifs.attempts")}
+                    </th>
+                    <th scope="col" className="px-4 py-2 text-right font-medium tabular-nums">
+                      {tPuzzle(locale, "puzzle.dashboard.motifs.successRate")}
+                    </th>
+                    <th scope="col" className="px-4 py-2 text-right font-medium tabular-nums">
+                      {tPuzzle(locale, "puzzle.dashboard.motifs.avgTime")}
+                    </th>
+                    <th scope="col" className="px-4 py-2 text-right font-medium">
+                      <span className="sr-only">{tPuzzle(locale, "puzzle.dashboard.motifs.trendFlat")}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-studio-border">
+                  {motifRows.map((row) => (
+                    <tr key={row.theme}>
+                      <td className="px-4 py-2 font-semibold text-studio-fg">
+                        {tPuzzle(locale, THEME_LABEL_KEYS[row.theme])}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-studio-muted">
+                        {formatInteger(locale, row.attempts)}
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-studio-fg">
+                        {formatInteger(locale, row.successPct)}%
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-studio-muted">
+                        {row.avgSeconds === null ? "—" : `${row.avgSeconds.toFixed(1)}s`}
+                      </td>
+                      <td
+                        className="px-4 py-2 text-right"
+                        title={
+                          row.trend === "up"
+                            ? tPuzzle(locale, "puzzle.dashboard.motifs.trendUp")
+                            : row.trend === "down"
+                              ? tPuzzle(locale, "puzzle.dashboard.motifs.trendDown")
+                              : row.trend === "flat"
+                                ? tPuzzle(locale, "puzzle.dashboard.motifs.trendFlat")
+                                : tPuzzle(locale, "puzzle.dashboard.motifs.trendUnknown")
+                        }
+                        aria-label={
+                          row.trend === "up"
+                            ? tPuzzle(locale, "puzzle.dashboard.motifs.trendUp")
+                            : row.trend === "down"
+                              ? tPuzzle(locale, "puzzle.dashboard.motifs.trendDown")
+                              : row.trend === "flat"
+                                ? tPuzzle(locale, "puzzle.dashboard.motifs.trendFlat")
+                                : tPuzzle(locale, "puzzle.dashboard.motifs.trendUnknown")
+                        }
+                      >
+                        <span aria-hidden>{row.trend === "up" ? "↗" : row.trend === "down" ? "↘" : row.trend === "flat" ? "→" : "·"}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <section aria-labelledby="weakest-motif-heading" className="mt-4 rounded-xl border border-studio-border bg-studio-chrome p-5">
+              <h3 id="weakest-motif-heading" className="text-lg font-semibold text-studio-fg">
+                {tPuzzle(locale, "puzzle.dashboard.weakest.title")}
+              </h3>
+              {weakest ? (
+                <Button
+                  className="mt-3"
+                  variant="primary"
+                  onClick={() => router.push(`/puzzles/play?mode=rated&theme=${weakest}`)}
+                >
+                  {tPuzzle(locale, "puzzle.dashboard.weakest.action", {
+                    theme: tPuzzle(locale, THEME_LABEL_KEYS[weakest]),
+                  })}
+                </Button>
+              ) : (
+                <p className="mt-3 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.weakest.empty")}</p>
+              )}
+            </section>
+          </>
+        ) : null}
 
         <h2 className="mt-10 text-title font-semibold text-studio-fg">
           {tPuzzle(locale, "puzzle.dashboard.recentTitle")}

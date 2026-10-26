@@ -3,6 +3,7 @@ import {
   PUZZLE_MODES,
   PUZZLE_THEMES,
   type Puzzle,
+  type MotifStat,
   type PuzzleHistoryEntry,
   type PuzzleMode,
   type PuzzleModeAttempt,
@@ -29,6 +30,7 @@ export function emptyProgress(): PuzzleProgress {
     daily: "",
     xp: 0,
     history: [],
+    motifs: {},
   };
 }
 
@@ -262,6 +264,33 @@ function normalizeHistory(value: unknown): PuzzleHistoryEntry[] {
   return entries.slice(0, 20);
 }
 
+function normalizeMotifs(value: unknown): Record<string, MotifStat> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const themes = new Set<string>(PUZZLE_THEMES);
+  const motifs: Record<string, MotifStat> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (!themes.has(key) || !item || typeof item !== "object") {
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    const attempts = Math.max(0, Math.round(finiteNumber(record.attempts, 0)));
+    const solved = Math.min(attempts, Math.max(0, Math.round(finiteNumber(record.solved, 0))));
+    const timedAttempts = Math.min(
+      attempts,
+      Math.max(0, Math.round(finiteNumber(record.timedAttempts, 0))),
+    );
+    const totalMs = Math.max(0, Math.round(finiteNumber(record.totalMs, 0)));
+    const recent =
+      typeof record.recent === "string"
+        ? record.recent.replace(/[^01]/g, "").slice(-10)
+        : "";
+    motifs[key] = { attempts, solved, timedAttempts, totalMs, recent };
+  }
+  return motifs;
+}
+
 export function normalizeProgress(value: unknown): PuzzleProgress {
   const empty = emptyProgress();
   if (!value || typeof value !== "object") {
@@ -281,6 +310,7 @@ export function normalizeProgress(value: unknown): PuzzleProgress {
         ? Math.max(0, Math.round(record.xp))
         : Math.max(0, Math.round(finiteNumber(record.solved, 0))) * 40,
     history: normalizeHistory(record.history),
+    motifs: normalizeMotifs(record.motifs),
   };
 }
 
@@ -294,6 +324,13 @@ export function applyResult(progress: PuzzleProgress, attempt: PuzzleModeAttempt
   const streak = !tracksStreak ? progress.streak : attempt.success ? progress.streak + 1 : 0;
   const pointStreak = attempt.mode === "rush" ? Math.max(1, attempt.sessionScore) : Math.max(1, streak);
   const gained = attempt.success ? puzzlePoints(attempt.puzzleRating, pointStreak) : 0;
+  const motifs =
+    attempt.mode === "rated" ||
+    attempt.mode === "streak" ||
+    attempt.mode === "rush" ||
+    attempt.mode === "daily"
+      ? recordMotifs(progress.motifs, attempt)
+      : progress.motifs;
   const next: PuzzleProgress = {
     rating,
     solved: progress.solved + (attempt.success ? 1 : 0),
@@ -313,6 +350,40 @@ export function applyResult(progress: PuzzleProgress, attempt: PuzzleModeAttempt
       },
       ...progress.history,
     ].slice(0, 20),
+    motifs,
   };
   return next;
+}
+
+// SIG-1103: fold one attempt into the per-motif stats. Unknown theme ids are
+// skipped and per-attempt duplicates are folded once, so a future theme
+// rename or a multi-tagged puzzle cannot corrupt the table.
+function recordMotifs(
+  motifs: Record<string, MotifStat>,
+  attempt: PuzzleModeAttempt,
+): Record<string, MotifStat> {
+  const themes = new Set<string>(PUZZLE_THEMES);
+  const seen = new Set<string>();
+  const ms =
+    typeof attempt.ms === "number" && Number.isFinite(attempt.ms) && attempt.ms >= 0
+      ? Math.round(attempt.ms)
+      : null;
+  let changed = false;
+  const next: Record<string, MotifStat> = { ...motifs };
+  for (const theme of attempt.themes ?? []) {
+    if (!themes.has(theme) || seen.has(theme)) {
+      continue;
+    }
+    seen.add(theme);
+    const prev = next[theme] ?? { attempts: 0, solved: 0, timedAttempts: 0, totalMs: 0, recent: "" };
+    next[theme] = {
+      attempts: prev.attempts + 1,
+      solved: prev.solved + (attempt.success ? 1 : 0),
+      timedAttempts: prev.timedAttempts + (ms === null ? 0 : 1),
+      totalMs: prev.totalMs + (ms === null ? 0 : ms),
+      recent: `${prev.recent}${attempt.success ? "1" : "0"}`.slice(-10),
+    };
+    changed = true;
+  }
+  return changed ? next : motifs;
 }
