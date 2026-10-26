@@ -10,17 +10,42 @@ import { CourseChrome } from "./CourseChrome";
 import { CourseFields } from "./CourseFields";
 import { LocalDraftsSection } from "./LocalDraftsSection";
 import { emptyCourse } from "./admin-draft";
+import { centsToPrice, priceToCents, validateTierAndPrice, visibleActions } from "./author-actions";
 import { isCourseTheme, slugify } from "./catalog";
 import { hasPlayableContent, normalizeChapters } from "./draft";
-import { publishCourse, removePublishedCourse, unpublishCourse } from "./publish";
+import {
+  publishCourse,
+  removePublishedCourse,
+  saveCourseDraft,
+  submitCourseForReview,
+  unpublishCourse,
+} from "./publish";
 import { useAdminDraft } from "./use-admin-draft";
 import { useAdminSession } from "./use-admin-session";
+import type { Course, CourseStatus } from "./types";
+
+const STATUS_BADGE_KEY = {
+  draft: "course.admin.statusBadge.draft",
+  in_review: "course.admin.statusBadge.inReview",
+  published: "course.admin.statusBadge.published",
+  rejected: "course.admin.statusBadge.rejected",
+  archived: "course.admin.statusBadge.archived",
+} as const satisfies Record<CourseStatus, Parameters<typeof tCourseAdmin>[1]>;
+
+const STATUS_NOTICE_KEY = {
+  draft: "course.admin.status.draft",
+  in_review: "course.admin.status.inReview",
+  published: "course.admin.status.published",
+  rejected: "course.admin.status.rejected",
+  archived: "course.admin.status.archived",
+} as const satisfies Record<CourseStatus, Parameters<typeof tCourseAdmin>[1]>;
 
 export function AdminView() {
   const router = useRouter();
   const locale = useStudioStore((state) => state.settings.locale);
   const {
     allowed,
+    role,
     courses,
     setCourses,
     localDrafts,
@@ -34,45 +59,126 @@ export function AdminView() {
   const { draft, setDraft, updateChapter, updateVariation, moveChapter, moveVariation, addChapterPgn } =
     useAdminDraft(setError);
   const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  // Raw reais text for the paid price field. Keyed by draft id so switching
+  // courses resets the input; undefined = derive from priceCents lazily.
+  const [priceTexts, setPriceTexts] = useState<Record<string, string>>({});
+  const priceText =
+    priceTexts[draft.id] ?? (draft.priceCents != null ? centsToPrice(draft.priceCents, locale) : "");
 
-  async function save() {
+  const actions = visibleActions({ role, status: draft.status });
+  // Admins keep the exact current behavior; coaches are read-only in_review.
+  const isAdmin = role !== "coach";
+  const readOnly = !isAdmin && draft.status === "in_review";
+  const reviewNote =
+    draft.status === "rejected" && typeof draft.reviewNote === "string" && draft.reviewNote.trim()
+      ? draft.reviewNote.trim()
+      : null;
+  const draftListed = courses.some((course) => course.id === draft.id);
+
+  function validatedPayload(): { ok: true; payload: Course } | { ok: false } {
     const title = draft.title.trim();
     if (!title) {
       setError({ key: "course.admin.error.needsTitle" });
-      return;
+      return { ok: false };
+    }
+    if (!isCourseTheme(draft.theme)) {
+      setError({ key: "course.admin.error.chooseTheme" });
+      return { ok: false };
     }
     const theme = draft.theme;
-    if (!isCourseTheme(theme)) {
-      setError({ key: "course.admin.error.chooseTheme" });
-      return;
-    }
     const normalized = normalizeChapters(draft.chapters);
     if ("error" in normalized) {
       setError(normalized.error);
-      return;
+      return { ok: false };
     }
     if (!hasPlayableContent(normalized.chapters)) {
       setError({ key: "course.admin.error.needsPlayableLine" });
-      return;
+      return { ok: false };
     }
-    setSaving(true);
-    const result = await publishCourse({
-      ...draft,
+    // Prefer the raw text the author typed (it may differ from the synced
+    // priceCents when the text is currently invalid).
+    const tier = draft.accessTier;
+    const raw = tier === "paid" ? (priceText ?? (draft.priceCents != null ? centsToPrice(draft.priceCents, locale) : "")) : "";
+    const priceCents = tier === "paid" ? priceToCents(raw) : null;
+    if (tier === "paid" && priceCents === null) {
+      setError({ key: "course.admin.error.invalidPrice" });
+      return { ok: false };
+    }
+    const tierCheck = validateTierAndPrice(tier, priceCents);
+    if (!tierCheck.ok) {
+      setError({ key: tierCheck.error });
+      return { ok: false };
+    }
+    const authorName = draft.authorName?.trim() ? draft.authorName.trim() : undefined;
+    if (authorName && authorName.length > 120) {
+      setError({ key: "course.admin.error.authorNameTooLong" });
+      return { ok: false };
+    }
+    // Narrow the draft's ""|theme union now that isCourseTheme passed.
+    const { theme: _unset, ...rest } = draft;
+    void _unset;
+    const payload: Course = {
+      ...rest,
       title,
       slug: draft.slug.trim() || slugify(title),
       summary: draft.summary,
       theme,
       chapters: normalized.chapters,
-    });
-    setSaving(false);
-    if (!result.ok) {
-      setError(result.error);
+      accessTier: tier,
+      priceCents,
+      authorName,
+    };
+    return { ok: true, payload };
+  }
+
+  async function saveDraft() {
+    const validated = validatedPayload();
+    if (!validated.ok) {
       return;
     }
-    setCourses((current) => [result.course, ...current.filter((course) => course.id !== result.course.id)]);
-    setDraft(result.course);
-    setError(null);
-    router.refresh();
+    setSaving(true);
+    try {
+      // Admins keep the exact current behavior (publish); coaches save a draft.
+      const result = isAdmin ? await publishCourse(validated.payload) : await saveCourseDraft(validated.payload);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setCourses((current) => [result.course, ...current.filter((course) => course.id !== result.course.id)]);
+      setDraft(result.course);
+      setPriceTexts((current) => ({
+        ...current,
+        [result.course.id]: result.course.priceCents != null ? centsToPrice(result.course.priceCents, locale) : "",
+      }));
+      setError(null);
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitForReview() {
+    const theme = draft.theme;
+    if (!isCourseTheme(theme)) {
+      setError({ key: "course.admin.error.chooseTheme" });
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const result = await submitCourseForReview(draft.id);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      const next: Course = { ...draft, status: "in_review" as const, theme };
+      setCourses((current) => current.map((course) => (course.id === draft.id ? next : course)));
+      setDraft(next);
+      setError(null);
+      router.refresh();
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (allowed === null) {
@@ -111,7 +217,9 @@ export function AdminView() {
         <aside>
           <Button
             onClick={() => {
-              setDraft(emptyCourse());
+              const next = emptyCourse();
+              setDraft(next);
+              setPriceTexts((current) => ({ ...current, [next.id]: "" }));
               setError(null);
             }}
           >
@@ -125,7 +233,11 @@ export function AdminView() {
                   className="w-full truncate rounded-md px-2 py-1.5 text-left text-body text-studio-fg hover:bg-studio-hover"
                   onClick={() => setDraft(course)}
                 >
-                  {course.title}
+                  <span className="block truncate">{course.title}</span>
+                  <span className="mt-0.5 inline-block rounded-full border border-studio-border px-2 py-px text-caption text-studio-muted">
+                    {tCourseAdmin(locale, STATUS_BADGE_KEY[course.status])}
+                    {course.status === "rejected" && course.reviewNote ? " • !" : ""}
+                  </span>
                 </button>
               </li>
             ))}
@@ -135,76 +247,120 @@ export function AdminView() {
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            save();
+            if (readOnly) {
+              return;
+            }
+            void saveDraft();
           }}
         >
-          <CourseFields draft={draft} setDraft={setDraft} />
+          <CourseFields
+            draft={draft}
+            setDraft={setDraft}
+            readOnly={readOnly}
+            priceText={priceText}
+            setPriceText={(text) => setPriceTexts((current) => ({ ...current, [draft.id]: text }))}
+          />
 
-          {draft.chapters.map((chapter, chapterIndex) => (
-            <ChapterDraft
-              key={chapter.id}
-              chapter={chapter}
-              index={chapterIndex}
-              total={draft.chapters.length}
-              onTitle={(title) => updateChapter(chapter.id, { title })}
-              onMove={(direction) => moveChapter(chapterIndex, direction)}
-              onRemove={() => {
-                const hasLines = chapter.variations.some((variation) => variation.pgn.trim() || variation.title.trim());
-                if (hasLines && !window.confirm(tCourseAdmin(locale, "course.admin.confirm.removeChapter"))) {
-                  return;
+          {draft.status === "in_review" ? (
+            <p className="rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-muted">
+              {tCourseAdmin(locale, "course.admin.inReviewNotice")}
+            </p>
+          ) : null}
+          {reviewNote ? (
+            <section
+              aria-label={tCourseAdmin(locale, "course.admin.reviewNote.heading")}
+              className="rounded-lg border border-studio-warning-fg/40 bg-studio-chrome px-4 py-3"
+            >
+              <h2 className="text-body font-semibold text-studio-fg">
+                {tCourseAdmin(locale, "course.admin.reviewNote.heading")}
+              </h2>
+              <p className="mt-1 whitespace-pre-wrap text-body text-studio-fg">{reviewNote}</p>
+            </section>
+          ) : null}
+
+          {!readOnly &&
+            draft.chapters.map((chapter, chapterIndex) => (
+              <ChapterDraft
+                key={chapter.id}
+                chapter={chapter}
+                index={chapterIndex}
+                total={draft.chapters.length}
+                onTitle={(title) => updateChapter(chapter.id, { title })}
+                onMove={(direction) => moveChapter(chapterIndex, direction)}
+                onRemove={() => {
+                  const hasLines = chapter.variations.some(
+                    (variation) => variation.pgn.trim() || variation.title.trim(),
+                  );
+                  if (hasLines && !window.confirm(tCourseAdmin(locale, "course.admin.confirm.removeChapter"))) {
+                    return;
+                  }
+                  setDraft((current) => ({
+                    ...current,
+                    chapters: current.chapters.filter((item) => item.id !== chapter.id),
+                  }));
+                }}
+                onUpload={(file) => void addChapterPgn(chapter.id, file)}
+                onAddLine={() =>
+                  updateChapter(chapter.id, {
+                    variations: [...chapter.variations, { id: crypto.randomUUID(), title: "", pgn: "" }],
+                  })
                 }
-                setDraft((current) => ({
-                  ...current,
-                  chapters: current.chapters.filter((item) => item.id !== chapter.id),
-                }));
-              }}
-              onUpload={(file) => void addChapterPgn(chapter.id, file)}
-              onAddLine={() =>
-                updateChapter(chapter.id, {
-                  variations: [...chapter.variations, { id: crypto.randomUUID(), title: "", pgn: "" }],
-                })
-              }
-              onVariationTitle={(variationId, title) => updateVariation(chapter.id, variationId, { title })}
-              onVariationPgn={(variationId, pgn) => updateVariation(chapter.id, variationId, { pgn })}
-              onMoveVariation={(variationIndex, direction) => moveVariation(chapter.id, variationIndex, direction)}
-              onRemoveVariation={(variationId) =>
-                updateChapter(chapter.id, {
-                  variations: chapter.variations.filter((variation) => variation.id !== variationId),
-                })
-              }
-            />
-          ))}
+                onVariationTitle={(variationId, title) => updateVariation(chapter.id, variationId, { title })}
+                onVariationPgn={(variationId, pgn) => updateVariation(chapter.id, variationId, { pgn })}
+                onMoveVariation={(variationIndex, direction) => moveVariation(chapter.id, variationIndex, direction)}
+                onRemoveVariation={(variationId) =>
+                  updateChapter(chapter.id, {
+                    variations: chapter.variations.filter((variation) => variation.id !== variationId),
+                  })
+                }
+              />
+            ))}
 
-          <Button
-            variant="secondary"
-            onClick={() =>
-              setDraft({
-                ...draft,
-                chapters: [...draft.chapters, { id: crypto.randomUUID(), title: "", variations: [] }],
-              })
-            }
-          >
-            {tCourseAdmin(locale, "course.admin.addChapter")}
-          </Button>
+          {!readOnly ? (
+            <Button
+              variant="secondary"
+              onClick={() =>
+                setDraft({
+                  ...draft,
+                  chapters: [...draft.chapters, { id: crypto.randomUUID(), title: "", variations: [] }],
+                })
+              }
+            >
+              {tCourseAdmin(locale, "course.admin.addChapter")}
+            </Button>
+          ) : null}
 
           <p className="text-caption text-studio-muted">{tCourseAdmin(locale, "course.admin.saveHint")}</p>
           {error ? (
             <p className="text-body text-studio-warning-fg">{tCourseAdmin(locale, error.key, error.vars)}</p>
           ) : null}
-          {courses.some((course) => course.id === draft.id) ? (
-            <p className="text-caption text-studio-muted">
-              {draft.publishedAt != null
-                ? tCourseAdmin(locale, "course.admin.status.published")
-                : tCourseAdmin(locale, "course.admin.status.draft")}
-            </p>
+          {draftListed ? (
+            <p className="text-caption text-studio-muted">{tCourseAdmin(locale, STATUS_NOTICE_KEY[draft.status])}</p>
           ) : null}
           <div className="flex gap-2">
-            <Button type="submit" variant="primary" disabled={saving}>
-              {saving
-                ? tCourseAdmin(locale, "course.admin.saving")
-                : tCourseAdmin(locale, "course.admin.saveCourse")}
-            </Button>
-            {courses.some((course) => course.id === draft.id) && draft.publishedAt != null ? (
+            {isAdmin ? (
+              <Button type="submit" variant="primary" disabled={saving}>
+                {saving ? tCourseAdmin(locale, "course.admin.saving") : tCourseAdmin(locale, "course.admin.saveCourse")}
+              </Button>
+            ) : (
+              <>
+                {actions.saveDraft ? (
+                  <Button type="submit" variant="primary" disabled={saving || readOnly}>
+                    {saving
+                      ? tCourseAdmin(locale, "course.admin.saving")
+                      : tCourseAdmin(locale, "course.admin.saveDraft")}
+                  </Button>
+                ) : null}
+                {actions.submitForReview ? (
+                  <Button variant="secondary" disabled={saving || submitting} onClick={() => void submitForReview()}>
+                    {submitting
+                      ? tCourseAdmin(locale, "course.admin.submitting")
+                      : tCourseAdmin(locale, "course.admin.submitReview")}
+                  </Button>
+                ) : null}
+              </>
+            )}
+            {actions.unpublish ? (
               <Button
                 variant="ghost"
                 disabled={saving}
@@ -233,7 +389,7 @@ export function AdminView() {
                 {tCourseAdmin(locale, "course.admin.unpublish")}
               </Button>
             ) : null}
-            {courses.some((course) => course.id === draft.id) ? (
+            {draftListed && (isAdmin || actions.delete) ? (
               <Button
                 variant="ghost"
                 disabled={saving}
@@ -247,7 +403,9 @@ export function AdminView() {
                       return;
                     }
                     refresh(courses.filter((course) => course.id !== draft.id));
-                    setDraft(emptyCourse());
+                    const next = emptyCourse();
+                    setDraft(next);
+                    setPriceTexts((current) => ({ ...current, [next.id]: "" }));
                     setError(null);
                   });
                 }}
