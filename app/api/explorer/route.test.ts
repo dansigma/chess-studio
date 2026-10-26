@@ -42,14 +42,17 @@ async function get(fen: string, source: string, extra = "", ip = nextTestIp()) {
 test("requires fen and a valid source", async () => {
   const missing = await GET(makeGetRequest(`${BASE}?source=lichess`));
   assert.equal(missing.status, 400);
+  assert.equal(missing.headers.get("Cache-Control"), null);
   const badSource = await get(STARTPOS, "chesscom");
   assert.equal(badSource.res.status, 400);
+  assert.equal(badSource.res.headers.get("Cache-Control"), null);
   assert.deepEqual(badSource.body, { error: "fen and source=masters|lichess|curated are required" });
 });
 
 test("rejects an invalid fen", async () => {
   const { res, body } = await get("not-a-fen", "lichess");
   assert.equal(res.status, 400);
+  assert.equal(res.headers.get("Cache-Control"), null);
   assert.deepEqual(body, { error: "fen is not a valid position" });
 });
 
@@ -60,6 +63,9 @@ test("serves curated positions from the embedded book", async () => {
   assert.equal(payload.source, "curated");
   assert.equal(payload.fen, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -");
   assert.ok(payload.moves.length > 0);
+  assert.equal(res.headers.get("Cache-Control"), "public, max-age=3600");
+  assert.equal(res.headers.get("Set-Cookie"), null);
+  assert.ok(!String(res.headers.get("Vary") ?? "").toLowerCase().includes("cookie"));
 });
 
 test("returns the Supabase cache hit without fetching", async (t) => {
@@ -73,7 +79,7 @@ test("returns the Supabase cache hit without fetching", async (t) => {
     moves: [],
     games: [],
   };
-  state.server = createFakeSupabase({
+  state.public = createFakeSupabase({
     tables: { explorer_cache: { maybeSingle: { payload: cached, fetched_at: new Date().toISOString() } } },
   });
   state.service = createFakeSupabase();
@@ -83,10 +89,14 @@ test("returns the Supabase cache hit without fetching", async (t) => {
   const { res, body } = await get(FRENCH, "masters");
   assert.equal(res.status, 200);
   assert.deepEqual(body, cached);
+  assert.equal(
+    res.headers.get("Cache-Control"),
+    "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+  );
 });
 
 test("falls back to live Lichess on a cache miss and writes the cache through", async (t) => {
-  state.server = createFakeSupabase();
+  state.public = createFakeSupabase();
   const service = createFakeSupabase();
   state.service = service;
   const live = {
@@ -135,13 +145,17 @@ test("falls back to live Lichess on a cache miss and writes the cache through", 
   assert.equal(payload.games.length, 1);
   assert.equal(payload.games[0].whiteName, "Carlsen");
   assert.equal(payload.opening.eco, "C50");
+  assert.equal(
+    res.headers.get("Cache-Control"),
+    "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400",
+  );
   const writes = service.calls.upsert.filter((call) => call.table === "explorer_cache");
   assert.equal(writes.length, 1);
   assert.equal((writes[0].row as { source: string }).source, "lichess");
 });
 
 test("forwards filters to Lichess and skips the Supabase cache", async (t) => {
-  state.server = createFakeSupabase({
+  state.public = createFakeSupabase({
     tables: {
       explorer_cache: {
         maybeSingle: {
@@ -173,11 +187,12 @@ test("forwards filters to Lichess and skips the Supabase cache", async (t) => {
   // Filtered lookups bypass both the Supabase read (fetch still ran despite
   // the cached row) and the write-through.
   assert.equal((body as { white: number }).white, 9);
+  assert.equal(res.headers.get("Cache-Control"), "public, max-age=30, s-maxage=60");
   assert.equal(service.calls.upsert.length, 0);
 });
 
 test("returns a noticed empty response when Lichess is unreachable", async (t) => {
-  state.server = createFakeSupabase();
+  state.public = createFakeSupabase();
   state.service = createFakeSupabase();
   mockFetch(t, () => jsonResponse({ error: "down" }, 500));
   const { res, body } = await get(PETROV, "lichess", "&speeds=blitz");
@@ -185,22 +200,24 @@ test("returns a noticed empty response when Lichess is unreachable", async (t) =
   const payload = body as { source: string; notice?: unknown };
   assert.equal(payload.source, "lichess");
   assert.equal(typeof payload.notice, "string");
+  assert.equal(res.headers.get("Cache-Control"), "public, max-age=30, s-maxage=60");
 });
 
 test("rate-limits after 60 requests from one IP", async () => {
-  state.server = createFakeSupabase();
+  state.public = createFakeSupabase();
   state.service = createFakeSupabase();
   const ip = nextTestIp();
-  let last = { status: 0 };
+  let last = { status: 0, res: null as unknown as Response | null };
   for (let i = 0; i < 61; i += 1) {
     const { res } = await get(STARTPOS, "curated", "", ip);
-    last = { status: res.status };
+    last = { status: res.status, res };
   }
   assert.equal(last.status, 429);
+  assert.equal(last.res?.headers.get("Cache-Control"), null);
 });
 
 test("serves cached fallback responses with notice within fallback TTL without re-fetching upstream", async (t) => {
-  state.server = createFakeSupabase();
+  state.public = createFakeSupabase();
   const service = createFakeSupabase();
   state.service = service;
   let fetchCount = 0;
@@ -224,7 +241,7 @@ test("serves cached fallback responses with notice within fallback TTL without r
 });
 
 test("backs off Lichess upstream queries when upstream has recently failed", async (t) => {
-  state.server = createFakeSupabase();
+  state.public = createFakeSupabase();
   state.service = createFakeSupabase();
   let fetchCount = 0;
   mockFetch(t, () => {
@@ -249,7 +266,7 @@ const SICILIAN = "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq c6 0 2"
 const ALEKHINE = "rnbqkb1r/pppppppp/5n2/8/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 1 2";
 
 test("a masters failure does not block the lichess source", async (t) => {
-  state.server = createFakeSupabase();
+  state.public = createFakeSupabase();
   state.service = createFakeSupabase();
   const live = {
     white: 10,
@@ -276,7 +293,7 @@ test("a masters failure does not block the lichess source", async (t) => {
 });
 
 test("an oversized upstream body falls back to the book/empty payload", async (t) => {
-  state.server = createFakeSupabase();
+  state.public = createFakeSupabase();
   state.service = createFakeSupabase();
   const big = `{"white":1,"draws":0,"black":0,"moves":[],"padding":"${"x".repeat(600 * 1024)}"}`;
   mockFetch(t, () => {
@@ -293,7 +310,7 @@ test("an oversized upstream body falls back to the book/empty payload", async (t
 });
 
 test("a failing cache write still returns 200 and logs once", async (t) => {
-  state.server = createFakeSupabase();
+  state.public = createFakeSupabase();
   state.service = createFakeSupabase({
     tables: { explorer_cache: { writeError: { code: "UPSET_FAIL", message: "boom" } } },
   });
