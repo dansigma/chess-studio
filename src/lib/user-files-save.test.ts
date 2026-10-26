@@ -17,7 +17,10 @@ type RecordedCall =
 
 type FakeOptions = {
   failChunkAt?: number;
+  failChunkWith?: { message: string; code?: string };
   failSwap?: boolean;
+  failSwapWith?: { message: string; code?: string };
+  failCreateDbWith?: { message: string; code?: string };
   promotedCount?: number;
 };
 
@@ -56,7 +59,7 @@ function buildFakeSupabase(options: FakeOptions = {}) {
   let chunkCount = 0;
   let rpcCount = 0;
 
-  const finish = (result: { data?: unknown; error?: { message: string } | null }) => {
+  const finish = (result: { data?: unknown; error?: { message: string; code?: string } | null }) => {
     const response = { data: result.data ?? null, error: result.error ?? null };
     return {
       ...response,
@@ -75,7 +78,7 @@ function buildFakeSupabase(options: FakeOptions = {}) {
       insert: (rows: Array<Record<string, unknown>>) => {
         chunkCount += 1;
         if (options.failChunkAt === chunkCount) {
-          return finish({ error: { message: `chunk ${chunkCount} failed` } });
+          return finish({ error: options.failChunkWith ?? { message: `chunk ${chunkCount} failed` } });
         }
         calls.push({ op: "insert-games", rows });
         return finish({ data: rows });
@@ -106,6 +109,9 @@ function buildFakeSupabase(options: FakeOptions = {}) {
           const terminal = finish({});
           const builder: Record<string, (...args: never[]) => unknown> = {
             insert: (row: Record<string, unknown>) => {
+              if (options.failCreateDbWith) {
+                return finish({ error: options.failCreateDbWith });
+              }
               calls.push({ op: "insert-db", row });
               return finish({ data: { id: "remote-db" } });
             },
@@ -156,7 +162,7 @@ function buildFakeSupabase(options: FakeOptions = {}) {
       rpcCount += 1;
       calls.push({ op: "rpc-swap", databaseId: args.p_database_id as string });
       if (options.failSwap) {
-        return { data: null, error: { message: "swap failed" } };
+        return { data: null, error: options.failSwapWith ?? { message: "swap failed" } };
       }
       return { data: options.promotedCount ?? 250, error: null };
     },
@@ -204,6 +210,59 @@ test("persistRemoteDatabase: failed second chunk keeps old games and game_count,
     "game_count must not be updated on failure",
   );
   assert.ok(!calls.some((call) => call.op === "rpc-swap"), "swap must not run after a failed chunk");
+});
+
+test("persistRemoteDatabase: 51st database maps quota_databases to the databases message", async () => {
+  const { calls } = installFakeSupabase({ failCreateDbWith: { message: "quota_databases", code: "P0001" } });
+
+  const result = await persistRemoteDatabase({ ...databaseWithGames(1), remoteId: null }, "user-1");
+
+  assert.equal(result.remoteId, null);
+  assert.equal(result.saveError, "You can keep up to 50 personal databases. Delete one to add another.");
+  assert.ok(!calls.some((call) => call.op === "insert-games"), "no games may be written when creation is rejected");
+});
+
+test("persistRemoteDatabase: swap quota failure maps quota_games and cleans pending rows", async () => {
+  const { calls } = installFakeSupabase({
+    failSwap: true,
+    failSwapWith: { message: "quota_games", code: "P0001" },
+  });
+
+  const result = await persistRemoteDatabase(databaseWithGames(10), "user-1");
+
+  assert.equal(result.remoteId, "remote-db");
+  assert.equal(result.saveError, "This database holds more than 5,000 games. Remove some games and try again.");
+  assert.deepEqual(
+    calls.filter((call) => call.op === "delete-games"),
+    [{ op: "delete-games", filters: { database_id: "remote-db", pending: true } }],
+    "pending rows must be deleted after a quota swap failure",
+  );
+  assert.ok(
+    calls.every((call) => !(call.op === "update-db" && "game_count" in call.row)),
+    "game_count must not be updated on quota failure",
+  );
+});
+
+test("persistRemoteDatabase: 23514 chunk failure mentioning games_pgn_size maps to the 1 MB text", async () => {
+  installFakeSupabase({
+    failChunkAt: 1,
+    failChunkWith: { message: 'new row violates check constraint "games_pgn_size"', code: "23514" },
+  });
+
+  const result = await persistRemoteDatabase(databaseWithGames(10), "user-1");
+
+  assert.equal(result.saveError, "One game is larger than 1 MB and was not saved.");
+});
+
+test("persistRemoteDatabase: over-1 MB pgn is rejected client-side without touching the database", async () => {
+  const { calls } = installFakeSupabase();
+
+  const oversized = { ...makePgnGame(0), pgn: `1. e4 e5 *${"e".repeat(1_000_000)}` };
+  const result = await persistRemoteDatabase({ ...databaseWithGames(0), games: [oversized] }, "user-1");
+
+  assert.equal(result.saveError, "One game is larger than 1 MB and was not saved.");
+  assert.ok(calls.every((call) => call.op !== "insert-games"), "no games may be sent");
+  assert.ok(!calls.some((call) => call.op === "rpc-swap"), "swap must not run after a client-side rejection");
 });
 
 test("persistRemoteDatabase: success swaps once after the last chunk and updates game_count from the swap", async () => {

@@ -119,6 +119,40 @@ export function libraryFromPgn(name: string, pgn: string, folderId: string | nul
   };
 }
 
+export const MAX_GAME_PGN_BYTES = 1_000_000;
+
+export type SaveErrorCode = "pgn_too_large" | "too_many_games" | "too_many_databases" | "save_failed";
+
+export const GAME_PGN_TOO_LARGE_MESSAGE = "One game is larger than 1 MB and was not saved.";
+export const TOO_MANY_GAMES_MESSAGE = "This database holds more than 5,000 games. Remove some games and try again.";
+export const TOO_MANY_DATABASES_MESSAGE = "You can keep up to 50 personal databases. Delete one to add another.";
+
+export function databaseSaveErrorMessage(error: { message?: string; code?: string } | null): string | null {
+  if (!error) {
+    return null;
+  }
+  const message = error.message ?? "";
+  if (message.includes("quota_games")) {
+    return TOO_MANY_GAMES_MESSAGE;
+  }
+  if (message.includes("quota_databases")) {
+    return TOO_MANY_DATABASES_MESSAGE;
+  }
+  if (error.code === "23514") {
+    if (message.includes("games_pgn_size")) {
+      return GAME_PGN_TOO_LARGE_MESSAGE;
+    }
+    if (message.includes("boards_pgn_size")) {
+      return "One board is larger than 2 MB and was not saved.";
+    }
+    if (message.includes("user_settings_layout_size")) {
+      return "The layout is larger than 256 KB and was not saved.";
+    }
+    return "Some content exceeds the size limit and was not saved.";
+  }
+  return message || "Could not save the remote database.";
+}
+
 export async function persistRemoteDatabase(
   database: FileDatabase,
   userId: string,
@@ -141,7 +175,7 @@ export async function persistRemoteDatabase(
       .select("id")
       .single();
     if (error || !data) {
-      return { remoteId: null, indexError: null, saveError: error?.message ?? "Could not create the remote database." };
+      return { remoteId: null, indexError: null, saveError: databaseSaveErrorMessage(error) };
     }
     remoteId = data.id;
   } else {
@@ -154,6 +188,10 @@ export async function persistRemoteDatabase(
       .eq("id", remoteId);
   }
   if (database.games.length > 0) {
+    const oversized = database.games.some((game) => new TextEncoder().encode(game.pgn).length > MAX_GAME_PGN_BYTES);
+    if (oversized) {
+      return { remoteId, indexError: null, saveError: GAME_PGN_TOO_LARGE_MESSAGE };
+    }
     const prepared = database.games.map((game) => {
       const imported = importPgn(game.pgn);
       const headers = imported.headers;
@@ -186,14 +224,14 @@ export async function persistRemoteDatabase(
     );
     if (insertError) {
       await supabase.from("games").delete().eq("database_id", remoteId).eq("pending", true);
-      return { remoteId, indexError: null, saveError: insertError };
+      return { remoteId, indexError: null, saveError: databaseSaveErrorMessage(insertError) };
     }
     const { data: promoted, error: swapError } = await supabase.rpc("swap_database_games", {
       p_database_id: remoteId,
     });
     if (swapError) {
       await supabase.from("games").delete().eq("database_id", remoteId).eq("pending", true);
-      return { remoteId, indexError: null, saveError: swapError.message };
+      return { remoteId, indexError: null, saveError: databaseSaveErrorMessage(swapError) };
     }
     await supabase
       .from("game_databases")
@@ -214,7 +252,7 @@ export async function persistRemoteDatabase(
       p_database_id: remoteId,
     });
     if (swapError) {
-      return { remoteId, indexError: null, saveError: swapError.message };
+      return { remoteId, indexError: null, saveError: databaseSaveErrorMessage(swapError) };
     }
     await supabase.from("game_databases").update({ game_count: 0 }).eq("id", remoteId);
     await supabase.from("position_stats").delete().eq("database_id", remoteId);
@@ -280,24 +318,24 @@ async function writePositionIndex(
     supabase.from("game_positions").insert(chunk.map(toInsert)),
   );
   if (positionsError) {
-    return positionsError;
+    return positionsError.message;
   }
   const statsError = await insertChunks(stats, (chunk) => supabase.from("position_stats").insert(chunk));
   if (statsError) {
-    return statsError;
+    return statsError.message;
   }
   return null;
 }
 
 async function insertChunks<T>(
   rows: T[],
-  insert: (chunk: T[]) => PromiseLike<{ error: { message: string } | null }>,
+  insert: (chunk: T[]) => PromiseLike<{ error: { message: string; code?: string } | null }>,
   size = 400,
-): Promise<string | null> {
+): Promise<{ message: string; code?: string } | null> {
   for (let index = 0; index < rows.length; index += size) {
     const { error } = await insert(rows.slice(index, index + size));
     if (error) {
-      return error.message;
+      return error;
     }
   }
   return null;

@@ -77,6 +77,51 @@ describe("sig-1037 games pending swap migration", () => {
   });
 });
 
+describe("sig-1082 size limits and quotas migration", () => {
+  const sig1082 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261025000000_size_limits_and_quotas.sql"),
+    "utf8",
+  );
+
+  it("caps game and board pgn sizes with named, validated checks", () => {
+    assert.ok(sig1082.includes("add constraint games_pgn_size check (octet_length(pgn) <= 1000000)"), "missing games pgn check");
+    assert.ok(sig1082.includes("validate constraint games_pgn_size"), "games check must be validated");
+    assert.ok(sig1082.includes("add constraint boards_pgn_size check (octet_length(pgn) <= 2000000)"), "missing boards pgn check");
+    assert.ok(sig1082.includes("validate constraint boards_pgn_size"), "boards check must be validated");
+  });
+
+  it("caps the dock layout size with a named, validated check", () => {
+    assert.ok(
+      sig1082.includes("add constraint user_settings_layout_size check (pg_column_size(layout) < 262144)"),
+      "missing layout check",
+    );
+    assert.ok(sig1082.includes("validate constraint user_settings_layout_size"), "layout check must be validated");
+  });
+
+  it("rejects the 51st personal database with a quota trigger", () => {
+    assert.ok(sig1082.includes("create or replace function public.check_personal_database_quota()"), "missing quota function");
+    assert.ok(/security invoker/.test(sig1082));
+    assert.ok(/set search_path = ''/.test(sig1082));
+    assert.ok(sig1082.includes("quota_databases"), "trigger must raise the quota_databases token");
+    assert.ok(sig1082.includes("owned >= 50"), "trigger must enforce the 50-database quota");
+    assert.ok(
+      sig1082.includes("before insert on public.game_databases"),
+      "quota must run before insert on game_databases",
+    );
+  });
+
+  it("refuses to swap more than 5,000 games and keeps the grant scoped", () => {
+    assert.ok(sig1082.includes("pending_count > 5000"), "swap must enforce the 5,000-game quota");
+    assert.ok(sig1082.includes("quota_games"), "swap must raise the quota_games token");
+    assert.ok(sig1082.includes("delete from public.games where database_id = p_database_id and pending = false"));
+    assert.ok(
+      sig1082.includes("grant execute on function public.swap_database_games(uuid) to authenticated"),
+      "grant must be scoped to authenticated",
+    );
+    assert.ok(!/to (anon|public|service_role)/.test(sig1082), "no grants beyond authenticated");
+  });
+});
+
 describe("sig-1030 admin role lifecycle migration", () => {
   const sig1030 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261020120000_sig1030_admin_role_lifecycle.sql"),
