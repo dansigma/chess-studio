@@ -154,6 +154,25 @@ npx tsc --noEmit
 npm run test:e2e
 ```
 
+### Component tests
+
+React component and hook tests run under the same `node --test` runner — no
+second runner. The loader (`scripts/test-resolve.mjs`) transpiles `.tsx`, and
+`src/test-utils/dom.ts` installs a happy-dom `Window` as the process globals.
+Import that helper **before** `@testing-library/react` (Testing Library binds
+its `screen` queries to `document.body` at import time):
+
+```tsx
+import { setupDom, teardownDom } from "@/src/test-utils/dom.ts";
+import { render, screen } from "@testing-library/react";
+
+before(() => setupDom());
+after(() => teardownDom());
+```
+
+Hooks use Testing Library's `renderHook`; `setupDom()` sets
+`IS_REACT_ACT_ENVIRONMENT = true` so `act()` warnings stay silent.
+
 ## Dependency audit
 
 Production dependencies are audited on every CI run by `node scripts/audit-gate.mjs`
