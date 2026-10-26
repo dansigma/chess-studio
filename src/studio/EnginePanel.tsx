@@ -25,6 +25,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { fenKey } from "@/src/chess/tree";
 import { resolveEvalDisplay } from "@/src/lib/eval-cache";
+import { throttleLatest } from "@/src/lib/throttle";
 import { formatSanAtPly } from "@/src/chess/move-notation";
 import { IconButton } from "./ui/Button";
 import { Badge, Stepper } from "./ui/Controls";
@@ -92,8 +93,13 @@ export function EnginePanel() {
     }
     const lease = acquire("engine", engineBuild);
     engineRef.current = lease;
-    const unsubscribe = lease.subscribe(setInfo);
+    // SIG-1080: the engine emits dozens of snapshots per second; throttle
+    // to at most one state update per 150 ms with a trailing flush so the
+    // last snapshot is always shown.
+    const throttled = throttleLatest(setInfo, 150);
+    const unsubscribe = lease.subscribe((snapshot) => throttled(snapshot));
     return () => {
+      throttled.flush();
       unsubscribe();
       lease.release();
       engineRef.current = null;

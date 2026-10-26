@@ -15,6 +15,8 @@ import {
   isEngineBuild,
   maxHardwareThreads,
   positionAfterPv,
+  pvSanComputations,
+  resetPvSanComputationsForTests,
   scoreNumber,
   supportsEngineThreads,
   type EngineInfo,
@@ -455,4 +457,42 @@ test("defaultEngineThreads and maxHardwareThreads stay sane", () => {
   assert.ok(fallback <= max);
   // No SharedArrayBuffer cross-origin isolation in Node, so the default is single-threaded.
   assert.equal(fallback, 1);
+});
+
+test("SIG-1080: pvSan is computed at most once per distinct (fen, pv) across 100 identical info lines", () => {
+  const { engine, worker } = freshEngine();
+  handshake(worker);
+  engine.analyze(FEN_A, 22, 2, 1);
+  worker.emit("readyok");
+  resetPvSanComputationsForTests();
+  const line = "info depth 10 seldepth 12 multipv 1 score cp 35 nodes 100 nps 1000 pv e2e4 e7e5";
+  for (let i = 0; i < 100; i += 1) {
+    worker.emit(line);
+  }
+  assert.deepEqual(snap(engine).lines[0]?.pvSan, ["e4", "e5"]);
+  assert.ok(pvSanComputations <= 1, `expected at most 1 SAN computation, got ${pvSanComputations}`);
+  engine.dispose();
+});
+
+test("SIG-1080: the final snapshot of a scripted search equals the previous output", () => {
+  const { engine, worker } = freshEngine();
+  handshake(worker);
+  engine.analyze(FEN_A, 22, 2, 1);
+  worker.emit("readyok");
+  worker.emit("info depth 10 seldepth 12 multipv 1 score cp 35 nodes 100 nps 1000 pv e2e4 e7e5");
+  worker.emit("info depth 10 seldepth 12 multipv 2 score cp 20 nodes 100 nps 1000 pv d2d4 d7d5");
+  worker.emit("info depth 12 seldepth 16 multipv 1 score cp 40 nodes 500 nps 2000 pv e2e4 e7e5 g1f3");
+  worker.emit("info depth 12 seldepth 16 multipv 2 score cp 22 nodes 500 nps 2000 pv d2d4 d7d5 c1f4");
+  worker.emit("bestmove e2e4");
+  const final = snap(engine);
+  assert.equal(final.running, false);
+  assert.equal(final.depth, 12);
+  assert.deepEqual(
+    final.lines.map((line) => ({ multipv: line.multipv, scoreCp: line.scoreCp, pvSan: line.pvSan })),
+    [
+      { multipv: 1, scoreCp: 40, pvSan: ["e4", "e5", "Nf3"] },
+      { multipv: 2, scoreCp: 22, pvSan: ["d4", "d5", "Bf4"] },
+    ],
+  );
+  engine.dispose();
 });
