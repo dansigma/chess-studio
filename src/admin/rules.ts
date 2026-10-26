@@ -3,6 +3,7 @@
 // without mounting React: own-row disable, error-code localization coverage,
 // and reason-length validation (mirrors the 3–500 server rule).
 import type { AdminUsersCode } from "@/app/admin/users/actions.ts";
+import type { InviteActionCode } from "@/app/admin/users/invite-actions.ts";
 import type { AdminUsersStringKey } from "./strings.ts";
 
 export const ADMIN_USERS_ERROR_CODES: readonly AdminUsersCode[] = [
@@ -17,6 +18,58 @@ export const ADMIN_USERS_ERROR_CODES: readonly AdminUsersCode[] = [
   "rate_limited",
   "invalid_page",
 ];
+
+export type CoachInviteAcceptCode =
+  | "accepted"
+  | "invalid"
+  | "not_found"
+  | "expired"
+  | "revoked"
+  | "consumed"
+  | "email_mismatch"
+  | "role_unchanged";
+
+export type CoachInviteResultCode = CoachInviteAcceptCode | "unavailable" | "rate_limited";
+
+export const COACH_INVITE_ACCEPT_CODES: readonly CoachInviteAcceptCode[] = [
+  "accepted",
+  "invalid",
+  "not_found",
+  "expired",
+  "revoked",
+  "consumed",
+  "email_mismatch",
+  "role_unchanged",
+];
+
+export type InviteActionErrorCode = "invalid_email" | "not_found" | "unavailable" | "forbidden" | "rate_limited";
+
+export const INVITE_ACTION_ERROR_CODES: readonly InviteActionErrorCode[] = [
+  "invalid_email",
+  "not_found",
+  "unavailable",
+  "forbidden",
+  "rate_limited",
+] satisfies readonly InviteActionCode[];
+
+export function inviteActionErrorKey(code: InviteActionErrorCode): AdminUsersStringKey {
+  return `admin.invites.error.${code}`;
+}
+
+/** An invite row is pending when it is neither used, revoked, nor expired. */
+export function isInvitePending(row: { acceptedAt: string | null; revokedAt: string | null; expiresAt: string }): boolean {
+  if (row.acceptedAt !== null || row.revokedAt !== null) {
+    return false;
+  }
+  return Date.parse(row.expiresAt) > Date.now();
+}
+
+export function coachInviteAcceptKey(code: CoachInviteResultCode): AdminUsersStringKey {
+  if (code === "accepted") {
+    return "coach.invite.success";
+  }
+  return `coach.invite.error.${code}`;
+}
 
 export function adminUsersErrorKey(code: AdminUsersCode): AdminUsersStringKey {
   return `admin.users.error.${code}`;

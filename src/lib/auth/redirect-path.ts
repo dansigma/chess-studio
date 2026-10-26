@@ -1,4 +1,4 @@
-const ALLOWED_PREFIXES = ["/studio", "/courses", "/login/update-password", "/admin"];
+const ALLOWED_PREFIXES = ["/studio", "/courses", "/login/update-password", "/admin", "/coach-invite"];
 const PROBE_ORIGIN = "http://auth-probe.invalid";
 
 export function safeAuthNext(value: unknown, fallback = "/studio"): string {

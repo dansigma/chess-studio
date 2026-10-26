@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { assertStringTablesAligned } from "../test-utils/i18n.ts";
-import { ADMIN_USERS_ERROR_CODES, adminUsersErrorKey, canChangeRole, isReasonValid, shouldShowAdminLink } from "./rules.ts";
+import {
+  ADMIN_USERS_ERROR_CODES,
+  COACH_INVITE_ACCEPT_CODES,
+  INVITE_ACTION_ERROR_CODES,
+  adminUsersErrorKey,
+  canChangeRole,
+  coachInviteAcceptKey,
+  inviteActionErrorKey,
+  isInvitePending,
+  isReasonValid,
+  shouldShowAdminLink,
+  type CoachInviteResultCode,
+} from "./rules.ts";
 import { ADMIN_USERS_STRING_KEYS, TABLES, tAdminUsers } from "./strings.ts";
 
 test("admin-users string tables are aligned across locales", () => {
@@ -31,6 +43,33 @@ test("every admin error code maps to a localized message in both locales", () =>
   }
 });
 
+test("every accept code maps to a localized message in both locales", () => {
+  const all: readonly CoachInviteResultCode[] = [...COACH_INVITE_ACCEPT_CODES, "unavailable", "rate_limited"];
+  for (const code of all) {
+    const key = coachInviteAcceptKey(code);
+    assert.ok((ADMIN_USERS_STRING_KEYS as readonly string[]).includes(key), `${code} has no string key`);
+    assert.ok(tAdminUsers("en", key).length > 0, `en:${key} must not be empty`);
+    assert.ok(tAdminUsers("pt-br", key).length > 0, `pt-br:${key} must not be empty`);
+  }
+});
+
+test("every invite action error maps to a localized message in both locales", () => {
+  for (const code of INVITE_ACTION_ERROR_CODES) {
+    const key = inviteActionErrorKey(code);
+    assert.ok((ADMIN_USERS_STRING_KEYS as readonly string[]).includes(key), `${code} has no string key`);
+    assert.ok(tAdminUsers("en", key).length > 0, `en:${key} must not be empty`);
+    assert.ok(tAdminUsers("pt-br", key).length > 0, `pt-br:${key} must not be empty`);
+  }
+});
+
+test("invite pending filter excludes used, revoked, and expired rows", () => {
+  const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const past = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  assert.equal(isInvitePending({ acceptedAt: null, revokedAt: null, expiresAt: future }), true);
+  assert.equal(isInvitePending({ acceptedAt: "2026-01-01T00:00:00Z", revokedAt: null, expiresAt: future }), false);
+  assert.equal(isInvitePending({ acceptedAt: null, revokedAt: "2026-01-01T00:00:00Z", expiresAt: future }), false);
+  assert.equal(isInvitePending({ acceptedAt: null, revokedAt: null, expiresAt: past }), false);
+});
 test("the signed-in admin's own row is disabled, every other row is enabled", () => {
   assert.equal(canChangeRole("admin-1", "admin-1"), false);
   assert.equal(canChangeRole("user-2", "admin-1"), true);

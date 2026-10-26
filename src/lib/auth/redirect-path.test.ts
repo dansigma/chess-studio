@@ -8,12 +8,14 @@ describe("safeAuthNext", () => {
     assert.equal(safeAuthNext("/courses"), "/courses");
     assert.equal(safeAuthNext("/login/update-password"), "/login/update-password");
     assert.equal(safeAuthNext("/admin/users"), "/admin/users");
+    assert.equal(safeAuthNext("/coach-invite/abc123"), "/coach-invite/abc123");
   });
 
   it("accepts subpaths and query strings under allowlisted prefixes", () => {
     assert.equal(safeAuthNext("/studio/x?y=1"), "/studio/x?y=1");
     assert.equal(safeAuthNext("/courses/admin"), "/courses/admin");
     assert.equal(safeAuthNext("/admin/users?page=2"), "/admin/users?page=2");
+    assert.equal(safeAuthNext("/coach-invite/abc123?x=1"), "/coach-invite/abc123?x=1");
     assert.equal(safeAuthNext("/login/update-password?code=abc"), "/login/update-password?code=abc");
   });
 
@@ -48,6 +50,8 @@ describe("safeAuthNext", () => {
     assert.equal(safeAuthNext("/coursesx"), "/studio");
     assert.equal(safeAuthNext("/adminx"), "/studio");
     assert.equal(safeAuthNext("/admin@evil"), "/studio");
+    assert.equal(safeAuthNext("/coach-invite@evil"), "/studio");
+    assert.equal(safeAuthNext("/coach-invitex"), "/studio");
     assert.equal(safeAuthNext("//evil.example"), "/studio");
     assert.equal(safeAuthNext("/login/update-passwordx"), "/studio");
   });
