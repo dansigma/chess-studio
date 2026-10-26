@@ -163,7 +163,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     if (user && updatedDatabase) {
       void persistRemoteDatabase(updatedDatabase, user.id).then(({ saveError }) => {
         if (saveError) {
-          set({ statusMessage: "Database moved, but the remote copy could not be saved." });
+          set({ statusMessage: saveError });
         }
       });
     }
@@ -197,7 +197,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     if (user) {
       void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError, saveError }) => {
         if (saveError) {
-          set({ statusMessage: "Games imported, but the remote copy could not be saved." });
+          set({ statusMessage: saveError });
         } else if (indexError) {
           set({ statusMessage: "Games imported, but the position index could not be saved." });
         }
