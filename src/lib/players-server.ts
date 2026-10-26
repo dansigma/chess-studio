@@ -1,5 +1,5 @@
 import { createLruCache } from "@/src/lib/lru";
-import type { PlayerGame, PlayerGamesResponse, PlayerHit } from "@/src/lib/player-types";
+import type { PlayerGame, PlayerGamesResponse, PlayerHit, PlayerSource } from "@/src/lib/player-types";
 import { chesscomGames, searchChesscom } from "./players/chesscom";
 import { lichessGames, searchLichess } from "./players/lichess";
 import { GAMES_CACHE_TTL_MS, MAX_PLAYER_GAMES, isSource } from "./players/shared";
@@ -9,19 +9,35 @@ export { searchFidePlayers } from "./players/fide";
 
 const gamesCache = createLruCache<string, { expires: number; payload: PlayerGamesResponse }>(200);
 
-export async function searchPlayers(query: string): Promise<PlayerHit[]> {
+export type SearchPlayersResult = { players: PlayerHit[]; failedSources: PlayerSource[] };
+
+export const SEARCH_SOURCES = ["lichess", "chesscom", "studio"] as const satisfies readonly PlayerSource[];
+
+export async function searchPlayers(query: string): Promise<SearchPlayersResult> {
   const q = query.trim();
   if (q.length < 2) {
-    return [];
+    return { players: [], failedSources: [] };
   }
   const [lichess, chesscom, studio] = await Promise.all([
-    searchLichess(q).catch(() => [] as PlayerHit[]),
-    searchChesscom(q).catch(() => [] as PlayerHit[]),
-    searchStudioDatabase(q).catch(() => [] as PlayerHit[]),
+    searchLichess(q).then(
+      (hits) => ({ hits, failed: null as PlayerSource | null }),
+      (): { hits: PlayerHit[]; failed: PlayerSource | null } => ({ hits: [], failed: "lichess" }),
+    ),
+    searchChesscom(q).then(
+      (hits) => ({ hits, failed: null as PlayerSource | null }),
+      (): { hits: PlayerHit[]; failed: PlayerSource | null } => ({ hits: [], failed: "chesscom" }),
+    ),
+    searchStudioDatabase(q).then(
+      (hits) => ({ hits, failed: null as PlayerSource | null }),
+      (): { hits: PlayerHit[]; failed: PlayerSource | null } => ({ hits: [], failed: "studio" }),
+    ),
   ]);
+  const failedSources: PlayerSource[] = [lichess.failed, chesscom.failed, studio.failed].filter(
+    (source): source is PlayerSource => source !== null,
+  );
   const merged: PlayerHit[] = [];
   const seen = new Set<string>();
-  for (const hit of [...studio, ...chesscom, ...lichess]) {
+  for (const hit of [...studio.hits, ...chesscom.hits, ...lichess.hits]) {
     if (seen.has(hit.id)) {
       continue;
     }
@@ -29,7 +45,7 @@ export async function searchPlayers(query: string): Promise<PlayerHit[]> {
     merged.push(hit);
   }
   merged.sort((a, b) => playerRank(a) - playerRank(b));
-  return merged.slice(0, 20);
+  return { players: merged.slice(0, 20), failedSources };
 }
 
 function playerRank(hit: PlayerHit): number {

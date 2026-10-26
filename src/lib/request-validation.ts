@@ -13,3 +13,13 @@ export function isSearchQuery(value: string | null): value is string {
   const q = value?.trim() ?? "";
   return q.length >= 2 && q.length <= 40;
 }
+export function isDisplayText(value: string | null | undefined, max: number): boolean {
+  if (value === null || value === undefined) {
+    return true;
+  }
+  if (typeof value !== "string") {
+    return false;
+  }
+  const text = value.trim();
+  return text.length >= 1 && text.length <= max && !/[\p{Cc}\p{Cf}]/u.test(text);
+}

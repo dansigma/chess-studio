@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadPlayerGames } from "@/src/lib/players-server";
-import { isPlayerUsername, isStudioPlayerName } from "@/src/lib/request-validation";
+import { isDisplayText, isPlayerUsername, isStudioPlayerName } from "@/src/lib/request-validation";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 
 const limiter = createRouteLimiter({ limit: 30, windowMs: 60_000, bindingName: "RL_30_MIN" });
@@ -14,6 +14,12 @@ export async function GET(request: NextRequest) {
   const usernameOk = source === "studio" ? isStudioPlayerName(username) : isPlayerUsername(username);
   if (!validSource || !usernameOk) {
     return NextResponse.json({ error: "source and a valid username are required" }, { status: 400 });
+  }
+  if (!isDisplayText(displayName, 80) || !isDisplayText(subtitle, 120)) {
+    return NextResponse.json(
+      { error: "displayName must be at most 80 characters and subtitle at most 120" },
+      { status: 400 },
+    );
   }
   const ip = clientIp(request.headers);
   const verdict = await limiter.checkAsync(rateLimitKey("games", ip));

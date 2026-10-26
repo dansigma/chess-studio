@@ -72,6 +72,38 @@ test("studio source accepts display-style names", async () => {
   assert.equal(res.status, 200);
 });
 
+test("over-long displayName returns 400 without calling upstream", async () => {
+  stubs.loadPlayerGames = async () => {
+    throw new Error("must not call upstream for over-long display fields");
+  };
+  const { res, body } = await get(`?source=lichess&username=hikaru&displayName=${"a".repeat(81)}`);
+  assert.equal(res.status, 400);
+  assert.deepEqual(body, {
+    error: "displayName must be at most 80 characters and subtitle at most 120",
+  });
+});
+
+test("over-long subtitle returns 400 without calling upstream", async () => {
+  stubs.loadPlayerGames = async () => {
+    throw new Error("must not call upstream for over-long display fields");
+  };
+  const { res, body } = await get(`?source=lichess&username=hikaru&subtitle=${"a".repeat(121)}`);
+  assert.equal(res.status, 400);
+  assert.deepEqual(body, {
+    error: "displayName must be at most 80 characters and subtitle at most 120",
+  });
+});
+
+test("boundary-length display fields still pass through", async () => {
+  const payload = { games: [], player: { username: "hikaru" } };
+  stubs.loadPlayerGames = async () => payload;
+  const { res, body } = await get(
+    `?source=lichess&username=hikaru&displayName=${"a".repeat(80)}&subtitle=${"b".repeat(120)}`,
+  );
+  assert.equal(res.status, 200);
+  assert.deepEqual(body, payload);
+});
+
 test("upstream failure returns 502", async () => {
   stubs.loadPlayerGames = async () => {
     throw new Error("upstream down");

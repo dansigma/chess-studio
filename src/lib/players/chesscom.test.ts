@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { chesscomGames, chesscomGamesSince, chesscomWinner, compactChesscomGame } from "./chesscom.ts";
+import {
+  chesscomGames,
+  chesscomGamesSince,
+  chesscomWinner,
+  compactChesscomGame,
+  searchChesscom,
+} from "./chesscom.ts";
 import { mockFetch } from "@/src/test-utils/route-test.ts";
 import { UpstreamPayloadTooLargeError } from "../read-capped.ts";
 
@@ -202,5 +208,69 @@ test("chesscomGames throws UpstreamPayloadTooLargeError when monthly archive exc
     },
     (err: unknown) => err instanceof UpstreamPayloadTooLargeError,
   );
+});
+
+test("searchChesscom runs candidates at concurrency 2", async (t) => {
+  // "Magnus Carlsen" yields several candidates; each hangs ~40ms so a
+  // sequential run would take 4x that while concurrency-2 takes ~2 waves.
+  let inFlight = 0;
+  let maxInFlight = 0;
+  mockFetch(t, async (url) => {
+    inFlight += 1;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      const username = url.split("/").at(-1) ?? "unknown";
+      return new Response(JSON.stringify({ username, name: "Test User" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } finally {
+      inFlight -= 1;
+    }
+  });
+  const t0 = Date.now();
+  const hits = await searchChesscom("Magnus Carlsen");
+  const elapsed = Date.now() - t0;
+  assert.equal(maxInFlight, 2);
+  assert.ok(hits.length >= 2, `expected several hits, got ${hits.length}`);
+  assert.ok(elapsed < 40 * 4, `expected parallel waves, took ${elapsed}ms`);
+});
+
+test("searchChesscom de-duplicates usernames keeping candidate order", async (t) => {
+  mockFetch(t, () => {
+    // Every candidate URL resolves to the same Chess.com username.
+    return new Response(JSON.stringify({ username: "magnuscarlsen", name: "Magnus Carlsen" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  });
+  const hits = await searchChesscom("Magnus Carlsen");
+  assert.ok(hits.length >= 1, "at least one hit");
+  assert.deepEqual(
+    hits.map((hit) => hit.username.toLowerCase()),
+    ["magnuscarlsen"],
+  );
+  assert.equal(hits[0]?.id, "chesscom:magnuscarlsen");
+});
+
+test("searchChesscom returns [] when every candidate 404s", async (t) => {
+  mockFetch(t, () => new Response("not found", { status: 404 }));
+  assert.deepEqual(await searchChesscom("Magnus Carlsen"), []);
+});
+
+test("searchChesscom keeps going when one candidate throws", async (t) => {
+  mockFetch(t, (url) => {
+    if (url.toLowerCase().endsWith("/magnuscarlsen")) {
+      throw new Error("network down");
+    }
+    const username = url.split("/").at(-1) ?? "other";
+    return new Response(JSON.stringify({ username, name: "Other User" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  });
+  const hits = await searchChesscom("Magnus Carlsen");
+  assert.ok(hits.length >= 1, "other candidates still resolve");
 });
 

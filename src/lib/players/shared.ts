@@ -36,3 +36,25 @@ export function playerResult(
 export function isSource(value: string): value is PlayerSource {
   return value === "lichess" || value === "chesscom" || value === "studio";
 }
+
+export async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  if (items.length === 0) {
+    return results;
+  }
+  const workers = Math.max(1, Math.min(limit < 1 ? 1 : limit, items.length));
+  let next = 0;
+  async function run(): Promise<void> {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await fn(items[index] as T, index);
+    }
+  }
+  await Promise.all(Array.from({ length: workers }, () => run()));
+  return results;
+}
