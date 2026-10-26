@@ -159,21 +159,32 @@ export function AdminView() {
   }
 
   async function submitForReview() {
-    const theme = draft.theme;
-    if (!isCourseTheme(theme)) {
-      setError({ key: "course.admin.error.chooseTheme" });
+    // Save-then-submit on the same validated payload: submit must send what
+    // is on screen, not the stale row already in the database. This also
+    // covers brand-new unsaved courses (save creates the row first).
+    const validated = validatedPayload();
+    if (!validated.ok) {
       return;
     }
     setSubmitting(true);
     try {
-      const result = await submitCourseForReview(draft.id);
+      const saved = isAdmin ? await publishCourse(validated.payload) : await saveCourseDraft(validated.payload);
+      if (!saved.ok) {
+        setError(saved.error);
+        return;
+      }
+      const result = await submitCourseForReview(saved.course.id);
       if (!result.ok) {
         setError(result.error);
         return;
       }
-      const next: Course = { ...draft, status: "in_review" as const, theme };
-      setCourses((current) => current.map((course) => (course.id === draft.id ? next : course)));
+      const next: Course = { ...saved.course, status: "in_review" as const };
+      setCourses((current) => [next, ...current.filter((course) => course.id !== next.id)]);
       setDraft(next);
+      setPriceTexts((current) => ({
+        ...current,
+        [next.id]: next.priceCents != null ? centsToPrice(next.priceCents, locale) : "",
+      }));
       setError(null);
       router.refresh();
     } finally {
@@ -231,7 +242,17 @@ export function AdminView() {
                 <button
                   type="button"
                   className="w-full truncate rounded-md px-2 py-1.5 text-left text-body text-studio-fg hover:bg-studio-hover"
-                  onClick={() => setDraft(course)}
+                  onClick={() => {
+                    setDraft(course);
+                    // Seed the raw price text from the opened course so a
+                    // paid course shows its own price, never another draft's
+                    // leftover text.
+                    setPriceTexts((current) => ({
+                      ...current,
+                      [course.id]:
+                        course.priceCents != null ? centsToPrice(course.priceCents, locale) : "",
+                    }));
+                  }}
                 >
                   <span className="block truncate">{course.title}</span>
                   <span className="mt-0.5 inline-block rounded-full border border-studio-border px-2 py-px text-caption text-studio-muted">

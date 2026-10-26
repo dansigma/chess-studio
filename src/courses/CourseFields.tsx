@@ -71,8 +71,9 @@ export function CourseFields({
         {readOnly ? (
           <div
             className="mt-1 min-h-36 rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-fg"
-            // The summary is sanitized HTML (checkedCourse); render it
-            // read-only rather than mounting the TipTap editor.
+            // The summary is sanitized HTML (sanitizeCourseHtml, applied in
+            // checkedCourse); render it read-only rather than mounting the
+            // TipTap editor.
             dangerouslySetInnerHTML={{ __html: draft.summary }}
           />
         ) : (
