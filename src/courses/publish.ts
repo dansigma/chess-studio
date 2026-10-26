@@ -64,7 +64,9 @@ function rowOwner(row: CourseStatusRow | null | undefined, userId: string, super
 /**
  * Revalidates the public surface after a write. Called exactly when a course
  * becomes or stops being public (status flip across the published boundary),
- * and unconditionally on archive/delete (acceptance: approve, unpublish,
+ * on every write that lands on `published` (content edits and slug changes
+ * keep serving stale pages until the 60 s ISR window otherwise), and
+ * unconditionally on archive/delete (acceptance: approve, unpublish,
  * archive or delete revalidate; a plain draft save does not).
  */
 function revalidateCourse(slug: string, oldSlug?: string): void {
@@ -307,9 +309,9 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
   if (error) {
     return { ok: false, error: { key: databaseError(error) } };
   }
-  if (visibilityChanged(from, "published")) {
-    revalidateCourse(checked.course.slug, existingRow?.slug ?? undefined);
-  }
+  // Published means public: any content write (including same-slug edits
+  // and slug changes, old + new slug) invalidates the public surface.
+  revalidateCourse(checked.course.slug, existingRow?.slug ?? undefined);
   return { ok: true, course: { ...checked.course, status: "published" as const, publishedAt } };
 }
 

@@ -36,6 +36,7 @@ const {
   archiveCourse,
   publishCourse,
   unpublishCourse,
+  removePublishedCourse,
 } = await import("./publish.ts");
 
 const COACH = { id: "coach-1", email: "coach@example.com", email_confirmed_at: "2026-01-01T00:00:00Z" };
@@ -222,6 +223,46 @@ test("admin unpublishes published back to draft with revalidation", async () => 
   assert.deepEqual(
     revalidateCalls.map((call) => call.path).sort(),
     ["/courses", "/courses/london-system"],
+  );
+});
+
+test("admin removes a published course and revalidates its pages", async () => {
+  const { service } = withCourseRow({ status: "published" }, ADMIN, "admin");
+  assert.deepEqual(await removePublishedCourse(COURSE_ID), { ok: true });
+  assert.ok(
+    service.calls.deleted.some((call) => call.table === "courses"),
+    "expected a courses delete",
+  );
+  assert.deepEqual(
+    revalidateCalls.map((call) => call.path).sort(),
+    ["/courses", "/courses/london-system"],
+  );
+});
+
+test("admin removes a row without a slug and still revalidates the list", async () => {
+  withCourseRow({ status: "draft", slug: null }, ADMIN, "admin");
+  assert.deepEqual(await removePublishedCourse(COURSE_ID), { ok: true });
+  assert.deepEqual(
+    revalidateCalls.map((call) => call.path),
+    ["/courses"],
+  );
+});
+
+test("admin republish of edited published content revalidates, including slug changes", async () => {
+  withCourseRow({ status: "published" }, ADMIN, "admin");
+  const sameSlug = await publishCourse(course({ status: "published", title: "London System v2" }));
+  assert.equal(sameSlug.ok, true);
+  assert.deepEqual(
+    revalidateCalls.map((call) => call.path).sort(),
+    ["/courses", "/courses/london-system"],
+  );
+
+  withCourseRow({ status: "published" }, ADMIN, "admin");
+  const renamed = await publishCourse(course({ status: "published", slug: "jobava-london" }));
+  assert.equal(renamed.ok, true);
+  assert.deepEqual(
+    revalidateCalls.map((call) => call.path).sort(),
+    ["/courses", "/courses/jobava-london", "/courses/london-system"],
   );
 });
 
