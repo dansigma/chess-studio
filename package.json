@@ -34,7 +34,7 @@
     "react-server-dom-webpack": "^19.2.8",
     "server-only": "^0.0.1",
     "vinext": "^1.3.0",
-    "xss": "^1.0.15",
+    "xss": "^1.0.16",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
