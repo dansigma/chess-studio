@@ -95,3 +95,12 @@ test("repertoire deviation action sentences are translated", () => {
     "Essa linha não está mais no repertório.",
   );
 });
+
+test("repertoire deviation stats section is translated", () => {
+  assert.equal(tRepertoire("en", "repertoire.deviation.statsTitle"), "Where you leave your repertoire");
+  assert.equal(tRepertoire("pt-br", "repertoire.deviation.statsTitle"), "Onde você sai do repertório");
+  assert.equal(tRepertoire("en", "repertoire.deviation.statsCount.one", { count: 1 }), "1 game");
+  assert.equal(tRepertoire("en", "repertoire.deviation.statsCount.other", { count: 5 }), "5 games");
+  assert.equal(tRepertoire("pt-br", "repertoire.deviation.statsCount.one", { count: 1 }), "1 partida");
+  assert.equal(tRepertoire("pt-br", "repertoire.deviation.statsCount.other", { count: 5 }), "5 partidas");
+});

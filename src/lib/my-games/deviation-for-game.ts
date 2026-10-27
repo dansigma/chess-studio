@@ -29,8 +29,9 @@ export function deviationForGame(args: {
 }
 
 /** Move reference for a repertoire SAN at the deviation position — the same
- * "7…Nf6" grain as `deviationLabel` (which only formats the played move). */
-function repertoireLabel(fen: string, san: string): string {
+ * "7…Nf6" grain as `deviationLabel` (which only formats the played move).
+ * Exported for the SIG-1095 aggregate row labels. */
+export function repertoireLabel(fen: string, san: string): string {
   const parts = fen.split(" ");
   const side = parts[1] === "b" ? "b" : "w";
   const fullmove = Number(parts[5]) || 1;
