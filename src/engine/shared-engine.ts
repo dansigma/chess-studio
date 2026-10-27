@@ -23,7 +23,9 @@
 // panels never render another slot's search — they also guard on `info.fen`
 // (the SIG-851 path).
 //
-// `StockfishEngine` itself is consumed as-is and left untouched.
+// `StockfishEngine` itself is consumed as-is for search flow, but this module
+// relies on its SIG-1081 restart() for post-failure recovery (instance
+// identity is preserved, so the tap subscription stays valid).
 //
 // Natural completion is detected by a service-owned tap subscription on the
 // underlying client (attached in `ensureUnderlying`, cleared by `dispose`).
@@ -67,6 +69,9 @@ export type SharedEngineLease = {
   ) => void;
   stop: () => void;
   release: () => void;
+  /** SIG-1081: restart the underlying client after a worker failure and
+   * resume the active slot's last search. Slots and stashed params stay. */
+  restart: () => void;
 };
 
 type AnalyzeParams = {
@@ -304,6 +309,19 @@ class LeaseImpl implements SharedEngineLease {
       lastParamsBySlot.clear();
       if (idleDisposeTimer === null) {
         idleDisposeTimer = setTimeout(disposeIdleUnderlying, ENGINE_IDLE_DISPOSE_MS);
+      }
+    }
+  };
+
+  restart = (): void => {
+    if (!this.live || !underlying) {
+      return;
+    }
+    underlying.restart();
+    if (activeSlot !== null) {
+      const params = lastParamsBySlot.get(activeSlot);
+      if (params) {
+        forward(activeSlot, params);
       }
     }
   };

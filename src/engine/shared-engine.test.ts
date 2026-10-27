@@ -8,6 +8,7 @@ import {
   type SharedEngineLease,
 } from "./shared-engine.ts";
 import type { EngineInfo } from "./stockfish-client.ts";
+import { ENGINE_RETRY_MS } from "./stockfish-client.ts";
 
 type FakeInstance = {
   url: string;
@@ -513,4 +514,50 @@ test("threat subscribe isolation: engine hears nothing while threat is active", 
   assert.equal(heardByEngine.length, engineCount);
   engine.release();
   threat.release();
+});
+
+test("SIG-1081: lease restart() recovers the active search and keeps waiters", () => {
+  setup();
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const engine = acquire("engine", "lite");
+    const graph = acquire("graph", "lite");
+    activeSearch(engine, FEN_A);
+    graph.analyze(FEN_B, 12, 1, 1);
+    const failing = worker();
+    void failing;
+    // Two consecutive errors: first auto-retries, second marks failed.
+    worker().fail();
+    mock.timers.tick(ENGINE_RETRY_MS);
+    worker().fail();
+    let failed!: EngineInfo;
+    const unsub = engine.subscribe((info) => {
+      failed = info;
+    });
+    assert.equal(failed.failed, true);
+    unsub();
+    // Restart the lease: a fresh worker boots and the active slot's last
+    // params are re-forwarded.
+    const countBefore = instances.length;
+    engine.restart();
+    assert.equal(instances.length, countBefore + 1);
+    const fresh = worker();
+    fresh.emit("uciok");
+    fresh.emit("readyok");
+    fresh.emit("readyok");
+    assert.ok(fresh.sent.some((msg) => msg === `position fen ${FEN_A}`));
+    assert.ok(fresh.sent.some((msg) => msg.startsWith("go depth")));
+    fresh.emit("info depth 12 seldepth 16 multipv 1 score cp 35 nodes 100 nps 1000 pv e2e4 e7e5");
+    let recovered!: EngineInfo;
+    const unsub2 = engine.subscribe((info) => {
+      recovered = info;
+    });
+    assert.equal(recovered.failed, false);
+    assert.equal(recovered.lines.length, 1);
+    unsub2();
+    engine.release();
+    graph.release();
+  } finally {
+    mock.timers.reset();
+  }
 });

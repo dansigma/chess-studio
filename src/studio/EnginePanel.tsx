@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Cpu, ListPlus, Pause, Play } from "lucide-react";
+import { Cpu, ListPlus, Pause, Play, RotateCcw } from "lucide-react";
 import { useMenuKeyDown } from "./ui/use-menu-keyboard";
 import {
   ENGINE_BUILD_INFO,
@@ -321,6 +321,18 @@ export function EnginePanel() {
             <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-studio-success" aria-hidden="true" />
           ) : null}
           <span className="truncate">{status}</span>
+          {info.failed ? (
+            <button
+              type="button"
+              className="shrink-0 rounded-md border border-studio-border-strong px-1.5 py-0.5 text-caption font-medium text-studio-fg hover:bg-studio-hover"
+              onClick={() => engineRef.current?.restart()}
+            >
+              <span className="inline-flex items-center gap-1">
+                <RotateCcw size={12} aria-hidden="true" />
+                {tPanels(locale, "engine.restart")}
+              </span>
+            </button>
+          ) : null}
         </div>
         <Stepper
           label={tPanels(locale, "engine.lines")}
