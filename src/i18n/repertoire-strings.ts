@@ -21,6 +21,9 @@ export const REPERTOIRE_STRING_KEYS = [
   "repertoire.deviation.gapAdded",
   "repertoire.deviation.gapInvalid",
   "repertoire.deviation.missingLine",
+  "repertoire.deviation.statsTitle",
+  "repertoire.deviation.statsCount.one",
+  "repertoire.deviation.statsCount.other",
 ] as const;
 
 export type RepertoireStringKey = (typeof REPERTOIRE_STRING_KEYS)[number];
@@ -43,6 +46,9 @@ const EN: Record<RepertoireStringKey, string> = {
   "repertoire.deviation.gapAdded": "Opponent move added — now play your reply.",
   "repertoire.deviation.gapInvalid": "That move could not be added to the repertoire.",
   "repertoire.deviation.missingLine": "That line is no longer in the repertoire.",
+  "repertoire.deviation.statsTitle": "Where you leave your repertoire",
+  "repertoire.deviation.statsCount.one": "{count} game",
+  "repertoire.deviation.statsCount.other": "{count} games",
 };
 
 const PT_BR: Record<RepertoireStringKey, string> = {
@@ -63,6 +69,9 @@ const PT_BR: Record<RepertoireStringKey, string> = {
   "repertoire.deviation.gapAdded": "Lance do adversário adicionado — agora jogue sua resposta.",
   "repertoire.deviation.gapInvalid": "Esse lance não pôde ser adicionado ao repertório.",
   "repertoire.deviation.missingLine": "Essa linha não está mais no repertório.",
+  "repertoire.deviation.statsTitle": "Onde você sai do repertório",
+  "repertoire.deviation.statsCount.one": "{count} partida",
+  "repertoire.deviation.statsCount.other": "{count} partidas",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

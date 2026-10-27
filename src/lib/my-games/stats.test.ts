@@ -3,16 +3,23 @@
 // moving-average values, phase totals, stable ordering).
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { importPgn } from "@/src/chess/pgn.ts";
+import type { GameTree } from "@/src/chess/tree.ts";
 import type { PlayerGame } from "@/src/lib/player-types.ts";
+import type { DeviationPointEvent } from "./stats.ts";
 import type { MistakeCounts } from "./review-queue.ts";
 import {
   ACCURACY_TREND_WINDOW,
   accuracyTrend,
+  aggregateDeviations,
+  deviationsForRecentGames,
   emptyMistakeTotals,
   mistakesByPhase,
   MY_STATS_MIN_REVIEWED,
   myStatsViewState,
+  RECENT_DEVIATION_WINDOW,
   resultsByOpening,
+  type DeviationGroupEvent,
 } from "./stats.ts";
 
 function counts(opening: number, middlegame: number, endgame: number): MistakeCounts {
@@ -185,5 +192,161 @@ describe("myStatsViewState", () => {
     assert.equal(myStatsViewState(2), "empty");
     assert.equal(myStatsViewState(3), "ready");
     assert.equal(myStatsViewState(9), "ready");
+  });
+});
+
+// SIG-1095: 8 hand-built events over 3 positions. Position A (user_deviation
+// at the post-1.e4-e5 Nf3 square, 4 games, most recent playedAt 40) must
+// rank first; position B (opponent_gap, 3 games, most recent playedAt 100)
+// second by count despite the fresher timestamp; position C (1 game)
+// last. Position A includes the same square with different move counters
+// (halfmove 0 vs 4) to prove fenKey grouping.
+const FEN_A = "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2";
+const FEN_A_COUNTERS = "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 4 4";
+const FEN_B = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
+const FEN_C = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3";
+
+function pointEvent(overrides: Partial<DeviationPointEvent> & { kind: "user_deviation" | "opponent_gap" }): DeviationPointEvent {
+  return {
+    ply: 3,
+    fen: FEN_A,
+    playedUci: "f8c5",
+    playedSan: "Bc5",
+    repertoireMoves: [{ uci: "b8c6", san: "Nc6" }],
+    ...overrides,
+  };
+}
+
+const DEVIATION_FIXTURE: DeviationGroupEvent[] = [
+  { event: pointEvent({ kind: "user_deviation", fen: FEN_A, playedSan: "Bc5", playedUci: "f8c5" }), gameId: "w01", playedAt: 10, color: "white" },
+  { event: pointEvent({ kind: "user_deviation", fen: FEN_A, playedSan: "Bc5", playedUci: "f8c5" }), gameId: "w02", playedAt: 20, color: "white" },
+  // Same square, different counters — must group with the two above.
+  { event: pointEvent({ kind: "user_deviation", fen: FEN_A_COUNTERS, playedSan: "Bb4", playedUci: "f8b4" }), gameId: "w03", playedAt: 30, color: "white" },
+  { event: pointEvent({ kind: "user_deviation", fen: FEN_A, playedSan: "Bc5", playedUci: "f8c5", repertoireMoves: [{ uci: "g8f6", san: "Nf6" }] }), gameId: "w04", playedAt: 40, color: "white" },
+  { event: pointEvent({ kind: "opponent_gap", fen: FEN_B, playedSan: "c5", playedUci: "c7c5", ply: 1, repertoireMoves: [{ uci: "e7e5", san: "e5" }] }), gameId: "b01", playedAt: 50, color: "black" },
+  { event: pointEvent({ kind: "opponent_gap", fen: FEN_B, playedSan: "d5", playedUci: "d7d5", ply: 1, repertoireMoves: [{ uci: "e7e5", san: "e5" }] }), gameId: "b02", playedAt: 60, color: "black" },
+  { event: pointEvent({ kind: "opponent_gap", fen: FEN_B, playedSan: "c5", playedUci: "c7c5", ply: 1, repertoireMoves: [{ uci: "e7e5", san: "e5" }] }), gameId: "b03", playedAt: 100, color: "black" },
+  { event: pointEvent({ kind: "user_deviation", fen: FEN_C, playedSan: "Bb5", playedUci: "f1b5", ply: 4 }), gameId: "w05", playedAt: 90, color: "white" },
+];
+
+describe("aggregateDeviations", () => {
+  it("groups by fenKey with exact counts, labels, and count-then-recency order", () => {
+    const rows = aggregateDeviations(DEVIATION_FIXTURE);
+    assert.equal(rows.length, 3);
+    // Position A first: 4 games despite an older most-recent timestamp.
+    assert.equal(rows[0]?.count, 4);
+    assert.equal(rows[0]?.kind, "user_deviation");
+    assert.equal(rows[0]?.color, "white");
+    assert.deepEqual(rows[0]?.gameIds, ["w01", "w02", "w03", "w04"]);
+    // Most-recent event (w04, playedAt 40) owns the label + repertoire moves:
+    // deviationLabel(FEN_A @ fullmove 2, black to move, Bc5) = "2…Bc5",
+    // repertoireLabel(FEN_A, Nf6) = "2…Nf6".
+    assert.equal(rows[0]?.label, "2…Bc5 instead of 2…Nf6");
+    assert.deepEqual(rows[0]?.repertoireMoves, [{ uci: "g8f6", san: "Nf6" }]);
+    assert.deepEqual(rows[0]?.playedMoves, [
+      { san: "Bc5", count: 3 },
+      { san: "Bb4", count: 1 },
+    ]);
+    // Position B second (3 games); gap label has no "instead of" suffix.
+    assert.equal(rows[1]?.count, 3);
+    assert.equal(rows[1]?.kind, "opponent_gap");
+    assert.equal(rows[1]?.label, "1…c5");
+    assert.deepEqual(rows[1]?.playedMoves, [
+      { san: "c5", count: 2 },
+      { san: "d5", count: 1 },
+    ]);
+    // Position C last (1 game).
+    assert.equal(rows[2]?.count, 1);
+    assert.equal(rows[2]?.label, "3. Bb5 instead of 3. Nc6");
+  });
+
+  it("orders equal counts by recency, then by key", () => {
+    const rows = aggregateDeviations([
+      { event: pointEvent({ kind: "user_deviation", fen: FEN_C, playedSan: "Bb5", playedUci: "f1b5", ply: 4 }), gameId: "n1", playedAt: 5, color: "white" },
+      { event: pointEvent({ kind: "opponent_gap", fen: FEN_B, playedSan: "c5", playedUci: "c7c5", ply: 1, repertoireMoves: [{ uci: "e7e5", san: "e5" }] }), gameId: "n2", playedAt: 50, color: "black" },
+    ]);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[0]?.label, "1…c5", "fresher most-recent wins the count tie");
+    assert.equal(rows[1]?.label, "3. Bb5 instead of 3. Nc6");
+    assert.deepEqual(aggregateDeviations([]), [], "empty input yields no groups");
+  });
+
+  it("ignores none, line_ended, and never_entered events", () => {
+    const ignored: DeviationGroupEvent[] = [
+      { event: { kind: "none" }, gameId: "x1", playedAt: 1, color: "white" },
+      {
+        event: { kind: "line_ended", ply: 2, fen: FEN_A, playedUci: "f8c5", playedSan: "Bc5", repertoireMoves: [] },
+        gameId: "x2",
+        playedAt: 2,
+        color: "white",
+      },
+      {
+        event: { kind: "never_entered", ply: 1, fen: FEN_B, playedUci: "c7c5", playedSan: "c5", repertoireMoves: [] },
+        gameId: "x3",
+        playedAt: 3,
+        color: "black",
+      },
+    ];
+    assert.deepEqual(aggregateDeviations(ignored), []);
+    assert.equal(
+      aggregateDeviations([...ignored, ...DEVIATION_FIXTURE]).length,
+      3,
+      "ignored kinds never create or split groups",
+    );
+  });
+});
+
+function treeFromPgn(pgn: string): GameTree {
+  const imported = importPgn(pgn);
+  assert.equal(imported.warnings.length, 0, `PGN failed to import: ${imported.warnings}`);
+  return imported.tree;
+}
+
+describe("deviationsForRecentGames", () => {
+  it("uses only the 50 most recent games by date, oldest and nulls excluded", () => {
+    assert.equal(RECENT_DEVIATION_WINDOW, 50);
+    // Repertoire answers 1. e4 with 1…e5 only. Deviation PGNs play 1. d4
+    // (user_deviation at the start position for White); the in-repertoire PGN
+    // stays inside (kind none). The oldest game (w00, playedAt 1) and a
+    // null-playedAt game use the deviating PGN — both must fall outside the
+    // 50-game window (nulls sort as 0, oldest first).
+    const whiteRep = treeFromPgn("1. e4 e5 *\n");
+    const blackRep = treeFromPgn("1. e4 e5 *\n");
+    const deviating = "1. d4 d5 *\n";
+    const inside = "1. e4 e5 *\n";
+    const fixtureGames: PlayerGame[] = [
+      game({ id: "w00", color: "white", playedAt: 1, pgn: deviating }),
+      ...Array.from({ length: 49 }, (_, index) =>
+        game({ id: `m${String(index).padStart(2, "0")}`, color: "white", playedAt: 10 + index, pgn: inside }),
+      ),
+      ...Array.from({ length: 9 }, (_, index) =>
+        game({ id: `d0${index}`, color: "white", playedAt: 60 + index, pgn: deviating }),
+      ),
+      game({ id: "null1", color: "white", playedAt: null, pgn: deviating }),
+    ];
+    // Shuffle the input order so the test proves order-independence: reverse
+    // halves keep the sort honest (load order must not leak into the window).
+    const shuffled = [...fixtureGames.slice(30), ...fixtureGames.slice(0, 30)];
+    const rows = deviationsForRecentGames(shuffled, { white: whiteRep, black: blackRep });
+    assert.equal(rows.length, 1, "all deviations share the start position");
+    assert.equal(rows[0]?.count, 9, "only the 9 deviating games inside the window count");
+    assert.ok(!rows[0]?.gameIds.includes("w00"), "51st-oldest game excluded");
+    assert.ok(!rows[0]?.gameIds.includes("null1"), "null-playedAt game sorts outside the window");
+    assert.equal(rows[0]?.kind, "user_deviation");
+  });
+
+  it("skips games with no repertoire for their color and missing PGNs", () => {
+    const whiteRep = treeFromPgn("1. e4 e5 *\n");
+    const rows = deviationsForRecentGames(
+      [
+        game({ id: "b1", color: "black", playedAt: 2, pgn: "1. e4 c5 *\n" }),
+        game({ id: "w1", color: "white", playedAt: 3, pgn: undefined }),
+        game({ id: "w2", color: "white", playedAt: 4, pgn: "   " }),
+        game({ id: "w3", color: "white", playedAt: 5, pgn: "1. d4 d5 *\n" }),
+      ],
+      { white: whiteRep, black: null },
+    );
+    assert.equal(rows.length, 1);
+    assert.deepEqual(rows[0]?.gameIds, ["w3"]);
   });
 });

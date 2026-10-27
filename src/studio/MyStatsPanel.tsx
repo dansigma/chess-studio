@@ -5,16 +5,26 @@
 // eval-per-ply with board-path coupling), results-by-opening table with
 // white/black tabs, and per-phase mistake bars. Fewer than 3 reviewed games
 // shows the empty hint (`myStatsViewState` rule).
+// SIG-1095: "Where you leave your repertoire" section — top-10 deviation
+// groups over the last 50 games (`deviationsForRecentGames`), each row with
+// the SIG-1094 one-click fix button for the group's most recent example.
+// Hidden when no repertoire board is marked (same condition as the sidebar
+// `needsRepHint`); groups need no review (deviations are PGN-shape, not
+// engine output), but the section lives inside the `ready` branch so the
+// <3-reviewed empty state stays the single gate.
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { phaseName, tierName } from "@/src/chess/review-strings";
 import { formatDecimal1, formatInteger } from "@/src/i18n/format";
 import { tMyGames } from "@/src/i18n/my-games-strings";
+import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { loadMyGames, type MyGamesPage } from "@/src/lib/my-games/load-games";
 import {
   accuracyTrend,
+  deviationsForRecentGames,
+  DEVIATION_TOP_GROUPS,
   mistakesByPhase,
   MY_STATS_MIN_REVIEWED,
   myStatsViewState,
@@ -147,6 +157,20 @@ export function MyStatsPanel() {
   const openings = useMemo(() => resultsByOpening(games), [games]);
   const phaseTotals = useMemo(() => mistakesByPhase(games), [games]);
   const tabRows = useMemo(() => openings.filter((row) => row.color === colorTab), [openings, colorTab]);
+  // SIG-1095: per-color repertoire trees + board ids (same selector grain as
+  // MyGamesSidebar's row badges so the section recomputes only when a tree
+  // or mark changes). Separate selectors keep subscriptions narrow — no
+  // unrelated board edits re-trigger the 50-game `importPgn` scan.
+  const whiteRepTree = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "white")?.tree ?? null);
+  const blackRepTree = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "black")?.tree ?? null);
+  const whiteRepBoardId = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "white")?.id ?? null);
+  const blackRepBoardId = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "black")?.id ?? null);
+  const trainDeviationLine = useStudioStore((state) => state.trainDeviationLine);
+  const addGapToRepertoire = useStudioStore((state) => state.addGapToRepertoire);
+  const deviationGroups = useMemo(
+    () => deviationsForRecentGames(games, { white: whiteRepTree, black: blackRepTree }).slice(0, DEVIATION_TOP_GROUPS),
+    [games, whiteRepTree, blackRepTree],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-studio-panel text-dense text-studio-fg">
@@ -267,6 +291,55 @@ export function MyStatsPanel() {
                 })}
               </div>
             </section>
+            {whiteRepTree === null && blackRepTree === null ? null : (
+              <section aria-labelledby="mystats-deviations">
+                <h2 id="mystats-deviations" className="mb-1 text-caption font-semibold text-studio-muted">
+                  {tRepertoire(locale, "repertoire.deviation.statsTitle")}
+                </h2>
+                {deviationGroups.length === 0 ? (
+                  <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
+                ) : (
+                  <ul className="flex flex-col gap-1.5">
+                    {deviationGroups.map((group) => {
+                      const repMissing =
+                        group.color === "white" ? whiteRepBoardId === null : blackRepBoardId === null;
+                      const fixLabel = tRepertoire(
+                        locale,
+                        group.kind === "user_deviation" ? "repertoire.deviation.trainLine" : "repertoire.deviation.addGap",
+                      );
+                      return (
+                        <li key={group.key} className="border-t border-studio-border-subtle py-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <span className="min-w-0 flex-1 truncate text-dense text-studio-fg">{group.label}</span>
+                            <span className="shrink-0 text-caption tabular-nums text-studio-faint">
+                              {tRepertoire(locale, group.count === 1 ? "repertoire.deviation.statsCount.one" : "repertoire.deviation.statsCount.other", {
+                                count: group.count,
+                              })}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            title={repMissing ? tRepertoire(locale, "repertoire.deviation.noBoard") : fixLabel}
+                            aria-label={fixLabel}
+                            disabled={repMissing}
+                            onClick={() => {
+                              if (group.kind === "user_deviation") {
+                                trainDeviationLine(group.recentEvent, group.color);
+                              } else {
+                                addGapToRepertoire(group.recentEvent, group.color);
+                              }
+                            }}
+                            className="text-caption font-medium text-studio-accent-text hover:underline disabled:cursor-default disabled:text-studio-disabled disabled:hover:no-underline"
+                          >
+                            {fixLabel}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            )}
           </div>
         )}
       </div>
