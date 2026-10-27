@@ -22,7 +22,7 @@
     "@tiptap/extension-placeholder": "^3.32.0",
     "@tiptap/react": "^3.32.0",
     "@tiptap/starter-kit": "^3.32.0",
-    "@vinext/cloudflare": "^1.1.0",
+    "@vinext/cloudflare": "^1.2.0",
     "chess.js": "^1.4.0",
     "dockview-react": "^8.6.1",
     "html-to-image": "^1.11.13",
