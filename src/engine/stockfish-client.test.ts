@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { mock } from "node:test";
 import {
+  ENGINE_RETRY_MS,
   MAX_DEPTH,
   MAX_LINES,
   MIN_DEPTH,
@@ -321,9 +322,116 @@ test("stopSearch sends stop, clears running and pending", () => {
 test("worker error surfaces failed in the snapshot", () => {
   const { engine, worker } = freshEngine();
   handshake(worker);
+  // SIG-1081: the first error schedules one automatic retry; the second
+  // consecutive error marks the client failed.
   worker.fail();
-  assert.equal(snap(engine).failed, true);
+  assert.equal(snap(engine).failed, false);
   engine.dispose();
+});
+
+test("SIG-1081: first worker error triggers one automatic retry that recovers", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const { engine, worker } = freshEngine();
+    handshake(worker);
+    engine.analyze(FEN_A, 22, 2, 1);
+    worker.emit("readyok");
+    const countBefore = instances.length;
+    const urlBefore = worker.url;
+    worker.fail();
+    // First error is not yet failed; the dead worker is terminated.
+    assert.equal(snap(engine).failed, false);
+    assert.equal(worker.terminated, true);
+    // Fire the retry timer: exactly one new worker with the same build.
+    mock.timers.tick(ENGINE_RETRY_MS);
+    assert.equal(instances.length, countBefore + 1);
+    const retry = last();
+    assert.equal(retry.url, urlBefore);
+    assert.deepEqual(retry.sent.slice(0, 1), ["uci"]);
+    // The new worker's handshake re-issues the pending search.
+    retry.emit("uciok");
+    assert.equal(snap(engine).failed, false);
+    retry.emit("readyok");
+    retry.emit("readyok");
+    assert.ok(retry.sent.some((msg) => msg === `position fen ${FEN_A}`));
+    assert.ok(retry.sent.some((msg) => msg.startsWith("go depth")));
+    retry.emit("info depth 10 seldepth 12 multipv 1 score cp 35 nodes 100 nps 1000 pv e2e4 e7e5");
+    assert.equal(snap(engine).failed, false);
+    assert.equal(snap(engine).lines.length, 1);
+    engine.dispose();
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("SIG-1081: two consecutive errors set failed and stop retrying", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const { engine, worker } = freshEngine();
+    handshake(worker);
+    engine.analyze(FEN_A, 22, 2, 1);
+    worker.emit("readyok");
+    worker.fail();
+    mock.timers.tick(ENGINE_RETRY_MS);
+    const retry = last();
+    assert.equal(snap(engine).failed, false);
+    retry.fail();
+    assert.equal(snap(engine).failed, true);
+    const countAfterSecond = instances.length;
+    mock.timers.tick(ENGINE_RETRY_MS * 2);
+    assert.equal(instances.length, countAfterSecond);
+    assert.equal(snap(engine).failed, true);
+    engine.dispose();
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("SIG-1081: restart() after failure recovers and analyzes again", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const { engine, worker } = freshEngine();
+    handshake(worker);
+    engine.analyze(FEN_A, 22, 2, 1);
+    worker.emit("readyok");
+    worker.fail();
+    mock.timers.tick(ENGINE_RETRY_MS);
+    last().fail();
+    assert.equal(snap(engine).failed, true);
+    const countBefore = instances.length;
+    engine.restart();
+    assert.equal(snap(engine).failed, false);
+    assert.equal(instances.length, countBefore + 1);
+    const fresh = last();
+    handshake(fresh);
+    engine.analyze(FEN_A, 22, 2, 1);
+    fresh.emit("readyok");
+    assert.ok(fresh.sent.some((msg) => msg === `position fen ${FEN_A}`));
+    fresh.emit("info depth 10 seldepth 12 multipv 1 score cp 35 nodes 100 nps 1000 pv e2e4 e7e5");
+    assert.equal(snap(engine).failed, false);
+    assert.equal(snap(engine).lines.length, 1);
+    engine.dispose();
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+test("SIG-1081: dispose() during the retry window leaves no timer or worker behind", () => {
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    const { engine, worker } = freshEngine();
+    handshake(worker);
+    engine.analyze(FEN_A, 22, 2, 1);
+    worker.emit("readyok");
+    worker.fail();
+    assert.equal(snap(engine).failed, false);
+    const countBefore = instances.length;
+    engine.dispose();
+    mock.timers.tick(ENGINE_RETRY_MS * 2);
+    assert.equal(instances.length, countBefore);
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test("dispose terminates the worker and clears listeners", () => {

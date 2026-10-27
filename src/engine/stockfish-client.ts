@@ -4,6 +4,9 @@ export const ENGINE_HASH_MB = 16;
 export const ENGINE_BUILDS = ["lite", "standard"] as const;
 export type EngineBuild = (typeof ENGINE_BUILDS)[number];
 
+/** SIG-1081: delay before the single automatic retry after a worker error. */
+export const ENGINE_RETRY_MS = 1000;
+
 export const ENGINE_BUILD_INFO: Record<EngineBuild, { label: string; detail: string; size: string }> = {
   lite: { label: "Stockfish 19 lite", detail: "Small network", size: "1.6 MB" },
   standard: { label: "Stockfish 19", detail: "Full network", size: "99 MB" },
@@ -185,6 +188,11 @@ export class StockfishEngine {
     searchMoves?: string;
     fresh: boolean;
   } | null = null;
+  // SIG-1081: last requested search params. Once tryStart() consumes
+  // `pending`, an in-flight search is only described by the scalar fields;
+  // this record lets handleWorkerError() rebuild `pending` so the automatic
+  // retry re-issues a search that was already running.
+  private lastRequest: { searchMoves?: string; fresh: boolean } = { fresh: true };
   private pendingSent = false;
   private barrierTerminator = false;
   /**
@@ -197,38 +205,146 @@ export class StockfishEngine {
   private readyokForCycle = false;
   private pvSanCache = new Map<string, string[]>();
   readonly threaded = supportsEngineThreads();
+  // SIG-1081: one automatic retry after the first worker error. The retry
+  // counter is reset by explicit user intent (start/analyze with a live
+  // worker) and by restart(); a second consecutive error sets failed=true.
+  // The pending search is preserved across the retry so it is re-issued.
+  private errorCount = 0;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(build: EngineBuild = "lite") {
     this.build = build;
+  }
+
+  private createWorker(): void {
+    this.worker = new Worker(engineWorkerUrl(this.build));
+    this.worker.onmessage = (event: MessageEvent<string>) => {
+      this.handleMessage(String(event.data));
+    };
+    this.worker.onerror = () => {
+      this.handleWorkerError();
+    };
+    this.send("uci");
+  }
+
+  private detachWorker(): void {
+    if (this.worker) {
+      this.worker.onmessage = null;
+      this.worker.onerror = null;
+      this.worker.terminate();
+      this.worker = null;
+    }
+  }
+
+  private cancelRetry(): void {
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+  }
+
+  private handleWorkerError(): void {
+    // Ignore errors for a worker that is already gone (e.g. a late error
+    // after dispose/restart detached it).
+    if (!this.worker) {
+      return;
+    }
+    this.detachWorker();
+    this.ready = false;
+    this.readyokForCycle = false;
+    this.pendingSent = false;
+    this.barrierTerminator = false;
+    this.outstandingSearches = 0;
+    this.searching = false;
+    // A search that runs to bestmove proves the worker is healthy again:
+    // a lone historic error no longer counts toward "consecutive".
+    // Rebuild `pending` when the error hit an already-running search so the
+    // retry re-issues it: tryStart() consumed `pending`, but the scalar
+    // fields plus lastRequest still describe the in-flight search.
+    if (!this.pending && this.running && this.fen) {
+      this.pending = {
+        gen: this.generation,
+        fen: this.fen,
+        depthTarget: this.depthTarget,
+        multiPv: this.multiPv,
+        threads: this.threads,
+        searchMoves: this.lastRequest.searchMoves,
+        fresh: this.lastRequest.fresh,
+      };
+    }
+    if (this.errorCount === 0) {
+      // First error: retry once. Keep pending/generation so the queued
+      // search is re-issued after the new worker's handshake.
+      this.errorCount = 1;
+      this.failed = false;
+      this.emit();
+      this.cancelRetry();
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = null;
+        if (this.errorCount !== 1) {
+          return;
+        }
+        this.createWorker();
+      }, ENGINE_RETRY_MS);
+      return;
+    }
+    // Second consecutive error: permanently failed until restart().
+    this.failed = true;
+    this.running = false;
+    this.pending = null;
+    this.pendingSent = false;
+    this.cancelRetry();
+    this.emit();
+  }
+
+  /** SIG-1081: manual recovery after failure. Clears the failed state and
+   * the retry counter, discards any stale search display, and starts a fresh
+   * worker with the same build. The instance identity is preserved so
+   * shared-engine tap subscriptions and leases stay valid. */
+  restart(): void {
+    this.cancelRetry();
+    this.errorCount = 0;
+    this.failed = false;
+    this.generation += 1;
+    this.searching = false;
+    this.pending = null;
+    this.lastRequest = { fresh: true };
+    this.pendingSent = false;
+    this.barrierTerminator = false;
+    this.readyokForCycle = false;
+    this.outstandingSearches = 0;
+    this.lines = [];
+    this.pvSanCache.clear();
+    this.depth = 0;
+    this.nps = 0;
+    this.nodes = 0;
+    this.running = false;
+    this.ready = false;
+    this.detachWorker();
+    this.createWorker();
+    this.emit();
   }
 
   start(): void {
     if (this.worker) {
       return;
     }
-    this.worker = new Worker(engineWorkerUrl(this.build));
-    this.worker.onmessage = (event: MessageEvent<string>) => {
-      this.handleMessage(String(event.data));
-    };
-    this.worker.onerror = () => {
-      this.failed = true;
-      this.ready = false;
-      this.running = false;
-      this.searching = false;
-      this.pending = null;
-      this.pendingSent = false;
-      this.emit();
-    };
-    this.send("uci");
+    this.cancelRetry();
+    this.errorCount = 0;
+    // A fresh worker means a fresh state: a previous failure no longer applies.
+    this.failed = false;
+    this.createWorker();
   }
 
   stopSearch(): void {
     this.generation += 1;
     this.searching = false;
     this.pending = null;
+    this.lastRequest = { fresh: true };
     this.pendingSent = false;
     this.barrierTerminator = false;
     this.readyokForCycle = false;
+    this.cancelRetry();
     if (!this.worker) {
       return;
     }
@@ -241,17 +357,15 @@ export class StockfishEngine {
     this.generation += 1;
     this.searching = false;
     this.pending = null;
+    this.lastRequest = { fresh: true };
     this.pendingSent = false;
     this.barrierTerminator = false;
     this.readyokForCycle = false;
     this.outstandingSearches = 0;
+    this.errorCount = 0;
+    this.cancelRetry();
     this.listeners.clear();
-    if (this.worker) {
-      this.worker.onmessage = null;
-      this.worker.onerror = null;
-      this.worker.terminate();
-      this.worker = null;
-    }
+    this.detachWorker();
     this.ready = false;
     this.running = false;
   }
@@ -278,6 +392,7 @@ export class StockfishEngine {
     this.nps = 0;
     this.nodes = 0;
     this.running = true;
+    this.lastRequest = { searchMoves, fresh };
     this.pending = {
       gen: this.generation,
       fen,
@@ -351,6 +466,7 @@ export class StockfishEngine {
     }
     if (message.startsWith("bestmove")) {
       this.outstandingSearches = Math.max(0, this.outstandingSearches - 1);
+      this.errorCount = 0;
       if (this.pendingSent && this.barrierTerminator) {
         if (this.outstandingSearches === 0) {
           this.barrierTerminator = false;
