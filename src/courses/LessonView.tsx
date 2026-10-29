@@ -18,11 +18,23 @@ import { PROGRESS_BROWSER_ONLY, findVariation, loadProgress, saveVariationProgre
 import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
 import { useCourseData } from "./use-courses";
+import { useCourseContent } from "./use-course-content";
+import { LockedLesson } from "./LockedLesson";
 import { CourseChrome } from "./CourseChrome";
 import type { Course, CourseChapter, CourseVariation } from "./types";
 
 export function LessonView({ course, variationId }: { course: Course; variationId: string }) {
   const router = useRouter();
+  // SIG-1119: the gated lesson payload. Seed/local courses ship full content
+  // (contentLoaded undefined) and skip the fetch; outline rows load it here.
+  const content = useCourseContent(course);
+  const effectiveCourse = useMemo<Course>(
+    () =>
+      content.status === "ready" && course.contentLoaded === false
+        ? { ...course, chapters: content.chapters, contentLoaded: true }
+        : course,
+    [content, course],
+  );
   const [step, setStep] = useState(0);
   const [notice, setNotice] = useState("");
   const [hint, setHint] = useState(false);
@@ -32,16 +44,16 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   const locale = useStudioStore((state) => state.settings.locale);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
-  const { progress: savedProgress, admin, isAdmin, ready: progressReady } = useCourseData();
+  const { progress: savedProgress, admin, isAdmin, ready: progressReady, signedIn } = useCourseData();
 
   const loaded: {
     course: Course;
     chapter: CourseChapter;
     variation: CourseVariation;
   } | null = useMemo(() => {
-    const found = findVariation(course, variationId);
-    return found ? { course, chapter: found.chapter, variation: found.variation } : null;
-  }, [course, variationId]);
+    const found = findVariation(effectiveCourse, variationId);
+    return found ? { course: effectiveCourse, chapter: found.chapter, variation: found.variation } : null;
+  }, [effectiveCourse, variationId]);
   const currentLessonKey = `${course.slug}/${variationId}`;
   if (lessonKey !== currentLessonKey && progressReady) {
     setLessonKey(currentLessonKey);
@@ -162,6 +174,20 @@ export function LessonView({ course, variationId }: { course: Course; variationI
         <main className="px-6 py-10 text-studio-muted">{tCourse(locale, "course.lesson.notFound")}</main>
       </div>
     );
+  }
+  // SIG-1119: the database refused course_content (or the fetch is still in
+  // flight / failed): no PGN is available, so show the outline + next step
+  // instead of the board. Seed/local courses always resolve ready above.
+  if (course.contentLoaded === false && content.status !== "ready") {
+    if (content.status === "locked") {
+      return (
+        <div className="min-h-full bg-studio-bg">
+          <CourseChrome admin={admin} isAdmin={isAdmin} />
+          <LockedLesson course={course} lessonPath={`/courses/${course.slug}/${variationId}`} signedIn={signedIn} />
+        </div>
+      );
+    }
+    return <div className="min-h-full bg-studio-bg" />;
   }
   if (!frame) {
     return <div className="min-h-full bg-studio-bg" />;

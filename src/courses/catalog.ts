@@ -153,9 +153,11 @@ export function courseThemeLabel(theme: CourseTheme, locale: SiteLocale): string
   return tCourse(locale, `course.theme.label.${theme}`);
 }
 
-/** Select list shared by the course server components (one canonical read). */
+/** Select list shared by the course server components (one canonical read).
+ * SIG-1119: the outline (chapter/variation titles, no PGN) is the public
+ * read; lesson content comes from course_content via useCourseContent. */
 export const COURSE_SELECT_FIELDS =
-  "id, slug, title, summary, color, theme, chapters, cover_url, video_url, published_at, status, access_tier, price_cents, currency, author_display_name, review_note" as const;
+  "id, slug, title, summary, color, theme, outline, cover_url, video_url, published_at, status, access_tier, price_cents, currency, author_display_name, review_note" as const;
 
 export type CourseRow = {
   id: string;
@@ -166,7 +168,8 @@ export type CourseRow = {
   video_url: string | null;
   theme: string;
   color: string;
-  chapters: Json;
+  /** SIG-1119: content-free outline; variations carry {id, title} (no PGN). */
+  outline: Json;
   published_at: string | null;
   /** SIG-1050: absent on rows selected before the migration (legacy fallback). */
   status?: string | null;
@@ -192,7 +195,44 @@ export function isPublishedCourse(
   return "published_at" in row ? row.published_at !== null : row.publishedAt !== null;
 }
 
-/** Canonical DB-row → Course mapping for the course server components. */
+/** Outline chapters (no PGN) into playable chapters with empty PGN.
+ * The outline carries variations as {id, title} (PGN stripped by
+ * private.course_outline); missing pgn defaults to "" here. */
+export function outlineChapters(value: unknown): CourseChapter[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const chapters: CourseChapter[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      continue;
+    }
+    const chapter = item as Record<string, Json | undefined>;
+    if (typeof chapter.id !== "string" || typeof chapter.title !== "string" || !Array.isArray(chapter.variations)) {
+      continue;
+    }
+    const variations: CourseVariation[] = [];
+    for (const raw of chapter.variations) {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        continue;
+      }
+      const variation = raw as Record<string, Json | undefined>;
+      if (typeof variation.id !== "string" || typeof variation.title !== "string") {
+        continue;
+      }
+      if (variation.pgn !== undefined && typeof variation.pgn !== "string") {
+        continue;
+      }
+      variations.push({ id: variation.id, title: variation.title, pgn: typeof variation.pgn === "string" ? variation.pgn : "" });
+    }
+    chapters.push({ id: chapter.id, title: chapter.title, variations });
+  }
+  return chapters;
+}
+
+/** Canonical DB-row → Course mapping for the course server components.
+ * SIG-1119: builds the chapters from the public outline (variations get
+ * pgn: "") and marks the course contentLoaded: false. */
 export function toCourse(row: CourseRow): Course | null {
   if (!isCourseColor(row.color) || !isCourseTheme(row.theme)) {
     return null;
@@ -217,8 +257,9 @@ export function toCourse(row: CourseRow): Course | null {
     videoUrl: row.video_url ?? undefined,
     theme: row.theme,
     color: row.color,
-    chapters: parseChapters(row.chapters),
+    chapters: outlineChapters(row.outline),
     builtin: false,
+    contentLoaded: false,
     status,
     accessTier,
     priceCents: row.price_cents ?? null,

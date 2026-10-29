@@ -37,6 +37,12 @@ export type Course = {
   chapters: CourseChapter[];
   builtin?: boolean;
   /**
+   * SIG-1119: false when chapters came from the public outline (PGN
+   * stripped); true once the gated course_content payload is loaded.
+   * Undefined on seed/local courses, which always carry full content.
+   */
+  contentLoaded?: boolean;
+  /**
    * SIG-1050 review workflow. status is the source of truth for visibility
    * (published = visible to anon).
    */
