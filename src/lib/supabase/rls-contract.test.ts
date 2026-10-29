@@ -497,6 +497,148 @@ describe("sig-1061 role management RPCs migration", () => {
   });
 });
 
+describe("sig-1051 billing tables migration", () => {
+  const sig1051 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021280000_billing_tables.sql"),
+    "utf8",
+  );
+
+  it("creates the three tables with RLS enabled", () => {
+    for (const table of ["subscriptions", "course_purchases", "payment_events"]) {
+      assert.ok(sig1051.includes(`create table if not exists public.${table}`), `missing table ${table}`);
+      assert.ok(sig1051.includes(`alter table public.${table} enable row level security`), `missing RLS on ${table}`);
+    }
+  });
+
+  it("gives subscriptions and course_purchases an own-row select and no client write policy", () => {
+    assert.ok(sig1051.includes('"subscriptions_select_own"'), "missing subscriptions select policy");
+    assert.ok(sig1051.includes('"course_purchases_select_own"'), "missing course_purchases select policy");
+    assert.ok(sig1051.includes("grant select on public.subscriptions to authenticated"));
+    assert.ok(sig1051.includes("grant select on public.course_purchases to authenticated"));
+    const lines1051 = sig1051.split("\n").map((line) => line.trim());
+    for (const table of ["subscriptions", "course_purchases"]) {
+      const writes = lines1051.filter(
+        (line) => new RegExp(`on public\\.${table}$`).test(line) && /for (insert|update|delete|all)/.test(line),
+      );
+      assert.deepEqual(writes, [], `client write policy on ${table}`);
+    }
+  });
+
+  it("keeps payment_events deny-all like course_admins", () => {
+    assert.ok(sig1051.includes("revoke all on table public.payment_events from anon, authenticated"));
+    assert.ok(sig1051.includes('"payment_events_no_client_access"'), "missing deny-all policy");
+    assert.ok(sig1051.includes("using (false)"), "deny-all policy must use (false)");
+  });
+
+  it("enforces the paid-purchase uniqueness rules", () => {
+    assert.ok(sig1051.includes("on public.course_purchases (provider, provider_payment_id)"), "missing provider payment unique");
+    assert.ok(sig1051.includes("on public.subscriptions (provider, provider_subscription_id)"), "missing provider subscription unique");
+    assert.ok(
+      sig1051.includes("on public.course_purchases (user_id, course_id) where status = 'paid'"),
+      "missing partial unique on paid purchases",
+    );
+  });
+});
+
+describe("sig-1052 course content gate migration", () => {
+  const sig1052 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021290000_course_content_gate.sql"),
+    "utf8",
+  );
+
+  it("adds the outline column and backfills it from chapters", () => {
+    assert.ok(sig1052.includes("add column if not exists outline jsonb not null"), "missing outline column");
+    assert.ok(sig1052.includes("private.course_outline(chapters)"), "missing outline backfill");
+  });
+
+  it("defines the outline helper as immutable with an empty search_path", () => {
+    assert.ok(sig1052.includes("create or replace function private.course_outline(chapters jsonb)"));
+    assert.ok(sig1052.includes("returns jsonb"));
+    assert.ok(/immutable/.test(sig1052));
+    assert.ok(/set search_path = ''/.test(sig1052));
+    assert.ok(sig1052.includes("variation -> 'id'"), "helper must keep variation ids");
+    assert.ok(!/variation -> 'pgn'/.test(sig1052), "helper must drop the pgn payload");
+  });
+
+  it("creates course_content with RLS on, a select grant, and no write policy", () => {
+    assert.ok(sig1052.includes("create table if not exists public.course_content"), "missing table");
+    assert.ok(sig1052.includes("alter table public.course_content enable row level security"), "missing RLS");
+    assert.ok(sig1052.includes("grant select on public.course_content to anon, authenticated"), "missing grant");
+    assert.ok(sig1052.includes('"course_content_select"'), "missing select policy");
+    assert.ok(sig1052.includes("using (public.can_access_course(course_id))"), "policy must call the gate");
+    const lines = sig1052.split("\n").map((line) => line.trim());
+    const writes = lines.filter(
+      (line) => /on public\.course_content$/.test(line) && /for (insert|update|delete|all)/.test(line),
+    );
+    assert.deepEqual(writes, [], "no client write policy on course_content");
+  });
+
+  it("keeps outline and content in sync with a chapters trigger", () => {
+    assert.ok(sig1052.includes("courses_sync_content"), "missing sync trigger");
+    assert.ok(sig1052.includes("after insert or update of chapters on public.courses"), "trigger must fire on chapters writes");
+  });
+
+  it("defines can_access_course as security definer with an empty search_path", () => {
+    assert.ok(sig1052.includes("create or replace function public.can_access_course(p_course_id uuid)"));
+    assert.ok(/security definer/.test(sig1052));
+    assert.ok(/set search_path = ''/.test(sig1052));
+    assert.ok(
+      sig1052.includes("grant execute on function public.can_access_course(uuid) to anon, authenticated"),
+      "function must be executable by clients",
+    );
+    assert.ok(sig1052.includes("status = 'paid'"), "purchase path must check the paid status");
+    assert.ok(sig1052.includes("current_period_end > now()"), "subscription path must check the period end");
+  });
+
+  it("fails the owner clause closed on NULL created_by", () => {
+    assert.ok(
+      sig1052.includes("c.created_by = (select auth.uid())"),
+      "owner clause must use plain = so NULL owners grant nothing",
+    );
+    assert.ok(
+      !sig1052.includes("created_by is not distinct from"),
+      "IS NOT DISTINCT FROM matches NULL/NULL and must not be used",
+    );
+  });
+
+  it("syncs content with a SECURITY DEFINER trigger revoked from clients", () => {
+    assert.ok(
+      /function public\.courses_sync_content\(\)[\s\S]*?security definer/.test(sig1052),
+      "sync trigger must be security definer so private.course_outline works for any writer role",
+    );
+    assert.ok(
+      sig1052.includes("revoke all on function public.courses_sync_content() from public, anon, authenticated"),
+      "sync function is trigger-only and must not be directly callable",
+    );
+  });
+});
+
+describe("sig-1120 courses hide chapters migration", () => {
+  const sig1120 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021300000_courses_hide_chapters.sql"),
+    "utf8",
+  );
+
+  it("replaces the table-level grant with column-level grants excluding chapters", () => {
+    assert.ok(sig1120.includes("revoke select on public.courses from anon, authenticated"), "missing revoke");
+    const grant = sig1120.match(/grant select \(([^)]+)\) on public\.courses to anon, authenticated/);
+    assert.ok(grant, "missing column-level grant");
+    const cols = grant![1].split(",").map((col) => col.trim());
+    assert.ok(!cols.includes("chapters"), "chapters must be absent from the grant list");
+    for (const col of [
+      "id", "slug", "title", "summary", "color", "theme", "cover_url", "video_url",
+      "published_at", "status", "review_note", "access_tier", "price_cents",
+      "currency", "author_display_name", "outline", "created_by", "updated_at",
+    ]) {
+      assert.ok(cols.includes(col), `grant list must include ${col}`);
+    }
+  });
+
+  it("leaves the row policies and write closure untouched", () => {
+    assert.ok(!/for (insert|update|delete)/.test(sig1120), "no write clauses in the grant migration");
+  });
+});
+
 describe("sig-1062 accept_coach_invite migration", () => {
   const sig1062 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021140000_accept_coach_invite.sql"),

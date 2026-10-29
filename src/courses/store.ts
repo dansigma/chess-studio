@@ -197,6 +197,12 @@ export async function fetchPublishedCourses(): Promise<{ courses: Course[]; erro
  * the same unfiltered query as before; a coach adds an explicit
  * `created_by` filter on top of the RLS own-drafts policy (defense in depth).
  * Everyone else gets an empty list (the page gate already blocks them).
+ *
+ * SIG-1119: editable chapters come from course_content (the gated table),
+ * never from courses.chapters — the owner's rows pass their own read policy
+ * through the user's session. When course_content has no row (fresh schema
+ * without the gate migration), fall back to the outline so editing still
+ * opens with chapter titles.
  */
 export async function fetchAuthorCourses(input: {
   userId: string | null;
@@ -221,7 +227,7 @@ export async function fetchAuthorCourses(input: {
     }
     const courses: Course[] = [];
     for (const row of data ?? []) {
-      const course = toCourse(row);
+      const course = withEditableChapters(await attachEditableChapters(supabase, toCourse(row)));
       if (course) {
         courses.push(course);
       }
@@ -243,12 +249,57 @@ export async function fetchAuthorCourses(input: {
   }
   const courses: Course[] = [];
   for (const row of data ?? []) {
-    const course = toCourse(row);
+    const course = withEditableChapters(await attachEditableChapters(supabase, toCourse(row)));
     if (course) {
       courses.push(course);
     }
   }
   return { courses, error: null };
+}
+
+/** Editable course from the gated content row: full chapters, contentLoaded. */
+type EditableContentRow = { chapters?: unknown };
+
+async function attachEditableChapters(
+  supabase: NonNullable<ReturnType<typeof createBrowserSupabase>>,
+  course: Course | null,
+): Promise<EditableContentRow & { course: Course | null }> {
+  if (!course || course.builtin) {
+    return { course };
+  }
+  // The browser client cannot generically express new tables: course_content
+  // landed with the gate migration and may be absent from generated types.
+  const { data, error } = await (supabase as unknown as {
+    from: (table: string) => {
+      select: (cols: string) => { eq: (col: string, v: string) => { maybeSingle: () => Promise<{ data: unknown; error: unknown }> } };
+    };
+  })
+    .from("course_content")
+    .select("chapters")
+    .eq("course_id", course.id)
+    .maybeSingle();
+  if (error || !data || typeof data !== "object" || !("chapters" in data)) {
+    // No gated row (own draft created before the backfill, or the gate
+    // migration not applied yet): keep the outline chapters.
+    return { course };
+  }
+  return { course, chapters: (data as { chapters: unknown }).chapters };
+}
+
+function withEditableChapters(attached: { course: Course | null; chapters?: unknown }): Course | null {
+  const { course, chapters } = attached;
+  if (!course) {
+    return null;
+  }
+  if (chapters === undefined) {
+    return course;
+  }
+  return { ...course, chapters: parseChapters(chapters), contentLoaded: true };
+}
+
+/** Parse the gated course_content row for one course (lesson content). */
+export function parseContentChapters(value: unknown): CourseChapter[] {
+  return parseChapters(value);
 }
 
 export async function hydrateProgress(userId: string | null): Promise<Record<string, VariationProgress>> {

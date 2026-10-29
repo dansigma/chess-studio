@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseAccessTier, isCourseStatus, isCourseTheme, isPublishedCourse, mergeCourseLists, parseChapters, toCourse } from "./catalog.ts";
+import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseAccessTier, isCourseStatus, isCourseTheme, isPublishedCourse, mergeCourseLists, outlineChapters, parseChapters, toCourse } from "./catalog.ts";
 import { SEED_COURSES } from "./seed-data.ts";
 import type { Course } from "./types.ts";
 
@@ -115,7 +115,7 @@ describe("course catalog", () => {
       video_url: null,
       theme: "openings",
       color: "black",
-      chapters: [],
+      outline: [],
     };
     const published = toCourse({ ...base, published_at: "2026-10-07T00:00:00.000Z" });
     assert.equal(published?.publishedAt, "2026-10-07T00:00:00.000Z");
@@ -149,7 +149,7 @@ describe("course catalog", () => {
       video_url: null,
       theme: "openings",
       color: "black",
-      chapters: [],
+      outline: [],
       published_at: "2026-10-07T00:00:00.000Z",
     };
     const paid = toCourse({
@@ -179,7 +179,7 @@ describe("course catalog", () => {
       video_url: null,
       theme: "openings",
       color: "black",
-      chapters: [],
+      outline: [],
       published_at: "2026-10-07T00:00:00.000Z",
     };
     assert.equal(toCourse({ ...base, status: "live" }), null);
@@ -188,5 +188,50 @@ describe("course catalog", () => {
     assert.equal(isCourseStatus("live"), false);
     assert.equal(isCourseAccessTier("paid"), true);
     assert.equal(isCourseAccessTier("gold"), false);
+  });
+
+  it("builds unlockable chapters from the outline with empty PGN (SIG-1119)", () => {
+    const outline = [
+      {
+        id: "advance",
+        title: "Advance",
+        variations: [{ id: "line", title: "Main" }, { id: 1, title: "Bad", pgn: "1. e4" }],
+      },
+      { id: "skip" },
+    ];
+    const chapters = outlineChapters(outline);
+    assert.equal(chapters.length, 1);
+    assert.equal(chapters[0]?.variations.length, 1);
+    assert.equal(chapters[0]?.variations[0]?.pgn, "");
+    assert.equal(chapters[0]?.variations[0]?.title, "Main");
+  });
+
+  it("marks outline-built courses contentLoaded false without PGN text (SIG-1119)", () => {
+    const row = {
+      id: "11111111-1111-4111-8111-111111111111",
+      slug: "french",
+      title: "French",
+      summary: "",
+      cover_url: null,
+      video_url: null,
+      theme: "openings",
+      color: "black",
+      published_at: "2026-10-07T00:00:00.000Z",
+      status: "published",
+      access_tier: "free",
+      outline: [
+        {
+          id: "advance",
+          title: "Advance",
+          variations: [{ id: "line", title: "Main" }],
+        },
+      ],
+    };
+    const course = toCourse(row);
+    assert.equal(course?.contentLoaded, false);
+    assert.equal(course?.chapters[0]?.variations[0]?.pgn, "");
+    assert.equal(course?.chapters[0]?.variations[0]?.title, "Main");
+    // The static HTML carries titles only: no move text leaks through PGN.
+    assert.ok(!JSON.stringify(course?.chapters ?? []).match(/[1-9]\.\s*[a-hNBRQKO]/));
   });
 });

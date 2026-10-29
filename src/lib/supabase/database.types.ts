@@ -294,6 +294,9 @@ export type Database = {
           price_cents: number | null;
           currency: string;
           author_display_name: string | null;
+          // SIG-1052: content-free outline (chapter/variation titles, no
+          // PGN). Full lesson content requires course_content access.
+          outline: Json;
         };
         Insert: {
           id: string;
@@ -303,6 +306,7 @@ export type Database = {
           color: "white" | "black";
           theme?: "openings" | "strategy" | "tactics" | "endgames";
           chapters?: Json;
+          outline?: Json;
           cover_url?: string | null;
           video_url?: string | null;
           created_by?: string | null;
@@ -322,6 +326,7 @@ export type Database = {
           color?: "white" | "black";
           theme?: "openings" | "strategy" | "tactics" | "endgames";
           chapters?: Json;
+          outline?: Json;
           cover_url?: string | null;
           video_url?: string | null;
           updated_at?: string;
@@ -332,6 +337,129 @@ export type Database = {
           price_cents?: number | null;
           currency?: string;
           author_display_name?: string | null;
+        };
+        Relationships: [];
+      };
+      // SIG-1052: gated lesson content (full chapters with PGN). Read
+      // access is decided by public.can_access_course.
+      course_content: {
+        Row: {
+          course_id: string;
+          chapters: Json;
+          updated_at: string;
+        };
+        Insert: {
+          course_id: string;
+          chapters?: Json;
+          updated_at?: string;
+        };
+        Update: {
+          chapters?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      // SIG-1051: billing tables. Users read their own rows; only the
+      // server (service role, from verified payment webhooks) writes.
+      subscriptions: {
+        Row: {
+          id: string;
+          user_id: string;
+          provider: string;
+          provider_customer_id: string | null;
+          provider_subscription_id: string;
+          plan: "premium_monthly" | "premium_yearly";
+          status: "active" | "trialing" | "past_due" | "canceled";
+          current_period_end: string | null;
+          cancel_at_period_end: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          provider: string;
+          provider_customer_id?: string | null;
+          provider_subscription_id: string;
+          plan: "premium_monthly" | "premium_yearly";
+          status: "active" | "trialing" | "past_due" | "canceled";
+          current_period_end?: string | null;
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          provider?: string;
+          provider_customer_id?: string | null;
+          provider_subscription_id?: string;
+          plan?: "premium_monthly" | "premium_yearly";
+          status?: "active" | "trialing" | "past_due" | "canceled";
+          current_period_end?: string | null;
+          cancel_at_period_end?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      course_purchases: {
+        Row: {
+          id: string;
+          user_id: string;
+          course_id: string;
+          provider: string;
+          provider_payment_id: string;
+          amount_cents: number;
+          currency: string;
+          status: "pending" | "paid" | "refunded" | "chargeback";
+          purchased_at: string | null;
+          refunded_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          course_id: string;
+          provider: string;
+          provider_payment_id: string;
+          amount_cents: number;
+          currency?: string;
+          status: "pending" | "paid" | "refunded" | "chargeback";
+          purchased_at?: string | null;
+          refunded_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          course_id?: string;
+          provider?: string;
+          provider_payment_id?: string;
+          amount_cents?: number;
+          currency?: string;
+          status?: "pending" | "paid" | "refunded" | "chargeback";
+          purchased_at?: string | null;
+          refunded_at?: string | null;
+        };
+        Relationships: [];
+      };
+      // SIG-1051: webhook idempotency log (no card or personal data).
+      payment_events: {
+        Row: {
+          provider: string;
+          event_id: string;
+          kind: string | null;
+          received_at: string;
+          processed_at: string | null;
+        };
+        Insert: {
+          provider: string;
+          event_id: string;
+          kind?: string | null;
+          received_at?: string;
+          processed_at?: string | null;
+        };
+        Update: {
+          kind?: string | null;
+          processed_at?: string | null;
         };
         Relationships: [];
       };
