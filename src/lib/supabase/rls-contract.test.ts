@@ -589,6 +589,28 @@ describe("sig-1052 course content gate migration", () => {
     assert.ok(sig1052.includes("status = 'paid'"), "purchase path must check the paid status");
     assert.ok(sig1052.includes("current_period_end > now()"), "subscription path must check the period end");
   });
+
+  it("fails the owner clause closed on NULL created_by", () => {
+    assert.ok(
+      sig1052.includes("c.created_by = (select auth.uid())"),
+      "owner clause must use plain = so NULL owners grant nothing",
+    );
+    assert.ok(
+      !sig1052.includes("created_by is not distinct from"),
+      "IS NOT DISTINCT FROM matches NULL/NULL and must not be used",
+    );
+  });
+
+  it("syncs content with a SECURITY DEFINER trigger revoked from clients", () => {
+    assert.ok(
+      /function public\.courses_sync_content\(\)[\s\S]*?security definer/.test(sig1052),
+      "sync trigger must be security definer so private.course_outline works for any writer role",
+    );
+    assert.ok(
+      sig1052.includes("revoke all on function public.courses_sync_content() from public, anon, authenticated"),
+      "sync function is trigger-only and must not be directly callable",
+    );
+  });
 });
 
 describe("sig-1120 courses hide chapters migration", () => {

@@ -39,6 +39,9 @@ on conflict (id) do update set role = excluded.role;
 
 -- Courses: a free published course, a premium published course, a paid
 -- published course (owned by the owner user), and a premium draft.
+-- gate-orphan: a published paid course with created_by IS NULL — fail-closed
+-- regression case: anon and plain students must see zero rows (the owner
+-- clause must not match NULL/NULL).
 insert into public.courses (id, slug, title, summary, color, theme, chapters, access_tier, price_cents, status, created_by)
 values
   ('20000000-0000-0000-0000-000000000001', 'gate-free', 'Free', '', 'white', 'openings',
@@ -52,7 +55,10 @@ values
    'paid', 1990, 'published', '10000000-0000-0000-0000-000000000002'),
   ('20000000-0000-0000-0000-000000000004', 'gate-draft', 'Draft', '', 'white', 'openings',
    '[{"id":"ch1","title":"Chapter","variations":[{"id":"v1","title":"Line","pgn":"1. e4 e5"}]}]',
-   'premium', null, 'draft', '10000000-0000-0000-0000-000000000002');
+   'premium', null, 'draft', '10000000-0000-0000-0000-000000000002'),
+  ('20000000-0000-0000-0000-000000000005', 'gate-orphan', 'Orphan', '', 'white', 'openings',
+   '[{"id":"ch1","title":"Chapter","variations":[{"id":"v1","title":"Line","pgn":"1. e4 e5"}]}]',
+   'paid', 1990, 'published', null);
 
 -- Subscriptions (premium plan).
 insert into public.subscriptions (user_id, provider, provider_subscription_id, plan, status, current_period_end)
@@ -95,6 +101,7 @@ declare
   premium_id uuid := '20000000-0000-0000-0000-000000000002';
   paid_id uuid := '20000000-0000-0000-0000-000000000003';
   draft_id uuid := '20000000-0000-0000-0000-000000000004';
+  orphan_id uuid := '20000000-0000-0000-0000-000000000005';
   admin_id text := '10000000-0000-0000-0000-000000000001';
   owner_id text := '10000000-0000-0000-0000-000000000002';
   buyer_id text := '10000000-0000-0000-0000-000000000003';
@@ -122,6 +129,10 @@ begin
     raise exception 'gate case failed: %', 'anon draft';
   end if;
   raise notice 'gate case ok: %', 'anon draft';
+  if (select pg_temp.can_see(orphan_id)) is distinct from false then
+    raise exception 'gate case failed: %', 'anon orphan (NULL owner must grant nothing)';
+  end if;
+  raise notice 'gate case ok: %', 'anon orphan';
 
   -- Student: free only.
   perform pg_temp.as_role('authenticated', student_id);
@@ -141,6 +152,10 @@ begin
     raise exception 'gate case failed: %', 'student draft';
   end if;
   raise notice 'gate case ok: %', 'student draft';
+  if (select pg_temp.can_see(orphan_id)) is distinct from false then
+    raise exception 'gate case failed: %', 'student orphan (NULL owner must grant nothing)';
+  end if;
+  raise notice 'gate case ok: %', 'student orphan';
 
   -- Subscriber: free + premium.
   perform pg_temp.as_role('authenticated', subscriber_id);

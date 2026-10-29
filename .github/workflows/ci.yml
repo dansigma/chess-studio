@@ -155,6 +155,47 @@ jobs:
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
           -v ON_ERROR_STOP=1 -f supabase/tests/courses_column_grants.sql
 
+      # Write path: the AFTER trigger must sync outline + course_content when
+      # courses.chapters is written through the privileged writer (service
+      # role today). A security-invoker trigger would fail here on the
+      # private schema / helper; failure means the gate backfill silently
+      # stops on future writes. Runs as superuser (local CI only) because
+      # only a privileged role can SET ROLE to service_role.
+      - name: Verify courses sync trigger write path
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 <<'SQL'
+          begin;
+          create extension if not exists pgcrypto;
+          set local role service_role;
+          insert into public.courses (id, slug, title, summary, color, theme, chapters, access_tier, status, created_by)
+          values (
+            gen_random_uuid(), 'sync-write-check', 'Sync', '', 'white', 'openings',
+            '[{"id":"ch9","title":"Synced","variations":[{"id":"v9","title":"Line","pgn":"1. e4 e5"}]}]',
+            'free', 'published', null
+          );
+          do $$
+          declare
+            v_outline jsonb;
+            v_chapters jsonb;
+          begin
+            select outline into v_outline from public.courses where slug = 'sync-write-check';
+            if v_outline is null or v_outline::text like '%e4%' then
+              raise exception 'sync trigger failed: outline carries move text or is missing: %', v_outline;
+            end if;
+            if v_outline #>> '{0,id}' <> 'ch9' then
+              raise exception 'sync trigger failed: outline missing chapter id: %', v_outline;
+            end if;
+            select chapters into v_chapters from public.course_content
+            where course_id = (select id from public.courses where slug = 'sync-write-check');
+            if v_chapters is null or v_chapters #>> '{0,variations,0,pgn}' <> '1. e4 e5' then
+              raise exception 'sync trigger failed: course_content missing full chapters';
+            end if;
+            raise notice 'sync trigger ok: outline + course_content written';
+          end;
+          $$;
+          rollback;
+          SQL
+
       # A deny-all table must still declare a policy (see course_admins_no_client_access
       # ... using (false) at supabase/migrations/20260928210000_profiles_and_admins.sql:29-32):
       # RLS on with zero rows in pg_policies is a violation, indistinguishable from

@@ -85,10 +85,16 @@ on conflict (course_id) do nothing;
 -- Keeps outline and course_content in sync on authoring writes to
 -- courses.chapters. AFTER trigger: course_content references courses, so an
 -- insert-time write would violate the FK before the course row exists.
--- Security invoker (default), empty search_path.
+-- Security definer: runs as the function owner, so the private helper and
+-- sync writes work no matter which role (service_role today, a writer role
+-- tomorrow) performs the authoring write. Empty search_path. The function
+-- is trigger-only: revoke execute from every client role, and grant nothing
+-- so it is not callable directly. Note it does not guard against direct
+-- out-of-band writes to outline/course_content — those stay internal-only.
 create or replace function public.courses_sync_content()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 begin
@@ -109,6 +115,8 @@ create trigger courses_sync_content
   after insert or update of chapters on public.courses
   for each row execute function public.courses_sync_content();
 
+revoke all on function public.courses_sync_content() from public, anon, authenticated;
+
 -- ============ Section F: can_access_course ============
 
 -- Security definer so the RLS policy on course_content can evaluate
@@ -126,8 +134,12 @@ as $$
     from public.courses c
     where c.id = p_course_id
       and (
-        -- Owner (includes drafts).
-        c.created_by is not distinct from (select auth.uid())
+        -- Owner (includes drafts). Plain = fails closed when created_by is
+        -- NULL: anonymous callers own nothing, so ownerless rows grant them
+        -- nothing via this clause. (A NULL created_by row can still be
+        -- visible through the free/premium tiers below; see the
+        -- orphan-course regression case.)
+        c.created_by = (select auth.uid())
         -- Admin.
         or exists (
           select 1 from public.profiles p
