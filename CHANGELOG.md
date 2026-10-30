@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Workers Logs persisted in worker config (SIG-1176)
+
+- `cloudflare.config.ts` now declares `observability.logs` (`enabled`, `invocationLogs`, `persist`),
+  matching the dashboard setting enabled on Oct 30 2026, so GitHub deploys no longer reset it.
+  Logs-only; Traces and Logpush stay off. This restores storage of `csp-report …` lines for the
+  SIG-1059 one-week review.
+
 ### Repertoire deviation fixes: "Train this line" / "Add to repertoire" (SIG-1094)
 
 - New pure helpers in `src/chess/repertoire-actions.ts`: `findPathToPosition` (DFS pre-order path to a FEN,
