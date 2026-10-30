@@ -15,7 +15,7 @@ import { isCourseAccessTier, isCourseId } from "@/src/courses/catalog";
 import { validateTierAndPrice } from "@/src/courses/author-actions";
 import type { CourseAccessTier } from "@/src/courses/types";
 
-export type ReviewQueueCode = "invalid_id" | "unavailable" | "forbidden";
+export type ReviewQueueCode = "invalid_id" | "invalid_note" | "unavailable" | "forbidden";
 
 export type ReviewQueueActionResult<T> = { ok: true; data: T } | { ok: false; code: ReviewQueueCode };
 

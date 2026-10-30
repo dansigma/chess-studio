@@ -2,31 +2,21 @@
 // submissions (title, author, tier, submitted date) with Preview (dedicated
 // admin route), Approve (`approveCourse`) and Reject (dialog with a required
 // 3–500 note via `rejectCourse`). After either action the row disappears.
+// SIG-1174: note validation maps to its own code (shared with rules.ts),
+// so the dialog renders the note message instead of the not-found one.
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import { approveCourse, rejectCourse } from "@/src/courses/publish";
 import { tierLabel } from "@/src/courses/tier-label";
-import type { CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Dialog } from "@/src/studio/ui/Dialog";
 import type { ReviewQueueRowData } from "@/app/admin/courses/actions";
 import { emptyReviewQueueState, isReviewNoteValid, reviewQueueState } from "./review-queue";
-import { reviewQueueErrorKey } from "./rules";
+import { courseAdminErrorToReviewCode, reviewQueueErrorKey } from "./rules";
 import type { ReviewQueueCode } from "@/app/admin/courses/actions";
 import { tAdminUsers } from "./strings";
-
-function errorMessage(message: CourseAdminMessage): ReviewQueueCode {
-  switch (message.key) {
-    case "course.admin.error.invalidId":
-      return "invalid_id";
-    case "course.admin.error.serverUnavailable":
-      return "unavailable";
-    default:
-      return "unavailable";
-  }
-}
 
 export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRowData[] }) {
   const locale = useStudioStore((state) => state.settings.locale);
@@ -41,7 +31,7 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
     const result = await approveCourse(id);
     setView((current) => reviewQueueState(current, { type: "approve-done", id }));
     if (!result.ok) {
-      setActionError(errorMessage(result.error));
+      setActionError(courseAdminErrorToReviewCode(result.error));
     }
   }
 
@@ -51,7 +41,7 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
       return;
     }
     if (!isReviewNoteValid(target.note)) {
-      setActionError("invalid_id");
+      setActionError("invalid_note");
       return;
     }
     setView((current) => reviewQueueState(current, { type: "approve-start", id: target.id }));
@@ -59,7 +49,7 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
     const result = await rejectCourse(target.id, target.note.trim());
     if (!result.ok) {
       setView((current) => reviewQueueState(current, { type: "approve-done", id: target.id }));
-      setActionError(errorMessage(result.error));
+      setActionError(courseAdminErrorToReviewCode(result.error));
       return;
     }
     setView((current) => reviewQueueState(current, { type: "reject-done", id: target.id }));

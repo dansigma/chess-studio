@@ -244,6 +244,17 @@ test("admin reject requires a 3–500 character note", async () => {
   assert.equal(service.calls.update.length, 0);
 });
 
+// SIG-1174: a missing course is distinct from a note failure — the queue
+// maps this key to its not-found message.
+test("admin reject of a missing course returns publishFailed", async () => {
+  const { service } = withCourseRow(null, ADMIN, "admin");
+  assert.deepEqual(await rejectCourse(COURSE_ID, "Needs work, please revise."), {
+    ok: false,
+    error: { key: "course.admin.error.publishFailed" },
+  });
+  assert.equal(service.calls.update.length, 0);
+});
+
 test("admin unpublishes published back to draft with revalidation", async () => {
   const { service } = withCourseRow({ status: "published" }, ADMIN, "admin");
   assert.deepEqual(await unpublishCourse(COURSE_ID), { ok: true });

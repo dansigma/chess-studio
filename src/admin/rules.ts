@@ -5,6 +5,7 @@
 import type { AdminUsersCode } from "@/app/admin/users/actions.ts";
 import type { InviteActionCode } from "@/app/admin/users/invite-actions.ts";
 import type { ReviewQueueCode } from "@/app/admin/courses/actions.ts";
+import type { CourseAdminMessage } from "../i18n/course-admin-strings.ts";
 import type { AdminUsersStringKey } from "./strings.ts";
 
 export const ADMIN_USERS_ERROR_CODES: readonly AdminUsersCode[] = [
@@ -78,6 +79,7 @@ export function adminUsersErrorKey(code: AdminUsersCode): AdminUsersStringKey {
 
 export const REVIEW_QUEUE_ERROR_CODES: readonly ReviewQueueCode[] = [
   "invalid_id",
+  "invalid_note",
   "unavailable",
   "forbidden",
 ] satisfies readonly ReviewQueueCode[];
@@ -87,10 +89,35 @@ export function reviewQueueErrorKey(code: ReviewQueueCode): AdminUsersStringKey 
   switch (code) {
     case "invalid_id":
       return "admin.review.error.invalidId";
+    case "invalid_note":
+      return "admin.review.error.invalidNote";
     case "unavailable":
       return "admin.review.error.unavailable";
     case "forbidden":
       return "admin.review.error.forbidden";
+  }
+}
+
+/**
+ * SIG-1174: maps a course-admin server failure to the review-queue code the
+ * dialog renders. Note validation has its own code; a missing row
+ * (`publishFailed` from the pre-write read) or a no-longer-reviewable course
+ * (`invalid_status_change`) reads as not-found.
+ */
+export function courseAdminErrorToReviewCode(message: CourseAdminMessage): ReviewQueueCode {
+  switch (message.key) {
+    case "course.admin.error.invalidId":
+      return "invalid_id";
+    case "course.admin.error.note_required":
+      return "invalid_note";
+    case "course.admin.error.publishFailed":
+      return "invalid_id";
+    case "course.admin.error.invalid_status_change":
+      return "invalid_id";
+    case "course.admin.error.serverUnavailable":
+      return "unavailable";
+    default:
+      return "unavailable";
   }
 }
 

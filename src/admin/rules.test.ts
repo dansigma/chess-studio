@@ -9,6 +9,7 @@ import {
   adminUsersErrorKey,
   canChangeRole,
   coachInviteAcceptKey,
+  courseAdminErrorToReviewCode,
   inviteActionErrorKey,
   isInvitePending,
   isReasonValid,
@@ -52,6 +53,17 @@ test("every review queue error code maps to a localized message in both locales"
     assert.ok(tAdminUsers("en", key).length > 0, `en:${key} must not be empty`);
     assert.ok(tAdminUsers("pt-br", key).length > 0, `pt-br:${key} must not be empty`);
   }
+});
+
+// SIG-1174: note validation surfaces as invalid_note; a missing or
+// no-longer-reviewable course surfaces as invalid_id (not-found).
+test("course-admin reject failures map to the queue's note / not-found codes", () => {
+  assert.equal(courseAdminErrorToReviewCode({ key: "course.admin.error.note_required" }), "invalid_note");
+  assert.equal(courseAdminErrorToReviewCode({ key: "course.admin.error.invalidId" }), "invalid_id");
+  assert.equal(courseAdminErrorToReviewCode({ key: "course.admin.error.publishFailed" }), "invalid_id");
+  assert.equal(courseAdminErrorToReviewCode({ key: "course.admin.error.invalid_status_change" }), "invalid_id");
+  assert.equal(courseAdminErrorToReviewCode({ key: "course.admin.error.serverUnavailable" }), "unavailable");
+  assert.equal(courseAdminErrorToReviewCode({ key: "course.admin.error.cannotPublish" }), "unavailable");
 });
 
 test("every accept code maps to a localized message in both locales", () => {
