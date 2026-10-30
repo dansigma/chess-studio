@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { catalogCoursePercent, toCatalogCourse } from "./catalog.ts";
 import type { Course } from "./types.ts";
 
-function course(): Course {
+function course(overrides: Partial<Course> = {}): Course {
   return {
     id: "11111111-1111-4111-8111-111111111111",
     slug: "caro-kann",
@@ -32,6 +32,7 @@ function course(): Course {
         variations: [{ id: "line-c", title: "C", pgn: "1. e4 c6 2. d4 dxe4" }],
       },
     ],
+    ...overrides,
   };
 }
 
@@ -43,10 +44,18 @@ describe("catalog card DTO", () => {
     assert.equal(card.title, "The Caro-Kann Defense");
     assert.equal(card.theme, "openings");
     assert.equal(card.color, "black");
+    assert.equal(card.accessTier, "free");
+    assert.equal(card.priceCents, null);
     assert.ok(!("chapters" in card), "the chapters payload stays on the server");
     assert.equal(card.chapterCount, 2);
     assert.equal(card.moveCount, 3);
     assert.deepEqual(card.variationIds, ["line-a", "line-b", "line-c"]);
+  });
+
+  it("carries a paid tier and price through the card", () => {
+    const card = toCatalogCourse(course({ accessTier: "paid", priceCents: 1990 }));
+    assert.equal(card.accessTier, "paid");
+    assert.equal(card.priceCents, 1990);
   });
 
   it("maps an empty course to zero counts", () => {

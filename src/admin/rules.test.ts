@@ -5,12 +5,14 @@ import {
   ADMIN_USERS_ERROR_CODES,
   COACH_INVITE_ACCEPT_CODES,
   INVITE_ACTION_ERROR_CODES,
+  REVIEW_QUEUE_ERROR_CODES,
   adminUsersErrorKey,
   canChangeRole,
   coachInviteAcceptKey,
   inviteActionErrorKey,
   isInvitePending,
   isReasonValid,
+  reviewQueueErrorKey,
   shouldShowAdminLink,
   type CoachInviteResultCode,
 } from "./rules.ts";
@@ -37,6 +39,15 @@ test("every admin-users string key renders non-empty in both locales", () => {
 test("every admin error code maps to a localized message in both locales", () => {
   for (const code of ADMIN_USERS_ERROR_CODES) {
     const key = adminUsersErrorKey(code);
+    assert.ok((ADMIN_USERS_STRING_KEYS as readonly string[]).includes(key), `${code} has no string key`);
+    assert.ok(tAdminUsers("en", key).length > 0, `en:${key} must not be empty`);
+    assert.ok(tAdminUsers("pt-br", key).length > 0, `pt-br:${key} must not be empty`);
+  }
+});
+
+test("every review queue error code maps to a localized message in both locales", () => {
+  for (const code of REVIEW_QUEUE_ERROR_CODES) {
+    const key = reviewQueueErrorKey(code);
     assert.ok((ADMIN_USERS_STRING_KEYS as readonly string[]).includes(key), `${code} has no string key`);
     assert.ok(tAdminUsers("en", key).length > 0, `en:${key} must not be empty`);
     assert.ok(tAdminUsers("pt-br", key).length > 0, `pt-br:${key} must not be empty`);

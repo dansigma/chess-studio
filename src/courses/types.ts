@@ -72,7 +72,8 @@ export type VariationProgress = {
 /**
  * Chapters-free catalog card. The server reads the full chapters, computes
  * the counts, and passes this DTO to the client — the chapters JSON never
- * reaches the browser on `/courses`.
+ * reaches the browser on `/courses`. Tier and price ride along so cards
+ * render the TierBadge without re-reading the course.
  */
 export type CatalogCourse = {
   id: string;
@@ -83,6 +84,9 @@ export type CatalogCourse = {
   videoUrl?: string;
   theme: CourseTheme;
   color: CourseColor;
+  /** SIG-1115: badge input; paid requires a non-null price. */
+  accessTier: CourseAccessTier;
+  priceCents: number | null;
   /** Chapters that contain at least one line. */
   chapterCount: number;
   /** Total lines (variations) across chapters with lines. */

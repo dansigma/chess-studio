@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseAccessTier, isCourseStatus, isCourseTheme, isPublishedCourse, mergeCourseLists, outlineChapters, parseChapters, toCourse } from "./catalog.ts";
+import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseAccessTier, isCourseStatus, isCourseTheme, isPublishedCourse, mergeCourseLists, outlineChapters, parseChapters, toCourse, toPreviewCourse } from "./catalog.ts";
 import { SEED_COURSES } from "./seed-data.ts";
 import type { Course } from "./types.ts";
 
@@ -233,5 +233,47 @@ describe("course catalog", () => {
     assert.equal(course?.chapters[0]?.variations[0]?.title, "Main");
     // The static HTML carries titles only: no move text leaks through PGN.
     assert.ok(!JSON.stringify(course?.chapters ?? []).match(/[1-9]\.\s*[a-hNBRQKO]/));
+  });
+
+  it("builds full-PGN preview courses with contentLoaded true (SIG-1115)", () => {
+    const base = {
+      id: "11111111-1111-4111-8111-111111111111",
+      slug: "london-system",
+      title: "London System",
+      summary: "A solid opening.",
+      cover_url: null,
+      video_url: null,
+      theme: "openings",
+      color: "white",
+      published_at: null,
+      status: "in_review",
+      access_tier: "free",
+      outline: [],
+    };
+    const preview = toPreviewCourse({
+      ...base,
+      chapters: [{ id: "c1", title: "Basics", variations: [{ id: "v1", title: "Main", pgn: "1. d4 d5 2. Bf4" }] }],
+    });
+    assert.equal(preview?.contentLoaded, true);
+    assert.equal(preview?.status, "in_review");
+    assert.equal(preview?.chapters[0]?.variations[0]?.pgn, "1. d4 d5 2. Bf4");
+  });
+
+  it("rejects unknown tier values in toPreviewCourse (SIG-1115)", () => {
+    const base = {
+      id: "11111111-1111-4111-8111-111111111111",
+      slug: "london-system",
+      title: "London",
+      summary: "",
+      cover_url: null,
+      video_url: null,
+      theme: "openings",
+      color: "white",
+      published_at: null,
+      status: "in_review",
+      outline: [],
+    };
+    assert.equal(toPreviewCourse({ ...base, access_tier: "gold", chapters: [] }), null);
+    assert.equal(toPreviewCourse({ ...base, access_tier: "free", status: "live", chapters: [] }), null);
   });
 });

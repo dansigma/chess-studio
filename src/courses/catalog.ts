@@ -22,7 +22,8 @@ export function mergeCourseLists(published: Course[], seed: Course[]): Course[] 
 
 /**
  * Chapters-free catalog card for one course. Empty chapters (no lines) are
- * dropped, matching the catalog rendering.
+ * dropped, matching the catalog rendering. Access tier and price ride along
+ * so cards render the TierBadge without re-reading the course.
  */
 export function toCatalogCourse(course: Course): CatalogCourse {
   const chapters = course.chapters.filter((chapter) => chapter.variations.length > 0);
@@ -36,6 +37,8 @@ export function toCatalogCourse(course: Course): CatalogCourse {
     videoUrl: course.videoUrl,
     theme: course.theme,
     color: course.color,
+    accessTier: course.accessTier,
+    priceCents: course.priceCents,
     chapterCount: chapters.length,
     moveCount: variationIds.length,
     variationIds,
@@ -260,6 +263,55 @@ export function toCourse(row: CourseRow): Course | null {
     chapters: outlineChapters(row.outline),
     builtin: false,
     contentLoaded: false,
+    status,
+    accessTier,
+    priceCents: row.price_cents ?? null,
+    authorName: row.author_display_name ?? undefined,
+    reviewNote: row.review_note ?? null,
+    publishedAt: row.published_at,
+  };
+}
+
+/** Row shape for the admin preview route: same as CourseRow but with the
+ * full-PGN `chapters` column instead of the content-free outline. The
+ * service client reads it after the admin check; anon/session clients can
+ * never see non-published rows (RLS `status = 'published'`). */
+export type PreviewCourseRow = Omit<CourseRow, "outline"> & {
+  chapters: Json;
+};
+
+/**
+ * SIG-1115: DB-row → Course mapping for the admin preview route. Builds
+ * full-PGN chapters (unlike toCourse, which reads the outline) and marks
+ * contentLoaded: true so the preview renders without a gated content
+ * fetch. Fails closed on unknown color/theme/status/tier like toCourse.
+ */
+export function toPreviewCourse(row: PreviewCourseRow): Course | null {
+  if (!isCourseColor(row.color) || !isCourseTheme(row.theme)) {
+    return null;
+  }
+  const rawStatus = row.status == null ? "published" : row.status;
+  if (!isCourseStatus(rawStatus)) {
+    return null;
+  }
+  const status: CourseStatus = rawStatus;
+  const rawTier = row.access_tier == null ? "free" : row.access_tier;
+  if (!isCourseAccessTier(rawTier)) {
+    return null;
+  }
+  const accessTier: CourseAccessTier = rawTier;
+  return {
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    summary: row.summary,
+    coverUrl: courseImageUrl(row.cover_url) ?? undefined,
+    videoUrl: row.video_url ?? undefined,
+    theme: row.theme,
+    color: row.color,
+    chapters: parseChapters(row.chapters),
+    builtin: false,
+    contentLoaded: true,
     status,
     accessTier,
     priceCents: row.price_cents ?? null,
