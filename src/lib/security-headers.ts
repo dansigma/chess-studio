@@ -3,9 +3,9 @@
  * pipelines (`next start` and vinext/Workers). Static assets are served without going through
  * the proxy (see `public/_headers`).
  *
- * The CSP ships as Report-Only first. To enforce it, change CSP_HEADER to
- * "Content-Security-Policy" (one line); `frame-ancestors` is ignored in Report-Only, which is
- * why X-Frame-Options: DENY is always sent enforcing.
+ * The CSP is enforcing. To roll back to Report-Only, change CSP_HEADER back to
+ * "Content-Security-Policy-Report-Only" (one line); `frame-ancestors` is active when enforcing
+ * (it is ignored in Report-Only), and X-Frame-Options: DENY is always sent as defense-in-depth.
  *
  * Violations are reported to CSP_REPORT_PATH: `report-to` (Reporting API, via the
  * `Reporting-Endpoints` header) for current browsers, `report-uri` for the rest (browsers that support
@@ -14,7 +14,7 @@
 
 import { CSP_REPORT_GROUP, CSP_REPORT_PATH } from "./csp-report";
 
-export const CSP_HEADER = "Content-Security-Policy-Report-Only";
+export const CSP_HEADER = "Content-Security-Policy";
 
 /** Third-party hosts the browser talks to directly (everything else goes via /api/* proxies). */
 export const PIECE_IMAGE_HOSTS = ["https://cdn.jsdelivr.net"] as const;
