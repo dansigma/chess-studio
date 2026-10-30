@@ -319,7 +319,7 @@ test("stopSearch sends stop, clears running and pending", () => {
   engine.dispose();
 });
 
-test("worker error surfaces failed in the snapshot", () => {
+test("first worker error does not fail the client", () => {
   const { engine, worker } = freshEngine();
   handshake(worker);
   // SIG-1081: the first error schedules one automatic retry; the second

@@ -565,8 +565,7 @@ const PT_BR: Record<StudioPanelStringKey, string> = {
   "engine.status.analyzingPlain": "Analisando…",
   "engine.start": "Iniciar motor",
   "engine.pause": "Pausar motor",
-  // SIG-1081 placeholder; real translation in SIG-1075.
-  "engine.restart": "Restart engine",
+  "engine.restart": "Reiniciar engine",
   "engine.closeMenu": "Fechar menu do motor",
   "engine.buildMenu": "Versão do motor",
   "engine.buildNote": "A versão padrão baixa cerca de {size} na primeira vez que você a seleciona.",
