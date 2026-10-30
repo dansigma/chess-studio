@@ -17,6 +17,13 @@ test("approve-start is a no-op for decided or pending rows", () => {
   assert.equal(reviewQueueState(pending, { type: "approve-start", id: "b" }), pending);
 });
 
+test("approve-failed clears pending without deciding the row", () => {
+  const started = reviewQueueState(emptyReviewQueueState(), { type: "approve-start", id: "a" });
+  const failed = reviewQueueState(started, { type: "approve-failed", id: "a" });
+  assert.ok(!failed.pending.has("a"));
+  assert.ok(!failed.decided.has("a"));
+});
+
 test("reject dialog opens, edits the note, and closes or decides", () => {
   const opened = reviewQueueState(emptyReviewQueueState(), { type: "reject-open", id: "a" });
   assert.deepEqual(opened.rejecting, { id: "a", note: "" });
@@ -26,6 +33,22 @@ test("reject dialog opens, edits the note, and closes or decides", () => {
   const done = reviewQueueState(edited, { type: "reject-done", id: "a" });
   assert.equal(done.rejecting, null);
   assert.ok(done.decided.has("a"));
+});
+
+test("reject-failed clears pending and keeps the dialog note for retry", () => {
+  const opened = reviewQueueState(emptyReviewQueueState(), { type: "reject-open", id: "a" });
+  const edited = reviewQueueState(opened, { type: "reject-note", note: "needs work" });
+  const started = reviewQueueState(edited, { type: "approve-start", id: "a" });
+  assert.ok(started.pending.has("a"));
+  const failed = reviewQueueState(started, { type: "reject-failed", id: "a" });
+  assert.ok(!failed.pending.has("a"));
+  assert.ok(!failed.decided.has("a"));
+  assert.deepEqual(failed.rejecting, { id: "a", note: "needs work" });
+});
+
+test("reject-failed for another row leaves the dialog alone", () => {
+  const opened = reviewQueueState(emptyReviewQueueState(), { type: "reject-open", id: "a" });
+  assert.equal(reviewQueueState(opened, { type: "reject-failed", id: "b" }), opened);
 });
 
 test("reject-done for another row leaves the dialog alone", () => {

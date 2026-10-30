@@ -1,9 +1,14 @@
 // SIG-1115: admin review queue for submitted courses. Lists `in_review`
 // submissions (title, author, tier, submitted date) with Preview (dedicated
 // admin route), Approve (`approveCourse`) and Reject (dialog with a required
-// 3–500 note via `rejectCourse`). After either action the row disappears.
+// 3–500 note via `rejectCourse`). A row disappears only after the action
+// succeeds; on a server error the row stays and the error is shown, so the
+// admin can retry.
 // SIG-1174: note validation maps to its own code (shared with rules.ts),
 // so the dialog renders the note message instead of the not-found one.
+// SIG-1175: `approve-failed`/`reject-failed` clear `pending` without marking
+// the row decided; the queue also renders as stacked cards below `md:` so
+// the actions stay usable at 390px.
 "use client";
 
 import { useState } from "react";
@@ -29,10 +34,12 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
     setView((current) => reviewQueueState(current, { type: "approve-start", id }));
     setActionError(null);
     const result = await approveCourse(id);
-    setView((current) => reviewQueueState(current, { type: "approve-done", id }));
     if (!result.ok) {
+      setView((current) => reviewQueueState(current, { type: "approve-failed", id }));
       setActionError(courseAdminErrorToReviewCode(result.error));
+      return;
     }
+    setView((current) => reviewQueueState(current, { type: "approve-done", id }));
   }
 
   async function reject() {
@@ -48,7 +55,7 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
     setActionError(null);
     const result = await rejectCourse(target.id, target.note.trim());
     if (!result.ok) {
-      setView((current) => reviewQueueState(current, { type: "approve-done", id: target.id }));
+      setView((current) => reviewQueueState(current, { type: "reject-failed", id: target.id }));
       setActionError(courseAdminErrorToReviewCode(result.error));
       return;
     }
@@ -63,34 +70,66 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
       {visible.length === 0 ? (
         <p>{tAdminUsers(locale, "admin.review.empty")}</p>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>{tAdminUsers(locale, "admin.review.table.title")}</th>
-              <th>{tAdminUsers(locale, "admin.review.table.author")}</th>
-              <th>{tAdminUsers(locale, "admin.review.table.tier")}</th>
-              <th>{tAdminUsers(locale, "admin.review.table.submitted")}</th>
-              <th>
-                <span className="sr-only">{tAdminUsers(locale, "admin.review.table.actions")}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+        <>
+          <table className="hidden md:table">
+            <thead>
+              <tr>
+                <th>{tAdminUsers(locale, "admin.review.table.title")}</th>
+                <th>{tAdminUsers(locale, "admin.review.table.author")}</th>
+                <th>{tAdminUsers(locale, "admin.review.table.tier")}</th>
+                <th>{tAdminUsers(locale, "admin.review.table.submitted")}</th>
+                <th>
+                  <span className="sr-only">{tAdminUsers(locale, "admin.review.table.actions")}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((row) => {
+                const pending = view.pending.has(row.id);
+                return (
+                  <tr key={row.id}>
+                    <td>{row.title}</td>
+                    <td>{row.authorName ?? "—"}</td>
+                    <td>{tierLabel(row.tier, row.priceCents, locale)}</td>
+                    <td>{row.submittedAt}</td>
+                    <td>
+                      <Link href={`/admin/courses/${row.id}/preview`}>
+                        {tAdminUsers(locale, "admin.review.preview")}
+                      </Link>{" "}
+                      <button type="button" disabled={pending} onClick={() => void approve(row.id)}>
+                        {pending
+                          ? tAdminUsers(locale, "admin.review.approving")
+                          : tAdminUsers(locale, "admin.review.approve")}
+                      </button>{" "}
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => setView((current) => reviewQueueState(current, { type: "reject-open", id: row.id }))}
+                      >
+                        {tAdminUsers(locale, "admin.review.reject")}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <ul className="md:hidden">
             {visible.map((row) => {
               const pending = view.pending.has(row.id);
               return (
-                <tr key={row.id}>
-                  <td>{row.title}</td>
-                  <td>{row.authorName ?? "—"}</td>
-                  <td>{tierLabel(row.tier, row.priceCents, locale)}</td>
-                  <td>{row.submittedAt}</td>
-                  <td>
-                    <Link href={`/admin/courses/${row.id}/preview`}>{tAdminUsers(locale, "admin.review.preview")}</Link>{" "}
+                <li key={row.id} data-review-card={row.id}>
+                  <p>{row.title}</p>
+                  <p>
+                    {row.authorName ?? "—"} · {tierLabel(row.tier, row.priceCents, locale)} · {row.submittedAt}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Link href={`/admin/courses/${row.id}/preview`}>{tAdminUsers(locale, "admin.review.preview")}</Link>
                     <button type="button" disabled={pending} onClick={() => void approve(row.id)}>
                       {pending
                         ? tAdminUsers(locale, "admin.review.approving")
                         : tAdminUsers(locale, "admin.review.approve")}
-                    </button>{" "}
+                    </button>
                     <button
                       type="button"
                       disabled={pending}
@@ -98,17 +137,17 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
                     >
                       {tAdminUsers(locale, "admin.review.reject")}
                     </button>
-                  </td>
-                </tr>
+                  </div>
+                </li>
               );
             })}
-          </tbody>
-        </table>
+          </ul>
+        </>
       )}
       {view.rejecting ? (
         <Dialog
           title={tAdminUsers(locale, "admin.review.dialog.title", {
-            title: visible.find((row) => row.id === view.rejecting!.id)?.title ?? "",
+            title: initialRows.find((row) => row.id === view.rejecting!.id)?.title ?? "",
           })}
           onClose={() => setView((current) => reviewQueueState(current, { type: "reject-close" }))}
         >
