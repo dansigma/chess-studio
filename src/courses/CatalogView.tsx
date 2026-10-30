@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { catalogCoursePercent, courseThemeLabel, isCourseTheme } from "./catalog";
 import { tCourse } from "@/src/i18n/course-strings";
+import { tierLabel } from "./tier-label";
+import { TierBadge } from "./TierBadge";
 import { formatInteger } from "@/src/i18n/format";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "./CourseChrome";
@@ -92,6 +94,9 @@ export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
                     })}
                   </div>
                   <h2 className="mt-2 text-lg font-semibold text-studio-fg">{course.title}</h2>
+                  <div className="mt-2">
+                    <TierBadge label={tierLabel(course.accessTier, course.priceCents, locale)} />
+                  </div>
                   <p className="mt-2 line-clamp-3 text-body text-studio-muted">{courseSummaryText(course.summary)}</p>
                   <div className="mt-4 text-caption text-studio-faint">
                     {tCourse(locale, "course.catalog.counts", {

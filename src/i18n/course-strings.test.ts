@@ -25,6 +25,16 @@ test("every course theme id has a label in both locales", () => {
   }
 });
 
+test("tier labels render for every access tier in both locales", () => {
+  for (const tier of ["free", "premium"] as const) {
+    const key = `course.tier.${tier}` as const;
+    assert.ok(tCourse("en", key).length > 0, `en:${key} must not be empty`);
+    assert.ok(tCourse("pt-br", key).length > 0, `pt-br:${key} must not be empty`);
+  }
+  assert.equal(tCourse("en", "course.tier.price", { price: "19,90" }), "R$ 19,90");
+  assert.equal(tCourse("pt-br", "course.tier.price", { price: "19,90" }), "R$ 19,90");
+});
+
 test("course outcome strings render whole sentences with vars", () => {
   assert.equal(tCourse("en", "course.lesson.stepCounter", { current: 2, total: 5 }), "2 / 5");
   assert.equal(tCourse("pt-br", "course.lesson.stepCounter", { current: 2, total: 5 }), "2 / 5");

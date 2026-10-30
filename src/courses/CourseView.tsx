@@ -8,6 +8,8 @@ import { importPgn } from "@/src/chess/pgn";
 import { writeCourseStudyImport } from "@/src/chess/share-board";
 import { courseThemeLabel } from "./catalog";
 import { tCourse } from "@/src/i18n/course-strings";
+import { tierLabel } from "./tier-label";
+import { TierBadge } from "./TierBadge";
 import { formatInteger } from "@/src/i18n/format";
 import { lessonFrames, lineProgressLabel } from "./lesson";
 import { CourseSummary } from "./CourseSummary";
@@ -57,6 +59,9 @@ export function CourseView({ course }: { course: Course }) {
               {tCourse(locale, course.color === "black" ? "course.course.pieces.black" : "course.course.pieces.white")}
             </p>
             <h1 className="mt-1 text-2xl font-semibold text-studio-fg">{course.title}</h1>
+            <div className="mt-2">
+              <TierBadge label={tierLabel(course.accessTier, course.priceCents, locale)} />
+            </div>
           </div>
         </div>
         <CourseSummary

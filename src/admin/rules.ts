@@ -4,6 +4,7 @@
 // and reason-length validation (mirrors the 3–500 server rule).
 import type { AdminUsersCode } from "@/app/admin/users/actions.ts";
 import type { InviteActionCode } from "@/app/admin/users/invite-actions.ts";
+import type { ReviewQueueCode } from "@/app/admin/courses/actions.ts";
 import type { AdminUsersStringKey } from "./strings.ts";
 
 export const ADMIN_USERS_ERROR_CODES: readonly AdminUsersCode[] = [
@@ -73,6 +74,24 @@ export function coachInviteAcceptKey(code: CoachInviteResultCode): AdminUsersStr
 
 export function adminUsersErrorKey(code: AdminUsersCode): AdminUsersStringKey {
   return `admin.users.error.${code}`;
+}
+
+export const REVIEW_QUEUE_ERROR_CODES: readonly ReviewQueueCode[] = [
+  "invalid_id",
+  "unavailable",
+  "forbidden",
+] satisfies readonly ReviewQueueCode[];
+
+/** Maps a review-queue action code to its localized message key. */
+export function reviewQueueErrorKey(code: ReviewQueueCode): AdminUsersStringKey {
+  switch (code) {
+    case "invalid_id":
+      return "admin.review.error.invalidId";
+    case "unavailable":
+      return "admin.review.error.unavailable";
+    case "forbidden":
+      return "admin.review.error.forbidden";
+  }
 }
 
 /** The signed-in admin's own row never offers a role change. */
