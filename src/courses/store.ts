@@ -10,6 +10,7 @@ import {
   writeRawCache,
 } from "../lib/local-cache";
 import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isCourseAccessTier, isCourseColor, isCourseId, isCourseStatus, isCourseTheme, isMissingSchemaError, parseChapters, toCourse } from "./catalog";
+import { recordCompletion, shouldRecordCompletion } from "./enrollment";
 import { mergeProgress } from "./progress";
 import type { Course, CourseChapter } from "./types";
 import type { VariationProgress } from "./types";
@@ -374,7 +375,11 @@ function persistLocalProgress(): void {
  */
 export const PROGRESS_BROWSER_ONLY = "browser-only" as const;
 
-export async function saveVariationProgress(variationId: string, progress: VariationProgress): Promise<string | null> {
+export async function saveVariationProgress(
+  variationId: string,
+  progress: VariationProgress,
+  course?: Course,
+): Promise<string | null> {
   progressCache = { ...progressCache, [variationId]: progress };
   if (!accountUserId) {
     persistLocalProgress();
@@ -397,6 +402,13 @@ export async function saveVariationProgress(variationId: string, progress: Varia
     return PROGRESS_BROWSER_ONLY;
   }
   persistLocalProgress();
+  // SIG-1052: the save succeeded and the caller knows the course the
+  // variation belongs to (variation_id has no course link in SQL). When the
+  // merged progress reaches 100%, stamp completed_at once — fire-and-forget
+  // so lesson-step latency is unchanged. Seed/builtin courses never write.
+  if (course && !course.builtin && shouldRecordCompletion(coursePercent(course, progressCache), false)) {
+    void recordCompletion(supabase, accountUserId, course.id);
+  }
   return null;
 }
 
