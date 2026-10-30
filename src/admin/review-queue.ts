@@ -30,10 +30,12 @@ export function emptyReviewQueueState(): ReviewQueueState {
 export type ReviewQueueEvent =
   | { type: "approve-start"; id: string }
   | { type: "approve-done"; id: string }
+  | { type: "approve-failed"; id: string }
   | { type: "reject-open"; id: string }
   | { type: "reject-note"; note: string }
   | { type: "reject-close" }
-  | { type: "reject-done"; id: string };
+  | { type: "reject-done"; id: string }
+  | { type: "reject-failed"; id: string };
 
 function without(set: ReadonlySet<string>, id: string): Set<string> {
   const next = new Set(set);
@@ -57,6 +59,8 @@ export function reviewQueueState(state: ReviewQueueState, event: ReviewQueueEven
       return { ...state, pending: withId(state.pending, event.id) };
     case "approve-done":
       return { ...state, pending: without(state.pending, event.id), decided: withId(state.decided, event.id) };
+    case "approve-failed":
+      return { ...state, pending: without(state.pending, event.id) };
     case "reject-open":
       if (state.decided.has(event.id) || state.pending.has(event.id)) {
         return state;
@@ -78,6 +82,11 @@ export function reviewQueueState(state: ReviewQueueState, event: ReviewQueueEven
         rejecting: null,
         decided: withId(state.decided, event.id),
       };
+    case "reject-failed":
+      if (!state.rejecting || state.rejecting.id !== event.id) {
+        return state;
+      }
+      return { ...state, pending: without(state.pending, event.id) };
   }
 }
 

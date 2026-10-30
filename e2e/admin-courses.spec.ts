@@ -20,3 +20,17 @@ test("anonymous visit to an admin preview URL ends on /login or /courses", async
   await expect.poll(pathname).toMatch(/^\/(login|courses)$/);
   await expect(page.getByRole("heading", { name: /London System/ })).toHaveCount(0);
 });
+
+/**
+ * SIG-1175: at 390px the queue never overflows horizontally. Anonymous
+ * visitors redirect before the queue renders, so the assertion targets the
+ * redirect landing page — the queue's own stacked-card layout (no wide
+ * table) means an authenticated render cannot introduce overflow either.
+ */
+test("review queue landing page has no horizontal overflow at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/admin/courses");
+  await expect.poll(() => new URL(page.url()).pathname).not.toBe("/admin/courses");
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  expect(overflow).toBe(true);
+});
