@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Enforce the Content Security Policy (SIG-1059)
+
+- Every response now sends the policy as enforcing `Content-Security-Policy` (same directives as
+  before, via `CSP_HEADER` in `src/lib/security-headers.ts`); no `Content-Security-Policy-Report-Only`
+  header is sent. `X-Frame-Options: DENY` is unchanged.
+- Rollback: change `CSP_HEADER` back to `"Content-Security-Policy-Report-Only"` (one line).
+
 ### Repertoire deviation fixes: "Train this line" / "Add to repertoire" (SIG-1094)
 
 - New pure helpers in `src/chess/repertoire-actions.ts`: `findPathToPosition` (DFS pre-order path to a FEN,
