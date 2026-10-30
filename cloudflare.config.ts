@@ -6,6 +6,11 @@ export default defineConfig({
     entrypoint: "vinext/server/fetch-handler",
     compatibilityDate: "2026-10-04",
     compatibilityFlags: ["nodejs_compat"],
+    // SIG-1176: Workers Logs enabled in the dashboard (Oct 30 2026) must live in config,
+    // or the next GitHub deploy resets it. Logs-only: no Traces, no Logpush.
+    observability: {
+      logs: { enabled: true, invocationLogs: true, persist: true },
+    },
     assets: {
       notFoundHandling: "none",
       // Os wasm "full" do engine são servidos do R2 pela rota app/engine/[...path]
