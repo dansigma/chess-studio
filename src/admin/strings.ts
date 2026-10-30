@@ -96,6 +96,7 @@ export const ADMIN_USERS_STRING_KEYS = [
   "admin.review.dialog.confirm",
   "admin.review.dialog.cancel",
   "admin.review.error.invalidId",
+  "admin.review.error.invalidNote",
   "admin.review.error.unavailable",
   "admin.review.error.forbidden",
 ] as const;
@@ -191,6 +192,7 @@ const EN: Record<AdminUsersStringKey, string> = {
   "admin.review.dialog.confirm": "Reject course",
   "admin.review.dialog.cancel": "Cancel",
   "admin.review.error.invalidId": "That course could not be found.",
+  "admin.review.error.invalidNote": "The review note must be 3–500 characters long.",
   "admin.review.error.unavailable": "The review service is unavailable. Try again later.",
   "admin.review.error.forbidden": "You need an admin role to review courses.",
 };
@@ -284,6 +286,7 @@ const PT_BR: Record<AdminUsersStringKey, string> = {
   "admin.review.dialog.confirm": "Rejeitar curso",
   "admin.review.dialog.cancel": "Cancelar",
   "admin.review.error.invalidId": "Esse curso não foi encontrado.",
+  "admin.review.error.invalidNote": "A nota de revisão deve ter de 3 a 500 caracteres.",
   "admin.review.error.unavailable": "O serviço de revisão está indisponível. Tente novamente mais tarde.",
   "admin.review.error.forbidden": "Você precisa do papel de admin para revisar cursos.",
 };
