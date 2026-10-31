@@ -173,7 +173,7 @@ export function MyStatsPanel() {
         cursor = page.cursor;
       }
       if (!cancelled) {
-        setGames(all);
+        setGames(all.slice(0, OPENING_MAX_GAMES));
         setState("ready");
       }
     }
@@ -194,12 +194,9 @@ export function MyStatsPanel() {
   const phaseTotals = useMemo(() => mistakesByPhase(games), [games]);
   const tabRows = useMemo(() => openings.filter((row) => row.color === colorTab), [openings, colorTab]);
   // SIG-1099: tree input — SAN paths from PGN (moves-only rows have no PGN;
-  // skip them). The tree + worst set recompute per filter change; `treeNow`
-  // is captured fresh per render (same grain as the Overview trend, which
-  // reads current games each render).
-  // is intentionally fresh per render (same grain as the Overview trend
-  // reading current games each render); the tree memo below depends on it.
-  const treeNow = Date.now();
+  // skip them). The tree memo captures `now` once per computation so the
+  // trend windows and date-preset filter stay consistent; it recomputes only
+  // when games or filters change (not on every render).
   const treeGames = useMemo<OpeningTreeGame[]>(
     () =>
       games.flatMap((game) => {
@@ -224,13 +221,16 @@ export function MyStatsPanel() {
       }),
     [games],
   );
-  const treeFilters = useMemo(
-    () => openingFilterToTreeFilters(uiFilters, treeNow),
-    [uiFilters, treeNow],
-  );
   const treeRoot = useMemo(
-    () => buildOpeningTree(treeGames, { color: lineColor, now: treeNow, filters: treeFilters }),
-    [treeGames, lineColor, treeNow, treeFilters],
+    () => {
+      const now = Date.now();
+      return buildOpeningTree(treeGames, {
+        color: lineColor,
+        now,
+        filters: openingFilterToTreeFilters(uiFilters, now),
+      });
+    },
+    [treeGames, lineColor, uiFilters],
   );
   const worstKeys = useMemo(
     () => new Set(worstLines(treeRoot).map((line) => line.path.join(" "))),
