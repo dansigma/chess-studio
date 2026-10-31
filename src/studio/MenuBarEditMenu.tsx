@@ -10,7 +10,9 @@ import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 // Only primitives are subscribed; the marks-empty guard reads the active
 // board once per render via selectActiveBoard (same value the panel already
 // subscribes to), avoiding a second boards.find elsewhere.
-export function MenuBarEditMenu({ run }: { run: (action: () => void) => () => void }) {
+// SIG-1109: factored into EditMenuItems so the mobile bottom sheet reuses the
+// same actions; the exported component keeps the desktop menu contract.
+export function EditMenuItems({ run }: { run: (action: () => void) => () => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
   const setNotationEditor = useStudioStore((state) => state.setNotationEditor);
   const setupMode = useStudioStore((state) => state.setupMode);
@@ -68,4 +70,8 @@ export function MenuBarEditMenu({ run }: { run: (action: () => void) => () => vo
       <Item label={tStudioChrome(locale, "chrome.edit.goEnd")} shortcut="End" onClick={run(toEnd)} />
     </>
   );
+}
+
+export function MenuBarEditMenu({ run }: { run: (action: () => void) => () => void }) {
+  return <EditMenuItems run={run} />;
 }
