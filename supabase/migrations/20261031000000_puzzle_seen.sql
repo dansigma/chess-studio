@@ -50,3 +50,8 @@ as $$
 $$;
 grant execute on function public.puzzles_unseen(int, int, text, int, bigint, text[])
   to authenticated;
+-- Supabase/Postgres grants EXECUTE to PUBLIC by default: an explicit grant
+-- to authenticated alone still leaves PUBLIC|EXECUTE and anon|EXECUTE, so
+-- anon callers could invoke the RPC. Revoke both, keeping authenticated.
+revoke execute on function public.puzzles_unseen(int, int, text, int, bigint, text[])
+  from public, anon;

@@ -375,6 +375,14 @@ describe("sig-1179 puzzle_seen migration", () => {
     assert.ok(sig1179.includes("to authenticated"), "execute must cover authenticated");
     const grantLine = sig1179.split("\n").find((line) => line.includes("puzzles_unseen(int"));
     assert.ok(grantLine && !/to anon/.test(grantLine!), "execute must not cover anon");
+    // Postgres grants EXECUTE to PUBLIC by default: the grant to authenticated
+    // alone still leaves anon callable, so the migration must revoke PUBLIC/anon.
+    assert.ok(
+      /revoke execute on function public\.puzzles_unseen\(int, int, text, int, bigint, text\[\]\)[\s\S]*?from public, anon/.test(
+        sig1179,
+      ),
+      "must revoke default PUBLIC/anon execute so only authenticated can call",
+    );
   });
 });
 
