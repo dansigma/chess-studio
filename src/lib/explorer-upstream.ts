@@ -1,4 +1,5 @@
 import { readCapped } from "./read-capped.ts";
+import { UA, lichessToken } from "./players/shared.ts";
 import type { CloudExplorerSource, ExplorerGameRow, ExplorerMoveRow, ExplorerResponse } from "./explorer-types.ts";
 
 export type ExplorerUpstreamSource = "masters" | "lichess";
@@ -60,10 +61,6 @@ export function explorerUpstreamEndpoints(source: ExplorerUpstreamSource, fen: s
     `https://explorer.lichess.ovh/lichess?variant=standard&fen=${encodeURIComponent(fen)}&source=opening${filterQuery}`,
     `https://explorer.lichess.org/lichess?variant=standard&fen=${encodeURIComponent(fen)}&source=opening${filterQuery}`,
   ];
-}
-
-function lichessToken(): string | undefined {
-  return process.env.LICHESS_TOKEN ?? process.env.LICHESS_API_TOKEN;
 }
 
 export function mapGame(game: LichessGame, opening: ExplorerResponse["opening"]): ExplorerGameRow {
@@ -135,7 +132,7 @@ export async function fetchExplorerUpstream(
   const endpoints = explorerUpstreamEndpoints(source, fen, filterQuery);
   const headers: Record<string, string> = {
     Accept: "application/json",
-    "User-Agent": "StudioClone/0.1 (chess analysis)",
+    "User-Agent": UA,
   };
   if (token) {
     headers.Authorization = `Bearer ${token}`;

@@ -4,6 +4,7 @@ import type { PlayerHit } from "@/src/lib/player-types";
 import { createLruCache } from "@/src/lib/lru";
 import { isSearchQuery } from "@/src/lib/request-validation";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
+import { tooManyRequests } from "@/src/lib/rate-limit-response";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +29,7 @@ export async function GET(request: NextRequest) {
   const ip = clientIp(request.headers);
   const verdict = await limiter.checkAsync(rateLimitKey("search", ip));
   if (!verdict.ok) {
-    return NextResponse.json(
-      { error: "Too many requests — try again shortly." },
-      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-    );
+    return tooManyRequests(verdict);
   }
   const cacheKey = query.trim().toLowerCase();
   const cached = searchCache.get(cacheKey);

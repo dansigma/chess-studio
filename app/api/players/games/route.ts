@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadPlayerGames } from "@/src/lib/players-server";
 import { isDisplayText, isPlayerUsername, isStudioPlayerName } from "@/src/lib/request-validation";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
+import { tooManyRequests } from "@/src/lib/rate-limit-response";
 
 const limiter = createRouteLimiter({ limit: 30, windowMs: 60_000, bindingName: "RL_30_MIN" });
 
@@ -24,10 +25,7 @@ export async function GET(request: NextRequest) {
   const ip = clientIp(request.headers);
   const verdict = await limiter.checkAsync(rateLimitKey("games", ip));
   if (!verdict.ok) {
-    return NextResponse.json(
-      { error: "Too many requests — try again shortly." },
-      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-    );
+    return tooManyRequests(verdict);
   }
   try {
     const payload = await loadPlayerGames(source, username, displayName, subtitle);
