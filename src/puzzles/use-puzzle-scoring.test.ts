@@ -80,3 +80,31 @@ test("applyPuzzleResult keeps non-rated modes from changing the rating", () => {
   assert.equal(delta, 0);
   assert.ok(gained > 0, "but still awards xp");
 });
+
+test("applyPuzzleResult leaves progress identical for mistakes attempts", () => {
+  const rated = applyResult(emptyProgress(), {
+    id: "rated-1",
+    mode: "rated",
+    success: true,
+    puzzleRating: 1500,
+    sessionScore: 2,
+    now: 1_700_000_000_000,
+    themes: ["fork"],
+    ms: 500,
+  });
+  for (const success of [true, false]) {
+    const { next, delta, gained } = applyPuzzleResult(rated, {
+      id: "mx:abc",
+      mode: "mistakes",
+      success,
+      puzzleRating: 1500,
+      sessionScore: 3,
+      now: 1_700_000_001_000,
+      themes: [],
+      ms: 2000,
+    });
+    assert.equal(next, rated, "same reference, no clone");
+    assert.equal(delta, 0, "mistakes attempts change no rating");
+    assert.equal(gained, 0, "mistakes attempts award no xp");
+  }
+});

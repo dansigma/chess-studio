@@ -1,7 +1,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { CourseChrome } from "@/src/courses/CourseChrome";
+import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { PuzzleBoard } from "./PuzzleBoard";
@@ -35,6 +37,21 @@ export function PuzzleTrainer() {
       {session.loadError ? (
         <main className="px-6 py-10 text-body text-studio-warning-fg">
           {tPuzzle(locale, "puzzle.trainer.loadError")}
+        </main>
+      ) : mode === "mistakes" && session.caughtUp && scoring.progress ? (
+        // SIG-1097: empty queue renders the caught-up state, not the spinner.
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+          <h1 className="text-2xl font-semibold text-studio-fg">
+            {tMistakes(locale, "mistakes.trainer.caughtUp.title")}
+          </h1>
+          <p className="mt-2 text-body text-studio-muted">
+            {session.nextDue
+              ? tMistakes(locale, "mistakes.trainer.caughtUp.nextDue", { date: session.nextDue })
+              : tMistakes(locale, "mistakes.trainer.caughtUp.body")}
+          </p>
+          <Link href="/puzzles" className="mt-4 inline-block text-body text-studio-accent-text">
+            {tMistakes(locale, "mistakes.trainer.caughtUp.back")}
+          </Link>
         </main>
       ) : !scoring.progress || !session.puzzle || !session.fen ? (
         <main className="px-6 py-10 text-body text-studio-muted" role="status">
