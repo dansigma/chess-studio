@@ -17,13 +17,16 @@ do $$
 declare
   v_grantees text;
 begin
-  -- Only authenticated may execute: no PUBLIC / anon privilege on the function.
+  -- Only authenticated may execute among client-facing roles: no PUBLIC /
+  -- anon privilege on the function. (The function owner and service_role
+  -- always appear in routine_privileges; they are not client callers.)
   select coalesce(string_agg(grantee::text, ',' order by grantee::text), '')
     into v_grantees
   from information_schema.routine_privileges
   where specific_schema = 'public'
     and routine_name = 'puzzles_unseen'
-    and privilege_type = 'EXECUTE';
+    and privilege_type = 'EXECUTE'
+    and grantee in ('PUBLIC', 'anon', 'authenticated');
   if v_grantees <> 'authenticated' then
     raise exception 'puzzles_unseen EXECUTE grantees must be exactly authenticated, got: %', v_grantees;
   end if;
