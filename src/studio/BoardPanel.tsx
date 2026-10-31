@@ -23,6 +23,7 @@ import { boardImageElement, fenToCopy, publishVisibleFen } from "@/src/chess/cop
 import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-board-image";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { createLongPress, swipeDirection, touchPoint, type TouchPoint } from "./use-gestures";
 import { Button } from "./ui/Button";
 import { useDialogFocus } from "./ui/use-dialog-focus";
 
@@ -108,6 +109,15 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const pending = useRef<PendingDraw | null>(null);
   const promotionRef = useRef<HTMLDivElement>(null);
   useDialogFocus(promotionRef, promotion !== null);
+  // SIG-1109: board swipe/long-press stream. Touch events only fire on
+  // touch devices, so desktop mouse behavior is untouched. A horizontal
+  // swipe navigates (left = forward, right = back via the toolbar handlers);
+  // a still hold opens the same BoardContextMenu at the touch point. The
+  // long-press move() cancels on swipe drift, so the two never double-fire.
+  // Store reads go through getState() (not subscribed hooks) so the gesture
+  // handlers never close over a stale board position.
+  const touchStartRef = useRef<TouchPoint | null>(null);
+  const touchPressRef = useRef<ReturnType<typeof createLongPress> | null>(null);
 
   const storedMarks = isActive && enginePreview ? null : getMarksAt(board.tree, board.path);
   const squareMarks = useMemo(() => storedMarks?.squares ?? [], [storedMarks]);
@@ -278,10 +288,59 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
 
   return (
     <div
-      className="grid h-full min-h-0 w-full place-items-center overflow-hidden bg-studio-panel p-2 [container-type:size]"
+      data-mobile-board-gestures=""
+      className="grid h-full min-h-0 w-full touch-pan-y place-items-center overflow-hidden bg-studio-panel p-2 [container-type:size]"
       onContextMenu={(event) => {
         event.preventDefault();
         setBoardMenu({ x: event.clientX, y: event.clientY });
+      }}
+      onTouchStart={(event) => {
+        const first = event.touches[0];
+        if (!first) {
+          return;
+        }
+        const point = touchPoint(first);
+        touchStartRef.current = point;
+        const press = createLongPress();
+        touchPressRef.current = press;
+        press.start(point, () => setBoardMenu({ x: first.clientX, y: first.clientY }));
+      }}
+      onTouchMove={(event) => {
+        const first = event.touches[0];
+        if (!first) {
+          return;
+        }
+        touchPressRef.current?.move(touchPoint(first));
+      }}
+      onTouchEnd={(event) => {
+        const start = touchStartRef.current;
+        touchStartRef.current = null;
+        // React synthetic TouchEvent pools: changedTouches/touches must be
+        // captured synchronously — after an async gap the pool is empty.
+        const changedCount = event.changedTouches.length;
+        const remainingCount = event.touches.length;
+        const endTouch = changedCount > 0 ? event.changedTouches[0] : null;
+        const end = endTouch ? touchPoint(endTouch) : null;
+        touchPressRef.current?.end();
+        touchPressRef.current = null;
+        if (!start || !end) {
+          return;
+        }
+        // Multi-touch is a pinch/zoom concern (out of scope) — ignore it.
+        if (remainingCount > 0) {
+          return;
+        }
+        const direction = swipeDirection(start, end);
+        if (direction === "left") {
+          useStudioStore.getState().forward();
+        } else if (direction === "right") {
+          useStudioStore.getState().back();
+        }
+      }}
+      onTouchCancel={() => {
+        touchStartRef.current = null;
+        touchPressRef.current?.cancel();
+        touchPressRef.current = null;
       }}
     >
       <div
