@@ -34,6 +34,42 @@ export type LoadMyGamesResult =
   | { ok: true; page: MyGamesPage }
   | { ok: false; error: LoadMyGamesError };
 
+export type LoadCappedMyGamesResult =
+  | { ok: true; games: PlayerGame[]; cancelled: boolean }
+  | { ok: false; error: LoadMyGamesError };
+
+/** SIG-1180: cancel-aware capped pagination over `loadMyGames`.
+ * Runs the same page loop the My stats panel inlined (cursor chaining,
+ * `maxGames` cap-break), but checks `isCancelled` after each page resolves so
+ * a superseded loop stops issuing requests instead of paging to completion.
+ * Returns the games collected so far with `cancelled: true` when stopped. */
+export async function loadCappedMyGames(
+  client: SupabaseClient<Database>,
+  {
+    limit = MY_GAMES_PAGE_SIZE,
+    maxGames,
+    isCancelled,
+  }: { limit?: number; maxGames: number; isCancelled?: () => boolean },
+): Promise<LoadCappedMyGamesResult> {
+  const all: PlayerGame[] = [];
+  let cursor: string | null = null;
+  for (;;) {
+    const result = await loadMyGames(client, { limit, before: cursor });
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+    all.push(...result.page.games);
+    if (isCancelled?.()) {
+      return { ok: true, games: all.slice(0, maxGames), cancelled: true };
+    }
+    if (all.length >= maxGames || !result.page.hasMore || !result.page.cursor) {
+      break;
+    }
+    cursor = result.page.cursor;
+  }
+  return { ok: true, games: all.slice(0, maxGames), cancelled: false };
+}
+
 function playedAtMs(playedAt: string | null): number | null {
   if (!playedAt) {
     return null;

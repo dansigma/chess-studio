@@ -42,4 +42,27 @@ describe("My Stats panel contract (SIG-1091)", () => {
     assert.ok(api.includes("myStats: \"panels.myStats\""), "STATIC_PANEL_KEYS must use the panels slice title");
     assert.ok(dock.includes('panelTitleForId(locale, "myStats")'), "locale re-title must run myStats through panelTitleForId");
   });
+
+  it("loads my_games once per user with cancellation (SIG-1180)", () => {
+    assert.ok(
+      panel.includes("loadCappedMyGames"),
+      "panel must page through the cancel-aware capped loader",
+    );
+    assert.ok(
+      panel.includes("[userId]"),
+      "panel effect must key on the stable user id, not the user object",
+    );
+    assert.ok(
+      panel.includes("myStatsLoadByUser"),
+      "panel must share the in-flight load across remounts",
+    );
+    assert.ok(
+      panel.includes("isCancelled"),
+      "panel must stop superseded pagination loops early",
+    );
+    assert.ok(
+      !panel.includes("[user]"),
+      "panel must not re-run the load on user object identity changes",
+    );
+  });
 });

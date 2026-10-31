@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/src/lib/supabase/database.types.ts";
 import type { PlayerGame } from "@/src/lib/player-types.ts";
 import { playerGameToRow } from "./game-row.ts";
-import { loadMyGames, myGamesRowToPlayerGame, type MyGamesRow } from "./load-games.ts";
+import { loadCappedMyGames, loadMyGames, myGamesRowToPlayerGame, type MyGamesRow } from "./load-games.ts";
 
 type Row = Record<string, unknown>;
 
@@ -387,5 +387,51 @@ describe("loadMyGames", () => {
   it("maps query errors to unavailable", async () => {
     const { client } = createFakeClient({ selectError: new Error("denied") });
     assert.deepEqual(await loadMyGames(client), { ok: false, error: "unavailable" });
+  });
+});
+
+describe("loadCappedMyGames", () => {
+  function bigStore(count: number): Row[] {
+    const base = Date.parse("2026-10-20T12:00:00.000Z");
+    return Array.from({ length: count }, (_, index) =>
+      baseRow({
+        id: `row-${index + 1}`,
+        external_id: `game-${index + 1}`,
+        played_at: new Date(base - index * 60_000).toISOString(),
+      }),
+    );
+  }
+
+  it("loads a 3,005-game library in ceil(3000/50) = 60 requests (cap applies)", async () => {
+    const { client, calls } = createFakeClient({ store: bigStore(3005) });
+    const result = await loadCappedMyGames(client, { limit: 50, maxGames: 3000 });
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.games.length, 3000, "capped at 3000 games");
+    assert.equal(result.ok && result.cancelled, false);
+    assert.equal(calls.ranges.length, 60, "one request per page, no duplication");
+  });
+
+  it("stops paging once cancelled instead of loading every page", async () => {
+    const { client, calls } = createFakeClient({ store: bigStore(500) });
+    let pages = 0;
+    const result = await loadCappedMyGames(client, {
+      limit: 50,
+      maxGames: 3000,
+      isCancelled: () => {
+        pages += 1;
+        return pages >= 2;
+      },
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.ok && result.cancelled, true);
+    assert.equal(calls.ranges.length, 2, "no requests after cancellation");
+  });
+
+  it("maps page errors to unavailable", async () => {
+    const { client } = createFakeClient({ selectError: new Error("denied") });
+    assert.deepEqual(await loadCappedMyGames(client, { limit: 50, maxGames: 3000 }), {
+      ok: false,
+      error: "unavailable",
+    });
   });
 });

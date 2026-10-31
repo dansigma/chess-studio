@@ -26,7 +26,7 @@ import { formatDecimal1, formatInteger } from "@/src/i18n/format";
 import { tMyGames } from "@/src/i18n/my-games-strings";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
-import { loadMyGames, type MyGamesPage } from "@/src/lib/my-games/load-games";
+import { loadCappedMyGames } from "@/src/lib/my-games/load-games";
 import {
   accuracyTrend,
   deviationsForRecentGames,
@@ -60,6 +60,13 @@ import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
 
 type LoadState = "signedOut" | "loading" | "ready" | "unavailable";
+
+// SIG-1180: per-user in-flight share — concurrent mounts (StrictMode /
+// dockview remount) join the same promise instead of each running the page
+// loop. The entry is dropped once the loop settles, so later mounts always
+// refetch (same as before; no stale-after-sync risk). `refs` counts live
+// joiners; the loop stops paging once nobody is listening.
+const myStatsLoadByUser = new Map<string, { promise: Promise<PlayerGame[] | null>; refs: number }>();
 
 const PHASES: readonly GamePhase[] = ["opening", "middlegame", "endgame"];
 const TIERS: readonly MistakeTier[] = ["inaccuracy", "mistake", "miss", "blunder"];
@@ -138,8 +145,13 @@ export function MyStatsPanel() {
   /* eslint-disable react-hooks/set-state-in-effect -- SIG-1091: resetting to
      the signed-out state synchronously avoids flashing a stale list when the
      user signs out (same grain as MyGamesSidebar's loading-start disable). */
+  // SIG-1180: keyed on the stable user id — `setUser` builds a fresh object
+  // on every auth callback (mount emits getUser + INITIAL_SESSION) and token
+  // refresh, so depending on the whole `user` object restarted this loop and
+  // each stale loop paged to completion (~4x requests).
+  const userId = user?.id ?? null;
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setGames([]);
       setState("signedOut");
       return;
@@ -151,38 +163,63 @@ export function MyStatsPanel() {
       return;
     }
     setState("loading");
-    async function loadAll(client: SupabaseClient<Database>): Promise<void> {
-      const all: PlayerGame[] = [];
-      let cursor: string | null = null;
-      for (;;) {
-        const result = await loadMyGames(client, { limit: 50, before: cursor });
-        if (!result.ok) {
-          if (!cancelled) {
-            setState("unavailable");
-          }
-          return;
+    // SIG-1180: join the in-flight load for this user when one exists
+    // (StrictMode / dockview remount reuses it with zero new requests);
+    // otherwise start the loop. The loop stops paging once the entry is
+    // gone or has no listeners — a superseded run therefore ends after its
+    // in-flight page instead of loading all ~60 pages.
+    let slot = myStatsLoadByUser.get(userId);
+    if (!slot) {
+      // SIG-1099: the opening tree builds over at most OPENING_MAX_GAMES
+      // rows — stop paging once the cap is reached (Overview aggregates over
+      // the same capped list).
+      const entry: { promise: Promise<PlayerGame[] | null>; refs: number } = {
+        promise: Promise.resolve(null),
+        refs: 0,
+      };
+      entry.promise = loadCappedMyGames(supabase, {
+        limit: 50,
+        maxGames: OPENING_MAX_GAMES,
+        isCancelled: () => {
+          const current = myStatsLoadByUser.get(userId);
+          return current !== entry || current.refs === 0;
+        },
+      }).then(
+        (result) => (result.ok && !result.cancelled ? result.games : null),
+        () => null,
+      );
+      // Never reuse a settled entry: drop it so a later mount (e.g. after a
+      // sidebar sync imports new rows) always refetches fresh data.
+      void entry.promise.then(() => {
+        if (myStatsLoadByUser.get(userId) === entry) {
+          myStatsLoadByUser.delete(userId);
         }
-        const page: MyGamesPage = result.page;
-        all.push(...page.games);
-        // SIG-1099: the opening tree builds over at most OPENING_MAX_GAMES
-        // rows — stop paging once the cap is reached (Overview aggregates
-        // over the same capped list).
-        if (all.length >= OPENING_MAX_GAMES || !page.hasMore || !page.cursor) {
-          break;
-        }
-        cursor = page.cursor;
-      }
-      if (!cancelled) {
-        setGames(all.slice(0, OPENING_MAX_GAMES));
-        setState("ready");
-      }
+      });
+      myStatsLoadByUser.set(userId, entry);
+      slot = entry;
     }
-    void loadAll(supabase);
+    const current = slot;
+    current.refs += 1;
+    void current.promise.then((loaded) => {
+      if (cancelled) {
+        return;
+      }
+      if (!loaded) {
+        if (myStatsLoadByUser.get(userId) === current) {
+          myStatsLoadByUser.delete(userId);
+        }
+        setState("unavailable");
+        return;
+      }
+      setGames(loaded);
+      setState("ready");
+    });
     return () => {
       cancelled = true;
+      current.refs -= 1;
     };
     /* eslint-enable react-hooks/set-state-in-effect */
-  }, [user]);
+  }, [userId]);
 
   const reviewedCount = useMemo(
     () => games.filter((game) => game.reviewedAt != null && game.userAccuracy != null).length,
@@ -221,6 +258,9 @@ export function MyStatsPanel() {
       }),
     [games],
   );
+  /* eslint-disable react-hooks/purity -- SIG-1180: `now` is the memo's
+     intentional clock read (same grain as the SIG-1099 comment below); the
+     memo recomputes only when tree inputs/filters change. */
   const treeRoot = useMemo(
     () => {
       const now = Date.now();
@@ -232,6 +272,7 @@ export function MyStatsPanel() {
     },
     [treeGames, lineColor, uiFilters],
   );
+  /* eslint-enable react-hooks/purity */
   const worstKeys = useMemo(
     () => new Set(worstLines(treeRoot).map((line) => line.path.join(" "))),
     [treeRoot],
