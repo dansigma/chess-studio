@@ -613,6 +613,54 @@ describe("sig-1052 course content gate migration", () => {
   });
 });
 
+describe("sig-1052 course enrollments migration", () => {
+  const sig1052enroll = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021320000_course_enrollments.sql"),
+    "utf8",
+  );
+
+  it("creates the table with a per-user-per-course key and open/completion stamps", () => {
+    assert.ok(sig1052enroll.includes("create table if not exists public.course_enrollments"), "missing table");
+    assert.ok(sig1052enroll.includes("primary key (user_id, course_id)"), "missing composite key");
+    assert.ok(sig1052enroll.includes("first_opened_at timestamptz not null default now()"), "missing first-open stamp");
+    assert.ok(sig1052enroll.includes("completed_at timestamptz"), "missing completion stamp");
+    assert.ok(sig1052enroll.includes("references auth.users (id) on delete cascade"), "user rows must cascade");
+    assert.ok(
+      sig1052enroll.includes("references public.courses (id) on delete cascade"),
+      "deleted courses must drop their rows",
+    );
+  });
+
+  it("indexes course_id for the per-course counts", () => {
+    assert.ok(sig1052enroll.includes("course_enrollments_course_id_idx"), "missing course index");
+    assert.ok(sig1052enroll.includes("on public.course_enrollments (course_id)"), "index must cover course_id");
+  });
+
+  it("enables RLS with wrapped own-row select, insert, and update policies", () => {
+    assert.ok(sig1052enroll.includes("alter table public.course_enrollments enable row level security"), "missing RLS");
+    for (const name of [
+      "course_enrollments_select_own",
+      "course_enrollments_insert_own",
+      "course_enrollments_update_own",
+    ]) {
+      assert.ok(sig1052enroll.includes(`"${name}"`), `missing policy ${name}`);
+    }
+    const bare = sig1052enroll.match(/(?<![\w(])auth\.uid\(\)(?!\))/g) ?? [];
+    assert.equal(bare.length, 0, `found ${bare.length} unwrapped auth checks`);
+    assert.ok(sig1052enroll.includes("((select auth.uid()) = user_id)"), "policies must be own-row");
+  });
+
+  it("grants reads and writes to authenticated only and keeps history append-only", () => {
+    assert.ok(
+      sig1052enroll.includes("grant select, insert, update on public.course_enrollments to authenticated"),
+      "missing authenticated grant",
+    );
+    assert.ok(!/to (anon|public|service_role)/.test(sig1052enroll), "no grants beyond authenticated");
+    assert.ok(!/on public\.course_enrollments[\s\S]*?for delete/.test(sig1052enroll), "no delete policy on enrollments");
+    assert.ok(!/using \(true\)/.test(sig1052enroll), "no cross-user policy allowed");
+  });
+});
+
 describe("sig-1120 courses hide chapters migration", () => {
   const sig1120 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021300000_courses_hide_chapters.sql"),

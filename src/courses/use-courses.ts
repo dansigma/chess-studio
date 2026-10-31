@@ -21,6 +21,7 @@ export function useCourseData() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [source, setSource] = useState<"account" | "browser">("browser");
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export function useCourseData() {
       }
       setProgress(nextProgress);
       setSignedIn(Boolean(user));
+      setUserId(user?.id ?? null);
       setAdmin(canPublish);
       setIsAdmin(adminFlag);
       setSource(progressSource());
@@ -48,5 +50,5 @@ export function useCourseData() {
     };
   }, []);
 
-  return { progress, admin, isAdmin, ready, signedIn, source, setProgress };
+  return { progress, admin, isAdmin, ready, signedIn, userId, source, setProgress };
 }
