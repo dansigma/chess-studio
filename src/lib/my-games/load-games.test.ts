@@ -30,6 +30,7 @@ function baseRow(overrides: Partial<Row> = {}): Row {
     ply_count: 2,
     pgn: '[White "Magnus"]\n\n1. e4 e5 *',
     created_at: "2026-10-20T12:00:00.000Z",
+    rated: true,
     ...overrides,
   };
 }
@@ -118,6 +119,8 @@ describe("myGamesRowToPlayerGame", () => {
       pgn: '[White "Magnus"]\n\n1. e4 e5 *',
       moves: undefined,
       timeClass: "blitz",
+      // SIG-1048: rated round-trips; old rows carry null.
+      rated: true,
       color: "white",
       playerResult: "win",
       playedAt: Date.parse("2026-10-20T12:00:00.000Z"),
@@ -149,7 +152,7 @@ describe("myGamesRowToPlayerGame", () => {
 
   it("maps null played_at, names, ratings and opening to nulls", () => {
     const game = myGamesRowToPlayerGame(
-      baseRow({ played_at: null, white: null, black: null, white_elo: null, opening: null }) as unknown as MyGamesRow,
+      baseRow({ played_at: null, white: null, black: null, white_elo: null, opening: null, rated: null }) as unknown as MyGamesRow,
     );
     assert.equal(game?.playedAt, null);
     assert.equal(game?.year, null);
@@ -158,6 +161,7 @@ describe("myGamesRowToPlayerGame", () => {
     assert.equal(game?.whiteRating, null);
     assert.equal(game?.opening, null);
     assert.equal(game?.rowId, "row-1");
+    assert.equal(game?.rated, null);
   });
 
   it("maps review summary columns, preserving nulls", () => {
