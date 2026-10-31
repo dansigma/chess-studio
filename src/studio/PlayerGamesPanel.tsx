@@ -4,13 +4,16 @@ import { useEffect, useMemo } from "react";
 import { formatYearMonth } from "@/src/lib/game-date";
 import type { PlayerGame, PlayerGamesResponse } from "@/src/lib/player-types";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { tPrep } from "@/src/i18n/prep-strings";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
+import { openOpponentPrepPanel } from "./OpponentPrepPanel";
 import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
 
 export function PlayerGamesPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
+  const prepLocale = locale;
   const player = useStudioStore((state) => state.playerProfile);
   const games = useStudioStore((state) => state.playerGames);
   const loading = useStudioStore((state) => state.playerGamesLoading);
@@ -111,8 +114,17 @@ export function PlayerGamesPanel() {
     <div className="flex h-full flex-col bg-studio-panel text-dense text-studio-fg">
       <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-caption text-studio-faint">
         <span className="truncate">{tPanels(locale, "players.gamesTitle", { name: player.displayName })}</span>
-        <span>
+        <span className="flex items-center gap-2">
           {notice ? tPanels(locale, "players.countNote", { count: countString }) : countString}
+          {playerSource === "lichess" || playerSource === "chesscom" ? (
+            <button
+              type="button"
+              onClick={() => openOpponentPrepPanel({ source: playerSource, username: playerUsername ?? "" })}
+              className="shrink-0 font-medium text-studio-accent-text hover:underline"
+            >
+              {tPrep(prepLocale, "prep.prepareAgainst")}
+            </button>
+          ) : null}
         </span>
       </div>
       {notice ? (

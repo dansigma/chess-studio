@@ -21,6 +21,7 @@ import { GamesPanel } from "./GamesPanel";
 import { NotationPanel } from "./NotationPanel";
 import { PositionSearchPanel } from "./PositionSearchPanel";
 import { MyStatsPanel } from "./MyStatsPanel";
+import { OpponentPrepPanel } from "./OpponentPrepPanel";
 import { RepertoirePanel } from "./RepertoirePanel";
 import { PlayerExplorerPanel } from "./PlayerExplorerPanel";
 import { PlayerGamesPanel } from "./PlayerGamesPanel";
@@ -29,6 +30,7 @@ import {
   ChartSpline,
   ClipboardCheck,
   Cpu,
+  Crosshair,
   FileText,
   GitBranch,
   Lightbulb,
@@ -88,6 +90,7 @@ const TAB_ICONS: Record<string, LucideIcon> = {
   fileGames: FileText,
   positionSearch: Search,
   myStats: ChartSpline,
+  opponentPrep: Crosshair,
   "player-explorer": UserSearch,
   "player-games": Users,
 };
@@ -179,6 +182,7 @@ const components = {
   fileGames: () => <FileGamesPanel />,
   positionSearch: () => <PositionSearchPanel />,
   myStats: () => <MyStatsPanel />,
+  opponentPrep: () => <OpponentPrepPanel />,
   playerExplorer: () => <PlayerExplorerPanel />,
   playerGames: () => <PlayerGamesPanel />,
 };
