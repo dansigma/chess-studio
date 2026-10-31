@@ -100,7 +100,7 @@ mock.module("@/src/engine/shared-engine", {
 });
 
 // Dynamic imports: the hook + cache helpers must load AFTER the mock above.
-const { useGameReview } = await import("./useGameReview.ts");
+const { reviewThreads, useGameReview } = await import("./useGameReview.ts");
 const { clearReviewCache, reviewCacheKey, setCachedReview } = await import("./review-cache.ts");
 const { importPgn } = await import("@/src/chess/pgn.ts");
 const { variationPoints } = await import("@/src/chess/tree.ts");
@@ -293,8 +293,12 @@ test("a cached result returns without running the engine", async () => {
   }
 });
 
-test("changing engineThreads re-keys the running effect", async () => {
-  behavior.delayMs = 60;
+test("changing engineThreads restarts analysis from the first position", async () => {
+  // Deterministic re-key: the engine stays silent, so with engineThreads in the
+  // effect deps the only way the search for the first FEN issues a NEW analyze
+  // call is the mid-run rerender. Mutation check: removing engineThreads from
+  // the effect deps (useGameReview.ts) leaves analyzeCalls at length 1.
+  behavior.silent = true;
   const { tree, points } = nextGame();
   const initialProps = {
     tree,
@@ -304,23 +308,75 @@ test("changing engineThreads re-keys the running effect", async () => {
     setupMode: false,
     userSide: "w" as const,
   };
+  const firstFen = points[0]?.fen;
+  assert.ok(firstFen, "expected at least one position");
   const rendered = renderHook((props: typeof initialProps) => useGameReview(props), { initialProps });
   try {
     act(() => {
       rendered.result.current.start();
     });
-    await waitFor(() => assert.ok(analyzeCalls.length > 0), { timeout: 15_000 });
-    const threadsSeen = new Set(analyzeCalls.map((call) => call.threads));
-    assert.ok(threadsSeen.has(1), `expected threads=1 in analyze calls, saw ${[...threadsSeen]}`);
+    await waitFor(() => assert.ok(analyzeCalls.length >= 1), { timeout: 15_000 });
     const callsBefore = analyzeCalls.length;
+    assert.equal(analyzeCalls.filter((call) => call.fen === firstFen).length, callsBefore);
 
-    // engineThreads is an effect dep: changing it mid-run restarts the search.
+    // engineThreads is an effect dep: changing it mid-run restarts the search
+    // from the first position instead of continuing the stalled one.
     rendered.rerender({ ...initialProps, engineThreads: 8 });
     await waitFor(() => assert.ok(analyzeCalls.length > callsBefore), { timeout: 15_000 });
-    const threadsAfter = new Set(analyzeCalls.slice(callsBefore).map((call) => call.threads));
-    assert.ok(threadsAfter.has(1), `expected clamped threads=1 after re-key, saw ${[...threadsAfter]}`);
+    const restarts = analyzeCalls.slice(callsBefore).filter((call) => call.fen === firstFen);
+    assert.ok(restarts.length >= 1, "expected the re-keyed effect to re-analyze the first position");
   } finally {
-    behavior.delayMs = 5;
+    behavior.silent = false;
     cleanup();
+  }
+});
+
+test("reviewThreads propagates the clamp result to analyze calls", async () => {
+  // Deterministic thread propagation: stub thread support so clampThreads
+  // resolves to a value > 1, then assert the search receives it. Restores the
+  // globals afterwards so every other test keeps the real clamp (threads=1).
+  behavior.silent = true;
+  const globals = globalThis as Record<string, unknown>;
+  const sabDescriptor = Object.getOwnPropertyDescriptor(globalThis, "SharedArrayBuffer");
+  const isolationDescriptor = Object.getOwnPropertyDescriptor(globalThis, "crossOriginIsolated");
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "SharedArrayBuffer", { value: ArrayBuffer, configurable: true });
+  Object.defineProperty(globalThis, "crossOriginIsolated", { value: true, configurable: true });
+  const realNavigator = globals["navigator"];
+  Object.defineProperty(globalThis, "navigator", { value: { hardwareConcurrency: 8 }, configurable: true });
+  try {
+    assert.equal(reviewThreads(4), 4);
+    const { result } = renderReview({ engineThreads: 4 });
+    try {
+      act(() => {
+        result.current.start();
+      });
+      await waitFor(() => assert.ok(analyzeCalls.length >= 1), { timeout: 15_000 });
+      assert.ok(
+        analyzeCalls.some((call) => call.threads === 4),
+        `expected threads=4 in analyze calls, saw ${analyzeCalls.map((call) => call.threads)}`,
+      );
+    } finally {
+      cleanup();
+    }
+  } finally {
+    if (sabDescriptor) {
+      Object.defineProperty(globalThis, "SharedArrayBuffer", sabDescriptor);
+    } else {
+      delete globals["SharedArrayBuffer"];
+    }
+    if (isolationDescriptor) {
+      Object.defineProperty(globalThis, "crossOriginIsolated", isolationDescriptor);
+    } else {
+      delete globals["crossOriginIsolated"];
+    }
+    if (navigatorDescriptor) {
+      Object.defineProperty(globalThis, "navigator", navigatorDescriptor);
+    } else if (realNavigator === undefined) {
+      delete globals["navigator"];
+    } else {
+      Object.defineProperty(globalThis, "navigator", { value: realNavigator, configurable: true });
+    }
+    behavior.silent = false;
   }
 });
