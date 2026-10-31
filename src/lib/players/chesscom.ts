@@ -76,6 +76,8 @@ export type ChesscomArchiveGame = {
   pgn?: string;
   end_time?: number;
   time_class?: string;
+  // SIG-1048: feeds the opening-tree `ratedOnly` filter (via PlayerGame).
+  rated?: boolean;
   eco?: string;
   white?: { username?: string; rating?: number; result?: string };
   black?: { username?: string; rating?: number; result?: string };
@@ -137,6 +139,8 @@ export function compactChesscomGame(
     moves: moves || undefined,
     pgn: cleaned || undefined,
     timeClass: raw.time_class ?? null,
+    // SIG-1048: absent on old payloads (null = unknown).
+    rated: raw.rated ?? null,
     color,
     playerResult: playerResult(winner, color),
     playedAt: end,

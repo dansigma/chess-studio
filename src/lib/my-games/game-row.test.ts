@@ -20,6 +20,8 @@ function baseGame(overrides: Partial<PlayerGame> = {}): PlayerGame {
     pgn: '[White "Magnus"]\n\n1. e4 e5 *',
     moves: "e4 e5",
     timeClass: "blitz",
+    // SIG-1048: rated flag survives the row mapping.
+    rated: true,
     color: "white",
     playerResult: "win",
     playedAt: 1_700_000_000_000,
@@ -46,6 +48,7 @@ describe("playerGameToRow", () => {
       opening: "Italian Game",
       ply_count: 2,
       pgn: '[White "Magnus"]\n\n1. e4 e5 *',
+      rated: true,
     });
   });
 
@@ -53,12 +56,13 @@ describe("playerGameToRow", () => {
     const row = playerGameToRow(
       "user-1",
       "chesscom",
-      baseGame({ playedAt: null, whiteRating: null, blackRating: null, opening: null, moves: undefined }),
+      baseGame({ playedAt: null, whiteRating: null, blackRating: null, opening: null, moves: undefined, rated: undefined }),
     );
     assert.equal(row?.played_at, null);
     assert.equal(row?.white_elo, null);
     assert.equal(row?.opening, null);
     assert.equal(row?.ply_count, 0);
+    assert.equal(row?.rated, null);
   });
 
   it("returns null for missing id, pgn or user", () => {

@@ -30,6 +30,9 @@ export type PlayerGame = {
   pgn?: string;
   moves?: string;
   timeClass?: string | null;
+  // SIG-1048: rated flag for the opening-tree `ratedOnly` filter.
+  // Null = unknown (rows imported before the rated migration).
+  rated?: boolean | null;
   color: "white" | "black";
   playerResult: "win" | "loss" | "draw" | null;
   playedAt: number | null;

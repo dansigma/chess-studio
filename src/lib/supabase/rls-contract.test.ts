@@ -249,6 +249,20 @@ describe("sig-1090 my_games review summary migration", () => {
   });
 });
 
+describe("sig-1048 my_games rated migration", () => {
+  const sig1048 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021240000_my_games_rated.sql"),
+    "utf8",
+  );
+
+  it("adds a nullable rated boolean column and nothing else", () => {
+    assert.ok(sig1048.includes("add column if not exists rated boolean"), "missing rated column");
+    for (const keyword of ["create policy", "create index", "add constraint"]) {
+      assert.ok(!sig1048.includes(keyword), `rated migration must not contain ${keyword}`);
+    }
+  });
+});
+
 describe("sig-1042 puzzles migration", () => {
   const sig1042 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021250000_puzzles.sql"),

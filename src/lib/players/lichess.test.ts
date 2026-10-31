@@ -76,6 +76,45 @@ test("lichessGames skips malformed NDJSON lines and returns valid games", async 
   assert.equal(games[1].id, "game2");
 });
 
+test("lichessGames maps rated and speed to rated and timeClass", async (t) => {
+  mockFetch(t, (url) => {
+    if (url.includes("api/games/user/hikaru")) {
+      const ndjson = [
+        JSON.stringify({
+          id: "rated1",
+          createdAt: 1700000000000,
+          rated: true,
+          speed: "blitz",
+          moves: "e4 e5",
+          players: {
+            white: { user: { name: "Hikaru", id: "hikaru" }, rating: 2800 },
+            black: { user: { name: "Magnus", id: "drnykterstein" }, rating: 2850 },
+          },
+          winner: "white",
+        }),
+        JSON.stringify({
+          id: "unrated1",
+          createdAt: 1700001000000,
+          moves: "d4 d5",
+          players: {
+            white: { user: { name: "Magnus", id: "drnykterstein" }, rating: 2850 },
+            black: { user: { name: "Hikaru", id: "hikaru" }, rating: 2800 },
+          },
+          winner: "black",
+        }),
+      ].join("\n");
+      return new Response(ndjson, { status: 200, headers: { "Content-Type": "application/x-ndjson" } });
+    }
+    return null;
+  });
+
+  const games = await lichessGames("hikaru");
+  assert.equal(games[0]?.rated, true);
+  assert.equal(games[0]?.timeClass, "blitz");
+  assert.equal(games[1]?.rated, null);
+  assert.equal(games[1]?.timeClass, null);
+});
+
 test("lichessGamesSince sends since and max params", async (t) => {
   const seen: string[] = [];
   mockFetch(t, (url) => {

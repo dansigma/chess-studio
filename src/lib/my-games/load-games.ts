@@ -111,6 +111,8 @@ export function myGamesRowToPlayerGame(row: MyGamesRow): PlayerGame | null {
     pgn,
     moves: undefined,
     timeClass: row.time_class,
+    // SIG-1048: null = unknown (rows imported before the rated migration).
+    rated: row.rated ?? null,
     color,
     playerResult,
     playedAt,

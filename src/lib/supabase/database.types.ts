@@ -597,6 +597,9 @@ export type Database = {
           color: "white" | "black" | null;
           result: "win" | "loss" | "draw" | null;
           time_class: string | null;
+          // SIG-1048: rated flag for the opening-tree `ratedOnly` filter.
+          // Null = unknown (rows imported before the 20261021240000 migration).
+          rated: boolean | null;
           white: string | null;
           black: string | null;
           white_elo: number | null;
@@ -620,6 +623,7 @@ export type Database = {
           color?: "white" | "black" | null;
           result?: "win" | "loss" | "draw" | null;
           time_class?: string | null;
+          rated?: boolean | null;
           white?: string | null;
           black?: string | null;
           white_elo?: number | null;
