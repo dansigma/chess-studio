@@ -30,6 +30,9 @@ mock.module("@/src/lib/supabase/server.ts", {
         return holder.fromImpl?.();
       },
     }),
+    // SIG-1179: unseen path uses the cookie-session client; default mock has
+    // no session so `unseen: true` falls back to puzzles_window.
+    createServerSupabase: async () => null,
   },
 });
 
@@ -116,6 +119,17 @@ test("queryPuzzleTable skips bad rows and warns once", async () => {
   } finally {
     console.warn = original;
   }
+});
+
+test("queryPuzzleTable with unseen falls back to puzzles_window without a session", async () => {
+  const calls: string[] = [];
+  holder.rpcImpl = (async (fn: string) => {
+    calls.push(fn);
+    return { data: [GOOD_ROW], error: null };
+  }) as typeof holder.rpcImpl;
+  const result = await queryPuzzleTable({ minRating: 1400, maxRating: 1600, unseen: true });
+  assert.ok(result);
+  assert.deepEqual(calls, ["puzzles_window"]);
 });
 
 test("fetchPuzzleRowById returns the row and null on miss", async () => {

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createPublicServerSupabase } from "@/src/lib/supabase/server";
+import { createPublicServerSupabase, createServerSupabase } from "@/src/lib/supabase/server";
 import { compilePuzzle, type CompiledPuzzle } from "./engine";
 import { isPuzzleTheme } from "./query";
 import type { Puzzle } from "./types";
@@ -12,6 +12,13 @@ export interface PuzzleTableQuery {
   limit?: number;
   seed?: number;
   exclude?: string[];
+  /**
+   * SIG-1179: when true, read via the `puzzles_unseen` RPC (signed-in caller)
+   * so the account's seen ledger is excluded server-side without downloading
+   * the id set. The caller's `exclude` (session ids) still applies on top.
+   * Falls back to `puzzles_window` when the RPC is unavailable.
+   */
+  unseen?: boolean;
 }
 
 let warnedCompileFailure = false;
@@ -28,22 +35,47 @@ function warnCompileOnce(message: string): void {
  * SIG-1102: read puzzles from `public.puzzles` via the `puzzles_window`
  * seed-stable sampler. Returns `null` when the table is empty or the client
  * is unavailable so callers fall back to the compiled catalog.
+ *
+ * SIG-1179: with `options.unseen`, the signed-in caller's seen ledger is
+ * excluded server-side via `puzzles_unseen` (same filters, same seed-stable
+ * order, plus the anti-join). Falls back to `puzzles_window` when the RPC or
+ * the session client is unavailable.
  */
 export async function queryPuzzleTable(options: PuzzleTableQuery = {}): Promise<CompiledPuzzle[] | null> {
-  const supabase = createPublicServerSupabase();
-  if (!supabase) {
+  const publicClient = createPublicServerSupabase();
+  if (!publicClient) {
     return null;
   }
-  const { data, error } = await supabase.rpc("puzzles_window", {
+  const args = {
     p_min: options.minRating ?? null,
     p_max: options.maxRating ?? null,
     p_theme: options.theme ?? null,
     p_limit: options.limit ?? 50,
     p_seed: options.seed ?? null,
     p_exclude: options.exclude && options.exclude.length > 0 ? options.exclude : null,
-  });
-  if (error || !data || data.length === 0) {
-    return null;
+  };
+  let data: Awaited<ReturnType<typeof publicClient.rpc>>["data"] = null;
+  if (options.unseen) {
+    try {
+      // Authenticated (cookie-session) client so the RPC's
+      // `(select auth.uid())` anti-join sees the caller.
+      const authed = await createServerSupabase();
+      if (authed) {
+        const unseen = await authed.rpc("puzzles_unseen", args);
+        if (!unseen.error && unseen.data && unseen.data.length > 0) {
+          data = unseen.data;
+        }
+      }
+    } catch {
+      // Fall through to puzzles_window below.
+    }
+  }
+  if (!data || data.length === 0) {
+    const { data: windowed, error } = await publicClient.rpc("puzzles_window", args);
+    if (error || !windowed || windowed.length === 0) {
+      return null;
+    }
+    data = windowed;
   }
   const compiled: CompiledPuzzle[] = [];
   for (const row of data) {
