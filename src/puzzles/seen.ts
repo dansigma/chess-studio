@@ -121,7 +121,11 @@ export function recordSeen(puzzleId: string, userId: string | null = seenAccount
   try {
     const pending = supabase
       .from("puzzle_seen")
-      .upsert({ user_id: userId, puzzle_id: puzzleId }, { onConflict: "user_id,puzzle_id" });
+      // ignoreDuplicates: conflicting upserts resolve as skips, not updates.
+      // The ledger is insert-only (no UPDATE policy), so without this flag a
+      // re-attempt of an already-recorded id would fail the remote write
+      // (same contract as my-games sync).
+      .upsert({ user_id: userId, puzzle_id: puzzleId }, { onConflict: "user_id,puzzle_id", ignoreDuplicates: true });
     void (pending as unknown as Promise<unknown>).catch(() => {
       // Local write already succeeded; the id merges on the next login.
     });
@@ -161,7 +165,9 @@ export async function mergeLocalSeenToAccount(userId: string | null): Promise<Se
     const pending = supabase
       .from("puzzle_seen")
       // Batch in one round-trip; PK dedupes ids already recorded.
-      .upsert(rows, { onConflict: "user_id,puzzle_id" });
+      // ignoreDuplicates keeps one already-recorded id from failing the
+      // whole batch (insert-only ledger has no UPDATE policy).
+      .upsert(rows, { onConflict: "user_id,puzzle_id", ignoreDuplicates: true });
     await (pending as unknown as Promise<unknown>);
   } catch {
     // Local copy stays; the merge retries on the next init.

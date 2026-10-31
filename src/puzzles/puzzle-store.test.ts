@@ -16,9 +16,15 @@ type Row = {
 const holder: {
   rpcImpl: ((fn: string, args: unknown) => Promise<{ data: Row[] | null; error: unknown }>) | null;
   fromImpl: (() => unknown) | null;
+  authedRpcImpl:
+    | ((fn: string, args: unknown) => Promise<{ data: Row[] | null; error: unknown }>)
+    | null;
+  authedClient: boolean;
 } = {
   rpcImpl: null,
   fromImpl: null,
+  authedRpcImpl: null,
+  authedClient: false,
 };
 
 mock.module("@/src/lib/supabase/server.ts", {
@@ -30,9 +36,12 @@ mock.module("@/src/lib/supabase/server.ts", {
         return holder.fromImpl?.();
       },
     }),
-    // SIG-1179: unseen path uses the cookie-session client; default mock has
-    // no session so `unseen: true` falls back to puzzles_window.
-    createServerSupabase: async () => null,
+    // SIG-1179: unseen path uses the cookie-session client. `authedClient`
+    // installs a session client; its `rpc` is driven by `authedRpcImpl` so
+    // tests can pin the authed `puzzles_unseen` behavior separately from the
+    // public `puzzles_window` fallback.
+    createServerSupabase: async () =>
+      holder.authedClient ? { rpc: (fn: string, args: unknown) => holder.authedRpcImpl?.(fn, args) } : null,
   },
 });
 
@@ -122,6 +131,8 @@ test("queryPuzzleTable skips bad rows and warns once", async () => {
 });
 
 test("queryPuzzleTable with unseen falls back to puzzles_window without a session", async () => {
+  holder.authedClient = false;
+  holder.authedRpcImpl = null;
   const calls: string[] = [];
   holder.rpcImpl = (async (fn: string) => {
     calls.push(fn);
@@ -130,6 +141,69 @@ test("queryPuzzleTable with unseen falls back to puzzles_window without a sessio
   const result = await queryPuzzleTable({ minRating: 1400, maxRating: 1600, unseen: true });
   assert.ok(result);
   assert.deepEqual(calls, ["puzzles_window"]);
+});
+
+test("queryPuzzleTable with unseen returns the RPC rows without calling puzzles_window", async () => {
+  holder.authedClient = true;
+  const calls: string[] = [];
+  holder.authedRpcImpl = (async (fn: string) => {
+    calls.push(`authed:${fn}`);
+    return { data: [GOOD_ROW], error: null };
+  }) as typeof holder.authedRpcImpl;
+  holder.rpcImpl = (async (fn: string) => {
+    calls.push(`public:${fn}`);
+    return { data: [GOOD_ROW_2], error: null };
+  }) as typeof holder.rpcImpl;
+  const result = await queryPuzzleTable({ minRating: 1400, maxRating: 1600, unseen: true });
+  assert.deepEqual(
+    result?.map((p) => p.id),
+    [GOOD_ROW.id],
+  );
+  assert.deepEqual(calls, ["authed:puzzles_unseen"]);
+  holder.authedClient = false;
+  holder.authedRpcImpl = null;
+});
+
+test("queryPuzzleTable with unseen returns the empty RPC result without falling back", async () => {
+  // Regression: an empty `puzzles_unseen` page means "everything in this
+  // window is seen" — falling back to `puzzles_window` would re-serve the
+  // ledger ids the RPC just excluded.
+  holder.authedClient = true;
+  const calls: string[] = [];
+  holder.authedRpcImpl = (async (fn: string) => {
+    calls.push(`authed:${fn}`);
+    return { data: [], error: null };
+  }) as typeof holder.authedRpcImpl;
+  holder.rpcImpl = (async (fn: string) => {
+    calls.push(`public:${fn}`);
+    return { data: [GOOD_ROW], error: null };
+  }) as typeof holder.rpcImpl;
+  const result = await queryPuzzleTable({ minRating: 1400, maxRating: 1600, unseen: true });
+  assert.deepEqual(result, []);
+  assert.deepEqual(calls, ["authed:puzzles_unseen"]);
+  holder.authedClient = false;
+  holder.authedRpcImpl = null;
+});
+
+test("queryPuzzleTable with unseen falls back to puzzles_window on RPC error", async () => {
+  holder.authedClient = true;
+  const calls: string[] = [];
+  holder.authedRpcImpl = (async (fn: string) => {
+    calls.push(`authed:${fn}`);
+    return { data: null, error: new Error("rpc down") };
+  }) as typeof holder.authedRpcImpl;
+  holder.rpcImpl = (async (fn: string) => {
+    calls.push(`public:${fn}`);
+    return { data: [GOOD_ROW], error: null };
+  }) as typeof holder.rpcImpl;
+  const result = await queryPuzzleTable({ minRating: 1400, maxRating: 1600, unseen: true });
+  assert.deepEqual(
+    result?.map((p) => p.id),
+    [GOOD_ROW.id],
+  );
+  assert.deepEqual(calls, ["authed:puzzles_unseen", "public:puzzles_window"]);
+  holder.authedClient = false;
+  holder.authedRpcImpl = null;
 });
 
 test("fetchPuzzleRowById returns the row and null on miss", async () => {
