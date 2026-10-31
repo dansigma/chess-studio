@@ -118,7 +118,7 @@ export function PlayerExplorerPanel() {
           />
         </span>
       </div>
-      <div className="grid grid-cols-[64px_minmax(0,1fr)_minmax(150px,190px)] gap-3 border-b border-studio-border-subtle px-3 py-1.5 text-caption uppercase tracking-wider text-studio-faint">
+      <div className="grid grid-cols-[64px_minmax(0,1fr)_minmax(170px,220px)] gap-3 border-b border-studio-border-subtle px-3 py-1.5 text-caption uppercase tracking-wider text-studio-faint">
         <span>{tPanels(locale, "players.column.move")}</span>
         <span className="truncate">{tPanels(locale, "players.column.games")}</span>
         <span className="whitespace-nowrap">{tPanels(locale, "players.column.split")}</span>
@@ -136,7 +136,7 @@ export function PlayerExplorerPanel() {
           return (
             <button
               key={row.uci}
-              className="grid w-full grid-cols-[64px_minmax(0,1fr)_minmax(150px,190px)] items-center gap-3 px-3 py-1.5 text-left hover:bg-studio-hover"
+              className="grid w-full grid-cols-[64px_minmax(0,1fr)_minmax(170px,220px)] items-center gap-3 px-3 py-1.5 text-left hover:bg-studio-hover"
               onClick={() => {
                 const from = row.uci.slice(0, 2);
                 const to = row.uci.slice(2, 4);

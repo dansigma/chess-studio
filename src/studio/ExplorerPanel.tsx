@@ -17,7 +17,7 @@ import { useExplorerData } from "./use-explorer-data";
 
 const compactCount = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
-const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(150px,190px)] items-center gap-3 px-3";
+const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(170px,220px)] items-center gap-3 px-3";
 
 /**
  * SIG-908: runtime guard for a dockview `params.source` value. The panel id
