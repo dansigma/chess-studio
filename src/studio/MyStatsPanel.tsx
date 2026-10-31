@@ -12,10 +12,16 @@
 // `needsRepHint`); groups need no review (deviations are PGN-shape, not
 // engine output), but the section lives inside the `ready` branch so the
 // <3-reviewed empty state stays the single gate.
+// SIG-1099: "Openings" tab — per-color opening tree (`buildOpeningTree` /
+// `worstLines` from SIG-1048) over up to `OPENING_MAX_GAMES` loaded games,
+// with time-class / rated-only / date-preset filters, an expandable line
+// list (`openingRows`), worst-line highlight, and "Open line" via a synthetic
+// `PlayerGame` (`moves`) + orientation set to the selected color.
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { phaseName, tierName } from "@/src/chess/review-strings";
+import { sanMovesFromPgn } from "@/src/chess/pgn-clean";
 import { formatDecimal1, formatInteger } from "@/src/i18n/format";
 import { tMyGames } from "@/src/i18n/my-games-strings";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
@@ -30,13 +36,28 @@ import {
   myStatsViewState,
   resultsByOpening,
 } from "@/src/lib/my-games/stats";
+import {
+  buildOpeningTree,
+  worstLines,
+  type OpeningTreeGame,
+} from "@/src/lib/my-games/opening-tree";
+import {
+  OPENING_MAX_GAMES,
+  openingFilterToTreeFilters,
+  openingRows,
+  syntheticLineGame,
+  timeClassOptions,
+  type OpeningDatePreset,
+  type OpeningUiFilters,
+} from "@/src/lib/my-games/opening-rows";
 import type { MistakeTier } from "@/src/lib/my-games/review-queue";
 import type { GamePhase } from "@/src/chess/phases";
 import type { PlayerGame } from "@/src/lib/player-types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import { useStudioStore } from "@/src/store/studio-store";
+import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
+import { openBoardPanel } from "./dock-api";
 
 type LoadState = "signedOut" | "loading" | "ready" | "unavailable";
 
@@ -95,12 +116,24 @@ function TrendChart({ points, locale, label }: { points: Array<{ playedAt: numbe
 export function MyStatsPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
   const user = useStudioStore((state) => state.user);
+  const importPlayerGame = useStudioStore((state) => state.importPlayerGame);
+  const flip = useStudioStore((state) => state.flip);
   const [games, setGames] = useState<PlayerGame[]>([]);
   // Load state derives from `user` on first render; the effect below keeps it
   // in sync on transitions (same grain as MyGamesSidebar's synchronous
   // loading start, which the eslint-disable there documents).
   const [state, setState] = useState<LoadState>(user ? "loading" : "signedOut");
   const [colorTab, setColorTab] = useState<"white" | "black">("white");
+  // SIG-1099: panel-level tab + Openings-tab filter/expansion state. `lineColor`
+  // is separate from Overview's `colorTab` so the tabs don't fight.
+  const [panelTab, setPanelTab] = useState<"overview" | "openings">("overview");
+  const [lineColor, setLineColor] = useState<"white" | "black">("white");
+  const [uiFilters, setUiFilters] = useState<OpeningUiFilters>({
+    timeClass: "all",
+    ratedOnly: false,
+    preset: "all",
+  });
+  const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(new Set());
 
   /* eslint-disable react-hooks/set-state-in-effect -- SIG-1091: resetting to
      the signed-out state synchronously avoids flashing a stale list when the
@@ -131,13 +164,16 @@ export function MyStatsPanel() {
         }
         const page: MyGamesPage = result.page;
         all.push(...page.games);
-        if (!page.hasMore || !page.cursor) {
+        // SIG-1099: the opening tree builds over at most OPENING_MAX_GAMES
+        // rows — stop paging once the cap is reached (Overview aggregates
+        // over the same capped list).
+        if (all.length >= OPENING_MAX_GAMES || !page.hasMore || !page.cursor) {
           break;
         }
         cursor = page.cursor;
       }
       if (!cancelled) {
-        setGames(all);
+        setGames(all.slice(0, OPENING_MAX_GAMES));
         setState("ready");
       }
     }
@@ -157,6 +193,51 @@ export function MyStatsPanel() {
   const openings = useMemo(() => resultsByOpening(games), [games]);
   const phaseTotals = useMemo(() => mistakesByPhase(games), [games]);
   const tabRows = useMemo(() => openings.filter((row) => row.color === colorTab), [openings, colorTab]);
+  // SIG-1099: tree input — SAN paths from PGN (moves-only rows have no PGN;
+  // skip them). The tree memo captures `now` once per computation so the
+  // trend windows and date-preset filter stay consistent; it recomputes only
+  // when games or filters change (not on every render).
+  const treeGames = useMemo<OpeningTreeGame[]>(
+    () =>
+      games.flatMap((game) => {
+        if (!game.pgn) {
+          return [];
+        }
+        const sans = sanMovesFromPgn(game.pgn);
+        if (sans.length === 0) {
+          return [];
+        }
+        return [
+          {
+            sans,
+            color: game.color,
+            result: game.playerResult,
+            playedAt: game.playedAt,
+            accuracy: game.userAccuracy ?? null,
+            timeClass: game.timeClass ?? null,
+            rated: game.rated ?? null,
+          },
+        ];
+      }),
+    [games],
+  );
+  const treeRoot = useMemo(
+    () => {
+      const now = Date.now();
+      return buildOpeningTree(treeGames, {
+        color: lineColor,
+        now,
+        filters: openingFilterToTreeFilters(uiFilters, now),
+      });
+    },
+    [treeGames, lineColor, uiFilters],
+  );
+  const worstKeys = useMemo(
+    () => new Set(worstLines(treeRoot).map((line) => line.path.join(" "))),
+    [treeRoot],
+  );
+  const lineRows = useMemo(() => openingRows(treeRoot, expandedKeys, worstKeys), [treeRoot, expandedKeys, worstKeys]);
+  const timeClasses = useMemo(() => timeClassOptions(games), [games]);
   // SIG-1095: per-color repertoire trees + board ids (same selector grain as
   // MyGamesSidebar's row badges so the section recomputes only when a tree
   // or mark changes). Separate selectors keep subscriptions narrow — no
@@ -192,6 +273,61 @@ export function MyStatsPanel() {
             {tMyGames(locale, "myGames.statsEmpty")}
           </p>
         ) : (
+          <>
+            <div role="tablist" aria-label={tMyGames(locale, "myGames.statsTitle")} className="mb-2 flex gap-1">
+              {(["overview", "openings"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={panelTab === tab}
+                  onClick={() => setPanelTab(tab)}
+                  className={`rounded px-2 py-0.5 text-caption ${panelTab === tab ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"}`}
+                >
+                  {tMyGames(locale, tab === "overview" ? "myGames.statsOverview" : "myGames.statsOpenings")}
+                </button>
+              ))}
+            </div>
+            {panelTab === "openings" ? (
+              <OpeningsTab
+                locale={locale}
+                lineColor={lineColor}
+                setLineColor={(color) => {
+                  setLineColor(color);
+                  setExpandedKeys(new Set());
+                }}
+                uiFilters={uiFilters}
+                setUiFilters={(filters) => {
+                  setUiFilters(filters);
+                  setExpandedKeys(new Set());
+                }}
+                timeClasses={timeClasses}
+                rows={lineRows}
+                totalGames={treeRoot.games}
+                onToggle={(key) => {
+                  setExpandedKeys((previous) => {
+                    const next = new Set(previous);
+                    if (next.has(key)) {
+                      next.delete(key);
+                    } else {
+                      next.add(key);
+                    }
+                    return next;
+                  });
+                }}
+                onOpenLine={(path) => {
+                  importPlayerGame(syntheticLineGame(path, lineColor), { openInNewBoard: true });
+                  // SIG-1099: a fresh import is always white-oriented
+                  // (`emptyBoard`); flip when the line color is black, then
+                  // reveal the board panel (same grain as PlayerGamesPanel).
+                  if (lineColor === "black" && selectActiveBoard(useStudioStore.getState()).orientation !== "black") {
+                    flip();
+                  }
+                  const active = selectActiveBoard(useStudioStore.getState());
+                  openBoardPanel(active.id, active.title);
+                }}
+              />
+            ) : (
           <div className="flex flex-col gap-5">
             <section aria-labelledby="mystats-trend">
               <h2 id="mystats-trend" className="mb-1 text-caption font-semibold text-studio-muted">
@@ -340,7 +476,9 @@ export function MyStatsPanel() {
                 )}
               </section>
             )}
-          </div>
+            </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -349,3 +487,176 @@ export function MyStatsPanel() {
 
 /** Minimum reviewed games before the stats panel shows charts (test seam). */
 export { MY_STATS_MIN_REVIEWED };
+
+const OPENING_PRESETS: readonly OpeningDatePreset[] = ["m1", "m3", "m6", "m12", "all"];
+
+const PRESET_STRING_KEYS = {
+  m1: "myGames.openingsLastMonth",
+  m3: "myGames.openingsLast3Months",
+  m6: "myGames.openingsLast6Months",
+  m12: "myGames.openingsLast12Months",
+  all: "myGames.openingsAllTime",
+} as const;
+
+function TrendMarkers({
+  locale,
+  trend,
+}: {
+  locale: SiteLocale;
+  trend: { m1: { games: number; scorePct: number } | null; m3: { games: number; scorePct: number } | null; m6: { games: number; scorePct: number } | null; m12: { games: number; scorePct: number } | null };
+}) {
+  const windows = [
+    { label: "1", entry: trend.m1 },
+    { label: "3", entry: trend.m3 },
+    { label: "6", entry: trend.m6 },
+    { label: "12", entry: trend.m12 },
+  ] as const;
+  return (
+    <span className="flex shrink-0 items-center gap-1" title={tMyGames(locale, "myGames.openingsTrend")}>
+      {windows.map(({ label, entry }) => (
+        <span key={label} className="text-caption tabular-nums text-studio-faint" title={`${label}m: ${entry ? `${entry.scorePct}% (${entry.games})` : "—"}`}>
+          <span
+            aria-hidden
+            className="mr-0.5 inline-block h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: entry == null ? "var(--studio-disabled)" : entry.scorePct >= 50 ? "var(--studio-success)" : entry.scorePct >= 40 ? "var(--studio-warning-fg)" : "var(--studio-error)" }}
+          />
+          {entry == null ? "–" : `${entry.scorePct}%`}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function OpeningsTab({
+  locale,
+  lineColor,
+  setLineColor,
+  uiFilters,
+  setUiFilters,
+  timeClasses,
+  rows,
+  totalGames,
+  onToggle,
+  onOpenLine,
+}: {
+  locale: SiteLocale;
+  lineColor: "white" | "black";
+  setLineColor: (color: "white" | "black") => void;
+  uiFilters: OpeningUiFilters;
+  setUiFilters: (filters: OpeningUiFilters) => void;
+  timeClasses: string[];
+  rows: ReturnType<typeof openingRows>;
+  totalGames: number;
+  onToggle: (key: string) => void;
+  onOpenLine: (path: string[]) => void;
+}) {
+  return (
+    <section aria-labelledby="mystats-openings-tree" className="flex flex-col gap-2">
+      <h2 id="mystats-openings-tree" className="mb-1 text-caption font-semibold text-studio-muted">
+        {tMyGames(locale, "myGames.statsOpenings")}
+      </h2>
+      <div role="tablist" aria-label={tMyGames(locale, "myGames.statsOpenings")} className="flex gap-1">
+        {(["white", "black"] as const).map((color) => (
+          <button
+            key={color}
+            type="button"
+            role="tab"
+            aria-selected={lineColor === color}
+            onClick={() => setLineColor(color)}
+            className={`rounded px-2 py-0.5 text-caption ${lineColor === color ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"}`}
+          >
+            {tMyGames(locale, color === "white" ? "myGames.statsWhite" : "myGames.statsBlack")}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex items-center gap-1 text-caption text-studio-muted">
+          {tMyGames(locale, "myGames.openingsTimeClass")}
+          <select
+            aria-label={tMyGames(locale, "myGames.openingsTimeClass")}
+            value={uiFilters.timeClass}
+            onChange={(event) => setUiFilters({ ...uiFilters, timeClass: event.target.value })}
+            className="rounded bg-studio-hover px-1 py-0.5 text-caption text-studio-fg"
+          >
+            <option value="all">{tMyGames(locale, "myGames.openingsAll")}</option>
+            {timeClasses.map((timeClass) => (
+              <option key={timeClass} value={timeClass}>
+                {timeClass}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-1 text-caption text-studio-muted">
+          <input
+            type="checkbox"
+            checked={uiFilters.ratedOnly}
+            onChange={(event) => setUiFilters({ ...uiFilters, ratedOnly: event.target.checked })}
+          />
+          {tMyGames(locale, "myGames.openingsRatedOnly")}
+        </label>
+        <select
+          aria-label={tMyGames(locale, "myGames.openingsAllTime")}
+          value={uiFilters.preset}
+          onChange={(event) => setUiFilters({ ...uiFilters, preset: event.target.value as OpeningDatePreset })}
+          className="rounded bg-studio-hover px-1 py-0.5 text-caption text-studio-fg"
+        >
+          {OPENING_PRESETS.map((preset) => (
+            <option key={preset} value={preset}>
+              {tMyGames(locale, PRESET_STRING_KEYS[preset])}
+            </option>
+          ))}
+        </select>
+        <span className="text-caption tabular-nums text-studio-faint">
+          {formatInteger(locale, totalGames)}
+        </span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.openingsEmpty")}</p>
+      ) : (
+        <ul className="flex flex-col">
+          {rows.map((row) => (
+            <li key={row.key} className="border-t border-studio-border-subtle py-1" style={{ paddingLeft: row.depth * 12 }}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 flex-1 truncate text-dense text-studio-fg">
+                  {row.hasChildren ? (
+                    <button
+                      type="button"
+                      aria-expanded={row.expanded}
+                      aria-label={row.numberedSan}
+                      onClick={() => onToggle(row.key)}
+                      className="mr-1 text-studio-muted hover:text-studio-fg"
+                    >
+                      {row.expanded ? "▾" : "▸"}
+                    </button>
+                  ) : null}
+                  {row.numberedSan}
+                  {row.isWorst ? (
+                    <span className="ml-1 rounded bg-studio-warning-bg px-1 text-caption text-studio-warning-fg">
+                      {tMyGames(locale, "myGames.openingsWorst")}
+                    </span>
+                  ) : null}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => onOpenLine(row.path)}
+                  className="shrink-0 text-caption font-medium text-studio-accent-text hover:underline"
+                >
+                  {tMyGames(locale, "myGames.openingsOpenLine")}
+                </button>
+              </div>
+              <div className="flex items-center gap-2 text-caption tabular-nums text-studio-faint">
+                <span>
+                  {formatInteger(locale, row.node.games)} · {formatInteger(locale, row.node.scorePct)}%
+                </span>
+                <span title={tMyGames(locale, "myGames.openingsAccuracy")}>
+                  {row.node.avgAccuracy == null ? "–" : formatDecimal1(locale, row.node.avgAccuracy)}
+                </span>
+                <TrendMarkers locale={locale} trend={row.node.trend} />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
