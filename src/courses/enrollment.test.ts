@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  checkCourseAccess,
   recordCompletion,
   recordEnrollment,
   resetEnrollmentSession,
@@ -9,6 +10,26 @@ import {
 } from "./enrollment.ts";
 
 type InsertRow = { user_id: string; course_id: string };
+
+type AccessClient = {
+  rpc: (name: string, args: object) => Promise<{ data: unknown; error: { message?: string } | null }>;
+};
+
+function makeAccessClient(data: unknown, error: { message?: string } | null = null): {
+  client: AccessClient;
+  calls: { name: string; args: object }[];
+} {
+  const calls: { name: string; args: object }[] = [];
+  return {
+    calls,
+    client: {
+      rpc: (name: string, args: object) => {
+        calls.push({ name, args });
+        return Promise.resolve({ data, error });
+      },
+    },
+  };
+}
 
 function makeClient(options?: {
   insertError?: { code?: string } | null;
@@ -85,6 +106,35 @@ describe("recordEnrollment", () => {
     try {
       const { client } = makeClient({ insertError: { code: "42501" } });
       await recordEnrollment(client, "user-1", "course-1");
+    } finally {
+      console.warn = original;
+    }
+    assert.equal(warnings.length, 1);
+    assert.match(String(warnings[0][0]), /\[enrollment\]/);
+  });
+});
+
+describe("checkCourseAccess", () => {
+  it("returns true when the gate allows access", async () => {
+    const { client, calls } = makeAccessClient(true);
+    assert.equal(await checkCourseAccess(client, "course-1"), true);
+    assert.deepEqual(calls, [{ name: "can_access_course", args: { p_course_id: "course-1" } }]);
+  });
+
+  it("returns false when the gate denies access", async () => {
+    const { client } = makeAccessClient(false);
+    assert.equal(await checkCourseAccess(client, "course-1"), false);
+  });
+
+  it("fails closed and warns without throwing on RPC error", async () => {
+    const warnings: unknown[][] = [];
+    const original = console.warn;
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args);
+    };
+    try {
+      const { client } = makeAccessClient(null, { message: "boom" });
+      assert.equal(await checkCourseAccess(client, "course-1"), false);
     } finally {
       console.warn = original;
     }

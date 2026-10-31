@@ -48,6 +48,32 @@ export function shouldRecordCompletion(percent: number, alreadyCompleted: boolea
   return percent >= 100 && !alreadyCompleted;
 }
 
+/** Structural shape of the can_access_course RPC caller. */
+export type AccessCheckClient = {
+  rpc(name: string, args: object): Promise<{ data: unknown; error: { message?: string } | null }>;
+};
+
+function asAccessCheckClient(supabase: unknown): AccessCheckClient {
+  return supabase as AccessCheckClient;
+}
+
+/**
+ * SIG-1177: single source of truth for "can this user access this course" on
+ * the client. Calls the existing public.can_access_course SQL function (the
+ * same gate that guards course_content reads). Fails closed: any RPC error or
+ * non-true result means no access. Failure-safe (warns with an [enrollment]
+ * prefix, never throws): a stats write must not break studying, and must not
+ * inflate coach counts on uncertainty.
+ */
+export async function checkCourseAccess(supabase: unknown, courseId: string): Promise<boolean> {
+  const { data, error } = await asAccessCheckClient(supabase).rpc("can_access_course", { p_course_id: courseId });
+  if (error) {
+    console.warn("[enrollment] checkCourseAccess failed", error);
+    return false;
+  }
+  return data === true;
+}
+
 /**
  * Records the first open of a course by a signed-in user. Fires at most once
  * per (user, course) per session; a duplicate-key error (code 23505) means

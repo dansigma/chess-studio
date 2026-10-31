@@ -16,7 +16,7 @@ import { CourseSummary } from "./CourseSummary";
 import { courseImageUrl, courseVideo } from "./media";
 import { CourseChrome } from "./CourseChrome";
 import { coursePercent, courseVariationIds } from "./store";
-import { recordEnrollment } from "./enrollment";
+import { checkCourseAccess, recordEnrollment } from "./enrollment";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import type { Course } from "./types";
 import { useCourseData } from "./use-courses";
@@ -29,7 +29,11 @@ export function CourseView({ course }: { course: Course }) {
 
   // SIG-1052: first open per signed-in user and course. Fires once per
   // session via the module guard inside recordEnrollment; anonymous visitors
-  // and built-in seed courses record nothing.
+  // and built-in seed courses record nothing. SIG-1177: gated on course
+  // access — a signed-in user without access (locked premium landing) must
+  // not create an enrollment row. The access decision comes from the existing
+  // public.can_access_course gate (same source of truth as the lesson
+  // content read); failures close the gate without throwing.
   useEffect(() => {
     if (!signedIn || !userId || course.builtin) {
       return;
@@ -38,7 +42,12 @@ export function CourseView({ course }: { course: Course }) {
     if (!supabase) {
       return;
     }
-    void recordEnrollment(supabase, userId, course.id);
+    void (async () => {
+      if (!(await checkCourseAccess(supabase, course.id))) {
+        return;
+      }
+      await recordEnrollment(supabase, userId, course.id);
+    })();
   }, [signedIn, userId, course.builtin, course.id]);
 
   const frameCounts = useMemo(() => {
