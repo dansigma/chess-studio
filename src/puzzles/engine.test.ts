@@ -235,7 +235,7 @@ test("rated success and failure record per-motif stats", () => {
   assert.deepEqual(afterPin.motifs.fork, afterFork.motifs.fork);
 });
 
-test("motif recording covers streak, rush and daily but skips other modes", () => {
+test("motif recording covers streak, rush and daily but skips mistakes mode", () => {
   const now = new Date(2026, 8, 28, 12).getTime();
   for (const mode of ["streak", "rush", "daily"] as const) {
     const next = applyResult(emptyProgress(), {
@@ -251,8 +251,8 @@ test("motif recording covers streak, rush and daily but skips other modes", () =
     assert.equal(next.motifs.fork?.attempts, 1, mode);
   }
   const other = applyResult(emptyProgress(), {
-    id: "future-puzzle",
-    mode: "mistakes" as never,
+    id: "mistakes-puzzle",
+    mode: "mistakes",
     success: true,
     puzzleRating: 1200,
     sessionScore: 1,
@@ -260,7 +260,34 @@ test("motif recording covers streak, rush and daily but skips other modes", () =
     themes: ["fork"],
     ms: 1000,
   });
-  assert.deepEqual(other.motifs, {});
+  assert.deepEqual(other, emptyProgress());
+});
+
+test("mistakes attempts leave a populated progress object untouched", () => {
+  const now = new Date(2026, 8, 28, 12).getTime();
+  const populated = applyResult(emptyProgress(), {
+    id: "rated-1",
+    mode: "rated",
+    success: true,
+    puzzleRating: 1500,
+    sessionScore: 2,
+    now,
+    themes: ["fork"],
+    ms: 500,
+  });
+  for (const success of [true, false]) {
+    const next = applyResult(populated, {
+      id: "mx:abc",
+      mode: "mistakes",
+      success,
+      puzzleRating: 1500,
+      sessionScore: 3,
+      now: now + 1000,
+      themes: [],
+      ms: 2000,
+    });
+    assert.equal(next, populated, "same reference, no clone");
+  }
 });
 
 test("repeated daily on the same day records no motif stats", () => {

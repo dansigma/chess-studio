@@ -96,12 +96,13 @@ export function PuzzlePanel({
         <div className="flex items-end justify-between gap-3">
           <div>
             <p className="text-3xl font-semibold tabular-nums leading-none text-studio-fg">
-              {mode === "rush" ? sessionSolved : progress.xp}
-              {mode !== "rush" && status === "solved" && gained > 0 ? (
+              {/* SIG-1097: mistakes shows solved-in-session, never XP. */}
+              {mode === "rush" ? sessionSolved : mode === "mistakes" ? sessionSolved : progress.xp}
+              {mode !== "rush" && mode !== "mistakes" && status === "solved" && gained > 0 ? (
                 <span className="ml-2 text-title text-studio-success">+{gained}</span>
               ) : null}
             </p>
-            {mode === "rush" ? (
+            {mode === "rush" || mode === "mistakes" ? (
               <p className="mt-1 text-caption text-studio-muted">{tPuzzle(locale, "puzzle.panel.solved")}</p>
             ) : null}
           </div>

@@ -48,6 +48,7 @@ test("modeLabelFor names each mode", () => {
   assert.equal(modeLabelFor("streak", "en"), "Streak");
   assert.equal(modeLabelFor("rush", "en"), "Rush");
   assert.equal(modeLabelFor("rated", "en"), "Rated");
+  assert.equal(modeLabelFor("mistakes", "en"), "My mistakes");
 });
 
 test("modeLabelFor renders Portuguese labels", () => {
@@ -55,12 +56,15 @@ test("modeLabelFor renders Portuguese labels", () => {
   assert.equal(modeLabelFor("streak", "pt-br"), "Sequência");
   assert.equal(modeLabelFor("rush", "pt-br"), "Rush");
   assert.equal(modeLabelFor("rated", "pt-br"), "Com rating");
+  assert.equal(modeLabelFor("mistakes", "pt-br"), "Meus erros");
 });
 
 test("continueLabelFor only offers a next puzzle when the session keeps going", () => {
   assert.equal(continueLabelFor("rated", false, "en"), "Next puzzle");
+  assert.equal(continueLabelFor("mistakes", false, "en"), "Next puzzle");
   assert.equal(continueLabelFor("streak", false, "en"), "Next puzzle");
   assert.equal(continueLabelFor("rated", true, "en"), null);
+  assert.equal(continueLabelFor("mistakes", true, "en"), null);
   assert.equal(continueLabelFor("daily", false, "en"), null);
   assert.equal(continueLabelFor("rush", false, "en"), null);
   assert.equal(continueLabelFor("rated", false, "pt-br"), "Próximo problema");

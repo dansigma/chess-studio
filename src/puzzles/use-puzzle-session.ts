@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { playMoveSound } from "@/src/chess/move-sound";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import {
+  hydrateExercises,
+  recordAttempt,
+  saveExercises,
+  type MistakeExercisesMap,
+} from "@/src/lib/mistake-exercises-store";
+import {
   dailyPuzzle,
   judgeMove,
   playUci,
@@ -11,6 +17,12 @@ import {
   sessionTarget,
   type CompiledPuzzle,
 } from "./engine";
+import {
+  exerciseKeyForPuzzle,
+  mistakesQueue,
+  nextDueDate,
+  type MistakesQueueEntry,
+} from "./mistake-puzzle";
 import { loadPuzzleCatalog } from "./puzzle-client";
 import { hydratePuzzleProgress } from "./progress";
 import type { PuzzleMode, PuzzleTheme } from "./types";
@@ -137,10 +149,21 @@ export function usePuzzleSession({
   const [sessionOver, setSessionOver] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RUSH_SECONDS);
   const [loadError, setLoadError] = useState<boolean>(false);
+  // SIG-1097: mistakes queue state. `caughtUp` is true when the queue is
+  // empty; `nextDue` is the earliest scheduled due date (null when no
+  // scheduled entries exist).
+  const [caughtUp, setCaughtUp] = useState(false);
+  const [nextDue, setNextDue] = useState<string | null>(null);
+  const [mistakesTotal, setMistakesTotal] = useState(0);
+  const [mistakesIndex, setMistakesIndex] = useState(0);
   // SIG-1070: the display sentence resolves through the puzzle string table
   // at the render site (Trainer), which owns the store locale.
 
   const catalogRef = useRef<CompiledPuzzle[]>([]);
+  const mistakesRef = useRef<MistakesQueueEntry[]>([]);
+  const mistakesIndexRef = useRef(0);
+  const exercisesRef = useRef<MistakeExercisesMap>({});
+  const exercisesUserIdRef = useRef<string | null>(null);
   const sessionSolvedRef = useRef(0);
   const strikesRef = useRef(0);
   const secondsRef = useRef(RUSH_SECONDS);
@@ -178,6 +201,14 @@ export function usePuzzleSession({
   }
 
   function commit(success: boolean, currentPuzzle: CompiledPuzzle) {
+    // SIG-1097: record the spaced-repetition outcome. Board ids are mapped
+    // back to exercise keys (colons break the board's querySelector).
+    if (mode === "mistakes") {
+      const next = recordAttempt(exercisesRef.current, exerciseKeyForPuzzle(currentPuzzle.id), success);
+      exercisesRef.current = next;
+      setNextDue(nextDueDate(next));
+      void saveExercises(next, exercisesUserIdRef.current);
+    }
     const score = nextSessionScore(success, sessionSolvedRef.current);
     const ms = Math.max(0, Date.now() - shownAtRef.current);
     if (!applyScore(success, currentPuzzle, score, ms)) {
@@ -218,8 +249,53 @@ export function usePuzzleSession({
       try {
         const supabase = createBrowserSupabase();
         const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-        const loaded = await hydratePuzzleProgress(user?.id ?? null);
+        const userId = user?.id ?? null;
+        const loaded = await hydratePuzzleProgress(userId);
         if (cancel) {
+          return;
+        }
+        if (mode === "mistakes") {
+          // SIG-1097: no catalog fetch — the queue comes from saved exercises.
+          const map = await hydrateExercises(userId);
+          if (cancel) {
+            return;
+          }
+          exercisesRef.current = map;
+          exercisesUserIdRef.current = userId;
+          const queue = mistakesQueue(map, exclude.current);
+          mistakesRef.current = queue;
+          mistakesIndexRef.current = 0;
+          hydrate(loaded);
+          sessionSolvedRef.current = 0;
+          exclude.current = new Set();
+          setSessionSolved(0);
+          strikesRef.current = 0;
+          setStrikes(0);
+          setSessionOver(false);
+          secondsRef.current = RUSH_SECONDS;
+          setSecondsLeft(RUSH_SECONDS);
+          setMistakesTotal(queue.length);
+          setMistakesIndex(0);
+          setNextDue(nextDueDate(map));
+          const first = queue[0]?.puzzle ?? null;
+          setCaughtUp(!first);
+          if (!first) {
+            setPuzzle(null);
+            setLoadError(false);
+            return;
+          }
+          exclude.current.add(first.id);
+          resetResult();
+          setPuzzle(first);
+          setFen(first.fen);
+          setPly(0);
+          setStatus("playing");
+          setLast(null);
+          setSelected(null);
+          setHintLevel(0);
+          setReveal(false);
+          setMiss(null);
+          setLoadError(false);
           return;
         }
         const catalog =
@@ -385,6 +461,33 @@ export function usePuzzleSession({
 
   function nextPuzzle() {
     clearAdvance();
+    if (mode === "mistakes") {
+      // SIG-1097: sequential walk over the queue built at load. Every entry
+      // gets one pass; SRS state (`recordAttempt` at commit time) decides
+      // whether it returns tomorrow (failed) or later (solved) — the queue
+      // itself just advances to the next unshown entry.
+      const queue = mistakesRef.current.length > 0 ? mistakesRef.current : mistakesQueue(exercisesRef.current, exclude.current);
+      mistakesRef.current = queue;
+      const at = mistakesIndexRef.current + 1;
+      if (at >= queue.length) {
+        mistakesIndexRef.current = queue.length;
+        setMistakesIndex(queue.length);
+        setCaughtUp(true);
+        setNextDue(nextDueDate(exercisesRef.current));
+        return;
+      }
+      mistakesIndexRef.current = at;
+      setMistakesIndex(at);
+      const chosen = queue[at];
+      if (!chosen) {
+        setCaughtUp(true);
+        setNextDue(nextDueDate(exercisesRef.current));
+        return;
+      }
+      exclude.current.add(chosen.puzzle.id);
+      showPuzzle(chosen.puzzle);
+      return;
+    }
     const current = progressRef.current;
     if (!current || mode === "daily") {
       return;
@@ -398,6 +501,32 @@ export function usePuzzleSession({
   }
 
   function retry() {
+    if (mode === "mistakes") {
+      // SIG-1097: rebuild from the current map — failed exercises are due
+      // again, solved ones are scheduled out.
+      const queue = mistakesQueue(exercisesRef.current, new Set());
+      mistakesRef.current = queue;
+      mistakesIndexRef.current = 0;
+      exclude.current = new Set();
+      sessionSolvedRef.current = 0;
+      setSessionSolved(0);
+      strikesRef.current = 0;
+      setStrikes(0);
+      setSessionOver(false);
+      secondsRef.current = RUSH_SECONDS;
+      setSecondsLeft(RUSH_SECONDS);
+      setMistakesTotal(queue.length);
+      setMistakesIndex(0);
+      setNextDue(nextDueDate(exercisesRef.current));
+      const chosen = queue[0]?.puzzle ?? null;
+      setCaughtUp(!chosen);
+      if (!chosen) {
+        return;
+      }
+      exclude.current.add(chosen.id);
+      showPuzzle(chosen);
+      return;
+    }
     const current = progressRef.current;
     if (!current) {
       return;
@@ -433,6 +562,10 @@ export function usePuzzleSession({
     sessionOver,
     secondsLeft,
     loadError,
+    caughtUp,
+    nextDue,
+    mistakesTotal,
+    mistakesIndex,
     progress,
     delta,
     gained,

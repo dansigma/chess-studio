@@ -26,7 +26,18 @@ export function solverIndexFor(ply: number): number {
 }
 
 export function modeLabelFor(mode: PuzzleMode, locale: SiteLocale): string {
-  return tPuzzle(locale, mode === "daily" ? "puzzle.mode.daily" : mode === "streak" ? "puzzle.mode.streak" : mode === "rush" ? "puzzle.mode.rush" : "puzzle.mode.rated");
+  return tPuzzle(
+    locale,
+    mode === "daily"
+      ? "puzzle.mode.daily"
+      : mode === "streak"
+        ? "puzzle.mode.streak"
+        : mode === "rush"
+          ? "puzzle.mode.rush"
+          : mode === "mistakes"
+            ? "puzzle.mode.mistakes"
+            : "puzzle.mode.rated",
+  );
 }
 
 export function continueLabelFor(mode: PuzzleMode, sessionOver: boolean, locale: SiteLocale): string | null {
