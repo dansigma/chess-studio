@@ -9,6 +9,7 @@ import {
   nextTestIp,
 } from "@/src/test-utils/route-test.ts";
 import { buildOpponentProfile } from "@/src/lib/prep/opponent-profile.ts";
+import { NoPublicGamesError } from "@/src/lib/players/shared.ts";
 import type { PlayerGame } from "@/src/lib/player-types.ts";
 
 const stubs: {
@@ -82,6 +83,15 @@ test("bad username returns 400", async () => {
 test("account with no public games returns 404", async () => {
   stubs.loadPlayerGames = async () => ({ player: { username: "rival" }, games: [], truncated: false });
   const { res, body } = await get("?source=lichess&username=rival");
+  assert.equal(res.status, 404);
+  assert.deepEqual(body, { error: "No public games found for this account" });
+});
+
+test("loader rejecting with NoPublicGamesError returns 404", async () => {
+  stubs.loadPlayerGames = async () => {
+    throw new NoPublicGamesError("No public games for this Lichess account.");
+  };
+  const { res, body } = await get("?source=lichess&username=Hikaru");
   assert.equal(res.status, 404);
   assert.deepEqual(body, { error: "No public games found for this account" });
 });

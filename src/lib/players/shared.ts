@@ -41,6 +41,16 @@ export function isSource(value: string): value is PlayerSource {
   return value === "lichess" || value === "chesscom" || value === "studio";
 }
 
+// Thrown when the upstream provider reports the account has no public games
+// (unknown username or no games). Routes map this to 404; every other loader
+// failure stays a 502.
+export class NoPublicGamesError extends Error {
+  constructor(message = "No public games found for this account") {
+    super(message);
+    this.name = "NoPublicGamesError";
+  }
+}
+
 export async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,

@@ -2,6 +2,7 @@
 // Public data only — no session, no `createServerSupabase` in this path.
 import { NextRequest, NextResponse } from "next/server";
 import { loadPlayerGames } from "@/src/lib/players-server";
+import { NoPublicGamesError } from "@/src/lib/players/shared";
 import { buildOpponentProfile } from "@/src/lib/prep/opponent-profile";
 import { isPlayerUsername } from "@/src/lib/request-validation";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
@@ -25,6 +26,9 @@ export async function GET(request: NextRequest) {
   try {
     ({ games } = await loadPlayerGames(source, username));
   } catch (error) {
+    if (error instanceof NoPublicGamesError) {
+      return NextResponse.json({ error: "No public games found for this account" }, { status: 404 });
+    }
     console.error("prep opponent route failed", { source, username, error });
     return NextResponse.json({ error: "Could not load games" }, { status: 502 });
   }
