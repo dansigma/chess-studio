@@ -359,6 +359,26 @@ export type Database = {
         };
         Relationships: [];
       };
+      // SIG-1052: per-user per-course enrollment (first open + completion).
+      // Client-written under own-row RLS; anonymous visitors are never counted.
+      course_enrollments: {
+        Row: {
+          user_id: string;
+          course_id: string;
+          first_opened_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          user_id: string;
+          course_id: string;
+          first_opened_at?: string;
+          completed_at?: string | null;
+        };
+        Update: {
+          completed_at?: string | null;
+        };
+        Relationships: [];
+      };
       // SIG-1051: billing tables. Users read their own rows; only the
       // server (service role, from verified payment webhooks) writes.
       subscriptions: {

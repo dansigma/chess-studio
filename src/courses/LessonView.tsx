@@ -15,6 +15,8 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { Button, IconButton } from "@/src/studio/ui/Button";
 import { lessonFrames, progressAfterStep, studentMoveMatches } from "./lesson";
 import { PROGRESS_BROWSER_ONLY, findVariation, loadProgress, saveVariationProgress } from "./store";
+import { recordEnrollment } from "./enrollment";
+import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
 import { useCourseData } from "./use-courses";
@@ -44,7 +46,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   const locale = useStudioStore((state) => state.settings.locale);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
-  const { progress: savedProgress, admin, isAdmin, ready: progressReady, signedIn } = useCourseData();
+  const { progress: savedProgress, admin, isAdmin, ready: progressReady, signedIn, userId } = useCourseData();
 
   const loaded: {
     course: Course;
@@ -76,13 +78,29 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   const done = frames.length > 0 && step >= frames.length - 1;
   const studentSide = loaded?.course.color === "white" ? "w" : "b";
 
+  // SIG-1052: first open per signed-in user and course, only when the lesson
+  // content is actually readable. Seed/local courses ship full content
+  // (contentLoaded undefined) and record normally; gated rows record once the
+  // fetch resolves to ready. Locked/loading/error lessons record nothing.
+  const contentReadable = course.contentLoaded !== false || content.status === "ready";
+  useEffect(() => {
+    if (!signedIn || !userId || course.builtin || !contentReadable) {
+      return;
+    }
+    const supabase = createBrowserSupabase();
+    if (!supabase) {
+      return;
+    }
+    void recordEnrollment(supabase, userId, course.id);
+  }, [signedIn, userId, course.builtin, course.id, contentReadable]);
+
   function persist(nextStep: number) {
     const next = progressAfterStep(loadProgress()[variationId], step, nextStep, frames.length);
     setStep(next.step);
     setNotice("");
     setHint(false);
     setSelected(null);
-    void saveVariationProgress(variationId, next).then((error) => {
+    void saveVariationProgress(variationId, next, effectiveCourse).then((error) => {
       if (error === PROGRESS_BROWSER_ONLY) {
         setNotice(tCourse(locale, "course.lesson.browserOnlyFallback"));
       } else if (error) {

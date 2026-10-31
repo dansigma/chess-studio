@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Circle, CircleDot, ExternalLink } from "lucide-react";
@@ -16,6 +16,8 @@ import { CourseSummary } from "./CourseSummary";
 import { courseImageUrl, courseVideo } from "./media";
 import { CourseChrome } from "./CourseChrome";
 import { coursePercent, courseVariationIds } from "./store";
+import { recordEnrollment } from "./enrollment";
+import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import type { Course } from "./types";
 import { useCourseData } from "./use-courses";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -23,7 +25,21 @@ import { useStudioStore } from "@/src/store/studio-store";
 export function CourseView({ course }: { course: Course }) {
   const router = useRouter();
   const locale = useStudioStore((state) => state.settings.locale);
-  const { progress, admin, isAdmin, signedIn, source } = useCourseData();
+  const { progress, admin, isAdmin, signedIn, userId, source } = useCourseData();
+
+  // SIG-1052: first open per signed-in user and course. Fires once per
+  // session via the module guard inside recordEnrollment; anonymous visitors
+  // and built-in seed courses record nothing.
+  useEffect(() => {
+    if (!signedIn || !userId || course.builtin) {
+      return;
+    }
+    const supabase = createBrowserSupabase();
+    if (!supabase) {
+      return;
+    }
+    void recordEnrollment(supabase, userId, course.id);
+  }, [signedIn, userId, course.builtin, course.id]);
 
   const frameCounts = useMemo(() => {
     const counts: Record<string, number> = {};
