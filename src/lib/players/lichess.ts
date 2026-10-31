@@ -168,6 +168,10 @@ export type LichessGameJson = {
   id?: string;
   winner?: string;
   status?: string;
+  // SIG-1048: `rated` feeds the opening-tree `ratedOnly` filter (via
+  // PlayerGame); `speed` feeds `timeClass` (the Lichess path never set it).
+  rated?: boolean;
+  speed?: string;
   createdAt?: number;
   moves?: string;
   pgn?: string;
@@ -277,6 +281,10 @@ export async function lichessGamesSince(
       color,
       playerResult: playerResult(winner, color),
       playedAt: created,
+      // SIG-1048: `rated` may be absent on old payloads (null = unknown);
+      // `timeClass` comes from the Lichess `speed` field.
+      timeClass: raw.speed ?? null,
+      rated: raw.rated ?? null,
     });
   }
   return games;

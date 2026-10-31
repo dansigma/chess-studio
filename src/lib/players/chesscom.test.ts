@@ -43,9 +43,26 @@ test("compactChesscomGame normalizes a Chess.com archive game", () => {
   assert.equal(game.opening, null);
   assert.equal(game.moves, undefined);
   assert.equal(game.timeClass, "blitz");
+  assert.equal(game.rated, null);
   assert.equal(game.color, "white");
   assert.equal(game.playerResult, "win");
   assert.equal(game.playedAt, 1_600_000_000_000);
+});
+
+test("compactChesscomGame carries the rated flag, defaulting to null", () => {
+  const rated = compactChesscomGame(
+    {
+      url: "https://www.chess.com/game/live/789",
+      end_time: 1_600_000_000,
+      time_class: "rapid",
+      rated: false,
+      white: { username: "Alice", rating: 1500, result: "win" },
+      black: { username: "Bob", rating: 1400, result: "checkmated" },
+    },
+    "alice",
+    0,
+  );
+  assert.equal(rated.rated, false);
 });
 
 test("compactChesscomGame marks the requested player as black and falls back to a synthetic id", () => {

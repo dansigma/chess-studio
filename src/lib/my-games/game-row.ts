@@ -38,6 +38,8 @@ export function playerGameToRow(
     color: game.color,
     result: game.playerResult,
     time_class: game.timeClass ?? null,
+    // SIG-1048: null = unknown for rows imported before the rated migration.
+    rated: game.rated ?? null,
     white: game.whiteName,
     black: game.blackName,
     white_elo: game.whiteRating,
