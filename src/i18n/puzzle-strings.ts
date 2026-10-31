@@ -11,6 +11,7 @@ export const PUZZLE_STRING_KEYS = [
   "puzzle.mode.streak",
   "puzzle.mode.rush",
   "puzzle.mode.daily",
+  "puzzle.mode.mistakes",
   "puzzle.dashboard.heading",
   "puzzle.dashboard.intro",
   "puzzle.dashboard.yourRating",
@@ -137,6 +138,7 @@ const EN: Record<PuzzleStringKey, string> = {
   "puzzle.mode.streak": "Streak",
   "puzzle.mode.rush": "Rush",
   "puzzle.mode.daily": "Daily puzzle",
+  "puzzle.mode.mistakes": "My mistakes",
   "puzzle.dashboard.heading": "Puzzles",
   "puzzle.dashboard.intro":
     "Find the best move. Rated training, a daily puzzle, a streak that ends on the first miss, and a 3-minute rush with three misses.",
@@ -262,6 +264,7 @@ const PT_BR: Record<PuzzleStringKey, string> = {
   "puzzle.mode.streak": "Sequência",
   "puzzle.mode.rush": "Rush",
   "puzzle.mode.daily": "Problema do dia",
+  "puzzle.mode.mistakes": "Meus erros",
   "puzzle.dashboard.heading": "Problemas",
   "puzzle.dashboard.intro":
     "Encontre o melhor lance. Treino com rating, um problema do dia, uma sequência que termina no primeiro erro e um rush de 3 minutos com três erros.",

@@ -6,9 +6,11 @@ import { Crown } from "lucide-react";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "@/src/courses/CourseChrome";
 import { formatInteger } from "@/src/i18n/format";
-import { tPuzzle } from "@/src/i18n/puzzle-strings";
+import { tPuzzle, type PuzzleStringKey } from "@/src/i18n/puzzle-strings";
+import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
+import { dueExercises, hydrateExercises, type MistakeExercisesMap } from "@/src/lib/mistake-exercises-store";
 import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
 import { motifSummary, weakestMotif } from "./motif-stats";
 import { loadPuzzleCatalog } from "./puzzle-client";
@@ -16,11 +18,12 @@ import { hydratePuzzleProgress, progressSource } from "./progress";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { THEME_CARDS, THEME_LABEL_KEYS, type PuzzleMode, type PuzzleProgress } from "./types";
 
-const MODE_KEYS = {
+const MODE_KEYS: Record<PuzzleMode, PuzzleStringKey> = {
   rated: "puzzle.mode.rated",
   streak: "puzzle.mode.streak",
   rush: "puzzle.mode.rush",
   daily: "puzzle.mode.daily",
+  mistakes: "puzzle.mode.mistakes",
 } as const;
 
 export function PuzzleDashboard() {
@@ -31,6 +34,8 @@ export function PuzzleDashboard() {
   const [now, setNow] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<boolean>(false);
   const [source, setSource] = useState<"account" | "browser">("browser");
+  // SIG-1097: due mistake-exercise count for the "My mistakes" card.
+  const [dueMistakes, setDueMistakes] = useState<number | null>(null);
 
   useEffect(() => {
     let cancel = false;
@@ -38,9 +43,10 @@ export function PuzzleDashboard() {
       try {
         const supabase = createBrowserSupabase();
         const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-        const [loaded, catalog] = await Promise.all([
+        const [loaded, catalog, exercises] = await Promise.all([
           hydratePuzzleProgress(user?.id ?? null),
           loadPuzzleCatalog(),
+          hydrateExercises(user?.id ?? null),
         ]);
         const timestamp = Date.now();
         if (cancel) {
@@ -50,6 +56,7 @@ export function PuzzleDashboard() {
         setPuzzles(catalog);
         setNow(timestamp);
         setSource(progressSource());
+        setDueMistakes(dueExercises(exercises as MistakeExercisesMap, new Date(timestamp)).length);
         setLoadError(false);
       } catch (error) {
         console.error("Failed to load puzzle progress.", error);
@@ -169,6 +176,24 @@ export function PuzzleDashboard() {
             body={tPuzzle(locale, "puzzle.dashboard.rush.body")}
             action={tPuzzle(locale, "puzzle.dashboard.rush.action")}
             onClick={() => router.push("/puzzles/play?mode=rush")}
+          />
+          <ModeCard
+            title={tMistakes(locale, "mistakes.dashboard.title")}
+            detail={
+              dueMistakes === null
+                ? tMistakes(locale, "mistakes.dashboard.empty")
+                : dueMistakes === 0
+                  ? tMistakes(locale, "mistakes.dashboard.empty")
+                  : tMistakes(
+                      locale,
+                      dueMistakes === 1 ? "mistakes.dashboard.detail.one" : "mistakes.dashboard.detail.other",
+                      { count: formatInteger(locale, dueMistakes) },
+                    )
+            }
+            body={tMistakes(locale, "mistakes.dashboard.body")}
+            action={tMistakes(locale, "mistakes.dashboard.action")}
+            onClick={() => router.push("/puzzles/play?mode=mistakes")}
+            disabled={dueMistakes === 0}
           />
         </div>
 
@@ -351,19 +376,21 @@ function ModeCard({
   body,
   action,
   onClick,
+  disabled = false,
 }: {
   title: string;
   detail: string;
   body: string;
   action: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <section className="flex flex-col rounded-xl border border-studio-border bg-studio-chrome p-5">
       <h2 className="text-lg font-semibold text-studio-fg">{title}</h2>
       <p className="mt-1 text-caption text-studio-accent-text">{detail}</p>
       <p className="mt-3 flex-1 text-body text-studio-muted">{body}</p>
-      <Button className="mt-4 self-start" onClick={onClick}>
+      <Button className="mt-4 self-start" onClick={onClick} disabled={disabled}>
         {action}
       </Button>
     </section>

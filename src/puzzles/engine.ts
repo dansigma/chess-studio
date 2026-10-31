@@ -315,6 +315,11 @@ export function normalizeProgress(value: unknown): PuzzleProgress {
 }
 
 export function applyResult(progress: PuzzleProgress, attempt: PuzzleModeAttempt): PuzzleProgress {
+  // SIG-1097: mistakes practice never touches puzzle progress — no rating,
+  // XP, solved/failed, streak, daily, history, or motif changes.
+  if (attempt.mode === "mistakes") {
+    return progress;
+  }
   if (attempt.mode === "daily" && progress.daily === dateKey(attempt.now)) {
     return progress;
   }

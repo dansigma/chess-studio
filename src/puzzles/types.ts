@@ -18,7 +18,7 @@ export const PUZZLE_THEMES = [
 
 export type PuzzleTheme = (typeof PUZZLE_THEMES)[number];
 
-export const PUZZLE_MODES = ["rated", "streak", "rush", "daily"] as const;
+export const PUZZLE_MODES = ["rated", "streak", "rush", "daily", "mistakes"] as const;
 
 export type PuzzleMode = (typeof PUZZLE_MODES)[number];
 
