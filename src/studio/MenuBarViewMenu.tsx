@@ -47,18 +47,26 @@ function Submenu({
 // SIG-857: view-menu subscriptions live here so MenuBar root stays static.
 // Primitives only; theme/piece/notation/scheme ids re-render only their own
 // submenu rows.
-export function MenuBarViewMenu({
+// SIG-1109: factored into ViewMenuItems so the mobile bottom sheet reuses the
+// same actions with `flat` submenus (no hover submenus on touch) and optional
+// dock openers. The exported component keeps the desktop menu contract
+// unchanged.
+export function ViewMenuItems({
   viewSub,
   setViewSub,
   leaveSubmenu,
   onOpenSettings,
   run,
+  flat = false,
+  showPanels = true,
 }: {
   viewSub: "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
   setViewSub: (sub: "theme" | "pieces" | "notation" | "panel" | "scheme" | null) => void;
   leaveSubmenu: () => void;
   onOpenSettings: () => void;
   run: (action: () => void) => () => void;
+  flat?: boolean;
+  showPanels?: boolean;
 }) {
   const flip = useStudioStore((state) => state.flip);
   const locale = useStudioStore((state) => state.settings.locale);
@@ -96,65 +104,143 @@ export function MenuBarViewMenu({
         onClick={run(toggleNotationDensity)}
       />
       <Divider />
-      <Submenu label={tStudioChrome(locale, "chrome.view.openPanel")} open={viewSub === "panel"} onOpen={() => setViewSub("panel")} onClose={leaveSubmenu}>
-        <Item
-          label={tStudioChrome(locale, "chrome.view.board")}
-          onClick={run(() => {
-            const active = selectActiveBoard(useStudioStore.getState());
-            openBoardPanel(active.id, active.title);
-          })}
-        />
-        {/* SIG-908: a second explorer opens side by side with its own source
-            (seeded from the sidebar-driven global source); the bare panel stays
-            for the default single-explorer flow. */}
-        <Item label={tStudioChrome(locale, "chrome.view.explorer")} onClick={run(() => openExplorerPanel())} />
-        {OPEN_PANEL_ITEMS.filter((item) => item.id !== "explorer").map((item) => (
-          <Item key={item.id} label={tStudioChrome(locale, `chrome.view.panel.${item.id}` as StudioChromeStringKey)} onClick={run(() => openStudioPanel(item.id))} />
-        ))}
-      </Submenu>
-      <Submenu label={tStudioChrome(locale, "chrome.view.boardTheme")} open={viewSub === "theme"} onOpen={() => setViewSub("theme")} onClose={leaveSubmenu}>
-        {BOARD_THEME_IDS.map((id) => (
-          <Item
-            key={id}
-            label={BOARD_THEMES[id].label}
-            leading={<ThemeSwatch light={BOARD_THEMES[id].light} dark={BOARD_THEMES[id].dark} />}
-            checked={boardTheme === id}
-            onClick={run(() => setBoardTheme(id))}
-          />
-        ))}
-      </Submenu>
-      <Submenu label={tStudioChrome(locale, "chrome.view.pieceSet")} open={viewSub === "pieces"} onOpen={() => setViewSub("pieces")} onClose={leaveSubmenu}>
-        {PIECE_SET_IDS.map((id) => (
-          <Item key={id} label={PIECE_SETS[id].label} checked={pieceSet === id} onClick={run(() => setPieceSet(id))} />
-        ))}
-      </Submenu>
-      <Submenu label={tStudioChrome(locale, "chrome.view.colorScheme")} open={viewSub === "scheme"} onOpen={() => setViewSub("scheme")} onClose={leaveSubmenu}>
-        {COLOR_SCHEME_IDS.map((id) => (
-          <Item
-            key={id}
-            label={COLOR_SCHEMES[id].label}
-            checked={colorScheme === id}
-            onClick={run(() => setColorScheme(id))}
-          />
-        ))}
-      </Submenu>
-      <Submenu label={tStudioChrome(locale, "chrome.view.moveNotation")} open={viewSub === "notation"} onOpen={() => setViewSub("notation")} onClose={leaveSubmenu}>
-        {MOVE_NOTATION_IDS.map((id) => (
-          <Item
-            key={id}
-            label={MOVE_NOTATIONS[id].label}
-            checked={moveNotation === id}
-            onClick={run(() => setMoveNotation(id))}
-          />
-        ))}
-      </Submenu>
+      {showPanels ? (
+        flat ? (
+          <>
+            <Item
+              label={tStudioChrome(locale, "chrome.view.explorer")}
+              onClick={run(() => openExplorerPanel())}
+            />
+            {OPEN_PANEL_ITEMS.filter((item) => item.id !== "explorer").map((item) => (
+              <Item key={item.id} label={tStudioChrome(locale, `chrome.view.panel.${item.id}` as StudioChromeStringKey)} onClick={run(() => openStudioPanel(item.id))} />
+            ))}
+            <Divider />
+          </>
+        ) : (
+          <Submenu label={tStudioChrome(locale, "chrome.view.openPanel")} open={viewSub === "panel"} onOpen={() => setViewSub("panel")} onClose={leaveSubmenu}>
+            <Item
+              label={tStudioChrome(locale, "chrome.view.board")}
+              onClick={run(() => {
+                const active = selectActiveBoard(useStudioStore.getState());
+                openBoardPanel(active.id, active.title);
+              })}
+            />
+            {/* SIG-908: a second explorer opens side by side with its own source
+                (seeded from the sidebar-driven global source); the bare panel stays
+                for the default single-explorer flow. */}
+            <Item label={tStudioChrome(locale, "chrome.view.explorer")} onClick={run(() => openExplorerPanel())} />
+            {OPEN_PANEL_ITEMS.filter((item) => item.id !== "explorer").map((item) => (
+              <Item key={item.id} label={tStudioChrome(locale, `chrome.view.panel.${item.id}` as StudioChromeStringKey)} onClick={run(() => openStudioPanel(item.id))} />
+            ))}
+          </Submenu>
+        )
+      ) : null}
+      {flat ? (
+        <>
+          <Divider />
+          {BOARD_THEME_IDS.map((id) => (
+            <Item
+              key={id}
+              label={`${tStudioChrome(locale, "chrome.view.boardTheme")}: ${BOARD_THEMES[id].label}`}
+              leading={<ThemeSwatch light={BOARD_THEMES[id].light} dark={BOARD_THEMES[id].dark} />}
+              checked={boardTheme === id}
+              onClick={run(() => setBoardTheme(id))}
+            />
+          ))}
+          <Divider />
+          {PIECE_SET_IDS.map((id) => (
+            <Item key={id} label={`${tStudioChrome(locale, "chrome.view.pieceSet")}: ${PIECE_SETS[id].label}`} checked={pieceSet === id} onClick={run(() => setPieceSet(id))} />
+          ))}
+          <Divider />
+          {COLOR_SCHEME_IDS.map((id) => (
+            <Item
+              key={id}
+              label={`${tStudioChrome(locale, "chrome.view.colorScheme")}: ${COLOR_SCHEMES[id].label}`}
+              checked={colorScheme === id}
+              onClick={run(() => setColorScheme(id))}
+            />
+          ))}
+          <Divider />
+          {MOVE_NOTATION_IDS.map((id) => (
+            <Item
+              key={id}
+              label={`${tStudioChrome(locale, "chrome.view.moveNotation")}: ${MOVE_NOTATIONS[id].label}`}
+              checked={moveNotation === id}
+              onClick={run(() => setMoveNotation(id))}
+            />
+          ))}
+        </>
+      ) : (
+        <>
+          <Submenu label={tStudioChrome(locale, "chrome.view.boardTheme")} open={viewSub === "theme"} onOpen={() => setViewSub("theme")} onClose={leaveSubmenu}>
+            {BOARD_THEME_IDS.map((id) => (
+              <Item
+                key={id}
+                label={BOARD_THEMES[id].label}
+                leading={<ThemeSwatch light={BOARD_THEMES[id].light} dark={BOARD_THEMES[id].dark} />}
+                checked={boardTheme === id}
+                onClick={run(() => setBoardTheme(id))}
+              />
+            ))}
+          </Submenu>
+          <Submenu label={tStudioChrome(locale, "chrome.view.pieceSet")} open={viewSub === "pieces"} onOpen={() => setViewSub("pieces")} onClose={leaveSubmenu}>
+            {PIECE_SET_IDS.map((id) => (
+              <Item key={id} label={PIECE_SETS[id].label} checked={pieceSet === id} onClick={run(() => setPieceSet(id))} />
+            ))}
+          </Submenu>
+          <Submenu label={tStudioChrome(locale, "chrome.view.colorScheme")} open={viewSub === "scheme"} onOpen={() => setViewSub("scheme")} onClose={leaveSubmenu}>
+            {COLOR_SCHEME_IDS.map((id) => (
+              <Item
+                key={id}
+                label={COLOR_SCHEMES[id].label}
+                checked={colorScheme === id}
+                onClick={run(() => setColorScheme(id))}
+              />
+            ))}
+          </Submenu>
+          <Submenu label={tStudioChrome(locale, "chrome.view.moveNotation")} open={viewSub === "notation"} onOpen={() => setViewSub("notation")} onClose={leaveSubmenu}>
+            {MOVE_NOTATION_IDS.map((id) => (
+              <Item
+                key={id}
+                label={MOVE_NOTATIONS[id].label}
+                checked={moveNotation === id}
+                onClick={run(() => setMoveNotation(id))}
+              />
+            ))}
+          </Submenu>
+        </>
+      )}
       <Divider />
-      <Item label={tStudioChrome(locale, "chrome.view.settings")} onMouseEnter={leaveSubmenu} onClick={run(onOpenSettings)} />
+      <Item label={tStudioChrome(locale, "chrome.view.settings")} onMouseEnter={flat ? undefined : leaveSubmenu} onClick={run(onOpenSettings)} />
       <Item
         label={tStudioChrome(locale, "chrome.view.resetView")}
-        onMouseEnter={leaveSubmenu}
+        onMouseEnter={flat ? undefined : leaveSubmenu}
         onClick={run(() => useStudioStore.getState().resetView())}
       />
     </>
+  );
+}
+
+export function MenuBarViewMenu({
+  viewSub,
+  setViewSub,
+  leaveSubmenu,
+  onOpenSettings,
+  run,
+}: {
+  viewSub: "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
+  setViewSub: (sub: "theme" | "pieces" | "notation" | "panel" | "scheme" | null) => void;
+  leaveSubmenu: () => void;
+  onOpenSettings: () => void;
+  run: (action: () => void) => () => void;
+}) {
+  return (
+    <ViewMenuItems
+      viewSub={viewSub}
+      setViewSub={setViewSub}
+      leaveSubmenu={leaveSubmenu}
+      onOpenSettings={onOpenSettings}
+      run={run}
+    />
   );
 }

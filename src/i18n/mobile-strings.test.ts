@@ -26,3 +26,12 @@ test("mobile tab labels render the short tab names", () => {
   assert.equal(tMobile("en", "mobile.tabs.explorer"), "Explorer");
   assert.equal(tMobile("pt-br", "mobile.tabs.explorer"), "Explorador");
 });
+
+test("mobile menu labels render in both locales", () => {
+  assert.equal(tMobile("en", "mobile.menu.open"), "Open menu");
+  assert.equal(tMobile("pt-br", "mobile.menu.open"), "Abrir menu");
+  assert.equal(tMobile("en", "mobile.menu.title"), "Menu");
+  assert.equal(tMobile("pt-br", "mobile.menu.title"), "Menu");
+  assert.equal(tMobile("en", "mobile.menu.close"), "Close menu");
+  assert.equal(tMobile("pt-br", "mobile.menu.close"), "Fechar menu");
+});

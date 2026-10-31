@@ -448,9 +448,9 @@ export function StudioShell() {
   return (
     <>
     <div className="studio-screen flex h-screen flex-col overflow-hidden bg-studio-bg text-studio-fg">
-      <MenuBar onOpenPgn={() => fileRef.current?.click()} />
+      {isMobile ? null : <MenuBar onOpenPgn={() => fileRef.current?.click()} />}
       {isMobile ? (
-        <MobileStudio />
+        <MobileStudio onOpenPgn={() => fileRef.current?.click()} />
       ) : (
       <div className="flex min-h-0 flex-1">
         <ActivityBar />

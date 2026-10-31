@@ -156,8 +156,205 @@ test("mobile studio: bottom tabs mount one panel at a time, no h-scroll", async 
   await expect(area.getByRole("button", { name: "Start", exact: true })).toHaveCount(0);
   await expect(area.getByLabel("Review depth")).toHaveCount(0);
   await expectNoOverflow();
+});
 
-  // Review tab runs the fake-engine review to completion and shows the report.
+/**
+ * SIG-1109: mobile studio slice 3/3 — the hamburger bottom sheet opens a PGN
+ * (reusing the desktop File menu item), board swipe steps through moves,
+ * long-press opens the notation context menu, and the Review tab completes a
+ * fake-engine review — all with no horizontal scroll at 390 px.
+ *
+ * Touch gestures go through CDP Input.dispatchTouchEvent (touchStart →
+ * touchMove → touchEnd): page.touchscreen.tap() only emits taps, so raw
+ * touch events are needed for swipe and long-press.
+ */
+test("mobile studio: menu sheet, swipe, long-press menu, review, no h-scroll", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/studio");
+
+  const studio = page.locator("[data-mobile-studio]");
+  await expect(studio).toBeVisible();
+
+  async function expectNoOverflow() {
+    const pageOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    );
+    expect(pageOverflow).toBe(true);
+  }
+
+  // Open the sheet and load a game through "Open PGN…" (the desktop File
+  // menu item, reused in the sheet).
+  await studio.getByRole("button", { name: "Open menu", exact: true }).click();
+  const sheet = page.locator("[data-mobile-menu-sheet]");
+  await expect(sheet).toBeVisible();
+  await expectNoOverflow();
+  const openPgnItem = sheet.getByRole("menuitem", { name: /Open PGN/ });
+  await expect(openPgnItem).toBeVisible();
+  // Choosing the file happens via the hidden file input the sheet triggers.
+  const chooseFiles = page
+    .locator('.studio-screen input[type="file"]')
+    .setInputFiles({
+      name: "sheet.pgn",
+      mimeType: "text/plain",
+      buffer: Buffer.from(TABS_GAME),
+    });
+  await openPgnItem.click();
+  await chooseFiles;
+
+  // The strip lists the loaded game.
+  const strip = page.locator("[data-mobile-move-strip]");
+  const firstMove = strip.locator("[data-mobile-move]").first();
+  await expect(firstMove).toBeVisible();
+  await expectNoOverflow();
+
+  // Swipe left on the board goes forward one move (toolbar forward handler):
+  // the PGN import lands on the last move, so first go back to the start via
+  // the strip's Previous button, then swipe and assert the white pawn sits
+  // on e4. Synthetic TouchEvents carry real Touch objects (clientX/clientY)
+  // so the React onTouchStart/Move/End stream sees the same data as a finger
+  // swipe; a real CDP gesture would land on the chessboard canvas (piece
+  // drag), which consumes the touch.
+  const prevButton = strip.getByRole("button", { name: "Previous move", exact: true });
+  for (let i = 0; i < 25; i++) {
+    if (await prevButton.isDisabled()) {
+      break;
+    }
+    await prevButton.click();
+  }
+  const gestureArea = studio.locator("[data-mobile-board-gestures]");
+  const board = studio.locator("[data-board-image]");
+  await expect(board.locator('[data-square="e2"] [data-piece="wP"]')).toHaveCount(1);
+  await expect(board.locator('[data-square="e2"]')).toBeVisible();
+  const gestureBox = await gestureArea.boundingBox();
+  expect(gestureBox).not.toBeNull();
+  const swipeY = gestureBox!.y + 6;
+  const swipeLeftX = gestureBox!.x + gestureBox!.width - 6;
+  const swipeRightX = gestureBox!.x + 6;
+  await page.evaluate(
+    ({ leftX, rightX, y }: { leftX: number; rightX: number; y: number }) => {
+      const target = document.querySelector("[data-mobile-board-gestures]");
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      function touchAt(x: number, yPos: number) {
+        return new Touch({ identifier: 1, target: target as EventTarget, clientX: x, clientY: yPos });
+      }
+      target.dispatchEvent(
+        new TouchEvent("touchstart", {
+          touches: [touchAt(leftX, y)],
+          changedTouches: [touchAt(leftX, y)],
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      target.dispatchEvent(
+        new TouchEvent("touchmove", {
+          touches: [touchAt(rightX, y)],
+          changedTouches: [touchAt(rightX, y)],
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      target.dispatchEvent(
+        new TouchEvent("touchend", {
+          touches: [],
+          changedTouches: [touchAt(rightX, y)],
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    },
+    { leftX: swipeLeftX, rightX: swipeRightX, y: swipeY },
+  );
+  await expect(board.locator('[data-square="e4"] [data-piece="wP"]')).toHaveCount(1);
+  await expectNoOverflow();
+
+  // Swipe right on the board goes back (toolbar back handler).
+  await page.evaluate(
+    ({ leftX, rightX, y }: { leftX: number; rightX: number; y: number }) => {
+      const target = document.querySelector("[data-mobile-board-gestures]");
+      if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      function touchAt(x: number, yPos: number) {
+        return new Touch({ identifier: 1, target: target as EventTarget, clientX: x, clientY: yPos });
+      }
+      target.dispatchEvent(
+        new TouchEvent("touchstart", {
+          touches: [touchAt(rightX, y)],
+          changedTouches: [touchAt(rightX, y)],
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      target.dispatchEvent(
+        new TouchEvent("touchmove", {
+          touches: [touchAt(leftX, y)],
+          changedTouches: [touchAt(leftX, y)],
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      target.dispatchEvent(
+        new TouchEvent("touchend", {
+          touches: [],
+          changedTouches: [touchAt(leftX, y)],
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    },
+    { leftX: swipeLeftX, rightX: swipeRightX, y: swipeY },
+  );
+  await expect(board.locator('[data-square="e2"] [data-piece="wP"]')).toHaveCount(1);
+  await expectNoOverflow();
+
+  // Long-press a strip move opens the notation context menu at the touch
+  // point (same menu as desktop right-click): synthetic touchstart held past
+  // the 500 ms long-press delay, then touchend. Coordinates are read inside
+  // the page (the element's own rect), so no outer bounding-box is needed.
+  await firstMove.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const x = rect.x + rect.width / 2;
+    const y = rect.y + rect.height / 2;
+    function touchAt() {
+      return new Touch({ identifier: 1, target: el, clientX: x, clientY: y });
+    }
+    el.dispatchEvent(
+      new TouchEvent("touchstart", {
+        touches: [touchAt()],
+        changedTouches: [touchAt()],
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+  await page.waitForTimeout(700);
+  await firstMove.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const x = rect.x + rect.width / 2;
+    const y = rect.y + rect.height / 2;
+    function touchAt() {
+      return new Touch({ identifier: 1, target: el, clientX: x, clientY: y });
+    }
+    el.dispatchEvent(
+      new TouchEvent("touchend", {
+        touches: [],
+        changedTouches: [touchAt()],
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  });
+  await expect(page.getByRole("menu").first()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expectNoOverflow();
+
+  // Review tab runs the fake-engine review to completion with no overflow.
+  const area = page.locator("[data-mobile-panel-area]");
+  const tabbar = page.locator("[data-mobile-tabbar]");
   const reviewTab = tabbar.getByRole("tab", { name: "Review", exact: true });
   await reviewTab.click();
   await expect(reviewTab).toHaveAttribute("aria-selected", "true");

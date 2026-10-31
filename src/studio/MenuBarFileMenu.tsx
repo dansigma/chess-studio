@@ -15,7 +15,11 @@ import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 // not re-render on board changes. The only value subscription is the active
 // title primitive; board tree/path are read via getState() inside handlers,
 // and the rest are stable action refs (no re-render).
-export function MenuBarFileMenu({
+// SIG-1109: the item list is factored into FileMenuItems so the mobile
+// bottom sheet reuses the same actions without duplicating menu code. The
+// exported component keeps the desktop menu contract unchanged; the mobile
+// sheet renders FileMenuItems directly with its own run/close wiring.
+export function FileMenuItems({
   onOpenPgn,
   onShare,
   close,
@@ -186,4 +190,18 @@ export function MenuBarFileMenu({
       <Item label={tStudioChrome(locale, "chrome.file.closeBoard")} shortcut="Ctrl+Q" onClick={run(handleCloseBoard)} />
     </>
   );
+}
+
+export function MenuBarFileMenu({
+  onOpenPgn,
+  onShare,
+  close,
+  run,
+}: {
+  onOpenPgn: () => void;
+  onShare: (url: string, copied: boolean) => void;
+  close: () => void;
+  run: (action: () => void) => () => void;
+}) {
+  return <FileMenuItems onOpenPgn={onOpenPgn} onShare={onShare} close={close} run={run} />;
 }

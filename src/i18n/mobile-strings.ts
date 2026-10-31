@@ -10,6 +10,9 @@ export const MOBILE_STRING_KEYS = [
   "mobile.tabs.engine",
   "mobile.tabs.review",
   "mobile.tabs.explorer",
+  "mobile.menu.open",
+  "mobile.menu.title",
+  "mobile.menu.close",
 ] as const;
 
 export type MobileStringKey = (typeof MOBILE_STRING_KEYS)[number];
@@ -20,6 +23,9 @@ const EN: Record<MobileStringKey, string> = {
   "mobile.tabs.engine": "Engine",
   "mobile.tabs.review": "Review",
   "mobile.tabs.explorer": "Explorer",
+  "mobile.menu.open": "Open menu",
+  "mobile.menu.title": "Menu",
+  "mobile.menu.close": "Close menu",
 };
 
 const PT_BR: Record<MobileStringKey, string> = {
@@ -28,6 +34,9 @@ const PT_BR: Record<MobileStringKey, string> = {
   "mobile.tabs.engine": "Motor",
   "mobile.tabs.review": "Análise",
   "mobile.tabs.explorer": "Explorador",
+  "mobile.menu.open": "Abrir menu",
+  "mobile.menu.title": "Menu",
+  "mobile.menu.close": "Fechar menu",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;
