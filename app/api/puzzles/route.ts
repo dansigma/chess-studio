@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
+import { tooManyRequests } from "@/src/lib/rate-limit-response";
 import { PUZZLES } from "@/src/puzzles/puzzle-data";
 import { compilePuzzle } from "@/src/puzzles/engine";
 import { fetchPuzzleRowById, queryPuzzleTable, type PuzzleTableQuery } from "@/src/puzzles/puzzle-store";
@@ -49,10 +50,7 @@ export async function GET(request: NextRequest) {
   const ip = clientIp(request.headers);
   const verdict = await limiter.checkAsync(rateLimitKey("puzzles", ip));
   if (!verdict.ok) {
-    return NextResponse.json(
-      { error: "Too many requests — try again shortly." },
-      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-    );
+    return tooManyRequests(verdict);
   }
   const searchParams = request.nextUrl.searchParams;
   const id = searchParams.get("id");
