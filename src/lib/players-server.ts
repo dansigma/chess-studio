@@ -6,6 +6,7 @@ import { GAMES_CACHE_TTL_MS, MAX_PLAYER_GAMES, isSource } from "./players/shared
 import { searchStudioDatabase, studioGames } from "./players/studio";
 
 export { searchFidePlayers } from "./players/fide";
+export { NoPublicGamesError } from "./players/shared";
 
 const gamesCache = createLruCache<string, { expires: number; payload: PlayerGamesResponse }>(200);
 
