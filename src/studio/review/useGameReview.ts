@@ -14,6 +14,7 @@ import { getNodeAt, type GameTree, type Path, type VariationPoint } from "@/src/
 import { acquire } from "@/src/engine/shared-engine";
 import { clampThreads, type EngineBuild } from "@/src/engine/stockfish-client";
 import { createE2eFakeReviewEngine, isE2eFakeReviewEnabled } from "./e2e-fake-review-engine";
+import { fetchBookReplies } from "./book-replies";
 import { createLeaseEngine } from "./lease-engine";
 import { extractMistakeExercises } from "@/src/chess/mistake-exercises";
 import type { ReviewSide } from "@/src/chess/review-report";
@@ -96,33 +97,6 @@ function ensureHydrated(): Promise<void> {
     hydratePromise = hydrateReviewCache().catch(() => undefined);
   }
   return hydratePromise;
-}
-
-async function fetchBookReplies(tree: GameTree, points: VariationPoint[], isCancelled: () => boolean) {
-  const replies: Array<string[] | null> = [];
-  for (let index = 0; index < points.length - 1; index += 1) {
-    if (isCancelled()) {
-      return replies;
-    }
-    try {
-      const response = await fetch(`/api/explorer?fen=${encodeURIComponent(points[index].fen)}&source=masters`);
-      if (!response.ok) {
-        replies.push(null);
-        break;
-      }
-      const payload = (await response.json()) as { moves?: Array<{ uci?: string }> };
-      const ucis = (payload.moves ?? []).flatMap((move) => (move.uci ? [move.uci] : []));
-      replies.push(ucis);
-      const node = getNodeAt(tree, points[index + 1].path);
-      if (!node || !ucis.includes(node.uci)) {
-        break;
-      }
-    } catch {
-      replies.push(null);
-      break;
-    }
-  }
-  return replies;
 }
 
 export function useGameReview({ tree, points, engineBuild, engineThreads, setupMode, userSide }: Options) {
@@ -228,6 +202,9 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     const lease = useFake ? null : acquire("review", engineBuild);
     let stopped = false;
     const isCancelled = () => stopped;
+    // SIG-1087: per-run controller so cancelling the review aborts the
+    // in-flight opening-book fetch, not just the loop's next iteration.
+    const bookController = new AbortController();
     const threads = reviewThreads(engineThreads);
     // Payload for this run only: resume() stashes the partial here, start()
     // leaves it null for a fresh run.
@@ -241,7 +218,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
       engine: lease
         ? createLeaseEngine(lease, threads, isCancelled)
         : createE2eFakeReviewEngine({ delayMs: 40, isCancelled }),
-      bookReplies: useFake ? async () => [] : () => fetchBookReplies(line.tree, line.points, isCancelled),
+      bookReplies: useFake ? async () => [] : () => fetchBookReplies(line.tree, line.points, isCancelled, bookController.signal),
       isCancelled,
       resume: resume ?? undefined,
       onProgress: (value) => {
@@ -299,6 +276,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
 
     return () => {
       stopped = true;
+      bookController.abort();
       lease?.release();
     };
   }, [running, setupMode, engineBuild, engineThreads, preset, cacheKey]);
