@@ -109,6 +109,8 @@ export interface FakeTableConfig {
   maybeSingle?: unknown;
   /** Error returned by `upsert` / `insert` on this table. */
   writeError?: unknown;
+  /** Row returned by the terminal `.single()` of an `insert().select().single()` chain. */
+  insertSingle?: unknown;
   /** Error returned by the terminal `maybeSingle()` call. */
   selectError?: unknown;
   /** Rows returned when a `select().eq()` chain is awaited directly (no terminal call). */
@@ -147,6 +149,14 @@ interface FakeUpdateChain {
   ): PromiseLike<TResult1 | TResult2>;
 }
 
+interface FakeInsertChain {
+  select(...args: unknown[]): { single(): Promise<{ data: unknown; error: unknown }> };
+  then<TResult1 = { data: unknown; error: unknown }, TResult2 = never>(
+    onfulfilled?: ((value: { data: unknown; error: unknown }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): PromiseLike<TResult1 | TResult2>;
+}
+
 interface FakeDeleteChain {
   eq(col: string, val: unknown): FakeDeleteChain;
   select(...args: unknown[]): Promise<{ data: unknown; error: unknown }>;
@@ -162,7 +172,7 @@ export interface FakeSupabaseClient {
   from(table: string): {
     select(...args: unknown[]): FakeSelectable;
     upsert(row: unknown): Promise<{ data: unknown; error: unknown }>;
-    insert(row: unknown): Promise<{ data: unknown; error: unknown }>;
+    insert(row: unknown): FakeInsertChain;
     update(row: unknown): FakeUpdateChain;
     delete(): FakeDeleteChain;
   };
@@ -194,7 +204,9 @@ export interface FakeSupabaseAuthHandlers {
  * Chainable query-builder fake covering exactly the chains routes use:
  * `from(t).select(..).eq(..)[.eq(..)].maybeSingle()`,
  * `from(t).select(..).eq(..)` awaited directly (slug pre-checks),
- * `from(t).upsert(row)`, `from(t).insert(row)`,
+ * `from(t).upsert(row)`, `from(t).insert(row)` awaited directly (chunk
+ * inserts) or `from(t).insert(row).select(..).single()` (SIG-1111 board
+ * inserts, coach-invite rows, game-database rows),
  * `from(t).update(row).eq(..)` (SIG-1113 course review actions),
  * `from(t).delete().eq(..)[.eq(..).select(..)]` (SIG-1113 course removal),
  * `auth.admin.updateUserById(id, attrs)`, plus the auth
@@ -241,9 +253,24 @@ export function createFakeSupabase(
           calls.upsert.push({ table, row });
           return { data: row, error: options.tables?.[table]?.writeError ?? null };
         },
-        insert: async (row: unknown) => {
+        insert: (row: unknown) => {
           calls.insert.push({ table, row });
-          return { data: row, error: options.tables?.[table]?.writeError ?? null };
+          const response = { data: row, error: options.tables?.[table]?.writeError ?? null };
+          const insertChain: FakeInsertChain = {
+            // `.insert(row).select(..).single()` resolves the configured
+            // `insertSingle` row (production insert chains need the new id).
+            select: () => ({
+              single: async () => ({
+                data: options.tables?.[table]?.insertSingle ?? { id: "new-id" },
+                error: options.tables?.[table]?.writeError ?? null,
+              }),
+            }),
+            // Awaiting the chain directly (chunk inserts) resolves the row —
+            // the real client is thenable the same way.
+            then: (onfulfilled, onrejected) =>
+              Promise.resolve(response).then(onfulfilled, onrejected),
+          };
+          return insertChain;
         },
         update: (row: unknown) => {
           calls.update.push({ table, row });
