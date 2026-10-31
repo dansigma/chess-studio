@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PUZZLE_CATALOG } from "./catalog.ts";
 import { compilePuzzle, dailyPuzzle, type CompiledPuzzle } from "./engine.ts";
-import { RUSH_STRIKES, clock, loadWindowedCatalog, nextSessionScore, pickPuzzle, ratingWindowRequests, rushAfterMiss } from "./use-puzzle-session";
+import { RUSH_STRIKES, capExcludeIds, clock, loadWindowedCatalog, nextSessionScore, pickPuzzle, ratingWindowRequests, rushAfterMiss } from "./use-puzzle-session";
 
 const template = compilePuzzle(PUZZLE_CATALOG[0]);
 
@@ -115,4 +115,41 @@ test("loadWindowedCatalog returns the widest window when all are thin", async ()
   const catalog = await loadWindowedCatalog("rated", null, 1200, 0, new Set(), loader as never);
   assert.equal(catalog.length, 1);
   assert.equal(catalog[0]?.id, "only");
+});
+
+// SIG-1179: a fully-seen pool yields no pick (the session surfaces the
+// exhausted empty state) instead of silently repeating a seen puzzle.
+test("pickPuzzle returns null when every puzzle is excluded", () => {
+  const puzzles = [candidate("a", 1200), candidate("b", 1300)];
+  assert.equal(pickPuzzle(puzzles, "rated", null, { rating: 1200 }, 0, new Set(["a", "b"])), null);
+});
+
+// SIG-1179: seen ids survive theme switches — exclusion is cross-theme: a
+// puzzle seen while training theme A never reappears under theme B.
+test("pickPuzzle excludes seen ids regardless of theme", () => {
+  const dual = { ...template, id: "dual", rating: 1200, themes: ["pin", "fork"] as never };
+  const otherFork = { ...candidate("other-fork", 1200), themes: ["fork"] as never };
+  const puzzles = [dual, otherFork];
+  withRandom(0, () => {
+    // Training "fork" with "dual" already seen serves the other fork puzzle.
+    const picked = pickPuzzle(puzzles, "rated", "fork", { rating: 1200 }, 0, new Set(["dual"]));
+    assert.equal(picked?.id, "other-fork");
+    // And once every fork puzzle is seen, nothing comes back (no repeat).
+    const exhausted = pickPuzzle(
+      puzzles,
+      "rated",
+      "fork",
+      { rating: 1200 },
+      0,
+      new Set(["dual", "other-fork"]),
+    );
+    assert.equal(exhausted, null);
+  });
+});
+
+test("capExcludeIds keeps the newest ids within the cap", () => {
+  const exclude = new Set(["a", "b", "c", "d"]);
+  assert.deepEqual(capExcludeIds(exclude, 2), ["c", "d"]);
+  assert.deepEqual(capExcludeIds(exclude), ["a", "b", "c", "d"]);
+  assert.deepEqual(capExcludeIds(new Set(), 2), []);
 });

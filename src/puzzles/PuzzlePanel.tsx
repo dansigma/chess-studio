@@ -30,6 +30,7 @@ export function PuzzlePanel({
     strikes,
     sessionOver,
     secondsLeft,
+    exhausted,
     progress,
     delta,
     gained,
@@ -175,7 +176,7 @@ export function PuzzlePanel({
             <Button onClick={giveUp}>{tPuzzle(locale, "puzzle.panel.solution")}</Button>
           </div>
         ) : null}
-        {status !== "playing" && continueLabel ? (
+        {status !== "playing" && continueLabel && !exhausted ? (
           <Button variant="primary" className="w-full" onClick={nextPuzzle}>
             <Check className="size-4" aria-hidden />
             {continueLabel}

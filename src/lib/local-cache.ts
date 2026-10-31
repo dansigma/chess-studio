@@ -13,6 +13,12 @@ export const REPERTOIRE_PROGRESS_KEY = "xd-repertoire-progress";
 export const REPERTOIRE_PROGRESS_OWNER_KEY = `${REPERTOIRE_PROGRESS_KEY}:owner`;
 export const MISTAKE_EXERCISES_KEY = "xd-mistake-exercises";
 export const MISTAKE_EXERCISES_OWNER_KEY = `${MISTAKE_EXERCISES_KEY}:owner`;
+// SIG-1179: best-effort anonymous seen history for the regular puzzle pool.
+// Ids of attempted puzzles (solved, failed, or gave up). Logged-in users get
+// the server-side puzzle_seen ledger; this key stays as the offline fallback
+// and the pre-login buffer that is merged on sign-in.
+export const PUZZLE_SEEN_KEY = "xadrez-digital.puzzles.seen";
+export const PUZZLE_SEEN_OWNER_KEY = `${PUZZLE_SEEN_KEY}:owner`;
 
 export const USER_LOCAL_CACHE_KEYS = [
   COURSE_PROGRESS_KEY,
@@ -23,6 +29,8 @@ export const USER_LOCAL_CACHE_KEYS = [
   REPERTOIRE_PROGRESS_OWNER_KEY,
   MISTAKE_EXERCISES_KEY,
   MISTAKE_EXERCISES_OWNER_KEY,
+  PUZZLE_SEEN_KEY,
+  PUZZLE_SEEN_OWNER_KEY,
 ];
 
 function userCacheStorage(): Storage | null {
