@@ -14,18 +14,25 @@ const MISTAKES_KEY = "xd-mistake-exercises";
 
 const SEED_EXERCISES = [
   {
-    key: "mx:first",
+    key: "mx:6k1/5ppp/8/8/8/8/5PPP/4R1K1 w",
     fen: "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
     solutionUci: ["e1e8"],
     playedUci: "h2h3",
   },
   {
-    key: "mx:second",
+    key: "mx:7k/5Qpp/8/8/8/8/6PP/6K1 w",
     fen: "7k/5Qpp/8/8/8/8/6PP/6K1 w - - 0 1",
     solutionUci: ["f7f8"],
     playedUci: "g2g3",
   },
 ] as const;
+
+/** Hex suffix mirror of puzzleIdForExercise (spec-side, no app import). */
+function expectedBoardId(key: string): string {
+  const suffix = key.startsWith("mx:") ? key.slice(3) : key;
+  const hex = Array.from(new TextEncoder().encode(suffix), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `mx-h-${hex}`;
+}
 
 test("mistakes mode: a miss stays due, a solve advances, rating untouched", async ({ page, context }) => {
   await context.addInitScript(
@@ -61,7 +68,10 @@ test("mistakes mode: a miss stays due, a solve advances, rating untouched", asyn
   await expect(panel(page)).toContainText("My mistakes");
 
   // First exercise: wrong move marks it failed; Next moves to the second.
-  expect(await boardKey(page)).toBe("mx-first");
+  // Seed keys use the production `mx:<fenKey>` shape (spaces + `/`) — the
+  // board id must be the CSS-safe hex form so react-chessboard's
+  // querySelector never throws.
+  expect(await boardKey(page)).toBe(expectedBoardId(SEED_EXERCISES[0].key));
   const firstSolution = solutionOf(SEED_EXERCISES[0].fen, [...SEED_EXERCISES[0].solutionUci]);
   const miss = wrongMove(SEED_EXERCISES[0].fen, firstSolution);
   await clickMove(page, miss.from, miss.to);
@@ -71,7 +81,7 @@ test("mistakes mode: a miss stays due, a solve advances, rating untouched", asyn
   const storedAfterMiss = await page.evaluate((k) => window.localStorage.getItem(k), MISTAKES_KEY);
   expect(storedAfterMiss ?? "").toContain('"intervalDays":1');
   await panel(page).getByRole("button", { name: "Next puzzle" }).click();
-  await expect.poll(() => boardKey(page)).toBe("mx-second");
+  await expect.poll(() => boardKey(page)).toBe(expectedBoardId(SEED_EXERCISES[1].key));
 
   // Solve it: right move marks solved, schedules it out, and shows caught-up.
   const secondSolution = solutionOf(SEED_EXERCISES[1].fen, [...SEED_EXERCISES[1].solutionUci]);
@@ -90,8 +100,9 @@ test("mistakes mode: a miss stays due, a solve advances, rating untouched", asyn
 });
 
 function board(page: Page): Locator {
-  // Board root id is `puzzle-<id>-board`, e.g. `puzzle-mx-first-board`.
-  return page.locator('[id^="puzzle-mx-"][id$="-board"]');
+  // Board root id is `puzzle-<id>-board` with a hex id, e.g.
+  // `puzzle-mx-h-…-board`.
+  return page.locator('[id^="puzzle-mx-h-"][id$="-board"]');
 }
 
 function panel(page: Page): Locator {
@@ -107,7 +118,7 @@ async function boardPuzzleId(page: Page): Promise<string> {
   if (!id) {
     throw new Error("puzzle board id not found");
   }
-  // Board-safe ids strip the colon: `puzzle-mx-first-board`.
+  // Board-safe hex ids: `puzzle-mx-h-<hex>-board`.
   return id.replace(/^puzzle-/, "").replace(/-board$/, "");
 }
 

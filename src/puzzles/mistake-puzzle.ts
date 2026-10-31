@@ -56,17 +56,51 @@ export function exerciseToPuzzle(exercise: MistakeExercise): Puzzle | null {
 export type MistakesQueueEntry = { stored: StoredExercise; puzzle: CompiledPuzzle };
 
 /**
- * Board-safe puzzle id for an exercise key. Exercise keys contain colons
- * (`mx:…`) which break `querySelector('#…-square-…')` inside
- * react-chessboard's piece animation — so converted puzzles get a
- * colon-free id and the session maps back via `exerciseKeyForPuzzle`.
+ * Board-safe puzzle id for an exercise key. Real exercise keys are
+ * `mx:<fenKey>` — the FEN fragment carries spaces and `/`, which break
+ * `querySelector('#…-square-…')` inside react-chessboard's piece animation
+ * (SyntaxError unmounts the board, so nothing can be solved). The suffix is
+ * hex-encoded (`mx-h-…`) so the id only ever contains `[0-9a-f-]`; map back
+ * with `exerciseKeyForPuzzle`.
  */
 export function puzzleIdForExercise(key: string): string {
-  return `mx-${key.replace(/^mx:/, "")}`;
+  const suffix = key.startsWith("mx:") ? key.slice(3) : key;
+  return `mx-h-${toHex(suffix)}`;
 }
 
+/**
+ * Map a board-safe puzzle id back to its exercise key for `recordAttempt`.
+ * Accepts the current hex form (`mx-h-<hex>`) plus the legacy colon-stripped
+ * form (`mx-first` → `mx:first`) from before the hex encoding.
+ */
 export function exerciseKeyForPuzzle(puzzleId: string): string {
-  return puzzleId.startsWith("mx-") ? `mx:${puzzleId.slice(3)}` : puzzleId;
+  if (puzzleId.startsWith("mx-h-")) {
+    try {
+      const decoded = fromHex(puzzleId.slice(5));
+      if (decoded.length > 0) {
+        return `mx:${decoded}`;
+      }
+    } catch {
+      // Corrupt id — fall through and return it unchanged.
+    }
+    return puzzleId;
+  }
+  if (puzzleId.startsWith("mx-") && /^[^\s/:]+$/.test(puzzleId.slice(3))) {
+    return `mx:${puzzleId.slice(3)}`;
+  }
+  return puzzleId;
+}
+
+function toHex(text: string): string {
+  return Array.from(new TextEncoder().encode(text), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function fromHex(hex: string): string {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i += 1) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return new TextDecoder().decode(bytes);
 }
 
 /**
