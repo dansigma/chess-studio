@@ -9,6 +9,7 @@ import {
 } from "./chesscom.ts";
 import { mockFetch } from "@/src/test-utils/route-test.ts";
 import { UpstreamPayloadTooLargeError } from "../read-capped.ts";
+import { NoPublicGamesError } from "./shared.ts";
 
 test("chesscomWinner reads the winning side and defaults to a draw", () => {
   assert.equal(chesscomWinner({ white: { result: "win" } }), "white");
@@ -181,6 +182,22 @@ test("chesscomGamesSince bounds the walk when no archive matches the cutoff mont
   assert.deepEqual(games, []);
   assert.ok(fetched.length <= 6, `expected <= 6 archive fetches, got ${fetched.length}`);
   assert.deepEqual(fetched, archives.slice(-6).reverse());
+});
+
+test("chesscomGames throws NoPublicGamesError on a 404 archives response", async (t) => {
+  mockFetch(t, (url) => {
+    if (url.includes("/games/archives")) {
+      return new Response("not found", { status: 404 });
+    }
+    return null;
+  });
+
+  await assert.rejects(
+    async () => {
+      await chesscomGames("nope-unknown-user");
+    },
+    (err: unknown) => err instanceof NoPublicGamesError,
+  );
 });
 
 test("chesscomGames throws UpstreamPayloadTooLargeError when archives response exceeds cap", async (t) => {

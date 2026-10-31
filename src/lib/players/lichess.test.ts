@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hitFromLichessUser, lichessGames, lichessGamesSince, lichessWinner } from "./lichess.ts";
+import { NoPublicGamesError } from "./shared.ts";
 import { mockFetch } from "@/src/test-utils/route-test.ts";
 import { UpstreamPayloadTooLargeError } from "../read-capped.ts";
 
@@ -147,6 +148,22 @@ test("lichessGamesSince omits since when sinceMs is zero", async (t) => {
   const params = new URL(seen[0] ?? "").searchParams;
   assert.equal(params.get("since"), null);
   assert.equal(params.get("max"), "80");
+});
+
+test("lichessGames throws NoPublicGamesError on a 404 response", async (t) => {
+  mockFetch(t, (url) => {
+    if (url.includes("api/games/user/hikaru")) {
+      return new Response("{}", { status: 404, headers: { "Content-Type": "application/json" } });
+    }
+    return null;
+  });
+
+  await assert.rejects(
+    async () => {
+      await lichessGames("hikaru");
+    },
+    (err: unknown) => err instanceof NoPublicGamesError,
+  );
 });
 
 test("lichessGames throws UpstreamPayloadTooLargeError when response exceeds cap", async (t) => {

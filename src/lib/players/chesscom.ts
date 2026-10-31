@@ -8,6 +8,7 @@ import {
   SEARCH_TIMEOUT_MS,
   UA,
   fetchTimeout,
+  NoPublicGamesError,
   mapWithConcurrency,
   playerResult,
 } from "./shared";
@@ -158,6 +159,9 @@ export async function chesscomGamesSince(
     GAMES_TIMEOUT_MS,
   );
   if (!archivesResponse.ok) {
+    if (archivesResponse.status === 404) {
+      throw new NoPublicGamesError("No public games for this Chess.com account.");
+    }
     throw new Error("Chess.com archives request failed");
   }
   const archivesText = await readCapped(archivesResponse, 512 * 1024);

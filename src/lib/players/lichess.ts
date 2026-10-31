@@ -13,6 +13,7 @@ import {
   UA,
   fetchTimeout,
   lichessToken,
+  NoPublicGamesError,
   playerResult,
 } from "./shared";
 import { readCapped } from "../read-capped";
@@ -214,11 +215,10 @@ export async function lichessGamesSince(
     next: { revalidate: 120 },
   });
   if (!response.ok) {
-    throw new Error(
-      response.status === 404
-        ? "No public games for this Lichess account."
-        : "Lichess games request failed",
-    );
+    if (response.status === 404) {
+      throw new NoPublicGamesError("No public games for this Lichess account.");
+    }
+    throw new Error("Lichess games request failed");
   }
   const text = await readCapped(response, MAX_PLAYER_GAMES_BYTES);
   const games: PlayerGame[] = [];
