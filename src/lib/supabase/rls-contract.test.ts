@@ -318,6 +318,74 @@ describe("sig-1102 puzzles_window migration", () => {
   });
 });
 
+describe("sig-1179 puzzle_seen migration", () => {
+  const sig1179 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261031000000_puzzle_seen.sql"),
+    "utf8",
+  );
+
+  it("creates an insert-only per-user seen ledger keyed by (user_id, puzzle_id)", () => {
+    assert.ok(sig1179.includes("create table if not exists public.puzzle_seen"));
+    assert.ok(sig1179.includes("primary key (user_id, puzzle_id)"), "missing composite primary key");
+    assert.ok(sig1179.includes("references auth.users (id) on delete cascade"), "must cascade on user delete");
+    assert.ok(sig1179.includes("puzzle_seen_user_idx"), "missing user index");
+  });
+
+  it("enables RLS with own-row select and insert policies only", () => {
+    assert.ok(sig1179.includes("alter table public.puzzle_seen enable row level security"));
+    assert.ok(sig1179.includes('"puzzle_seen_select_own"'), "missing select policy");
+    assert.ok(sig1179.includes('"puzzle_seen_insert_own"'), "missing insert policy");
+    const lines = sig1179.split("\n").map((line) => line.trim());
+    const updates = lines.filter(
+      (line) => /on public\.puzzle_seen$/.test(line) && /for (update|delete|all)/.test(line),
+    );
+    assert.deepEqual(updates, [], "ledger is insert-only: no update/delete/all policy");
+  });
+
+  it("wraps every auth check as a select subquery and grants only to authenticated", () => {
+    const bare = sig1179.match(/(?<![\w(])auth\.uid\(\)(?!\))/g) ?? [];
+    assert.equal(bare.length, 0, `found ${bare.length} unwrapped auth checks`);
+    assert.ok(sig1179.includes("(select auth.uid())"), "expected at least one wrapped auth check");
+    assert.ok(
+      sig1179.includes("grant select, insert on public.puzzle_seen to authenticated"),
+      "grants must be select+insert scoped to authenticated",
+    );
+    assert.ok(!/to (anon|public|service_role)/.test(sig1179), "no grants beyond authenticated");
+  });
+
+  it("samples unseen puzzles seed-stably with the same window filters as puzzles_window", () => {
+    assert.ok(sig1179.includes("create or replace function public.puzzles_unseen("), "missing function");
+    assert.ok(sig1179.includes("returns setof public.puzzles"), "must return table rows");
+    assert.ok(sig1179.includes("themes @> array[p_theme]"), "missing theme containment filter");
+    assert.ok(sig1179.includes("not (id = any (p_exclude))"), "missing exclude filter");
+    assert.ok(sig1179.includes("order by md5("), "must order seed-stably");
+    assert.ok(sig1179.includes("least(greatest("), "p_limit must be clamped");
+  });
+
+  it("excludes the caller's seen ledger and grants execute to authenticated only", () => {
+    assert.ok(sig1179.includes("from public.puzzle_seen"), "missing seen anti-join");
+    assert.ok(sig1179.includes("s.puzzle_id = puzzles.id"), "anti-join must match puzzle ids");
+    assert.ok(sig1179.includes("security invoker"), "must run as the caller so ledger RLS applies");
+    assert.ok(!/security definer/.test(sig1179), "must not be security definer");
+    assert.ok(/set search_path = ''/.test(sig1179), "must pin an empty search_path");
+    assert.ok(
+      sig1179.includes("grant execute on function public.puzzles_unseen(int, int, text, int, bigint, text[])"),
+      "missing execute grant with the full signature",
+    );
+    assert.ok(sig1179.includes("to authenticated"), "execute must cover authenticated");
+    const grantLine = sig1179.split("\n").find((line) => line.includes("puzzles_unseen(int"));
+    assert.ok(grantLine && !/to anon/.test(grantLine!), "execute must not cover anon");
+    // Postgres grants EXECUTE to PUBLIC by default: the grant to authenticated
+    // alone still leaves anon callable, so the migration must revoke PUBLIC/anon.
+    assert.ok(
+      /revoke execute on function public\.puzzles_unseen\(int, int, text, int, bigint, text\[\]\)[\s\S]*?from public, anon/.test(
+        sig1179,
+      ),
+      "must revoke default PUBLIC/anon execute so only authenticated can call",
+    );
+  });
+});
+
 describe("sig-1096 mistake_exercises migration", () => {
   const sig1096 = readFileSync(
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261021230000_mistake_exercises.sql"),

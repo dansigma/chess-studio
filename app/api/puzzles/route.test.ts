@@ -11,7 +11,8 @@ const storeHolder: {
   tableRows: CompiledPuzzle[] | null;
   tableRowById: Record<string, unknown>;
   lastTableQuery: Record<string, unknown> | null;
-} = { tableRows: null, tableRowById: {}, lastTableQuery: null };
+  authedUser: boolean;
+} = { tableRows: null, tableRowById: {}, lastTableQuery: null, authedUser: false };
 
 mock.module("@/src/puzzles/puzzle-store.ts", {
   namedExports: {
@@ -20,6 +21,16 @@ mock.module("@/src/puzzles/puzzle-store.ts", {
       return storeHolder.tableRows;
     },
     fetchPuzzleRowById: async (id: string) => storeHolder.tableRowById[id] ?? null,
+  },
+});
+
+// SIG-1179: the route checks the cookie session to pick puzzles_unseen.
+// Default mock: anonymous (no user) so existing tests keep the public path.
+mock.module("@/src/lib/supabase/server.ts", {
+  namedExports: {
+    createServerSupabase: async () => ({
+      auth: { getUser: async () => ({ data: { user: storeHolder.authedUser ? { id: "u1" } : null } }) },
+    }),
   },
 });
 
@@ -123,6 +134,7 @@ test("windowed request uses the table when available", async () => {
   storeHolder.tableRows = rows;
   storeHolder.tableRowById = {};
   storeHolder.lastTableQuery = null;
+  storeHolder.authedUser = false;
   const { res, body } = await get("?minRating=1400&maxRating=1600&limit=2");
   assert.equal(res.status, 200);
   assert.deepEqual(
@@ -136,10 +148,35 @@ test("windowed request uses the table when available", async () => {
     limit: 2,
     exclude: undefined,
     seed: undefined,
+    unseen: false,
   });
   // Windowed table hits are single capped pages, so total is page-relative.
   assert.equal(res.headers.get("X-Total-Count"), "2");
+  // Anonymous pages stay cacheable.
+  assert.equal(res.headers.get("Cache-Control"), "public, max-age=3600, stale-while-revalidate=86400");
   storeHolder.tableRows = null;
+});
+
+// SIG-1179: signed-in windowed requests go through the unseen RPC path and
+// are marked no-store (user-specific).
+test("windowed request for a signed-in user requests unseen and disables caching", async () => {
+  const { compilePuzzle } = await import("@/src/puzzles/engine.ts");
+  const { PUZZLE_CATALOG } = await import("@/src/puzzles/catalog.ts");
+  const rows = [PUZZLE_CATALOG[0]!].map((puzzle) => compilePuzzle(puzzle));
+  storeHolder.tableRows = rows;
+  storeHolder.tableRowById = {};
+  storeHolder.lastTableQuery = null;
+  storeHolder.authedUser = true;
+  const { res, body } = await get("?minRating=1400&maxRating=1600&limit=2");
+  assert.equal(res.status, 200);
+  assert.deepEqual(
+    (body as CompiledPuzzle[]).map((p) => p.id),
+    rows.map((p) => p.id),
+  );
+  assert.equal((storeHolder.lastTableQuery as unknown as { unseen: boolean }).unseen, true);
+  assert.equal(res.headers.get("Cache-Control"), "no-store");
+  storeHolder.tableRows = null;
+  storeHolder.authedUser = false;
 });
 
 test("windowed request falls back to the catalog when the table returns null", async () => {

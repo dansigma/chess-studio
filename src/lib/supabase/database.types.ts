@@ -677,6 +677,23 @@ export type Database = {
         };
         Relationships: [];
       };
+      // SIG-1179: per-user seen ledger for the regular puzzle pool.
+      // Insert-only: one row per (user, puzzle). No Update: rows are never
+      // modified; repeats are prevented by PK + the puzzles_unseen anti-join.
+      puzzle_seen: {
+        Row: {
+          user_id: string;
+          puzzle_id: string;
+          seen_at: string;
+        };
+        Insert: {
+          user_id: string;
+          puzzle_id: string;
+          seen_at?: string;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -796,6 +813,27 @@ export type Database = {
     Functions: {
       // SIG-1102: seed-stable sampling over public.puzzles (serving slice).
       puzzles_window: {
+        Args: {
+          p_min: number | null;
+          p_max: number | null;
+          p_theme: string | null;
+          p_limit: number | null;
+          p_seed: number | null;
+          p_exclude: string[] | null;
+        };
+        Returns: Array<{
+          id: string;
+          fen: string;
+          moves: string[];
+          rating: number;
+          themes: string[];
+          popularity: number | null;
+          nb_plays: number | null;
+        }>;
+      };
+      // SIG-1179: unseen sampling over public.puzzles for signed-in users.
+      // Mirrors puzzles_window plus an anti-join against the caller's seen ledger.
+      puzzles_unseen: {
         Args: {
           p_min: number | null;
           p_max: number | null;

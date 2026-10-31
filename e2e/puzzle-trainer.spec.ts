@@ -212,6 +212,39 @@ test("puzzle trainer: the daily puzzle solves and offers no continue button", as
   await expect(trainer.getByRole("link", { name: "Back to puzzles" })).toBeVisible();
 });
 
+/**
+ * SIG-1179: a solved puzzle is never served again. This spec runs logged out,
+ * so it exercises the anonymous localStorage seen path; the signed-in
+ * server-side exclusion (puzzles_unseen RPC) is covered by route/store unit
+ * tests. After solving, it advances through several puzzles and reloads,
+ * asserting the solved id never reappears.
+ */
+test("puzzle trainer: a solved puzzle never reappears after advancing and reload", async ({ page }) => {
+  await openTrainer(page, "rated");
+  const trainer = panel(page);
+
+  const first = await currentPuzzle(page);
+  await solve(page, first);
+  await expect(bubbleTitle(page)).toHaveText("Solved");
+
+  const seen = new Set([first.id]);
+  for (let step = 0; step < 5; step += 1) {
+    await trainer.getByRole("button", { name: "Next puzzle" }).click();
+    await expect.poll(() => boardPuzzleId(page)).not.toBe(first.id);
+    const nextId = await boardPuzzleId(page);
+    expect(seen.has(nextId)).toBe(false);
+    seen.add(nextId);
+    const next = await currentPuzzle(page);
+    await solve(page, next);
+    await expect(bubbleTitle(page)).toHaveText("Solved");
+  }
+
+  await page.reload();
+  await expect(board(page)).toBeVisible();
+  const afterReload = await boardPuzzleId(page);
+  expect(seen.has(afterReload)).toBe(false);
+});
+
 /** SIG-1070: with the pt-br locale stored, /puzzles renders Portuguese. */
 test("puzzles dashboard renders Portuguese with the pt-br locale stored", async ({ page, context }) => {
   await context.addInitScript(() => {

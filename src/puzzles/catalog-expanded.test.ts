@@ -100,8 +100,9 @@ test("session simulation: Rated mode with theme pulls fresh puzzles", () => {
   const mode: PuzzleMode = "rated";
   const theme: PuzzleTheme = "pin";
 
-  // Simulate solving 30 pin puzzles in a session
-  for (let solved = 0; solved < 30; solved++) {
+  const poolSize = COMPILED_ALL.filter((p) => p.themes.includes("pin")).length;
+  // Simulate solving pin puzzles until the theme pool is exhausted.
+  for (let solved = 0; solved < poolSize; solved++) {
     const target = sessionTarget(progress.rating, solved, mode);
     const ranked = rankedPuzzles(COMPILED_ALL, target, exclude, theme);
     assert.ok(ranked.length > 0, `No pin puzzles available at step ${solved}`);
@@ -115,7 +116,15 @@ test("session simulation: Rated mode with theme pulls fresh puzzles", () => {
     exclude.add(chosen.id);
   }
 
-  assert.equal(exclude.size, 30);
+  assert.equal(exclude.size, poolSize);
+});
+
+// SIG-1179: no silent repeat — an exhausted pool yields an empty list so the
+// caller can surface the empty state instead of re-serving a seen puzzle.
+test("rankedPuzzles returns empty when every candidate is excluded", () => {
+  const all = new Set(COMPILED_ALL.map((p) => p.id));
+  assert.deepEqual(rankedPuzzles(COMPILED_ALL, 1200, all), []);
+  assert.deepEqual(rankedPuzzles(COMPILED_ALL, 1200, all, "pin"), []);
 });
 
 test("fallback catalog offline support", async () => {

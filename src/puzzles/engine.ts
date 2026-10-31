@@ -131,10 +131,13 @@ export function rankedPuzzles(
   exclude: ReadonlySet<string>,
   theme?: PuzzleTheme,
 ): CompiledPuzzle[] {
-  const themed = theme ? puzzles.filter((puzzle) => puzzle.themes.includes(theme)) : [...puzzles];
-  const fresh = themed.filter((puzzle) => !exclude.has(puzzle.id));
-  const source = fresh.length > 0 ? fresh : themed;
-  return [...source].sort(
+  // SIG-1179: no silent-repeat fallback. When every candidate is seen, the
+  // caller gets an empty list and surfaces the exhausted empty state instead
+  // of re-serving a seen puzzle.
+  const fresh = (theme ? puzzles.filter((puzzle) => puzzle.themes.includes(theme)) : [...puzzles]).filter(
+    (puzzle) => !exclude.has(puzzle.id),
+  );
+  return [...fresh].sort(
     (a, b) => Math.abs(a.rating - rating) - Math.abs(b.rating - rating) || a.id.localeCompare(b.id),
   );
 }

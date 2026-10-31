@@ -25,6 +25,7 @@ import {
 } from "./mistake-puzzle";
 import { loadPuzzleCatalog } from "./puzzle-client";
 import { hydratePuzzleProgress } from "./progress";
+import { mergeLocalSeenToAccount, recordSeen } from "./seen";
 import type { PuzzleMode, PuzzleTheme } from "./types";
 import type { PuzzleScoring } from "./use-puzzle-scoring";
 
@@ -89,7 +90,19 @@ export function nextSessionScore(success: boolean, solved: number): number {
  * SIG-1102: load the rating window around the session target, widening on
  * thin results. Daily mode is excluded by the caller (date-keyed identity
  * comes from the full catalog).
+ *
+ * SIG-1179: when the session exclude set is large (persistent seen history),
+ * callers cap what they send — anonymous clients pass at most
+ * MAX_EXCLUDE_IDS session+local ids; signed-in clients pass session ids only
+ * because the `puzzles_unseen` RPC excludes the account ledger server-side.
  */
+export const MAX_EXCLUDE_IDS = 500;
+
+export function capExcludeIds(exclude: ReadonlySet<string>, max: number = MAX_EXCLUDE_IDS): string[] {
+  const ids = [...exclude];
+  return ids.slice(Math.max(0, ids.length - Math.max(1, max)));
+}
+
 export async function loadWindowedCatalog(
   mode: PuzzleMode,
   theme: PuzzleTheme | null,
@@ -106,7 +119,7 @@ export async function loadWindowedCatalog(
       maxRating: window.maxRating,
       theme: theme ?? undefined,
       limit: 50,
-      exclude: [...exclude],
+      exclude: capExcludeIds(exclude),
       seed,
     });
     widest = catalog;
@@ -149,6 +162,9 @@ export function usePuzzleSession({
   const [sessionOver, setSessionOver] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RUSH_SECONDS);
   const [loadError, setLoadError] = useState<boolean>(false);
+  // SIG-1179: true when every puzzle in the widened pool is seen. The trainer
+  // renders the exhausted empty state instead of re-serving a seen puzzle.
+  const [exhausted, setExhausted] = useState(false);
   // SIG-1097: mistakes queue state. `caughtUp` is true when the queue is
   // empty; `nextDue` is the earliest scheduled due date (null when no
   // scheduled entries exist).
@@ -167,6 +183,8 @@ export function usePuzzleSession({
   const sessionSolvedRef = useRef(0);
   const strikesRef = useRef(0);
   const secondsRef = useRef(RUSH_SECONDS);
+  // SIG-1179: signed-in user for seen recording; set once per init effect.
+  const sessionUserIdRef = useRef<string | null>(null);
   const exclude = useRef(new Set<string>());
   const fenRef = useRef("");
   const advanceTimer = useRef<number | null>(null);
@@ -189,6 +207,7 @@ export function usePuzzleSession({
     clearAdvance();
     resetResult();
     shownAtRef.current = Date.now();
+    setExhausted(false);
     setPuzzle(next);
     setFen(next.fen);
     setPly(0);
@@ -213,6 +232,14 @@ export function usePuzzleSession({
     const ms = Math.max(0, Date.now() - shownAtRef.current);
     if (!applyScore(success, currentPuzzle, score, ms)) {
       return;
+    }
+    // SIG-1179: the attempt commits → the puzzle is seen, whatever the
+    // outcome (solve, fail, give-up all funnel here). Daily is date-keyed and
+    // mistakes re-shows by SRS design, so neither records. The id is also in
+    // exclude.current already (added at show time); the remote write lands
+    // async, so the in-memory set stays the immediate guard.
+    if (mode !== "mistakes" && mode !== "daily") {
+      recordSeen(currentPuzzle.id, sessionUserIdRef.current);
     }
     sessionSolvedRef.current = score;
     setSessionSolved(score);
@@ -250,7 +277,16 @@ export function usePuzzleSession({
         const supabase = createBrowserSupabase();
         const user = supabase ? (await supabase.auth.getUser()).data.user : null;
         const userId = user?.id ?? null;
+        sessionUserIdRef.current = userId;
         const loaded = await hydratePuzzleProgress(userId);
+        if (cancel) {
+          return;
+        }
+        // SIG-1179: merge the anonymous buffer into the account ledger, then
+        // seed the session exclude with the local set. Signed-in users rely
+        // on the puzzles_unseen RPC for the account ledger (never downloaded)
+        // plus this seeded set + in-session ids sent as `exclude`.
+        const seenLocal = mode === "daily" || mode === "mistakes" ? new Set<string>() : await mergeLocalSeenToAccount(userId);
         if (cancel) {
           return;
         }
@@ -301,24 +337,34 @@ export function usePuzzleSession({
         const catalog =
           mode === "daily"
             ? await loadPuzzleCatalog()
-            : await loadWindowedCatalog(mode, theme, loaded.rating, 0, exclude.current);
+            : await loadWindowedCatalog(mode, theme, loaded.rating, 0, new Set([...seenLocal, ...exclude.current]));
         if (cancel) {
           return;
         }
         catalogRef.current = catalog;
         hydrate(loaded);
         sessionSolvedRef.current = 0;
-        exclude.current = new Set();
+        // SIG-1179: keep the seeded seen ids — never reset to empty, so a
+        // retry or remount cannot re-serve an attempted puzzle.
+        exclude.current = new Set(seenLocal);
         setSessionSolved(0);
         strikesRef.current = 0;
         setStrikes(0);
         setSessionOver(false);
         secondsRef.current = RUSH_SECONDS;
         setSecondsLeft(RUSH_SECONDS);
+        setExhausted(false);
         const first = pickPuzzle(catalogRef.current, mode, theme, loaded, 0, exclude.current);
         if (!first) {
           setPuzzle(null);
           setLoadError(false);
+          // SIG-1179: widened windows came back with nothing fresh — the pool
+          // is exhausted, not broken. Daily always has its date-keyed puzzle.
+          // (The mistakes branch returns earlier, so `mode` is narrowed past
+          // it here; the guard reads oddly but keeps tsc honest.)
+          if (mode !== "daily") {
+            setExhausted(true);
+          }
           return;
         }
         exclude.current.add(first.id);
@@ -492,9 +538,29 @@ export function usePuzzleSession({
     if (!current || mode === "daily") {
       return;
     }
+    // SIG-1179: refetch when the cached window is exhausted so a thin window
+    // (all ids seen) widens instead of yielding nothing while unseen puzzles
+    // exist outside the window. Empty refetch → exhausted empty state.
     const chosen = pickPuzzle(catalogRef.current, mode, theme, current, sessionSolvedRef.current, exclude.current);
     if (!chosen) {
+      setExhausted(true);
       return;
+    }
+    const freshRemaining = catalogRef.current.filter((p) => !exclude.current.has(p.id)).length;
+    if (freshRemaining <= 1) {
+      void (async () => {
+        const refetched = await loadWindowedCatalog(
+          mode,
+          theme,
+          current.rating,
+          sessionSolvedRef.current,
+          exclude.current,
+        ).catch(() => null);
+        if (!refetched || refetched.length === 0) {
+          return;
+        }
+        catalogRef.current = refetched;
+      })();
     }
     exclude.current.add(chosen.id);
     showPuzzle(chosen);
@@ -531,7 +597,9 @@ export function usePuzzleSession({
     if (!current) {
       return;
     }
-    exclude.current = new Set();
+    // SIG-1179: retry replays the same pool — keep the seen ids so seen
+    // puzzles stay excluded, but clear the exhausted flag for a fresh attempt.
+    setExhausted(false);
     sessionSolvedRef.current = 0;
     setSessionSolved(0);
     strikesRef.current = 0;
@@ -541,6 +609,7 @@ export function usePuzzleSession({
     setSecondsLeft(RUSH_SECONDS);
     const chosen = pickPuzzle(catalogRef.current, mode, theme, current, 0, exclude.current);
     if (!chosen) {
+      setExhausted(true);
       return;
     }
     exclude.current.add(chosen.id);
@@ -562,6 +631,7 @@ export function usePuzzleSession({
     sessionOver,
     secondsLeft,
     loadError,
+    exhausted,
     caughtUp,
     nextDue,
     mistakesTotal,

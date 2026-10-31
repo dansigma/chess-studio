@@ -53,6 +53,20 @@ export function PuzzleTrainer() {
             {tMistakes(locale, "mistakes.trainer.caughtUp.back")}
           </Link>
         </main>
+      ) : session.exhausted && scoring.progress ? (
+        // SIG-1179: every puzzle in the widened pool is seen — show the empty
+        // state instead of re-serving a seen puzzle.
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+          <h1 className="text-2xl font-semibold text-studio-fg">
+            {tPuzzle(locale, "puzzle.trainer.exhausted.title")}
+          </h1>
+          <p className="mt-2 text-body text-studio-muted">
+            {tPuzzle(locale, "puzzle.trainer.exhausted.body")}
+          </p>
+          <Link href="/puzzles" className="mt-4 inline-block text-body text-studio-accent-text">
+            {tPuzzle(locale, "puzzle.trainer.exhausted.back")}
+          </Link>
+        </main>
       ) : !scoring.progress || !session.puzzle || !session.fen ? (
         <main className="px-6 py-10 text-body text-studio-muted" role="status">
           {tPuzzle(locale, "puzzle.trainer.loading")}
