@@ -10,7 +10,7 @@
 // (same grain as the SIG-1099 open-line flow in MyStatsPanel).
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tPrep } from "@/src/i18n/prep-strings";
@@ -39,6 +39,7 @@ const ERROR_KEYS = {
 // Stored on globalThis so lint's `react-hooks/globals` rule accepts the
 // cross-render handoff (module-level `let` reassignment is the flagged shape).
 const PENDING_KEY = "__opponentPrepInitial";
+const PENDING_EVENT = "opponent-prep-request";
 
 type PrepInitial = { source: OpponentPrepSource; username: string };
 
@@ -59,6 +60,11 @@ function takePendingInitial(): PrepInitial | null {
 
 export function setOpponentPrepInitial(value: PrepInitial | null): void {
   (globalThis as Record<string, unknown>)[PENDING_KEY] = value;
+  if (value && typeof window !== "undefined") {
+    // The panel consumes the value on mount; when it is already open, this
+    // event lets the mounted panel apply the request instead of dropping it.
+    window.dispatchEvent(new window.CustomEvent<PrepInitial>(PENDING_EVENT, { detail: value }));
+  }
 }
 
 export function openOpponentPrepPanel(initial?: PrepInitial): void {
@@ -203,6 +209,22 @@ export function OpponentPrepPanel() {
       setUsername(initial.username);
     }
   }
+
+  // A "Prepare against" click while this panel is already mounted must still
+  // apply, so the pending request is also delivered as a DOM event.
+  useEffect(() => {
+    function onRequest(event: Event): void {
+      const detail = (event as CustomEvent<PrepInitial>).detail;
+      if (!detail) {
+        return;
+      }
+      (globalThis as Record<string, unknown>)[PENDING_KEY] = null;
+      setSource(detail.source);
+      setUsername(detail.username);
+    }
+    window.addEventListener(PENDING_EVENT, onRequest);
+    return () => window.removeEventListener(PENDING_EVENT, onRequest);
+  }, []);
 
   function load(): void {
     const name = username.trim();
