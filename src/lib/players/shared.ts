@@ -8,6 +8,10 @@ export const GAMES_TIMEOUT_MS = 15_000;
 
 export const UA = "StudioClone/0.1 (chess analysis; local development)";
 
+export function lichessToken(): string | undefined {
+  return process.env.LICHESS_TOKEN ?? process.env.LICHESS_API_TOKEN;
+}
+
 export function fetchTimeout(
   url: string,
   init: RequestInit,

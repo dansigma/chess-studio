@@ -14,6 +14,8 @@ import { lookupOpeningIndex } from "@/src/lib/opening-index";
 import { createLruCache } from "@/src/lib/lru";
 import { isExplorerFen } from "@/src/lib/request-validation";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
+import { tooManyRequests } from "@/src/lib/rate-limit-response";
+import { lichessToken } from "@/src/lib/players/shared";
 import { _resetExplorerUpstreamForTest, fetchExplorerUpstream } from "@/src/lib/explorer-upstream.ts";
 
 const memoryCache = createLruCache<string, { payload: ExplorerResponse; fetchedAt: number }>(500);
@@ -32,10 +34,6 @@ function isSource(value: string | null): value is "masters" | "lichess" | "curat
 
 function cacheKey(source: CloudExplorerSource, fen: string): string {
   return `${source}|${fen}`;
-}
-
-function lichessToken(): string | undefined {
-  return process.env.LICHESS_TOKEN ?? process.env.LICHESS_API_TOKEN;
 }
 
 /**
@@ -75,10 +73,7 @@ export async function GET(request: NextRequest) {
   const ip = clientIp(request.headers);
   const verdict = await limiter.checkAsync(rateLimitKey("explorer", ip));
   if (!verdict.ok) {
-    return NextResponse.json(
-      { error: "Too many requests — try again shortly." },
-      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-    );
+    return tooManyRequests(verdict);
   }
 
   const filters = filtersFromSearchParams(request.nextUrl.searchParams);

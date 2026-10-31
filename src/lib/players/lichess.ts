@@ -12,13 +12,10 @@ import {
   SEARCH_TIMEOUT_MS,
   UA,
   fetchTimeout,
+  lichessToken,
   playerResult,
 } from "./shared";
 import { readCapped } from "../read-capped";
-
-function lichessToken(): string | undefined {
-  return process.env.LICHESS_TOKEN ?? process.env.LICHESS_API_TOKEN;
-}
 
 export function lichessHeaders(): Record<string, string> {
   const headers: Record<string, string> = {

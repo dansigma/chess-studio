@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getBookGamePgn } from "@/src/lib/opening-book";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
+import { tooManyRequests } from "@/src/lib/rate-limit-response";
 import { readCapped, UpstreamPayloadTooLargeError } from "@/src/lib/read-capped";
 
 const MAX_MASTERS_PGN_BYTES = 1024 * 1024; // 1 MB
@@ -15,10 +16,7 @@ export async function GET(request: NextRequest) {
   const ip = clientIp(request.headers);
   const verdict = await limiter.checkAsync(rateLimitKey("masters-pgn", ip));
   if (!verdict.ok) {
-    return NextResponse.json(
-      { error: "Too many requests — try again shortly." },
-      { status: 429, headers: { "Retry-After": String(verdict.retryAfterSeconds) } },
-    );
+    return tooManyRequests(verdict);
   }
 
   const book = getBookGamePgn(id);
