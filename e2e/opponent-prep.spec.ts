@@ -78,6 +78,67 @@ test("opponent prep: loading shows both tabs, expanding and preparing opens a bo
   await expect(page.getByRole("tab", { name: /Board/ }).first()).toBeVisible();
 });
 
+test("opponent prep: Prepare against updates a panel that is already open", async ({ page }) => {
+  await page.route("**/api/prep/opponent*", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(PROFILE) });
+  });
+  await page.route("**/api/players/search*", async (route) => {
+    const url = new URL(route.request().url());
+    const q = (url.searchParams.get("q") ?? "").toLowerCase();
+    const players =
+      q.includes("nyk") || q.includes("dr")
+        ? [
+            {
+              id: "lichess:drnykterstein",
+              source: "lichess",
+              username: "DrNykterstein",
+              displayName: "DrNykterstein",
+              subtitle: "Lichess",
+            },
+          ]
+        : [
+            {
+              id: "lichess:oldname",
+              source: "lichess",
+              username: "oldname",
+              displayName: "oldname",
+              subtitle: "Lichess",
+            },
+          ];
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ players }) });
+  });
+  await page.route("**/api/players/games*", async (route) => {
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ games: [] }) });
+  });
+  // Panel already mounted with a stale username (the QA repro: type
+  // `oldname` first, then PlayerGamesPanel "Prepare against" for another
+  // player must replace the input, not wait for a re-mount).
+  await openPrepPanel(page);
+  await page.getByPlaceholder("Opponent username").fill("oldname");
+
+  // Same effect as PlayerGamesPanel.openOpponentPrepPanel: go through the
+  // real app path — search a player, open their games, click "Prepare
+  // against". The search API is mocked with two players; switching from the
+  // first (oldname) to the second (DrNykterstein) while the prep panel stays
+  // open is the QA repro. Note: opening the prep panel leaves the Boards
+  // sidebar behind, so navigate to the Search sidebar explicitly (clicking
+  // the active activity button would collapse it instead).
+  await page.getByRole("button", { name: "Search" }).first().click();
+  await expect(page.getByPlaceholder("Lichess, Chess.com, or book…")).toBeVisible();
+  await page.getByPlaceholder("Lichess, Chess.com, or book…").fill("oldname");
+  await page.getByRole("button", { name: /oldname/ }).first().click();
+  await expect(page.getByRole("button", { name: "Prepare against", exact: true })).toBeVisible();
+
+  // Still on the Search sidebar, find the second player; clicking their row
+  // swaps the player-games panel to DrNykterstein, then "Prepare against"
+  // must update the already-open prep panel's input.
+  await page.getByPlaceholder("Lichess, Chess.com, or book…").fill("DrNyk");
+  await page.getByRole("button", { name: /DrNykterstein/ }).first().click();
+  await page.getByRole("button", { name: "Prepare against", exact: true }).click();
+
+  await expect(page.getByPlaceholder("Opponent username")).toHaveValue("DrNykterstein");
+});
+
 test("opponent prep: error states render distinctly in both languages", async ({ page }) => {
   await openPrepPanel(page);
   await page.getByPlaceholder("Opponent username").fill("ghost");
