@@ -17,7 +17,7 @@ import { useExplorerData } from "./use-explorer-data";
 
 const compactCount = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
-const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(96px,160px)] items-center gap-3 px-3";
+const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(170px,220px)] items-center gap-3 px-3";
 
 /**
  * SIG-908: runtime guard for a dockview `params.source` value. The panel id
@@ -189,8 +189,8 @@ function ExplorerChrome({
         className={`${ROW_GRID} relative border-b border-studio-border-subtle py-1.5 text-caption uppercase tracking-wider text-studio-faint`}
       >
         <span>{tPanels(locale, "explorer.column.move")}</span>
-        <span>{tPanels(locale, "explorer.column.games")}</span>
-        <span>{tPanels(locale, "explorer.column.split")}</span>
+        <span className="truncate">{tPanels(locale, "explorer.column.games")}</span>
+        <span className="whitespace-nowrap">{tPanels(locale, "explorer.column.split")}</span>
         {loading ? (
           <span className="absolute inset-x-0 -bottom-px h-0.5 overflow-hidden" role="progressbar" aria-label={tPanels(locale, "explorer.loading")}>
             <span className="absolute inset-y-0 w-1/3 animate-[studio-progress_1.1s_ease-in-out_infinite] bg-studio-accent" />

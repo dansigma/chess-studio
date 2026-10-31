@@ -3,8 +3,8 @@ import test from "node:test";
 import { DOCK_LAYOUT_VERSION, sanitizeDockLayout } from "./dock-layout.ts";
 
 const notation = { id: "notation", contentComponent: "notation", title: "Notation" };
-const explorer = { id: "explorer", contentComponent: "explorer", title: "Ultra Database" };
-const explorerA = { id: "explorer:a1", contentComponent: "explorer", title: "Ultra Database" };
+const explorer = { id: "explorer", contentComponent: "explorer", title: "Opening Explorer" };
+const explorerA = { id: "explorer:a1", contentComponent: "explorer", title: "Opening Explorer" };
 const explorerB = { id: "explorer:b2", contentComponent: "explorer", title: "Online Database" };
 const board = { id: "board:b1", contentComponent: "board", title: "Board" };
 const boardTwo = { id: "board:b2", contentComponent: "board", title: "Second" };

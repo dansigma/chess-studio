@@ -4,7 +4,7 @@
 // src/i18n/studio-chrome-strings.ts): a missing PT-BR key fails `tsc`.
 // Interpolated lines are whole-sentence templates (`{name}`, `{count}`,
 // `{title}`), never concatenation, so Portuguese word order is free. Brand and
-// proper names stay untranslated: Ultra Database, Chess.com, Lichess, the PGN
+// proper names stay untranslated: Chess.com, Lichess, the PGN
 // placeholder `[Event "..."]`, the `Ctrl+N` shortcut hint, the `W`/`B` color
 // chips, and the `+` in the Files empty hint. Sidebar-local `sidebar.*` keys
 // intentionally duplicate three `chrome.activity.*` values (boards, databases,
@@ -56,7 +56,8 @@ export const STUDIO_SIDEBAR_STRING_KEYS = [
   "sidebar.databases.personal",
   "sidebar.databases.curatedTitle",
   "sidebar.databases.curatedDesc",
-  "sidebar.databases.ultraDesc",
+  "sidebar.databases.mastersTitle",
+  "sidebar.databases.mastersDesc",
   "sidebar.databases.onlineTitle",
   "sidebar.databases.onlineDesc",
   "sidebar.databases.chesscomDesc",
@@ -121,7 +122,8 @@ const EN: Record<StudioSidebarStringKey, string> = {
   "sidebar.databases.personal": "Personal",
   "sidebar.databases.curatedTitle": "Curated Masters",
   "sidebar.databases.curatedDesc": "Offline curated master database and position index",
-  "sidebar.databases.ultraDesc": "Over-the-board master games · Lichess Masters",
+  "sidebar.databases.mastersTitle": "Opening Explorer",
+  "sidebar.databases.mastersDesc": "Over-the-board master games · Lichess Masters",
   "sidebar.databases.onlineTitle": "Online Database",
   "sidebar.databases.onlineDesc": "Online games from Lichess",
   "sidebar.databases.chesscomDesc": "Published games of the open player",
@@ -187,7 +189,8 @@ const PT_BR: Record<StudioSidebarStringKey, string> = {
   "sidebar.databases.personal": "Pessoais",
   "sidebar.databases.curatedTitle": "Mestres selecionados",
   "sidebar.databases.curatedDesc": "Base de dados offline de mestres e índice de posições",
-  "sidebar.databases.ultraDesc": "Partidas de mestres no tabuleiro · Lichess Masters",
+  "sidebar.databases.mastersTitle": "Explorador de Abertura",
+  "sidebar.databases.mastersDesc": "Partidas de mestres no tabuleiro · Lichess Masters",
   "sidebar.databases.onlineTitle": "Base de dados online",
   "sidebar.databases.onlineDesc": "Partidas online do Lichess",
   "sidebar.databases.chesscomDesc": "Partidas publicadas do jogador aberto",
