@@ -4,8 +4,8 @@
 // src/i18n/course-admin-strings.ts): a missing PT-BR key fails `tsc`.
 // Interpolated lines are whole-sentence templates (`{site}`, `{count}`),
 // never concatenation, so Portuguese word order is free. Shortcut hints
-// (`Ctrl+N` …), brand names (SITE_NAME, Stockfish, Lichess, Ultra
-// Database/Games, PGN/FEN) and option values that are proper names
+// (`Ctrl+N` …), brand names (SITE_NAME, Stockfish, Lichess,
+// PGN/FEN) and option values that are proper names
 // (piece-set/board-theme/engine-build labels) stay untranslated. Panel-name
 // menu copies (`chrome.view.panel.*`) are chrome-local; the panels slice owns
 // the canonical panel names and may reconcile them later.
@@ -226,8 +226,8 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.view.panel.evalGraph": "Eval Graph",
   "chrome.view.panel.review": "Game Review",
   "chrome.view.panel.insights": "Insights",
-  "chrome.view.panel.explorer": "Ultra Database",
-  "chrome.view.panel.games": "Ultra Games",
+  "chrome.view.panel.explorer": "Opening Explorer",
+  "chrome.view.panel.games": "Games",
   "chrome.view.panel.fileGames": "Games",
   "chrome.view.panel.positionSearch": "Position Search",
   "chrome.view.panel.myStats": "My Stats",
@@ -359,8 +359,8 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.view.panel.evalGraph": "Gráfico de avaliação",
   "chrome.view.panel.review": "Revisão de partida",
   "chrome.view.panel.insights": "Insights",
-  "chrome.view.panel.explorer": "Ultra Database",
-  "chrome.view.panel.games": "Ultra Games",
+  "chrome.view.panel.explorer": "Explorador de Abertura",
+  "chrome.view.panel.games": "Partidas",
   "chrome.view.panel.fileGames": "Partidas",
   "chrome.view.panel.positionSearch": "Busca de posição",
   "chrome.view.panel.myStats": "Minhas estatísticas",

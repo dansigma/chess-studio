@@ -30,10 +30,14 @@ test("studio panel interpolated strings render whole sentences with vars", () =>
     tPanels("pt-br", "explorer.error"),
     "Não foi possível carregar o explorador. Tente de novo.",
   );
-  assert.equal(tPanels("en", "games.title", { name: "Ultra" }), "Games · Ultra");
-  assert.equal(tPanels("pt-br", "games.title", { name: "Ultra" }), "Partidas · Ultra");
+  assert.equal(tPanels("en", "games.title", { name: "Games" }), "Games · Games");
+  assert.equal(tPanels("pt-br", "games.title", { name: "Partidas" }), "Partidas · Partidas");
   assert.equal(tPanels("en", "games.source.curated"), "Curated");
   assert.equal(tPanels("pt-br", "games.source.curated"), "Selecionados");
+  assert.equal(tPanels("en", "explorer.column.split"), "White · Draws · Black");
+  assert.equal(tPanels("pt-br", "explorer.column.split"), "Brancas · Empates · Pretas");
+  assert.equal(tPanels("en", "players.column.split"), "White · Draws · Black");
+  assert.equal(tPanels("pt-br", "players.column.split"), "Brancas · Empates · Pretas");
   assert.equal(tPanels("en", "panels.playerGames", { title: "Magnus" }), "Magnus — games");
   assert.equal(tPanels("pt-br", "panels.playerGames", { title: "Magnus" }), "Magnus — partidas");
   assert.equal(tPanels("en", "panels.playerExplorer", { title: "Magnus" }), "Magnus");

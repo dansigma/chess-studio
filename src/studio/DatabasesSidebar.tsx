@@ -10,8 +10,9 @@ import { SidebarHint, SidebarItem, SidebarPanel } from "./ui/Sidebar";
 
 const PUBLIC_SOURCES: Array<{
   source: ExplorerSource;
-  // SIG-1074: brand titles ("Ultra Database", "Chess.com") stay literal EN;
-  // every other user-visible string goes through `tSidebar` at render time.
+  // SIG-1178: source titles go through `tSidebar` at render time ("Chess.com"
+  // stays a literal brand); every other user-visible string goes through
+  // `tSidebar` at render time.
   titleKey: StudioSidebarStringKey | null;
   title: string;
   descriptionKey: StudioSidebarStringKey;
@@ -26,9 +27,9 @@ const PUBLIC_SOURCES: Array<{
   },
   {
     source: "masters",
-    titleKey: null,
-    title: "Ultra Database",
-    descriptionKey: "sidebar.databases.ultraDesc",
+    titleKey: "sidebar.databases.mastersTitle",
+    title: "",
+    descriptionKey: "sidebar.databases.mastersDesc",
     icon: Database,
   },
   {
