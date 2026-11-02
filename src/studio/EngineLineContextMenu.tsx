@@ -13,6 +13,13 @@ export type EngineLineMenuState = {
   pvUci: string[];
 };
 
+export function resolveEngineLineInsert(menu: EngineLineMenuState): string[][] | null {
+  if (menu.pvUci.length === 0) {
+    return null;
+  }
+  return [[...menu.pvUci]];
+}
+
 export function clampEngineMenuPosition(
   x: number,
   y: number,
@@ -70,8 +77,14 @@ export function EngineLineContextMenu({
       <MenuSurface className="min-w-52" onClose={onClose} label={tPanels(locale, "engine.lineMenu")}>
         <MenuItem
           label={tPanels(locale, "engine.insertLine")}
+          disabled={menu.pvUci.length === 0}
           onClick={() => {
-            useStudioStore.getState().insertEngineLines(fen, [menu.pvUci]);
+            const lines = resolveEngineLineInsert(menu);
+            if (!lines) {
+              onClose();
+              return;
+            }
+            useStudioStore.getState().insertEngineLines(fen, lines);
             onClose();
           }}
         />
