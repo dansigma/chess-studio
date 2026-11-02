@@ -7,7 +7,8 @@ test("/login is not frameable and carries a CSP", async ({ request }) => {
   expect(headers["x-frame-options"]).toBe("DENY");
   expect(headers["x-content-type-options"]).toBe("nosniff");
   expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin");
-  const csp = headers["content-security-policy"] ?? headers["content-security-policy-report-only"];
+  const csp = headers["content-security-policy"];
+  expect(headers["content-security-policy-report-only"]).toBeUndefined();
   expect(csp).toContain("frame-ancestors 'none'");
   expect(csp).toContain("object-src 'none'");
   // SIG-1054: violations are reported to /api/csp-report.

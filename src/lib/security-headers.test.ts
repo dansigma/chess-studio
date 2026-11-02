@@ -16,8 +16,8 @@ function directive(csp: string, name: string): string[] {
 describe("security headers", () => {
   const csp = buildCsp({ supabaseUrl: "https://proj.supabase.co/rest/v1" });
 
-  it("ships as Report-Only", () => {
-    assert.equal(CSP_HEADER, "Content-Security-Policy-Report-Only");
+  it("ships enforcing", () => {
+    assert.equal(CSP_HEADER, "Content-Security-Policy");
   });
 
   it("allows same-origin and inline scripts plus WASM, and eval only in dev", () => {
@@ -61,5 +61,7 @@ describe("security headers", () => {
     assert.equal(res.headers.get("Referrer-Policy"), "strict-origin-when-cross-origin");
     assert.equal(res.headers.get("Strict-Transport-Security"), "max-age=31536000; includeSubDomains");
     assert.equal(res.headers.get(CSP_HEADER), csp);
+    assert.equal(res.headers.get("Content-Security-Policy"), csp);
+    assert.equal(res.headers.get("Content-Security-Policy-Report-Only"), null);
   });
 });
