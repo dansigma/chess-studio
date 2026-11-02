@@ -36,8 +36,13 @@ describe("SIG-1092 repertoire_color migration contract", () => {
       join(dirname(fileURLToPath(import.meta.url)), "../studio-persistence.ts"),
       "utf8",
     );
-    assert.ok(shell.includes("repertoireColor"), "StudioShell must hydrate repertoireColor");
-    assert.ok(shell.includes("row.repertoire_color"), "StudioShell must read the repertoire_color column");
+    const merge = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../session-boards.ts"),
+      "utf8",
+    );
+    assert.ok(shell.includes("repertoireColor"), "StudioShell must track repertoireColor");
+    assert.ok(merge.includes("repertoireColor"), "the boot merge must hydrate repertoireColor");
+    assert.ok(merge.includes("row.repertoire_color"), "the boot merge must read the repertoire_color column");
     assert.ok(
       persistence.includes("repertoire_color: board.repertoireColor"),
       "persistBoardRecord must write repertoire_color in both branches",

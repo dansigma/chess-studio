@@ -15,9 +15,13 @@ import { StudioDock } from "./StudioDock";
 import { ResizeHandle } from "./ui/ResizeHandle";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import { importPgn } from "@/src/chess/pgn";
 import { clearGuestBoards, loadGuestBoards, saveGuestBoards } from "@/src/lib/guest-boards";
-import { loadSessionBoards, saveSessionBoards } from "@/src/lib/session-boards";
+import {
+  loadSessionBoards,
+  mergeSessionBoards,
+  saveSessionBoards,
+  type RemoteBoardRow,
+} from "@/src/lib/session-boards";
 import {
   nextAutosaveRetryAt,
   runDirtySavePass,
@@ -30,7 +34,6 @@ import {
   persistSettings,
   syncRemoteDockLayout,
   useStudioStore,
-  type BoardSession,
 } from "@/src/store/studio-store";
 import { loadRemoteFiles } from "@/src/lib/user-files";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
@@ -194,83 +197,39 @@ export function StudioShell() {
       if (remoteSettings) {
         hydrateSettings(remoteSettings);
       }
-      const { data, error: boardsError } = await supabase
-        .from("boards")
-        .select("*")
-        .order("updated_at", { ascending: false });
+      let boardsData: RemoteBoardRow[] | null = null;
+      let boardsError: unknown = null;
+      try {
+        const result = await supabase
+          .from("boards")
+          .select("*")
+          .order("updated_at", { ascending: false });
+        boardsData = (result.data as RemoteBoardRow[] | null) ?? null;
+        boardsError = result.error;
+      } catch (error) {
+        // SIG-1186: an aborted/offline fetch throws instead of returning an
+        // error; treat it like a failed read and keep the local snapshot.
+        boardsError = error;
+      }
       if (cancelled) {
         return;
       }
-      if (boardsError) {
+      const local = loadSessionBoards(user.id);
+      if (boardsError && local) {
         // SIG-1186: the remote query failed — keep the local snapshot and
         // surface it instead of the empty placeholder. Never wipe local
         // state on a failed fetch.
-        if (loadSessionBoards(user.id)) {
-          useStudioStore.getState().setStatus(
-            tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.loadFailed"),
-          );
-        }
-      } else {
-        // SIG-1186: single merge by remoteId (replaces the per-row
-        // hydrateRemoteBoard loop): dirty local boards win (pending changes
-        // journal), otherwise the remote row wins; remote-only and
-        // local-only boards are appended. Active board comes from the
-        // snapshot when it still exists, else the most-recently-updated
-        // remote (rows arrive ordered by updated_at desc).
-        const local = loadSessionBoards(user.id);
-        const localByRemote = new Map(
-          (local?.boards ?? []).map((board) => [board.remoteId, board]),
+        useStudioStore.getState().setStatus(
+          tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.loadFailed"),
         );
-        const seenLocalIds = new Set<string>();
-        const merged: BoardSession[] = [];
-        for (const row of data ?? []) {
-          const imported = importPgn(row.pgn);
-          // SIG-907: derive the session id from the remote row id so persisted
-          // `board:<boardId>` panels resolve to the same session after reload.
-          const session: BoardSession = {
-            id: row.id,
-            remoteId: row.id,
-            title: row.title,
-            tree: imported.tree,
-            path: row.current_node_path ?? imported.path,
-            headers: imported.headers,
-            orientation: row.orientation,
-            // SIG-1092: read the repertoire mark; unknown values fail closed
-            // to null so a bad row never claims a color.
-            repertoireColor:
-              row.repertoire_color === "white" || row.repertoire_color === "black"
-                ? row.repertoire_color
-                : null,
-            dirty: false,
-            preview: false,
-          };
-          if (cancelled) {
-            return;
-          }
-          const localBoard = localByRemote.get(row.id);
-          if (localBoard?.dirty) {
-            merged.push(localBoard);
-            seenLocalIds.add(localBoard.id);
-          } else {
-            merged.push(session);
-            if (localBoard) {
-              seenLocalIds.add(localBoard.id);
-            }
-          }
-        }
-        for (const board of local?.boards ?? []) {
-          // Session-only boards (remoteId null — new, clone) are kept verbatim.
-          if (!seenLocalIds.has(board.id)) {
-            merged.push(board);
-          }
-        }
-        if (merged.length > 0) {
-          const snapshotActive =
-            local && merged.some((board) => board.id === local.activeBoardId)
-              ? local.activeBoardId
-              : merged[0].id;
-          useStudioStore.setState({ boards: merged, activeBoardId: snapshotActive });
-        }
+      }
+      // SIG-1186: merge by remoteId — dirty local boards win (pending changes
+      // journal), otherwise the remote row wins; rows arrive ordered by
+      // updated_at desc. A failed read passes null so the snapshot (and its
+      // active id) is kept verbatim.
+      const merged = mergeSessionBoards(local, boardsError ? null : boardsData);
+      if (merged) {
+        useStudioStore.setState({ boards: merged.boards, activeBoardId: merged.activeBoardId });
       }
       const remoteFiles = await loadRemoteFiles(user.id);
       if (cancelled) {

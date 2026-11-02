@@ -1,3 +1,4 @@
+import { importPgn } from "@/src/chess/pgn";
 import type { BoardSession } from "@/src/store/slices/types";
 import {
   readSnapshotBoard,
@@ -24,6 +25,103 @@ export type SessionSnapshot = {
   boards: BoardSession[];
   activeBoardId: string;
 };
+
+/** The subset of a remote `boards` row the boot merge reads. */
+export type RemoteBoardRow = {
+  id: string;
+  title: string;
+  pgn: string;
+  current_node_path: number[] | null;
+  orientation: BoardSession["orientation"];
+  repertoire_color: string | null;
+};
+
+/**
+ * SIG-1186: boot merge of the local journal with the remote rows.
+ *
+ * Dirty local boards win (they carry pending changes); otherwise the remote row
+ * wins. Session-only and remote-only boards are kept. `rows: null` means the
+ * remote read failed or was aborted, so the local snapshot is returned
+ * untouched instead of being replaced by an empty list.
+ *
+ * The active board is resolved from the snapshot by identity, including the
+ * case where a clean local board was replaced by its remote row (local `id`
+ * differs from `remoteId`) — that mismatch used to fall through to the first
+ * (most recently updated) remote board.
+ */
+export function mergeSessionBoards(
+  local: SessionSnapshot | null,
+  rows: RemoteBoardRow[] | null,
+): SessionSnapshot | null {
+  if (rows === null) {
+    return local;
+  }
+  const localByRemote = new Map<string, BoardSession>();
+  for (const board of local?.boards ?? []) {
+    if (board.remoteId) {
+      localByRemote.set(board.remoteId, board);
+    }
+  }
+  const seenLocalIds = new Set<string>();
+  const merged: BoardSession[] = [];
+  for (const row of rows) {
+    const imported = importPgn(row.pgn);
+    const session: BoardSession = {
+      id: row.id,
+      remoteId: row.id,
+      title: row.title,
+      tree: imported.tree,
+      path: row.current_node_path ?? imported.path,
+      headers: imported.headers,
+      orientation: row.orientation,
+      repertoireColor:
+        row.repertoire_color === "white" || row.repertoire_color === "black"
+          ? row.repertoire_color
+          : null,
+      dirty: false,
+      preview: false,
+    };
+    const localBoard = localByRemote.get(row.id);
+    if (localBoard?.dirty) {
+      merged.push(localBoard);
+      seenLocalIds.add(localBoard.id);
+    } else {
+      merged.push(session);
+      if (localBoard) {
+        seenLocalIds.add(localBoard.id);
+      }
+    }
+  }
+  for (const board of local?.boards ?? []) {
+    // Session-only boards (remoteId null — new, clone) are kept verbatim.
+    if (!seenLocalIds.has(board.id)) {
+      merged.push(board);
+    }
+  }
+  if (merged.length === 0) {
+    return null;
+  }
+  return { boards: merged, activeBoardId: resolveActiveBoardId(local, merged) };
+}
+
+/** Resolve the snapshot's active board against the merged list. */
+export function resolveActiveBoardId(local: SessionSnapshot | null, merged: BoardSession[]): string {
+  const wanted = local?.boards.find((board) => board.id === local.activeBoardId);
+  if (wanted) {
+    if (merged.some((board) => board.id === wanted.id)) {
+      return wanted.id;
+    }
+    if (wanted.remoteId) {
+      const byRemote = merged.find(
+        (board) => board.remoteId === wanted.remoteId || board.id === wanted.remoteId,
+      );
+      if (byRemote) {
+        return byRemote.id;
+      }
+    }
+  }
+  return merged[0].id;
+}
 
 export function loadSessionBoards(userId: string): SessionSnapshot | null {
   if (!userId) {

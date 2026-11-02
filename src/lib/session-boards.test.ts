@@ -3,8 +3,10 @@ import { beforeEach, describe, it } from "node:test";
 import {
   clearSessionBoards,
   loadSessionBoards,
+  mergeSessionBoards,
   saveSessionBoards,
   sessionKeyFor,
+  type RemoteBoardRow,
 } from "./session-boards.ts";
 import { useStudioStore } from "../store/studio-store.ts";
 import { emptyBoard } from "../store/slices/board-helpers.ts";
@@ -147,5 +149,58 @@ describe("SIG-1186 session board snapshot", () => {
     assert.equal(loaded.boards[0].dirty, true, "remoteId and dirty round-trip");
     assert.equal(loaded.boards[0].remoteId, "r");
     assert.equal(loadSessionBoards(""), null, "empty user ids hydrate to null");
+  });
+});
+
+describe("SIG-1186 boot merge", () => {
+  const row = (id: string, title: string): RemoteBoardRow => ({
+    id,
+    title,
+    pgn: "",
+    current_node_path: null,
+    orientation: "white",
+    repertoire_color: null,
+  });
+
+  it("prefers the saved active board when its local id differs from the remote id", () => {
+    const local = {
+      boards: [
+        seedBoard("local-a", { remoteId: "remote-a", title: "A", dirty: false }),
+        seedBoard("local-b", { remoteId: "remote-b", title: "B", dirty: false }),
+      ],
+      activeBoardId: "local-a",
+    };
+    // Rows arrive ordered by updated_at desc: B is newer than A.
+    const merged = mergeSessionBoards(local, [row("remote-b", "B"), row("remote-a", "A")]);
+    assert.ok(merged, "rows merge into a session");
+    assert.deepEqual(
+      merged.boards.map((board) => board.id),
+      ["remote-b", "remote-a"],
+      "clean local boards are replaced by their remote rows",
+    );
+    assert.equal(
+      merged.activeBoardId,
+      "remote-a",
+      "the saved active board wins by remoteId, not the newest remote",
+    );
+  });
+
+  it("keeps a dirty local board and its id as the active board", () => {
+    const local = {
+      boards: [seedBoard("local-a", { remoteId: "remote-a", dirty: true })],
+      activeBoardId: "local-a",
+    };
+    const merged = mergeSessionBoards(local, [row("remote-a", "A")]);
+    assert.ok(merged);
+    assert.equal(merged.boards[0].id, "local-a", "a dirty local board is kept verbatim");
+    assert.equal(merged.activeBoardId, "local-a");
+  });
+
+  it("keeps the snapshot when the remote read fails", () => {
+    const local = {
+      boards: [seedBoard("local-a", { remoteId: "remote-a", dirty: false })],
+      activeBoardId: "local-a",
+    };
+    assert.deepEqual(mergeSessionBoards(local, null), local, "a failed read never wipes the snapshot");
   });
 });
