@@ -49,6 +49,16 @@ export default defineConfig({
     env: {
       NEXT_ALIAS_WORKERD_STUB: "1",
       NEXT_PUBLIC_E2E_REVIEW_FAKE: "1",
+      // SIG-1181: pin the e2e server as Supabase-unconfigured so the
+      // `/courses/admin` gate deterministically lands on `/courses`
+      // (configured envs redirect anonymous users to `/login?next=...`
+      // instead). Playwright merges this over leaked shell env vars.
+      NEXT_PUBLIC_SUPABASE_URL: "",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "",
+      SUPABASE_URL: "",
+      SUPABASE_PUBLISHABLE_KEY: "",
+      SUPABASE_SECRET_KEY: "",
     },
   },
 });

@@ -2,7 +2,7 @@
 // the `@/` path alias, extensionless relative `.ts`/`.tsx` specifiers, and
 // `.tsx` modules — JSX is beyond Node's built-in type stripping, so those
 // files are transpiled with the repo's own TypeScript before loading.
-import { registerHooks, createRequire } from "node:module";
+import { createRequire, registerHooks } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -24,18 +24,69 @@ const STUBS = {
 };
 
 /**
- * Whether a settled `load` result carries an explicit null `source`.
- * (`mock.module` mocks settle this way on some Node 22 minors, which Node
- * then rejects with ERR_INVALID_RETURN_PROPERTY_VALUE.)
+ * Picks the `load`-hook `format` for a `file:` URL whose `nextLoad` chain
+ * threw `ERR_INVALID_RETURN_PROPERTY_VALUE`, so the hook can read the source
+ * itself and short-circuit (SIG-1181). Mirrors Node's own default: `.mjs` is
+ * always ESM, `.cjs`/`.json` keep their fixed formats, and `.js` follows the
+ * nearest `package.json` `type` field (defaulting to CommonJS).
  */
-export function isNullSourceResult(result) {
-  return Boolean(
-    result &&
-      typeof result === "object" &&
-      !(result instanceof Promise) &&
-      "source" in result &&
-      result.source === null,
-  );
+export function formatForFallback(url) {
+  if (url.endsWith(".mjs")) {
+    return "module";
+  }
+  if (url.endsWith(".cjs")) {
+    return "commonjs";
+  }
+  if (url.endsWith(".json")) {
+    return "json";
+  }
+  let dir = fileURLToPath(new URL("./", url));
+  while (true) {
+    const candidate = `${dir}package.json`;
+    if (existsSync(candidate)) {
+      try {
+        if (JSON.parse(readFileSync(candidate, "utf8"))?.type === "module") {
+          return "module";
+        }
+      } catch {
+        // Unreadable manifest: fall through to CommonJS below.
+      }
+      return "commonjs";
+    }
+    const parent = fileURLToPath(new URL("../", `${pathToFileURL(dir)}/`));
+    if (parent === dir) {
+      return "commonjs";
+    }
+    dir = parent;
+  }
+}
+
+/**
+ * Runs `nextLoad` for a `file:` URL, falling back to a direct source read
+ * when the chain throws `ERR_INVALID_RETURN_PROPERTY_VALUE` (SIG-1181).
+ *
+ * Root cause: on Node 22.18–22.20, registering ANY `load` hook forces strict
+ * sync validation of every chained result, and Node's own default CJS load
+ * settles `{ format: "commonjs", source: null }` — rejected the moment a
+ * hook passes it through. Every failing suite imports a CJS dep without an
+ * `exports` map (`chess.js`, `xss`, `@mliebelt/pgn-parser`); re-reading the
+ * file and short-circuiting is exactly what the default loader would have
+ * produced. Anything that is not a null-source validation failure rethrows.
+ */
+export function loadWithCjsFallback(url, context, nextLoad) {
+  try {
+    return nextLoad(url, context);
+  } catch (error) {
+    if (error?.code !== "ERR_INVALID_RETURN_PROPERTY_VALUE" || !url.startsWith("file:")) {
+      throw error;
+    }
+    const path = fileURLToPath(url);
+    return {
+      format: formatForFallback(url),
+      source: readFileSync(path, "utf8"),
+      shortCircuit: true,
+    };
+  }
 }
 
 let ts = null;
@@ -93,28 +144,11 @@ registerHooks({
       });
       return { format: "module", source: output.outputText, shortCircuit: true };
     }
-    // SIG-1181: on some Node 22 minors the modules hooked by
-    // `--experimental-test-module-mocks` fail to load with
-    // ERR_INVALID_RETURN_PROPERTY_VALUE ("load hook but got null"). `nextLoad`
-    // may settle `source: null` for those modules while `format: commonjs`
-    // CJS shims (e.g. chess.js) settle the identical shape and must load
-    // untouched — only short-circuited (`shortCircuit: true`) module results
-    // are safe to normalize to an empty source (accepted where null is not).
-    // Anything else (promises, thread-crossing sources) passes through: the
-    // source value is not cloneable off-thread and re-wrapping it breaks
-    // loading (proven by chess.js `commonjs` named-export breakage).
-    const result = nextLoad(url, context);
-    if (
-      isNullSourceResult(result) &&
-      result.shortCircuit === true &&
-      (result.format ?? context?.format) === "module"
-    ) {
-      return {
-        format: "module",
-        source: "",
-        shortCircuit: true,
-      };
-    }
-    return result;
+    // SIG-1181: on Node 22.18–22.20, registering ANY `load` hook forces strict
+    // sync validation of every chained result, and Node's own default CJS
+    // load settles `source: null` — rejected the moment a hook passes it
+    // through. `loadWithCjsFallback` re-reads those files and short-circuits
+    // with what the default loader would have produced.
+    return loadWithCjsFallback(url, context, nextLoad);
   },
 });
