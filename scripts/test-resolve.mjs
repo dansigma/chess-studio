@@ -23,6 +23,21 @@ const STUBS = {
   "cloudflare:workers": "src/test-utils/stubs/cloudflare-workers.ts",
 };
 
+/**
+ * Whether a settled `load` result carries an explicit null `source`.
+ * (`mock.module` mocks settle this way on some Node 22 minors, which Node
+ * then rejects with ERR_INVALID_RETURN_PROPERTY_VALUE.)
+ */
+export function isNullSourceResult(result) {
+  return Boolean(
+    result &&
+      typeof result === "object" &&
+      !(result instanceof Promise) &&
+      "source" in result &&
+      result.source === null,
+  );
+}
+
 let ts = null;
 
 // Finds the existing file a specifier points at, completing a missing
@@ -78,6 +93,28 @@ registerHooks({
       });
       return { format: "module", source: output.outputText, shortCircuit: true };
     }
-    return nextLoad(url, context);
+    // SIG-1181: on some Node 22 minors the modules hooked by
+    // `--experimental-test-module-mocks` fail to load with
+    // ERR_INVALID_RETURN_PROPERTY_VALUE ("load hook but got null"). `nextLoad`
+    // may settle `source: null` for those modules while `format: commonjs`
+    // CJS shims (e.g. chess.js) settle the identical shape and must load
+    // untouched — only short-circuited (`shortCircuit: true`) module results
+    // are safe to normalize to an empty source (accepted where null is not).
+    // Anything else (promises, thread-crossing sources) passes through: the
+    // source value is not cloneable off-thread and re-wrapping it breaks
+    // loading (proven by chess.js `commonjs` named-export breakage).
+    const result = nextLoad(url, context);
+    if (
+      isNullSourceResult(result) &&
+      result.shortCircuit === true &&
+      (result.format ?? context?.format) === "module"
+    ) {
+      return {
+        format: "module",
+        source: "",
+        shortCircuit: true,
+      };
+    }
+    return result;
   },
 });
