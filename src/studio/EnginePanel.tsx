@@ -23,6 +23,7 @@ import { acquire, type SharedEngineLease } from "@/src/engine/shared-engine";
 import { useActiveFen, useSideToMove } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { EngineLineContextMenu, type EngineLineMenuState } from "./EngineLineContextMenu";
 import { fenKey } from "@/src/chess/tree";
 import { resolveEvalDisplay } from "@/src/lib/eval-cache";
 import { throttleLatest } from "@/src/lib/throttle";
@@ -73,6 +74,7 @@ export function EnginePanel() {
   const [runId, setRunId] = useState(0);
   const [coresOpen, setCoresOpen] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
+  const [lineMenu, setLineMenu] = useState<EngineLineMenuState | null>(null);
   const buildMenuRef = useRef<HTMLDivElement>(null);
   const handleBuildMenuKeyDown = useMenuKeyDown(buildMenuRef, () => setBuildOpen(false), buildOpen);
   const [info, setInfo] = useState<EngineInfo>({
@@ -368,6 +370,15 @@ export function EnginePanel() {
             <div
               key={line.multipv}
               className="flex w-full items-start gap-3 border-b border-studio-border-subtle px-3 py-1.5"
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setLineMenu({
+                  x: event.clientX,
+                  y: event.clientY,
+                  multipv: line.multipv,
+                  pvUci: [...line.pvUci],
+                });
+              }}
             >
               <span
                 className={`mt-0.5 min-w-14 rounded-[5px] border px-1.5 py-0.5 text-center text-dense font-semibold tabular-nums ${
@@ -419,6 +430,16 @@ export function EnginePanel() {
                           setEnginePreview(null);
                         }}
                         onClick={() => playUciSequence(ucis)}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setLineMenu({
+                            x: event.clientX,
+                            y: event.clientY,
+                            multipv: line.multipv,
+                            pvUci: [...line.pvUci],
+                          });
+                        }}
                       >
                         {number ? <span className="mr-0.5 font-normal text-studio-faint">{number}</span> : null}
                         {formatSanAtPly(san, moveNotation, side, index)}
@@ -448,6 +469,14 @@ export function EnginePanel() {
         <span className="sr-only">
           {tPanels(locale, "engine.evaluation", { label: display.label })}
         </span>
+      ) : null}
+      {lineMenu ? (
+        <EngineLineContextMenu
+          menu={lineMenu}
+          fen={fen}
+          locale={locale}
+          onClose={() => setLineMenu(null)}
+        />
       ) : null}
     </div>
   );

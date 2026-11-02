@@ -6,6 +6,7 @@ const sources: Record<string, string> = {
   dialog: readFileSync(new URL("./ui/Dialog.tsx", import.meta.url), "utf8"),
   glyphMenu: readFileSync(new URL("./NotationContextMenu.tsx", import.meta.url), "utf8"),
   contextMenu: readFileSync(new URL("./BoardContextMenu.tsx", import.meta.url), "utf8"),
+  engineLineMenu: readFileSync(new URL("./EngineLineContextMenu.tsx", import.meta.url), "utf8"),
   controls: readFileSync(new URL("./ui/Controls.tsx", import.meta.url), "utf8"),
   menuBar: readFileSync(new URL("./MenuBar.tsx", import.meta.url), "utf8"),
 };
@@ -18,6 +19,7 @@ describe("studio overlay z tiers (SIG-912)", () => {
       ["Dialog", sources.dialog],
       ["NotationContextMenu", sources.glyphMenu],
       ["BoardContextMenu", sources.contextMenu],
+      ["EngineLineContextMenu", sources.engineLineMenu],
       ["Controls tooltip", sources.controls],
     ] as const) {
       assert.ok(
@@ -36,6 +38,7 @@ describe("studio overlay z tiers (SIG-912)", () => {
       ["Dialog", sources.dialog],
       ["NotationContextMenu", sources.glyphMenu],
       ["BoardContextMenu", sources.contextMenu],
+      ["EngineLineContextMenu", sources.engineLineMenu],
     ] as const) {
       assert.ok(
         !source.includes("z-50"),
