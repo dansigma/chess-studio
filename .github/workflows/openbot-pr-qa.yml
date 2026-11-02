@@ -1,0 +1,129 @@
+name: OpenBot PR QA dispatch
+
+# Fast path for the OpenBot `pr-qa-dispatch` routine: GitHub's native webhook
+# payload does not match the OpenBot envelope (`{type, occurredAt?, data?}`)
+# and HMAC headers, so this workflow signs and forwards `pull_request_review`
+# (submitted), `check_suite` (completed) and `workflow_run` (completed) events.
+# The 60-minute `pr-qa-pipeline` reconciliation remains the fallback.
+#
+# `workflow_run` only fires for workflows that exist on the default branch, so
+# that trigger starts working after this file is merged to master (same caveat
+# as `ci-failure-comment.yml`). `pull_request_review` and `check_suite` work
+# immediately. `workflow_dispatch` exists only for the manual smoke test.
+#
+# Requires the `OPENBOT_WEBHOOK_SECRET` repository secret (value from OpenBot >
+# Routines > pr-qa-dispatch). The job fails closed when it is missing.
+
+on:
+  pull_request_review:
+    types: [submitted]
+  check_suite:
+    types: [completed]
+  workflow_run:
+    types: [completed]
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build OpenBot envelope
+        env:
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REVIEW_STATE: ${{ github.event.review.state }}
+          CHECK_SUITE_CONCLUSION: ${{ github.event.check_suite.conclusion }}
+          WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          WORKFLOW_RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          occurred_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          jq -n \
+            --arg type "github.$EVENT_NAME" \
+            --arg occurredAt "$occurred_at" \
+            --arg repository "$REPO" \
+            --arg action "$EVENT_ACTION" \
+            --arg event "$EVENT_NAME" \
+            --arg pr_number "$PR_NUMBER" \
+            --arg pr_head_ref "$PR_HEAD_REF" \
+            --arg pr_head_sha "$PR_HEAD_SHA" \
+            --arg review_state "$REVIEW_STATE" \
+            --arg check_suite_conclusion "$CHECK_SUITE_CONCLUSION" \
+            --arg workflow_run_conclusion "$WORKFLOW_RUN_CONCLUSION" \
+            --arg workflow_run_head_branch "$WORKFLOW_RUN_HEAD_BRANCH" \
+            --arg workflow_run_head_sha "$WORKFLOW_RUN_HEAD_SHA" \
+            '{
+              type: $type,
+              occurredAt: $occurredAt,
+              data: {
+                repository: $repository,
+                action: (if $action == "" then null else $action end),
+                event: $event,
+                pull_request: (if $pr_number == "" then null else {
+                  number: ($pr_number | tonumber),
+                  head_ref: (if $pr_head_ref == "" then null else $pr_head_ref end),
+                  head_sha: (if $pr_head_sha == "" then null else $pr_head_sha end)
+                } end),
+                review_state: (if $review_state == "" then null else $review_state end),
+                check_suite: (if $check_suite_conclusion == "" then null else {
+                  conclusion: $check_suite_conclusion
+                } end),
+                workflow_run: (if $workflow_run_conclusion == "" then null else {
+                  conclusion: $workflow_run_conclusion,
+                  head_branch: (if $workflow_run_head_branch == "" then null else $workflow_run_head_branch end),
+                  head_sha: (if $workflow_run_head_sha == "" then null else $workflow_run_head_sha end)
+                } end)
+              }
+            }' > body.json
+          bytes=$(wc -c < body.json)
+          echo "Envelope built: $bytes bytes."
+          if [ "$bytes" -ge 65536 ]; then
+            echo "Envelope exceeds the 64 KB budget; refusing to send." >&2
+            exit 1
+          fi
+
+      - name: Sign and POST to OpenBot
+        env:
+          OPENBOT_WEBHOOK_SECRET: ${{ secrets.OPENBOT_WEBHOOK_SECRET }}
+          OPENBOT_WEBHOOK_URL: https://signal.openbot.run/v1/webhooks/2d2fd88f-45cb-4e70-9aee-b8197132c917
+          DELIVERY_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENBOT_WEBHOOK_SECRET:-}" ]; then
+            echo "OPENBOT_WEBHOOK_SECRET is not configured." >&2
+            echo "Add it in repo Settings > Secrets and variables > Actions" >&2
+            echo "(value from OpenBot > Routines > pr-qa-dispatch), then re-run." >&2
+            exit 1
+          fi
+          ts=$(date +%s)
+          sig=$(python3 - "$ts" "$DELIVERY_ID" <<'PY'
+          import hashlib
+          import hmac
+          import os
+          import sys
+          _, ts, delivery = sys.argv
+          with open("body.json", "rb") as f:
+              body = f.read()
+          secret = os.environ["OPENBOT_WEBHOOK_SECRET"]
+          print(hmac.new(secret.encode(), f"{ts}.{delivery}.".encode() + body, hashlib.sha256).hexdigest())
+          PY
+          )
+          code=$(curl -sS -o response.txt -w "%{http_code}" --fail-with-body -X POST "$OPENBOT_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -H "x-openbot-timestamp: $ts" \
+            -H "x-openbot-delivery-id: $DELIVERY_ID" \
+            -H "x-openbot-signature: sha256=$sig" \
+            --data-binary @body.json)
+          resp_bytes=$(wc -c < response.txt)
+          echo "OpenBot responded with HTTP $code ($resp_bytes response bytes)."
+          case "$code" in
+            2*) exit 0 ;;
+            *) echo "OpenBot dispatch failed with HTTP $code." >&2; exit 1 ;;
+          esac
