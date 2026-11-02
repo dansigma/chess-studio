@@ -441,9 +441,14 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       const previous = board.path;
       set((state) => ({
         threat: null,
+        // SIG-1187: advancing one ply is also a cursor move — drop any stale
+        // pending choice so Forward never no-ops after the cursor leaves it.
+        variationChoice: null,
         boards: withActive(state.boards, state.activeBoardId, (active) => ({
           ...active,
           path: goForward(active.tree, active.path),
+          // SIG-1186: cursor-only change — see goPath.
+          dirty: true,
         })),
       }));
       soundForAdvance(get, previous);
