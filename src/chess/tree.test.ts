@@ -5,6 +5,7 @@ import {
   canMakeMainline,
   canPromote,
   cloneTree,
+  continuationsAt,
   createEmptyTree,
   deleteAfter,
   deleteVariation,
@@ -173,6 +174,21 @@ test("goForwardN advances several steps and stops at leaves", () => {
   const tree = sampleTree();
   assert.deepEqual(goForwardN(tree, [], 2), [0, 0]);
   assert.deepEqual(goForwardN(tree, [], 99), [0, 0]);
+});
+
+// SIG-1187: continuations the Forward chooser offers at a path.
+test("continuationsAt returns root children, nested children, and [] for leaves/invalid paths", () => {
+  const tree = sampleTree();
+  assert.deepEqual(
+    continuationsAt(tree, []).map((child) => child.san),
+    ["e4", "d4"],
+  );
+  assert.deepEqual(
+    continuationsAt(tree, [0]).map((child) => child.san),
+    ["e5", "c5"],
+  );
+  assert.deepEqual(continuationsAt(tree, [1]), []);
+  assert.deepEqual(continuationsAt(tree, [9]), []);
 });
 
 test("deleteAfter clears continuations but keeps the node", () => {

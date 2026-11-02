@@ -2,6 +2,7 @@ import { Chess } from "chess.js";
 import type { StateCreator } from "zustand";
 import {
   cloneTree,
+  continuationsAt,
   getFenAt,
   getLastMove,
   goBack,
@@ -10,6 +11,7 @@ import {
   goForwardN,
   goStart,
   insertLine,
+  pathsEqual,
   playMove,
 } from "@/src/chess/tree";
 import {
@@ -64,6 +66,7 @@ export type BoardsSlice = Pick<
   | "drillDueOnly"
   | "repertoireProgress"
   | "mistakeExercises"
+  | "variationChoice"
   | "active"
   | "fen"
   | "lastMove"
@@ -78,6 +81,8 @@ export type BoardsSlice = Pick<
   | "goPath"
   | "back"
   | "forward"
+  | "chooseVariation"
+  | "cancelVariationChoice"
   | "toStart"
   | "toEnd"
   | "skipForward"
@@ -111,6 +116,8 @@ export const initialBoardsState = {
   drillDueOnly: false,
   repertoireProgress: typeof window !== "undefined" ? readLocalRepertoireProgress() : {},
   mistakeExercises: typeof window !== "undefined" ? readLocalExercises() : {},
+  // SIG-1187: pending Forward continuation choice; null when no chooser open.
+  variationChoice: null,
 };
 
 export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> = (
@@ -141,6 +148,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       threat: null,
       training: false,
       trainingStart: null,
+      // SIG-1187: a new active board never inherits a pending chooser.
+      variationChoice: null,
     }));
   },
   closeBoard: (id) => {
@@ -157,7 +166,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
         boards = [emptyBoard()];
       }
       const activeBoardId = neighbor ?? boards[0].id;
-      return { boards, activeBoardId, threat: null, training: false, trainingStart: null, drillDueOnly: false };
+      return { boards, activeBoardId, threat: null, training: false, trainingStart: null, drillDueOnly: false, variationChoice: null };
     });
   },
   cloneBoard: () => {
@@ -184,6 +193,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       training: false,
       trainingStart: null,
       drillDueOnly: false,
+      // SIG-1187: a clone is a new board, not a second holder of the choice.
+      variationChoice: null,
     }));
   },
   setActiveBoard: (id) =>
@@ -195,6 +206,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       training: false,
       trainingStart: null,
       drillDueOnly: false,
+      // SIG-1187: a board switch never carries a pending chooser.
+      variationChoice: null,
     }),
   makeUciMove: (from, to, promotion) => {
     if (get().training) {
@@ -275,6 +288,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       });
       set((state) => ({
         threat: null,
+        // SIG-1187: the cursor left the pending choice — see back().
+        variationChoice: null,
         boards: withActive(state.boards, state.activeBoardId, (active) => ({
           ...active,
           tree: next.tree,
@@ -380,6 +395,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     const previous = get().active().path;
     set((state) => ({
       threat: null,
+      // SIG-1187: a direct notation jump resolves the choice itself.
+      variationChoice: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path,
@@ -396,6 +413,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
     set((state) => ({
       threat: null,
+      // SIG-1187: the cursor left the pending choice — drop the chooser so a
+      // later Forward re-evaluates instead of no-op'ing on a stale choice.
+      variationChoice: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goBack(board.path),
@@ -408,17 +428,60 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     if (get().training) {
       return;
     }
-    const previous = get().active().path;
+    // SIG-1187: a pending chooser owns the next step — Forward waits for it.
+    if (get().variationChoice) {
+      return;
+    }
+    const board = get().active();
+    const continuations = continuationsAt(board.tree, board.path);
+    if (continuations.length === 0) {
+      return;
+    }
+    if (continuations.length === 1) {
+      const previous = board.path;
+      set((state) => ({
+        threat: null,
+        boards: withActive(state.boards, state.activeBoardId, (active) => ({
+          ...active,
+          path: goForward(active.tree, active.path),
+        })),
+      }));
+      soundForAdvance(get, previous);
+      return;
+    }
+    // 2+ children: open the chooser; the board stays put and stays silent.
+    set({ variationChoice: { boardId: board.id, path: [...board.path] } });
+  },
+  chooseVariation: (index) => {
+    const choice = get().variationChoice;
+    if (!choice) {
+      return;
+    }
+    const board = get().active();
+    const stillCurrent = board.id === choice.boardId && pathsEqual(board.path, choice.path);
+    const continuations = stillCurrent ? continuationsAt(board.tree, choice.path) : [];
+    if (!stillCurrent || !Number.isInteger(index) || index < 0 || index >= continuations.length) {
+      // Stale board/path or bad index: drop the choice without moving.
+      set({ variationChoice: null });
+      return;
+    }
+    const previous = board.path;
     set((state) => ({
       threat: null,
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        path: goForward(board.tree, board.path),
+      variationChoice: null,
+      boards: withActive(state.boards, state.activeBoardId, (active) => ({
+        ...active,
+        path: [...choice.path, index],
         // SIG-1186: cursor-only change — see goPath.
         dirty: true,
       })),
     }));
     soundForAdvance(get, previous);
+  },
+  cancelVariationChoice: () => {
+    if (get().variationChoice) {
+      set({ variationChoice: null });
+    }
   },
   toStart: () => {
     if (get().training) {
@@ -426,6 +489,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
     set((state) => ({
       threat: null,
+      // SIG-1187: the cursor left the pending choice — see back().
+      variationChoice: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goStart(),
@@ -441,6 +506,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     const previous = get().active().path;
     set((state) => ({
       threat: null,
+      // SIG-1187: the cursor left the pending choice — see back().
+      variationChoice: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goEnd(board.tree, board.path),
@@ -457,6 +524,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     const previous = get().active().path;
     set((state) => ({
       threat: null,
+      // SIG-1187: the cursor left the pending choice — see back().
+      variationChoice: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goForwardN(board.tree, board.path, 10),
@@ -490,6 +559,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       training: true,
       trainingStart: start,
       drillDueOnly: false,
+      // SIG-1187: entering training parks navigation — drop a pending chooser.
+      variationChoice: null,
       statusMessage: repertoireMoves(board.tree, start).length === 0 ? "Line complete." : null,
     });
   },
@@ -508,6 +579,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       drillDueOnly: true,
       statusMessage: null,
       threat: null,
+      // SIG-1187: entering training parks navigation — drop a pending chooser.
+      variationChoice: null,
       boards: withActive(state.boards, state.activeBoardId, (b) => ({
         ...b,
         path: [...target.path],
