@@ -17,6 +17,11 @@ import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { importPgn } from "@/src/chess/pgn";
 import { clearGuestBoards, loadGuestBoards, saveGuestBoards } from "@/src/lib/guest-boards";
+import { loadSessionBoards, saveSessionBoards } from "@/src/lib/session-boards";
+import {
+  nextAutosaveRetryAt,
+  runDirtySavePass,
+} from "@/src/lib/studio-autosave";
 import { useExplorerData } from "./use-explorer-data";
 import {
   forgetRemoteDockSync,
@@ -27,7 +32,6 @@ import {
   useStudioStore,
   type BoardSession,
 } from "@/src/store/studio-store";
-import { compareRepertoirePersistOrder } from "@/src/store/slices/selectors";
 import { loadRemoteFiles } from "@/src/lib/user-files";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
@@ -69,6 +73,30 @@ export function StudioShell() {
   const dirtyRevision = useStudioStore((state) =>
     state.boards.map((board) => `${board.id}:${board.dirty ? "1" : "0"}`).join("|"),
   );
+  // SIG-1186: signed-in session snapshot (PGN + metadata + dirty + active)
+  // so a fast reload restores pending changes before Supabase settles. Same
+  // content grain as the guest signature, plus remoteId/dirty: the snapshot
+  // is a pending-changes journal, not just a content signature.
+  const sessionBoardsSignature = useStudioStore((state) =>
+    !state.user || typeof window === "undefined"
+      ? null
+      : JSON.stringify({
+          activeBoardId: state.activeBoardId,
+          boards: state.boards
+            .filter((board) => !board.preview)
+            .map((board) => [
+              board.id,
+              board.remoteId,
+              board.title,
+              board.path.join(","),
+              board.headers,
+              board.orientation,
+              board.repertoireColor,
+              board.dirty,
+              board.tree,
+            ]),
+        }),
+  );
   // SIG-1092: guest boards have no remote row — persist the session list
   // (PGN + metadata) locally so the repertoire mark survives a reload. The
   // signature covers content that matters across reloads (moves, headers,
@@ -97,7 +125,6 @@ export function StudioShell() {
   const setExplorerLoading = useStudioStore((state) => state.setExplorerLoading);
   const setExplorerError = useStudioStore((state) => state.setExplorerError);
   const setUser = useStudioStore((state) => state.setUser);
-  const hydrateRemoteBoard = useStudioStore((state) => state.hydrateRemoteBoard);
   const hydrateSettings = useStudioStore((state) => state.hydrateSettings);
   const setBoardsHydrated = useStudioStore((state) => state.setBoardsHydrated);
   // SIG-857: primitive pick — the old `state.settings` object re-rendered on
@@ -153,6 +180,12 @@ export function StudioShell() {
       return;
     }
     let cancelled = false;
+    // SIG-1186: hydrate the per-user local snapshot immediately so pending
+    // changes and the last active board render before Supabase settles.
+    const snapshot = loadSessionBoards(user.id);
+    if (snapshot) {
+      useStudioStore.setState({ boards: snapshot.boards, activeBoardId: snapshot.activeBoardId });
+    }
     void (async () => {
       const remoteSettings = await loadRemoteSettings();
       if (cancelled) {
@@ -161,41 +194,83 @@ export function StudioShell() {
       if (remoteSettings) {
         hydrateSettings(remoteSettings);
       }
-      const { data } = await supabase
+      const { data, error: boardsError } = await supabase
         .from("boards")
         .select("*")
         .order("updated_at", { ascending: false });
       if (cancelled) {
         return;
       }
-      for (const row of data ?? []) {
-        const imported = importPgn(row.pgn);
-        // SIG-907: derive the session id from the remote row id so persisted
-        // `board:<boardId>` panels resolve to the same session after reload.
-        // Session-only boards (remoteId null — guest, new, clone, preview) keep
-        // random ids from emptyBoard/newId and their split panels are
-        // best-effort: they reseed to the active board on reload.
-        const session: BoardSession = {
-          id: row.id,
-          remoteId: row.id,
-          title: row.title,
-          tree: imported.tree,
-          path: row.current_node_path ?? imported.path,
-          headers: imported.headers,
-          orientation: row.orientation,
-          // SIG-1092: read the repertoire mark; unknown values fail closed
-          // to null so a bad row never claims a color.
-          repertoireColor:
-            row.repertoire_color === "white" || row.repertoire_color === "black"
-              ? row.repertoire_color
-              : null,
-          dirty: false,
-          preview: false,
-        };
-        if (cancelled) {
-          return;
+      if (boardsError) {
+        // SIG-1186: the remote query failed — keep the local snapshot and
+        // surface it instead of the empty placeholder. Never wipe local
+        // state on a failed fetch.
+        if (loadSessionBoards(user.id)) {
+          useStudioStore.getState().setStatus(
+            tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.loadFailed"),
+          );
         }
-        hydrateRemoteBoard(session);
+      } else {
+        // SIG-1186: single merge by remoteId (replaces the per-row
+        // hydrateRemoteBoard loop): dirty local boards win (pending changes
+        // journal), otherwise the remote row wins; remote-only and
+        // local-only boards are appended. Active board comes from the
+        // snapshot when it still exists, else the most-recently-updated
+        // remote (rows arrive ordered by updated_at desc).
+        const local = loadSessionBoards(user.id);
+        const localByRemote = new Map(
+          (local?.boards ?? []).map((board) => [board.remoteId, board]),
+        );
+        const seenLocalIds = new Set<string>();
+        const merged: BoardSession[] = [];
+        for (const row of data ?? []) {
+          const imported = importPgn(row.pgn);
+          // SIG-907: derive the session id from the remote row id so persisted
+          // `board:<boardId>` panels resolve to the same session after reload.
+          const session: BoardSession = {
+            id: row.id,
+            remoteId: row.id,
+            title: row.title,
+            tree: imported.tree,
+            path: row.current_node_path ?? imported.path,
+            headers: imported.headers,
+            orientation: row.orientation,
+            // SIG-1092: read the repertoire mark; unknown values fail closed
+            // to null so a bad row never claims a color.
+            repertoireColor:
+              row.repertoire_color === "white" || row.repertoire_color === "black"
+                ? row.repertoire_color
+                : null,
+            dirty: false,
+            preview: false,
+          };
+          if (cancelled) {
+            return;
+          }
+          const localBoard = localByRemote.get(row.id);
+          if (localBoard?.dirty) {
+            merged.push(localBoard);
+            seenLocalIds.add(localBoard.id);
+          } else {
+            merged.push(session);
+            if (localBoard) {
+              seenLocalIds.add(localBoard.id);
+            }
+          }
+        }
+        for (const board of local?.boards ?? []) {
+          // Session-only boards (remoteId null — new, clone) are kept verbatim.
+          if (!seenLocalIds.has(board.id)) {
+            merged.push(board);
+          }
+        }
+        if (merged.length > 0) {
+          const snapshotActive =
+            local && merged.some((board) => board.id === local.activeBoardId)
+              ? local.activeBoardId
+              : merged[0].id;
+          useStudioStore.setState({ boards: merged, activeBoardId: snapshotActive });
+        }
       }
       const remoteFiles = await loadRemoteFiles(user.id);
       if (cancelled) {
@@ -225,7 +300,7 @@ export function StudioShell() {
     return () => {
       cancelled = true;
     };
-  }, [hydrateRemoteBoard, hydrateSettings, setBoardsHydrated, user]);
+  }, [hydrateSettings, setBoardsHydrated, user]);
 
   useEffect(() => {
     if (!user) {
@@ -256,6 +331,38 @@ export function StudioShell() {
     return () => window.clearTimeout(handle);
   }, [guestBoardsSignature, user]);
 
+  // SIG-1186: persist the signed-in session snapshot locally (debounced)
+  // so pending moves and the active board survive a fast reload. Writes never
+  // touch the network. Guests use the guest snapshot above; accounts never
+  // touch the guest key.
+  useEffect(() => {
+    if (!user || sessionBoardsSignature === null) {
+      return;
+    }
+    const userId = user.id;
+    const flush = () => {
+      const state = useStudioStore.getState();
+      if (state.user?.id !== userId) {
+        return;
+      }
+      saveSessionBoards(userId, state.boards, state.activeBoardId);
+    };
+    const handle = window.setTimeout(flush, 250);
+    const onPageHide = () => flush();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flush();
+      }
+    };
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearTimeout(handle);
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [sessionBoardsSignature, user]);
+
   useEffect(() => {
     const handle = window.setTimeout(() => {
       void persistSettings(useStudioStore.getState().settings).catch(() => undefined);
@@ -267,32 +374,49 @@ export function StudioShell() {
     if (!user) {
       return;
     }
-    const handle = window.setTimeout(() => {
-      const dirtyBoards = useStudioStore
-        .getState()
-        .boards.filter((b) => b.dirty)
-        // SIG-1092: persist unmarks before marks so moving the mark between
-        // two saved boards cannot collide on boards_user_repertoire_color_uq
-        // (compareRepertoirePersistOrder keeps the assertion on production
-        // code instead of a copy of the comparator).
-        .sort(compareRepertoirePersistOrder);
-      if (dirtyBoards.length === 0) {
+    let retryHandle: number | undefined;
+    const scheduleRetryWakeup = () => {
+      window.clearTimeout(retryHandle);
+      const nextAt = nextAutosaveRetryAt();
+      if (nextAt === null) {
         return;
       }
-      void (async () => {
-        for (const board of dirtyBoards) {
-          try {
-            const remoteId = await persistBoard(board);
-            if (remoteId) {
-              useStudioStore.getState().markSaved(board.id, remoteId);
-            }
-          } catch {
-            useStudioStore.getState().setStatus(tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.saveFailed"));
-          }
+      retryHandle = window.setTimeout(() => {
+        const state = useStudioStore.getState();
+        if (!state.user || state.boards.some((board) => board.dirty)) {
+          // Re-run by bumping explorerRetry-independent state: force the
+          // effect via a no-op status cycle is wrong; instead run the pass
+          // directly — the pass is idempotent and reference-checked.
+          void runDirtySavePass({
+            getBoards: () => useStudioStore.getState().boards,
+            persist: (board) => persistBoard(board),
+            markSaved: (id, remoteId) => useStudioStore.getState().markSaved(id, remoteId),
+            onError: () => {
+              useStudioStore.getState().setStatus(
+                tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.saveFailed"),
+              );
+              scheduleRetryWakeup();
+            },
+          }).finally(scheduleRetryWakeup);
         }
-      })();
+      }, Math.max(0, nextAt - Date.now()));
+    };
+    const handle = window.setTimeout(() => {
+      void runDirtySavePass({
+        getBoards: () => useStudioStore.getState().boards,
+        persist: (board) => persistBoard(board),
+        markSaved: (id, remoteId) => useStudioStore.getState().markSaved(id, remoteId),
+        onError: () => {
+          useStudioStore.getState().setStatus(
+            tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.saveFailed"),
+          );
+        },
+      }).finally(scheduleRetryWakeup);
     }, 1000);
-    return () => window.clearTimeout(handle);
+    return () => {
+      window.clearTimeout(handle);
+      window.clearTimeout(retryHandle);
+    };
   }, [dirtyRevision, user]);
 
   useEffect(() => {
@@ -334,11 +458,15 @@ export function StudioShell() {
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
         event.preventDefault();
-        const board = useStudioStore.getState().active();
-        void persistBoard(board).then((remoteId) => {
-          if (remoteId) {
-            useStudioStore.getState().markSaved(board.id, remoteId);
-          }
+        void runDirtySavePass({
+          getBoards: () => useStudioStore.getState().boards,
+          persist: (board) => persistBoard(board),
+          markSaved: (id, remoteId) => useStudioStore.getState().markSaved(id, remoteId),
+          onError: () => {
+            useStudioStore.getState().setStatus(
+              tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.saveFailed"),
+            );
+          },
         });
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {

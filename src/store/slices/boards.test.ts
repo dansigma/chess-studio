@@ -15,6 +15,41 @@ function seedBoards(options: { aDirty: boolean; bDirty: boolean; activeId: strin
   useStudioStore.setState({ boards: [a, b], activeBoardId: options.activeId });
 }
 
+describe("SIG-1186 cursor navigation marks dirty", () => {
+  it("marks the board dirty on back/forward/goPath/start/end/skip", () => {
+    const clean = { ...emptyBoard("Nav", "board-nav"), dirty: false };
+    useStudioStore.setState({ boards: [clean], activeBoardId: "board-nav" });
+    const state = useStudioStore.getState();
+    state.makeUciMove("e2", "e4");
+    state.makeUciMove("e7", "e5");
+    useStudioStore.getState().markSaved("board-nav", "remote-nav");
+
+    useStudioStore.getState().back();
+    assert.equal(useStudioStore.getState().active().dirty, true, "back() marks dirty");
+    useStudioStore.getState().markSaved("board-nav", "remote-nav");
+
+    useStudioStore.getState().forward();
+    assert.equal(useStudioStore.getState().active().dirty, true, "forward() marks dirty");
+    useStudioStore.getState().markSaved("board-nav", "remote-nav");
+
+    const endPath = useStudioStore.getState().active().path;
+    useStudioStore.getState().toStart();
+    assert.equal(useStudioStore.getState().active().dirty, true, "toStart() marks dirty");
+    useStudioStore.getState().markSaved("board-nav", "remote-nav");
+
+    useStudioStore.getState().toEnd();
+    assert.equal(useStudioStore.getState().active().dirty, true, "toEnd() marks dirty");
+    useStudioStore.getState().markSaved("board-nav", "remote-nav");
+
+    useStudioStore.getState().goPath(endPath.slice(0, 1));
+    assert.equal(useStudioStore.getState().active().dirty, true, "goPath() marks dirty");
+    useStudioStore.getState().markSaved("board-nav", "remote-nav");
+
+    useStudioStore.getState().skipForward();
+    assert.equal(useStudioStore.getState().active().dirty, true, "skipForward() marks dirty");
+  });
+});
+
 describe("SIG-916 multi-dirty auto-save", () => {
   it("resolves every dirty board independently of the active board", () => {
     seedBoards({ aDirty: true, bDirty: true, activeId: "board-b" });

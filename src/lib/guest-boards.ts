@@ -4,23 +4,19 @@ import { emptyBoard } from "@/src/store/slices/board-helpers";
 import type { BoardOrientation, BoardSession } from "@/src/store/slices/types";
 import { readRawCache, writeRawCache } from "./local-cache";
 
-// SIG-1092 guest boards: guests never touch Supabase, so their boards only
-// lived in memory — a reload wiped the repertoire mark (and the position).
-// Persist the guest session list to localStorage as PGN + metadata so the
-// mark and the position survive a browser reload. Account boards are never
-// written here; the shell skips guest hydration/persist once a user exists.
-// Preview boards are transient UI and are dropped on save.
-export const GUEST_BOARDS_KEY = "studio-clone-guest-boards";
-const GUEST_BOARDS_VERSION = 1;
-
-type GuestBoardRecord = {
+// SIG-1186: shared board-record conversion for the local session snapshots.
+// Guest (`GUEST_BOARDS_KEY`) and signed-in (`session key per user`) snapshots
+// share the record shape; only the envelope key and board selection differ.
+export type SnapshotBoardRecord = {
   id: string;
+  remoteId: string | null;
   title: string;
   pgn: string;
   path: number[];
   headers: Record<string, string>;
   orientation: BoardOrientation;
   repertoireColor: BoardOrientation | null;
+  dirty: boolean;
 };
 
 function isGameHeaders(value: unknown): value is Record<string, string> {
@@ -36,7 +32,16 @@ function isBoardOrientation(value: unknown): value is BoardOrientation {
   return value === "white" || value === "black";
 }
 
-function readGuestBoard(value: unknown): GuestBoardRecord | null {
+// SIG-1092 guest boards: guests never touch Supabase, so their boards only
+// lived in memory — a reload wiped the repertoire mark (and the position).
+// Persist the guest session list to localStorage as PGN + metadata so the
+// mark and the position survive a browser reload. Account boards are never
+// written here; the shell skips guest hydration/persist once a user exists.
+// Preview boards are transient UI and are dropped on save.
+export const GUEST_BOARDS_KEY = "studio-clone-guest-boards";
+const GUEST_BOARDS_VERSION = 1;
+
+export function readSnapshotBoard(value: unknown): SnapshotBoardRecord | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
   }
@@ -53,6 +58,7 @@ function readGuestBoard(value: unknown): GuestBoardRecord | null {
       : null;
   return {
     id: record.id,
+    remoteId: typeof record.remoteId === "string" && record.remoteId ? record.remoteId : null,
     title: typeof record.title === "string" && record.title ? record.title : "Board",
     pgn: record.pgn,
     path: Array.isArray(record.path)
@@ -61,19 +67,51 @@ function readGuestBoard(value: unknown): GuestBoardRecord | null {
     headers: isGameHeaders(record.headers) ? record.headers : {},
     orientation: isBoardOrientation(record.orientation) ? record.orientation : "white",
     repertoireColor,
+    dirty: record.dirty === true,
   };
 }
 
-function toGuestBoardRecord(board: BoardSession): GuestBoardRecord {
+export function toSnapshotBoardRecord(board: BoardSession): SnapshotBoardRecord {
   return {
     id: board.id,
+    remoteId: board.remoteId,
     title: board.title,
     pgn: exportPgn(board.tree, board.headers),
     path: [...board.path],
     headers: { ...board.headers },
     orientation: board.orientation,
     repertoireColor: board.repertoireColor,
+    dirty: board.dirty,
   };
+}
+
+export function snapshotRecordToBoard(record: SnapshotBoardRecord, title: string, id: string): BoardSession {
+  const imported = importPgn(record.pgn);
+  const base = emptyBoard(title, id);
+  return {
+    ...base,
+    title: record.title,
+    remoteId: record.remoteId,
+    tree: imported.tree,
+    // Fail closed on a stale path: a path that no longer resolves resets
+    // to the imported end instead of crashing the shell on getNodeAt.
+    path: getNodeAt(imported.tree, record.path) ? record.path : imported.path,
+    headers: { ...imported.headers, ...record.headers },
+    orientation: record.orientation,
+    repertoireColor: record.repertoireColor,
+    dirty: record.dirty,
+    preview: false,
+  };
+}
+
+type GuestBoardRecord = SnapshotBoardRecord;
+
+function readGuestBoard(value: unknown): GuestBoardRecord | null {
+  return readSnapshotBoard(value);
+}
+
+function toGuestBoardRecord(board: BoardSession): GuestBoardRecord {
+  return toSnapshotBoardRecord(board);
 }
 
 export function loadGuestBoards(): { boards: BoardSession[]; activeBoardId: string } | null {
@@ -96,21 +134,7 @@ export function loadGuestBoards(): { boards: BoardSession[]; activeBoardId: stri
       if (!record) {
         continue;
       }
-      const imported = importPgn(record.pgn);
-      const base = emptyBoard(record.title, record.id);
-      boards.push({
-        ...base,
-        title: record.title,
-        tree: imported.tree,
-        // Fail closed on a stale path: a path that no longer resolves resets
-        // to the imported end instead of crashing the shell on getNodeAt.
-        path: getNodeAt(imported.tree, record.path) ? record.path : imported.path,
-        headers: { ...imported.headers, ...record.headers },
-        orientation: record.orientation,
-        repertoireColor: record.repertoireColor,
-        dirty: false,
-        preview: false,
-      });
+      boards.push({ ...snapshotRecordToBoard(record, record.title, record.id), dirty: false });
     }
     if (boards.length === 0) {
       return null;
