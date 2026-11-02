@@ -8,8 +8,16 @@ name: OpenBot PR QA dispatch
 #
 # `workflow_run` only fires for workflows that exist on the default branch, so
 # that trigger starts working after this file is merged to master (same caveat
-# as `ci-failure-comment.yml`). `pull_request_review` and `check_suite` work
-# immediately. `workflow_dispatch` exists only for the manual smoke test.
+# as `ci-failure-comment.yml`). `workflows: ["CI"]` names which workflow's
+# completion dispatches QA, mirroring the sibling. `pull_request_review` and
+# `check_suite` work immediately. `workflow_dispatch` exists only for the
+# manual smoke test.
+#
+# Loop protection: `workflows: ["CI"]` structurally excludes this workflow's
+# own completions, and the guard step additionally skips any `workflow_run`
+# event carrying this workflow's name. For `check_suite`, the guard step skips
+# suites that already contain a completed run of this job (read-only checks
+# API), so this workflow's own check runs can never re-trigger it.
 #
 # Requires the `OPENBOT_WEBHOOK_SECRET` repository secret (value from OpenBot >
 # Routines > pr-qa-dispatch). The job fails closed when it is missing.
@@ -20,16 +28,44 @@ on:
   check_suite:
     types: [completed]
   workflow_run:
+    workflows: ["CI"]
     types: [completed]
   workflow_dispatch: {}
 
-permissions: {}
+permissions:
+  checks: read
 
 jobs:
-  dispatch:
+  openbot-dispatch:
     runs-on: ubuntu-latest
     steps:
+      - name: Guard against self-trigger loops
+        id: guard
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_RUN_NAME: ${{ github.event.workflow_run.name }}
+          CHECK_SUITE_ID: ${{ github.event.check_suite.id }}
+        run: |
+          set -euo pipefail
+          skip=false
+          if [ "$EVENT_NAME" = "workflow_run" ] && [ "$WORKFLOW_RUN_NAME" = "OpenBot PR QA dispatch" ]; then
+            echo "Skipping: triggered by this workflow's own completion."
+            skip=true
+          fi
+          if [ "$EVENT_NAME" = "check_suite" ] && [ -n "${CHECK_SUITE_ID:-}" ]; then
+            count=$(gh api "repos/$REPO/check-suites/$CHECK_SUITE_ID/check-runs" \
+              --jq '[.check_runs[] | select(.name == "openbot-dispatch" and .status == "completed")] | length')
+            if [ "${count:-0}" -gt 0 ]; then
+              echo "Skipping: suite $CHECK_SUITE_ID already contains a completed openbot-dispatch run."
+              skip=true
+            fi
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
       - name: Build OpenBot envelope
+        if: steps.guard.outputs.skip != 'true'
         env:
           REPO: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
@@ -39,9 +75,12 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REVIEW_STATE: ${{ github.event.review.state }}
           CHECK_SUITE_CONCLUSION: ${{ github.event.check_suite.conclusion }}
+          CHECK_SUITE_HEAD_SHA: ${{ github.event.check_suite.head_sha }}
+          CHECK_SUITE_PRS: ${{ toJSON(github.event.check_suite.pull_requests) }}
           WORKFLOW_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           WORKFLOW_RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           WORKFLOW_RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_RUN_PRS: ${{ toJSON(github.event.workflow_run.pull_requests) }}
         run: |
           set -euo pipefail
           occurred_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -56,29 +95,47 @@ jobs:
             --arg pr_head_sha "$PR_HEAD_SHA" \
             --arg review_state "$REVIEW_STATE" \
             --arg check_suite_conclusion "$CHECK_SUITE_CONCLUSION" \
+            --arg check_suite_head_sha "$CHECK_SUITE_HEAD_SHA" \
+            --arg check_suite_prs "$CHECK_SUITE_PRS" \
             --arg workflow_run_conclusion "$WORKFLOW_RUN_CONCLUSION" \
             --arg workflow_run_head_branch "$WORKFLOW_RUN_HEAD_BRANCH" \
             --arg workflow_run_head_sha "$WORKFLOW_RUN_HEAD_SHA" \
-            '{
+            --arg workflow_run_prs "$WORKFLOW_RUN_PRS" \
+            '($check_suite_prs | fromjson? // []) as $cs_prs
+            | ($workflow_run_prs | fromjson? // []) as $wr_prs
+            | (if $pr_number == "" then null else ($pr_number | tonumber?) end) as $top_num
+            | (if $top_num != null then {
+                number: $top_num,
+                head_ref: (if $pr_head_ref == "" then null else $pr_head_ref end),
+                head_sha: (if $pr_head_sha == "" then null else $pr_head_sha end)
+              } elif ($cs_prs | length) > 0 then {
+                number: $cs_prs[0].number,
+                head_ref: $cs_prs[0].head.ref,
+                head_sha: (if $check_suite_head_sha == "" then $cs_prs[0].head.sha else $check_suite_head_sha end)
+              } elif ($wr_prs | length) > 0 then {
+                number: $wr_prs[0].number,
+                head_ref: $wr_prs[0].head.ref,
+                head_sha: (if $workflow_run_head_sha == "" then $wr_prs[0].head.sha else $workflow_run_head_sha end)
+              } else null end) as $pr
+            | {
               type: $type,
               occurredAt: $occurredAt,
               data: {
                 repository: $repository,
                 action: (if $action == "" then null else $action end),
                 event: $event,
-                pull_request: (if $pr_number == "" then null else {
-                  number: ($pr_number | tonumber),
-                  head_ref: (if $pr_head_ref == "" then null else $pr_head_ref end),
-                  head_sha: (if $pr_head_sha == "" then null else $pr_head_sha end)
-                } end),
+                pull_request: $pr,
                 review_state: (if $review_state == "" then null else $review_state end),
                 check_suite: (if $check_suite_conclusion == "" then null else {
-                  conclusion: $check_suite_conclusion
+                  conclusion: $check_suite_conclusion,
+                  head_sha: (if $check_suite_head_sha == "" then null else $check_suite_head_sha end),
+                  pull_requests: [$cs_prs[] | .number]
                 } end),
                 workflow_run: (if $workflow_run_conclusion == "" then null else {
                   conclusion: $workflow_run_conclusion,
                   head_branch: (if $workflow_run_head_branch == "" then null else $workflow_run_head_branch end),
-                  head_sha: (if $workflow_run_head_sha == "" then null else $workflow_run_head_sha end)
+                  head_sha: (if $workflow_run_head_sha == "" then null else $workflow_run_head_sha end),
+                  pull_requests: [$wr_prs[] | .number]
                 } end)
               }
             }' > body.json
@@ -90,6 +147,7 @@ jobs:
           fi
 
       - name: Sign and POST to OpenBot
+        if: steps.guard.outputs.skip != 'true'
         env:
           OPENBOT_WEBHOOK_SECRET: ${{ secrets.OPENBOT_WEBHOOK_SECRET }}
           OPENBOT_WEBHOOK_URL: https://signal.openbot.run/v1/webhooks/2d2fd88f-45cb-4e70-9aee-b8197132c917
