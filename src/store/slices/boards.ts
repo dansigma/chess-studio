@@ -383,6 +383,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path,
+        // SIG-1186: cursor navigation must persist `current_node_path` —
+        // mark dirty even though the tree is unchanged.
+        dirty: true,
       })),
     }));
     soundForAdvance(get, previous);
@@ -396,6 +399,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goBack(board.path),
+        // SIG-1186: cursor-only change — see goPath.
+        dirty: true,
       })),
     }));
   },
@@ -409,6 +414,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goForward(board.tree, board.path),
+        // SIG-1186: cursor-only change — see goPath.
+        dirty: true,
       })),
     }));
     soundForAdvance(get, previous);
@@ -422,6 +429,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goStart(),
+        // SIG-1186: cursor-only change — see goPath.
+        dirty: true,
       })),
     }));
   },
@@ -435,6 +444,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goEnd(board.tree, board.path),
+        // SIG-1186: cursor-only change — see goPath.
+        dirty: true,
       })),
     }));
     soundForAdvance(get, previous);
@@ -449,6 +460,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         path: goForwardN(board.tree, board.path, 10),
+        // SIG-1186: cursor-only change — see goPath.
+        dirty: true,
       })),
     }));
     soundForAdvance(get, previous);

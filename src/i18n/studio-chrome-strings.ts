@@ -142,6 +142,7 @@ export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.about.close",
   "chrome.shell.courseLineFailed",
   "chrome.shell.saveFailed",
+  "chrome.shell.loadFailed",
 ] as const;
 
 export type StudioChromeStringKey = (typeof STUDIO_CHROME_STRING_KEYS)[number];
@@ -278,6 +279,7 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.about.close": "Close",
   "chrome.shell.courseLineFailed": "Could not open that course line.",
   "chrome.shell.saveFailed": "Could not save board.",
+  "chrome.shell.loadFailed": "Could not load saved boards.",
 };
 
 const PT_BR: Record<StudioChromeStringKey, string> = {
@@ -412,6 +414,7 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.about.close": "Fechar",
   "chrome.shell.courseLineFailed": "Não foi possível abrir essa linha de curso.",
   "chrome.shell.saveFailed": "Não foi possível salvar o tabuleiro.",
+  "chrome.shell.loadFailed": "Não foi possível carregar os tabuleiros salvos.",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;
