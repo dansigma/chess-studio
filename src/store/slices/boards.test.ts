@@ -269,4 +269,62 @@ describe("SIG-1187 forward continuation chooser", () => {
     useStudioStore.getState().closeBoard();
     assert.equal(useStudioStore.getState().variationChoice, null);
   });
+
+  it("clears a pending choice on any cursor move so Forward re-evaluates", () => {
+    seedBranchBoard();
+    // Root [ ] has two children (e4/d4); path [0] is the branch point's child.
+    useStudioStore.setState({
+      boards: useStudioStore
+        .getState()
+        .boards.map((board) =>
+          board.id === "board-branch" ? { ...board, path: [0] } : board,
+        ),
+      variationChoice: { boardId: "board-branch", path: [0] },
+    });
+
+    useStudioStore.getState().back();
+    const state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, []);
+    assert.equal(state.variationChoice, null, "back() must drop the pending chooser");
+
+    // Re-open at the root branch (two children), then step away again.
+    state.forward();
+    assert.notEqual(useStudioStore.getState().variationChoice, null);
+    useStudioStore.getState().back();
+    assert.equal(useStudioStore.getState().variationChoice, null);
+
+    for (const action of ["toStart", "toEnd", "skipForward"] as const) {
+      useStudioStore.setState({
+        boards: useStudioStore
+          .getState()
+          .boards.map((board) =>
+            board.id === "board-branch" ? { ...board, path: [] } : board,
+          ),
+        variationChoice: { boardId: "board-branch", path: [] },
+      });
+      useStudioStore.getState()[action]();
+      assert.equal(
+        useStudioStore.getState().variationChoice,
+        null,
+        `${action}() must drop the pending chooser`,
+      );
+    }
+
+    // Forward must work again after the cursor moves away: from the root it
+    // re-opens the chooser instead of no-op'ing on the stale choice.
+    useStudioStore.setState({
+      boards: useStudioStore
+        .getState()
+        .boards.map((board) =>
+          board.id === "board-branch" ? { ...board, path: [] } : board,
+        ),
+      variationChoice: null,
+    });
+    useStudioStore.getState().forward();
+    assert.notEqual(
+      useStudioStore.getState().variationChoice,
+      null,
+      "forward() must re-open the chooser once the stale choice is gone",
+    );
+  });
 });

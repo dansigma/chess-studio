@@ -553,7 +553,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       }
       return;
     }
-    const board = state.active();
+    const board = get().active();
     const start = [...board.path];
     set({
       training: true,
