@@ -8,10 +8,12 @@ export function MenuSurface({
   className = "",
   children,
   onClose,
+  label,
 }: {
   className?: string;
   children: ReactNode;
   onClose?: () => void;
+  label?: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const handleKeyDown = useMenuKeyDown(rootRef, onClose);
@@ -19,6 +21,7 @@ export function MenuSurface({
     <div
       ref={rootRef}
       role="menu"
+      aria-label={label}
       onKeyDown={handleKeyDown}
       className={`min-w-64 rounded-[9px] border border-studio-border-strong bg-studio-elevated p-1 shadow-2xl ${className}`}
     >
