@@ -292,6 +292,26 @@ body {
   z-index: 10;
 }
 
+/* SIG-1192: active and inactive groups styled their visible tab the same,
+   so nothing showed which group the arrow keys act on. The focused group's
+   visible tab gets a 2px accent rule along its top edge. */
+.dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-active-tab::before {
+  content: "";
+  position: absolute;
+  /* Overrides dockview's 1px divider ::before on non-first tabs. */
+  top: -1px;
+  right: -1px;
+  bottom: auto;
+  left: -1px;
+  width: auto;
+  height: 2px;
+  z-index: 11;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  background: var(--studio-accent);
+  pointer-events: none;
+}
+
 .dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab,
 .dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab {
   background-color: transparent;
@@ -314,7 +334,8 @@ body {
 }
 
 .dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-content {
-  max-width: 140px;
+  /* SIG-1192: 140px cut most "White vs Black" board titles mid-name. */
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
