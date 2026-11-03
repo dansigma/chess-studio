@@ -213,6 +213,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       drillDueOnly: false,
       repertoireProgress: {},
       mistakeExercises: {},
+      // SIG-1187: a signed-out session never carries a pending chooser.
+      variationChoice: null,
     } satisfies SessionResetPayload;
     set(sessionReset);
   },

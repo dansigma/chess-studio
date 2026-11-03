@@ -126,6 +126,12 @@ function childrenAt(tree: GameTree, path: Path): TreeNode[] | null {
   return getNodeAt(tree, path)?.children ?? null;
 }
 
+// SIG-1187: continuations the Forward chooser offers at `path` — root children
+// for `[]`, the node's children for a nested path, `[]` for an invalid path.
+export function continuationsAt(tree: GameTree, path: Path): TreeNode[] {
+  return childrenAt(tree, path) ?? [];
+}
+
 /** Path reached by following `ucis` from `base` through existing children; null when the line is not in the tree. */
 export function pathAlongLine(tree: GameTree, base: Path, ucis: string[]): Path | null {
   let path = [...base];

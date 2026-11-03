@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { createEmptyTree, playMove } from "../../chess/tree.ts";
 import { useStudioStore } from "../studio-store.ts";
 import { emptyBoard } from "./board-helpers.ts";
+import type { BoardSession } from "./types.ts";
+
+const MOVE_E4 = { san: "e4", uci: "e2e4", fen: "fen-e4", from: "e2", to: "e4" };
+const MOVE_D4 = { san: "d4", uci: "d2d4", fen: "fen-d4", from: "d2", to: "d4" };
+const MOVE_E5 = { san: "e5", uci: "e7e5", fen: "fen-e5", from: "e7", to: "e5" };
 
 // Regression coverage for SIG-916: the debounced auto-save in StudioShell
 // persists every board with dirty: true, not just the active board. These
@@ -108,5 +114,217 @@ describe("SIG-916 multi-dirty auto-save", () => {
     assert.equal(useStudioStore.getState().statusMessage, "Could not save board.");
     useStudioStore.getState().setStatus(null);
     assert.equal(useStudioStore.getState().statusMessage, null);
+  });
+});
+
+// SIG-1187: Forward opens a continuation chooser at branching positions.
+function seedBranchBoard(id = "board-branch"): BoardSession {
+  let tree = createEmptyTree();
+  let path: number[] = [];
+  ({ tree, path } = playMove(tree, path, MOVE_E4));
+  ({ tree } = playMove(tree, [], MOVE_D4));
+  const board: BoardSession = {
+    ...emptyBoard("Branch", id),
+    tree,
+    path: [],
+  };
+  void path;
+  useStudioStore.setState({
+    boards: [board],
+    activeBoardId: board.id,
+    variationChoice: null,
+  });
+  return board;
+}
+
+describe("SIG-1187 forward continuation chooser", () => {
+  it("opens the choice without moving at 2+ children; a second forward() is a no-op", () => {
+    seedBranchBoard();
+
+    useStudioStore.getState().forward();
+
+    let state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, []);
+    assert.deepEqual(state.variationChoice, {
+      boardId: "board-branch",
+      path: [],
+    });
+
+    state.forward();
+    state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, []);
+    assert.deepEqual(state.variationChoice, {
+      boardId: "board-branch",
+      path: [],
+    });
+  });
+
+  it("advances automatically with one child and no-ops with none", () => {
+    // Linear board: e4 then e5 only, cursor at the root.
+    let tree = createEmptyTree();
+    let path: number[] = [];
+    ({ tree, path } = playMove(tree, path, MOVE_E4));
+    ({ tree } = playMove(tree, path, MOVE_E5));
+    useStudioStore.setState({
+      boards: [
+        {
+          ...emptyBoard("Linear", "board-linear"),
+          tree,
+          path: [],
+        },
+      ],
+      activeBoardId: "board-linear",
+      variationChoice: null,
+    });
+
+    useStudioStore.getState().forward();
+    let state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, [0], "one child advances with no chooser");
+    assert.equal(state.variationChoice, null);
+
+    // Cursor at the leaf: forward is a no-op.
+    useStudioStore.getState().forward();
+    useStudioStore.getState().forward();
+    state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, [0, 0]);
+    assert.equal(state.variationChoice, null);
+    state.forward();
+    state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, [0, 0], "leaf forward is a no-op");
+    assert.equal(state.variationChoice, null);
+  });
+
+  it("chooseVariation moves to the chosen child and clears the choice", () => {
+    seedBranchBoard();
+    useStudioStore.getState().forward();
+
+    useStudioStore.getState().chooseVariation(1);
+
+    const state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, [1]);
+    assert.equal(state.variationChoice, null);
+  });
+
+  it("cancel leaves the path and clears the choice", () => {
+    seedBranchBoard();
+    useStudioStore.getState().forward();
+
+    useStudioStore.getState().cancelVariationChoice();
+
+    const state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, []);
+    assert.equal(state.variationChoice, null);
+  });
+
+  it("clears a stale choice without moving on board/path mismatch or bad index", () => {
+    seedBranchBoard();
+    useStudioStore.getState().forward();
+
+    // Simulate a mid-flight swap: cursor moved elsewhere, choice still set.
+    useStudioStore.setState({
+      boards: useStudioStore
+        .getState()
+        .boards.map((board) =>
+          board.id === "board-branch" ? { ...board, path: [0] } : board,
+        ),
+    });
+    useStudioStore.getState().chooseVariation(1);
+    let state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, [0], "stale choice must not move");
+    assert.equal(state.variationChoice, null);
+
+    // Bad index clears without moving.
+    useStudioStore.setState({ variationChoice: { boardId: "board-branch", path: [] } });
+    useStudioStore.getState().chooseVariation(9);
+    state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, [0]);
+    assert.equal(state.variationChoice, null);
+  });
+
+  it("clears the choice on board switch, new/clone/close board, and goPath", () => {
+    seedBranchBoard();
+    const other = { ...emptyBoard("Other", "board-other"), dirty: false };
+    useStudioStore.setState({
+      boards: [useStudioStore.getState().active(), other],
+      activeBoardId: "board-branch",
+      variationChoice: { boardId: "board-branch", path: [] as number[] },
+    });
+
+    useStudioStore.getState().setActiveBoard("board-other");
+    assert.equal(useStudioStore.getState().variationChoice, null);
+
+    useStudioStore.setState({ variationChoice: { boardId: "board-other", path: [] } });
+    useStudioStore.getState().goPath([]);
+    assert.equal(useStudioStore.getState().variationChoice, null);
+
+    useStudioStore.setState({ variationChoice: { boardId: "board-other", path: [] } });
+    useStudioStore.getState().newBoard();
+    assert.equal(useStudioStore.getState().variationChoice, null);
+
+    useStudioStore.setState({ variationChoice: { boardId: "board-other", path: [] } });
+    useStudioStore.getState().cloneBoard();
+    assert.equal(useStudioStore.getState().variationChoice, null);
+
+    useStudioStore.setState({ variationChoice: { boardId: "board-other", path: [] } });
+    useStudioStore.getState().closeBoard();
+    assert.equal(useStudioStore.getState().variationChoice, null);
+  });
+
+  it("clears a pending choice on any cursor move so Forward re-evaluates", () => {
+    seedBranchBoard();
+    // Root [ ] has two children (e4/d4); path [0] is the branch point's child.
+    useStudioStore.setState({
+      boards: useStudioStore
+        .getState()
+        .boards.map((board) =>
+          board.id === "board-branch" ? { ...board, path: [0] } : board,
+        ),
+      variationChoice: { boardId: "board-branch", path: [0] },
+    });
+
+    useStudioStore.getState().back();
+    const state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, []);
+    assert.equal(state.variationChoice, null, "back() must drop the pending chooser");
+
+    // Re-open at the root branch (two children), then step away again.
+    state.forward();
+    assert.notEqual(useStudioStore.getState().variationChoice, null);
+    useStudioStore.getState().back();
+    assert.equal(useStudioStore.getState().variationChoice, null);
+
+    for (const action of ["toStart", "toEnd", "skipForward"] as const) {
+      useStudioStore.setState({
+        boards: useStudioStore
+          .getState()
+          .boards.map((board) =>
+            board.id === "board-branch" ? { ...board, path: [] } : board,
+          ),
+        variationChoice: { boardId: "board-branch", path: [] },
+      });
+      useStudioStore.getState()[action]();
+      assert.equal(
+        useStudioStore.getState().variationChoice,
+        null,
+        `${action}() must drop the pending chooser`,
+      );
+    }
+
+    // Forward must work again after the cursor moves away: from the root it
+    // re-opens the chooser instead of no-op'ing on the stale choice.
+    useStudioStore.setState({
+      boards: useStudioStore
+        .getState()
+        .boards.map((board) =>
+          board.id === "board-branch" ? { ...board, path: [] } : board,
+        ),
+      variationChoice: null,
+    });
+    useStudioStore.getState().forward();
+    assert.notEqual(
+      useStudioStore.getState().variationChoice,
+      null,
+      "forward() must re-open the chooser once the stale choice is gone",
+    );
   });
 });

@@ -32,6 +32,13 @@ import type {
 export type BoardOrientation = "white" | "black";
 export type ActivityView = "search" | "boards" | "databases" | "files" | "bookmarks" | "mygames";
 
+// SIG-1187: pending Forward continuation choice — the board and cursor position
+// the chooser was opened from. Nullable so "no chooser open" needs no sentinel.
+export type VariationChoice = {
+  boardId: string;
+  path: Path;
+};
+
 export type BoardSession = {
   id: string;
   remoteId: string | null;
@@ -150,6 +157,8 @@ export type StudioState = {
   activeFileGameId: string | null;
   bookmarks: PlayerBookmark[];
   setupMode: boolean;
+  // SIG-1187: pending Forward continuation choice; null when no chooser open.
+  variationChoice: VariationChoice | null;
   active: () => BoardSession;
   fen: () => string;
   lastMove: () => { from: string; to: string } | null;
@@ -170,6 +179,8 @@ export type StudioState = {
   goPath: (path: Path) => void;
   back: () => void;
   forward: () => void;
+  chooseVariation: (index: number) => void;
+  cancelVariationChoice: () => void;
   toStart: () => void;
   toEnd: () => void;
   undo: () => void;

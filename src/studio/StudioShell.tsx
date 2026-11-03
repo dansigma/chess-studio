@@ -40,6 +40,7 @@ import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
 import { clearCourseStudyImport, fenFromShareSearch, readCourseStudyImport } from "@/src/chess/share-board";
 import { StatusBar } from "./StatusBar";
+import { VariationChoiceDialog } from "./VariationChoiceDialog";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { BrandLockup } from "./ui/BrandLockup";
@@ -124,6 +125,9 @@ export function StudioShell() {
   );
   const aboutOpen = useStudioStore((state) => state.aboutOpen);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
+  // SIG-1187: single Forward-choicer mount outside the mobile split so the
+  // chooser covers desktop and mobile entry points.
+  const variationChoice = useStudioStore((state) => state.variationChoice);
   const setExplorer = useStudioStore((state) => state.setExplorer);
   const setExplorerLoading = useStudioStore((state) => state.setExplorerLoading);
   const setExplorerError = useStudioStore((state) => state.setExplorerError);
@@ -620,6 +624,7 @@ export function StudioShell() {
           </dl>
         </Dialog>
       ) : null}
+      {variationChoice ? <VariationChoiceDialog /> : null}
     </div>
     <div id={PRINT_SHEET_ID} />
     </>
