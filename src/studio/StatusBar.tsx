@@ -18,17 +18,6 @@ export function useSyncState(): { label: string; dot: string } {
       : { label: tStudioChrome(locale, "chrome.statusBar.synced"), dot: "bg-studio-success" };
 }
 
-/** SIG-1197: sync dot + label for the desktop menubar (the status bar is mobile-only now). */
-export function SyncIndicator() {
-  const sync = useSyncState();
-  return (
-    <span className="flex shrink-0 items-center gap-1.5 text-caption text-studio-faint" data-sync-indicator="">
-      <span className={`h-1.5 w-1.5 rounded-full ${sync.dot}`} aria-hidden="true" />
-      {sync.label}
-    </span>
-  );
-}
-
 /**
  * SIG-1197: desktop replacement for the status bar's message slot. The
  * live region is always mounted so screen readers hear each new message;
