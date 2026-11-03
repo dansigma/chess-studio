@@ -12,7 +12,7 @@ import { NotationHeader } from "./NotationHeader";
 import { NotationToolbar } from "./NotationToolbar";
 import { NotationContextMenu, notationMenuEnablement, type NotationMenuState } from "./NotationContextMenu";
 import { pgnResultCaption } from "./ResultMark";
-import { Line } from "./NotationMoves";
+import { Line, TableMainline } from "./NotationMoves";
 import { displayDate, displayEvent } from "./notation-format";
 import { useNotationCommentDraft } from "./use-notation-comment-draft";
 
@@ -163,20 +163,36 @@ export function NotationPanel() {
         {board.tree.children.length === 0 ? (
           <div className="text-studio-faint">{tPanels(locale, "notation.panel.empty")}</div>
         ) : (
-          <div className={compact ? "inline leading-5" : "flex flex-wrap items-center gap-0.5"}>
-            <Line
+          notationDensity === "table" ? (
+            <TableMainline
               nodes={board.tree.children}
-              parentPath={[]}
               startFen={board.tree.startFen}
               collapsed={collapsed}
               currentPath={currentPath}
               style={moveNotation}
-              density={notationDensity}
               goPath={goPath}
               onToggleCollapse={handleToggleCollapse}
               onAnnotate={handleAnnotate}
+              locale={locale}
             />
-          </div>
+          ) : (
+            <div className={compact ? "inline leading-5" : "flex flex-wrap items-center gap-0.5"}>
+              <Line
+                nodes={board.tree.children}
+                parentPath={[]}
+                startFen={board.tree.startFen}
+                collapsed={collapsed}
+                currentPath={currentPath}
+                style={moveNotation}
+                density={notationDensity}
+                goPath={goPath}
+                onToggleCollapse={handleToggleCollapse}
+                onAnnotate={handleAnnotate}
+                depth={0}
+                locale={locale}
+              />
+            </div>
+          )
         )}
         {result ? (
           <div className="mt-5 flex items-center justify-center gap-2 border-t border-studio-border-subtle pt-3">
