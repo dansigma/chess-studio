@@ -158,3 +158,35 @@ test("right-click context menu inserts the snapshotted PV, not the refreshed one
     cleanup();
   }
 });
+
+// SIG-1195: one 32px control row — the status sits in the row, depth/lines/
+// cores live in the gear popover, and only the best line gets a solid chip.
+test("single control row: status in the row, settings popover, outlined secondary chips", async () => {
+  seedBoard();
+  try {
+    render(<EnginePanel />);
+    assert.ok(screen.getByText(tPanels("en", "engine.status.paused")), "paused status shows in the row");
+    assert.equal(screen.queryByRole("button", { name: tPanels("en", "engine.depth.increase") }), null);
+
+    fireEvent.click(screen.getByRole("button", { name: tPanels("en", "engine.settings") }));
+    const dialog = screen.getByRole("dialog", { name: tPanels("en", "engine.settings") });
+    assert.ok(dialog.querySelector(`[aria-label="${tPanels("en", "engine.depth.increase")}"]`), "depth stepper in popover");
+    assert.ok(dialog.querySelector(`[aria-label="${tPanels("en", "engine.lines.increase")}"]`), "lines stepper in popover");
+    assert.ok(dialog.querySelector('input[type="range"]'), "cores slider in popover");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    assert.equal(screen.queryByRole("dialog"), null);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: tPanels("en", "engine.start") }));
+    });
+    await act(async () => {
+      emitLines([["e2e4", "e7e5"], ["d2d4", "d7d5"]]);
+    });
+    const chips = screen.getAllByRole("button", { expanded: false }).filter((button) => /^[+-]?\d/u.test(button.textContent ?? ""));
+    assert.equal(chips.length, 2, "one score chip per line");
+    assert.match(chips[0]!.className, /bg-studio-win|bg-studio-loss/u);
+    assert.doesNotMatch(chips[1]!.className, /bg-studio-win|bg-studio-loss/u);
+  } finally {
+    cleanup();
+  }
+});

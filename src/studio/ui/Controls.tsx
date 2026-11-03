@@ -61,6 +61,7 @@ export function Stepper({
   label,
   decrementLabel,
   incrementLabel,
+  hideLabel = false,
   value,
   canDecrement,
   canIncrement,
@@ -72,6 +73,8 @@ export function Stepper({
    * English with the translated label ("Decrease profundidade"). */
   decrementLabel: string;
   incrementLabel: string;
+  /** SIG-1195: the label already sits beside the stepper (engine popover). */
+  hideLabel?: boolean;
   value: ReactNode;
   canDecrement: boolean;
   canIncrement: boolean;
@@ -92,7 +95,7 @@ export function Stepper({
         <Minus size={12} />
       </button>
       <span className="flex h-full items-center gap-1.5 border-x border-studio-border px-2 tabular-nums text-studio-fg">
-        <span className="text-caption text-studio-faint">{label}</span>
+        {hideLabel ? null : <span className="text-caption text-studio-faint">{label}</span>}
         {value}
       </span>
       <button
