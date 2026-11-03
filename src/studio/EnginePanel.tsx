@@ -30,6 +30,7 @@ import { formatSanAtPly } from "@/src/chess/move-notation";
 import { IconButton } from "./ui/Button";
 import { Stepper } from "./ui/Controls";
 import { EvalSparkline } from "./EvalGraphPanel";
+import { ENGINE_SPARKLINE_MIN_HEIGHT, usePanelSize } from "./use-panel-size";
 
 function isInsideEnginePv(target: EventTarget | null): boolean {
   return target instanceof Element && Boolean(target.closest("[data-engine-pv]"));
@@ -75,6 +76,8 @@ export function EnginePanel() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const showSparkline = useStudioStore((state) => state.settings.engineSparkline);
   const toggleSparkline = useStudioStore((state) => state.toggleEngineSparkline);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const panelSize = usePanelSize(rootRef);
   const [buildOpen, setBuildOpen] = useState(false);
   const [lineMenu, setLineMenu] = useState<EngineLineMenuState | null>(null);
   // SIG-1192: PVs render on one line; clicking a line's score expands it.
@@ -194,7 +197,7 @@ export function EnginePanel() {
   const running = info.running && !paused;
 
   return (
-    <div className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
+    <div ref={rootRef} className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
       {/* SIG-1195: one 32px control row. Depth, lines and cores moved into the
           gear popover; status lives in the row's depth text. */}
       <div className="flex h-8 shrink-0 items-center gap-1.5 border-b border-studio-border pl-1 pr-1.5">
@@ -417,7 +420,8 @@ export function EnginePanel() {
       </div>
 
       {/* SIG-1196: the line's eval at a glance; walks only once the engine was started. */}
-      {showSparkline ? <EvalSparkline walk={started} /> : null}
+      {/* SIG-1197: short panels drop the sparkline so at least one line shows. */}
+      {showSparkline && panelSize.height >= ENGINE_SPARKLINE_MIN_HEIGHT ? <EvalSparkline walk={started} /> : null}
 
       <div className="flex min-h-0 flex-1">
         <div className="min-h-0 min-w-0 flex-1 overflow-auto">

@@ -18,19 +18,21 @@ function PlayerName({
   name,
   elo,
   fallback,
+  inline = false,
 }: {
   name?: string;
   elo?: string;
   fallback: string;
+  inline?: boolean;
 }) {
   const placeholder = isPlaceholderPlayer(name);
   const shown = placeholder ? fallback : name;
   return (
-    <span className="inline-flex items-baseline gap-1.5">
-      <span className={`text-title font-semibold tracking-tight ${placeholder ? "text-studio-faint" : "text-studio-fg"}`}>
+    <span className={`inline-flex min-w-0 items-baseline gap-1.5 ${inline ? "shrink" : ""}`}>
+      <span className={`${inline ? "truncate text-body" : "text-title"} font-semibold tracking-tight ${placeholder ? "text-studio-faint" : "text-studio-fg"}`}>
         {shown}
       </span>
-      {elo ? <span className="text-body font-medium tabular-nums text-studio-muted">{elo}</span> : null}
+      {elo ? <span className={`${inline ? "text-caption" : "text-body"} shrink-0 font-medium tabular-nums text-studio-muted`}>{elo}</span> : null}
     </span>
   );
 }
@@ -41,19 +43,43 @@ export function NotationHeader({
   event,
   locale = "en",
   onEdit,
+  inline = false,
 }: {
   headers: GameHeaders;
   date: string | null;
   event: string | null;
   locale?: SiteLocale;
   onEdit: () => void;
+  /** SIG-1197: one-line form that shares a row with the toolbar (wide panels). */
+  inline?: boolean;
 }) {
+  const openingTitle = isPlaceholderPlayer(headers.White) && isPlaceholderPlayer(headers.Black) ? headers.Opening : undefined;
+  if (inline) {
+    const editLabel = tPanels(locale, "notation.header.edit");
+    const detail = [event, date].filter(Boolean).join(" · ");
+    return (
+      <div className="flex min-w-0 flex-1 items-center gap-1" title={detail || undefined}>
+        {openingTitle ? (
+          <span className="truncate text-body font-semibold text-studio-fg">{openingTitle}</span>
+        ) : (
+          <span className="flex min-w-0 items-baseline gap-1.5">
+            <PlayerName inline name={headers.White} elo={headers.WhiteElo} fallback={tPanels(locale, "notation.header.white")} />
+            <span className="shrink-0 text-caption text-studio-faint">{tPanels(locale, "notation.header.vs")}</span>
+            <PlayerName inline name={headers.Black} elo={headers.BlackElo} fallback={tPanels(locale, "notation.header.black")} />
+          </span>
+        )}
+        <IconButton label={editLabel} size="sm" className="shrink-0 text-studio-faint hover:text-studio-fg" onClick={onEdit}>
+          <Pencil size={12} />
+        </IconButton>
+      </div>
+    );
+  }
   return (
     <div className="flex items-start justify-between gap-3 border-b border-studio-border-subtle px-3 py-2.5">
       <div className="min-w-0">
         {/* SIG-1193: with no players (an analysis board), the opening is the title. */}
-        {isPlaceholderPlayer(headers.White) && isPlaceholderPlayer(headers.Black) && headers.Opening ? (
-          <div className="truncate text-title font-semibold tracking-tight text-studio-fg">{headers.Opening}</div>
+        {openingTitle ? (
+          <div className="truncate text-title font-semibold tracking-tight text-studio-fg">{openingTitle}</div>
         ) : (
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <PlayerName name={headers.White} elo={headers.WhiteElo} fallback={tPanels(locale, "notation.header.white")} />

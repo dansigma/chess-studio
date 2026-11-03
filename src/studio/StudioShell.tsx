@@ -39,7 +39,7 @@ import { loadRemoteFiles } from "@/src/lib/user-files";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
 import { clearCourseStudyImport, fenFromShareSearch, readCourseStudyImport } from "@/src/chess/share-board";
-import { StatusBar } from "./StatusBar";
+import { StatusBar, StatusToast } from "./StatusBar";
 import { VariationChoiceDialog } from "./VariationChoiceDialog";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
@@ -589,7 +589,9 @@ export function StudioShell() {
         </div>
       </div>
       )}
-      <StatusBar message={status} />
+      {/* SIG-1197: the status bar stays on mobile; desktop shows messages as a
+          toast and the sync state in the menubar (+24px for the dock). */}
+      {isMobile ? <StatusBar message={status} /> : <StatusToast message={status} />}
 
       <input
         ref={fileRef}

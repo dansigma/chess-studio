@@ -7,7 +7,6 @@ import { signOut } from "@/app/login/actions";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectDirtyCount, useStudioStore } from "@/src/store/studio-store";
 import { SITE_NAME, siteSections } from "@/src/site/sections";
-import { LocaleSwitcher } from "@/src/i18n/LocaleSwitcher";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 import { BrandLockup } from "./ui/BrandLockup";
@@ -17,8 +16,9 @@ import { SettingsDialog } from "./SettingsDialog";
 import { MenuBarFileMenu } from "./MenuBarFileMenu";
 import { MenuBarEditMenu } from "./MenuBarEditMenu";
 import { MenuBarViewMenu } from "./MenuBarViewMenu";
+import { SyncIndicator } from "./StatusBar";
 
-type MenuKey = "file" | "edit" | "view" | "help" | "account" | null;
+type MenuKey = "site" | "file" | "edit" | "view" | "help" | "account" | null;
 type ViewSubmenu = "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
 
 const TOP_MENUS = [
@@ -132,18 +132,32 @@ export function MenuBar({
 
   return (
     <div className="relative z-[1000] flex h-9 items-center gap-0.5 border-b border-studio-border bg-studio-chrome px-2 text-body text-studio-fg">
-      <span className="mr-3 px-1.5">
-        <BrandLockup />
-      </span>
-      {siteSections(locale).filter((section) => section.href !== "/studio").map((section) => (
-        <a
-          key={section.href}
-          href={section.href}
-          className="relative z-20 mr-1 rounded-md px-2 py-0.5 text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
+      {/* SIG-1197: the site sections (Cursos, Exercícios) live under the brand,
+          so the menubar holds only this document's menus. */}
+      <div className="relative z-20 mr-2">
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={open === "site"}
+          aria-label={tStudioChrome(locale, "chrome.menu.site")}
+          onClick={() => toggleMenu("site")}
+          className={`flex h-[26px] items-center gap-1 rounded-md pl-1.5 pr-1 ${
+            open === "site" ? "bg-studio-hover-strong" : "hover:bg-studio-hover-strong"
+          }`}
         >
-          {section.label}
-        </a>
-      ))}
+          <BrandLockup />
+          <ChevronDown size={12} className="text-studio-faint" aria-hidden="true" />
+        </button>
+        {open === "site" ? (
+          <MenuSurface className="absolute left-0 top-[calc(100%+5px)] min-w-48" onClose={close}>
+            {siteSections(locale)
+              .filter((section) => section.href !== "/studio")
+              .map((section) => (
+                <Item key={section.href} label={section.label} onClick={run(() => router.push(section.href))} />
+              ))}
+          </MenuSurface>
+        ) : null}
+      </div>
 
       {open ? (
         <button className="fixed inset-0 z-10 cursor-default" onClick={close} aria-label={tStudioChrome(locale, "chrome.menu.closeMenu")} />
@@ -162,7 +176,7 @@ export function MenuBar({
             }`}
             onClick={() => toggleMenu(key)}
             onMouseEnter={() => {
-              if (open && open !== key && open !== "account") {
+              if (open && open !== key && open !== "account" && open !== "site") {
                 setViewSub(null);
                 setOpen(key);
               }
@@ -179,7 +193,7 @@ export function MenuBar({
       ))}
 
       <div className="relative z-20 ml-auto flex items-center gap-2">
-        <LocaleSwitcher />
+        <SyncIndicator />
         {user?.email ? (
           <>
             <button

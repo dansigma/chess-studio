@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { fileExplorerSource, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
@@ -16,6 +16,7 @@ import { IconButton } from "./ui/Button";
 import { isExplorerPanelId } from "./dock-layout";
 import { openExplorerPanel, persistExplorerSource } from "./dock-api";
 import { useExplorerData } from "./use-explorer-data";
+import { EXPLORER_COMPACT_MAX_HEIGHT, usePanelSize } from "./use-panel-size";
 
 const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(170px,220px)] items-center gap-3 px-3";
 
@@ -118,6 +119,8 @@ function ExplorerChrome({
   const filters = useStudioStore((state) => state.settings.explorerFilters);
   const setExplorerFilters = useStudioStore((state) => state.setExplorerFilters);
   const setExplorerHover = useStudioStore((state) => state.setExplorerHover);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const compactHeader = usePanelSize(rootRef).height < EXPLORER_COMPACT_MAX_HEIGHT;
   const activeFen = useActiveFen();
   // SIG-1194: hovering a move previews its arrow on the board.
   const showHoverArrow = (uci: string) =>
@@ -136,10 +139,13 @@ function ExplorerChrome({
   ]);
 
   return (
-    <div className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
+    <div ref={rootRef} className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
       {/* SIG-1194: two rows (64px) instead of four bordered strips (~137px).
           Row 1 is the context — the opening — row 2 the source and filters. */}
       <div className="relative shrink-0 border-b border-studio-border-subtle">
+        {/* SIG-1197: short panels fold the opening into the source row (ECO
+            badge, name in its tooltip) so the move list keeps its rows. */}
+        {compactHeader ? null : (
         <div className="flex h-8 items-center gap-2 px-3">
           {explorer?.opening ? (
             <>
@@ -161,7 +167,13 @@ function ExplorerChrome({
             </span>
           ) : null}
         </div>
+        )}
         <div className="flex h-[31px] items-center gap-1 pl-2 pr-1.5">
+          {compactHeader && explorer?.opening ? (
+            <span title={explorer.opening.name} className="shrink-0">
+              <Badge tone="accent">{explorer.opening.eco}</Badge>
+            </span>
+          ) : null}
           <select
             aria-label={tPanels(locale, "explorer.sourceLabel")}
             value={effectiveSource}

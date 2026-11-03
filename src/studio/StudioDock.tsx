@@ -1,5 +1,6 @@
 "use client";
 
+import { applyGroupMinimums } from "./dock-constraints";
 import { useEffect, useRef } from "react";
 import {
   DockviewDefaultTab,
@@ -51,6 +52,7 @@ import {
   boardIdFromPanelId,
   boardPanelId,
   boardTitle,
+  dedupedBoardTitles,
   closeBoardPanel,
   consumeProgrammaticBoardClose,
   explorerTitleForSource,
@@ -360,8 +362,9 @@ export function StudioDock() {
     if (!api) {
       return;
     }
-    for (const board of useStudioStore.getState().boards) {
-      api.getPanel(boardPanelId(board.id))?.setTitle(boardTitle(locale, board.title));
+    // SIG-1197: repeated titles get a " · n" suffix.
+    for (const [id, title] of dedupedBoardTitles(locale, useStudioStore.getState().boards)) {
+      api.getPanel(boardPanelId(id))?.setTitle(title);
     }
   }, [boardTitles, locale]);
 
@@ -583,7 +586,11 @@ export function StudioDock() {
         });
       }),
     ];
+    // SIG-1197: minimum heights per group, so no panel becomes unusable when
+    // dragged small. Recomputed as panels move between groups.
+    applyGroupMinimums(api);
     layoutSubscription.current = api.onDidLayoutChange(() => {
+      applyGroupMinimums(api);
       if (suppressSaves.current > 0) {
         return;
       }
