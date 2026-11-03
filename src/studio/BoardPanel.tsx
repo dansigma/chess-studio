@@ -289,7 +289,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   return (
     <div
       data-mobile-board-gestures=""
-      className="grid h-full min-h-0 w-full touch-pan-y place-items-center overflow-hidden bg-studio-panel p-2 [container-type:size]"
+      className="grid h-full min-h-0 w-full touch-pan-y place-items-center overflow-hidden bg-studio-panel p-1.5 [container-type:size]"
       onContextMenu={(event) => {
         event.preventDefault();
         setBoardMenu({ x: event.clientX, y: event.clientY });

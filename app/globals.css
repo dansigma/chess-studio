@@ -217,8 +217,9 @@ body {
 }
 
 .dockview-theme-vs .dv-split-view-container.dv-horizontal > .dv-sash-container > .dv-sash {
-  width: 8px;
+  width: 6px;
   background-color: var(--studio-bg);
+  cursor: col-resize;
 }
 
 .dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container,
