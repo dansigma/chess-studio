@@ -153,7 +153,7 @@ export function NotationPanel() {
       />
 
       <div
-        className={`min-h-0 flex-1 overflow-auto text-body ${compact ? "p-2 text-dense leading-5" : "p-2.5 leading-6"}`}
+        className={`min-h-0 flex-1 overflow-auto ${compact ? "p-2 text-dense leading-5" : "p-2.5 text-[14px] leading-6"}`}
       >
         {board.tree.startComment ? (
           <div className="mb-2 border-l-2 border-studio-comment/40 pl-2 text-studio-comment">
