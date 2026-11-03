@@ -24,22 +24,22 @@ describe("studio dock tabs restyling (SIG-938)", () => {
     );
   });
 
-  it("applies continuous bottom border across the tab container", () => {
+  it("draws no divider under the tab strip (SIG-1198)", () => {
     assert.ok(
-      globalsCss.includes("border-bottom: 1px solid var(--studio-border);"),
-      "tab container must have continuous border-bottom using var(--studio-border)",
+      !globalsCss.includes("border-bottom: 1px solid var(--studio-border);"),
+      "tab container must not draw a border-bottom divider",
     );
   });
 
-  it("fuses active tab with content panel using bottom border matching panel color and top-only radius", () => {
+  it("fuses active tab with content panel by colour, with top-only radius", () => {
     assert.ok(
       globalsCss.includes("border-top-left-radius: 6px;") &&
         globalsCss.includes("border-bottom-left-radius: 0;"),
       "tabs must have rounded top corners and flat bottom",
     );
     assert.ok(
-      globalsCss.includes("border-bottom: 1px solid var(--studio-panel);"),
-      "active tab bottom border must match var(--studio-panel) to fuse with panel",
+      globalsCss.includes("border: 1px solid transparent;") && !globalsCss.includes("border: 1px solid var(--studio-border);\n  border-bottom: 1px solid var(--studio-panel);"),
+      "active tab has no outline; it fuses with the panel by colour (SIG-1198)",
     );
   });
 

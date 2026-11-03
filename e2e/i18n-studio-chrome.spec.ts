@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 /**
  * SIG-1073: with the pt-br locale stored, /studio renders Portuguese chrome
- * (menu bar, settings dialog, activity bar, sync indicator), and switching back
+ * (menu bar, settings dialog, activity bar), and switching back
  * through Settings shows English again. Asserts only chrome owned by this
  * slice — never sidebar/panel content (later slices).
  */
@@ -38,10 +38,8 @@ test("studio chrome renders Portuguese with the pt-br locale stored", async ({ p
   await expect(page.getByRole("menuitem", { name: /Configurações/ })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  // Sync label is translated (SIG-1197: it moved from the desktop status
-  // bar to the menubar).
-  const sync = menubar.locator("[data-sync-indicator]");
-  await expect(sync.getByText(/Convidado · sem sincronização|Sincronizado|Salvando/)).toBeVisible();
+  // SIG-1198: desktop shows no sync label (synced is the normal state).
+  await expect(page.getByText(/Convidado · sem sincronização|Sincronizado/)).toHaveCount(0);
 
   // Settings dialog renders Portuguese sections.
   await menubar.getByRole("button", { name: "Ver", exact: true }).click();

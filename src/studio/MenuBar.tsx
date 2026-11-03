@@ -16,7 +16,6 @@ import { SettingsDialog } from "./SettingsDialog";
 import { MenuBarFileMenu } from "./MenuBarFileMenu";
 import { MenuBarEditMenu } from "./MenuBarEditMenu";
 import { MenuBarViewMenu } from "./MenuBarViewMenu";
-import { SyncIndicator } from "./StatusBar";
 
 type MenuKey = "site" | "file" | "edit" | "view" | "help" | "account" | null;
 type ViewSubmenu = "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
@@ -131,7 +130,9 @@ export function MenuBar({
   }
 
   return (
-    <div className="relative z-[1000] flex h-9 items-center gap-0.5 border-b border-studio-border bg-studio-chrome px-2 text-body text-studio-fg">
+    // SIG-1198: the menubar sits on the canvas colour with no divider, so the
+    // panels below read as one surface with the header.
+    <div className="relative z-[1000] flex h-9 items-center gap-0.5 bg-studio-bg px-2 text-body text-studio-fg">
       {/* SIG-1197: the site sections (Cursos, Exercícios) live under the brand,
           so the menubar holds only this document's menus. */}
       <div className="relative z-20 mr-2">
@@ -193,7 +194,6 @@ export function MenuBar({
       ))}
 
       <div className="relative z-20 ml-auto flex items-center gap-2">
-        <SyncIndicator />
         {user?.email ? (
           <>
             <button
@@ -205,8 +205,16 @@ export function MenuBar({
                 open === "account" ? "bg-studio-hover text-studio-fg" : "text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
               }`}
             >
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-studio-accent-soft text-[10px] font-bold text-studio-accent-text">
+              <span className="relative grid h-5 w-5 place-items-center rounded-full bg-studio-accent-soft text-[10px] font-bold text-studio-accent-text">
                 {initials(user.email)}
+                {/* SIG-1198: no "Synced" label — synced is the normal state. Only
+                    pending changes get a signal: an amber dot on the avatar. */}
+                {dirtyCount ? (
+                  <span
+                    className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-studio-warning-fg ring-2 ring-studio-bg"
+                    title={tStudioChrome(locale, dirtyCount === 1 ? "chrome.account.waitingToSync.one" : "chrome.account.waitingToSync.other", { count: dirtyCount })}
+                  />
+                ) : null}
               </span>
               <span className="max-w-40 truncate">{user.email}</span>
               <ChevronDown size={13} />
