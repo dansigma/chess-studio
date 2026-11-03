@@ -79,7 +79,9 @@ export function mapGame(game: LichessGame, opening: ExplorerResponse["opening"])
     blackRating: game.black?.rating ?? null,
     year: game.year ?? null,
     month: game.month ?? null,
-    event: game.year ? String(game.year) : null,
+    // SIG-1192: the Lichess explorer game list carries no event name. Filling
+    // it with the year made the Games table show the year twice (Event + Date).
+    event: null,
     eco: opening?.eco ?? null,
     opening: opening?.name ?? null,
   };
