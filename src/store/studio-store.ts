@@ -196,6 +196,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       threat: null,
       showThreat: false,
       insightMarks: null,
+      explorerHover: null,
       playerProfile: null,
       playerGames: [],
       playerGamesLoading: false,

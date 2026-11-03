@@ -4,6 +4,7 @@ import { capEvalCache } from "@/src/lib/eval-cache";
 import type {
   EngineEval,
   EnginePreview,
+  ExplorerHover,
   CachedEval,
   InsightMarks,
   StudioState,
@@ -18,12 +19,14 @@ export type EngineSlice = Pick<
   | "threat"
   | "showThreat"
   | "insightMarks"
+  | "explorerHover"
   | "setEnginePreview"
   | "setEngineEval"
   | "putEvalCache"
   | "setThreat"
   | "setShowThreat"
   | "setInsightMarks"
+  | "setExplorerHover"
 >;
 
 export const createEngineSlice: StateCreator<StudioState, [], [], EngineSlice> = (set, get) => ({
@@ -33,10 +36,13 @@ export const createEngineSlice: StateCreator<StudioState, [], [], EngineSlice> =
   threat: null,
   showThreat: false,
   insightMarks: null,
+  explorerHover: null,
   setEnginePreview: (enginePreview: EnginePreview | null) => set({ enginePreview }),
   setThreat: (threat: ThreatMark | null) => set({ threat }),
   // SIG-959: transient overlay only — never touches `boards`, so no dirty flag.
   setInsightMarks: (insightMarks: InsightMarks | null) => set({ insightMarks }),
+  // SIG-1194: transient like insightMarks — never part of the game or PGN.
+  setExplorerHover: (explorerHover: ExplorerHover | null) => set({ explorerHover }),
   // SIG-906: toggle-off clears the arrow; in-flight cancel is the hook's job.
   setShowThreat: (show: boolean) =>
     set(show ? { showThreat: true } : { showThreat: false, threat: null }),
