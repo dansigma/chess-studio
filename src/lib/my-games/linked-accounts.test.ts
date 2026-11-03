@@ -10,7 +10,18 @@ import {
   loadLinkedAccounts,
   removeLinkedAccount,
   saveLinkedAccount,
+  type LinkedAccountsLogger,
 } from "./linked-accounts.ts";
+
+function createTestLogger(): { logger: LinkedAccountsLogger; warnings: Array<{ message: string; details: Record<string, unknown> }> } {
+  const warnings: Array<{ message: string; details: Record<string, unknown> }> = [];
+  const logger: LinkedAccountsLogger = {
+    warn: (message?: unknown, ...args: unknown[]) => {
+      warnings.push({ message: String(message), details: (args[0] ?? {}) as Record<string, unknown> });
+    },
+  };
+  return { logger, warnings };
+}
 
 type Row = Record<string, unknown>;
 
@@ -112,9 +123,34 @@ describe("saveLinkedAccount", () => {
   });
 
   it("maps write errors to unavailable", async () => {
+    const { logger, warnings } = createTestLogger();
     const { client } = createFakeClient({ writeError: new Error("denied") });
-    const result = await saveLinkedAccount(client, "chesscom", "Hikaru");
+    const result = await saveLinkedAccount(client, "chesscom", "Hikaru", logger);
     assert.deepEqual(result, { ok: false, error: "unavailable" });
+    assert.equal(warnings.length, 1);
+  });
+
+  it("logs the Supabase code on a PGRST205 write error", async () => {
+    const { logger, warnings } = createTestLogger();
+    const { client } = createFakeClient({
+      writeError: {
+        code: "PGRST205",
+        message: "Could not find the table 'public.linked_accounts' in the schema cache",
+      },
+    });
+    const result = await saveLinkedAccount(client, "chesscom", "Hikaru", logger);
+    assert.deepEqual(result, { ok: false, error: "unavailable" });
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].details.code, "PGRST205");
+    assert.ok(!JSON.stringify(warnings[0].details).includes("Hikaru"));
+  });
+
+  it("logs load failures with the Supabase code", async () => {
+    const { logger, warnings } = createTestLogger();
+    const { client } = createFakeClient({ selectError: { code: "PGRST205", message: "missing table" } });
+    assert.deepEqual(await loadLinkedAccounts(client, logger), { ok: false, error: "unavailable" });
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].details.code, "PGRST205");
   });
 
   it("requires a signed-in user", async () => {
