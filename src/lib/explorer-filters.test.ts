@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   DEFAULT_EXPLORER_FILTERS,
+  activeExplorerFilterCount,
   filtersAreDefault,
   gameMatchesFilters,
   lichessFilterQuery,
@@ -43,4 +44,15 @@ test("personal games match rating and year", () => {
   assert.equal(gameMatchesFilters(game, { ...DEFAULT_EXPLORER_FILTERS, minRating: 2000 }, false), true);
   assert.equal(gameMatchesFilters(game, { ...DEFAULT_EXPLORER_FILTERS, minRating: 2200 }, false), false);
   assert.equal(gameMatchesFilters(game, { ...DEFAULT_EXPLORER_FILTERS, sinceYear: 2020 }, false), false);
+});
+
+test("activeExplorerFilterCount counts only the filters a source offers (SIG-1194)", () => {
+  const all = { speed: true, rating: true };
+  assert.equal(activeExplorerFilterCount(DEFAULT_EXPLORER_FILTERS, all), 0);
+  assert.equal(activeExplorerFilterCount({ ...DEFAULT_EXPLORER_FILTERS, speeds: ["blitz"] }, all), 1);
+  assert.equal(activeExplorerFilterCount({ ...DEFAULT_EXPLORER_FILTERS, minRating: 2000, sinceYear: 2010 }, all), 2);
+  // Masters has neither speed nor rating filters: only the year range counts.
+  const masters = { speed: false, rating: false };
+  assert.equal(activeExplorerFilterCount({ ...DEFAULT_EXPLORER_FILTERS, speeds: ["blitz"], minRating: 2000 }, masters), 0);
+  assert.equal(activeExplorerFilterCount({ ...DEFAULT_EXPLORER_FILTERS, untilYear: 2020 }, masters), 1);
 });

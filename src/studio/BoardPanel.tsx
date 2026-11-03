@@ -46,6 +46,10 @@ type PendingDraw = {
   color: MarkColor;
 };
 
+// SIG-1194: explorer hover arrow — the blue mark colour, translucent so a
+// stored arrow on the same squares still reads as the stronger one.
+const EXPLORER_HOVER_ARROW = "rgba(59, 130, 246, 0.6)";
+
 const COORDINATE_STYLE = { fontSize: "11px", fontWeight: 600 } as const;
 
 export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) {
@@ -59,6 +63,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const threat = useStudioStore((state) => state.threat);
   const showThreat = useStudioStore((state) => state.showThreat);
   const insightMarks = useStudioStore((state) => state.insightMarks);
+  const explorerHover = useStudioStore((state) => state.explorerHover);
   const setShowThreat = useStudioStore((state) => state.setShowThreat);
   // SIG-907: only the active session's panel drives the shared threat lease
   // so split-view panels never contend for the `threat` slot.
@@ -234,7 +239,14 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   }, [dests, insight, lastMoveKey, squareMarks, selected]);
 
   const arrows = useMemo(() => {
-    const base = arrowsForRender([...arrowMarks, ...(insight?.arrows ?? [])], preview);
+    const marked = arrowsForRender([...arrowMarks, ...(insight?.arrows ?? [])], preview);
+    // SIG-1194: the explorer move under the pointer, FEN-guarded like the
+    // insight overlay and drawn on the active board only.
+    const hover = isActive && explorerHover && explorerHover.fen === fen ? explorerHover : null;
+    const base =
+      hover && !marked.some((item) => item.startSquare === hover.from && item.endSquare === hover.to)
+        ? [...marked, { startSquare: hover.from, endSquare: hover.to, color: EXPLORER_HOVER_ARROW }]
+        : marked;
     // SIG-906: ephemeral threat arrow appended LAST so it renders above
     // stored marks and the draw preview. Never stored in node marks, never
     // part of preview suppression. FEN-guarded: only show for the position
@@ -254,7 +266,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
       ...base,
       { startSquare: squares.from, endSquare: squares.to, color: MARK_HEX.R },
     ];
-  }, [arrowMarks, insight, isActive, preview, showThreat, threat, fen]);
+  }, [arrowMarks, insight, isActive, preview, showThreat, threat, fen, explorerHover]);
 
   function attemptMove(from: string, to: string): boolean {
     let chess: Chess;

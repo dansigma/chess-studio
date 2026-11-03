@@ -95,6 +95,13 @@ export type InsightMarks = {
   marks: BoardMarks;
 };
 
+/** SIG-1194: the explorer move under the pointer, drawn as a transient arrow. */
+export type ExplorerHover = {
+  fen: string;
+  from: string;
+  to: string;
+};
+
 export type StudioSettings = {
   showCoordinates: boolean;
   showEvalBar: boolean;
@@ -145,6 +152,7 @@ export type StudioState = {
   threat: ThreatMark | null;
   showThreat: boolean;
   insightMarks: InsightMarks | null;
+  explorerHover: ExplorerHover | null;
   playerProfile: PlayerHit | null;
   playerGames: PlayerGame[];
   playerGamesLoading: boolean;
@@ -176,6 +184,7 @@ export type StudioState = {
   setThreat: (threat: ThreatMark | null) => void;
   setShowThreat: (show: boolean) => void;
   setInsightMarks: (marks: InsightMarks | null) => void;
+  setExplorerHover: (hover: ExplorerHover | null) => void;
   goPath: (path: Path) => void;
   back: () => void;
   forward: () => void;
