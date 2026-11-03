@@ -2,7 +2,7 @@
 
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
-import { explorerGamesTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
+import { explorerSourceTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
 import { formatYearMonth } from "@/src/lib/game-date";
 import { openBoardPanel } from "./dock-api";
 import { GameOpenRow } from "./GameOpenRow";
@@ -80,7 +80,8 @@ export function GamesPanel() {
   return (
     <div className="flex h-full flex-col bg-studio-panel text-dense text-studio-fg">
       <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-caption text-studio-faint">
-        <span>{tPanels(locale, "games.title", { name: explorerGamesTitle(source, databases, locale) })}</span>
+        {/* SIG-1192: name the source, not the tab ("Games · Games" before). */}
+        <span>{tPanels(locale, "games.title", { name: explorerSourceTitle(source, databases, locale) })}</span>
         <span>{(explorer?.games.length ?? 0) === 1
           ? tPanels(locale, "games.shown.one", { count: explorer?.games.length ?? 0 })
           : tPanels(locale, "games.shown.other", { count: explorer?.games.length ?? 0 })}</span>

@@ -110,7 +110,7 @@ test("curated source is recognized by parser, guards, and titles", () => {
   assert.equal(explorerSourceTitle("file:missing", [], "pt-br"), "Pessoal");
   assert.equal(explorerGamesTitle("curated", []), "Curated");
   assert.equal(explorerGamesTitle("curated", [], "pt-br"), "Selecionados");
-  assert.equal(explorerGamesTitle("masters", [], "pt-br"), "Masters");
+  assert.equal(explorerGamesTitle("masters", [], "pt-br"), "Partidas");
   assert.equal(explorerGamesTitle("lichess", [], "pt-br"), "Online");
 
   const curatedResponse: ExplorerResponse = {
