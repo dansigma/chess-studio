@@ -3,13 +3,13 @@
 import {
   ArrowRightToLine,
   ArrowUp,
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   ChevronsUp,
   MessageSquare,
-  RefreshCw,
   Scissors,
   Trash2,
 } from "lucide-react";
@@ -66,8 +66,9 @@ export function NotationToolbar({
       <IconButton label={tPanels(locale, "notation.toolbar.end")} shortcut="End" onClick={onEnd}>
         <ArrowRightToLine size={15} />
       </IconButton>
-      <IconButton label={tPanels(locale, "notation.toolbar.flip")} shortcut="Ctrl+F" onClick={onFlip}>
-        <RefreshCw size={14} />
+      {/* SIG-1192: RefreshCw read as "reload"; ArrowUpDown reads as flip. */}
+      <IconButton label={tPanels(locale, "notation.toolbar.flip")} shortcut="F · Ctrl+F" onClick={onFlip}>
+        <ArrowUpDown size={14} />
       </IconButton>
       <div className="mx-1 h-4 w-px bg-studio-border-strong" />
       <IconButton label={tPanels(locale, "notation.toolbar.editAnnotations")} shortcut="Ctrl+A" active={commentOpen} onClick={onToggleComment}>
