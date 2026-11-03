@@ -6,6 +6,7 @@ import { fileExplorerSource, type ExplorerResponse, type ExplorerSource } from "
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { formatGameCount, formatInteger } from "@/src/i18n/format.ts";
 import { useStudioStore } from "@/src/store/studio-store";
 import { ExplorerFiltersBar } from "./ExplorerFiltersBar";
 import { Badge } from "./ui/Controls";
@@ -14,8 +15,6 @@ import { IconButton } from "./ui/Button";
 import { isExplorerPanelId } from "./dock-layout";
 import { openExplorerPanel, persistExplorerSource } from "./dock-api";
 import { useExplorerData } from "./use-explorer-data";
-
-const compactCount = new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 });
 
 const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(170px,220px)] items-center gap-3 px-3";
 
@@ -117,7 +116,6 @@ function ExplorerChrome({
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const filters = useStudioStore((state) => state.settings.explorerFilters);
   const setExplorerFilters = useStudioStore((state) => state.setExplorerFilters);
-  const maxGames = Math.max(1, ...(explorer?.moves.map((row) => row.games) ?? [1]));
   const side = explorer ? sideFromFen(explorer.fen) : "w";
   const totalGames = explorer ? explorer.white + explorer.draws + explorer.black : 0;
   const hasMoves = (explorer?.moves.length ?? 0) > 0;
@@ -157,8 +155,8 @@ function ExplorerChrome({
         {explorer ? (
           <span className="shrink-0 text-caption tabular-nums text-studio-faint">
             {totalGames === 1
-              ? tPanels(locale, "explorer.count.one", { count: totalGames.toLocaleString() })
-              : tPanels(locale, "explorer.count.other", { count: totalGames.toLocaleString() })}
+              ? tPanels(locale, "explorer.count.one", { count: formatInteger(locale, totalGames) })
+              : tPanels(locale, "explorer.count.other", { count: formatInteger(locale, totalGames) })}
           </span>
         ) : null}
         <IconButton label={tPanels(locale, "explorer.splitView")} size="sm" onClick={onDuplicate}>
@@ -209,7 +207,7 @@ function ExplorerChrome({
         ) : null}
         {explorer?.moves.map((row) => {
           const share = totalGames > 0 ? (row.games / totalGames) * 100 : 0;
-          const rowGames = row.games.toLocaleString();
+          const rowGames = formatInteger(locale, row.games);
           return (
             <button
               key={row.uci}
@@ -225,16 +223,12 @@ function ExplorerChrome({
               <span className="font-semibold">{formatSan(row.san, moveNotation, side)}</span>
               <span className="flex min-w-0 items-center gap-2">
                 <span className="w-11 shrink-0 text-right text-dense tabular-nums text-studio-fg">
-                  {compactCount.format(row.games)}
+                  {formatGameCount(locale, row.games)}
                 </span>
+                {/* SIG-1192: the blue frequency bar repeated this share; the
+                    result bar is now the row's only graphic. */}
                 <span className="w-9 shrink-0 text-right text-caption tabular-nums text-studio-faint">
                   {share >= 1 ? `${Math.round(share)}%` : "<1%"}
-                </span>
-                <span className="h-1 min-w-6 flex-1 overflow-hidden rounded-full bg-studio-track">
-                  <span
-                    className="block h-full rounded-full bg-studio-accent"
-                    style={{ width: `${(row.games / maxGames) * 100}%` }}
-                  />
                 </span>
               </span>
               <ResultBar white={row.white} draws={row.draws} black={row.black} />
@@ -246,7 +240,7 @@ function ExplorerChrome({
         <div className={`${ROW_GRID} border-t border-studio-border py-1.5 text-dense`}>
           <span className="font-semibold text-studio-muted">{tPanels(locale, "explorer.total")}</span>
           <span className="flex items-center gap-2">
-            <span className="w-11 shrink-0 text-right tabular-nums">{compactCount.format(totalGames)}</span>
+            <span className="w-11 shrink-0 text-right tabular-nums">{formatGameCount(locale, totalGames)}</span>
             <span className="text-caption text-studio-faint">{explorer.moves.length === 1
               ? tPanels(locale, "explorer.moves.one", { count: explorer.moves.length })
               : tPanels(locale, "explorer.moves.other", { count: explorer.moves.length })}</span>

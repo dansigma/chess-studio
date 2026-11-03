@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import type { PlayerColorFilter, PlayerGame, PlayerResultFilter } from "@/src/lib/player-types";
 import { bookmarkKey } from "@/src/lib/player-bookmarks";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { formatGameCount } from "@/src/i18n/format.ts";
 import { playerMoveStatsFromIndex, buildPlayerIndex } from "@/src/lib/player-stats";
 import { useActiveFen } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -146,7 +147,7 @@ export function PlayerExplorerPanel() {
             >
               <span className="font-medium">{formatSan(row.san, moveNotation, side)}</span>
               <span className="flex items-center gap-2">
-                <span className="w-10 text-right tabular-nums text-studio-fg">{row.games.toLocaleString()}</span>
+                <span className="w-10 text-right tabular-nums text-studio-fg">{formatGameCount(locale, row.games)}</span>
                 <span className="h-1 flex-1 overflow-hidden rounded-full bg-studio-track">
                   <span
                     className="block h-full rounded-full bg-studio-accent"
