@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   continuationsAt,
   moveNumberForPath,
@@ -23,16 +23,15 @@ export function VariationChoiceDialog() {
   const chooseVariation = useStudioStore((state) => state.chooseVariation);
   const cancel = useStudioStore((state) => state.cancelVariationChoice);
   const listRef = useRef<HTMLDivElement>(null);
-  // SIG-1187: roving-focus cursor for the option list. useDialogFocus moves
-  // keyboard focus to the dialog's first descendant (the close button) on
-  // mount and happy-dom's focus() is layout-blind, so DOM activeElement cannot
-  // be trusted as the arrow cursor — track the index in a ref instead and
-  // focus the matching button explicitly. Tab order is unchanged (all options
-  // stay natively tabbable); this only drives ArrowUp/Down/Home/End/Enter.
-  // QA (SIG-1187 rework): Tab moves DOM focus without touching the arrows, so
-  // each option also syncs the cursor on focus — otherwise Tab-to-c5 + Enter
-  // would select the stale arrow cursor (e5) instead of the focused button.
-  const cursorRef = useRef(0);
+  // SIG-1190: single shared active index for the option list. Keyboard
+  // (arrows/Home/End/Tab focus), pointer hover, and the shaded background all
+  // read and write this state, so exactly one row is shaded at a time — the
+  // last interaction wins. useDialogFocus moves keyboard focus to the dialog's
+  // first descendant (the close button) on mount and happy-dom's focus() is
+  // layout-blind, so DOM activeElement cannot be trusted as the arrow cursor —
+  // track the index in state instead and focus the matching button explicitly.
+  // Tab order is unchanged (all options stay natively tabbable).
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const board = useStudioStore((state) =>
     choice ? state.boards.find((item) => item.id === choice.boardId) : undefined,
@@ -41,10 +40,14 @@ export function VariationChoiceDialog() {
   // Focus the first option on open, ahead of paint. Child effects run before
   // the parent Dialog's mount effect, so this wins over useDialogFocus's
   // focus-first-descendant (which would land on the close button).
+  /* eslint-disable react-hooks/set-state-in-effect -- SIG-1190: resetting the
+     shared active index synchronously keeps the first option shaded on the
+     first paint when a new choice opens. */
   useEffect(() => {
-    cursorRef.current = 0;
+    setActiveIndex(0);
     listRef.current?.querySelector<HTMLElement>("button")?.focus();
   }, [choice]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (!choice || !board || !pathsEqual(board.path, choice.path)) {
     return null;
@@ -64,7 +67,7 @@ export function VariationChoiceDialog() {
       return;
     }
     const wrapped = ((index % buttons.length) + buttons.length) % buttons.length;
-    cursorRef.current = wrapped;
+    setActiveIndex(wrapped);
     buttons[wrapped].focus();
   }
 
@@ -76,7 +79,7 @@ export function VariationChoiceDialog() {
     }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      focusOption(cursorRef.current + (event.key === "ArrowDown" ? 1 : -1));
+      focusOption(activeIndex + (event.key === "ArrowDown" ? 1 : -1));
       return;
     }
     if (event.key === "Home") {
@@ -91,7 +94,7 @@ export function VariationChoiceDialog() {
     }
     if (event.key === "Enter") {
       event.preventDefault();
-      chooseVariation(cursorRef.current);
+      chooseVariation(activeIndex);
     }
   }
 
@@ -122,15 +125,20 @@ export function VariationChoiceDialog() {
               key={child.id}
               type="button"
               data-option={index}
+              data-active={index === activeIndex ? "true" : undefined}
+              aria-current={index === activeIndex ? "true" : undefined}
               onClick={() => chooseVariation(index)}
               onFocus={() => {
-                cursorRef.current = index;
+                setActiveIndex(index);
               }}
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-body text-studio-fg hover:bg-studio-hover-strong focus-visible:outline focus-visible:outline-studio-accent"
+              onMouseEnter={() => {
+                setActiveIndex(index);
+              }}
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-body text-studio-fg transition-colors duration-150 focus:outline-none focus-visible:outline-none${index === activeIndex ? " bg-studio-hover-strong" : ""}`}
             >
               <span className="font-medium">{label}</span>
               {index === 0 ? (
-                <span className="rounded-full bg-studio-hover-strong px-2 py-0.5 text-caption text-studio-muted">
+                <span className="rounded-full border border-studio-border bg-studio-panel px-2 py-0.5 text-caption text-studio-muted">
                   {tPanels(locale, "notation.variationChooser.mainline")}
                 </span>
               ) : null}

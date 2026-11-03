@@ -161,3 +161,81 @@ test("Cancel button closes without moving", () => {
     cleanup();
   }
 });
+
+// SIG-1190: the shaded background is the only active state, shared by keyboard
+// and pointer through one activeIndex.
+test("first option starts active with the shaded background", () => {
+  seedBranchChoice();
+  try {
+    const { container } = render(<VariationChoiceDialog />);
+    const options = container.querySelectorAll("button[data-option]");
+    assert.equal(options.length, 2);
+    assert.equal(options[0].getAttribute("data-active"), "true");
+    assert.equal(options[1].getAttribute("data-active"), null);
+    assert.ok(options[0].className.includes("bg-studio-hover-strong"));
+    assert.ok(!options[1].className.includes("bg-studio-hover-strong"));
+  } finally {
+    cleanup();
+  }
+});
+
+test("ArrowDown moves the single active state to the second option", () => {
+  seedBranchChoice();
+  try {
+    const { container } = render(<VariationChoiceDialog />);
+    const list = container.querySelector("[data-variation-list]");
+    assert.ok(list);
+    fireEvent.keyDown(list!, { key: "ArrowDown" });
+    const options = container.querySelectorAll("button[data-option]");
+    assert.equal(options[0].getAttribute("data-active"), null);
+    assert.equal(options[1].getAttribute("data-active"), "true");
+    assert.equal(container.querySelectorAll('[data-active="true"]').length, 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("mouseEnter moves the single active state", () => {
+  seedBranchChoice();
+  try {
+    const { container } = render(<VariationChoiceDialog />);
+    const second = screen.getByRole("button", { name: /1\. d4/ });
+    fireEvent.mouseEnter(second);
+    const options = container.querySelectorAll("button[data-option]");
+    assert.equal(options[0].getAttribute("data-active"), null);
+    assert.equal(options[1].getAttribute("data-active"), "true");
+    assert.equal(container.querySelectorAll('[data-active="true"]').length, 1);
+  } finally {
+    cleanup();
+  }
+});
+
+test("Tab focus then Enter selects the focused option", () => {
+  seedBranchChoice();
+  try {
+    render(<VariationChoiceDialog />);
+    const second = screen.getByRole("button", { name: /1\. d4/ });
+    fireEvent.focus(second);
+    assert.equal(second.getAttribute("data-active"), "true");
+    fireEvent.keyDown(second, { key: "Enter" });
+    const state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, [1]);
+    assert.equal(state.variationChoice, null);
+  } finally {
+    cleanup();
+  }
+});
+
+test("options carry no outline accent class", () => {
+  seedBranchChoice();
+  try {
+    const { container } = render(<VariationChoiceDialog />);
+    const options = container.querySelectorAll("button[data-option]");
+    for (const option of options) {
+      assert.ok(!option.className.includes("outline-studio-accent"));
+      assert.ok(!option.className.includes("hover:bg-studio-hover-strong"));
+    }
+  } finally {
+    cleanup();
+  }
+});
