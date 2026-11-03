@@ -45,6 +45,7 @@ import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
+import { PlayerCell, outcomeFor } from "./ui/PlayerCell";
 import { Button, IconButton } from "./ui/Button";
 import { SidebarHint, SidebarPanel } from "./ui/Sidebar";
 import { myGamesViewState } from "@/src/lib/my-games/view-state";
@@ -487,17 +488,15 @@ export function MyGamesSidebar() {
                   <span className="w-[13px] shrink-0" aria-hidden="true" />
                 )}
                 <GameOpenRow
-                  className="min-w-0 flex-1 px-2 py-1.5 text-left text-dense hover:bg-studio-hover-subtle"
+                  className="min-w-0 flex-1 px-2 py-1.5 text-left text-dense hover:bg-studio-hover"
                   onOpen={() => openGame(game)}
                   onOpenNew={() => openGame(game, true)}
                 >
-                  <span className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px_64px] items-center gap-2">
+                  <span className="grid w-full grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_56px] items-center gap-x-3">
                     <ResultMark winner={game.winner} />
-                    <span className="truncate">{game.whiteName}</span>
-                    <span className="text-right text-studio-faint">{game.whiteRating ?? ""}</span>
-                    <span className="truncate">{game.blackName}</span>
-                    <span className="text-right text-studio-faint">{game.blackRating ?? ""}</span>
-                    <span className="truncate text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
+                    <PlayerCell name={game.whiteName} rating={game.whiteRating ?? null} outcome={outcomeFor(game.winner, "white")} />
+                    <PlayerCell name={game.blackName} rating={game.blackRating ?? null} outcome={outcomeFor(game.winner, "black")} />
+                    <span className="truncate tabular-nums text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
                   </span>
                   {detail ? (
                     <span className="mt-0.5 block truncate pl-[52px] text-caption text-studio-faint">{detail}</span>
