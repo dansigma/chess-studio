@@ -55,6 +55,19 @@ test("forward at a branch opens the chooser and follows the pick", async ({
   ).toBeVisible();
   await expect(dialog.getByRole("button", { name: /e5/ })).toBeVisible();
   await expect(dialog.getByRole("button", { name: /c5/ })).toBeVisible();
+  // SIG-1190: the first option starts with the shared shaded active state and
+  // no outline.
+  const firstOption = dialog.locator('button[data-option="0"]');
+  const secondOption = dialog.locator('button[data-option="1"]');
+  await expect(firstOption).toHaveAttribute("data-active", "true");
+  await expect(firstOption).toHaveCSS("outline-style", "none");
+  const firstBackground = await firstOption.evaluate(
+    (node) => getComputedStyle(node).backgroundColor,
+  );
+  expect(firstBackground).not.toBe("rgba(0, 0, 0, 0)");
+  await page.keyboard.press("ArrowDown");
+  await expect(secondOption).toHaveAttribute("data-active", "true");
+  await expect(firstOption).not.toHaveAttribute("data-active", "true");
   // Board stays on e4: neither continuation is the active token.
   await expect(
     page.locator('button[aria-current="step"]', { hasText: "e5" }),
