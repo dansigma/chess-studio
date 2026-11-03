@@ -172,3 +172,25 @@ export function gameMatchesFilters(
   }
   return true;
 }
+
+/**
+ * SIG-1194: how many filters differ from the defaults for a source, so the
+ * collapsed "Filters · N" button keeps an active filter visible. Speed and
+ * rating only count where the source offers them; the year range always does.
+ */
+export function activeExplorerFilterCount(
+  filters: ExplorerFilters,
+  options: { speed: boolean; rating: boolean },
+): number {
+  let count = 0;
+  if (options.speed && normalizeSpeeds(filters.speeds).length < EXPLORER_SPEEDS.length) {
+    count += 1;
+  }
+  if (options.rating && filters.minRating > 0) {
+    count += 1;
+  }
+  if (filters.sinceYear != null || filters.untilYear != null) {
+    count += 1;
+  }
+  return count;
+}
