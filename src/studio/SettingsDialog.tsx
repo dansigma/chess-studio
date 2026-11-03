@@ -6,7 +6,7 @@ import { BOARD_THEME_IDS, BOARD_THEMES, type BoardTheme } from "@/src/chess/boar
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
 import { SITE_LOCALES, SITE_LOCALE_LABELS } from "@/src/i18n/locale";
-import { NOTATION_DENSITY_IDS, NOTATION_DENSITIES } from "./notation-density";
+import { NOTATION_DENSITY_IDS } from "./notation-density";
 import { ENGINE_BUILDS, ENGINE_BUILD_INFO } from "@/src/engine/stockfish-client";
 import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "./color-scheme";
 import { Dialog } from "./ui/Dialog";
@@ -162,7 +162,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <Row label={tStudioChrome(locale, "chrome.settings.notationDensity")}>
             <Select
               value={settings.notationDensity}
-              options={NOTATION_DENSITY_IDS.map((id) => ({ id, label: NOTATION_DENSITIES[id].label }))}
+              options={NOTATION_DENSITY_IDS.map((id) => ({ id, label: tStudioChrome(locale, `chrome.settings.density.${id}`) }))}
               onChange={setNotationDensity}
             />
           </Row>
