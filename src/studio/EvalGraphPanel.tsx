@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useShallow } from "zustand/shallow";
 import {
   fenKey,
@@ -22,36 +22,64 @@ import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 export const GRAPH_WALK_DEPTH = 12;
 export const GRAPH_EVAL_THROTTLE_MS = 250;
 
-const PAD_X = 28;
-const PAD_Y = 16;
+const PAD_X_FULL = 28;
+const PAD_Y_FULL = 16;
 const PAWN_CAP = 5;
 
 function clampGraphPawns(pawns: number): number {
   return Math.max(-PAWN_CAP, Math.min(PAWN_CAP, pawns));
 }
 
-function yAt(pawns: number, height: number): number {
-  const inner = height - PAD_Y * 2;
-  return PAD_Y + ((PAWN_CAP - clampGraphPawns(pawns)) / (PAWN_CAP * 2)) * inner;
+function yAtPadded(pawns: number, height: number, padY: number): number {
+  const inner = height - padY * 2;
+  return padY + ((PAWN_CAP - clampGraphPawns(pawns)) / (PAWN_CAP * 2)) * inner;
 }
 
-export function EvalGraphPanel() {
-  const board = useActiveBoard();
-  const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
-  const setupMode = useStudioStore((state) => state.setupMode);
-  const goPath = useStudioStore((state) => state.goPath);
-  const engineDepth = useStudioStore((state) => state.settings.engineDepth);
-  const engineBuild = useStudioStore((state) => state.settings.engineBuild);
-  const moveNotation = useStudioStore((state) => state.settings.moveNotation);
-  const [hover, setHover] = useState<number | null>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 640, height: 160 });
+// SIG-1196: one engine walk at a time. The full panel and the engine-row
+// sparkline both want the line evaluated; whichever mounted first walks, and
+// the other only reads `evalByFen`. When the owner unmounts, the next takes over.
+const walkOwners: symbol[] = [];
+const walkListeners = new Set<() => void>();
 
+function notifyWalkOwners(): void {
+  for (const listener of walkListeners) {
+    listener();
+  }
+}
+
+function useWalkOwnership(wants: boolean): boolean {
+  const [id] = useState(() => Symbol("graph-walk"));
+  useEffect(() => {
+    if (!wants) {
+      return;
+    }
+    walkOwners.push(id);
+    notifyWalkOwners();
+    return () => {
+      const index = walkOwners.indexOf(id);
+      if (index >= 0) {
+        walkOwners.splice(index, 1);
+      }
+      notifyWalkOwners();
+    };
+  }, [id, wants]);
+  return useSyncExternalStore(
+    (listener) => {
+      walkListeners.add(listener);
+      return () => walkListeners.delete(listener);
+    },
+    () => wants && walkOwners[0] === id,
+    () => false,
+  );
+}
+
+/** SIG-1196: the active line's points, their cached evals and the cursor. */
+function useEvalLine() {
+  const board = useActiveBoard();
   const points = useMemo(
     () => variationPoints(board.tree, board.path),
     [board.tree, board.path],
   );
-  const walkDepth = Math.min(GRAPH_WALK_DEPTH, engineDepth);
   const lineKey = `${board.id}:${points.map((point) => fenKey(point.fen)).join("|")}`;
   const currentIndex = points.findIndex((point) => pathsEqual(point.path, board.path));
   // SIG-856: subscribe only to this line's FENs — depth ticks of other FENs
@@ -68,28 +96,19 @@ export function EvalGraphPanel() {
       },
     ),
   );
+  return { points, lineKey, currentIndex, evalByFen };
+}
 
-  useEffect(() => {
-    const node = wrapRef.current;
-    if (!node) {
-      return;
-    }
-    const observer = new ResizeObserver((entries) => {
-      const box = entries[0]?.contentRect;
-      if (!box) {
-        return;
-      }
-      setSize({
-        width: Math.max(160, box.width),
-        height: Math.max(120, box.height),
-      });
-    });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
+type EvalLine = ReturnType<typeof useEvalLine>;
 
+/** The engine walk that fills `evalByFen` for every point of the line. */
+function useEvalWalk(line: EvalLine, enabled: boolean): void {
+  const engineDepth = useStudioStore((state) => state.settings.engineDepth);
+  const engineBuild = useStudioStore((state) => state.settings.engineBuild);
+  const walkDepth = Math.min(GRAPH_WALK_DEPTH, engineDepth);
+  const { points, lineKey } = line;
   useEffect(() => {
-    if (setupMode) {
+    if (!enabled) {
       return;
     }
     const lease = acquire("graph", engineBuild);
@@ -209,7 +228,53 @@ export function EvalGraphPanel() {
       }
       engine.dispose();
     };
-  }, [engineBuild, lineKey, points, setupMode, walkDepth]);
+  }, [enabled, engineBuild, lineKey, points, walkDepth]);
+}
+
+/**
+ * SIG-1196: the chart shared by the full panel and the engine-row sparkline.
+ * `compact` drops the padding and the empty-state text; click, hover and
+ * keyboard behave the same in both.
+ */
+function EvalChart({
+  line,
+  compact = false,
+  corner,
+}: {
+  line: EvalLine;
+  compact?: boolean;
+  /** Small label pinned to the chart's top-right corner (progress). */
+  corner?: string | null;
+}) {
+  const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
+  const goPath = useStudioStore((state) => state.goPath);
+  const moveNotation = useStudioStore((state) => state.settings.moveNotation);
+  const { points, currentIndex, evalByFen } = line;
+  const [hover, setHover] = useState<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 640, height: compact ? 40 : 160 });
+  const PAD_X = compact ? 4 : PAD_X_FULL;
+  const PAD_Y = compact ? 4 : PAD_Y_FULL;
+  const yAt = (pawns: number, height: number) => yAtPadded(pawns, height, PAD_Y);
+
+  useEffect(() => {
+    const node = wrapRef.current;
+    if (!node) {
+      return;
+    }
+    const observer = new ResizeObserver((entries) => {
+      const box = entries[0]?.contentRect;
+      if (!box) {
+        return;
+      }
+      setSize({
+        width: Math.max(compact ? 80 : 160, box.width),
+        height: Math.max(compact ? 24 : 120, box.height),
+      });
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [compact]);
 
   const width = size.width;
   const height = size.height;
@@ -224,7 +289,6 @@ export function EvalGraphPanel() {
     xs.length === 0
       ? ""
       : `${linePath} L${xs[xs.length - 1].toFixed(1)},${zeroY.toFixed(1)} L${xs[0].toFixed(1)},${zeroY.toFixed(1)} Z`;
-  const filled = points.filter((point) => evalByFen[fenKey(point.fen)]).length;
   const hoverPoint = hover != null ? points[hover] : null;
   const hoverEval = hoverPoint ? evalByFen[fenKey(hoverPoint.fen)] : undefined;
   const focusIndex = Math.max(0, hover ?? (currentIndex >= 0 ? currentIndex : 0));
@@ -253,18 +317,11 @@ export function EvalGraphPanel() {
   }
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col bg-studio-panel text-studio-fg">
-      <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-1.5 text-caption text-studio-faint">
-        <span>{tPanels(locale, "graph.title")}</span>
-        <span>
-          {setupMode
-            ? tPanels(locale, "graph.paused")
-            : filled === 0
-              ? tPanels(locale, "graph.analyzing")
-              : tPanels(locale, "graph.progress", { filled, total: points.length })}
-        </span>
-      </div>
+    <>
       <div ref={wrapRef} className="relative min-h-0 flex-1">
+        {corner ? (
+          <span className="pointer-events-none absolute left-2 top-1 z-[1] text-caption tabular-nums text-studio-faint">{corner}</span>
+        ) : null}
         {points.length <= 1 ? (
           <div className="absolute inset-0 grid place-items-center text-dense text-studio-faint">
             {tPanels(locale, "graph.empty")}
@@ -360,6 +417,50 @@ export function EvalGraphPanel() {
           </div>
         ) : null}
       </div>
+    </>
+  );
+}
+
+export function EvalGraphPanel() {
+  const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
+  const setupMode = useStudioStore((state) => state.setupMode);
+  const line = useEvalLine();
+  const owner = useWalkOwnership(!setupMode);
+  useEvalWalk(line, owner);
+  const filled = line.points.filter((point) => line.evalByFen[fenKey(point.fen)]).length;
+  // SIG-1196: the inner "Eval graph · 12/12" row repeated the tab title; the
+  // progress now sits in the chart's corner.
+  const corner =
+    line.points.length <= 1
+      ? null
+      : setupMode
+        ? tPanels(locale, "graph.paused")
+        : filled === 0
+          ? tPanels(locale, "graph.analyzing")
+          : tPanels(locale, "graph.progress", { filled, total: line.points.length });
+  return (
+    <div className="relative flex h-full min-h-0 flex-col bg-studio-panel text-studio-fg">
+      <EvalChart line={line} corner={corner} />
+    </div>
+  );
+}
+
+/**
+ * SIG-1196: 40px eval sparkline for the engine panel. It walks the line only
+ * when `walk` is set (the engine was started) and no full graph panel is
+ * already walking; otherwise it draws whatever evals are cached.
+ */
+export function EvalSparkline({ walk }: { walk: boolean }) {
+  const setupMode = useStudioStore((state) => state.setupMode);
+  const line = useEvalLine();
+  const owner = useWalkOwnership(walk && !setupMode);
+  useEvalWalk(line, owner);
+  if (line.points.length <= 1) {
+    return null;
+  }
+  return (
+    <div className="flex h-10 shrink-0 border-b border-studio-border-subtle">
+      <EvalChart line={line} compact />
     </div>
   );
 }
