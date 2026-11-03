@@ -13,6 +13,7 @@ import { createT } from "./create-t.ts";
 
 export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.menu.file",
+  "chrome.menu.site",
   "chrome.menu.edit",
   "chrome.menu.view",
   "chrome.menu.help",
@@ -152,6 +153,7 @@ export type StudioChromeStringKey = (typeof STUDIO_CHROME_STRING_KEYS)[number];
 
 const EN: Record<StudioChromeStringKey, string> = {
   "chrome.menu.file": "File",
+  "chrome.menu.site": "Xadrez Digital sections",
   "chrome.menu.edit": "Edit",
   "chrome.menu.view": "View",
   "chrome.menu.help": "Help",
@@ -290,6 +292,7 @@ const EN: Record<StudioChromeStringKey, string> = {
 
 const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.menu.file": "Arquivo",
+  "chrome.menu.site": "Seções do Xadrez Digital",
   "chrome.menu.edit": "Editar",
   "chrome.menu.view": "Ver",
   "chrome.menu.help": "Ajuda",
