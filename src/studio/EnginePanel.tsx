@@ -307,6 +307,8 @@ export function EnginePanel() {
       <div className="flex items-center gap-2 border-b border-studio-border px-2 py-1.5">
         <Stepper
           label={tPanels(locale, "engine.depth")}
+          decrementLabel={tPanels(locale, "engine.depth.decrease")}
+          incrementLabel={tPanels(locale, "engine.depth.increase")}
           value={
             <span>
               {display.depth}
@@ -338,6 +340,8 @@ export function EnginePanel() {
         </div>
         <Stepper
           label={tPanels(locale, "engine.lines")}
+          decrementLabel={tPanels(locale, "engine.lines.decrease")}
+          incrementLabel={tPanels(locale, "engine.lines.increase")}
           value={multiPv}
           canDecrement={multiPv > MIN_LINES}
           canIncrement={multiPv < MAX_LINES}
