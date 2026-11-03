@@ -29,6 +29,7 @@ import { throttleLatest } from "@/src/lib/throttle";
 import { formatSanAtPly } from "@/src/chess/move-notation";
 import { IconButton } from "./ui/Button";
 import { Stepper } from "./ui/Controls";
+import { EvalSparkline } from "./EvalGraphPanel";
 
 function isInsideEnginePv(target: EventTarget | null): boolean {
   return target instanceof Element && Boolean(target.closest("[data-engine-pv]"));
@@ -72,6 +73,8 @@ export function EnginePanel() {
   const [paused, setPaused] = useState(true);
   const [runId, setRunId] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const showSparkline = useStudioStore((state) => state.settings.engineSparkline);
+  const toggleSparkline = useStudioStore((state) => state.toggleEngineSparkline);
   const [buildOpen, setBuildOpen] = useState(false);
   const [lineMenu, setLineMenu] = useState<EngineLineMenuState | null>(null);
   // SIG-1192: PVs render on one line; clicking a line's score expands it.
@@ -136,7 +139,14 @@ export function EnginePanel() {
     };
   }, [fen, setEnginePreview, setEngineEval]);
 
-  const lines = info.fen === fen ? info.lines : [];
+  // SIG-1196: once this panel pauses, the eval walk (sparkline / graph) takes
+  // the shared engine and its snapshots carry other FENs. Keep the last lines
+  // this panel saw for the current FEN instead of blanking them.
+  const [keptLines, setKeptLines] = useState<{ fen: string; lines: EngineInfo["lines"] } | null>(null);
+  if (info.fen === fen && info.lines.length > 0 && keptLines?.lines !== info.lines) {
+    setKeptLines({ fen, lines: info.lines });
+  }
+  const lines = info.fen === fen ? info.lines : keptLines?.fen === fen ? keptLines.lines : [];
   const best = lines[0];
   const evalLabel = formatScore(best, side);
   const evalValue = scoreNumber(best, side);
@@ -364,6 +374,15 @@ export function EnginePanel() {
                     onIncrement={() => setMultiPv(multiPv + 1)}
                   />
                 </div>
+                <label className="flex cursor-pointer items-center justify-between gap-2 text-dense text-studio-muted">
+                  {tPanels(locale, "engine.sparkline")}
+                  <input
+                    type="checkbox"
+                    checked={showSparkline}
+                    onChange={toggleSparkline}
+                    className="h-3.5 w-3.5 accent-studio-accent"
+                  />
+                </label>
                 <div>
                   <div className="mb-1.5 flex items-center justify-between text-dense text-studio-muted">
                     <span className="inline-flex items-center gap-1.5">
@@ -396,6 +415,9 @@ export function EnginePanel() {
           ) : null}
         </div>
       </div>
+
+      {/* SIG-1196: the line's eval at a glance; walks only once the engine was started. */}
+      {showSparkline ? <EvalSparkline walk={started} /> : null}
 
       <div className="flex min-h-0 flex-1">
         <div className="min-h-0 min-w-0 flex-1 overflow-auto">

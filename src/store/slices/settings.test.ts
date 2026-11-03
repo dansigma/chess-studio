@@ -261,3 +261,19 @@ test("setLocale updates the setting and remote hydration only accepts valid loca
   assert.equal(useStudioStore.getState().settings.locale, "en");
   resetSettings();
 });
+
+test("engineSparkline defaults on, toggles, and respects the persisted value (SIG-1196)", () => {
+  assert.equal(DEFAULT_SETTINGS.engineSparkline, true);
+  resetSettings();
+  actions().toggleEngineSparkline();
+  assert.equal(useStudioStore.getState().settings.engineSparkline, false);
+
+  for (const persisted of [true, false]) {
+    storage.set(SETTINGS_KEY, JSON.stringify({ engineSparkline: persisted }));
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.engineSparkline, persisted);
+  }
+
+  storage.delete(SETTINGS_KEY);
+  resetSettings();
+});
