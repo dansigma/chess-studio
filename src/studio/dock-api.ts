@@ -35,6 +35,25 @@ export function boardTitle(locale: SiteLocale, title: string): string {
   return title || BOARD_TITLE[locale];
 }
 
+/**
+ * SIG-1197: tab titles per board id, with " · 2", " · 3"… on repeats in
+ * board order, so two "Joe_Riau vs Skillfulness" tabs can be told apart.
+ */
+export function dedupedBoardTitles(
+  locale: SiteLocale,
+  boards: ReadonlyArray<{ id: string; title: string }>,
+): Map<string, string> {
+  const seen = new Map<string, number>();
+  const titles = new Map<string, string>();
+  for (const board of boards) {
+    const base = boardTitle(locale, board.title);
+    const count = (seen.get(base) ?? 0) + 1;
+    seen.set(base, count);
+    titles.set(board.id, count === 1 ? base : `${base} · ${count}`);
+  }
+  return titles;
+}
+
 const STATIC_PANEL_KEYS: Record<StudioPanelId, StudioPanelStringKey> = {
   engine: "panels.engine",
   evalGraph: "panels.evalGraph",

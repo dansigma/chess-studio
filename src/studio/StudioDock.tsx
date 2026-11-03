@@ -51,6 +51,7 @@ import {
   boardIdFromPanelId,
   boardPanelId,
   boardTitle,
+  dedupedBoardTitles,
   closeBoardPanel,
   consumeProgrammaticBoardClose,
   explorerTitleForSource,
@@ -360,8 +361,9 @@ export function StudioDock() {
     if (!api) {
       return;
     }
-    for (const board of useStudioStore.getState().boards) {
-      api.getPanel(boardPanelId(board.id))?.setTitle(boardTitle(locale, board.title));
+    // SIG-1197: repeated titles get a " · n" suffix.
+    for (const [id, title] of dedupedBoardTitles(locale, useStudioStore.getState().boards)) {
+      api.getPanel(boardPanelId(id))?.setTitle(title);
     }
   }, [boardTitles, locale]);
 
