@@ -239,7 +239,10 @@ body {
 .dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container,
 .dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container {
   box-sizing: border-box;
-  border-bottom: 1px solid var(--studio-border);
+  /* SIG-1198: no divider under the tab strip — the strip sits on the canvas
+     colour and the active tab on the panel colour, so colour alone joins
+     the active tab to its panel. */
+  border-bottom: 0;
   padding: 0 4px 0 0;
   border-top-left-radius: var(--dv-border-radius);
   border-top-right-radius: var(--dv-border-radius);
@@ -247,7 +250,7 @@ body {
 }
 
 .dockview-theme-vs .dv-tabs-and-actions-container .dv-tabs-container {
-  height: calc(100% + 1px);
+  height: 100%;
 }
 
 /* SIG-954: the first tab sits flush with the group's left edge. Only the
@@ -286,8 +289,9 @@ body {
   background-color: var(--studio-panel);
   color: var(--studio-fg);
   font-weight: 500;
-  border: 1px solid var(--studio-border);
-  border-bottom: 1px solid var(--studio-panel);
+  /* SIG-1198: no outline — a transparent border keeps tab sizes stable. */
+  border: 1px solid transparent;
+  border-bottom: 0;
   position: relative;
   z-index: 10;
 }
@@ -318,8 +322,7 @@ body {
   color: var(--studio-muted);
   font-weight: 400;
   border: 1px solid transparent;
-  border-bottom: none;
-  margin-bottom: 1px;
+  border-bottom: 0;
 }
 
 .dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab:hover,
