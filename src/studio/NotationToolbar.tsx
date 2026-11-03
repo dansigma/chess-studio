@@ -33,6 +33,7 @@ export function NotationToolbar({
   onMakeMainline,
   onDeleteAfter,
   onDeleteVariation,
+  inline = false,
 }: {
   path: Path;
   commentOpen: boolean;
@@ -48,9 +49,11 @@ export function NotationToolbar({
   onMakeMainline: () => void;
   onDeleteAfter: () => void;
   onDeleteVariation: () => void;
+  /** SIG-1197: shares a row with the header (wide panels): no own border/padding. */
+  inline?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-0.5 border-b border-studio-border-subtle px-1.5 py-1">
+    <div className={inline ? "flex shrink-0 items-center gap-0.5" : "flex items-center gap-0.5 border-b border-studio-border-subtle px-1.5 py-1"}>
       <IconButton label={tPanels(locale, "notation.toolbar.start")} shortcut="Home" onClick={onStart}>
         <ChevronsLeft size={15} />
       </IconButton>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { canMakeMainline, canPromote, getNodeAt, moveNumberForPath, plyColor, type Path } from "@/src/chess/tree";
 import { useActiveBoard, useActivePathKey } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -10,6 +10,7 @@ import { GameInfoDialog } from "./GameInfoDialog";
 import { NotationCommentEditor } from "./NotationCommentEditor";
 import { NotationHeader } from "./NotationHeader";
 import { NotationToolbar } from "./NotationToolbar";
+import { NOTATION_INLINE_MIN_WIDTH, usePanelSize } from "./use-panel-size";
 import { NotationContextMenu, notationMenuEnablement, type NotationMenuState } from "./NotationContextMenu";
 import { pgnResultCaption } from "./ResultMark";
 import { Line, TableMainline } from "./NotationMoves";
@@ -40,6 +41,8 @@ export function NotationPanel() {
   const editor = useStudioStore((state) => state.notationEditor);
   const setEditor = useStudioStore((state) => state.setNotationEditor);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inlineChrome = usePanelSize(rootRef).width >= NOTATION_INLINE_MIN_WIDTH;
   const [contextMenu, setContextMenu] = useState<NotationMenuState | null>(null);
 
   const current = getNodeAt(board.tree, board.path);
@@ -126,31 +129,63 @@ export function NotationPanel() {
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   return (
-    <div className="relative flex h-full flex-col bg-studio-panel text-sm text-studio-fg">
-      <NotationHeader
-        headers={board.headers}
-        date={date}
-        event={event}
-        locale={locale}
-        onEdit={() => setEditor("headers")}
-      />
-
-      <NotationToolbar
-        path={board.path}
-        commentOpen={commentOpen}
-        locale={locale}
-        onStart={toStart}
-        onBack={back}
-        onForward={forward}
-        onSkipForward={skipForward}
-        onEnd={toEnd}
-        onFlip={flip}
-        onToggleComment={() => setEditor(commentOpen ? null : "comment")}
-        onPromote={promote}
-        onMakeMainline={makeMain}
-        onDeleteAfter={pruneAfter}
-        onDeleteVariation={removeVariation}
-      />
+    <div ref={rootRef} className="relative flex h-full flex-col bg-studio-panel text-sm text-studio-fg">
+      {/* SIG-1197: wide panels put the header and toolbar on one row. */}
+      {inlineChrome ? (
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b border-studio-border-subtle pl-3 pr-1.5">
+          <NotationHeader
+            inline
+            headers={board.headers}
+            date={date}
+            event={event}
+            locale={locale}
+            onEdit={() => setEditor("headers")}
+          />
+          <NotationToolbar
+            inline
+            path={board.path}
+            commentOpen={commentOpen}
+            locale={locale}
+            onStart={toStart}
+            onBack={back}
+            onForward={forward}
+            onSkipForward={skipForward}
+            onEnd={toEnd}
+            onFlip={flip}
+            onToggleComment={() => setEditor(commentOpen ? null : "comment")}
+            onPromote={promote}
+            onMakeMainline={makeMain}
+            onDeleteAfter={pruneAfter}
+            onDeleteVariation={removeVariation}
+          />
+        </div>
+      ) : (
+        <>
+          <NotationHeader
+            headers={board.headers}
+            date={date}
+            event={event}
+            locale={locale}
+            onEdit={() => setEditor("headers")}
+          />
+          <NotationToolbar
+            path={board.path}
+            commentOpen={commentOpen}
+            locale={locale}
+            onStart={toStart}
+            onBack={back}
+            onForward={forward}
+            onSkipForward={skipForward}
+            onEnd={toEnd}
+            onFlip={flip}
+            onToggleComment={() => setEditor(commentOpen ? null : "comment")}
+            onPromote={promote}
+            onMakeMainline={makeMain}
+            onDeleteAfter={pruneAfter}
+            onDeleteVariation={removeVariation}
+          />
+        </>
+      )}
 
       <div
         className={`min-h-0 flex-1 overflow-auto ${compact ? "p-2 text-dense leading-5" : "p-2.5 text-[14px] leading-6"}`}
