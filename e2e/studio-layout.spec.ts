@@ -21,9 +21,12 @@ test.describe("studio layout: tight panel gaps and resize cursors", () => {
 
     const sidebar = page.locator("div.flex.h-full.shrink-0").first();
     const boardGroup = page.locator(".dv-groupview", { has: board }).first();
-    const tabs = page.getByRole("tab").first();
-    await expect(tabs).toBeVisible();
-    const notationGroup = page.locator(".dv-groupview", { has: tabs }).first();
+    // SIG-1189: the notation group is the group whose tab is "Notation"; the
+    // first tab in the DOM belongs to the board group, which made the old
+    // selector resolve to the board itself (negative gap, passing trivially).
+    const notationTab = page.getByRole("tab", { name: "Notation" });
+    await expect(notationTab).toBeVisible();
+    const notationGroup = page.locator(".dv-groupview", { has: notationTab }).first();
 
     const sidebarBox = await sidebar.boundingBox();
     const boardGroupBox = await boardGroup.boundingBox();
@@ -111,16 +114,21 @@ test.describe("studio layout: tight panel gaps and resize cursors", () => {
     await expect(board.locator('[data-square="e2"]')).toBeVisible();
 
     const boardGroup = page.locator(".dv-groupview", { has: board }).first();
+    const notationTab = page.getByRole("tab", { name: "Notation" });
+    await expect(notationTab).toBeVisible();
+    const notationGroup = page.locator(".dv-groupview", { has: notationTab }).first();
     const sash = page.locator(
       ".dv-split-view-container.dv-horizontal .dv-sash",
     ).first();
     await expect(sash).toBeAttached();
 
     const boardBefore = await boardGroup.boundingBox();
+    const notationBefore = await notationGroup.boundingBox();
     const sashBox = await sash.boundingBox();
     expect(boardBefore).not.toBeNull();
+    expect(notationBefore).not.toBeNull();
     expect(sashBox).not.toBeNull();
-    if (!boardBefore || !sashBox) return;
+    if (!boardBefore || !notationBefore || !sashBox) return;
 
     const startX = sashBox.x + sashBox.width / 2;
     const startY = sashBox.y + sashBox.height / 2;
@@ -130,11 +138,16 @@ test.describe("studio layout: tight panel gaps and resize cursors", () => {
     await page.mouse.up();
 
     const boardAfter = await boardGroup.boundingBox();
+    const notationAfter = await notationGroup.boundingBox();
     expect(boardAfter).not.toBeNull();
-    if (!boardAfter) return;
-    // Dragging the sash left shrinks the board side of the split.
+    expect(notationAfter).not.toBeNull();
+    if (!boardAfter || !notationAfter) return;
+    // Dragging the sash left shrinks the board side and grows the notation
+    // side by the same amount (the criterion asserts both ends of the split).
     expect(boardAfter.width).toBeLessThan(boardBefore.width);
     expect(boardBefore.width - boardAfter.width).toBeGreaterThan(16);
+    expect(notationAfter.width).toBeGreaterThan(notationBefore.width);
+    expect(notationAfter.width - notationBefore.width).toBeGreaterThan(16);
   });
 
   test("1280x800: gaps stay tight with no horizontal scroll", async ({
@@ -147,9 +160,12 @@ test.describe("studio layout: tight panel gaps and resize cursors", () => {
 
     const sidebar = page.locator("div.flex.h-full.shrink-0").first();
     const boardGroup = page.locator(".dv-groupview", { has: board }).first();
-    const tabs = page.getByRole("tab").first();
-    await expect(tabs).toBeVisible();
-    const notationGroup = page.locator(".dv-groupview", { has: tabs }).first();
+    // SIG-1189: the notation group is the group whose tab is "Notation"; the
+    // first tab in the DOM belongs to the board group, which made the old
+    // selector resolve to the board itself (negative gap, passing trivially).
+    const notationTab = page.getByRole("tab", { name: "Notation" });
+    await expect(notationTab).toBeVisible();
+    const notationGroup = page.locator(".dv-groupview", { has: notationTab }).first();
 
     const sidebarBox = await sidebar.boundingBox();
     const boardGroupBox = await boardGroup.boundingBox();

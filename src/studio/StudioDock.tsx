@@ -143,7 +143,7 @@ function BoardGroupHeaderActions(props: IDockviewHeaderActionsProps) {
 const studioTheme = {
   ...themeVisualStudio,
   name: "xadrezDigital",
-  gap: 8,
+  gap: 6,
   dndOverlayMounting: "absolute" as const,
   dndPanelOverlay: "group" as const,
 };
