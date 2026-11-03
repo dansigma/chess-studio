@@ -16,6 +16,7 @@ import { SettingsDialog } from "./SettingsDialog";
 import { MenuBarFileMenu } from "./MenuBarFileMenu";
 import { MenuBarEditMenu } from "./MenuBarEditMenu";
 import { MenuBarViewMenu } from "./MenuBarViewMenu";
+import { SyncIndicator } from "./StatusBar";
 
 type MenuKey = "site" | "file" | "edit" | "view" | "help" | "account" | null;
 type ViewSubmenu = "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
@@ -192,6 +193,7 @@ export function MenuBar({
       ))}
 
       <div className="relative z-20 ml-auto flex items-center gap-2">
+        <SyncIndicator />
         {user?.email ? (
           <>
             <button
