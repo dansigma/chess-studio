@@ -39,6 +39,9 @@
   /* SIG-1192: dark text on draw was 4.36:1; #959aa3 gives 5.0:1. */
   --studio-draw: #959aa3;
   --studio-loss: #2a2b30;
+  /* SIG-1192: Black's share in result bars/pills. --studio-loss is 1.21:1
+     against the panel, so the segment only existed through its outline. */
+  --studio-result-black: #34363c;
   --studio-track: rgb(255 255 255 / 0.06);
   --studio-scrim: rgb(0 0 0 / 0.55);
   --background: var(--studio-chrome);
@@ -77,6 +80,7 @@ html[data-color-scheme="light"] {
   --studio-win: #ffffff;
   --studio-draw: #a1a5ad;
   --studio-loss: #3a3b41;
+  --studio-result-black: #3a3b41;
   --studio-track: rgb(0 0 0 / 0.06);
   --studio-scrim: rgb(15 16 20 / 0.4);
   color-scheme: light;
@@ -116,6 +120,7 @@ html[data-color-scheme="light"] {
   --color-studio-win: var(--studio-win);
   --color-studio-draw: var(--studio-draw);
   --color-studio-loss: var(--studio-loss);
+  --color-studio-result-black: var(--studio-result-black);
   --color-studio-track: var(--studio-track);
   --color-studio-scrim: var(--studio-scrim);
   --text-caption: 11px;

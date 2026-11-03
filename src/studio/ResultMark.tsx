@@ -67,7 +67,7 @@ export function ResultMark({ winner }: { winner: ResultWinner }) {
     winner === "white"
       ? "bg-studio-win text-studio-loss ring-1 ring-studio-border-strong"
       : winner === "black"
-        ? "bg-studio-loss text-studio-win ring-1 ring-studio-border-strong"
+        ? "bg-studio-result-black text-studio-win ring-1 ring-studio-border-strong"
         : "bg-studio-draw text-studio-loss";
   return (
     <span className={`${RESULT_PILL} ${tone}`} title={caption.label}>
