@@ -51,7 +51,7 @@
     "@vitejs/plugin-rsc": "^0.5.36",
     "cf": "^1.0.0-beta.16",
     "eslint": "^9",
-    "eslint-config-next": "16.4.0",
+    "eslint-config-next": "16.4.3",
     "happy-dom": "^21.0.4",
     "tailwindcss": "^4",
     "typescript": "^5",
