@@ -129,7 +129,7 @@ export function ResizeHandle({
       aria-valuemin={MIN_SIDEBAR_WIDTH}
       aria-valuemax={maxVal}
       aria-label="Resize sidebar"
-      className="group relative flex w-2 shrink-0 cursor-col-resize select-none items-center justify-center outline-none focus-visible:outline-none"
+      className="group relative flex w-1.5 shrink-0 cursor-col-resize select-none items-center justify-center outline-none focus-visible:outline-none"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -139,7 +139,7 @@ export function ResizeHandle({
       onKeyDown={handleKeyDown}
     >
       <div
-        className={`h-full w-1 rounded-full transition-colors ${
+        className={`h-full w-0.5 cursor-col-resize rounded-full transition-colors ${
           isDragging
             ? "bg-studio-accent"
             : "bg-transparent group-hover:bg-studio-border group-focus-visible:bg-studio-accent"

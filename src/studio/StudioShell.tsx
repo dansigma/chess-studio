@@ -546,7 +546,7 @@ export function StudioShell() {
       <div className="flex min-h-0 flex-1">
         <ActivityBar />
         <div
-          className="flex min-h-0 min-w-0 flex-1 p-2"
+          className="flex min-h-0 min-w-0 flex-1 p-1.5"
           style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
         >
           {sidebarCollapsed ? null : (
