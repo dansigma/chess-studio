@@ -28,7 +28,8 @@
   --studio-accent-soft: rgb(59 130 246 / 0.18);
   --studio-accent-text: #93c5fd;
   --studio-accent-fg: #ffffff;
-  --studio-accent-move: var(--studio-accent);
+  /* SIG-1192: white on --studio-accent is 3.68:1; accent-strong gives 5.17:1. */
+  --studio-accent-move: var(--studio-accent-strong);
   --studio-comment: #8fb4d0;
   --studio-warning-fg: #fcd34d;
   --studio-warning-bg: rgb(245 158 11 / 0.1);
