@@ -347,7 +347,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
         className="flex items-stretch gap-1.5"
         style={{
           height: showEvalBar
-            ? "min(100cqh, calc(100cqw - 1.5rem))"
+            ? "min(100cqh, calc(100cqw - 1.625rem))" /* eval bar 20px + 6px gap */
             : "min(100cqh, 100cqw)",
         }}
       >
