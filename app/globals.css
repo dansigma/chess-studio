@@ -36,7 +36,8 @@
   --studio-success: #34d399;
   --studio-danger: #f87171;
   --studio-win: #f4f4f5;
-  --studio-draw: #8b8f98;
+  /* SIG-1192: dark text on draw was 4.36:1; #959aa3 gives 5.0:1. */
+  --studio-draw: #959aa3;
   --studio-loss: #2a2b30;
   --studio-track: rgb(255 255 255 / 0.06);
   --studio-scrim: rgb(0 0 0 / 0.55);
