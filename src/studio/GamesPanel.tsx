@@ -20,9 +20,12 @@ export function GamesPanel() {
   // SIG-1192: masters/online rows carry no event name, so the column is
   // only shown when at least one listed game has one (curated, personal).
   const showEvent = explorer?.games.some((game) => Boolean(game.event)) ?? false;
+  // SIG-1192: each rating lives inside its player's cell. As separate
+  // right-aligned columns, White's rating sat against Black's name and read
+  // as Black's.
   const gridCols = showEvent
-    ? "grid-cols-[44px_1fr_44px_1fr_44px_90px_64px_40px]"
-    : "grid-cols-[44px_1fr_44px_1fr_44px_64px_40px]";
+    ? "grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_56px_36px]"
+    : "grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_56px_36px]";
 
   async function openGame(game: ExplorerGameRow, openInNewBoard = false) {
     setStatus(tPanels(locale, "games.loading"));
@@ -81,12 +84,10 @@ export function GamesPanel() {
           ? tPanels(locale, "games.shown.one", { count: explorer?.games.length ?? 0 })
           : tPanels(locale, "games.shown.other", { count: explorer?.games.length ?? 0 })}</span>
       </div>
-      <div className={`grid ${gridCols} gap-2 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint`}>
+      <div className={`grid ${gridCols} gap-x-3 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint`}>
         <span>{tPanels(locale, "games.column.result")}</span>
         <span>{tPanels(locale, "games.column.white")}</span>
-        <span></span>
         <span>{tPanels(locale, "games.column.black")}</span>
-        <span></span>
         {showEvent ? <span>{tPanels(locale, "games.column.event")}</span> : null}
         <span>{tPanels(locale, "games.column.date")}</span>
         <span>{tPanels(locale, "games.column.eco")}</span>
@@ -103,21 +104,60 @@ export function GamesPanel() {
         {explorer?.games.map((game) => (
           <GameOpenRow
             key={game.id}
-            className={`grid w-full ${gridCols} items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle`}
+            className={`grid w-full ${gridCols} items-center gap-x-3 px-3 py-1.5 text-left hover:bg-studio-hover`}
             onOpen={() => void openGame(game)}
             onOpenNew={() => void openGame(game, true)}
           >
             <ResultMark winner={game.winner} />
-            <span className="truncate">{game.whiteName}</span>
-            <span className="text-right text-studio-faint">{game.whiteRating ?? ""}</span>
-            <span className="truncate">{game.blackName}</span>
-            <span className="text-right text-studio-faint">{game.blackRating ?? ""}</span>
+            <PlayerCell name={game.whiteName} rating={game.whiteRating} outcome={outcomeFor(game.winner, "white")} />
+            <PlayerCell name={game.blackName} rating={game.blackRating} outcome={outcomeFor(game.winner, "black")} />
             {showEvent ? <span className="truncate text-studio-muted">{game.event ?? ""}</span> : null}
-            <span className="truncate text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
-            <span className="text-studio-faint">{game.eco ?? ""}</span>
+            <span className="truncate tabular-nums text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
+            <span className="font-medium tabular-nums text-studio-muted">{game.eco ?? ""}</span>
           </GameOpenRow>
         ))}
       </div>
     </div>
+  );
+}
+
+type PlayerOutcome = "won" | "lost" | "neutral";
+
+function outcomeFor(winner: ExplorerGameRow["winner"], side: "white" | "black"): PlayerOutcome {
+  if (winner === side) {
+    return "won";
+  }
+  if (winner === "white" || winner === "black") {
+    return "lost";
+  }
+  return "neutral";
+}
+
+// SIG-1192: name truncates, rating never does; the winner is bold and the
+// loser muted (ChessBase convention) so results scan without the Res. column.
+function PlayerCell({
+  name,
+  rating,
+  outcome,
+}: {
+  name: string;
+  rating: number | null;
+  outcome: PlayerOutcome;
+}) {
+  const tone =
+    outcome === "won"
+      ? "font-semibold text-studio-fg"
+      : outcome === "lost"
+        ? "text-studio-muted"
+        : "text-studio-fg";
+  return (
+    <span className="flex min-w-0 items-baseline gap-1.5">
+      <span className={`truncate ${tone}`} title={name}>
+        {name}
+      </span>
+      {rating != null ? (
+        <span className="shrink-0 text-caption tabular-nums text-studio-faint">{rating}</span>
+      ) : null}
+    </span>
   );
 }
