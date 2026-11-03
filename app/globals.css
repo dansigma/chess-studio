@@ -9,8 +9,13 @@
   --studio-selected: #2b2e35;
   --studio-tab: #353942;
   --studio-fg: #f4f4f5;
+  /* SIG-1192: one step between fg and muted (11.5:1 on panel), used for
+     first-level notation variations. */
+  --studio-fg-secondary: #d4d4d8;
   --studio-muted: #a1a1aa;
-  --studio-faint: #a1a1aa;
+  /* SIG-1192: faint was identical to muted, so move numbers, captions and
+     placeholders had no step below muted. #8a8a94 keeps 4.98:1 on panel. */
+  --studio-faint: #8a8a94;
   --studio-disabled: #52525b;
   --studio-border: rgb(255 255 255 / 0.08);
   --studio-border-subtle: rgb(255 255 255 / 0.05);
@@ -47,6 +52,7 @@ html[data-color-scheme="light"] {
   --studio-selected: #eaecf0;
   --studio-tab: #dde1e7;
   --studio-fg: #18181b;
+  --studio-fg-secondary: #3f3f46;
   --studio-muted: #52525b;
   --studio-faint: #63636b;
   --studio-disabled: #a1a1aa;
@@ -84,6 +90,7 @@ html[data-color-scheme="light"] {
   --color-studio-selected: var(--studio-selected);
   --color-studio-tab: var(--studio-tab);
   --color-studio-fg: var(--studio-fg);
+  --color-studio-fg-secondary: var(--studio-fg-secondary);
   --color-studio-muted: var(--studio-muted);
   --color-studio-faint: var(--studio-faint);
   --color-studio-disabled: var(--studio-disabled);
