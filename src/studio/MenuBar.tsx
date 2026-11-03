@@ -131,7 +131,9 @@ export function MenuBar({
   }
 
   return (
-    <div className="relative z-[1000] flex h-9 items-center gap-0.5 border-b border-studio-border bg-studio-chrome px-2 text-body text-studio-fg">
+    // SIG-1198: the menubar sits on the canvas colour with no divider, so the
+    // panels below read as one surface with the header.
+    <div className="relative z-[1000] flex h-9 items-center gap-0.5 bg-studio-bg px-2 text-body text-studio-fg">
       {/* SIG-1197: the site sections (Cursos, Exercícios) live under the brand,
           so the menubar holds only this document's menus. */}
       <div className="relative z-20 mr-2">
