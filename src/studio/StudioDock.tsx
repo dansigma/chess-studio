@@ -1,5 +1,6 @@
 "use client";
 
+import { applyGroupMinimums } from "./dock-constraints";
 import { useEffect, useRef } from "react";
 import {
   DockviewDefaultTab,
@@ -585,7 +586,11 @@ export function StudioDock() {
         });
       }),
     ];
+    // SIG-1197: minimum heights per group, so no panel becomes unusable when
+    // dragged small. Recomputed as panels move between groups.
+    applyGroupMinimums(api);
     layoutSubscription.current = api.onDidLayoutChange(() => {
+      applyGroupMinimums(api);
       if (suppressSaves.current > 0) {
         return;
       }
