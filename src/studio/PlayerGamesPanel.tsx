@@ -10,6 +10,7 @@ import { openBoardPanel } from "./dock-api";
 import { openOpponentPrepPanel } from "./OpponentPrepPanel";
 import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
+import { PlayerCell, outcomeFor } from "./ui/PlayerCell";
 
 export function PlayerGamesPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
@@ -132,12 +133,10 @@ export function PlayerGamesPanel() {
           {notice}
         </div>
       ) : null}
-      <div className="grid grid-cols-[44px_1fr_44px_1fr_44px_64px] gap-2 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
+      <div className="grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_56px] gap-x-3 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
         <span>{tPanels(locale, "games.column.result")}</span>
         <span>{tPanels(locale, "games.column.white")}</span>
-        <span></span>
         <span>{tPanels(locale, "games.column.black")}</span>
-        <span></span>
         <span>{tPanels(locale, "games.column.date")}</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto" aria-busy={loading || undefined}>
@@ -152,16 +151,14 @@ export function PlayerGamesPanel() {
         {visible.map((game) => (
           <GameOpenRow
             key={game.id}
-            className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px_64px] items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle"
+            className="grid w-full grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_56px] items-center gap-x-3 px-3 py-1.5 text-left hover:bg-studio-hover"
             onOpen={() => openGame(game)}
             onOpenNew={() => openGame(game, true)}
           >
             <ResultMark winner={game.winner} />
-            <span className="truncate">{game.whiteName}</span>
-            <span className="text-right text-studio-faint">{game.whiteRating ?? ""}</span>
-            <span className="truncate">{game.blackName}</span>
-            <span className="text-right text-studio-faint">{game.blackRating ?? ""}</span>
-            <span className="truncate text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
+            <PlayerCell name={game.whiteName} rating={game.whiteRating ?? null} outcome={outcomeFor(game.winner, "white")} />
+            <PlayerCell name={game.blackName} rating={game.blackRating ?? null} outcome={outcomeFor(game.winner, "black")} />
+            <span className="truncate tabular-nums text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
           </GameOpenRow>
         ))}
       </div>

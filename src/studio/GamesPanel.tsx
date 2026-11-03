@@ -2,11 +2,12 @@
 
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
-import { explorerGamesTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
+import { explorerSourceTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
 import { formatYearMonth } from "@/src/lib/game-date";
 import { openBoardPanel } from "./dock-api";
 import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
+import { PlayerCell, outcomeFor } from "./ui/PlayerCell";
 
 export function GamesPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
@@ -16,6 +17,16 @@ export function GamesPanel() {
   const setStatus = useStudioStore((state) => state.setStatus);
   const source = useStudioStore((state) => state.databaseSource);
   const databases = useStudioStore((state) => state.files.databases);
+
+  // SIG-1192: masters/online rows carry no event name, so the column is
+  // only shown when at least one listed game has one (curated, personal).
+  const showEvent = explorer?.games.some((game) => Boolean(game.event)) ?? false;
+  // SIG-1192: each rating lives inside its player's cell. As separate
+  // right-aligned columns, White's rating sat against Black's name and read
+  // as Black's.
+  const gridCols = showEvent
+    ? "grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.8fr)_56px_36px]"
+    : "grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_56px_36px]";
 
   async function openGame(game: ExplorerGameRow, openInNewBoard = false) {
     setStatus(tPanels(locale, "games.loading"));
@@ -69,18 +80,17 @@ export function GamesPanel() {
   return (
     <div className="flex h-full flex-col bg-studio-panel text-dense text-studio-fg">
       <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-caption text-studio-faint">
-        <span>{tPanels(locale, "games.title", { name: explorerGamesTitle(source, databases, locale) })}</span>
+        {/* SIG-1192: name the source, not the tab ("Games · Games" before). */}
+        <span>{tPanels(locale, "games.title", { name: explorerSourceTitle(source, databases, locale) })}</span>
         <span>{(explorer?.games.length ?? 0) === 1
           ? tPanels(locale, "games.shown.one", { count: explorer?.games.length ?? 0 })
           : tPanels(locale, "games.shown.other", { count: explorer?.games.length ?? 0 })}</span>
       </div>
-      <div className="grid grid-cols-[44px_1fr_44px_1fr_44px_90px_64px_40px] gap-2 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
+      <div className={`grid ${gridCols} gap-x-3 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint`}>
         <span>{tPanels(locale, "games.column.result")}</span>
         <span>{tPanels(locale, "games.column.white")}</span>
-        <span></span>
         <span>{tPanels(locale, "games.column.black")}</span>
-        <span></span>
-        <span>{tPanels(locale, "games.column.event")}</span>
+        {showEvent ? <span>{tPanels(locale, "games.column.event")}</span> : null}
         <span>{tPanels(locale, "games.column.date")}</span>
         <span>{tPanels(locale, "games.column.eco")}</span>
       </div>
@@ -96,18 +106,16 @@ export function GamesPanel() {
         {explorer?.games.map((game) => (
           <GameOpenRow
             key={game.id}
-            className="grid w-full grid-cols-[44px_1fr_44px_1fr_44px_90px_64px_40px] items-center gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle"
+            className={`grid w-full ${gridCols} items-center gap-x-3 px-3 py-1.5 text-left hover:bg-studio-hover`}
             onOpen={() => void openGame(game)}
             onOpenNew={() => void openGame(game, true)}
           >
             <ResultMark winner={game.winner} />
-            <span className="truncate">{game.whiteName}</span>
-            <span className="text-right text-studio-faint">{game.whiteRating ?? ""}</span>
-            <span className="truncate">{game.blackName}</span>
-            <span className="text-right text-studio-faint">{game.blackRating ?? ""}</span>
-            <span className="truncate text-studio-muted">{game.event ?? ""}</span>
-            <span className="truncate text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
-            <span className="text-studio-faint">{game.eco ?? ""}</span>
+            <PlayerCell name={game.whiteName} rating={game.whiteRating} outcome={outcomeFor(game.winner, "white")} />
+            <PlayerCell name={game.blackName} rating={game.blackRating} outcome={outcomeFor(game.winner, "black")} />
+            {showEvent ? <span className="truncate text-studio-muted">{game.event ?? ""}</span> : null}
+            <span className="truncate tabular-nums text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
+            <span className="font-medium tabular-nums text-studio-muted">{game.eco ?? ""}</span>
           </GameOpenRow>
         ))}
       </div>

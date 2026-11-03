@@ -1,4 +1,6 @@
-const MIN_LABEL_PERCENT = 12;
+// SIG-1192: 12% squeezed labels like "14%" into slivers; below 18% the
+// segment stays unlabeled (the aria-label still carries every share).
+const MIN_LABEL_PERCENT = 18;
 
 export function ResultBar({
   white,
@@ -13,7 +15,7 @@ export function ResultBar({
   const segments = [
     { key: "white", value: white, className: "bg-studio-win text-studio-loss" },
     { key: "draws", value: draws, className: "bg-studio-draw text-studio-loss" },
-    { key: "black", value: black, className: "bg-studio-loss text-studio-win" },
+    { key: "black", value: black, className: "bg-studio-result-black text-studio-win" },
   ];
   return (
     <span

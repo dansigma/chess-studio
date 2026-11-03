@@ -9,8 +9,13 @@
   --studio-selected: #2b2e35;
   --studio-tab: #353942;
   --studio-fg: #f4f4f5;
+  /* SIG-1192: one step between fg and muted (11.5:1 on panel), used for
+     first-level notation variations. */
+  --studio-fg-secondary: #d4d4d8;
   --studio-muted: #a1a1aa;
-  --studio-faint: #a1a1aa;
+  /* SIG-1192: faint was identical to muted, so move numbers, captions and
+     placeholders had no step below muted. #8a8a94 keeps 4.98:1 on panel. */
+  --studio-faint: #8a8a94;
   --studio-disabled: #52525b;
   --studio-border: rgb(255 255 255 / 0.08);
   --studio-border-subtle: rgb(255 255 255 / 0.05);
@@ -23,15 +28,20 @@
   --studio-accent-soft: rgb(59 130 246 / 0.18);
   --studio-accent-text: #93c5fd;
   --studio-accent-fg: #ffffff;
-  --studio-accent-move: var(--studio-accent);
+  /* SIG-1192: white on --studio-accent is 3.68:1; accent-strong gives 5.17:1. */
+  --studio-accent-move: var(--studio-accent-strong);
   --studio-comment: #8fb4d0;
   --studio-warning-fg: #fcd34d;
   --studio-warning-bg: rgb(245 158 11 / 0.1);
   --studio-success: #34d399;
   --studio-danger: #f87171;
   --studio-win: #f4f4f5;
-  --studio-draw: #8b8f98;
+  /* SIG-1192: dark text on draw was 4.36:1; #959aa3 gives 5.0:1. */
+  --studio-draw: #959aa3;
   --studio-loss: #2a2b30;
+  /* SIG-1192: Black's share in result bars/pills. --studio-loss is 1.21:1
+     against the panel, so the segment only existed through its outline. */
+  --studio-result-black: #34363c;
   --studio-track: rgb(255 255 255 / 0.06);
   --studio-scrim: rgb(0 0 0 / 0.55);
   --background: var(--studio-chrome);
@@ -47,6 +57,7 @@ html[data-color-scheme="light"] {
   --studio-selected: #eaecf0;
   --studio-tab: #dde1e7;
   --studio-fg: #18181b;
+  --studio-fg-secondary: #3f3f46;
   --studio-muted: #52525b;
   --studio-faint: #63636b;
   --studio-disabled: #a1a1aa;
@@ -69,6 +80,7 @@ html[data-color-scheme="light"] {
   --studio-win: #ffffff;
   --studio-draw: #a1a5ad;
   --studio-loss: #3a3b41;
+  --studio-result-black: #3a3b41;
   --studio-track: rgb(0 0 0 / 0.06);
   --studio-scrim: rgb(15 16 20 / 0.4);
   color-scheme: light;
@@ -84,6 +96,7 @@ html[data-color-scheme="light"] {
   --color-studio-selected: var(--studio-selected);
   --color-studio-tab: var(--studio-tab);
   --color-studio-fg: var(--studio-fg);
+  --color-studio-fg-secondary: var(--studio-fg-secondary);
   --color-studio-muted: var(--studio-muted);
   --color-studio-faint: var(--studio-faint);
   --color-studio-disabled: var(--studio-disabled);
@@ -107,6 +120,7 @@ html[data-color-scheme="light"] {
   --color-studio-win: var(--studio-win);
   --color-studio-draw: var(--studio-draw);
   --color-studio-loss: var(--studio-loss);
+  --color-studio-result-black: var(--studio-result-black);
   --color-studio-track: var(--studio-track);
   --color-studio-scrim: var(--studio-scrim);
   --text-caption: 11px;
@@ -278,6 +292,26 @@ body {
   z-index: 10;
 }
 
+/* SIG-1192: active and inactive groups styled their visible tab the same,
+   so nothing showed which group the arrow keys act on. The focused group's
+   visible tab gets a 2px accent rule along its top edge. */
+.dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-active-tab::before {
+  content: "";
+  position: absolute;
+  /* Overrides dockview's 1px divider ::before on non-first tabs. */
+  top: -1px;
+  right: -1px;
+  bottom: auto;
+  left: -1px;
+  width: auto;
+  height: 2px;
+  z-index: 11;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  background: var(--studio-accent);
+  pointer-events: none;
+}
+
 .dockview-theme-vs .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab,
 .dockview-theme-vs .dv-groupview.dv-inactive-group > .dv-tabs-and-actions-container .dv-tab.dv-inactive-tab {
   background-color: transparent;
@@ -300,7 +334,8 @@ body {
 }
 
 .dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-content {
-  max-width: 140px;
+  /* SIG-1192: 140px cut most "White vs Black" board titles mid-name. */
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -51,33 +51,27 @@ export function pgnResultCaption(
   return caption ? { winner, ...caption } : null;
 }
 
+// SIG-1192: a fixed-width pill in the ResultBar colours (white / draw /
+// black) so the three results differ by more than text colour; before,
+// 0-1 and ½-½ shared the same grey.
+const RESULT_PILL =
+  "inline-flex h-[18px] w-9 shrink-0 items-center justify-center rounded-[4px] text-caption font-semibold tabular-nums";
+
 export function ResultMark({ winner }: { winner: ResultWinner }) {
   const locale = useStudioStore((state) => state.settings.locale);
-  const label =
+  const caption = resultCaptionForWinner(winner, locale);
+  if (!caption) {
+    return <span className={`${RESULT_PILL} text-studio-faint`}>*</span>;
+  }
+  const tone =
     winner === "white"
-      ? tPanels(locale, "result.whiteWins")
+      ? "bg-studio-win text-studio-loss ring-1 ring-studio-border-strong"
       : winner === "black"
-        ? tPanels(locale, "result.blackWins")
-        : winner === "draw"
-          ? tPanels(locale, "result.draw")
-          : undefined;
-  if (winner === "white") {
-    return (
-      <span className="text-studio-fg" title={label}>
-        1-0
-      </span>
-    );
-  }
-  if (winner === "black") {
-    return (
-      <span className="text-studio-muted" title={label}>
-        0-1
-      </span>
-    );
-  }
+        ? "bg-studio-result-black text-studio-win ring-1 ring-studio-border-strong"
+        : "bg-studio-draw text-studio-loss";
   return (
-    <span className="text-studio-faint" title={label}>
-      ½-½
+    <span className={`${RESULT_PILL} ${tone}`} title={caption.label}>
+      {caption.mark}
     </span>
   );
 }

@@ -449,6 +449,13 @@ export function StudioShell() {
       }
       const ctrl = event.ctrlKey || event.metaKey;
       const chromeFocus = !isEditableTarget(document.activeElement);
+      // SIG-1192: bare F flips too (Lichess muscle memory). Ctrl+F stays for
+      // ChessBase parity; this alias adds a key, it does not move one.
+      if (!ctrl && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "f" && chromeFocus) {
+        event.preventDefault();
+        flip();
+        return;
+      }
       if (ctrl && event.shiftKey && event.key.toLowerCase() === "a" && chromeFocus) {
         event.preventDefault();
         const board = useStudioStore.getState().active();

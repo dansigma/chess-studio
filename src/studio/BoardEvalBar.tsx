@@ -35,7 +35,7 @@ export function BoardEvalBar({
     <div
       aria-label={`Evaluation ${label}`}
       title={label}
-      className="relative w-[18px] shrink-0 overflow-hidden rounded-md bg-studio-loss ring-1 ring-studio-border-strong"
+      className="relative w-5 shrink-0 overflow-hidden rounded-md bg-studio-loss ring-1 ring-studio-border-strong"
     >
       <div
         className="absolute left-0 right-0 bg-studio-win transition-[height] duration-300 ease-out"
@@ -47,7 +47,8 @@ export function BoardEvalBar({
       />
       <div className="absolute inset-x-0 top-1/2 h-px bg-studio-draw/60" aria-hidden="true" />
       <span
-        className={`absolute inset-x-0 px-px text-center text-[9px] font-bold leading-tight tabular-nums ${
+        // SIG-1192: 9px was below the system's 10.5px legibility floor.
+        className={`absolute inset-x-0 px-px text-center text-[10.5px] font-bold leading-tight tracking-tighter tabular-nums ${
           whiteWinning ? "text-studio-loss" : "text-studio-win"
         }`}
         style={

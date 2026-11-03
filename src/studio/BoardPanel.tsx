@@ -17,7 +17,7 @@ import { threatSquaresFromUci, useThreat } from "./useThreat";
 import { BoardEvalBar } from "./BoardEvalBar";
 import { BoardContextMenu, type BoardMenuState } from "./BoardContextMenu";
 import { SetupBoardPanel } from "./SetupBoardPanel";
-import { boardSquareStyles } from "@/src/chess/board-themes";
+import { boardNotationStyles, boardSquareStyles } from "@/src/chess/board-themes";
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { boardImageElement, fenToCopy, publishVisibleFen } from "@/src/chess/copy-board";
 import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-board-image";
@@ -45,6 +45,8 @@ type PendingDraw = {
   square: string;
   color: MarkColor;
 };
+
+const COORDINATE_STYLE = { fontSize: "11px", fontWeight: 600 } as const;
 
 export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) {
   const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
@@ -279,6 +281,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   }
 
   const theme = boardSquareStyles(boardTheme);
+  const notation = boardNotationStyles(boardTheme);
   const pieces = piecesForSet(pieceSet);
   const turn = fen.split(" ")[1] === "b" ? "b" : "w";
 
@@ -347,7 +350,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
         className="flex items-stretch gap-1.5"
         style={{
           height: showEvalBar
-            ? "min(100cqh, calc(100cqw - 1.5rem))"
+            ? "min(100cqh, calc(100cqw - 1.625rem))" /* eval bar 20px + 6px gap */
             : "min(100cqh, 100cqw)",
         }}
       >
@@ -381,6 +384,12 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
             arrows,
             lightSquareStyle: theme.light,
             darkSquareStyle: theme.dark,
+            // SIG-1192: the library's fixed brown/cream labels were about 2:1
+            // on the studio theme.
+            lightSquareNotationStyle: notation.light,
+            darkSquareNotationStyle: notation.dark,
+            alphaNotationStyle: COORDINATE_STYLE,
+            numericNotationStyle: COORDINATE_STYLE,
             pieces,
             squareStyles,
             boardStyle: { width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" },

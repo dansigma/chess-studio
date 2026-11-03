@@ -99,8 +99,8 @@ test("curated source is recognized by parser, guards, and titles", () => {
   assert.equal(explorerSourceTitle("curated", [], "pt-br"), "Mestres selecionados");
   assert.equal(explorerSourceTitle("lichess", []), "Online Database");
   assert.equal(explorerSourceTitle("lichess", [], "pt-br"), "Base de dados online");
-  assert.equal(explorerSourceTitle("masters", []), "Opening Explorer");
-  assert.equal(explorerSourceTitle("masters", [], "pt-br"), "Explorador de Abertura");
+  assert.equal(explorerSourceTitle("masters", []), "Masters (Lichess)");
+  assert.equal(explorerSourceTitle("masters", [], "pt-br"), "Masters (Lichess)");
   assert.equal(explorerSourceTitle("chesscom", []), "Chess.com");
   assert.equal(explorerSourceTitle("chesscom", [], "pt-br"), "Chess.com");
   assert.equal(

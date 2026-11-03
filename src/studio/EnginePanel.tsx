@@ -15,7 +15,6 @@ import {
   maxHardwareThreads,
   positionAfterPv,
   scoreNumber,
-  evalBarPercent,
   supportsEngineThreads,
   type EngineInfo,
 } from "@/src/engine/stockfish-client";
@@ -29,7 +28,7 @@ import { resolveEvalDisplay } from "@/src/lib/eval-cache";
 import { throttleLatest } from "@/src/lib/throttle";
 import { formatSanAtPly } from "@/src/chess/move-notation";
 import { IconButton } from "./ui/Button";
-import { Badge, Stepper } from "./ui/Controls";
+import { Stepper } from "./ui/Controls";
 
 function isInsideEnginePv(target: EventTarget | null): boolean {
   return target instanceof Element && Boolean(target.closest("[data-engine-pv]"));
@@ -75,6 +74,8 @@ export function EnginePanel() {
   const [coresOpen, setCoresOpen] = useState(false);
   const [buildOpen, setBuildOpen] = useState(false);
   const [lineMenu, setLineMenu] = useState<EngineLineMenuState | null>(null);
+  // SIG-1192: PVs render on one line; clicking a line's score expands it.
+  const [expandedLines, setExpandedLines] = useState<ReadonlySet<number>>(() => new Set());
   const buildMenuRef = useRef<HTMLDivElement>(null);
   const handleBuildMenuKeyDown = useMenuKeyDown(buildMenuRef, () => setBuildOpen(false), buildOpen);
   const [info, setInfo] = useState<EngineInfo>({
@@ -145,7 +146,6 @@ export function EnginePanel() {
     heldEval,
     info.depth,
   );
-  const bar = evalBarPercent(display.pawns);
 
   useEffect(() => {
     if (!best) {
@@ -205,8 +205,8 @@ export function EnginePanel() {
             className="flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 hover:bg-studio-hover-strong"
             onClick={() => setBuildOpen((open) => !open)}
           >
+            {/* SIG-1192: the build size lives in the build menu only. */}
             <span className="truncate font-semibold">{engineInfo.label}</span>
-            <Badge>{engineInfo.size}</Badge>
           </button>
           {buildOpen ? (
             <>
@@ -307,6 +307,8 @@ export function EnginePanel() {
       <div className="flex items-center gap-2 border-b border-studio-border px-2 py-1.5">
         <Stepper
           label={tPanels(locale, "engine.depth")}
+          decrementLabel={tPanels(locale, "engine.depth.decrease")}
+          incrementLabel={tPanels(locale, "engine.depth.increase")}
           value={
             <span>
               {display.depth}
@@ -338,6 +340,8 @@ export function EnginePanel() {
         </div>
         <Stepper
           label={tPanels(locale, "engine.lines")}
+          decrementLabel={tPanels(locale, "engine.lines.decrease")}
+          incrementLabel={tPanels(locale, "engine.lines.increase")}
           value={multiPv}
           canDecrement={multiPv > MIN_LINES}
           canIncrement={multiPv < MAX_LINES}
@@ -359,12 +363,6 @@ export function EnginePanel() {
       </div>
 
       <div className="flex min-h-0 flex-1">
-        <div className="relative w-1.5 shrink-0 overflow-hidden border-r border-studio-border-strong bg-studio-loss">
-          <div
-            className="absolute bottom-0 left-0 right-0 bg-studio-win transition-[height] duration-300"
-            style={{ height: `${bar}%` }}
-          />
-        </div>
         <div className="min-h-0 min-w-0 flex-1 overflow-auto">
           {lines.map((line) => (
             <div
@@ -380,7 +378,21 @@ export function EnginePanel() {
                 });
               }}
             >
-              <span
+              <button
+                type="button"
+                aria-expanded={expandedLines.has(line.multipv)}
+                title={tPanels(locale, expandedLines.has(line.multipv) ? "engine.collapseLine" : "engine.expandLine")}
+                onClick={() =>
+                  setExpandedLines((current) => {
+                    const next = new Set(current);
+                    if (next.has(line.multipv)) {
+                      next.delete(line.multipv);
+                    } else {
+                      next.add(line.multipv);
+                    }
+                    return next;
+                  })
+                }
                 className={`mt-0.5 min-w-14 rounded-[5px] border px-1.5 py-0.5 text-center text-dense font-semibold tabular-nums ${
                   scoreNumber(line, side) >= 0
                     ? "border-studio-border-strong bg-studio-win text-studio-loss"
@@ -388,10 +400,12 @@ export function EnginePanel() {
                 }`}
               >
                 {formatScore(line, side)}
-              </span>
+              </button>
               <span
                 data-engine-pv
-                className="flex-1 font-mono text-dense leading-5 text-studio-fg"
+                className={`min-w-0 flex-1 text-dense leading-5 tabular-nums text-studio-fg ${
+                  expandedLines.has(line.multipv) ? "" : "truncate whitespace-nowrap"
+                }`}
                 onMouseLeave={(event) => {
                   if (isInsideEnginePv(event.relatedTarget)) {
                     return;

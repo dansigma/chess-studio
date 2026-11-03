@@ -40,3 +40,29 @@ export function boardSquareStyles(theme: BoardTheme): {
     dark: { backgroundColor: colors.dark },
   };
 }
+
+function mixHex(from: string, to: string, amount: number): string {
+  const channel = (hex: string, index: number) => Number.parseInt(hex.slice(1 + index * 2, 3 + index * 2), 16);
+  return `#${[0, 1, 2]
+    .map((index) => Math.round(channel(from, index) * (1 - amount) + channel(to, index) * amount))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+/**
+ * SIG-1192: coordinate label colours per theme. The library default is a
+ * fixed brown/cream pair (about 2:1 on most themes). Light squares take the
+ * theme's dark colour pushed 35% toward black (3.9–7.1:1 across themes);
+ * dark squares take the light colour pushed 60% toward white (2.4–4.8:1,
+ * the most a mid-tone square allows without pure white glare).
+ */
+export function boardNotationStyles(theme: BoardTheme): {
+  light: { color: string };
+  dark: { color: string };
+} {
+  const colors = BOARD_THEMES[isBoardTheme(theme) ? theme : "studio"];
+  return {
+    light: { color: mixHex(colors.dark, "#000000", 0.35) },
+    dark: { color: mixHex(colors.light, "#ffffff", 0.6) },
+  };
+}

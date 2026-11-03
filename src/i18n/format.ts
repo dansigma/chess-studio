@@ -18,3 +18,14 @@ export function formatDecimal1(locale: SiteLocale, value: number): string {
 export function formatInteger(locale: SiteLocale, value: number): string {
   return new Intl.NumberFormat(TAG[locale], { maximumFractionDigits: 0 }).format(value);
 }
+
+/**
+ * SIG-1192: game counts in explorer tables. Exact and grouped below 10,000
+ * ("1,336" / "1.336"), compact above ("12.3K" / "12,3 mil").
+ */
+export function formatGameCount(locale: SiteLocale, value: number): string {
+  if (Math.abs(value) < 10_000) {
+    return formatInteger(locale, value);
+  }
+  return new Intl.NumberFormat(TAG[locale], { notation: "compact", maximumFractionDigits: 1 }).format(value);
+}

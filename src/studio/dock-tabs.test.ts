@@ -52,8 +52,8 @@ describe("studio dock tabs restyling (SIG-938)", () => {
 
   it("applies truncation with max-width to tab title content", () => {
     assert.ok(
-      globalsCss.includes("max-width: 140px;"),
-      "tab content must have max-width: 140px",
+      globalsCss.includes("max-width: 200px;"),
+      "tab content must have max-width: 200px (SIG-1192)",
     );
     assert.ok(
       globalsCss.includes("text-overflow: ellipsis;"),

@@ -59,6 +59,8 @@ export function Chip({
 
 export function Stepper({
   label,
+  decrementLabel,
+  incrementLabel,
   value,
   canDecrement,
   canIncrement,
@@ -66,6 +68,10 @@ export function Stepper({
   onIncrement,
 }: {
   label: string;
+  /** SIG-1192: localized button names; the old `Decrease ${label}` mixed
+   * English with the translated label ("Decrease profundidade"). */
+  decrementLabel: string;
+  incrementLabel: string;
   value: ReactNode;
   canDecrement: boolean;
   canIncrement: boolean;
@@ -81,7 +87,7 @@ export function Stepper({
         className={buttonClass}
         disabled={!canDecrement}
         onClick={onDecrement}
-        aria-label={`Decrease ${label.toLowerCase()}`}
+        aria-label={decrementLabel}
       >
         <Minus size={12} />
       </button>
@@ -94,7 +100,7 @@ export function Stepper({
         className={buttonClass}
         disabled={!canIncrement}
         onClick={onIncrement}
-        aria-label={`Increase ${label.toLowerCase()}`}
+        aria-label={incrementLabel}
       >
         <Plus size={12} />
       </button>

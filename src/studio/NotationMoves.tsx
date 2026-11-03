@@ -32,6 +32,7 @@ const MoveToken = memo(function MoveToken({
   active,
   style,
   compact = false,
+  main = false,
   onClick,
   onAnnotate,
 }: {
@@ -41,6 +42,8 @@ const MoveToken = memo(function MoveToken({
   active: boolean;
   style: MoveNotation;
   compact?: boolean;
+  /** SIG-1192: mainline moves are 600, variation moves 400. */
+  main?: boolean;
   onClick: () => void;
   onAnnotate: (event: React.MouseEvent) => void;
 }) {
@@ -57,7 +60,7 @@ const MoveToken = memo(function MoveToken({
           onAnnotate(event);
         }}
         aria-current={active ? "step" : undefined}
-        className={`rounded-[5px] font-medium leading-5 ${
+        className={`rounded-[5px] leading-5 ${main ? "font-semibold" : "font-normal"} ${
           compact ? "px-0.5 py-px" : "px-1 py-0.5"
         } ${active ? "bg-studio-accent-move text-studio-accent-fg" : "hover:bg-studio-hover-strong"}`}
       >
@@ -81,6 +84,7 @@ export const Line = memo(function Line({
   onToggleCollapse,
   onAnnotate,
   continuation = false,
+  main = true,
 }: {
   nodes: TreeNode[];
   parentPath: Path;
@@ -93,6 +97,8 @@ export const Line = memo(function Line({
   onToggleCollapse: (key: string) => void;
   onAnnotate: (path: Path, event: React.MouseEvent) => void;
   continuation?: boolean;
+  /** SIG-1192: false for every line nested inside a variation. */
+  main?: boolean;
 }) {
   if (!nodes[0]) {
     return null;
@@ -115,13 +121,13 @@ export const Line = memo(function Line({
 
     if (color === "w") {
       items.push(
-        <span key={`n-${pathKey(nodePath)}`} className="px-0.5 text-studio-faint">
+        <span key={`n-${pathKey(nodePath)}`} className="px-0.5 tabular-nums text-studio-faint">
           {number}.
         </span>,
       );
     } else if (((parent.length === parentPath.length && !continuation) || resumeAfterVariation) && color === "b") {
       items.push(
-        <span key={`n-${pathKey(nodePath)}`} className="px-0.5 text-studio-faint">
+        <span key={`n-${pathKey(nodePath)}`} className="px-0.5 tabular-nums text-studio-faint">
           {number}...
         </span>,
       );
@@ -137,6 +143,7 @@ export const Line = memo(function Line({
         active={currentPath === pathKey(nodePath)}
         style={style}
         compact={density === "compact"}
+        main={main}
         onClick={() => goPath(nodePath)}
         onAnnotate={(event) => onAnnotate(nodePath, event)}
       />,
@@ -171,7 +178,7 @@ export const Line = memo(function Line({
             }
           >
             <CommentText text={variation.commentBefore} />
-            <span className="px-0.5 text-studio-faint">
+            <span className="px-0.5 tabular-nums text-studio-faint">
               {number}
               {color === "b" ? "..." : "."}
             </span>
@@ -199,6 +206,7 @@ export const Line = memo(function Line({
                 onToggleCollapse={onToggleCollapse}
                 onAnnotate={onAnnotate}
                 continuation
+                main={false}
               />
             ) : null}
           </span>,
