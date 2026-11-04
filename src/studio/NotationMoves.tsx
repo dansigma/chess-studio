@@ -9,6 +9,10 @@ import type { SiteLocale } from "@/src/i18n/locale.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import type { NotationDensity } from "./notation-density";
 import { pathKey } from "./notation-format";
+import { useReviewTier } from "@/src/store/review-labels";
+import { useStudioStore } from "@/src/store/studio-store";
+import { tierName } from "@/src/chess/review-strings";
+import { TierBadge } from "./review/TierBadge";
 
 /**
  * SIG-1193: variation depth at which lines stop being indented blocks and
@@ -59,6 +63,7 @@ const MoveToken = memo(function MoveToken({
   san,
   color,
   nags,
+  path,
   active,
   style,
   compact = false,
@@ -70,6 +75,8 @@ const MoveToken = memo(function MoveToken({
   san: string;
   color: "w" | "b";
   nags?: number[];
+  /** SIG-1219: `pathKey` of the move; looks up its Game Review tier badge. */
+  path: string;
   active: boolean;
   style: MoveNotation;
   compact?: boolean;
@@ -82,6 +89,8 @@ const MoveToken = memo(function MoveToken({
 }) {
   const suffix = formatMoveSuffix(nags);
   const rest = formatPositionGlyphs(nags);
+  const tier = useReviewTier(path);
+  const locale = useStudioStore((state) => state.settings.locale);
   return (
     <span className={block ? "flex min-w-0 items-center" : "inline-flex items-center"}>
       <button
@@ -101,6 +110,13 @@ const MoveToken = memo(function MoveToken({
       >
         {formatSan(san, style, color)}
         {suffix}
+        {tier ? (
+          <>
+            {/* SIG-1219: same height as the 20px text line, so rows keep their density. */}
+            <TierBadge label={tier} size={compact ? 12 : 14} className="ml-1 align-middle" />
+            <span className="sr-only"> {tierName(locale, tier)}</span>
+          </>
+        ) : null}
       </button>
       {rest ? <span className="pl-0.5 text-dense text-studio-muted">{rest}</span> : null}
     </span>
@@ -231,6 +247,7 @@ function Variations({
               san={variation.san}
               color={color}
               nags={variation.nags}
+              path={pathKey(variationPath)}
               active={currentPath === pathKey(variationPath)}
               style={style}
               compact={density === "compact" || inline}
@@ -323,6 +340,7 @@ export const Line = memo(function Line({
         san={node.san}
         color={color}
         nags={node.nags}
+        path={pathKey(nodePath)}
         active={currentPath === pathKey(nodePath)}
         style={style}
         compact={density === "compact" || depth >= INLINE_FROM_DEPTH}
@@ -453,6 +471,7 @@ export const TableMainline = memo(function TableMainline({
         san={node.san}
         color={color}
         nags={node.nags}
+        path={pathKey(nodePath)}
         active={currentPath === pathKey(nodePath)}
         style={style}
         depth={0}

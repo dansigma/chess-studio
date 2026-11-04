@@ -39,3 +39,5 @@ export const NOTATION_INLINE_MIN_WIDTH = 520;
 export const EXPLORER_COMPACT_MAX_HEIGHT = 300;
 /** SIG-1197: below this height the engine hides its sparkline to keep a line visible. */
 export const ENGINE_SPARKLINE_MIN_HEIGHT = 150;
+/** SIG-1219: below this width the report card shows compact classification chips instead of the full table. */
+export const REPORT_TABLE_MIN_WIDTH = 300;
