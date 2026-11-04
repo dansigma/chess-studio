@@ -188,7 +188,7 @@ const PT_BR: Record<AuthStringKey, string> = {
   "auth.hint.passwordRequirement": "Pelo menos {min} caracteres",
   "auth.error.passwordMismatch": "As senhas não coincidem.",
   "auth.error.updateFailed": "Não foi possível atualizar a senha. Tente novamente.",
-  "auth.message.passwordUpdated": "Senha atualizada. Levando você ao Estúdio…",
+  "auth.message.passwordUpdated": "Senha atualizada. Levando você ao Studio…",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

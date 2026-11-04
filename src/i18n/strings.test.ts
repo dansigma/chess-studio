@@ -13,7 +13,7 @@ describe("site strings (SIG-962)", () => {
   it("returns Portuguese labels for pt-br", () => {
     assert.equal(t("pt-br", "nav.courses"), "Cursos");
     assert.equal(t("pt-br", "nav.puzzles"), "Exercícios");
-    assert.equal(t("pt-br", "nav.studio"), "Estúdio");
+    assert.equal(t("pt-br", "nav.studio"), "Studio");
     assert.equal(t("pt-br", "nav.privacy"), "Privacidade");
     assert.equal(t("pt-br", "nav.terms"), "Termos");
   });
