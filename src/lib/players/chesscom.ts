@@ -3,8 +3,8 @@ import { usableDisplayName, usernameCandidates } from "@/src/lib/player-search";
 import type { PlayerGame, PlayerHit } from "@/src/lib/player-types";
 import {
   GAMES_TIMEOUT_MS,
+  MAX_ARCHIVE_STREAM_BYTES,
   MAX_PLAYER_GAMES,
-  MAX_PLAYER_GAMES_BYTES,
   SEARCH_TIMEOUT_MS,
   UA,
   fetchTimeout,
@@ -13,6 +13,7 @@ import {
   playerResult,
 } from "./shared";
 import { readCapped } from "../read-capped";
+import { streamArrayTail } from "./json-array-stream";
 
 export function chesscomHeaders(): Record<string, string> {
   return {
@@ -29,7 +30,8 @@ export type ChesscomPlayer = {
 
 export async function searchChesscom(query: string): Promise<PlayerHit[]> {
   const candidates = usernameCandidates(query);
-  const fetched = await mapWithConcurrency(candidates, 2, (candidate) => lookupChesscomCandidate(candidate));
+  // SIG-1210: Chess.com asks for serial requests; parallel ones get 429.
+  const fetched = await mapWithConcurrency(candidates, 1, (candidate) => lookupChesscomCandidate(candidate));
   const hits: PlayerHit[] = [];
   const seen = new Set<string>();
   for (const hit of fetched) {
@@ -94,21 +96,92 @@ export function chesscomWinner(game: ChesscomArchiveGame): PlayerGame["winner"] 
   return "draw";
 }
 
-async function fetchArchive(url: string): Promise<ChesscomArchiveGame[]> {
+export type ChesscomArchiveResult = {
+  /** Kept games, oldest to newest (the order Chess.com serves them). */
+  games: ChesscomArchiveGame[];
+  /** True when the safety byte cap cut the month short. */
+  truncated: boolean;
+};
+
+/**
+ * SIG-1210: streams one month archive and keeps only the newest `keep` games
+ * (optionally only those newer than `sinceMs`). Peak memory is bounded by
+ * `keep` games plus one in-flight game, not by the month size: an active
+ * player's month is tens of MB. Throws on network/HTTP/parse failures; the
+ * caller decides to skip the month.
+ */
+export async function fetchArchive(
+  url: string,
+  keep: number,
+  sinceMs = 0,
+): Promise<ChesscomArchiveResult> {
   const monthResponse = await fetchTimeout(
     url,
     {
       headers: chesscomHeaders(),
-      next: { revalidate: 120 },
+      // The vinext/Next fetch cache (`next.revalidate`) buffers the entire
+      // body to store it, which would defeat the streaming parse below. The
+      // loaders' own LRU and the route's Cache-Control cover repeat reads.
+      cache: "no-store",
     },
     GAMES_TIMEOUT_MS,
   );
   if (!monthResponse.ok) {
-    return [];
+    throw new Error(`Chess.com archive responded ${monthResponse.status}`);
   }
-  const text = await readCapped(monthResponse, MAX_PLAYER_GAMES_BYTES);
-  const monthPayload = JSON.parse(text) as { games?: ChesscomArchiveGame[] };
-  return monthPayload.games ?? [];
+  const result = await streamArrayTail<ChesscomArchiveGame>(monthResponse.body, {
+    arrayKey: "games",
+    keepLast: keep,
+    maxBytes: MAX_ARCHIVE_STREAM_BYTES,
+    accept:
+      sinceMs > 0
+        ? (game) => typeof game?.end_time === "number" && game.end_time * 1000 > sinceMs
+        : undefined,
+  });
+  return { games: result.items, truncated: result.truncated };
+}
+
+function pgnHeader(pgn: string | undefined, tag: string): string | null {
+  if (!pgn) {
+    return null;
+  }
+  const match = new RegExp(`^\\[${tag}\\s+"([^"]*)"\\]`, "m").exec(pgn);
+  const value = match?.[1]?.trim();
+  return value ? value : null;
+}
+
+/**
+ * Human opening name from a Chess.com opening URL slug, e.g.
+ * ".../openings/Queens-Pawn-Opening-1...c6" -> "Queen's Pawn Opening" and
+ * "Sicilian-Defense-Najdorf-Variation-6.Bg5" -> "Sicilian Defense Najdorf
+ * Variation". Returns null when the value is not an openings URL/slug.
+ */
+export function chesscomOpeningNameFromUrl(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  const marker = "/openings/";
+  const at = value.indexOf(marker);
+  if (at === -1) {
+    return null;
+  }
+  let slug = value.slice(at + marker.length).split(/[?#]/)[0] ?? "";
+  try {
+    slug = decodeURIComponent(slug);
+  } catch {
+    // keep the raw slug
+  }
+  slug = slug.replace(/\/+$/, "");
+  // The move-sequence suffix starts at the first "-<move number>." segment.
+  const moves = /-\d+\./.exec(slug);
+  if (moves) {
+    slug = slug.slice(0, moves.index);
+  }
+  const name = slug
+    .replace(/-+/g, " ")
+    .replace(/\b(Queen|King)s (?=Pawn|Gambit|Indian)/g, "$1's ")
+    .trim();
+  return name || null;
 }
 
 export function compactChesscomGame(
@@ -135,8 +208,11 @@ export function compactChesscomGame(
     year: end ? new Date(end).getUTCFullYear() : null,
     month: end ? new Date(end).getUTCMonth() + 1 : null,
     event: "Chess.com",
-    eco: raw.eco ?? null,
-    opening: null,
+    // SIG-1210: `raw.eco` is the ECOUrl, not a code. The code lives in the PGN
+    // `[ECO "A40"]` header; the English name comes from the ECOUrl slug and
+    // stays raw (UI localizes through resolveOpeningName), like Lichess.
+    eco: pgnHeader(raw.pgn, "ECO"),
+    opening: chesscomOpeningNameFromUrl(pgnHeader(raw.pgn, "ECOUrl") ?? raw.eco),
     moves: moves || undefined,
     pgn: cleaned || undefined,
     timeClass: raw.time_class ?? null,
@@ -148,11 +224,30 @@ export function compactChesscomGame(
   };
 }
 
+export type ChesscomGamesResult = {
+  games: PlayerGame[];
+  /** True when a month was skipped (failed) or cut short by the byte cap. */
+  partial: boolean;
+};
+
 export async function chesscomGamesSince(
   username: string,
   sinceMs: number,
   max: number,
 ): Promise<PlayerGame[]> {
+  return (await chesscomGamesSinceDetailed(username, sinceMs, max)).games;
+}
+
+/**
+ * Like `chesscomGamesSince`, but also reports `partial` so callers can tell the
+ * user that some months could not be read. A failing month never fails the
+ * request: only the archives list does.
+ */
+export async function chesscomGamesSinceDetailed(
+  username: string,
+  sinceMs: number,
+  max: number,
+): Promise<ChesscomGamesResult> {
   const archivesResponse = await fetchTimeout(
     `https://api.chess.com/pub/player/${encodeURIComponent(username.toLowerCase())}/games/archives`,
     { headers: chesscomHeaders(), next: { revalidate: 300 } },
@@ -168,7 +263,7 @@ export async function chesscomGamesSince(
   const archivesPayload = JSON.parse(archivesText) as { archives?: string[] };
   const allUrls = archivesPayload.archives ?? [];
   if (allUrls.length === 0) {
-    return [];
+    return { games: [], partial: false };
   }
   // Chess.com has no `since` filter: walk month archives from the newest back
   // to (and including) the month containing sinceMs. A 90-day cold sync
@@ -202,22 +297,51 @@ export async function chesscomGamesSince(
   }
   const games: PlayerGame[] = [];
   const target = username.toLowerCase();
+  let partial = false;
   for (const archiveUrl of urls) {
-    const month = await fetchArchive(archiveUrl);
-    for (const raw of month.slice().reverse()) {
+    let month: ChesscomArchiveResult;
+    try {
+      // Only the newest `max - games.length` of this month can still be used.
+      month = await fetchArchive(archiveUrl, max - games.length, sinceMs);
+    } catch (error) {
+      partial = true;
+      console.warn("chesscom archive skipped", {
+        source: "chesscom",
+        username: target,
+        url: archiveUrl,
+        reason: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      });
+      continue;
+    }
+    if (month.truncated) {
+      partial = true;
+      console.warn("chesscom archive truncated by byte cap", {
+        source: "chesscom",
+        username: target,
+        url: archiveUrl,
+        reason: `exceeded ${MAX_ARCHIVE_STREAM_BYTES} bytes`,
+      });
+    }
+    // Games are oldest->newest within a month: walk the kept ones backwards.
+    for (let i = month.games.length - 1; i >= 0; i -= 1) {
+      const raw = month.games[i] as ChesscomArchiveGame;
       const playedAt = typeof raw.end_time === "number" ? raw.end_time * 1000 : null;
       if (sinceMs > 0 && (playedAt === null || playedAt <= sinceMs)) {
         continue;
       }
       games.push(compactChesscomGame(raw, target, games.length));
       if (games.length >= max) {
-        return games;
+        return { games, partial };
       }
     }
   }
-  return games;
+  return { games, partial };
 }
 
 export async function chesscomGames(username: string): Promise<PlayerGame[]> {
   return chesscomGamesSince(username, 0, MAX_PLAYER_GAMES);
+}
+
+export async function chesscomGamesDetailed(username: string): Promise<ChesscomGamesResult> {
+  return chesscomGamesSinceDetailed(username, 0, MAX_PLAYER_GAMES);
 }

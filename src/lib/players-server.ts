@@ -1,6 +1,6 @@
 import { createLruCache } from "@/src/lib/lru";
 import type { PlayerGame, PlayerGamesResponse, PlayerHit, PlayerSource } from "@/src/lib/player-types";
-import { chesscomGames, searchChesscom } from "./players/chesscom";
+import { chesscomGamesDetailed, searchChesscom } from "./players/chesscom";
 import { lichessGames, searchLichess } from "./players/lichess";
 import { GAMES_CACHE_TTL_MS, MAX_PLAYER_GAMES, isSource } from "./players/shared";
 import { searchStudioDatabase, studioGames } from "./players/studio";
@@ -87,17 +87,25 @@ export async function loadPlayerGames(
   let games: PlayerGame[] = [];
   let truncated = false;
   let notice: string | undefined;
+  // SIG-1210: set when some Chess.com months were skipped or cut short.
+  let partial = false;
   try {
     if (source === "lichess") {
       games = await lichessGames(username);
       truncated = games.length >= MAX_PLAYER_GAMES;
       notice = truncated ? `Showing the ${MAX_PLAYER_GAMES} most recent Lichess games.` : undefined;
     } else if (source === "chesscom") {
-      games = await chesscomGames(username);
+      const loaded = await chesscomGamesDetailed(username);
+      games = loaded.games;
+      partial = loaded.partial;
       truncated = games.length >= MAX_PLAYER_GAMES;
       notice = truncated
         ? `Showing the ${MAX_PLAYER_GAMES} most recent Chess.com games.`
         : undefined;
+      if (partial) {
+        const skipped = "Some Chess.com months could not be loaded, so this list may be incomplete.";
+        notice = notice ? `${notice} ${skipped}` : skipped;
+      }
     } else {
       games = await studioGames(username);
     }
@@ -114,10 +122,13 @@ export async function loadPlayerGames(
     truncated = true;
     notice = `Showing the ${MAX_PLAYER_GAMES} most recent Studio games.`;
   }
-  const payload: PlayerGamesResponse = { player, games, truncated, notice };
+  const payload: PlayerGamesResponse = partial
+    ? { player, games, truncated, notice, partial: true }
+    : { player, games, truncated, notice };
   // Studio never caches (see `cacheable`). For the other sources, only a
   // truncation notice may be cached; any other notice is kept out of the cache.
-  if (cacheable && (!notice || truncated)) {
+  // Partial results are never cached so the next request retries the months.
+  if (cacheable && !partial && (!notice || truncated)) {
     gamesCache.set(cacheKey, { expires: Date.now() + GAMES_CACHE_TTL_MS, payload });
   }
   return payload;

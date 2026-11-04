@@ -97,6 +97,12 @@ export function SearchSidebar() {
           onToggleBookmark={() => togglePlayerBookmark(player)}
         />
       ))}
+      {!visibleLoading && searching && !visibleHits.some((player) => player.source === "chesscom") ? (
+        // SIG-1210: Chess.com only matches exact usernames.
+        <p className="px-2 py-1.5 text-caption leading-4 text-studio-faint">
+          {tSidebar(locale, "sidebar.search.chesscomExact")}
+        </p>
+      ) : null}
       {!searching ? (
         <SidebarHint>{tSidebar(locale, "sidebar.search.hint")}</SidebarHint>
       ) : null}

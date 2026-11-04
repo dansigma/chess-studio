@@ -55,4 +55,7 @@ export type PlayerGamesResponse = {
   games: PlayerGame[];
   truncated: boolean;
   notice?: string;
+  // SIG-1210: some upstream months were skipped or cut short (same flag name
+  // as the player-search route's `partial`).
+  partial?: boolean;
 };

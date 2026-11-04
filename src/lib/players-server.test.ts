@@ -15,6 +15,7 @@ const state = {
   studioCount: 1,
   failLichess: false,
   failChesscom: false,
+  chesscomPartial: false,
   failStudio: false,
 };
 
@@ -76,7 +77,7 @@ mock.module("@/src/lib/players/chesscom.ts", {
       }
       return [hit("chesscom:hikaru", "chesscom")];
     },
-    chesscomGames: async () => [],
+    chesscomGamesDetailed: async () => ({ games: [], partial: state.chesscomPartial }),
   },
 });
 mock.module("@/src/lib/players/fide.ts", { namedExports: { searchFidePlayers: async () => [] } });
@@ -156,4 +157,19 @@ test("searchPlayers reports all three sources when every source fails", async ()
 test("searchPlayers returns empty without failures for short queries", async () => {
   const result = await searchPlayers("x");
   assert.deepEqual(result, { players: [], failedSources: [] });
+});
+
+test("loadPlayerGames exposes partial and does not cache it when Chess.com months were skipped", async () => {
+  state.chesscomPartial = true;
+  try {
+    const first = await loadPlayerGames("chesscom", "partial-user");
+    assert.equal(first.partial, true);
+    assert.match(first.notice ?? "", /Chess\.com months could not be loaded/);
+    state.chesscomPartial = false;
+    const second = await loadPlayerGames("chesscom", "partial-user");
+    assert.equal(second.partial, undefined);
+    assert.equal(second.notice, undefined);
+  } finally {
+    state.chesscomPartial = false;
+  }
 });
