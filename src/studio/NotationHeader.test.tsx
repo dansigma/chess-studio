@@ -40,11 +40,12 @@ test("Chess.com game links to the original game safely", () => {
   assert.equal(link.getAttribute("rel"), "noopener noreferrer");
 });
 
-test("inline mode keeps one line with the ECO badge and no caption row", () => {
+test("inline (wide panel) mode keeps the game details line under the players", () => {
   render(<NotationHeader inline headers={OTB} onEdit={() => {}} />);
-  assert.ok(screen.getByText("C91"));
   assert.ok(screen.getByText("½-½"));
-  assert.equal(screen.queryByTestId("notation-header-info"), null);
+  const info = screen.getByTestId("notation-header-info");
+  assert.equal(info.getAttribute("title"), "Over the board · Biel GM · R5 · Jul 17, 2005 · C91 Ruy Lopez");
+  assert.equal(screen.getAllByText("C91").length, 1, "ECO shows once, in the details line");
 });
 
 test("two placeholder players keep the opening as the title", () => {
