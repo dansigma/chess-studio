@@ -17,6 +17,12 @@ export const MISTAKE_STRING_KEYS = [
   "mistakes.trainer.caughtUp.nextDue",
   "mistakes.trainer.caughtUp.empty",
   "mistakes.trainer.caughtUp.back",
+  "mistakes.banner.one",
+  "mistakes.banner.other",
+  "mistakes.banner.side.w",
+  "mistakes.banner.side.b",
+  "mistakes.banner.action",
+  "mistakes.banner.dismiss",
 ] as const;
 
 export type MistakeStringKey = (typeof MISTAKE_STRING_KEYS)[number];
@@ -35,6 +41,13 @@ const EN: Record<MistakeStringKey, string> = {
   "mistakes.trainer.caughtUp.nextDue": "Next exercise due {date}",
   "mistakes.trainer.caughtUp.empty": "No saved mistakes yet. Review a game to turn your mistakes into exercises.",
   "mistakes.trainer.caughtUp.back": "Back to puzzles",
+  // SIG-1206: Game Review banner. {side} is the possessive side name.
+  "mistakes.banner.one": "{count} of {side} mistakes became an exercise",
+  "mistakes.banner.other": "{count} of {side} mistakes became exercises",
+  "mistakes.banner.side.w": "White's",
+  "mistakes.banner.side.b": "Black's",
+  "mistakes.banner.action": "Train now",
+  "mistakes.banner.dismiss": "Dismiss",
 };
 
 const PT_BR: Record<MistakeStringKey, string> = {
@@ -49,6 +62,12 @@ const PT_BR: Record<MistakeStringKey, string> = {
   "mistakes.trainer.caughtUp.nextDue": "Próximo exercício em {date}",
   "mistakes.trainer.caughtUp.empty": "Nenhum erro salvo ainda. Analise uma partida para transformar seus erros em exercícios.",
   "mistakes.trainer.caughtUp.back": "Voltar aos problemas",
+  "mistakes.banner.one": "{count} dos erros {side} virou exercício",
+  "mistakes.banner.other": "{count} dos erros {side} viraram exercícios",
+  "mistakes.banner.side.w": "das Brancas",
+  "mistakes.banner.side.b": "das Pretas",
+  "mistakes.banner.action": "Treinar agora",
+  "mistakes.banner.dismiss": "Dispensar",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

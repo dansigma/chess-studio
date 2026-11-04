@@ -32,6 +32,11 @@ const MOMENTS_GAME = `${HEADERS("Review Moments")}
 
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. a4 *`;
 
+// 19 plies — same stem, white ends with Nc3 (unique fens).
+const TRAIN_GAME = `${HEADERS("Review Train")}
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. Nbd2 *`;
+
 async function importGame(
   page: import("@playwright/test").Page,
   pgn: string,
@@ -103,6 +108,26 @@ test("key-moment navigation shows the Why? explanation", async ({ page }) => {
   }
 
   await expect(page.getByText("Why?", { exact: true }).first()).toBeVisible();
+});
+
+test("a fresh review offers to train the captured mistakes (SIG-1206)", async ({ page }) => {
+  await importGame(page, TRAIN_GAME, "Review Train");
+
+  const banner = page.getByTestId("train-mistakes-banner");
+  await expect(banner).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Review game", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+
+  // The side follows the board orientation (white by default).
+  await expect(banner).toContainText(/\d+ of White's mistakes? became (an exercise|exercises)/);
+  const link = banner.getByRole("link", { name: "Train now" });
+  await expect(link).toHaveAttribute("href", "/puzzles/play?mode=mistakes");
+
+  await banner.getByRole("button", { name: "Dismiss" }).click();
+  await expect(banner).toHaveCount(0);
 });
 
 test.fixme("language switch re-renders the completed report", async () => {

@@ -4,6 +4,7 @@ import {
   MISTAKE_EXERCISES_OWNER_KEY,
 } from "./local-cache.ts";
 import {
+  countAddedExercises,
   dueExercises,
   hydrateExercises,
   isMistakeExercisesOwnedBy,
@@ -271,5 +272,33 @@ describe("mistake exercises ownership and local storage", () => {
 
     await saveExercises(map, "user-a");
     assert.equal(storage.get(MISTAKE_EXERCISES_OWNER_KEY), "user-a");
+  });
+});
+
+describe("countAddedExercises (SIG-1206)", () => {
+  const existing: MistakeExercisesMap = {
+    "mx:a": { exercise: makeExercise("mx:a", "2026-10-01T00:00:00.000Z"), srs: null },
+  };
+
+  it("counts only keys absent from the store, deduped", () => {
+    const incoming = [
+      makeExercise("mx:a", "2026-10-02T00:00:00.000Z"),
+      makeExercise("mx:b", "2026-10-02T00:00:00.000Z"),
+      makeExercise("mx:b", "2026-10-02T00:00:00.000Z"),
+      makeExercise("mx:c", "2026-10-02T00:00:00.000Z"),
+    ];
+    const merged = mergeNewExercises(existing, incoming);
+    assert.equal(countAddedExercises(existing, incoming, merged), 2);
+  });
+
+  it("is 0 when everything is already stored", () => {
+    const incoming = [makeExercise("mx:a", "2026-10-02T00:00:00.000Z")];
+    assert.equal(countAddedExercises(existing, incoming, mergeNewExercises(existing, incoming)), 0);
+  });
+
+  it("does not count additions evicted by the cap", () => {
+    const incoming = [makeExercise("mx:b", "2026-09-01T00:00:00.000Z")];
+    const merged = mergeNewExercises(existing, incoming, 1);
+    assert.equal(countAddedExercises(existing, incoming, merged), 0);
   });
 });

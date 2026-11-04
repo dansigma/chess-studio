@@ -4,6 +4,7 @@ import type {
   ReviewEngine,
 } from "@/src/chess/review-engine";
 import { REVIEW_LINES } from "@/src/chess/review-engine";
+import { Chess } from "chess.js";
 
 /**
  * SIG-970: deterministic engine seam for Playwright e2e.
@@ -45,6 +46,19 @@ function plyOf(fen: string): number | null {
   return (fullmove - 1) * 2 + (side === "b" ? 1 : 0);
 }
 
+// SIG-1206: a deterministic legal "best move" (the last legal move in
+// chess.js order) so graded mistakes carry a best line and become exercises.
+// Null for an unparsable or move-less position.
+function scriptedBestUci(fen: string): string | null {
+  try {
+    const moves = new Chess(fen).moves({ verbose: true });
+    const move = moves[moves.length - 1];
+    return move ? `${move.from}${move.to}${move.promotion ?? ""}` : null;
+  } catch {
+    return null;
+  }
+}
+
 function scriptedValue(ply: number): number {
   if (ply === 7) {
     return -2.8;
@@ -74,12 +88,13 @@ export function createE2eFakeReviewEngine(options?: {
         return null;
       }
       const whitePawns = valueFor(fen);
+      const bestUci = scriptedBestUci(fen);
       const lineCount = Math.max(1, Math.min(analyzeOptions.lines, REVIEW_LINES));
       return {
         depth: analyzeOptions.depth,
         lines: Array.from({ length: lineCount }, (_, lineIndex) => ({
           whitePawns: whitePawns - lineIndex * 0.05,
-          uci: null,
+          uci: lineIndex === 0 ? bestUci : null,
         })),
       };
     },
