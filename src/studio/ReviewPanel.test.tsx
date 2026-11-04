@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test, mock } from "node:test";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { EngineInfo } from "@/src/engine/stockfish-client";
 import type { PositionEval } from "@/src/chess/review-engine";
 import type { BoardSession } from "@/src/store/slices/types";
@@ -179,6 +179,30 @@ test("idle shows the run button", () => {
   }
 });
 
+test("idle shows the explanatory line and the actions menu with report items disabled", () => {
+  seedBoard();
+  try {
+    render(<ReviewPanel />);
+    assert.ok(screen.getByText(tReview("en", "panel.emptyIdle")));
+    assert.equal(screen.queryByRole("combobox", { name: tReview("en", "panel.depthLabel") }), null);
+    const trigger = screen.getByRole("button", { name: tReview("en", "panel.actions") });
+    assert.equal(trigger.getAttribute("aria-haspopup"), "menu");
+    fireEvent.click(trigger);
+    const menu = screen.getByRole("menu");
+    const radios = within(menu).getAllByRole("menuitemradio");
+    assert.equal(radios.length, 3);
+    assert.equal(radios.filter((node) => node.getAttribute("aria-checked") === "true").length, 1);
+    for (const key of ["annotate.title", "annotate.undo", "share.copyImage", "share.downloadImage", "share.copySummary"] as const) {
+      const item = within(menu).getByRole("menuitem", { name: tReview("en", key) }) as HTMLButtonElement;
+      assert.equal(item.disabled, true, `${key} is disabled before a report exists`);
+    }
+    fireEvent.click(radios.find((node) => node.getAttribute("aria-checked") !== "true")!);
+    assert.equal(screen.queryByRole("menu"), null, "choosing a depth closes the menu");
+  } finally {
+    cleanup();
+  }
+});
+
 test("running shows progress and Cancel", async () => {
   behavior.delayMs = 200;
   seedBoard();
@@ -242,6 +266,16 @@ test("done shows the report card and key moments", async () => {
     assert.ok(await screen.findByRole("button", { name: tReview("en", "panel.reviewAgain") }, { timeout: 30_000 }));
     assert.ok(screen.getAllByText(tReview("en", "report.keyMoments")).length >= 1);
     assert.ok(screen.getByRole("img", { name: new RegExp(tReview("en", "chart.ariaLabel"), "i") }));
+    assert.equal(screen.queryByText(tReview("en", "panel.emptyIdle")), null);
+    // Share row is gone; report actions live in the menu and are enabled now.
+    assert.equal(screen.queryByText(tReview("en", "share.title")), null);
+    fireEvent.click(screen.getByRole("button", { name: tReview("en", "panel.actions") }));
+    const menu = screen.getByRole("menu");
+    assert.equal((within(menu).getByRole("menuitem", { name: tReview("en", "share.copySummary") }) as HTMLButtonElement).disabled, false);
+    assert.equal((within(menu).getByRole("menuitem", { name: tReview("en", "annotate.undo") }) as HTMLButtonElement).disabled, true);
+    // Prev/next carry the shortcut key in their tooltip text.
+    assert.equal(screen.getByRole("button", { name: tReview("en", "moments.prev") }).getAttribute("title"), "Previous moment ( [ )");
+    assert.equal(screen.getByRole("button", { name: tReview("en", "moments.next") }).getAttribute("title"), "Next moment ( ] )");
   } finally {
     cleanup();
   }

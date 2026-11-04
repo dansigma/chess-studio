@@ -123,7 +123,7 @@ test("mobile studio: bottom tabs mount one panel at a time, no h-scroll", async 
   await expect(movesTab).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("button", { name: "Start", exact: true })).toBeVisible();
   await expect(area.getByRole("button", { name: "Start", exact: true })).toHaveCount(1);
-  await expect(area.getByLabel("Review depth")).toHaveCount(0);
+  await expect(area.getByRole("button", { name: "Review actions", exact: true })).toHaveCount(0);
   await expect(area.getByLabel("Explorer source")).toHaveCount(0);
   await expectNoOverflow();
 
@@ -138,7 +138,7 @@ test("mobile studio: bottom tabs mount one panel at a time, no h-scroll", async 
   // Real engine lines render as PV rows once Stockfish reports.
   await expect(area.locator("[data-engine-pv]").first()).toBeVisible({ timeout: 60_000 });
   await expect(area.getByRole("button", { name: "Start", exact: true })).toHaveCount(0);
-  await expect(area.getByLabel("Review depth")).toHaveCount(0);
+  await expect(area.getByRole("button", { name: "Review actions", exact: true })).toHaveCount(0);
   await expectNoOverflow();
 
   // Back on Moves, the engine panel is unmounted (lease never held elsewhere).
@@ -154,7 +154,7 @@ test("mobile studio: bottom tabs mount one panel at a time, no h-scroll", async 
   await expect(explorerTab).toHaveAttribute("aria-selected", "true");
   await expect(area.getByLabel("Explorer source")).toBeVisible();
   await expect(area.getByRole("button", { name: "Start", exact: true })).toHaveCount(0);
-  await expect(area.getByLabel("Review depth")).toHaveCount(0);
+  await expect(area.getByRole("button", { name: "Review actions", exact: true })).toHaveCount(0);
   await expectNoOverflow();
 });
 
@@ -358,8 +358,8 @@ test("mobile studio: menu sheet, swipe, long-press menu, review, no h-scroll", a
   const reviewTab = tabbar.getByRole("tab", { name: "Review", exact: true });
   await reviewTab.click();
   await expect(reviewTab).toHaveAttribute("aria-selected", "true");
-  await expect(area.getByLabel("Review depth")).toBeVisible();
-  await area.getByLabel("Review depth").selectOption("fast");
+  await area.getByRole("button", { name: "Review actions", exact: true }).click();
+  await area.getByRole("menuitemradio", { name: /^Fast/ }).click();
   await area.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(area.getByRole("button", { name: "Review again", exact: true })).toBeVisible({
     timeout: 30_000,

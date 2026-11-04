@@ -24,7 +24,12 @@ test("boardPngBlob renders the element through a dynamic html-to-image import", 
   assert.equal(result, blob);
   assert.equal(toBlobCalls.length, 1);
   assert.equal(toBlobCalls[0]?.element, element);
-  assert.deepEqual(toBlobCalls[0]?.options, { pixelRatio: 2, cacheBust: true });
+  const { filter, ...rest } = toBlobCalls[0]?.options as { filter: (node: unknown) => boolean };
+  assert.deepEqual(rest, { pixelRatio: 2, cacheBust: true });
+  // SIG-1205: nodes marked data-export-ignore stay out of the PNG.
+  assert.equal(filter({ dataset: { exportIgnore: "" } }), false);
+  assert.equal(filter({ dataset: {} }), true);
+  assert.equal(filter({}), true);
 });
 
 test("boardPngBlob throws when the renderer produces no blob", async () => {

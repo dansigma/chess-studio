@@ -10,6 +10,7 @@ import {
   clampReviewPawns,
   filterKeyMoments,
   formatChartEval,
+  groupMoments,
   isMatePawns,
   phaseSeparators,
   prevNextIndices,
@@ -180,4 +181,55 @@ test("chartSummary describes the plotted line for screen readers", () => {
     chartSummary("pt-br", { plies: 24, moments: 5 }),
     "Gráfico da análise: 24 lances, 5 momentos-chave",
   );
+});
+
+// SIG-1205: grouped markers for moments less than 3 plies apart.
+type G = { moveIndex: number; label: NonNullable<KeyMomentRow["label"]>; lossCp: number };
+const g = (moveIndex: number, label: G["label"], lossCp = 0): G => ({ moveIndex, label, lossCp });
+
+test("groupMoments keeps well-separated moments as single-member groups", () => {
+  const groups = groupMoments([g(2, "mistake"), g(5, "blunder"), g(9, "miss")]);
+  assert.deepEqual(
+    groups.map((group) => group.members.length),
+    [1, 1, 1],
+  );
+  assert.deepEqual(
+    groups.map((group) => group.lead.moveIndex),
+    [2, 5, 9],
+  );
+});
+
+test("groupMoments merges markers closer than 3 plies and leads with the worst tier", () => {
+  const groups = groupMoments([g(4, "inaccuracy"), g(5, "blunder"), g(20, "brilliant")]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(
+    groups[0].members.map((m) => m.moveIndex),
+    [4, 5],
+  );
+  assert.equal(groups[0].lead.label, "blunder");
+  assert.equal(groups[1].lead.label, "brilliant");
+});
+
+test("groupMoments treats a gap of exactly 3 plies as separate", () => {
+  assert.equal(groupMoments([g(4, "mistake"), g(7, "mistake")]).length, 2);
+  assert.equal(groupMoments([g(4, "mistake"), g(6, "mistake")]).length, 1);
+});
+
+test("groupMoments breaks tier ties by larger loss, then earliest, and sorts its input", () => {
+  const byLoss = groupMoments([g(11, "mistake", 150), g(10, "mistake", 90)]);
+  assert.equal(byLoss[0].lead.moveIndex, 11);
+  assert.deepEqual(
+    byLoss[0].members.map((m) => m.moveIndex),
+    [10, 11],
+  );
+  const tied = groupMoments([g(10, "miss", 100), g(11, "miss", 100)]);
+  assert.equal(tied[0].lead.moveIndex, 10);
+});
+
+test("groupMoments chains neighbours and ranks brilliant below every mistake tier", () => {
+  const groups = groupMoments([g(1, "brilliant"), g(3, "inaccuracy"), g(5, "brilliant")]);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].members.length, 3);
+  assert.equal(groups[0].lead.label, "inaccuracy");
+  assert.deepEqual(groupMoments([]), []);
 });
