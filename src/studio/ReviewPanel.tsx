@@ -616,7 +616,9 @@ export function ReviewPanel() {
                   <MenuDivider />
                   <MenuItem
                     label={tReview(locale, "share.copyImage")}
-                    disabled={!report}
+                    // SIG-1209: the retry card replaces the summary inside reportRef,
+                    // so the PNG would capture it; export waits for the retry to end.
+                    disabled={!report || retryHere}
                     onClick={() => {
                       setActionsOpen(false);
                       void copyReportImage();
@@ -624,7 +626,9 @@ export function ReviewPanel() {
                   />
                   <MenuItem
                     label={tReview(locale, "share.downloadImage")}
-                    disabled={!report}
+                    // SIG-1209: the retry card replaces the summary inside reportRef,
+                    // so the PNG would capture it; export waits for the retry to end.
+                    disabled={!report || retryHere}
                     onClick={() => {
                       setActionsOpen(false);
                       void downloadReportImage();
