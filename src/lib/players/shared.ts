@@ -1,6 +1,6 @@
 import type { PlayerGame, PlayerSource } from "@/src/lib/player-types";
 
-export const MAX_PLAYER_GAMES = 80;
+export const MAX_PLAYER_GAMES = 100;
 export const MAX_PLAYER_GAMES_BYTES = 2 * 1024 * 1024; // 2 MB (Lichess NDJSON / small JSON bodies)
 // SIG-1210: Chess.com month archives are streamed, never buffered, so the cap
 // is only a safety net against runaway bodies; hitting it returns partial data.
