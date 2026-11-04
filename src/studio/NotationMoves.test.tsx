@@ -133,11 +133,15 @@ test("SIG-1219: reviewed moves carry their tier badge and a screen-reader tier n
       badges.map((badge) => badge.getAttribute("data-tier-badge")),
       ["blunder", "best"],
     );
-    assert.equal(badges[0].textContent, "??");
-    assert.equal(badges[1].textContent, "★");
+    // Drawn as SVG paths: no text inside the badge, and it is hidden from assistive tech.
+    for (const badge of badges) {
+      assert.equal(badge.tagName.toLowerCase(), "svg");
+      assert.equal(badge.getAttribute("aria-hidden"), "true");
+      assert.equal(badge.textContent, "");
+    }
     // The badge sits inside the move's own button (so it is part of its click target) with the tier named for screen readers.
     const first = badges[0].closest("button") as HTMLElement;
-    assert.match(first.textContent ?? "", /^d4\?\?\s*Blunder$/);
+    assert.match(first.textContent ?? "", /^d4\s*Blunder$/);
     assert.equal(first.querySelector(".sr-only")?.textContent?.trim(), "Blunder");
     // Not reviewed: no badge.
     assert.equal(moveButton("Nc3").querySelector("[data-tier-badge]"), null);
