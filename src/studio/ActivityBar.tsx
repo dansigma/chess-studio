@@ -4,12 +4,18 @@ import {
   Bookmark,
   Database,
   Folder,
+  GraduationCap,
   History,
+  LayoutDashboard,
+  Puzzle,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { SITE_NAME, siteSections } from "@/src/site/sections";
 import { useStudioStore, type ActivityView } from "@/src/store/studio-store";
 import { tStudioChrome, type StudioChromeStringKey } from "@/src/i18n/studio-chrome-strings";
 import { Tooltip } from "./ui/Controls";
@@ -23,6 +29,54 @@ const items: { id: ActivityView; icon: typeof Search; titleKey: StudioChromeStri
   { id: "bookmarks", icon: Bookmark, titleKey: "chrome.activity.bookmarks" },
   { id: "mygames", icon: History, titleKey: "chrome.activity.mygames" },
 ];
+
+// SIG-1201: site navigation icons, mapped by href so labels/hrefs come from
+// siteSections(locale).
+const SITE_ICONS: Record<string, typeof Search> = {
+  "/studio": LayoutDashboard,
+  "/courses": GraduationCap,
+  "/puzzles": Puzzle,
+};
+const SITE_ORDER = ["/studio", "/courses", "/puzzles"];
+
+function isActivePath(pathname: string | null, href: string): boolean {
+  return pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
+}
+
+// Active link = accent-tinted square, no left bar, so it never reads like the
+// "sidebar view open" state (left accent bar + neutral hover fill).
+function ActivityLink({
+  href,
+  label,
+  active,
+  children,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip label={label}>
+      <Link
+        href={href}
+        aria-label={label}
+        aria-current={active ? "page" : undefined}
+        className="flex h-10 w-12 items-center justify-center"
+      >
+        <span
+          className={`flex h-[34px] w-[34px] items-center justify-center rounded-lg transition-colors ${
+            active
+              ? "bg-studio-accent-soft text-studio-accent-text"
+              : "text-studio-faint hover:bg-studio-hover hover:text-studio-fg"
+          }`}
+        >
+          {children}
+        </span>
+      </Link>
+    </Tooltip>
+  );
+}
 
 function ActivityButton({
   label,
@@ -67,9 +121,29 @@ export function ActivityBar() {
   const sidebarCollapsed = useStudioStore((state) => state.settings.sidebarCollapsed);
   const setActivity = useStudioStore((state) => state.setActivity);
   const toggleSidebar = useStudioStore((state) => state.toggleSidebar);
+  const pathname = usePathname();
+  const sections = siteSections(locale)
+    .filter((section) => SITE_ICONS[section.href])
+    .sort((a, b) => SITE_ORDER.indexOf(a.href) - SITE_ORDER.indexOf(b.href));
 
   return (
     <nav className="flex w-12 shrink-0 flex-col items-center gap-0.5 bg-studio-bg py-2">
+      <div role="group" aria-label={SITE_NAME} className="flex flex-col items-center gap-0.5">
+        {sections.map((section) => {
+          const Icon = SITE_ICONS[section.href];
+          return (
+            <ActivityLink
+              key={section.href}
+              href={section.href}
+              label={section.label}
+              active={isActivePath(pathname, section.href)}
+            >
+              <Icon size={18} />
+            </ActivityLink>
+          );
+        })}
+      </div>
+      <div aria-hidden="true" className="mx-3 my-1 h-px w-6 bg-studio-border" />
       {items.map((item) => {
         const Icon = item.icon;
         const active = item.id === activity && !sidebarCollapsed;
