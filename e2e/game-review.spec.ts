@@ -136,12 +136,18 @@ test("SIG-1219: tier counts jump to the move, and the badge shows on the board a
   const boardBadge = page.locator("[data-board-image] [data-board-tier-badge=blunder]");
   await expect(boardBadge).toHaveCount(1);
   await expect(boardBadge).toHaveCSS("pointer-events", "none");
-  const first = await page.locator("[aria-current=step]").first().textContent();
-  expect(first).toMatch(/\?\?/);
+  const square = boardBadge.locator("xpath=ancestor::*[@data-square][1]");
+  await expect(square).toHaveAttribute("data-square", /^[a-h][1-8]$/);
+  const firstSquare = (await square.getAttribute("data-square")) ?? "";
+  // A second click cycles to the next blunder (another destination square).
   await blunders.click();
-  await expect(page.locator("[aria-current=step]").first()).not.toHaveText(first ?? "");
-  // The move list carries the same badge next to each reviewed move.
-  await expect(page.locator("[aria-current=step] [data-tier-badge=blunder]")).toHaveCount(1);
+  await expect(square).not.toHaveAttribute("data-square", firstSquare);
+
+  // The move list carries the same badge next to the current (reviewed) move.
+  await page.getByRole("tab", { name: "Notation", exact: true }).click();
+  const current = page.locator('[aria-current="step"]').first();
+  await expect(current).toBeVisible();
+  await expect(current.locator("[data-tier-badge=blunder]")).toHaveCount(1);
 });
 
 test("review cancel stops the run and offers resume", async ({ page }) => {
