@@ -19,6 +19,8 @@ import { createLeaseEngine } from "./lease-engine";
 import { extractMistakeExercises } from "@/src/chess/mistake-exercises";
 import type { ReviewSide } from "@/src/chess/review-report";
 import {
+  countAddedExercises,
+  dueExercises,
   mergeNewExercises,
   readLocalExercises,
   type MistakeExercisesMap,
@@ -33,6 +35,7 @@ import {
   setCachedReview,
 } from "./review-cache";
 import { getReviewStore } from "./review-store";
+import { trainBannerFor } from "./train-mistakes";
 
 export type ReviewMoveRow = ReviewRow & {
   path: Path;
@@ -54,13 +57,14 @@ const IDLE_PROGRESS: ReviewProgress = { done: 0, total: 0, elapsedMs: 0 };
 // review. Local-read + merge, then route the write through the zustand slice
 // (`setMistakeExercises`, which sets the live store and persists) so
 // `state.mistakeExercises` reflects reviews completed this session; returns
-// the merged map so callers can react without re-reading. Failures log with
-// an `[exercises]` prefix and never break the review.
+// the merged map plus `added` (SIG-1206: how many exercises were new to the
+// store) so callers can react without re-reading. Failures log with an
+// `[exercises]` prefix and never break the review.
 export function captureMistakes(input: {
   fens: string[];
   rows: ReviewRow[];
   userSide: ReviewSide;
-}): MistakeExercisesMap | null {
+}): { merged: MistakeExercisesMap; added: number } | null {
   try {
     const incoming = extractMistakeExercises({
       fens: input.fens,
@@ -70,9 +74,10 @@ export function captureMistakes(input: {
     if (incoming.length === 0) {
       return null;
     }
-    const merged = mergeNewExercises(readLocalExercises(), incoming);
+    const existing = readLocalExercises();
+    const merged = mergeNewExercises(existing, incoming);
     useStudioStore.getState().setMistakeExercises(merged);
-    return merged;
+    return { merged, added: countAddedExercises(existing, incoming, merged) };
   } catch (error) {
     console.warn("[exercises] capture failed", error);
     return null;
@@ -124,6 +129,9 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
 
   const [core, setCore] = useState<ReviewRow[] | null>(() => getCachedReview(cacheKey));
   const [freshRun, setFreshRun] = useState(false);
+  // SIG-1206: new exercises captured by the last fresh run, with the side they
+  // belong to (userSide at capture time). Cleared with the line.
+  const [capture, setCapture] = useState<{ added: number; side: ReviewSide } | null>(null);
   const [lastKey, setLastKey] = useState(cacheKey);
   if (lastKey !== cacheKey) {
     // A different line / preset / engine: drop the running review and show any cached result.
@@ -132,6 +140,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     setCancelled(false);
     setFailed(false);
     setFreshRun(false);
+    setCapture(null);
     setProgress(IDLE_PROGRESS);
     setCore(getCachedReview(cacheKey));
     // A line/preset/engine change discards the partial (SIG-966: edit game discards partial).
@@ -264,11 +273,12 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
       setCore(outcome.rows);
       setFreshRun(true);
       // SIG-1096: fresh runs only — cached/IndexedDB restores never reach here.
-      captureMistakes({
+      const captured = captureMistakes({
         fens: line.points.map((point) => point.fen),
         rows: outcome.rows,
         userSide: line.userSide,
       });
+      setCapture({ added: captured?.added ?? 0, side: line.userSide });
       // A finished run supersedes any partial it resumed from.
       setPartial(null);
       setRunning(false);
@@ -351,7 +361,28 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
   }, [core, partial, scored, points, ucis, tree]);
 
   const cached = rows != null && !freshRun && !running;
+
+  // SIG-1206: "train these mistakes" banner model. Fresh run: the new
+  // exercises it captured. Cached report: this game's exercises still due,
+  // matched by position key (`mx:` + fenKey of the position before the move).
+  const mistakeExercises = useStudioStore((state) => state.mistakeExercises);
+  const trainBanner = useMemo(() => {
+    if (setupMode || running || !core) {
+      return null;
+    }
+    const lineId = points.map((point) => point.fen).join("|");
+    const banner = trainBannerFor({
+      fresh: freshRun,
+      capture,
+      userSide,
+      fens: points.map((point) => point.fen),
+      due: dueExercises(mistakeExercises).map((entry) => entry.exercise),
+    });
+    return banner ? { ...banner, lineId } : null;
+  }, [setupMode, running, core, freshRun, capture, userSide, points, mistakeExercises]);
+
   return {
+    trainBanner,
     preset,
     setPreset,
     running,

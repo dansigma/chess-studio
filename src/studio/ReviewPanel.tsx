@@ -38,6 +38,7 @@ import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-
 import { getFenAt, getNodeAt, pathAlongLine, pathsEqual, variationPoints } from "@/src/chess/tree";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
+import { TrainMistakesBanner } from "./review/TrainMistakesBanner";
 import { Button } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
 
@@ -70,6 +71,7 @@ export function ReviewPanel() {
     [board.tree, board.path],
   );
   const {
+    trainBanner,
     preset,
     setPreset,
     running,
@@ -661,6 +663,7 @@ export function ReviewPanel() {
                 </span>
               </div>
             </div>
+            {trainBanner ? <TrainMistakesBanner banner={trainBanner} locale={locale} /> : null}
             <div ref={reportRef}>
               <ReviewReportCard
                 report={report}

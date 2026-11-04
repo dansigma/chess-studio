@@ -170,6 +170,24 @@ export function mergeNewExercises(
   return merged;
 }
 
+/**
+ * SIG-1206: how many of `incoming` are new to the store, i.e. keys absent from
+ * `existing` that survived the cap in `merged`. Pure.
+ */
+export function countAddedExercises(
+  existing: MistakeExercisesMap,
+  incoming: MistakeExercise[],
+  merged: MistakeExercisesMap,
+): number {
+  const seen = new Set<string>();
+  for (const exercise of incoming) {
+    if (exercise && typeof exercise.key === "string" && !existing[exercise.key] && merged[exercise.key]) {
+      seen.add(exercise.key);
+    }
+  }
+  return seen.size;
+}
+
 /** Apply a practice attempt to one entry; unknown keys leave the map unchanged. */
 export function recordAttempt(
   map: MistakeExercisesMap,
