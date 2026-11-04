@@ -64,12 +64,9 @@ export function explorerUpstreamEndpoints(source: ExplorerUpstreamSource, fen: s
 }
 
 export function mapGame(game: LichessGame, opening: ExplorerResponse["opening"]): ExplorerGameRow {
-  const winner =
-    game.winner === "white" || game.winner === "black"
-      ? game.winner
-      : game.winner === "draw"
-        ? "draw"
-        : null;
+  // SIG-1214: the Lichess explorer lists only finished games and sends
+  // `winner: null` (or omits it) for a draw, so anything but a win is ½-½.
+  const winner = game.winner === "white" || game.winner === "black" ? game.winner : "draw";
   return {
     id: game.id ?? "",
     winner,
