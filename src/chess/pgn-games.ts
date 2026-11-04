@@ -2,7 +2,8 @@ import { importPgn, titleFromHeaders } from "./pgn";
 import { pgnGameChunks } from "./pgn-clean";
 
 export function splitPgnGames(text: string): string[] {
-  return pgnGameChunks(text);
+  // SIG-1218: keep [%clk] so games opened from a file keep per-move clocks.
+  return pgnGameChunks(text, { keepClocks: true });
 }
 
 export type ParsedFileGame = {
