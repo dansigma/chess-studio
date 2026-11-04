@@ -104,6 +104,23 @@ function infoItems(info: GameHeaderInfo, locale: SiteLocale): { key: string; tex
   return items;
 }
 
+function InfoLine({ items }: { items: ReturnType<typeof infoItems> }) {
+  return (
+    <div
+      className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-caption text-studio-muted"
+      data-testid="notation-header-info"
+      title={items.map((item) => item.text).join(" · ")}
+    >
+      {items.map((item, index) => (
+        <Fragment key={item.key}>
+          {index > 0 ? <span className="shrink-0 text-studio-faint" aria-hidden>·</span> : null}
+          <span className={`inline-flex items-center ${item.shrink ? "min-w-0" : "shrink-0"}`}>{item.node}</span>
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
 export function NotationHeader({
   headers,
   locale = "en",
@@ -120,28 +137,32 @@ export function NotationHeader({
   const openingTitle = isPlaceholderPlayer(headers.White) && isPlaceholderPlayer(headers.Black) ? headers.Opening : undefined;
   const vs = tPanels(locale, "notation.header.vs");
   const editLabel = tPanels(locale, "notation.header.edit");
+  const items = openingTitle ? infoItems({ ...info, eco: null, openingName: null }, locale) : infoItems(info, locale);
   if (inline) {
-    const items = infoItems(info, locale);
-    const detail = items.map((item) => item.text).join(" · ");
+    // SIG-1213: wide panels share the row with the toolbar, but the game
+    // details still get their own caption line under the players.
     return (
-      <div className="flex min-w-0 flex-1 items-center gap-1" title={detail || undefined}>
-        {openingTitle ? (
-          <span className="truncate text-body font-semibold text-studio-fg">{openingTitle}</span>
-        ) : (
-          <span className="flex min-w-0 items-center gap-1.5">
-            <PlayerName inline name={headers.White} elo={headers.WhiteElo} title={info.whiteTitle} fallback={tPanels(locale, "notation.header.white")} />
-            <ResultChip result={info.result} vs={vs} />
-            <PlayerName inline name={headers.Black} elo={headers.BlackElo} title={info.blackTitle} fallback={tPanels(locale, "notation.header.black")} />
-            {info.eco ? <Badge tone="accent">{info.eco}</Badge> : null}
-          </span>
-        )}
-        <IconButton label={editLabel} size="sm" className="shrink-0 text-studio-faint hover:text-studio-fg" onClick={onEdit}>
-          <Pencil size={12} />
-        </IconButton>
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1">
+            {openingTitle ? (
+              <span className="truncate text-body font-semibold text-studio-fg">{openingTitle}</span>
+            ) : (
+              <span className="flex min-w-0 items-center gap-1.5" data-testid="notation-header-players">
+                <PlayerName inline name={headers.White} elo={headers.WhiteElo} title={info.whiteTitle} fallback={tPanels(locale, "notation.header.white")} />
+                <ResultChip result={info.result} vs={vs} />
+                <PlayerName inline name={headers.Black} elo={headers.BlackElo} title={info.blackTitle} fallback={tPanels(locale, "notation.header.black")} />
+              </span>
+            )}
+            <IconButton label={editLabel} size="sm" className="shrink-0 text-studio-faint hover:text-studio-fg" onClick={onEdit}>
+              <Pencil size={12} />
+            </IconButton>
+          </div>
+          {items.length > 0 ? <InfoLine items={items} /> : null}
+        </div>
       </div>
     );
   }
-  const items = openingTitle ? infoItems({ ...info, eco: null, openingName: null }, locale) : infoItems(info, locale);
   return (
     <div className="flex items-start justify-between gap-2 border-b border-studio-border-subtle px-3 py-1.5">
       <div className="min-w-0 flex-1">
@@ -155,20 +176,7 @@ export function NotationHeader({
             <PlayerName name={headers.Black} elo={headers.BlackElo} title={info.blackTitle} fallback={tPanels(locale, "notation.header.black")} />
           </div>
         )}
-        {items.length > 0 ? (
-          <div
-            className="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-caption text-studio-muted"
-            data-testid="notation-header-info"
-            title={items.map((item) => item.text).join(" · ")}
-          >
-            {items.map((item, index) => (
-              <Fragment key={item.key}>
-                {index > 0 ? <span className="shrink-0 text-studio-faint" aria-hidden>·</span> : null}
-                <span className={`inline-flex items-center ${item.shrink ? "min-w-0" : "shrink-0"}`}>{item.node}</span>
-              </Fragment>
-            ))}
-          </div>
-        ) : null}
+        {items.length > 0 ? <InfoLine items={items} /> : null}
       </div>
       <div className="group flex shrink-0 items-center pt-0.5 text-dense text-studio-muted">
         {/* SIG-1193: "No date" only on hover — it is a prompt, not information. */}

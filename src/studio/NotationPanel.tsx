@@ -129,7 +129,7 @@ export function NotationPanel() {
     <div ref={rootRef} className="relative flex h-full flex-col bg-studio-panel text-sm text-studio-fg">
       {/* SIG-1197: wide panels put the header and toolbar on one row. */}
       {inlineChrome ? (
-        <div className="flex h-9 shrink-0 items-center gap-2 border-b border-studio-border-subtle pl-3 pr-1.5">
+        <div className="flex min-h-9 shrink-0 items-center gap-2 border-b border-studio-border-subtle py-1 pl-3 pr-1.5">
           <NotationHeader
             inline
             headers={board.headers}
