@@ -117,3 +117,52 @@ test("TimeControl header survives import (SIG-1212)", () => {
   assert.equal(importPgn('[TimeControl "60"]\n\n1. e4 *').headers.TimeControl, "60");
   assert.equal(importPgn('[TimeControl "40/7200:900"]\n\n1. e4 *').headers.TimeControl, "40/7200:900");
 });
+
+// SIG-1218: per-move clocks
+const CLK_GAME =
+  '[Event "A"]\n[TimeControl "600+5"]\n\n1. e4 {[%clk 0:09:57]} 1... e5 {[%clk 0:00:09.8]} 2. Nf3 {[%clk 0:09:50]} *\n';
+
+test("import reads [%clk] into clockMs and keeps TimeControl", () => {
+  const game = importPgn(CLK_GAME);
+  const e4 = game.tree.children[0];
+  const e5 = e4?.children[0];
+  const nf3 = e5?.children[0];
+  assert.equal(e4?.clockMs, 597_000);
+  assert.equal(e5?.clockMs, 9_800);
+  assert.equal(nf3?.clockMs, 590_000);
+  assert.equal(e4?.comment, undefined);
+  assert.equal(game.headers.TimeControl, "600+5");
+});
+
+test("a PGN without clocks has no clockMs at all", () => {
+  const game = importPgn('[Event "A"]\n\n1. e4 {hello} e5 *\n');
+  const e4 = game.tree.children[0];
+  assert.equal(e4?.comment, "hello");
+  assert.ok(!("clockMs" in (e4 ?? {})));
+  assert.ok(!("clockMs" in (e4?.children[0] ?? {})));
+});
+
+test("clocks mixed with arrows, evals and text keep each part", () => {
+  const game = importPgn(
+    '[Event "A"]\n\n1. e4 {[%eval 0.3] [%clk 0:05:00] good [%cal Ge2e4]} e5 {[%clk 0:04:59]} *\n',
+  );
+  const e4 = game.tree.children[0];
+  assert.equal(e4?.clockMs, 300_000);
+  assert.equal(e4?.comment, "good");
+  assert.equal(e4?.marks?.arrows.length, 1);
+  assert.equal(e4?.children[0]?.clockMs, 299_000);
+  assert.equal(e4?.children[0]?.comment, undefined);
+});
+
+test("a clock of zero is kept as zero, a missing clock stays missing", () => {
+  const game = importPgn('[Event "A"]\n\n1. e4 {[%clk 0:00:00]} e5 *\n');
+  assert.equal(game.tree.children[0]?.clockMs, 0);
+  assert.equal(game.tree.children[0]?.children[0]?.clockMs, undefined);
+});
+
+test("clocks survive merging a multi-game text", () => {
+  const merged = openablePgn(
+    '[Event "A"]\n\n1. e4 *\n\n[Event "B"]\n\n1. e4 {[%clk 0:03:00]} *\n',
+  );
+  assert.equal(merged?.tree.children[0]?.clockMs, 180_000);
+});

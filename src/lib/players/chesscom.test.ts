@@ -492,3 +492,20 @@ test("chesscomGamesSince still fails when the archives list itself fails", async
   mockFetch(t, () => new Response("boom", { status: 500 }));
   await assert.rejects(chesscomGamesSince("hikaru", 0, 80), /archives request failed/);
 });
+
+test("compactChesscomGame keeps [%clk] and TimeControl in the stored PGN, moves stay SAN-only", () => {
+  const game = compactChesscomGame(
+    {
+      url: "https://www.chess.com/game/live/9",
+      end_time: 1_600_000_000,
+      pgn: '[Event "Live Chess"]\n[TimeControl "600"]\n\n1. e4 {[%clk 0:09:58.2]} 1... e5 {[%clk 0:09:57]} 1-0',
+      white: { username: "Alice", rating: 1500, result: "win" },
+      black: { username: "Bob", rating: 1400, result: "checkmated" },
+    },
+    "alice",
+    0,
+  );
+  assert.equal(game.moves, "e4 e5");
+  assert.ok(game.pgn?.includes("{[%clk 0:09:58.2]}"));
+  assert.ok(game.pgn?.includes('[TimeControl "600"]'));
+});

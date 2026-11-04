@@ -14,6 +14,8 @@ export type TreeNode = {
   commentBefore?: string;
   nags?: number[];
   marks?: BoardMarks;
+  /** SIG-1218: time left (ms) for the mover after this move, from `[%clk]`. */
+  clockMs?: number;
   children: TreeNode[];
 };
 

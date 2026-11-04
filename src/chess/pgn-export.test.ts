@@ -99,3 +99,33 @@ test("splitPgnGames reuses the shared cleanup pipeline", () => {
   assert.match(chunks[0] ?? "", /1\. e4/);
   assert.match(chunks[1] ?? "", /1\. d4/);
 });
+
+// SIG-1218
+test("export writes [%clk] back and save/reload keeps every clock", () => {
+  const first = importPgn(
+    '[Event "A"]\n[TimeControl "180+2"]\n\n1. e4 {[%clk 0:03:00]} e5 {[%clk 0:02:59.4]} 2. Nf3 {nice [%cal Gg1f3] [%clk 0:02:55]} Nc6 *\n',
+  );
+  const text = exportPgn(first.tree, first.headers);
+  assert.match(text, /\[TimeControl "180\+2"\]/);
+  assert.match(text, /\[%clk 0:02:59\.4\]/);
+  const second = importPgn(text);
+  const clocks = (tree: typeof first.tree) => {
+    const out: (number | undefined)[] = [];
+    let nodes = tree.children;
+    while (nodes[0]) {
+      out.push(nodes[0].clockMs);
+      nodes = nodes[0].children;
+    }
+    return out;
+  };
+  assert.deepEqual(clocks(second.tree), [180_000, 179_400, 175_000, undefined]);
+  assert.equal(second.tree.children[0]?.children[0]?.children[0]?.comment, "nice");
+  assert.equal(second.headers.TimeControl, "180+2");
+});
+
+test("export without clocks emits no [%clk] and no empty comments", () => {
+  const game = importPgn('[Event "A"]\n\n1. e4 e5 *\n');
+  const text = exportPgn(game.tree, game.headers);
+  assert.ok(!text.includes("%clk"));
+  assert.ok(!text.includes("{}"));
+});

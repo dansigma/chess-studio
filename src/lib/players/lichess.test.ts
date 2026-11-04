@@ -185,3 +185,57 @@ test("lichessGames throws UpstreamPayloadTooLargeError when response exceeds cap
   );
 });
 
+
+test("lichessGamesSince requests clocks and stores them as [%clk] with TimeControl", async (t) => {
+  const seen: string[] = [];
+  mockFetch(t, (url) => {
+    if (url.includes("api/games/user/hikaru")) {
+      seen.push(url);
+      return new Response(
+        JSON.stringify({
+          id: "c1",
+          createdAt: 1700000000000,
+          moves: "e4 e5 Nf3",
+          clocks: [18000, 17990, 17850],
+          clock: { initial: 180, increment: 2, totalTime: 260 },
+          players: {
+            white: { user: { name: "Hikaru", id: "hikaru" }, rating: 2800 },
+            black: { user: { name: "Magnus", id: "drnykterstein" }, rating: 2850 },
+          },
+          winner: "white",
+        }),
+        { status: 200 },
+      );
+    }
+    return null;
+  });
+  const games = await lichessGamesSince("hikaru", 0, 10);
+  assert.match(seen[0] ?? "", /clocks=true/);
+  const pgn = games[0]?.pgn ?? "";
+  assert.ok(pgn.includes("1. e4 {[%clk 0:03:00]} e5 {[%clk 0:02:59.9]} 2. Nf3 {[%clk 0:02:58.5]}"));
+  assert.ok(pgn.includes('[TimeControl "180+2"]'));
+});
+
+test("lichess games without clocks keep the old PGN shape", async (t) => {
+  mockFetch(t, (url) => {
+    if (url.includes("api/games/user/hikaru")) {
+      return new Response(
+        JSON.stringify({
+          id: "c2",
+          createdAt: 1700000000000,
+          moves: "e4 e5",
+          players: {
+            white: { user: { name: "Hikaru", id: "hikaru" } },
+            black: { user: { name: "Magnus", id: "drnykterstein" } },
+          },
+        }),
+        { status: 200 },
+      );
+    }
+    return null;
+  });
+  const pgn = (await lichessGamesSince("hikaru", 0, 10))[0]?.pgn ?? "";
+  assert.ok(!pgn.includes("%clk"));
+  assert.ok(!pgn.includes("TimeControl"));
+  assert.ok(pgn.includes("1. e4 e5"));
+});
