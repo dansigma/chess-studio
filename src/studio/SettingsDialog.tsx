@@ -13,6 +13,7 @@ import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { clearReviewCache } from "./review/review-cache";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { AccountSection } from "./AccountSection";
 import { LinkedAccountsSection } from "./LinkedAccountsSection";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
@@ -101,6 +102,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       }
     >
       <div className="grid gap-3">
+        <AccountSection />
         <Section title={tStudioChrome(locale, "chrome.settings.appearance")}>
           <Row label={tStudioChrome(locale, "chrome.settings.colorScheme")}>
             <Select

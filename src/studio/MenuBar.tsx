@@ -8,6 +8,7 @@ import { signOut } from "@/app/login/actions";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectDirtyCount, useStudioStore } from "@/src/store/studio-store";
 import { SITE_NAME } from "@/src/site/sections";
+import { accountInitials } from "@/src/lib/account-initials";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 import { BrandLockup } from "./ui/BrandLockup";
@@ -27,13 +28,6 @@ const TOP_MENUS = [
   ["view", "chrome.menu.view"],
   ["help", "chrome.menu.help"],
 ] as const;
-
-function initials(email: string): string {
-  const name = email.split("@")[0] ?? "";
-  const parts = name.split(/[._-]+/).filter(Boolean);
-  const letters = parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : name.slice(0, 2);
-  return letters.toUpperCase() || "?";
-}
 
 export function MenuBar({
   onOpenPgn,
@@ -187,15 +181,20 @@ export function MenuBar({
               aria-expanded={open === "account"}
               // SIG-1215: initials only — the e-mail stays out of the bar (and
               // out of screenshots); it is in the tooltip and the menu header.
-              aria-label={tStudioChrome(locale, "chrome.account.label", { email: user.email })}
-              title={user.email}
+              // SIG-1216: with a display name the tooltip is "Name · email".
+              aria-label={
+                user.displayName
+                  ? tStudioChrome(locale, "chrome.account.labelNamed", { name: user.displayName, email: user.email })
+                  : tStudioChrome(locale, "chrome.account.label", { email: user.email })
+              }
+              title={user.displayName ? `${user.displayName} · ${user.email}` : user.email}
               onClick={() => toggleMenu("account")}
               className={`grid h-[26px] w-[26px] place-items-center rounded-full ${
                 open === "account" ? "ring-2 ring-studio-border-strong" : "hover:ring-2 hover:ring-studio-border"
               }`}
             >
               <span className="relative grid h-[26px] w-[26px] place-items-center rounded-full bg-studio-accent-soft text-[11px] font-bold text-studio-accent-text">
-                {initials(user.email)}
+                {accountInitials(user.displayName, user.email)}
                 {/* SIG-1198: no "Synced" label — synced is the normal state. Only
                     pending changes get a signal: an amber dot on the avatar. */}
                 {dirtyCount ? (
@@ -209,7 +208,14 @@ export function MenuBar({
             {open === "account" ? (
               <MenuSurface className="absolute right-0 top-[calc(100%+5px)] min-w-60" onClose={close}>
                 <div className="px-2 pb-1.5 pt-2">
-                  <div className="truncate font-medium text-studio-fg">{user.email}</div>
+                  {user.displayName ? (
+                    <>
+                      <div className="truncate font-medium text-studio-fg">{user.displayName}</div>
+                      <div className="truncate text-caption text-studio-muted">{user.email}</div>
+                    </>
+                  ) : (
+                    <div className="truncate font-medium text-studio-fg">{user.email}</div>
+                  )}
                   <div className="mt-0.5 flex items-center gap-1.5 text-caption text-studio-faint">
                     <span className={`h-1.5 w-1.5 rounded-full ${dirtyCount ? "bg-studio-warning-fg" : "bg-studio-success"}`} />
                     {dirtyCount

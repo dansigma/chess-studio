@@ -155,6 +155,9 @@ export type StudioSettings = {
 export type UserInfo = {
   id: string;
   email: string | null;
+  // SIG-1216: Supabase Auth `user_metadata.display_name`. Display-only; the
+  // user can edit it, so it must never feed authorization.
+  displayName?: string | null;
 };
 
 export type StudioState = {

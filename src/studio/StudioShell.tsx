@@ -14,6 +14,7 @@ import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
 import { ResizeHandle } from "./ui/ResizeHandle";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
+import { toUserInfo } from "@/src/lib/auth/user-info";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { clearGuestBoards, loadGuestBoards, saveGuestBoards } from "@/src/lib/guest-boards";
 import {
@@ -159,11 +160,11 @@ export function StudioShell() {
     }
     void supabase.auth.getUser().then(({ data }) => {
       const current = data.user;
-      setUser(current ? { id: current.id, email: current.email ?? null } : null);
+      setUser(current ? toUserInfo(current) : null);
     });
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       const current = session?.user;
-      setUser(current ? { id: current.id, email: current.email ?? null } : null);
+      setUser(current ? toUserInfo(current) : null);
     });
     return () => data.subscription.unsubscribe();
   }, [setUser]);
