@@ -11,7 +11,7 @@ describe("localized site sections (SIG-962)", () => {
     assert.deepEqual(siteSections("pt-br"), [
       { href: "/courses", label: "Cursos" },
       { href: "/puzzles", label: "Exercícios" },
-      { href: "/studio", label: "Estúdio" },
+      { href: "/studio", label: "Studio" },
     ]);
   });
 });

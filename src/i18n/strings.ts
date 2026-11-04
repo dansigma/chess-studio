@@ -16,7 +16,7 @@ const EN: Record<SiteStringKey, string> = {
 const PT_BR: Partial<Record<SiteStringKey, string>> = {
   "nav.courses": "Cursos",
   "nav.puzzles": "Exercícios",
-  "nav.studio": "Estúdio",
+  "nav.studio": "Studio",
   "nav.privacy": "Privacidade",
   "nav.terms": "Termos",
 };

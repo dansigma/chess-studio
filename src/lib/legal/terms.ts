@@ -13,7 +13,7 @@ export const TERMS_PT: LegalText = {
       id: "servico",
       title: "1. O Serviço",
       paragraphs: [
-        "O Xadrez Digital é uma plataforma web de estudo de xadrez: estúdio de análise com tabuleiro e engine de xadrez no navegador, explorador de aberturas, importação e exportação de partidas em PGN, repertórios, exercícios (puzzles) e cursos. Parte dos recursos funciona sem conta (modo visitante); outros exigem cadastro, como a sincronização do seu conteúdo entre dispositivos.",
+        "O Xadrez Digital é uma plataforma web de estudo de xadrez: Studio de análise com tabuleiro e engine de xadrez no navegador, explorador de aberturas, importação e exportação de partidas em PGN, repertórios, exercícios (puzzles) e cursos. Parte dos recursos funciona sem conta (modo visitante); outros exigem cadastro, como a sincronização do seu conteúdo entre dispositivos.",
         "Podemos criar, alterar, limitar ou descontinuar recursos. No futuro, o Serviço poderá incluir cursos de autores terceiros, bem como cursos ou assinaturas pagos; nesse caso, as condições comerciais serão informadas antes da contratação.",
       ],
     },
