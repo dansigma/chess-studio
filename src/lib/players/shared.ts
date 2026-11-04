@@ -1,12 +1,18 @@
 import type { PlayerGame, PlayerSource } from "@/src/lib/player-types";
 
 export const MAX_PLAYER_GAMES = 80;
-export const MAX_PLAYER_GAMES_BYTES = 2 * 1024 * 1024; // 2 MB
+export const MAX_PLAYER_GAMES_BYTES = 2 * 1024 * 1024; // 2 MB (Lichess NDJSON / small JSON bodies)
+// SIG-1210: Chess.com month archives are streamed, never buffered, so the cap
+// is only a safety net against runaway bodies; hitting it returns partial data.
+export const MAX_ARCHIVE_STREAM_BYTES = 64 * 1024 * 1024; // 64 MB
 export const GAMES_CACHE_TTL_MS = 180_000;
 export const SEARCH_TIMEOUT_MS = 6_000;
 export const GAMES_TIMEOUT_MS = 15_000;
 
-export const UA = "StudioClone/0.1 (chess analysis; local development)";
+// SIG-1210: Chess.com asks API clients to identify themselves with contact
+// details. TODO: add a contact (email) once the owner provides one; until then
+// the site URL is the only identifier. Lichess shares this UA.
+export const UA = "XadrezDigital/1.0 (+https://xadrez.digital)";
 
 export function lichessToken(): string | undefined {
   return process.env.LICHESS_TOKEN ?? process.env.LICHESS_API_TOKEN;

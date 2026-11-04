@@ -302,6 +302,23 @@ test("last_synced_at advances to newest fetched game", async () => {
   assert.deepEqual((store.updates[0]?.attrs as Record<string, string>).last_synced_at, "2026-10-22T00:00:00.000Z");
 });
 
+test("a partial Chess.com read imports what it got but does not advance last_synced_at", async () => {
+  const { client, store } = syncFake({
+    userId: "user-partial",
+    linkedRows: [{ source: "chesscom", username: "hikaru", last_synced_at: null }],
+  });
+  state.server = client;
+  setSyncLoadersForTest({
+    chesscom: async () => ({ games: [game("g1", Date.parse("2026-10-22T00:00:00.000Z"))], partial: true }),
+  });
+  const res = await POST(post());
+  assert.equal(res.status, 200);
+  const body = (await res.json()) as { imported: number; accounts: Array<{ partial?: boolean }> };
+  assert.equal(body.imported, 1);
+  assert.equal(body.accounts[0]?.partial, true);
+  assert.equal(store.updates.length, 0);
+});
+
 test("write failure reports unavailable without advancing last_synced_at", async () => {
   const { client, store } = syncFake({
     userId: "user-1",

@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadLinkedAccounts, type LinkedAccountSource } from "@/src/lib/my-games/linked-accounts";
 import { playerGameToRow } from "@/src/lib/my-games/game-row";
-import { chesscomGamesSince } from "@/src/lib/players/chesscom";
+import { chesscomGamesSinceDetailed, type ChesscomGamesResult } from "@/src/lib/players/chesscom";
 import { lichessGamesSince } from "@/src/lib/players/lichess";
 import type { PlayerGame } from "@/src/lib/player-types";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
@@ -31,12 +31,14 @@ const FIRST_SYNC_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
 const userLimiter = createRouteLimiter({ limit: 6, windowMs: 60 * 60 * 1000, bindingName: "RL_AUTH" });
 const ipLimiter = createRouteLimiter({ limit: 20, windowMs: 60 * 60 * 1000, bindingName: "RL_30_MIN" });
 
+// SIG-1210: the Chess.com loader may report `partial` (some months skipped);
+// plain arrays (Lichess, test doubles) are always complete.
 type Loaders = {
   lichess: typeof lichessGamesSince;
-  chesscom: typeof chesscomGamesSince;
+  chesscom: (username: string, sinceMs: number, max: number) => Promise<PlayerGame[] | ChesscomGamesResult>;
 };
 
-const loaders: Loaders = { lichess: lichessGamesSince, chesscom: chesscomGamesSince };
+const loaders: Loaders = { lichess: lichessGamesSince, chesscom: chesscomGamesSinceDetailed };
 
 export function setSyncLoadersForTest(overrides: Partial<Loaders>): void {
   if (overrides.lichess) {
@@ -49,13 +51,16 @@ export function setSyncLoadersForTest(overrides: Partial<Loaders>): void {
 
 export function resetSyncLoadersForTest(): void {
   loaders.lichess = lichessGamesSince;
-  loaders.chesscom = chesscomGamesSince;
+  loaders.chesscom = chesscomGamesSinceDetailed;
 }
 
 export type SyncAccountResult = {
   source: LinkedAccountSource;
   imported: number;
   error?: string;
+  // SIG-1210: some upstream months could not be read; the cursor was not
+  // advanced so the next sync retries them (duplicates are ignored on insert).
+  partial?: boolean;
 };
 
 function sinceMsFor(lastSyncedAt: string | null): number {
@@ -128,10 +133,20 @@ export async function POST(request: NextRequest) {
       continue;
     }
     let games: PlayerGame[];
+    let partialSync = false;
     try {
       const fetchSince =
         account.source === "lichess" ? loaders.lichess : loaders.chesscom;
-      games = await fetchSince(account.username, sinceMs, remaining);
+      const loaded = await fetchSince(account.username, sinceMs, remaining);
+      if (Array.isArray(loaded)) {
+        games = loaded;
+      } else {
+        games = loaded.games;
+        partialSync = loaded.partial;
+      }
+      if (partialSync) {
+        entry.partial = true;
+      }
     } catch (error) {
       console.error("my-games sync upstream failed", { source: account.source, error });
       entry.error = "upstream_unavailable";
@@ -186,7 +201,8 @@ export async function POST(request: NextRequest) {
         .filter((value): value is string => typeof value === "string" && value.length > 0)
         .sort()
         .at(-1);
-      if (newestIso !== undefined && newestIso.length > 0) {
+      // A partial read must not advance the cursor past skipped months.
+      if (!partialSync && newestIso !== undefined && newestIso.length > 0) {
         await updateLastSynced(supabase, user.id, account.source, newestIso);
       }
       accounts.push(entry);

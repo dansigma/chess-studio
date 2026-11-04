@@ -67,6 +67,7 @@ export const STUDIO_SIDEBAR_STRING_KEYS = [
   "sidebar.search.placeholder",
   "sidebar.search.searching",
   "sidebar.search.noPlayers",
+  "sidebar.search.chesscomExact",
   "sidebar.search.hint",
   "sidebar.bookmarks.title",
   "sidebar.bookmarks.empty",
@@ -134,6 +135,7 @@ const EN: Record<StudioSidebarStringKey, string> = {
   "sidebar.search.placeholder": "Lichess, Chess.com, or book…",
   "sidebar.search.searching": "Searching…",
   "sidebar.search.noPlayers": "No players found.",
+  "sidebar.search.chesscomExact": "Chess.com: type the exact username",
   "sidebar.search.hint":
     "Type at least two letters to search Lichess, Chess.com, and the local sample book.",
   "sidebar.bookmarks.title": "Bookmarks",
@@ -202,6 +204,7 @@ const PT_BR: Record<StudioSidebarStringKey, string> = {
   "sidebar.search.placeholder": "Lichess, Chess.com ou livro…",
   "sidebar.search.searching": "Buscando…",
   "sidebar.search.noPlayers": "Nenhum jogador encontrado.",
+  "sidebar.search.chesscomExact": "Chess.com: digite o nome de usuário exato",
   "sidebar.search.hint":
     "Digite ao menos duas letras para buscar no Lichess, Chess.com e no livro de exemplo local.",
   "sidebar.bookmarks.title": "Favoritos",
