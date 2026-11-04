@@ -34,6 +34,8 @@ export type RemoteBoardRow = {
   current_node_path: number[] | null;
   orientation: BoardSession["orientation"];
   repertoire_color: string | null;
+  /** SIG-1199: set when the board was closed; absent on pre-migration schemas. */
+  closed_at?: string | null;
 };
 
 /**
@@ -43,6 +45,10 @@ export type RemoteBoardRow = {
  * wins. Session-only and remote-only boards are kept. `rows: null` means the
  * remote read failed or was aborted, so the local snapshot is returned
  * untouched instead of being replaced by an empty list.
+ *
+ * SIG-1199: rows stamped `closed_at` are saved boards the user closed; they
+ * stay in Supabase but are not restored, unless this browser's snapshot still
+ * has them open (closed elsewhere, reopened here).
  *
  * The active board is resolved from the snapshot by identity, including the
  * case where a clean local board was replaced by its remote row (local `id`
@@ -65,6 +71,9 @@ export function mergeSessionBoards(
   const seenLocalIds = new Set<string>();
   const merged: BoardSession[] = [];
   for (const row of rows) {
+    if (row.closed_at && !localByRemote.has(row.id)) {
+      continue;
+    }
     const imported = importPgn(row.pgn);
     const session: BoardSession = {
       id: row.id,

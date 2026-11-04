@@ -196,6 +196,29 @@ describe("SIG-1186 boot merge", () => {
     assert.equal(merged.activeBoardId, "local-a");
   });
 
+  it("SIG-1199: skips closed rows that are not open in the local snapshot", () => {
+    const local = {
+      boards: [seedBoard("local-a", { remoteId: "remote-a", dirty: false })],
+      activeBoardId: "local-a",
+    };
+    const closed = { ...row("remote-b", "B"), closed_at: "2026-11-01T00:00:00Z" };
+    const merged = mergeSessionBoards(local, [row("remote-a", "A"), closed]);
+    assert.ok(merged);
+    assert.deepEqual(merged.boards.map((board) => board.id), ["remote-a"]);
+    assert.equal(mergeSessionBoards(null, [closed]), null, "all rows closed leaves the placeholder");
+  });
+
+  it("SIG-1199: a closed row still open in this browser's snapshot stays open", () => {
+    const local = {
+      boards: [seedBoard("local-a", { remoteId: "remote-a", dirty: false })],
+      activeBoardId: "local-a",
+    };
+    const closedElsewhere = { ...row("remote-a", "A"), closed_at: "2026-11-01T00:00:00Z" };
+    const merged = mergeSessionBoards(local, [closedElsewhere]);
+    assert.ok(merged);
+    assert.deepEqual(merged.boards.map((board) => board.id), ["remote-a"]);
+  });
+
   it("keeps the snapshot when the remote read fails", () => {
     const local = {
       boards: [seedBoard("local-a", { remoteId: "remote-a", dirty: false })],

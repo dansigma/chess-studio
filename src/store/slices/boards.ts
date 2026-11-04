@@ -20,6 +20,7 @@ import {
   repertoireMoves,
   scheduleReview,
 } from "@/src/chess/repertoire";
+import { persistBoardClose } from "@/src/lib/close-board-persistence";
 import { trainingAttempt } from "@/src/chess/training";
 import {
   hydrateRepertoireProgress,
@@ -153,6 +154,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }));
   },
   closeBoard: (id) => {
+    const closed = get().boards.find((board) => board.id === (id ?? get().activeBoardId));
     set((state) => {
       const target = id ?? state.activeBoardId;
       // SIG-915: closing the active tab focuses the previous tab (else next),
@@ -168,6 +170,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       const activeBoardId = neighbor ?? boards[0].id;
       return { boards, activeBoardId, threat: null, training: false, trainingStart: null, drillDueOnly: false, variationChoice: null };
     });
+    // SIG-1199: persist the close now; the shell's debounced saves lag behind.
+    persistBoardClose(get(), closed);
   },
   cloneBoard: () => {
     const current = get().active();
