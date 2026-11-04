@@ -50,6 +50,18 @@ function PlayerHeader({ side, color }: { side: SideReport; color: string }) {
   );
 }
 
+/** Thin 0-100 accuracy bar under the big number (decorative; the number carries the value). */
+function AccuracyBar({ value }: { value: number | null }) {
+  if (value == null) {
+    return null;
+  }
+  return (
+    <div aria-hidden data-accuracy-bar className="h-1 w-20 shrink-0 overflow-hidden rounded-full bg-studio-track">
+      <div className="h-full rounded-full bg-studio-accent" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+    </div>
+  );
+}
+
 function ratingText(side: SideReport, locale: SiteLocale): string {
   const { value, anchored } = side.gameRating;
   if (value == null) {
@@ -99,10 +111,12 @@ type SummaryProps = {
   openingName?: string | null;
   /** Set when the reviewed line is not the main line. */
   lineNote?: string | null;
+  /** SIG-1207: one-line verdict for both players (null while only a partial preview exists). */
+  verdict?: string | null;
 };
 
 /** Players, opening, accuracy with compact classification chips, and game rating. */
-export function ReportSummary({ report, locale, openingName, lineNote }: SummaryProps) {
+export function ReportSummary({ report, locale, openingName, lineNote, verdict }: SummaryProps) {
   const { white, black } = report;
   const hasChips = classificationChips(white).length > 0 || classificationChips(black).length > 0;
   const ratingDescId = useId();
@@ -111,7 +125,7 @@ export function ReportSummary({ report, locale, openingName, lineNote }: Summary
     <table className="w-full border-collapse">
       <caption className="sr-only">{tReview(locale, "panel.title")}</caption>
       <thead>
-        <tr className={`${ROW} items-start border-b border-studio-border-subtle py-1`}>
+        <tr className={`${ROW} items-start border-b border-studio-border-subtle py-0.5`}>
           <th scope="col" className="font-normal">
             <span className="sr-only">{tReview(locale, "report.accuracy")}</span>
           </th>
@@ -126,7 +140,7 @@ export function ReportSummary({ report, locale, openingName, lineNote }: Summary
       <tbody>
         {openingName ? (
           <tr className={`${ROW} border-b border-studio-border-subtle`}>
-            <td colSpan={3} className="min-w-0 truncate text-caption leading-4 text-studio-muted" title={openingName}>
+            <td colSpan={3} className="min-w-0 truncate text-caption leading-[14px] text-studio-muted" title={openingName}>
               {openingName}
             </td>
           </tr>
@@ -138,15 +152,32 @@ export function ReportSummary({ report, locale, openingName, lineNote }: Summary
             </td>
           </tr>
         ) : null}
-        <tr className={`${ROW} py-0.5`}>
+        <tr className={`${ROW} pt-0.5`}>
           <th scope="row" className="text-left text-caption font-normal text-studio-faint">
             {tReview(locale, "report.accuracy")}
           </th>
-          <td className="text-center text-2xl font-semibold leading-none tabular-nums">{percent(white.accuracy, locale)}</td>
-          <td className="text-center text-2xl font-semibold leading-none tabular-nums">{percent(black.accuracy, locale)}</td>
+          <td>
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-2xl font-semibold leading-none tabular-nums">{percent(white.accuracy, locale)}</span>
+              <AccuracyBar value={white.accuracy} />
+            </div>
+          </td>
+          <td>
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-2xl font-semibold leading-none tabular-nums">{percent(black.accuracy, locale)}</span>
+              <AccuracyBar value={black.accuracy} />
+            </div>
+          </td>
         </tr>
+        {verdict ? (
+          <tr data-verdict className={ROW}>
+            <td colSpan={3} className="col-span-3 pb-0.5 pt-1 text-center text-caption leading-[14px] text-studio-fg-secondary">
+              {verdict}
+            </td>
+          </tr>
+        ) : null}
         {hasChips ? (
-        <tr className={`${ROW} items-start pb-1`}>
+        <tr className={`${ROW} items-start pb-0.5`}>
             <th scope="row" className="text-left font-normal">
               <span className="sr-only">{tReview(locale, "report.classifications")}</span>
             </th>
@@ -158,7 +189,7 @@ export function ReportSummary({ report, locale, openingName, lineNote }: Summary
             </td>
           </tr>
         ) : null}
-        <tr className={`${ROW} border-y border-studio-border-subtle py-0.5`}>
+        <tr className={`${ROW} border-y border-studio-border-subtle`}>
           <th scope="row" className="text-left text-caption font-normal text-studio-faint">
             <button
               type="button"

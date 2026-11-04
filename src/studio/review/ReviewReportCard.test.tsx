@@ -120,3 +120,15 @@ test("clicking the active row collapses its explanation; another row navigates",
   fireEvent.click(rows[1]);
   assert.deepEqual(selected, [[0, 0, 0, 0]]);
 });
+
+test("SIG-1207: summary renders the verdict row and one accuracy bar per side with a value", () => {
+  const verdict = "Ana 82.4%, Bruno 82.4%. Clean game: no mistakes or blunders.";
+  render(<ReportSummary report={report} locale="en" verdict={verdict} />);
+  assert.ok(screen.getByText(verdict));
+  const bars = document.querySelectorAll("[data-accuracy-bar] > div");
+  assert.equal(bars.length, 2);
+  assert.equal((bars[0] as HTMLElement).style.width, "82.4%");
+  cleanup();
+  render(<ReportSummary report={report} locale="en" verdict={null} />);
+  assert.equal(document.querySelector("[data-verdict]"), null);
+});

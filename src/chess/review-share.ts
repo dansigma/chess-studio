@@ -23,6 +23,8 @@ export type ReviewSummaryInput = {
   moveNotation: MoveNotation;
   startFen: string;
   openingName?: string | null;
+  /** SIG-1207: finished verdict line (null/absent while only a partial preview exists). */
+  verdict?: string | null;
 };
 
 function ratingValue(side: SideReport, locale: SiteLocale): string {
@@ -75,6 +77,9 @@ export function buildReviewSummary(locale: SiteLocale, input: ReviewSummaryInput
   lines.push(`${playerName(input.report.white)} vs ${playerName(input.report.black)}`);
   lines.push(sideLine(input.report.white, locale));
   lines.push(sideLine(input.report.black, locale));
+  if (input.verdict) {
+    lines.push(input.verdict);
+  }
   lines.push(tReview(locale, "report.keyMoments"));
   const rendered = input.moments.flatMap((moment) => {
     const line = momentLine(moment, locale, input);
