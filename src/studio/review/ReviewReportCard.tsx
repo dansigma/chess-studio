@@ -387,11 +387,10 @@ export function KeyMomentsList({
             const canRetry = onRetry != null && retryPaths?.has(key) === true;
             const sanText = formatSan(row.san, moveNotation, row.side);
             return (
-              <li key={key}>
+              <li key={key} className="flex flex-wrap items-center">
                 {/* SIG-1209: the Retry button is a sibling of the row button (not
                     nested), so clicking it never navigates and the row's
                     "best:" text can still truncate. */}
-                <div className="flex items-center">
                 <button
                   type="button"
                   aria-current={active ? "true" : undefined}
@@ -428,13 +427,12 @@ export function KeyMomentsList({
                     />
                   </span>
                 ) : null}
-                </div>
                 {open ? (
                   <div
                     data-export-ignore
                     role="region"
                     aria-label={tReview(locale, "moments.whyRegion")}
-                    className="border-l-2 border-studio-border-subtle pb-1 pl-2"
+                    className="w-full border-l-2 border-studio-border-subtle pb-1 pl-2"
                   >
                     {explanation}
                   </div>

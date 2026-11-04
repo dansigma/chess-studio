@@ -96,7 +96,7 @@ function renderMoments(
 
 test("key moment rows show number, move, evals and the best move only when it differs", () => {
   const { container } = renderMoments(null);
-  const rows = container.querySelectorAll("li > div > button:not([data-retry-button])");
+  const rows = container.querySelectorAll("li > button:not([data-retry-button])");
   assert.match(rows[0].textContent ?? "", /2\.Nf3\+0\.3 → -2\.9best: Nd5/);
   assert.doesNotMatch(rows[1].textContent ?? "", /best:/);
   assert.match(rows[1].textContent ?? "", /2\.\.\.e5/);
@@ -115,7 +115,7 @@ test("the explanation renders only under the active row, outside the export", ()
 test("clicking the active row collapses its explanation; another row navigates", () => {
   const selected: number[][] = [];
   const { container } = renderMoments([0, 0, 0], (path) => selected.push(path));
-  const rows = container.querySelectorAll("li > div > button:not([data-retry-button])");
+  const rows = container.querySelectorAll("li > button:not([data-retry-button])");
   fireEvent.click(rows[0]);
   assert.equal(container.querySelector("[data-export-ignore]"), null);
   assert.equal(rows[0].getAttribute("aria-expanded"), "false");
@@ -151,12 +151,12 @@ test("SIG-1209: eligible rows get a Retry button that starts the retry without n
   assert.equal(buttons[0].getAttribute("aria-label"), "Retry move 2, Nf3");
   assert.equal(buttons[0].textContent, "Retry");
   // Sibling of the row button, never nested inside it.
-  assert.equal(buttons[0].closest("li > div > button"), null);
+  assert.equal(buttons[0].closest("li > button"), null);
   fireEvent.click(buttons[0]);
   assert.deepEqual(retried, [[0, 0, 0]]);
   assert.deepEqual(selected, [], "the row did not navigate");
   // The row still navigates on its own click and keeps the one-line layout.
-  const row = container.querySelector("li > div > button:not([data-retry-button])") as HTMLElement;
+  const row = container.querySelector("li > button:not([data-retry-button])") as HTMLElement;
   assert.match(row.className, /min-w-0/);
   assert.ok(row.querySelector(".truncate"), "the best: text can still truncate");
 });
@@ -173,7 +173,7 @@ test("SIG-1209: while a retry is active the best: text is hidden and the Why? st
   const { container } = renderMoments([0, 0, 0], () => {}, { retryActive: true });
   assert.doesNotMatch(container.textContent ?? "", /best:/);
   assert.equal(container.querySelector("[data-export-ignore]"), null);
-  const row = container.querySelector("li > div > button:not([data-retry-button])") as HTMLElement;
+  const row = container.querySelector("li > button:not([data-retry-button])") as HTMLElement;
   assert.equal(row.getAttribute("aria-expanded"), null);
   assert.equal(row.getAttribute("title"), null);
 });
