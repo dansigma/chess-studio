@@ -40,6 +40,7 @@ export function MenuItem({
   label,
   shortcut,
   checked,
+  radio,
   disabled,
   disabledReason,
   submenu,
@@ -52,6 +53,8 @@ export function MenuItem({
   label: ReactNode;
   shortcut?: string;
   checked?: boolean;
+  /** Renders as role="menuitemradio" (one-of-many group) instead of menuitemcheckbox. */
+  radio?: boolean;
   disabled?: boolean;
   disabledReason?: string;
   submenu?: boolean;
@@ -72,7 +75,7 @@ export function MenuItem({
   return (
     <button
       type="button"
-      role={checked === undefined ? "menuitem" : "menuitemcheckbox"}
+      role={checked === undefined ? "menuitem" : radio ? "menuitemradio" : "menuitemcheckbox"}
       aria-checked={checked}
       aria-haspopup={submenu || undefined}
       disabled={disabled}

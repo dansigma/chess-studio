@@ -6,6 +6,7 @@ import { buildReviewReport, evalSeries, keyMoments } from "@/src/chess/review-re
 import { buildReviewSummary } from "@/src/chess/review-share";
 import {
   formatReviewEta,
+  momentNavHint,
   progressBucket,
   reviewCancelledText,
   reviewCompleteText,
@@ -17,7 +18,7 @@ import {
 } from "@/src/chess/review-strings";
 import { lookupBookOpening } from "@/src/lib/opening-book";
 import { resolveOpeningName } from "@/src/lib/opening-names";
-import { ReviewReportCard } from "./review/ReviewReportCard";
+import { KeyMomentsList, ReportDetails, ReportSummary } from "./review/ReviewReportCard";
 import { ReviewEvalChart, type ReviewChartMoment } from "./review/ReviewEvalChart";
 import {
   filterKeyMoments,
@@ -39,7 +40,9 @@ import { getFenAt, getNodeAt, pathAlongLine, pathsEqual, variationPoints } from 
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { TrainMistakesBanner } from "./review/TrainMistakesBanner";
-import { Button } from "./ui/Button";
+import { MoreHorizontal } from "lucide-react";
+import { Button, IconButton } from "./ui/Button";
+import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
 import { Dialog } from "./ui/Dialog";
 
 const PRESET_IDS = Object.keys(REVIEW_PRESETS) as ReviewPreset[];
@@ -62,8 +65,10 @@ export function ReviewPanel() {
   const [annotateEvals, setAnnotateEvals] = useState(true);
   const [annotateBestMove, setAnnotateBestMove] = useState(true);
   const [annotateKeyMomentsOnly, setAnnotateKeyMomentsOnly] = useState(false);
-  // SIG-968: report-card PNG snapshot target. The ref wraps ReviewReportCard
-  // only — the card is untouched, the panel owns the image/share buttons.
+  // SIG-1205: actions ("⋯") menu open state; the menu lives in the header.
+  const [actionsOpen, setActionsOpen] = useState(false);
+  // SIG-968/1205: report PNG snapshot target. The ref wraps the summary
+  // (players, accuracy, chips, rating, opening) plus the key moments, never the menu.
   const reportRef = useRef<HTMLDivElement | null>(null);
 
   const points = useMemo(
@@ -469,22 +474,9 @@ export function ReviewPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-studio-panel text-body text-studio-fg">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-studio-border-subtle px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-studio-border-subtle px-3 py-1">
         <span className="text-dense font-semibold">{tReview(locale, "panel.title")}</span>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <select
-            aria-label={tReview(locale, "panel.depthLabel")}
-            value={preset}
-            disabled={running}
-            onChange={(event) => setPreset(event.target.value as ReviewPreset)}
-            className="h-6 rounded-md border border-studio-border-strong bg-studio-panel px-1 text-caption text-studio-fg disabled:opacity-60"
-          >
-            {PRESET_IDS.map((id) => (
-              <option key={id} value={id}>
-                {reviewPresetOption(locale, id, REVIEW_PRESETS[id].depth)}
-              </option>
-            ))}
-          </select>
           {running ? (
             <Button size="sm" onClick={cancel}>
               {tReview(locale, "panel.cancel")}
@@ -503,11 +495,100 @@ export function ReviewPanel() {
               {rows ? tReview(locale, "panel.reviewAgain") : tReview(locale, "panel.reviewGame")}
             </Button>
           )}
+          <div className="relative">
+            <IconButton
+              size="sm"
+              label={tReview(locale, "panel.actions")}
+              aria-haspopup="menu"
+              aria-expanded={actionsOpen}
+              onClick={() => setActionsOpen((open) => !open)}
+            >
+              <MoreHorizontal size={15} aria-hidden />
+            </IconButton>
+            {actionsOpen ? (
+              <>
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="fixed inset-0 z-10 cursor-default"
+                  aria-label={tReview(locale, "panel.actions")}
+                  onClick={() => setActionsOpen(false)}
+                />
+                <MenuSurface
+                  label={tReview(locale, "panel.actions")}
+                  onClose={() => setActionsOpen(false)}
+                  className="absolute right-0 top-7 z-20 w-64"
+                >
+                  <div role="group" aria-label={tReview(locale, "panel.depthGroup")}>
+                    {PRESET_IDS.map((id) => (
+                      <MenuItem
+                        key={id}
+                        radio
+                        checked={preset === id}
+                        disabled={running}
+                        label={reviewPresetOption(locale, id, REVIEW_PRESETS[id].depth)}
+                        onClick={() => {
+                          setPreset(id);
+                          setActionsOpen(false);
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <MenuDivider />
+                  <MenuItem
+                    label={tReview(locale, "annotate.title")}
+                    disabled={!report}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      setAnnotateOpen(true);
+                    }}
+                  />
+                  <MenuItem
+                    label={tReview(locale, "annotate.undo")}
+                    disabled={!board.reviewAnnotateUndo}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      undoReviewAnnotations();
+                      setStatus(tReview(locale, "annotate.undone"));
+                    }}
+                  />
+                  <MenuDivider />
+                  <MenuItem
+                    label={tReview(locale, "share.copyImage")}
+                    disabled={!report}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      void copyReportImage();
+                    }}
+                  />
+                  <MenuItem
+                    label={tReview(locale, "share.downloadImage")}
+                    disabled={!report}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      void downloadReportImage();
+                    }}
+                  />
+                  <MenuItem
+                    label={tReview(locale, "share.copySummary")}
+                    disabled={!report}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      void copyReviewSummary();
+                    }}
+                  />
+                </MenuSurface>
+              </>
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {points.length < 2 ? (
           <p className="px-3 py-4 text-dense text-studio-faint">{tReview(locale, "panel.empty")}</p>
+        ) : null}
+        {points.length >= 2 && !displayRows && !running && !failed && !cancelled ? (
+          <p className="px-3 py-3 text-dense text-studio-muted">{tReview(locale, "panel.emptyIdle")}</p>
         ) : null}
         {setupMode ? <p className="px-3 py-2 text-caption text-studio-warning-fg">{tReview(locale, "panel.pausedSetup")}</p> : null}
         {/* SIG-969: single persistent polite node — coarse ~10% progress plus
@@ -559,47 +640,44 @@ export function ReviewPanel() {
             {reviewCancelledText(locale, { done: progress.done, total: progress.total })}
           </p>
         ) : null}
-        {selected && selectedContext && !running ? (
-          <WhyBlock
-            key={selected.path.join(".")}
-            row={selected}
-            fenBefore={selectedContext.fenBefore}
-            fenAfter={selectedContext.fenAfter}
-            previous={selectedContext.previous}
-            locale={locale}
-            moveNotation={moveNotation}
-            onPlayLine={playLine}
-          />
-        ) : null}
         {report ? (
           <>
             {cached ? (
-              <p className="px-3 pt-2 text-caption text-studio-faint">{tReview(locale, "panel.savedReview")}</p>
+              <p className="px-3 pt-1 text-caption text-studio-faint">{tReview(locale, "panel.savedReview")}</p>
             ) : null}
             {!rows && previewRows ? (
-              <p className="px-3 pt-2 text-caption text-studio-faint">{tReview(locale, "panel.partialNote")}</p>
+              <p className="px-3 pt-1 text-caption text-studio-faint">{tReview(locale, "panel.partialNote")}</p>
+            ) : null}
+            <div ref={reportRef} className="bg-studio-panel">
+              <ReportSummary report={report} locale={locale} openingName={openingName} lineNote={lineNote} />
+              <KeyMomentsList
+                moments={filteredMoments}
+                moveNotation={moveNotation}
+                locale={locale}
+                onSelectMoment={goPath}
+                selectedPath={board.path}
+                hasUnfilteredMoments={moments.length > 0}
+                startFen={board.tree.startFen}
+              />
+            </div>
+            {/* SIG-1206: after the key moments (so the first moment stays above
+                the fold) and outside reportRef (so it never lands in the PNG). */}
+            {trainBanner ? <TrainMistakesBanner banner={trainBanner} locale={locale} /> : null}
+            {selected && selectedContext && !running ? (
+              <WhyBlock
+                key={selected.path.join(".")}
+                row={selected}
+                fenBefore={selectedContext.fenBefore}
+                fenAfter={selectedContext.fenAfter}
+                previous={selectedContext.previous}
+                locale={locale}
+                moveNotation={moveNotation}
+                onPlayLine={playLine}
+              />
             ) : null}
             <div className="border-b border-studio-border-subtle px-3 py-2">
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="text-caption uppercase tracking-wide text-studio-faint">
-                  {tReview(locale, "chart.title")}
-                </span>
-                <span className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={!board.reviewAnnotateUndo}
-                    onClick={() => {
-                      undoReviewAnnotations();
-                      setStatus(tReview(locale, "annotate.undone"));
-                    }}
-                  >
-                    {tReview(locale, "annotate.undo")}
-                  </Button>
-                  <Button size="sm" variant="secondary" onClick={() => setAnnotateOpen(true)}>
-                    {tReview(locale, "annotate.title")}
-                  </Button>
-                </span>
+              <div className="mb-1 text-caption uppercase tracking-wide text-studio-faint">
+                {tReview(locale, "chart.title")}
               </div>
               <ReviewEvalChart
                 series={series}
@@ -648,6 +726,7 @@ export function ReviewPanel() {
                     size="sm"
                     variant="secondary"
                     disabled={prevMomentIndex == null}
+                    title={momentNavHint(locale, "prev")}
                     onClick={() => goToMoment(prevMomentIndex)}
                   >
                     {tReview(locale, "moments.prev")}
@@ -656,6 +735,7 @@ export function ReviewPanel() {
                     size="sm"
                     variant="secondary"
                     disabled={nextMomentIndex == null}
+                    title={momentNavHint(locale, "next")}
                     onClick={() => goToMoment(nextMomentIndex)}
                   >
                     {tReview(locale, "moments.next")}
@@ -663,41 +743,11 @@ export function ReviewPanel() {
                 </span>
               </div>
             </div>
-            {trainBanner ? <TrainMistakesBanner banner={trainBanner} locale={locale} /> : null}
-            <div ref={reportRef}>
-              <ReviewReportCard
-                report={report}
-                moments={filteredMoments}
-                moveNotation={moveNotation}
-                locale={locale}
-                onSelectMoment={goPath}
-                openingName={openingName}
-                lineNote={lineNote}
-                selectedPath={board.path}
-                hasUnfilteredMoments={moments.length > 0}
-                startFen={board.tree.startFen}
-              />
-            </div>
             {deviationLine ? <DeviationLine text={deviationLine} /> : null}
             {deviationAction ? (
               <DeviationAction label={deviationAction.label} onClick={deviationAction.onClick} />
             ) : null}
-            <div className="flex items-center justify-between gap-2 px-3 py-2">
-              <span className="text-caption uppercase tracking-wide text-studio-faint">
-                {tReview(locale, "share.title")}
-              </span>
-              <span className="flex flex-wrap items-center justify-end gap-2">
-                <Button size="sm" variant="secondary" onClick={copyReportImage}>
-                  {tReview(locale, "share.copyImage")}
-                </Button>
-                <Button size="sm" variant="secondary" onClick={downloadReportImage}>
-                  {tReview(locale, "share.downloadImage")}
-                </Button>
-                <Button size="sm" variant="secondary" onClick={copyReviewSummary}>
-                  {tReview(locale, "share.copySummary")}
-                </Button>
-              </span>
-            </div>
+            <ReportDetails report={report} locale={locale} />
           </>
         ) : null}
       </div>

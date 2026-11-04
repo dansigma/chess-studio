@@ -17,6 +17,7 @@ import {
   tReview,
   tierName,
   type ReviewStringKey,
+  momentNavHint,
 } from "./review-strings.ts";
 
 test("every review string key renders in both locales with matching placeholders", () => {
@@ -160,4 +161,11 @@ test("SIG-969: completion text, coarse bucketing and rich moment names", () => {
     }),
     "Move 8, Nf3, Brilliant",
   );
+});
+
+test("SIG-1205: moment navigation hints name the shortcut key in both locales", () => {
+  assert.equal(momentNavHint("en", "prev"), "Previous moment ( [ )");
+  assert.equal(momentNavHint("en", "next"), "Next moment ( ] )");
+  assert.equal(momentNavHint("pt-br", "prev"), "Momento anterior ( [ )");
+  assert.equal(momentNavHint("pt-br", "next"), "Próximo momento ( ] )");
 });

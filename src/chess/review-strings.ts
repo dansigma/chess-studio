@@ -24,6 +24,9 @@ export const REVIEW_STRING_KEYS = [
   "panel.pausedSetup",
   "panel.estimating",
   "panel.lineNote",
+  "panel.actions",
+  "panel.depthGroup",
+  "panel.emptyIdle",
   "report.accuracy",
   "report.avgLoss",
   "report.avgLossTitle",
@@ -32,6 +35,8 @@ export const REVIEW_STRING_KEYS = [
   "report.ratingTooltip",
   "report.forcedTooltip",
   "report.keyMoments",
+  "report.details",
+  "report.classifications",
   "report.noMistakes",
   "report.noFilteredMoments",
   "report.whiteFallback",
@@ -55,6 +60,8 @@ export const REVIEW_STRING_KEYS = [
   "filter.tierBlunders",
   "moments.prev",
   "moments.next",
+  "moments.prevHint",
+  "moments.nextHint",
   "moments.accessibleLabel",
   "moments.accessibleLabelNoLoss",
   "phase.opening",
@@ -113,6 +120,9 @@ const EN: Record<ReviewStringKey, string> = {
   "panel.pausedSetup": "Paused in setup.",
   "panel.estimating": "estimating…",
   "panel.lineNote": "Reviewed line is a variation, not the main line.",
+  "panel.actions": "Review actions",
+  "panel.depthGroup": "Depth",
+  "panel.emptyIdle": "Reviews every move with the engine: accuracy, key moments and an evaluation chart.",
   "report.accuracy": "Accuracy",
   "report.avgLoss": "Avg. loss",
   "report.avgLossTitle": "Average centipawn loss per move (lower is better)",
@@ -125,6 +135,8 @@ const EN: Record<ReviewStringKey, string> = {
   "report.forcedTooltip":
     "Moves with only one legal reply; left out of accuracy, average loss and the tiers above",
   "report.keyMoments": "Key moments",
+  "report.details": "Details",
+  "report.classifications": "Move quality",
   "report.noMistakes": "No mistakes in this line.",
   "report.noFilteredMoments": "No key moments match these filters.",
   "report.whiteFallback": "White",
@@ -148,6 +160,8 @@ const EN: Record<ReviewStringKey, string> = {
   "filter.tierBlunders": "Blunders",
   "moments.prev": "Previous moment",
   "moments.next": "Next moment",
+  "moments.prevHint": "Previous moment ( {key} )",
+  "moments.nextHint": "Next moment ( {key} )",
   "moments.accessibleLabel": "Move {number}, {san}, {tier}, lost {loss} pawns",
   "moments.accessibleLabelNoLoss": "Move {number}, {san}, {tier}",
   "phase.opening": "Opening",
@@ -204,6 +218,9 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "panel.pausedSetup": "Pausado na configuração.",
   "panel.estimating": "estimando…",
   "panel.lineNote": "A linha analisada é uma variante, não a linha principal.",
+  "panel.actions": "Ações da análise",
+  "panel.depthGroup": "Profundidade",
+  "panel.emptyIdle": "Analisa cada lance com o motor: precisão, momentos-chave e um gráfico de avaliação.",
   "report.accuracy": "Precisão",
   "report.avgLoss": "Perda média",
   "report.avgLossTitle": "Perda média em centipeões por lance (quanto menor, melhor)",
@@ -216,6 +233,8 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "report.forcedTooltip":
     "Lances com apenas uma resposta legal; excluídos da precisão, da perda média e das faixas acima",
   "report.keyMoments": "Momentos-chave",
+  "report.details": "Detalhes",
+  "report.classifications": "Qualidade dos lances",
   "report.noMistakes": "Sem erros nesta linha.",
   "report.noFilteredMoments": "Nenhum momento-chave com estes filtros.",
   "report.whiteFallback": "Brancas",
@@ -239,6 +258,8 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "filter.tierBlunders": "Capivaradas",
   "moments.prev": "Momento anterior",
   "moments.next": "Próximo momento",
+  "moments.prevHint": "Momento anterior ( {key} )",
+  "moments.nextHint": "Próximo momento ( {key} )",
   "moments.accessibleLabel": "Lance {number}, {san}, {tier}, perda de {loss} peões",
   "moments.accessibleLabelNoLoss": "Lance {number}, {san}, {tier}",
   "phase.opening": "Abertura",
@@ -435,4 +456,12 @@ export function keyMomentAccessibleName(
   const template = tReview(locale, "moments.accessibleLabel");
   const loss = formatDecimal1(locale, args.lossCp / 100);
   return template.replace("{number}", number).replace("{san}", san).replace("{tier}", args.tier).replace("{loss}", loss);
+}
+
+/** "Previous moment ( [ )" / "Next moment ( ] )": tooltip text that names the keyboard shortcut. */
+export function momentNavHint(locale: SiteLocale, dir: "prev" | "next"): string {
+  return tReview(locale, dir === "prev" ? "moments.prevHint" : "moments.nextHint").replace(
+    "{key}",
+    dir === "prev" ? "[" : "]",
+  );
 }

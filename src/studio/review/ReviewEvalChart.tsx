@@ -14,7 +14,7 @@ import type { ReviewLabel } from "@/src/chess/review";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { formatDecimal1 } from "@/src/i18n/format";
 import type { Path } from "@/src/chess/tree";
-import { chartEvalText, chartPlyLabel, xAt, yAt } from "./review-chart";
+import { chartEvalText, chartPlyLabel, formatChartEval, groupMoments, xAt, yAt } from "./review-chart";
 
 export type ReviewChartMoment = {
   path: Path;
@@ -59,6 +59,11 @@ function momentTitle(
   return `${san} · ${tier} · -${loss}`;
 }
 
+/** One title per member, game order: a grouped marker lists every moment it stands for. */
+function groupTitle(locale: SiteLocale, moveNotation: MoveNotation, members: ReviewChartMoment[]): string {
+  return members.map((moment) => momentTitle(locale, moveNotation, moment)).join("\n");
+}
+
 export function ReviewEvalChart({
   series,
   plyPaths,
@@ -87,7 +92,7 @@ export function ReviewEvalChart({
       }
       setSize({
         width: Math.max(160, box.width),
-        height: Math.max(120, box.height),
+        height: Math.max(160, box.height),
       });
     });
     observer.observe(node);
@@ -131,12 +136,14 @@ export function ReviewEvalChart({
     }
   }
 
-  const hoveredMoment =
-    hover != null ? moments.find((moment) => moment.moveIndex + 1 === hover) : undefined;
+  const groups = groupMoments(moments);
+  const hoveredGroup =
+    hover != null ? groups.find((group) => group.members.some((moment) => moment.moveIndex + 1 === hover)) : undefined;
+  const hoveredText = hoveredGroup ? groupTitle(locale, moveNotation, hoveredGroup.members) : undefined;
   const hoverEval = hover != null && hover < count ? series[hover] : undefined;
 
   return (
-    <div className="relative flex h-40 min-h-0 flex-col bg-studio-panel text-studio-fg">
+    <div className="relative flex h-40 min-h-[160px] flex-col bg-studio-panel text-studio-fg">
       <div ref={wrapRef} className="relative min-h-0 flex-1">
         {count <= 1 ? (
           <div className="absolute inset-0 grid place-items-center text-dense text-studio-faint">{emptyText}</div>
@@ -170,6 +177,9 @@ export function ReviewEvalChart({
               stroke="var(--studio-border)"
               strokeWidth="1"
             />
+            <text x={2} y={zeroY - 3} fontSize="9" fill="var(--studio-faint)" data-zero-label>
+              {formatChartEval(locale, 0)}
+            </text>
             <path d={areaPath} fill="var(--studio-accent)" opacity="0.22" />
             <path d={linePath} fill="none" stroke="var(--studio-accent)" strokeWidth="2" />
             {separators.map((ply) =>
@@ -199,7 +209,8 @@ export function ReviewEvalChart({
             {currentIndex != null && xs[currentIndex] != null && ys[currentIndex] != null ? (
               <circle cx={xs[currentIndex]} cy={ys[currentIndex]} r="4" fill="var(--studio-fg)" />
             ) : null}
-            {moments.map((moment) => {
+            {groups.map((group) => {
+              const moment = group.lead;
               const ply = moment.moveIndex + 1;
               const x = xs[ply];
               const y = ys[ply];
@@ -208,8 +219,8 @@ export function ReviewEvalChart({
               }
               const tier = REVIEW_TIERS[moment.label];
               return (
-                <g key={moment.path.join(".")}>
-                  <title>{momentTitle(locale, moveNotation, moment)}</title>
+                <g key={moment.path.join(".")} data-moment-group={group.members.length}>
+                  <title>{groupTitle(locale, moveNotation, group.members)}</title>
                   <text
                     x={x}
                     y={y - 8}
@@ -232,8 +243,8 @@ export function ReviewEvalChart({
         )}
         {hover != null && count > 1 ? (
           <div className="pointer-events-none absolute right-2 top-2 rounded bg-studio-elevated px-2 py-1 text-caption text-studio-fg shadow">
-            {hoveredMoment ? (
-              momentTitle(locale, moveNotation, hoveredMoment)
+            {hoveredText ? (
+              <span className="whitespace-pre-line">{hoveredText}</span>
             ) : (
               <>
                 {chartPlyLabel(locale, hover)}{" "}
@@ -246,7 +257,7 @@ export function ReviewEvalChart({
         ) : null}
         {count > 1 && hover != null ? (
           <span className="sr-only" aria-live="polite">
-            {hoveredMoment ? momentTitle(locale, moveNotation, hoveredMoment) : chartPlyLabel(locale, hover)}
+            {hoveredText ? hoveredText.replace(/\n/g, ", ") : chartPlyLabel(locale, hover)}
           </span>
         ) : null}
       </div>

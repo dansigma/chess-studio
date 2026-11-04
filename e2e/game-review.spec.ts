@@ -37,6 +37,12 @@ const TRAIN_GAME = `${HEADERS("Review Train")}
 
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. Nbd2 *`;
 
+/** Depth lives in the "⋯" actions menu (SIG-1205). */
+async function selectDepth(page: import("@playwright/test").Page | import("@playwright/test").Locator, name: string) {
+  await page.getByRole("button", { name: "Review actions", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: new RegExp(`^${name}`) }).click();
+}
+
 async function importGame(
   page: import("@playwright/test").Page,
   pgn: string,
@@ -54,9 +60,32 @@ async function importGame(
 
   await page.getByRole("button", { name: title, exact: true }).click();
   await page.getByRole("tab", { name: "Game Review", exact: true }).click();
-  await expect(page.getByLabel("Review depth")).toBeVisible();
-  await page.getByLabel("Review depth").selectOption("fast");
+  await selectDepth(page, "Fast");
 }
+
+test("actions menu: depth radios, report items disabled until a report exists, no share row", async ({ page }) => {
+  await importGame(page, RUN_GAME, "Review Run");
+  await expect(page.getByText(/Reviews every move with the engine/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Review actions", exact: true }).click();
+  const menu = page.getByRole("menu", { name: "Review actions" });
+  await expect(menu.getByRole("menuitemradio", { name: /^Fast/ })).toHaveAttribute("aria-checked", "true");
+  for (const name of ["Annotate game", "Undo annotations", "Copy report image", "Download report image", "Copy summary"]) {
+    await expect(menu.getByRole("menuitem", { name, exact: true })).toBeDisabled();
+  }
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Review game", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Share", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-expanded", "false");
+
+  await page.getByRole("button", { name: "Review actions", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "Copy summary", exact: true })).toBeEnabled();
+  await page.getByRole("menuitem", { name: "Annotate game", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
 
 test("review run shows progress then the report and chart", async ({ page }) => {
   await importGame(page, RUN_GAME, "Review Run");

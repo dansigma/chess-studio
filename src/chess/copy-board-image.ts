@@ -3,6 +3,8 @@ export async function boardPngBlob(element: HTMLElement): Promise<Blob> {
   const blob = await toBlob(element, {
     pixelRatio: 2,
     cacheBust: true,
+    // Nodes marked data-export-ignore (e.g. in-panel banners) stay out of the PNG.
+    filter: (node) => (node as Partial<HTMLElement>).dataset?.exportIgnore === undefined,
   });
   if (!blob) {
     throw new Error("Could not create the board image");

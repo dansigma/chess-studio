@@ -6,6 +6,7 @@ import { KEY_MOMENT_LABELS } from "@/src/chess/review-report";
 import { tReview } from "@/src/chess/review-strings";
 import { formatDecimal1, formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
+import type { ReviewLabel } from "@/src/chess/review";
 import type { KeyMomentRow } from "./ReviewReportCard";
 
 export const REVIEW_CHART_CAP = 5;
@@ -120,4 +121,55 @@ export function prevNextIndices(count: number, current: number | null): { prev: 
     prev: current > 0 ? current - 1 : null,
     next: current < count - 1 ? current + 1 : null,
   };
+}
+
+/** Markers closer than this many plies collapse into one grouped marker. */
+export const MOMENT_GROUP_GAP_PLIES = 3;
+
+/** Higher = worse. Drives which tier's mark a grouped marker shows. */
+const MOMENT_SEVERITY: Partial<Record<ReviewLabel, number>> = {
+  brilliant: 0,
+  inaccuracy: 1,
+  mistake: 2,
+  miss: 3,
+  blunder: 4,
+};
+
+export type GroupableMoment = { moveIndex: number; label: ReviewLabel; lossCp: number };
+
+export type MomentGroup<T extends GroupableMoment> = {
+  /** Members in game order (always at least one). */
+  members: T[];
+  /** The member whose tier mark represents the group: worst tier, then biggest loss, then earliest. */
+  lead: T;
+};
+
+/**
+ * Collapses visible moment markers that sit less than `gap` plies apart
+ * (chained: each marker is compared with the previous one in game order).
+ * Isolated markers come back as single-member groups, so the chart can render
+ * every group the same way. Input order does not matter; output is game order.
+ */
+export function groupMoments<T extends GroupableMoment>(moments: T[], gap: number = MOMENT_GROUP_GAP_PLIES): Array<MomentGroup<T>> {
+  const sorted = [...moments].sort((a, b) => a.moveIndex - b.moveIndex);
+  const groups: Array<T[]> = [];
+  for (const moment of sorted) {
+    const current = groups[groups.length - 1];
+    if (current && moment.moveIndex - current[current.length - 1].moveIndex < gap) {
+      current.push(moment);
+    } else {
+      groups.push([moment]);
+    }
+  }
+  return groups.map((members) => {
+    let lead = members[0];
+    for (const member of members.slice(1)) {
+      const a = MOMENT_SEVERITY[member.label] ?? -1;
+      const b = MOMENT_SEVERITY[lead.label] ?? -1;
+      if (a > b || (a === b && member.lossCp > lead.lossCp)) {
+        lead = member;
+      }
+    }
+    return { members, lead };
+  });
 }
