@@ -101,7 +101,7 @@ export function phaseSeparators(rows: Array<{ phase: GamePhase }>): number[] {
 export type MomentFilter = { side: SideFilter; tierGroup: TierGroup };
 
 /** Narrows key moments by side then tier group; forced/book/null labels never pass. */
-export function filterKeyMoments<T extends KeyMomentRow>(moments: T[], filter: MomentFilter): T[] {
+export function filterKeyMoments<T extends Pick<KeyMomentRow, "side" | "label">>(moments: T[], filter: MomentFilter): T[] {
   const bySide = filter.side === "both" ? moments : moments.filter((row) => row.side === filter.side);
   if (filter.tierGroup === "all") {
     // Input is normally already keyMoments(), but still exclude forced/book/null

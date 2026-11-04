@@ -116,13 +116,19 @@ test("review cancel stops the run and offers resume", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Resume review/ })).toBeVisible();
 });
 
-test("key-moment navigation shows the Why? explanation", async ({ page }) => {
+test("key-moment navigation shows the Why? explanation inline under the active row (SIG-1208)", async ({ page }) => {
   await importGame(page, MOMENTS_GAME, "Review Moments");
 
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({
     timeout: 30_000,
   });
+
+  // The board starts at the end of the game, which is not a key moment: no
+  // inline explanation, just the collapsed "Current move" row.
+  await expect(page.getByRole("region", { name: "Why?", exact: true })).toHaveCount(0);
+  const current = page.getByRole("button", { name: /^Current move/ });
+  await expect(current).toHaveAttribute("aria-expanded", "false");
 
   const next = page.getByRole("button", { name: "Next moment", exact: true });
   const prev = page.getByRole("button", { name: "Previous moment", exact: true });
@@ -136,7 +142,23 @@ test("key-moment navigation shows the Why? explanation", async ({ page }) => {
     await prev.click();
   }
 
-  await expect(page.getByText("Why?", { exact: true }).first()).toBeVisible();
+  // The explanation sits inside the key-moments list, under the active row.
+  const active = page.locator('li > button[aria-current="true"]');
+  await expect(active).toHaveCount(1);
+  const why = page.getByRole("region", { name: "Why?", exact: true });
+  await expect(why).toBeVisible();
+  await expect(page.getByRole("group", { name: "Key moments" }).getByRole("region", { name: "Why?" })).toHaveCount(1);
+  // One line per row: eval before -> after is on the button.
+  await expect(active).toContainText("→");
+
+  // Clicking the active row collapses the explanation, clicking again reopens it.
+  await active.click();
+  await expect(why).toHaveCount(0);
+  await active.click();
+  await expect(why).toBeVisible();
+
+  // On a key moment the standalone "Current move" row is gone.
+  await expect(current).toHaveCount(0);
 });
 
 test("a fresh review offers to train the captured mistakes (SIG-1206)", async ({ page }) => {

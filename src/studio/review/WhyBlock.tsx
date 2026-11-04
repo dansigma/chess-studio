@@ -2,13 +2,13 @@
 
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
-import { explainMove, isHighlightLabel } from "@/src/chess/explain/explain-move";
+import { explainMove } from "@/src/chess/explain/explain-move";
 import { lineToSan } from "@/src/chess/explain/gather";
 import type { ExplainLocale } from "@/src/chess/explain/locale";
 import { renderExplanation, uiText } from "@/src/chess/explain/render";
 import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
 import { REVIEW_TIERS } from "@/src/chess/review-tiers";
-import { tierName } from "@/src/chess/review-strings";
+import { tierName, tReview } from "@/src/chess/review-strings";
 import type { ReviewMoveRow } from "./useGameReview";
 import { marksForStatement } from "./why-marks";
 import { useWhyHover } from "./useWhyHover";
@@ -40,17 +40,18 @@ function moveNumberLabel(fen: string, ply: number): string | null {
   return ply === 0 ? `${number}...` : null;
 }
 
-export function WhyBlock({ row, fenBefore, fenAfter, previous, locale, moveNotation, onPlayLine }: Props) {
-  const [open, setOpen] = useState(() => isHighlightLabel(row.label));
+/**
+ * The explanation itself, without a header: summary, sections and the clickable
+ * best line. Rendered inline under a key-moment row and inside the collapsible
+ * {@link WhyBlock}. Mount it only while it is visible — it computes on mount.
+ */
+export function WhyBody({ row, fenBefore, fenAfter, previous, locale, moveNotation, onPlayLine }: Props) {
   const setHover = useWhyHover(fenBefore, fenAfter);
 
   const mover = row.side;
   const sign = mover === "w" ? 1 : -1;
-  // Computed lazily — only the selected move, and only while the block is open.
+  // Computed lazily — only for the visible move.
   const rendered = useMemo(() => {
-    if (!open) {
-      return null;
-    }
     const explanation = explainMove({
       fenBefore,
       playedUci: row.playedUci,
@@ -63,11 +64,80 @@ export function WhyBlock({ row, fenBefore, fenAfter, previous, locale, moveNotat
     return explanation
       ? renderExplanation(locale, explanation, { formatSan: (san) => formatSan(san, moveNotation, mover) })
       : null;
-  }, [open, fenBefore, row, previous, locale, moveNotation, mover, sign]);
+  }, [fenBefore, row, previous, locale, moveNotation, mover, sign]);
 
-  const line = useMemo(() => (open ? lineToSan(fenBefore, row.bestPv.slice(0, LINE_PLIES)) : []), [open, fenBefore, row.bestPv]);
+  const line = useMemo(() => lineToSan(fenBefore, row.bestPv.slice(0, LINE_PLIES)), [fenBefore, row.bestPv]);
+
+  if (!rendered) {
+    return null;
+  }
+  return (
+    <div className="space-y-3 px-3 pb-3">
+      <p className="text-dense text-studio-muted">{rendered.summary}</p>
+      {rendered.confident ? (
+        rendered.sections.map((section) => (
+          <div key={section.id}>
+            <div className="pb-1 text-caption uppercase tracking-wide text-studio-faint">{section.title}</div>
+            <ul className="space-y-0.5">
+              {section.items.map((item, index) => {
+                const marks = marksForStatement(item.statement, section.id);
+                const hover = () => setHover({ marks, at: item.statement.highlight.at });
+                return (
+                  <li
+                    key={`${item.statement.id}-${index}`}
+                    tabIndex={0}
+                    className="cursor-default rounded px-1.5 py-1 text-dense hover:bg-studio-hover focus:bg-studio-hover focus:outline-none"
+                    onMouseEnter={hover}
+                    onMouseLeave={() => setHover(null)}
+                    onFocus={hover}
+                    onBlur={() => setHover(null)}
+                  >
+                    {item.text}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))
+      ) : (
+        <p className="text-caption text-studio-faint">{uiText(locale, "engineOnly")}</p>
+      )}
+      {line.length > 0 ? (
+        <div>
+          <div className="pb-1 text-caption uppercase tracking-wide text-studio-faint">{uiText(locale, "bestLine")}</div>
+          <div className="flex flex-wrap gap-x-1 gap-y-0.5">
+            {line.map((entry, ply) => {
+              const number = moveNumberLabel(fenBefore, ply);
+              const side = (ply % 2 === 0) === (mover === "w") ? "w" : "b";
+              return (
+                <button
+                  key={`${entry.uci}-${ply}`}
+                  type="button"
+                  className="rounded px-1 text-dense text-studio-fg hover:bg-studio-hover"
+                  onClick={() => onPlayLine(row.bestPv.slice(0, line.length), ply)}
+                >
+                  {number ? <span className="text-studio-faint">{number}</span> : null}
+                  {formatSan(entry.san, moveNotation, side)}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <p className="text-caption text-studio-faint">{uiText(locale, "noLine")}</p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Collapsed-by-default "Current move" row for a reviewed move that is not a key
+ * moment (key moments show {@link WhyBody} inline in the list).
+ */
+export function WhyBlock(props: Props) {
+  const [open, setOpen] = useState(false);
+  const { row, locale, moveNotation } = props;
   const tier = row.label ? REVIEW_TIERS[row.label] : null;
-
   return (
     <div className="border-b border-studio-border-subtle">
       <button
@@ -77,69 +147,13 @@ export function WhyBlock({ row, fenBefore, fenAfter, previous, locale, moveNotat
         onClick={() => setOpen((value) => !value)}
       >
         {open ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
-        <span className="text-dense font-semibold">{uiText(locale, "why")}</span>
+        <span className="text-dense font-semibold">{tReview(locale, "moments.currentMove")}</span>
         <span className="ml-auto flex items-center gap-1.5 text-caption text-studio-faint">
-          <span className="font-medium text-studio-fg">{formatSan(row.san, moveNotation, mover)}</span>
+          <span className="font-medium text-studio-fg">{formatSan(row.san, moveNotation, row.side)}</span>
           {tier && row.label ? <span className={tier.className}>{tierName(locale, row.label)}</span> : null}
         </span>
       </button>
-      {open && rendered ? (
-        <div className="space-y-3 px-3 pb-3">
-          <p className="text-dense text-studio-muted">{rendered.summary}</p>
-          {rendered.confident ? (
-            rendered.sections.map((section) => (
-              <div key={section.id}>
-                <div className="pb-1 text-caption uppercase tracking-wide text-studio-faint">{section.title}</div>
-                <ul className="space-y-0.5">
-                  {section.items.map((item, index) => {
-                    const marks = marksForStatement(item.statement, section.id);
-                    const hover = () => setHover({ marks, at: item.statement.highlight.at });
-                    return (
-                      <li
-                        key={`${item.statement.id}-${index}`}
-                        tabIndex={0}
-                        className="cursor-default rounded px-1.5 py-1 text-dense hover:bg-studio-hover focus:bg-studio-hover focus:outline-none"
-                        onMouseEnter={hover}
-                        onMouseLeave={() => setHover(null)}
-                        onFocus={hover}
-                        onBlur={() => setHover(null)}
-                      >
-                        {item.text}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))
-          ) : (
-            <p className="text-caption text-studio-faint">{uiText(locale, "engineOnly")}</p>
-          )}
-          {line.length > 0 ? (
-            <div>
-              <div className="pb-1 text-caption uppercase tracking-wide text-studio-faint">{uiText(locale, "bestLine")}</div>
-              <div className="flex flex-wrap gap-x-1 gap-y-0.5">
-                {line.map((entry, ply) => {
-                  const number = moveNumberLabel(fenBefore, ply);
-                  const side = (ply % 2 === 0) === (mover === "w") ? "w" : "b";
-                  return (
-                    <button
-                      key={`${entry.uci}-${ply}`}
-                      type="button"
-                      className="rounded px-1 text-dense text-studio-fg hover:bg-studio-hover"
-                      onClick={() => onPlayLine(row.bestPv.slice(0, line.length), ply)}
-                    >
-                      {number ? <span className="text-studio-faint">{number}</span> : null}
-                      {formatSan(entry.san, moveNotation, side)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <p className="text-caption text-studio-faint">{uiText(locale, "noLine")}</p>
-          )}
-        </div>
-      ) : null}
+      {open ? <WhyBody {...props} /> : null}
     </div>
   );
 }

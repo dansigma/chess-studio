@@ -29,7 +29,9 @@ import {
   type TierGroup,
 } from "./review/review-chart";
 import { useGameReview } from "./review/useGameReview";
-import { WhyBlock } from "./review/WhyBlock";
+import { WhyBlock, WhyBody } from "./review/WhyBlock";
+import { momentBestSan } from "./review/key-moment-format";
+import type { KeyMomentRow } from "./review/ReviewReportCard";
 import { DeviationAction, DeviationLine } from "./review/DeviationLine";
 import { deviationReviewText } from "@/src/lib/my-games/deviation-for-game";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
@@ -353,6 +355,15 @@ export function ReviewPanel() {
     const found = filteredMoments.findIndex((row) => pathsEqual(row.path, board.path));
     return found === -1 ? null : found;
   }, [filteredMoments, board.path]);
+  // SIG-1208: one-line rows also show evals and the engine's alternative.
+  const momentRows = useMemo<KeyMomentRow[]>(
+    () =>
+      filteredMoments.map((row) => ({
+        ...row,
+        bestSan: momentBestSan(points[row.index]?.fen ?? "", row.playedUci, row.bestPv),
+      })),
+    [filteredMoments, points],
+  );
   const { prevMomentIndex, nextMomentIndex } = useMemo(() => {
     if (selectedMomentIndex != null) {
       const { prev, next } = prevNextIndices(filteredMoments.length, selectedMomentIndex);
@@ -651,10 +662,24 @@ export function ReviewPanel() {
             <div ref={reportRef} className="bg-studio-panel">
               <ReportSummary report={report} locale={locale} openingName={openingName} lineNote={lineNote} />
               <KeyMomentsList
-                moments={filteredMoments}
+                moments={momentRows}
                 moveNotation={moveNotation}
                 locale={locale}
                 onSelectMoment={goPath}
+                explanation={
+                  selected && selectedContext && selectedMomentIndex != null && !running ? (
+                    <WhyBody
+                      key={selected.path.join(".")}
+                      row={selected}
+                      fenBefore={selectedContext.fenBefore}
+                      fenAfter={selectedContext.fenAfter}
+                      previous={selectedContext.previous}
+                      locale={locale}
+                      moveNotation={moveNotation}
+                      onPlayLine={playLine}
+                    />
+                  ) : null
+                }
                 selectedPath={board.path}
                 hasUnfilteredMoments={moments.length > 0}
                 startFen={board.tree.startFen}
@@ -663,7 +688,7 @@ export function ReviewPanel() {
             {/* SIG-1206: after the key moments (so the first moment stays above
                 the fold) and outside reportRef (so it never lands in the PNG). */}
             {trainBanner ? <TrainMistakesBanner banner={trainBanner} locale={locale} /> : null}
-            {selected && selectedContext && !running ? (
+            {selected && selectedContext && selectedMomentIndex == null && !running ? (
               <WhyBlock
                 key={selected.path.join(".")}
                 row={selected}

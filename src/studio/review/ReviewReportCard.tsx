@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
 import { REPORT_PHASES, type ReviewReport, type SideReport } from "@/src/chess/review-report";
@@ -15,6 +15,7 @@ import { REVIEW_TIERS } from "@/src/chess/review-tiers";
 import { REVIEW_LABELS, type ReviewLabel, type TierLabel } from "@/src/chess/review";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { formatDecimal1, formatInteger } from "@/src/i18n/format";
+import { formatMomentEval, momentBestLabel, momentNumberLabel } from "./key-moment-format";
 import { moveNumberForPath, pathsEqual, type Path } from "@/src/chess/tree";
 
 export type KeyMomentRow = {
@@ -26,6 +27,11 @@ export type KeyMomentRow = {
   index: number;
   /** Centipawns lost on this move (ReviewRow.lossCp) — drives the "lost X pawns" clause. */
   lossCp: number;
+  /** White-perspective eval (pawns) of the best line before the move / of the position after it. */
+  beforePawns: number;
+  afterPawns: number;
+  /** SAN of the engine's first choice from the position before the move; null when it equals the played move. */
+  bestSan: string | null;
 };
 
 /** One decimal, so 86 shows as 86.0 (en) / 86,0 (pt-br) like the other column. */
@@ -285,6 +291,8 @@ type MomentsProps = {
   hasUnfilteredMoments?: boolean;
   /** Tree start FEN, used to derive display move numbers via moveNumberForPath. */
   startFen: string;
+  /** SIG-1208: the "Why?" body for the active row, rendered inline under it (never exported to the PNG). */
+  explanation?: ReactNode;
 };
 
 export function KeyMomentsList({
@@ -295,7 +303,15 @@ export function KeyMomentsList({
   selectedPath = null,
   hasUnfilteredMoments = false,
   startFen,
+  explanation = null,
 }: MomentsProps) {
+  // Clicking the active row collapses its explanation; the flag belongs to one
+  // row and resets as soon as the board moves to another path.
+  const [collapsedKey, setCollapsedKey] = useState<string | null>(null);
+  const selectedKey = selectedPath ? selectedPath.join(".") : null;
+  if (collapsedKey != null && collapsedKey !== selectedKey) {
+    setCollapsedKey(null);
+  }
   return (
     // The label sits in the same 88px column as the table's row labels, which
     // keeps the first moment right under the rating row (compact dock panel).
@@ -323,23 +339,49 @@ export function KeyMomentsList({
               tier: tierName(locale, row.label),
               lossCp: row.lossCp,
             });
+            const key = row.path.join(".");
+            const bestLabel = momentBestLabel(locale, moveNotation, row.side, row.bestSan);
+            const open = active && explanation != null && collapsedKey !== key;
+            const sanText = formatSan(row.san, moveNotation, row.side);
             return (
-              <li key={row.path.join(".")}>
+              <li key={key}>
                 <button
                   type="button"
                   aria-current={active ? "true" : undefined}
+                  aria-expanded={active && explanation != null ? open : undefined}
                   aria-label={accessibleName}
-                  className={`flex w-full items-center gap-2 pr-3 py-0.5 text-left hover:bg-studio-hover${
+                  title={bestLabel ? `${sanText} · ${bestLabel}` : undefined}
+                  className={`flex w-full items-center gap-2 whitespace-nowrap pr-3 py-0.5 text-left hover:bg-studio-hover${
                     active ? " bg-studio-hover-strong" : ""
                   }`}
-                  onClick={() => onSelectMoment(row.path)}
+                  onClick={() => (active ? setCollapsedKey(open ? key : null) : onSelectMoment(row.path))}
                 >
-                  <span aria-hidden className={`w-6 text-center font-semibold ${tier.className}`}>
+                  <span aria-hidden className={`w-6 shrink-0 text-center font-semibold ${tier.className}`}>
                     {tier.mark}
                   </span>
-                  <span className="font-medium">{formatSan(row.san, moveNotation, row.side)}</span>
-                  <span className="ml-auto text-caption text-studio-faint">{tierName(locale, row.label)}</span>
+                  <span aria-hidden className="shrink-0 font-medium">
+                    <span className="mr-0.5 text-studio-faint">{momentNumberLabel(moveNumber, row.side)}</span>
+                    {sanText}
+                  </span>
+                  <span aria-hidden className="shrink-0 text-caption tabular-nums text-studio-muted">
+                    {formatMomentEval(locale, row.beforePawns)} → {formatMomentEval(locale, row.afterPawns)}
+                  </span>
+                  {bestLabel ? (
+                    <span aria-hidden className="ml-auto min-w-0 truncate text-caption text-studio-faint">
+                      {bestLabel}
+                    </span>
+                  ) : null}
                 </button>
+                {open ? (
+                  <div
+                    data-export-ignore
+                    role="region"
+                    aria-label={tReview(locale, "moments.whyRegion")}
+                    className="border-l-2 border-studio-border-subtle pb-1 pl-2"
+                  >
+                    {explanation}
+                  </div>
+                ) : null}
               </li>
             );
           })}
