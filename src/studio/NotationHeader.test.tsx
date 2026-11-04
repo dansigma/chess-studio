@@ -17,7 +17,7 @@ test("over-the-board game renders both lines", () => {
   assert.ok(screen.getByText("GM"));
   assert.ok(screen.getByText("C91"));
   const info = screen.getByTestId("notation-header-info");
-  assert.equal(info.getAttribute("title"), "Over the board · Biel GM · R5 · Biel SUI · Jul 17, 2005 · C91 Ruy Lopez");
+  assert.equal(info.getAttribute("title"), "Over the board · Biel GM · R5 · Jul 17, 2005 · C91 Ruy Lopez");
   assert.equal(info.querySelector("a"), null);
 });
 

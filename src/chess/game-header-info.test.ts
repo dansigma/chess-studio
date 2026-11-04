@@ -56,7 +56,7 @@ test("over the board headers", () => {
   assert.deepEqual(info.source, { kind: "otb", label: "Over the board" });
   assert.equal(info.event, "Biel GM");
   assert.equal(info.round, "R5");
-  assert.equal(info.site, "Biel SUI");
+  assert.equal(info.site, null, "the event already names the city");
   assert.equal(info.date?.text, "Jul 17, 2005");
   assert.equal(info.eco, "C91");
   assert.equal(info.timeControl, null);
@@ -109,4 +109,9 @@ test("time control and titles", () => {
   assert.equal(formatTimeControl("5400+30", "en")?.text, "90+30 Classical");
   assert.equal(gameHeaderInfo({ WhiteTitle: "GM", BlackTitle: "BOT" }).whiteTitle, "GM");
   assert.equal(gameHeaderInfo({ WhiteTitle: "GM", BlackTitle: "BOT" }).blackTitle, null);
+});
+
+test("site drops the country code and stays when the event does not name the city", () => {
+  const info = gameHeaderInfo({ Event: "Tata Steel Masters", Site: "Wijk aan Zee NED", Date: "2024.01.20" });
+  assert.equal(info.site, "Wijk aan Zee");
 });

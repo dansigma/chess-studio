@@ -174,7 +174,11 @@ export function gameHeaderInfo(headers: Record<string, string>, locale: SiteLoca
   const online = source !== null && source.kind !== "otb";
   const event = rawEvent && !GENERIC_EVENT.test(rawEvent) && !isUrl(rawEvent) ? rawEvent : null;
   const round = real(headers.Round);
-  const site = !online && rawSite && !isUrl(rawSite) && rawSite !== event ? rawSite : null;
+  // No country names in the header: drop a trailing IOC/FIDE code ("Biel SUI"
+  // → "Biel"), and skip the city when the event already names it ("Biel GM").
+  const city = rawSite && !isUrl(rawSite) ? rawSite.replace(/[\s,]+[A-Z]{3}$/, "").trim() : null;
+  const site =
+    !online && city && !(event ?? "").toLowerCase().includes(city.toLowerCase()) ? city : null;
   const ecoRaw = real(headers.ECO)?.toUpperCase();
   const eco = ecoRaw && /^[A-E]\d{2}$/.test(ecoRaw) ? ecoRaw : null;
   const named = real(headers.Opening) ?? chesscomOpeningNameFromUrl(real(headers.ECOUrl));
