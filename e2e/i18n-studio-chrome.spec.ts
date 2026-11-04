@@ -25,6 +25,10 @@ test("studio chrome renders Portuguese with the pt-br locale stored", async ({ p
   await expect(page.getByRole("button", { name: "Buscar" }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Tabuleiros abertos" }).first()).toBeVisible();
 
+  // SIG-1201: site navigation links in the activity bar are translated.
+  await expect(page.getByRole("link", { name: "Cursos", exact: true })).toHaveAttribute("href", "/courses");
+  await expect(page.getByRole("link", { name: "Exercícios", exact: true })).toHaveAttribute("href", "/puzzles");
+
   // File menu items are translated.
   await menubar.getByRole("button", { name: "Arquivo", exact: true }).click();
   await expect(page.getByRole("menuitem", { name: /Novo tabuleiro vazio/ })).toBeVisible();

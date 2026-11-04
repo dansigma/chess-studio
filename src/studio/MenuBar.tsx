@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Copy, Link2 } from "lucide-react";
 import { signOut } from "@/app/login/actions";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectDirtyCount, useStudioStore } from "@/src/store/studio-store";
-import { SITE_NAME, siteSections } from "@/src/site/sections";
+import { SITE_NAME } from "@/src/site/sections";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 import { BrandLockup } from "./ui/BrandLockup";
@@ -17,7 +18,7 @@ import { MenuBarFileMenu } from "./MenuBarFileMenu";
 import { MenuBarEditMenu } from "./MenuBarEditMenu";
 import { MenuBarViewMenu } from "./MenuBarViewMenu";
 
-type MenuKey = "site" | "file" | "edit" | "view" | "help" | "account" | null;
+type MenuKey = "file" | "edit" | "view" | "help" | "account" | null;
 type ViewSubmenu = "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
 
 const TOP_MENUS = [
@@ -46,8 +47,8 @@ export function MenuBar({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const router = useRouter();
   // SIG-857: root subscribes narrowly — only the account pill (user/email,
-  // boardCount, dirtyCount), the help item (setAboutOpen), and the site nav
-  // locale (SIG-962) need store values here. File/edit/view menus own their
+  // boardCount, dirtyCount), the help item (setAboutOpen), and the locale
+  // (SIG-962) need store values here. File/edit/view menus own their
   // subscriptions in MenuBarFileMenu/MenuBarEditMenu/MenuBarViewMenu, so the
   // closed menubar no longer re-renders on board or unrelated settings changes
   // (locale changes do re-render the nav labels, by design).
@@ -133,31 +134,15 @@ export function MenuBar({
     // SIG-1198: the menubar sits on the canvas colour with no divider, so the
     // panels below read as one surface with the header.
     <div className="relative z-[1000] flex h-9 items-center gap-0.5 bg-studio-bg px-2 text-body text-studio-fg">
-      {/* SIG-1197: the site sections (Cursos, Exercícios) live under the brand,
-          so the menubar holds only this document's menus. */}
+      {/* SIG-1201: plain branding; the site sections (Studio, Courses, Puzzles)
+          live in the activity bar. "/" redirects to /studio. */}
       <div className="relative z-20 mr-2">
-        <button
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded={open === "site"}
-          aria-label={tStudioChrome(locale, "chrome.menu.site")}
-          onClick={() => toggleMenu("site")}
-          className={`flex h-[26px] items-center gap-1 rounded-md pl-1.5 pr-1 ${
-            open === "site" ? "bg-studio-hover-strong" : "hover:bg-studio-hover-strong"
-          }`}
+        <Link
+          href="/"
+          className="flex h-[26px] items-center rounded-md pl-1.5 pr-1 hover:bg-studio-hover-strong"
         >
           <BrandLockup />
-          <ChevronDown size={12} className="text-studio-faint" aria-hidden="true" />
-        </button>
-        {open === "site" ? (
-          <MenuSurface className="absolute left-0 top-[calc(100%+5px)] min-w-48" onClose={close}>
-            {siteSections(locale)
-              .filter((section) => section.href !== "/studio")
-              .map((section) => (
-                <Item key={section.href} label={section.label} onClick={run(() => router.push(section.href))} />
-              ))}
-          </MenuSurface>
-        ) : null}
+        </Link>
       </div>
 
       {open ? (
@@ -177,7 +162,7 @@ export function MenuBar({
             }`}
             onClick={() => toggleMenu(key)}
             onMouseEnter={() => {
-              if (open && open !== key && open !== "account" && open !== "site") {
+              if (open && open !== key && open !== "account") {
                 setViewSub(null);
                 setOpen(key);
               }

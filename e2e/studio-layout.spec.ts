@@ -188,3 +188,30 @@ test.describe("studio layout: tight panel gaps and resize cursors", () => {
     expect(overflow).toBeLessThanOrEqual(1);
   });
 });
+
+/**
+ * SIG-1201: the site sections moved from the brand popover to the activity
+ * bar; the brand is plain branding.
+ */
+test.describe("studio site navigation (SIG-1201)", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test("activity bar links to Courses and Puzzles, Studio is current, brand opens no menu", async ({
+    page,
+  }) => {
+    await page.goto("/studio");
+    const group = page.getByRole("group", { name: "Xadrez Digital" });
+    await expect(group.getByRole("link", { name: "Courses" })).toHaveAttribute("href", "/courses");
+    await expect(group.getByRole("link", { name: "Puzzles" })).toHaveAttribute("href", "/puzzles");
+    await expect(group.getByRole("link", { name: "Studio" })).toHaveAttribute("aria-current", "page");
+    await expect(group.getByRole("link", { name: "Courses" })).not.toHaveAttribute("aria-current", "page");
+
+    const brand = page.locator("div.z-\\[1000\\]").first().getByRole("link", { name: /Xadrez/ });
+    await expect(brand).toHaveAttribute("href", "/");
+    await expect(brand).not.toHaveAttribute("aria-haspopup", /.*/);
+    await brand.click();
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    // "/" redirects back to /studio.
+    await expect(page).toHaveURL(/\/studio$/);
+  });
+});
