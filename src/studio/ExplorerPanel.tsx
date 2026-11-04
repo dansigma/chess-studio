@@ -114,6 +114,13 @@ function ExplorerChrome({
   onDuplicate: () => void;
 }) {
   const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
+  // SIG-1211: the Chess.com source has no global database — it indexes the
+  // games of the Chess.com player loaded via search, so name that player in
+  // the selector and explain the empty state when none is loaded.
+  const chesscomPlayer = useStudioStore((state) =>
+    state.playerProfile?.source === "chesscom" ? state.playerProfile.username : null,
+  );
+  const chesscomNeedsPlayer = effectiveSource === "chesscom" && chesscomPlayer === null;
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const filters = useStudioStore((state) => state.settings.explorerFilters);
@@ -188,7 +195,11 @@ function ExplorerChrome({
             <option value="curated">{tPanels(locale, "explorer.source.curated")}</option>
             <option value="masters">{tPanels(locale, "explorer.source.masters")}</option>
             <option value="lichess">{tPanels(locale, "explorer.source.lichess")}</option>
-            <option value="chesscom">{tPanels(locale, "explorer.source.chesscom")}</option>
+            <option value="chesscom">
+              {chesscomPlayer
+                ? `${tPanels(locale, "explorer.source.chesscom")} · ${chesscomPlayer}`
+                : tPanels(locale, "explorer.source.chesscom")}
+            </option>
             {databases.map((database) => (
               <option key={database.id} value={fileExplorerSource(database.id)}>
                 {database.name}
@@ -242,7 +253,9 @@ function ExplorerChrome({
           <div className="px-3 py-4 text-dense text-studio-faint" role="status">{tPanels(locale, "explorer.loadingLabel")}</div>
         ) : null}
         {!loading && !error && !hasMoves ? (
-          <div className="px-3 py-4 text-dense text-studio-faint">{tPanels(locale, "explorer.empty")}</div>
+          <div className="px-3 py-4 text-dense text-studio-faint">
+            {tPanels(locale, chesscomNeedsPlayer ? "explorer.chesscom.needPlayer" : "explorer.empty")}
+          </div>
         ) : null}
         {explorer?.moves.map((row) => {
           const share = totalGames > 0 ? (row.games / totalGames) * 100 : 0;

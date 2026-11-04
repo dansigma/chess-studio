@@ -98,9 +98,9 @@ test("studio results are capped at MAX_PLAYER_GAMES", async () => {
   state.studioCount = 150;
   const res = await loadPlayerGames("studio", "Capped");
   state.studioCount = 1;
-  assert.equal(res.games.length, 80);
+  assert.equal(res.games.length, 100);
   assert.equal(res.truncated, true);
-  assert.equal(res.notice, "Showing the 80 most recent Studio games.");
+  assert.equal(res.notice, "Showing the 100 most recent Studio games.");
   assert.equal(res.games[0].id, "s149", "most recent kept");
 });
 
