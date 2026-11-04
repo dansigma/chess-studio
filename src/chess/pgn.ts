@@ -48,6 +48,12 @@ function tagValueToString(value: unknown): string | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return String(value);
   }
+  // SIG-1212: the parser returns TimeControl as an array of periods
+  // ("40/7200:900" -> two entries). Join them back so the header survives.
+  if (Array.isArray(value)) {
+    const parts = value.map(tagValueToString).filter((part): part is string => Boolean(part));
+    return parts.length ? parts.join(":") : null;
+  }
   if (!isRecord(value)) {
     return null;
   }

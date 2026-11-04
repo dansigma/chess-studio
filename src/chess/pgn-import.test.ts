@@ -111,3 +111,9 @@ test("merging games fills an empty pre-game comment but never overwrites", () =>
   assert.ok(keepFirst);
   assert.equal(keepFirst.tree.startComment, "startA");
 });
+
+test("TimeControl header survives import (SIG-1212)", () => {
+  assert.equal(importPgn('[TimeControl "180+2"]\n\n1. e4 *').headers.TimeControl, "180+2");
+  assert.equal(importPgn('[TimeControl "60"]\n\n1. e4 *').headers.TimeControl, "60");
+  assert.equal(importPgn('[TimeControl "40/7200:900"]\n\n1. e4 *').headers.TimeControl, "40/7200:900");
+});
