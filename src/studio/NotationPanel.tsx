@@ -14,7 +14,6 @@ import { NOTATION_INLINE_MIN_WIDTH, usePanelSize } from "./use-panel-size";
 import { NotationContextMenu, notationMenuEnablement, type NotationMenuState } from "./NotationContextMenu";
 import { pgnResultCaption } from "./ResultMark";
 import { Line, TableMainline } from "./NotationMoves";
-import { displayDate, displayEvent } from "./notation-format";
 import { useNotationCommentDraft } from "./use-notation-comment-draft";
 
 export function NotationPanel() {
@@ -49,8 +48,6 @@ export function NotationPanel() {
   const currentComment =
     board.path.length === 0 ? board.tree.startComment ?? "" : current?.comment ?? "";
   const currentBefore = current?.commentBefore ?? "";
-  const date = displayDate(board.headers.Date);
-  const event = displayEvent(board.headers.Event);
   const result = pgnResultCaption(board.headers.Result, locale);
   const commentOpen = editor === "comment";
   const commentBeforeOpen = editor === "commentBefore";
@@ -136,8 +133,6 @@ export function NotationPanel() {
           <NotationHeader
             inline
             headers={board.headers}
-            date={date}
-            event={event}
             locale={locale}
             onEdit={() => setEditor("headers")}
           />
@@ -163,8 +158,6 @@ export function NotationPanel() {
         <>
           <NotationHeader
             headers={board.headers}
-            date={date}
-            event={event}
             locale={locale}
             onEdit={() => setEditor("headers")}
           />
