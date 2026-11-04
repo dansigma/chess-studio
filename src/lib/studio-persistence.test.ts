@@ -31,6 +31,7 @@ mock.module("@/src/lib/supabase/client.ts", {
 });
 
 const {
+  markBoardClosedRecord,
   persistBoardRecord,
   persistSettingsRecord,
   loadRemoteSettingsForUser,
@@ -324,4 +325,24 @@ test("SIG-1111 syncRemoteDockLayout swallows select errors", async () => {
 
   await syncRemoteDockLayout("user-sync-3");
   assert.equal(readStoredDockLayout(), null);
+});
+
+test("SIG-1199 markBoardClosedRecord stamps closed_at on the row and never deletes", async () => {
+  const fake = installFake();
+
+  await markBoardClosedRecord("remote-1", "user-1");
+
+  assert.equal(fake.calls.update.length, 1);
+  const row = fake.calls.update[0] as { table: string; row: Record<string, unknown> };
+  assert.equal(row.table, "boards");
+  assert.deepEqual(Object.keys(row.row).sort(), ["closed_at", "repertoire_color"]);
+  assert.equal(typeof row.row.closed_at, "string");
+  assert.equal(row.row.repertoire_color, null, "the mark is released so the unique index cannot collide");
+
+  await markBoardClosedRecord(null, "user-1");
+  await markBoardClosedRecord("remote-1", null);
+  assert.equal(fake.calls.update.length, 1, "no remote id or user is a no-op");
+
+  installFake({ boards: { updateError: new Error("boom") } });
+  await assert.rejects(markBoardClosedRecord("remote-1", "user-1"));
 });

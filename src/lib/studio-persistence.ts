@@ -65,6 +65,31 @@ export async function persistBoardRecord(
   return data.id;
 }
 
+// SIG-1199: closing a board never deletes its row. Rows hold the user's only
+// copy of the PGN (and the repertoire mark), so closing stamps closed_at and
+// the boot merge stops restoring the row into the open-board list.
+// The repertoire mark is cleared in the same update: boards_user_repertoire_
+// color_uq is unique on (user_id, repertoire_color), so a closed row that kept
+// its mark would make every later save of another board marked with that color
+// fail. Only open boards are read for the mark, so a closed board's is dead.
+export async function markBoardClosedRecord(
+  remoteId: string | null,
+  userId: string | null,
+): Promise<void> {
+  const supabase = createBrowserSupabase();
+  if (!supabase || !userId || !remoteId) {
+    return;
+  }
+  const { error } = await supabase
+    .from("boards")
+    .update({ closed_at: new Date().toISOString(), repertoire_color: null })
+    .eq("id", remoteId)
+    .eq("user_id", userId);
+  if (error) {
+    throw error;
+  }
+}
+
 export async function persistSettingsRecord(
   settings: StudioSettings,
   userId: string | null,

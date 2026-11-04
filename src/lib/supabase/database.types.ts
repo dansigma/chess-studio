@@ -60,6 +60,7 @@ export type Database = {
           orientation: "white" | "black";
           repertoire_color: "white" | "black" | null;
           updated_at: string;
+          closed_at: string | null;
         };
         Insert: {
           id?: string;
@@ -70,6 +71,7 @@ export type Database = {
           orientation?: "white" | "black";
           repertoire_color?: "white" | "black" | null;
           updated_at?: string;
+          closed_at?: string | null;
         };
         Update: {
           title?: string;
@@ -78,6 +80,7 @@ export type Database = {
           orientation?: "white" | "black";
           repertoire_color?: "white" | "black" | null;
           updated_at?: string;
+          closed_at?: string | null;
         };
         Relationships: [];
       };
