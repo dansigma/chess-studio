@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, Copy, Link2 } from "lucide-react";
+import { Check, Copy, Link2 } from "lucide-react";
 import { signOut } from "@/app/login/actions";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectDirtyCount, useStudioStore } from "@/src/store/studio-store";
@@ -185,12 +185,16 @@ export function MenuBar({
               type="button"
               aria-haspopup="menu"
               aria-expanded={open === "account"}
+              // SIG-1215: initials only — the e-mail stays out of the bar (and
+              // out of screenshots); it is in the tooltip and the menu header.
+              aria-label={tStudioChrome(locale, "chrome.account.label", { email: user.email })}
+              title={user.email}
               onClick={() => toggleMenu("account")}
-              className={`inline-flex h-[26px] items-center gap-2 rounded-full border border-studio-border pl-[3px] pr-2 text-dense ${
-                open === "account" ? "bg-studio-hover text-studio-fg" : "text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
+              className={`grid h-[26px] w-[26px] place-items-center rounded-full ${
+                open === "account" ? "ring-2 ring-studio-border-strong" : "hover:ring-2 hover:ring-studio-border"
               }`}
             >
-              <span className="relative grid h-5 w-5 place-items-center rounded-full bg-studio-accent-soft text-[10px] font-bold text-studio-accent-text">
+              <span className="relative grid h-[26px] w-[26px] place-items-center rounded-full bg-studio-accent-soft text-[11px] font-bold text-studio-accent-text">
                 {initials(user.email)}
                 {/* SIG-1198: no "Synced" label — synced is the normal state. Only
                     pending changes get a signal: an amber dot on the avatar. */}
@@ -201,8 +205,6 @@ export function MenuBar({
                   />
                 ) : null}
               </span>
-              <span className="max-w-40 truncate">{user.email}</span>
-              <ChevronDown size={13} />
             </button>
             {open === "account" ? (
               <MenuSurface className="absolute right-0 top-[calc(100%+5px)] min-w-60" onClose={close}>
