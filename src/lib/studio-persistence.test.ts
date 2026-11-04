@@ -335,8 +335,9 @@ test("SIG-1199 markBoardClosedRecord stamps closed_at on the row and never delet
   assert.equal(fake.calls.update.length, 1);
   const row = fake.calls.update[0] as { table: string; row: Record<string, unknown> };
   assert.equal(row.table, "boards");
-  assert.deepEqual(Object.keys(row.row), ["closed_at"]);
+  assert.deepEqual(Object.keys(row.row).sort(), ["closed_at", "repertoire_color"]);
   assert.equal(typeof row.row.closed_at, "string");
+  assert.equal(row.row.repertoire_color, null, "the mark is released so the unique index cannot collide");
 
   await markBoardClosedRecord(null, "user-1");
   await markBoardClosedRecord("remote-1", null);
