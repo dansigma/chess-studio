@@ -7,7 +7,7 @@ import { loadLocalBookmarks, saveLocalBookmarks, type PlayerBookmark } from "../
 import { clearGuestBoards, GUEST_BOARDS_KEY } from "../lib/guest-boards.ts";
 import type { PlayerGame, PlayerHit } from "../lib/player-types.ts";
 import { EMPTY_FILES, loadLocalFiles, saveLocalFiles, type FilesLibrary } from "../lib/user-files.ts";
-import { useStudioStore, selectActiveBoard, type BoardSession, type StudioSettings } from "./studio-store.ts";
+import { useStudioStore, selectActiveBoard, boardPreview, emptyBoard, type BoardSession, type StudioSettings } from "./studio-store.ts";
 
 // Regression coverage for the cross-user residue fix (spec t_c7273126):
 // setUser resets the previous user's session state on sign-out and on a
@@ -572,3 +572,10 @@ test("SIG-923: store spaced repetition drill engine updates progress and complet
   assert.equal(state.statusMessage, "No reviews due.");
 });
 
+
+test("boardPreview shows a localized starting position for a board with no moves", () => {
+  const board = emptyBoard("Board", "preview-test");
+  assert.equal(boardPreview(board), "starting position");
+  assert.equal(boardPreview(board, "en"), "starting position");
+  assert.equal(boardPreview(board, "pt-br"), "Posição inicial");
+});

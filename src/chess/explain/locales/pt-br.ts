@@ -86,22 +86,22 @@ export const PT_BR: LocaleTable = {
   ui: {
     why: "Por quê?",
     bestLine: "Melhor linha",
-    engineOnly: "Nenhum motivo claro pôde ser comprovado pela posição; esta é apenas a visão do motor.",
-    noLine: "Não há linha do motor para este lance.",
+    engineOnly: "Nenhum motivo claro pôde ser comprovado pela posição; esta é apenas a visão da engine.",
+    noLine: "Não há linha da engine para este lance.",
   },
   summary: (summary, context) => {
     const played = san(summary.playedSan, context);
     if (summary.bestSan === null) {
-      return `${played} foi jogado; o motor não tem uma linha para ele.`;
+      return `${played} foi jogado; a engine não tem uma linha para ele.`;
     }
     const best = san(summary.bestSan, context);
     const bestEval = summary.bestPawns === null ? "" : ` (${formatPawns(summary.bestPawns, ",")})`;
     if (summary.playedIsBest) {
-      return `${played} é a primeira escolha do motor${bestEval}.`;
+      return `${played} é a primeira escolha da engine${bestEval}.`;
     }
     const playedEval =
       summary.playedPawns === null ? "" : ` e a avaliação fica em ${formatPawns(summary.playedPawns, ",")}`;
-    return `O motor prefere ${best}${bestEval}; foi jogado ${played}${playedEval}.`;
+    return `A engine prefere ${best}${bestEval}; foi jogado ${played}${playedEval}.`;
   },
   statements: {
     captures: (p) => `${cap(art(p.piece))} captura ${art(p.victim)} em ${p.square}.`,
@@ -129,8 +129,8 @@ export const PT_BR: LocaleTable = {
     "creates-xray": (p) => `Cria um raio-X através ${ofThe(p.through)} contra ${art(p.target)} em ${p.targetSquare}.`,
     "weakens-king": (p) => `Enfraquece a proteção de peões diante do rei que fez roque, em ${p.square}.`,
     "gives-up-material": (p) => `Oferece ${art(p.piece)} em ${p.square} como sacrifício.`,
-    "sacrifice-leads-to-mate": () => "A linha do motor por trás dele termina em xeque-mate.",
-    "sacrifice-regains-material": () => "A linha do motor recupera o material.",
+    "sacrifice-leads-to-mate": () => "A linha da engine por trás dele termina em xeque-mate.",
+    "sacrifice-regains-material": () => "A linha da engine recupera o material.",
     "allows-mate": (p) => `Permite xeque-mate com um lance de ${p.from} para ${p.to}.`,
     "allows-capture": (p) =>
       `Deixa ${art(p.victim)} em ${p.square} ${agree(p.victim, "sujeito", "sujeita")} à captura ${byThe(p.attacker)}.`,
@@ -140,12 +140,12 @@ export const PT_BR: LocaleTable = {
       `${cap(art(p.piece))} vai para ${p.square}, onde é ${agree(p.piece, "atacado", "atacada")} sem proteção suficiente.`,
     "best-alternative": (p, c) => `Melhor era ${san(p.san, c)}.`,
     "best-gives-mate": (p, c) => `${san(p.san, c)} dá xeque-mate.`,
-    "best-line-mates": (p, c) => `${san(p.san, c)} leva a um xeque-mate forçado na linha do motor.`,
+    "best-line-mates": (p, c) => `${san(p.san, c)} leva a um xeque-mate forçado na linha da engine.`,
     "best-captures": (p, c) => `${san(p.san, c)} captura ${art(p.victim)} em ${p.square}.`,
     "best-gives-check": (p, c) => `${san(p.san, c)} dá xeque.`,
     "best-creates-threat": (p, c) => bestThreat(p, san(p.san, c)),
     "best-neutralizes-threat": (p, c) => bestParry(p, san(p.san, c)),
     "best-line-wins-material": (p, c) =>
-      `A linha do motor depois de ${san(p.san, c)} rende cerca de ${p.points} ${p.points === 1 ? "ponto" : "pontos"} de material.`,
+      `A linha da engine depois de ${san(p.san, c)} rende cerca de ${p.points} ${p.points === 1 ? "ponto" : "pontos"} de material.`,
   },
 };

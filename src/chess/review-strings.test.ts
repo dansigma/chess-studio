@@ -59,7 +59,7 @@ test("template helpers render whole PT-BR sentences and stay EN-identical", () =
   );
   assert.equal(
     reviewFailedText("pt-br", { done: 3, total: 20 }),
-    "O motor parou de responder em 3/20 posições. Tente a análise novamente.",
+    "A engine parou de responder em 3/20 posições. Tente a análise novamente.",
   );
   assert.equal(reviewCancelledText("en", { done: 3, total: 20 }), "Review cancelled at 3/20 positions.");
   assert.equal(reviewCancelledText("pt-br", { done: 3, total: 20 }), "Análise cancelada em 3/20 posições.");

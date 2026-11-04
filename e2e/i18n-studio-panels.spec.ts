@@ -17,14 +17,16 @@ test("studio panels render Portuguese with the pt-br locale stored", async ({
 
   // Dock tab titles are translated (assert three, zero EN counterparts).
   await expect(page.getByRole("tab", { name: "Notação" }).first()).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Motor" }).first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Engine" }).first()).toBeVisible();
   await expect(page.getByRole("tab", { name: "Repertório" }).first()).toBeVisible();
   await expect(page.getByRole("tab", { name: "Notation", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("tab", { name: "Engine", exact: true })).toHaveCount(0);
+  // The default board tab is localized too (SIG-1200); "Engine" has no EN counterpart to assert absent.
+  await expect(page.getByRole("tab", { name: "Tabuleiro" }).first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Board", exact: true })).toHaveCount(0);
 
   // Engine panel status line is Portuguese on load (paused before start).
-  await page.getByRole("tab", { name: "Motor" }).first().click();
-  await expect(page.getByText("Motor em pausa — pressione o play")).toBeVisible();
+  await page.getByRole("tab", { name: "Engine" }).first().click();
+  await expect(page.getByText("Engine em pausa — pressione o play")).toBeVisible();
 
   // Notation empty-tree hint is Portuguese.
   await expect(page.getByText("Faça um lance no tabuleiro.")).toBeVisible();
@@ -48,7 +50,7 @@ test("switching back to English through Settings restores English panels without
   await expect(active.first()).toContainText("e4");
 
   // The engine panel is still mounted (proof below: no recreation).
-  await expect(page.getByText("Motor em pausa — pressione o play")).toBeVisible();
+  await expect(page.getByText("Engine em pausa — pressione o play")).toBeVisible();
 
   // Open Settings via the View menu and switch to English (same selectors as
   // the chrome slice spec).

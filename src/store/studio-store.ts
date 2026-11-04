@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { currentDockLayoutEpoch, type DockLayoutSnapshot } from "@/src/studio/dock-layout";
 import { recentSans } from "@/src/chess/pgn";
+import { tSidebar } from "@/src/i18n/studio-sidebar-strings";
+import type { SiteLocale } from "@/src/i18n/locale";
 import { saveLocalBookmarks } from "@/src/lib/player-bookmarks";
 import { clearGuestBoards } from "@/src/lib/guest-boards";
 import { purgeUserLocalCaches } from "@/src/lib/local-cache";
@@ -226,8 +228,8 @@ if (!initial.activeBoardId && initial.boards[0]) {
   useStudioStore.setState({ activeBoardId: initial.boards[0].id });
 }
 
-export function boardPreview(board: BoardSession): string {
-  return recentSans(board.tree, board.path) || "starting position";
+export function boardPreview(board: BoardSession, locale: SiteLocale = "en"): string {
+  return recentSans(board.tree, board.path) || tSidebar(locale, "sidebar.boards.startingPosition");
 }
 
 // SIG-917: remote persistence lives in lib/studio-persistence.ts (store-free,

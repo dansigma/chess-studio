@@ -13,7 +13,7 @@ export const TERMS_PT: LegalText = {
       id: "servico",
       title: "1. O Serviço",
       paragraphs: [
-        "O Xadrez Digital é uma plataforma web de estudo de xadrez: estúdio de análise com tabuleiro e motor de xadrez no navegador, explorador de aberturas, importação e exportação de partidas em PGN, repertórios, exercícios (puzzles) e cursos. Parte dos recursos funciona sem conta (modo visitante); outros exigem cadastro, como a sincronização do seu conteúdo entre dispositivos.",
+        "O Xadrez Digital é uma plataforma web de estudo de xadrez: estúdio de análise com tabuleiro e engine de xadrez no navegador, explorador de aberturas, importação e exportação de partidas em PGN, repertórios, exercícios (puzzles) e cursos. Parte dos recursos funciona sem conta (modo visitante); outros exigem cadastro, como a sincronização do seu conteúdo entre dispositivos.",
         "Podemos criar, alterar, limitar ou descontinuar recursos. No futuro, o Serviço poderá incluir cursos de autores terceiros, bem como cursos ou assinaturas pagos; nesse caso, as condições comerciais serão informadas antes da contratação.",
       ],
     },
@@ -35,7 +35,7 @@ export const TERMS_PT: LegalText = {
         "tentar acessar contas, dados ou sistemas sem autorização, ou contornar limites de segurança e de uso (como limites de tentativas e de requisições);",
         "sobrecarregar, interferir no Serviço ou fazer extração automatizada em massa de conteúdo e das interfaces de consulta;",
         "enviar malware ou conteúdo ilícito, ofensivo ou que viole direitos autorais;",
-        "usar o Serviço para trapacear em partidas ou competições em andamento nas quais o uso de motores de xadrez ou de ajuda externa seja proibido.",
+        "usar o Serviço para trapacear em partidas ou competições em andamento nas quais o uso de engines de xadrez ou de ajuda externa seja proibido.",
       ],
     },
     {
@@ -57,7 +57,7 @@ export const TERMS_PT: LegalText = {
       id: "pi",
       title: "6. Propriedade intelectual",
       paragraphs: [
-        "O Serviço, sua marca, interface e código pertencem ao controlador ou a seus licenciantes e são protegidos pela legislação aplicável. Estes Termos não transferem a você nenhum direito além do uso do Serviço conforme aqui descrito. Componentes de código aberto, como o motor de xadrez, seguem suas respectivas licenças.",
+        "O Serviço, sua marca, interface e código pertencem ao controlador ou a seus licenciantes e são protegidos pela legislação aplicável. Estes Termos não transferem a você nenhum direito além do uso do Serviço conforme aqui descrito. Componentes de código aberto, como a engine de xadrez, seguem suas respectivas licenças.",
       ],
     },
     {
@@ -71,7 +71,7 @@ export const TERMS_PT: LegalText = {
       id: "isencao",
       title: "8. Isenção de garantias",
       paragraphs: [
-        "O Serviço é fornecido “no estado em que se encontra” e conforme a disponibilidade. A análise do motor de xadrez, as avaliações, as classificações de lances e as explicações são ferramentas de estudo, podem conter imprecisões e não garantem resultados em partidas ou competições. Não garantimos que o Serviço será ininterrupto ou livre de erros. Mantenha cópia dos seus arquivos importantes (você pode exportar em PGN).",
+        "O Serviço é fornecido “no estado em que se encontra” e conforme a disponibilidade. A análise da engine de xadrez, as avaliações, as classificações de lances e as explicações são ferramentas de estudo, podem conter imprecisões e não garantem resultados em partidas ou competições. Não garantimos que o Serviço será ininterrupto ou livre de erros. Mantenha cópia dos seus arquivos importantes (você pode exportar em PGN).",
       ],
     },
     {

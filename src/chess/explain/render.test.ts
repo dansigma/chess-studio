@@ -105,7 +105,7 @@ test("Portuguese sentences (snapshot)", () => {
   assert.equal(pt("allows-fork"), "Permite um garfo: o cavalo do adversário pode ir para c7.");
   assert.equal(pt("defends-attacked-piece"), "Reforça a proteção da torre atacada em e4.");
   assert.equal(pt("best-alternative"), "Melhor era Nf3.");
-  assert.equal(pt("best-line-wins-material"), "A linha do motor depois de Qxd5 rende cerca de 3 pontos de material.");
+  assert.equal(pt("best-line-wins-material"), "A linha da engine depois de Qxd5 rende cerca de 3 pontos de material.");
 });
 
 test("Portuguese agrees in gender and number with the piece", () => {
@@ -130,9 +130,9 @@ test("the notation setting formats SAN inside sentences", () => {
 test("engine summaries read naturally in both locales", () => {
   const base = { playedSan: "Kxd1", bestSan: "Nd5#", playedIsBest: false, bestPawns: 12.5, playedPawns: -0.4 };
   assert.equal(renderSummary("en", base), "The engine prefers Nd5# (+12.5); Kxd1 was played and leaves the evaluation at -0.4.");
-  assert.equal(renderSummary("pt-br", base), "O motor prefere Nd5# (+12,5); foi jogado Kxd1 e a avaliação fica em -0,4.");
+  assert.equal(renderSummary("pt-br", base), "A engine prefere Nd5# (+12,5); foi jogado Kxd1 e a avaliação fica em -0,4.");
   assert.equal(renderSummary("en", { ...base, playedIsBest: true, playedSan: "Nd5#" }), "Nd5# is the engine's first choice (+12.5).");
-  assert.equal(renderSummary("pt-br", { ...base, bestSan: null }), "Kxd1 foi jogado; o motor não tem uma linha para ele.");
+  assert.equal(renderSummary("pt-br", { ...base, bestSan: null }), "Kxd1 foi jogado; a engine não tem uma linha para ele.");
   assert.equal(renderSummary("en", { ...base, bestPawns: null, playedPawns: null }), "The engine prefers Nd5#; Kxd1 was played.");
 });
 
