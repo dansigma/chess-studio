@@ -325,3 +325,21 @@ test("createdAt defaults to now and accepts a Date", () => {
   assert.ok(fallback?.createdAt);
   assert.ok(!Number.isNaN(Date.parse(fallback?.createdAt ?? "")));
 });
+
+test("sides: both also yields the opponent's mistakes, flagged fromOpponent (SIG-1209)", () => {
+  const rows = [
+    row({ index: 0, side: "w" }),
+    row({ index: 1, side: "b", bestPv: ["e7e5"], playedUci: "h7h6" }),
+  ];
+  const fens = [
+    START,
+    "rnbqkbnr/pppppppp/8/8/8/7P/PPPPPPP1/RNBQKBNR b KQkq - 0 1",
+  ];
+  const userOnly = extract(fens, rows);
+  assert.equal(userOnly.length, 1, "default behaviour is unchanged");
+  assert.equal("fromOpponent" in userOnly[0], false);
+  const both = extractMistakeExercises({ fens, rows, userSide: "w", now: NOW, sides: "both" });
+  assert.equal(both.length, 2);
+  assert.equal(both.find((item) => item.playedUci === "h2h3")?.fromOpponent, undefined);
+  assert.equal(both.find((item) => item.playedUci === "h7h6")?.fromOpponent, true);
+});

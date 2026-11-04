@@ -31,6 +31,11 @@ export type MistakeExercise = {
   afterPawns: number;
   motif: MistakeMotif;
   createdAt: string;
+  /**
+   * SIG-1209: true when the mistake was the opponent's (the side opposite the
+   * board's user side). Absent for the user's own mistakes.
+   */
+  fromOpponent?: boolean;
 };
 
 /** Labels that produce exercises; `forced` rows are excluded even with these labels. */
@@ -95,64 +100,94 @@ function legalPrefix(fen: string, line: string[]): string[] | null {
   return moves;
 }
 
+/**
+ * One exercise from one review row, or null when the row is not eligible:
+ * not a miss/mistake/blunder, forced, no engine line, the engine's first move
+ * is the played one, or the line yields no legal solver-first solution.
+ * `userSide` only decides `fromOpponent`; it never filters.
+ */
+export function exerciseFromRow(input: {
+  fen: string | undefined;
+  row: ReviewRow;
+  userSide?: ReviewSide;
+  createdAt: string;
+}): MistakeExercise | null {
+  const { row, fen } = input;
+  if (!isMistakeLabel(row.label)) {
+    return null;
+  }
+  if (row.forced) {
+    return null;
+  }
+  const line = row.bestPv;
+  if (!line || line.length === 0 || line[0] === row.playedUci) {
+    return null;
+  }
+  if (typeof fen !== "string" || fen.trim() === "") {
+    return null;
+  }
+  const legal = legalPrefix(fen, line);
+  if (!legal || legal.length === 0) {
+    return null;
+  }
+  // Solver-first lines must end on the solver's move (odd length); the
+  // puzzle engine rejects even lengths, so an even prefix drops its last ply.
+  let solution = legal.slice(0, 3);
+  if (solution.length % 2 === 0) {
+    solution = solution.slice(0, -1);
+  }
+  if (solution.length === 0) {
+    return null;
+  }
+  const best = computeMoveFacts(fen, solution[0], line);
+  if (!best) {
+    return null;
+  }
+  return {
+    key: `mx:${fenKey(fen)}`,
+    fen,
+    solutionUci: solution,
+    bestPv: legal,
+    playedUci: row.playedUci,
+    label: row.label,
+    phase: row.phase,
+    lossCp: row.lossCp,
+    beforePawns: row.beforePawns,
+    afterPawns: row.afterPawns,
+    motif: motifOf(best),
+    createdAt: input.createdAt,
+    ...(input.userSide && row.side !== input.userSide ? { fromOpponent: true } : {}),
+  };
+}
+
 export function extractMistakeExercises(input: {
   fens: string[];
   rows: ReviewRow[];
   userSide: ReviewSide;
   now?: Date | string;
+  /**
+   * SIG-1209: "user" (default) keeps only the user's side; "both" also yields
+   * the opponent's mistakes, flagged `fromOpponent`.
+   */
+  sides?: "user" | "both";
 }): MistakeExercise[] {
   const createdAt =
     input.now instanceof Date ? input.now.toISOString() : (input.now ?? new Date().toISOString());
+  const both = input.sides === "both";
   const byKey = new Map<string, MistakeExercise>();
   for (const row of input.rows) {
-    if (row.side !== input.userSide) {
+    if (!both && row.side !== input.userSide) {
       continue;
     }
-    if (!isMistakeLabel(row.label)) {
-      continue;
-    }
-    if (row.forced) {
-      continue;
-    }
-    const line = row.bestPv;
-    if (!line || line.length === 0 || line[0] === row.playedUci) {
-      continue;
-    }
-    const fen = input.fens[row.index];
-    if (typeof fen !== "string" || fen.trim() === "") {
-      continue;
-    }
-    const legal = legalPrefix(fen, line);
-    if (!legal || legal.length === 0) {
-      continue;
-    }
-    // Solver-first lines must end on the solver's move (odd length); the
-    // puzzle engine rejects even lengths, so an even prefix drops its last ply.
-    let solution = legal.slice(0, 3);
-    if (solution.length % 2 === 0) {
-      solution = solution.slice(0, -1);
-    }
-    if (solution.length === 0) {
-      continue;
-    }
-    const best = computeMoveFacts(fen, solution[0], line);
-    if (!best) {
-      continue;
-    }
-    const exercise: MistakeExercise = {
-      key: `mx:${fenKey(fen)}`,
-      fen,
-      solutionUci: solution,
-      bestPv: legal,
-      playedUci: row.playedUci,
-      label: row.label,
-      phase: row.phase,
-      lossCp: row.lossCp,
-      beforePawns: row.beforePawns,
-      afterPawns: row.afterPawns,
-      motif: motifOf(best),
+    const exercise = exerciseFromRow({
+      fen: input.fens[row.index],
+      row,
+      userSide: input.userSide,
       createdAt,
-    };
+    });
+    if (!exercise) {
+      continue;
+    }
     const existing = byKey.get(exercise.key);
     if (!existing || exercise.lossCp > existing.lossCp) {
       byKey.set(exercise.key, exercise);

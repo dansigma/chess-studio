@@ -13,6 +13,9 @@ export const REPERTOIRE_PROGRESS_KEY = "xd-repertoire-progress";
 export const REPERTOIRE_PROGRESS_OWNER_KEY = `${REPERTOIRE_PROGRESS_KEY}:owner`;
 export const MISTAKE_EXERCISES_KEY = "xd-mistake-exercises";
 export const MISTAKE_EXERCISES_OWNER_KEY = `${MISTAKE_EXERCISES_KEY}:owner`;
+// SIG-1209: `{ [exerciseKey]: "YYYY-MM-DD" }` — the local day a Game Review
+// retry last counted toward an exercise's schedule (one record per day).
+export const RETRY_RECORDED_KEY = "xd-retry-recorded";
 // SIG-1179: best-effort anonymous seen history for the regular puzzle pool.
 // Ids of attempted puzzles (solved, failed, or gave up). Logged-in users get
 // the server-side puzzle_seen ledger; this key stays as the offline fallback
@@ -29,6 +32,7 @@ export const USER_LOCAL_CACHE_KEYS = [
   REPERTOIRE_PROGRESS_OWNER_KEY,
   MISTAKE_EXERCISES_KEY,
   MISTAKE_EXERCISES_OWNER_KEY,
+  RETRY_RECORDED_KEY,
   PUZZLE_SEEN_KEY,
   PUZZLE_SEEN_OWNER_KEY,
 ];

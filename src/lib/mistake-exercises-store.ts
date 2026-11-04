@@ -89,7 +89,13 @@ function normalizeExercise(raw: unknown): MistakeExercise | null {
   if (typeof item.key !== "string" || item.key === "" || typeof item.fen !== "string") {
     return null;
   }
-  return raw as MistakeExercise;
+  // SIG-1209: `fromOpponent` is an optional flag; keep it only when it is a
+  // real boolean so a hand-edited blob cannot smuggle a truthy string through.
+  const exercise = { ...(raw as MistakeExercise) };
+  if (typeof item.fromOpponent !== "boolean") {
+    delete exercise.fromOpponent;
+  }
+  return exercise;
 }
 
 export function normalizeExercises(raw: unknown): MistakeExercisesMap {
