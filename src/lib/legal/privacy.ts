@@ -27,7 +27,7 @@ export const PRIVACY_PT: LegalText = {
         "Dados de conta: e-mail e senha (armazenada somente como hash pelo provedor de autenticação, nunca em texto puro). Se você entrar com o Google, recebemos do Google os dados básicos do perfil autorizados por você, como e-mail e identificador da conta; não recebemos sua senha do Google.",
         "Perfil e permissões: um registro por usuário com o identificador da conta, o e-mail e o papel (aluno ou administrador).",
         "Conteúdo que você cria: tabuleiros e análises, partidas e arquivos PGN importados, bases de partidas e pastas, anotações, e jogadores marcados como favoritos (nome de usuário e site de origem).",
-        "Progresso e preferências: progresso em cursos, exercícios e repertórios; configurações do Serviço (tema, peças, profundidade do motor, layout e idioma do site).",
+        "Progresso e preferências: progresso em cursos, exercícios e repertórios; configurações do Serviço (tema, peças, profundidade da engine, layout e idioma do site).",
         "Dados técnicos: endereço IP e cabeçalhos da requisição, tratados pela infraestrutura de hospedagem e usados no limite de tentativas de login (rate limiting) e nos registros (logs) de operação e segurança. Não usamos o IP para criar perfil de comportamento.",
         "Termos pesquisados: quando você busca um jogador ou consulta aberturas, o nome de usuário buscado ou a posição consultada é enviado pelo nosso servidor a serviços de terceiros (veja a seção 5). Não enviamos seu e-mail ou identificador de conta a eles.",
       ],
@@ -54,7 +54,7 @@ export const PRIVACY_PT: LegalText = {
       paragraphs: ["Não vendemos seus dados pessoais. Usamos prestadores que tratam dados em nosso nome ou que você aciona ao usar o Serviço:"],
       items: [
         "Supabase: banco de dados e autenticação (armazena sua conta e o conteúdo salvo na conta).",
-        "Cloudflare: hospedagem e rede de entrega (Workers/CDN), armazenamento de arquivos do motor de análise (R2) e limite de requisições. Recebe seu IP ao processar o tráfego.",
+        "Cloudflare: hospedagem e rede de entrega (Workers/CDN), armazenamento de arquivos da engine de análise (R2) e limite de requisições. Recebe seu IP ao processar o tráfego.",
         "Google: somente se você escolher “Continuar com o Google”; o login é feito na página do Google, sujeita à política de privacidade do Google.",
         "Lichess, Chess.com e FIDE: consultados pelo nosso servidor para busca de jogadores, partidas e abertura (explorador). Recebem apenas o termo pesquisado (por exemplo, um nome de usuário) ou a posição consultada, além do IP do nosso servidor.",
         "Vídeos de aulas incorporados (YouTube em modo de privacidade aprimorada e Vimeo) e imagens das peças do tabuleiro (cdn.jsdelivr.net): quando você abre uma aula com vídeo ou exporta o tabuleiro, seu navegador se conecta diretamente a esses serviços, que recebem seu IP.",

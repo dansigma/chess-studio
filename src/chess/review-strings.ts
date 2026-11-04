@@ -377,7 +377,7 @@ export function reviewFailedText(locale: SiteLocale, args: { done: number; total
   const done = formatInteger(locale, args.done);
   const total = formatInteger(locale, args.total);
   return locale === "pt-br"
-    ? `O motor parou de responder em ${done}/${total} posições. Tente a análise novamente.`
+    ? `A engine parou de responder em ${done}/${total} posições. Tente a análise novamente.`
     : `The engine stopped responding at ${done}/${total} positions. Try the review again.`;
 }
 
