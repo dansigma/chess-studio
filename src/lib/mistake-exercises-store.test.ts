@@ -88,6 +88,21 @@ describe("normalizeExercises", () => {
   });
 });
 
+describe("fromOpponent (SIG-1209)", () => {
+  it("survives normalize, the remote JSON round-trip and merge; junk values are dropped", () => {
+    const opponent = { ...makeExercise("mx:opp", "2026-10-21T00:00:00.000Z"), fromOpponent: true };
+    const map = mergeNewExercises({}, [opponent, makeExercise("mx:own", "2026-10-21T00:00:00.000Z")]);
+    // saveExercises/hydrateExercises move the map through a JSON blob.
+    const roundTrip = normalizeExercises(JSON.parse(JSON.stringify(map)));
+    assert.equal(roundTrip["mx:opp"].exercise.fromOpponent, true);
+    assert.equal("fromOpponent" in roundTrip["mx:own"].exercise, false);
+    const junk = normalizeExercises({
+      "mx:x": { exercise: { ...makeExercise("mx:x", "2026-10-21T00:00:00.000Z"), fromOpponent: "yes" }, srs: null },
+    });
+    assert.equal("fromOpponent" in junk["mx:x"].exercise, false);
+  });
+});
+
 describe("mergeNewExercises", () => {
   it("adds 3 blunders and adds none on re-run (idempotent by key)", () => {
     const incoming = [

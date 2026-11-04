@@ -18,6 +18,8 @@ import {
   tierName,
   type ReviewStringKey,
   momentNavHint,
+  retryButtonLabel,
+  retryContextText,
 } from "./review-strings.ts";
 
 test("every review string key renders in both locales with matching placeholders", () => {
@@ -168,4 +170,23 @@ test("SIG-1205: moment navigation hints name the shortcut key in both locales", 
   assert.equal(momentNavHint("en", "next"), "Next moment ( ] )");
   assert.equal(momentNavHint("pt-br", "prev"), "Momento anterior ( [ )");
   assert.equal(momentNavHint("pt-br", "next"), "Próximo momento ( ] )");
+});
+
+test("retry strings: context and button label render whole sentences in both locales (SIG-1209)", () => {
+  assert.equal(
+    retryContextText("en", { side: "w", tier: tierName("en", "blunder"), moveNumber: 14 }),
+    "White to play · Blunder on move 14",
+  );
+  assert.equal(
+    retryContextText("pt-br", { side: "w", tier: tierName("pt-br", "blunder"), moveNumber: 14 }),
+    "Brancas a jogar · Capivarada no lance 14",
+  );
+  assert.equal(
+    retryContextText("en", { side: "b", tier: tierName("en", "miss"), moveNumber: 7 }),
+    "Black to play · Miss on move 7",
+  );
+  assert.equal(retryButtonLabel("en", "english", { moveNumber: 14, san: "Nf3", side: "w" }), "Retry move 14, Nf3");
+  assert.equal(tReview("en", "retry.button"), "Retry");
+  assert.equal(tReview("pt-br", "retry.button"), "Tentar");
+  assert.equal(tReview("pt-br", "retry.engineHidden"), "Engine pausada durante a tentativa");
 });

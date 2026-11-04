@@ -108,6 +108,26 @@ export const REVIEW_STRING_KEYS = [
   "preset.fast",
   "preset.standard",
   "preset.deep",
+  "retry.button",
+  "retry.buttonLabel",
+  "retry.region",
+  "retry.toPlayWhite",
+  "retry.toPlayBlack",
+  "retry.context",
+  "retry.thinking",
+  "retry.wrong",
+  "retry.wrongGameMove",
+  "retry.continuing",
+  "retry.solvedFirst",
+  "retry.solvedAfterMiss",
+  "retry.revealed",
+  "retry.freePractice",
+  "retry.engineHidden",
+  "retry.hint",
+  "retry.showSolution",
+  "retry.nextMistake",
+  "retry.exit",
+  "retry.insert",
 ] as const;
 
 export type ReviewStringKey = (typeof REVIEW_STRING_KEYS)[number];
@@ -215,6 +235,26 @@ const EN: Record<ReviewStringKey, string> = {
   "preset.fast": "Fast",
   "preset.standard": "Standard",
   "preset.deep": "Deep",
+  "retry.button": "Retry",
+  "retry.buttonLabel": "Retry move {number}, {san}",
+  "retry.region": "Retry a mistake",
+  "retry.toPlayWhite": "White to play",
+  "retry.toPlayBlack": "Black to play",
+  "retry.context": "{side} · {tier} on move {number}",
+  "retry.thinking": "Find the best move.",
+  "retry.wrong": "Not this one. Try again.",
+  "retry.wrongGameMove": "That was the game move. Try another.",
+  "retry.continuing": "Good. Keep going.",
+  "retry.solvedFirst": "Correct! {san} was best.",
+  "retry.solvedAfterMiss": "Solved. It will come back in your review.",
+  "retry.revealed": "The best line was {line}.",
+  "retry.freePractice": "Already counted today. Free practice.",
+  "retry.engineHidden": "Engine paused during the retry",
+  "retry.hint": "Hint",
+  "retry.showSolution": "Show solution",
+  "retry.nextMistake": "Next mistake",
+  "retry.exit": "Exit",
+  "retry.insert": "Insert into notation",
 };
 
 const PT_BR: Record<ReviewStringKey, string> = {
@@ -320,6 +360,26 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "preset.fast": "Rápida",
   "preset.standard": "Padrão",
   "preset.deep": "Profunda",
+  "retry.button": "Tentar",
+  "retry.buttonLabel": "Tentar o lance {number}, {san}",
+  "retry.region": "Tentar um erro de novo",
+  "retry.toPlayWhite": "Brancas a jogar",
+  "retry.toPlayBlack": "Pretas a jogar",
+  "retry.context": "{side} · {tier} no lance {number}",
+  "retry.thinking": "Encontre o melhor lance.",
+  "retry.wrong": "Não é esse. Tente outra vez.",
+  "retry.wrongGameMove": "Esse foi o lance da partida. Tente outro.",
+  "retry.continuing": "Isso. Continue.",
+  "retry.solvedFirst": "Isso! {san} era o melhor.",
+  "retry.solvedAfterMiss": "Resolvido. Ele volta na sua revisão.",
+  "retry.revealed": "A melhor linha era {line}.",
+  "retry.freePractice": "Já contou hoje. Treino livre.",
+  "retry.engineHidden": "Engine pausada durante a tentativa",
+  "retry.hint": "Dica",
+  "retry.showSolution": "Ver solução",
+  "retry.nextMistake": "Próximo erro",
+  "retry.exit": "Sair",
+  "retry.insert": "Inserir na notação",
 };
 
 export const TABLES: Record<SiteLocale, Partial<Record<ReviewStringKey, string>>> = {
@@ -477,6 +537,31 @@ export function keyMomentAccessibleName(
   const template = tReview(locale, "moments.accessibleLabel");
   const loss = formatDecimal1(locale, args.lossCp / 100);
   return template.replace("{number}", number).replace("{san}", san).replace("{tier}", args.tier).replace("{loss}", loss);
+}
+
+/**
+ * Retry card context line: "White to play · Blunder on move 14". `moveNumber`
+ * comes from moveNumberForPath at the call site; `side` is the side to move.
+ */
+export function retryContextText(
+  locale: SiteLocale,
+  args: { side: "w" | "b"; tier: string; moveNumber: number },
+): string {
+  return tReview(locale, "retry.context")
+    .replace("{side}", tReview(locale, args.side === "w" ? "retry.toPlayWhite" : "retry.toPlayBlack"))
+    .replace("{tier}", args.tier)
+    .replace("{number}", formatInteger(locale, args.moveNumber));
+}
+
+/** Accessible name of a key-moment Retry button: "Retry move 14, Nf3". */
+export function retryButtonLabel(
+  locale: SiteLocale,
+  moveNotation: MoveNotation,
+  args: { moveNumber: number; san: string; side: "w" | "b" },
+): string {
+  return tReview(locale, "retry.buttonLabel")
+    .replace("{number}", formatInteger(locale, args.moveNumber))
+    .replace("{san}", formatSan(args.san, moveNotation, args.side));
 }
 
 /** "Previous moment ( [ )" / "Next moment ( ] )": tooltip text that names the keyboard shortcut. */

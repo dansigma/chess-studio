@@ -21,6 +21,7 @@ import type { EngineBuild } from "@/src/engine/stockfish-client";
 import type { ExplorerResponse, ExplorerSource } from "@/src/lib/explorer-types";
 import type { ExplorerFilters } from "@/src/lib/explorer-filters";
 import type { NotationDensity } from "@/src/studio/notation-density";
+import type { RetryState, RetryTarget } from "@/src/chess/retry";
 
 export type { NotationDensity } from "@/src/studio/notation-density";
 import type {
@@ -38,6 +39,32 @@ export type VariationChoice = {
   boardId: string;
   path: Path;
 };
+
+/**
+ * SIG-1209: the Game Review retry session. Inactive is a bare `{ active: false }`;
+ * active carries the pure machine state plus what the store needs to hand the
+ * board over and give it back.
+ */
+export type RetrySession =
+  | { active: false }
+  | (RetryState & {
+      active: true;
+      boardId: string;
+      exerciseKey: string;
+      /** 0-based ply index of the mistake being retried (orders `queue`). */
+      momentIndex: number;
+      /** Path of the position before the mistake: the board sits here. */
+      parentPath: Path;
+      /** Where Exit puts the board back. */
+      returnPath: Path;
+      returnOrientation: BoardOrientation;
+      /** The wrong move on the board for 600 ms, then null. */
+      wrongFlash: { fen: string; from: string; to: string } | null;
+      /** A record for this exercise already counted today. */
+      freePractice: boolean;
+      /** Every retryable mistake of the reviewed line, in game order. */
+      queue: RetryTarget[];
+    });
 
 export type BoardSession = {
   id: string;
@@ -169,6 +196,17 @@ export type StudioState = {
   setupMode: boolean;
   // SIG-1187: pending Forward continuation choice; null when no chooser open.
   variationChoice: VariationChoice | null;
+  // SIG-1209: Game Review retry session; `{ active: false }` when none.
+  retry: RetrySession;
+  startRetry: (target: RetryTarget, queue?: RetryTarget[]) => boolean;
+  /** Retry-mode move; returns false for illegal or locked moves. */
+  retryMove: (from: string, to: string, promotion?: string) => boolean;
+  retryHint: () => void;
+  revealRetry: () => void;
+  /** Opens the next retryable mistake in game order; false when there is none. */
+  nextRetry: () => boolean;
+  /** Leaves the retry; `restorePath: false` keeps the board where it is. */
+  exitRetry: (options?: { restorePath?: boolean }) => void;
   active: () => BoardSession;
   fen: () => string;
   lastMove: () => { from: string; to: string } | null;

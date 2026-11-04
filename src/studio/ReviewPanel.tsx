@@ -43,6 +43,8 @@ import { getFenAt, getNodeAt, pathAlongLine, pathsEqual, variationPoints } from 
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { TrainMistakesBanner } from "./review/TrainMistakesBanner";
+import { RetryCard } from "./review/RetryCard";
+import { buildRetryTargets, type RetryTarget } from "@/src/chess/retry";
 import { MoreHorizontal } from "lucide-react";
 import { Button, IconButton } from "./ui/Button";
 import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
@@ -61,6 +63,12 @@ export function ReviewPanel() {
   const undoReviewAnnotations = useStudioStore((state) => state.undoReviewAnnotations);
   const setStatus = useStudioStore((state) => state.setStatus);
   const locale = useStudioStore((state) => state.settings.locale);
+  // SIG-1209: a retry flips the board to the side to move; the user's side
+  // (review side, deviation colour, exercise ownership) stays the original.
+  const retry = useStudioStore((state) => state.retry);
+  const startRetry = useStudioStore((state) => state.startRetry);
+  const retryHere = retry.active && retry.boardId === board.id;
+  const userOrientation = retryHere ? retry.returnOrientation : board.orientation;
 
   // SIG-968: annotate options dialog (NAGs always written, these toggle the
   // comment block lines). Local state — closing the dialog discards them.
@@ -101,7 +109,7 @@ export function ReviewPanel() {
     engineBuild,
     engineThreads,
     setupMode,
-    userSide: board.orientation === "white" ? "w" : "b",
+    userSide: userOrientation === "white" ? "w" : "b",
   });
 
   // SIG-969: coarse polite announcer — ~10% buckets via progressBucket, never
@@ -210,7 +218,7 @@ export function ReviewPanel() {
   // SIG-1094: the same event drives the one-click fix button below the
   // line; the component stays presentational (button + dispatch live here).
   const repertoireTree = useStudioStore((state) =>
-    board.orientation === "white"
+    userOrientation === "white"
       ? (state.boards.find((b) => b.repertoireColor === "white")?.tree ?? null)
       : (state.boards.find((b) => b.repertoireColor === "black")?.tree ?? null),
   );
@@ -218,8 +226,8 @@ export function ReviewPanel() {
     if (!repertoireTree || board.tree.children.length === 0) {
       return null;
     }
-    return findDeviation({ repertoire: repertoireTree, game: board.tree, userColor: board.orientation });
-  }, [repertoireTree, board.tree, board.orientation]);
+    return findDeviation({ repertoire: repertoireTree, game: board.tree, userColor: userOrientation });
+  }, [repertoireTree, board.tree, userOrientation]);
   const deviationLine = useMemo(() => {
     if (!deviationEvent) {
       return null;
@@ -232,12 +240,12 @@ export function ReviewPanel() {
     deviationEvent?.kind === "user_deviation"
       ? {
           label: tRepertoire(locale, "repertoire.deviation.trainLine"),
-          onClick: () => trainDeviationLine(deviationEvent, board.orientation),
+          onClick: () => trainDeviationLine(deviationEvent, userOrientation),
         }
       : deviationEvent?.kind === "opponent_gap"
         ? {
             label: tRepertoire(locale, "repertoire.deviation.addGap"),
-            onClick: () => addGapToRepertoire(deviationEvent, board.orientation),
+            onClick: () => addGapToRepertoire(deviationEvent, userOrientation),
           }
         : null;
 
@@ -379,6 +387,32 @@ export function ReviewPanel() {
       })),
     [filteredMoments, points],
   );
+  // SIG-1209: every retryable mistake of the line, both sides, in game order.
+  // Built for the whole review (not the chart filters) so "Next mistake" walks
+  // all of them. Not offered mid-run: the rows are about to be replaced.
+  const retryTargets = useMemo<RetryTarget[]>(
+    () =>
+      displayRows && !running
+        ? buildRetryTargets({
+            rows: displayRows,
+            fens: points.map((point) => point.fen),
+            parentPaths: points.map((point) => point.path),
+            userSide: userOrientation === "white" ? "w" : "b",
+          })
+        : [],
+    [displayRows, running, points, userOrientation],
+  );
+  const retryByPath = useMemo(
+    () => new Map(retryTargets.map((target) => [target.momentPath.join("."), target])),
+    [retryTargets],
+  );
+  const retryPaths = useMemo<ReadonlySet<string>>(() => new Set(retryByPath.keys()), [retryByPath]);
+  const openRetry = (path: number[]) => {
+    const target = retryByPath.get(path.join("."));
+    if (target) {
+      startRetry(target, retryTargets);
+    }
+  };
   const { prevMomentIndex, nextMomentIndex } = useMemo(() => {
     if (selectedMomentIndex != null) {
       const { prev, next } = prevNextIndices(filteredMoments.length, selectedMomentIndex);
@@ -582,7 +616,9 @@ export function ReviewPanel() {
                   <MenuDivider />
                   <MenuItem
                     label={tReview(locale, "share.copyImage")}
-                    disabled={!report}
+                    // SIG-1209: the retry card replaces the summary inside reportRef,
+                    // so the PNG would capture it; export waits for the retry to end.
+                    disabled={!report || retryHere}
                     onClick={() => {
                       setActionsOpen(false);
                       void copyReportImage();
@@ -590,7 +626,9 @@ export function ReviewPanel() {
                   />
                   <MenuItem
                     label={tReview(locale, "share.downloadImage")}
-                    disabled={!report}
+                    // SIG-1209: the retry card replaces the summary inside reportRef,
+                    // so the PNG would capture it; export waits for the retry to end.
+                    disabled={!report || retryHere}
                     onClick={() => {
                       setActionsOpen(false);
                       void downloadReportImage();
@@ -676,14 +714,21 @@ export function ReviewPanel() {
               <p className="px-3 pt-1 text-caption text-studio-faint">{tReview(locale, "panel.partialNote")}</p>
             ) : null}
             <div ref={reportRef} className="bg-studio-panel">
-              <ReportSummary report={report} locale={locale} openingName={openingName} lineNote={lineNote} verdict={verdict} />
+              {retryHere ? (
+                <RetryCard locale={locale} moveNotation={moveNotation} startFen={board.tree.startFen} />
+              ) : (
+                <ReportSummary report={report} locale={locale} openingName={openingName} lineNote={lineNote} verdict={verdict} />
+              )}
               <KeyMomentsList
                 moments={momentRows}
                 moveNotation={moveNotation}
                 locale={locale}
                 onSelectMoment={goPath}
+                onRetry={openRetry}
+                retryPaths={retryPaths}
+                retryActive={retryHere}
                 explanation={
-                  selected && selectedContext && selectedMomentIndex != null && !running ? (
+                  selected && selectedContext && selectedMomentIndex != null && !running && !retryHere ? (
                     <WhyBody
                       key={selected.path.join(".")}
                       row={selected}
@@ -693,6 +738,7 @@ export function ReviewPanel() {
                       locale={locale}
                       moveNotation={moveNotation}
                       onPlayLine={playLine}
+                      onRetry={retryByPath.has(selected.path.join(".")) ? () => openRetry(selected.path) : undefined}
                     />
                   ) : null
                 }
@@ -704,7 +750,7 @@ export function ReviewPanel() {
             {/* SIG-1206: after the key moments (so the first moment stays above
                 the fold) and outside reportRef (so it never lands in the PNG). */}
             {trainBanner ? <TrainMistakesBanner banner={trainBanner} locale={locale} /> : null}
-            {selected && selectedContext && selectedMomentIndex == null && !running ? (
+            {selected && selectedContext && selectedMomentIndex == null && !running && !retryHere ? (
               <WhyBlock
                 key={selected.path.join(".")}
                 row={selected}

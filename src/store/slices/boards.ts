@@ -142,6 +142,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     return fen.split(" ")[1] === "b" ? "b" : "w";
   },
   newBoard: () => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     const board = emptyBoard();
     set((state) => ({
       boards: [...state.boards, board],
@@ -154,6 +157,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }));
   },
   closeBoard: (id) => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     const closed = get().boards.find((board) => board.id === (id ?? get().activeBoardId));
     set((state) => {
       const target = id ?? state.activeBoardId;
@@ -174,6 +180,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     persistBoardClose(get(), closed);
   },
   cloneBoard: () => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     const current = get().active();
     const clone: BoardSession = {
       ...current,
@@ -201,7 +210,10 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       variationChoice: null,
     }));
   },
-  setActiveBoard: (id) =>
+  setActiveBoard: (id) => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     set({
       activeBoardId: id,
       enginePreview: null,
@@ -212,8 +224,13 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       drillDueOnly: false,
       // SIG-1187: a board switch never carries a pending chooser.
       variationChoice: null,
-    }),
+    });
+  },
   makeUciMove: (from, to, promotion) => {
+    // SIG-1209: an open retry owns the board; its moves never enter the tree.
+    if (get().retry.active) {
+      return get().retryMove(from, to, promotion);
+    }
     if (get().training) {
       const board = get().active();
       const uci = `${from}${to}${promotion ?? ""}`;
@@ -311,7 +328,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
   },
   playUciSequence: (ucis) => {
-    if (get().training) {
+    if (get().training || get().retry.active) {
       return;
     }
     const previous = get().active().path;
@@ -393,6 +410,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }));
   },
   goPath: (path) => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     if (get().training) {
       return;
     }
@@ -412,6 +432,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     soundForAdvance(get, previous);
   },
   back: () => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     if (get().training) {
       return;
     }
@@ -429,6 +452,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }));
   },
   forward: () => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     if (get().training) {
       return;
     }
@@ -462,6 +488,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     set({ variationChoice: { boardId: board.id, path: [...board.path] } });
   },
   chooseVariation: (index) => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     const choice = get().variationChoice;
     if (!choice) {
       return;
@@ -493,6 +522,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
   },
   toStart: () => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     if (get().training) {
       return;
     }
@@ -509,6 +541,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }));
   },
   toEnd: () => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     if (get().training) {
       return;
     }
@@ -527,6 +562,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     soundForAdvance(get, previous);
   },
   skipForward: () => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     if (get().training) {
       return;
     }
@@ -545,6 +583,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     soundForAdvance(get, previous);
   },
   startTraining: () => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     const state = get();
     if (state.training && state.trainingStart) {
       const start = state.trainingStart;
@@ -575,6 +616,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
   },
   stopTraining: () => set({ training: false, trainingStart: null, drillDueOnly: false }),
   startDueDrill: () => {
+    if (get().retry.active) {
+      get().exitRetry();
+    }
     const board = get().active();
     const dueMoves = getDueRepertoireMoves(board.tree, get().repertoireProgress);
     if (dueMoves.length === 0) {

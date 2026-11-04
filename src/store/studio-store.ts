@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { currentDockLayoutEpoch, type DockLayoutSnapshot } from "@/src/studio/dock-layout";
 import { recentSans } from "@/src/chess/pgn";
+import { pathsEqual } from "@/src/chess/tree";
 import { tSidebar } from "@/src/i18n/studio-sidebar-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { saveLocalBookmarks } from "@/src/lib/player-bookmarks";
@@ -14,6 +15,7 @@ import { EMPTY_FILES, saveLocalFiles } from "@/src/lib/user-files";
 import { emptyBoard } from "./slices/board-helpers";
 import { createFilesSlice } from "./slices/files";
 import { createBoardsSlice } from "./slices/boards";
+import { INACTIVE_RETRY, createRetrySlice } from "./slices/retry";
 import { createEngineSlice } from "./slices/engine";
 import { DEFAULT_SETTINGS, createSettingsSlice } from "./slices/settings";
 import { createBoardEditSlice } from "./slices/board-edit";
@@ -87,6 +89,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   // useStudioStore inside its own initializer.
   ...createEngineSlice(set, get, undefined as never),
   ...createBoardsSlice(set, get, undefined as never),
+  // SIG-1209: Game Review retry session lives in slices/retry.ts.
+  ...createRetrySlice(set, get, undefined as never),
   // SIG-917: files/bookmarks initial state + actions live in slices/files.ts.
   ...createFilesSlice(set, get, undefined as never),
   // SIG-944: settings actions live in slices/settings.ts; the store keeps only
@@ -218,10 +222,27 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       mistakeExercises: {},
       // SIG-1187: a signed-out session never carries a pending chooser.
       variationChoice: null,
+      // SIG-1209: a signed-out session never carries a retry.
+      retry: INACTIVE_RETRY,
     } satisfies SessionResetPayload;
+    get().exitRetry({ restorePath: false });
     set(sessionReset);
   },
 }));
+
+// SIG-1209: safety net for board changes that bypass the explicit exits (a PGN
+// import, a file open, a remote board hydrate): a retry only lives while its
+// board is the active one and still sits on the retry position.
+useStudioStore.subscribe((state) => {
+  const retry = state.retry;
+  if (!retry.active) {
+    return;
+  }
+  const board = state.boards.find((item) => item.id === retry.boardId);
+  if (!board || state.activeBoardId !== board.id || !pathsEqual(board.path, retry.parentPath)) {
+    state.exitRetry({ restorePath: false });
+  }
+});
 
 const initial = useStudioStore.getState();
 if (!initial.activeBoardId && initial.boards[0]) {
