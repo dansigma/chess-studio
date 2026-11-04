@@ -3,6 +3,7 @@ import { parseGame, type ParseTree } from "@mliebelt/pgn-parser";
 import type { PgnMove } from "@mliebelt/pgn-types";
 import { formatCommentWithMarks, marksAreEmpty, marksFromPgnArrays, mergeMarks, parseMarksFromComment } from "./marks";
 import { applyNullMoveFen, isNullMoveToken, NULL_MOVE_SAN, NULL_MOVE_UCI } from "./null-move";
+import { clockToken, parseClockMs } from "./clock";
 import { pgnGameChunks, sanMovesFromPgn } from "./pgn-clean";
 import { formatPgnNagTokens, parseNags } from "./nags";
 import {
@@ -160,6 +161,11 @@ function walkLine(chess: Chess, parent: TreeNode[], moves: PgnMove[], warnings: 
     ),
     children: [],
   };
+  // SIG-1218: only set when the PGN carries a clock; never a zero placeholder.
+  const clockMs = parseClockMs(first.commentDiag?.clk);
+  if (clockMs !== undefined) {
+    node.clockMs = clockMs;
+  }
   parent.push(node);
   for (const variation of first.variations) {
     walkLine(new Chess(beforeFen, { skipValidation: true }), parent, variation, warnings);
@@ -290,6 +296,7 @@ function absorbTree(dest: GameTree, source: GameTree): void {
           commentBefore: node.commentBefore,
           nags: node.nags ? [...node.nags] : undefined,
           marks: node.marks ? structuredClone(node.marks) : undefined,
+          clockMs: node.clockMs,
           children: [],
         };
         siblings.push(existing);
@@ -306,6 +313,9 @@ function absorbTree(dest: GameTree, source: GameTree): void {
         if (marksAreEmpty(existing.marks) && !marksAreEmpty(node.marks)) {
           existing.marks = structuredClone(node.marks);
         }
+        if (existing.clockMs === undefined && node.clockMs !== undefined) {
+          existing.clockMs = node.clockMs;
+        }
       }
       absorb(existing.children, node.children);
     }
@@ -317,7 +327,7 @@ export function openablePgn(pgn: string): ImportedGame | null {
   // Keep every import in chunk order so warnings from games with no playable
   // moves still reach the caller instead of being dropped with the game.
   const ordered: ImportedGame[] = [];
-  for (const chunk of pgnGameChunks(pgn)) {
+  for (const chunk of pgnGameChunks(pgn, { keepClocks: true })) {
     const imported = importOneGame(chunk);
     if (imported) {
       ordered.push(imported);
@@ -371,7 +381,7 @@ export function importPgn(pgn: string): ImportedGame {
 }
 
 export function mainlinePathForPgn(tree: GameTree, pgn: string): Path {
-  const chunk = pgnGameChunks(pgn)[0] ?? pgn.trim();
+  const chunk = pgnGameChunks(pgn, { keepClocks: true })[0] ?? pgn.trim();
   if (!chunk) {
     return [];
   }
@@ -523,7 +533,10 @@ function emitFrom(nodes: TreeNode[], startFen: string, plyFromStart: number): st
     if (nagTokens) {
       parts.push(nagTokens);
     }
-    const comment = formatCommentWithMarks(node.comment, node.marks);
+    // SIG-1218: write the clock back; nodes without one emit nothing.
+    const comment = [clockToken(node.clockMs), formatCommentWithMarks(node.comment, node.marks)]
+      .filter(Boolean)
+      .join(" ");
     if (comment) {
       parts.push(`{${escapeComment(comment)}}`);
     }

@@ -1,3 +1,4 @@
+import { formatClockMs } from "@/src/chess/clock";
 import { buildCompactPgn, sanLineFromPgn } from "@/src/chess/pgn-clean";
 import {
   isClosedLichessUser,
@@ -175,6 +176,10 @@ export type LichessGameJson = {
   speed?: string;
   createdAt?: number;
   moves?: string;
+  /** SIG-1218: time left after each ply, in centiseconds (when `clocks=true`). */
+  clocks?: number[];
+  /** SIG-1218: seconds; absent for correspondence games. */
+  clock?: { initial?: number; increment?: number };
   pgn?: string;
   opening?: { eco?: string; name?: string };
   players?: {
@@ -193,6 +198,20 @@ export function lichessWinner(game: LichessGameJson): PlayerGame["winner"] {
   return null;
 }
 
+function lichessTimeControl(clock: LichessGameJson["clock"]): string {
+  if (typeof clock?.initial !== "number" || !Number.isFinite(clock.initial)) {
+    return "";
+  }
+  return `${clock.initial}+${typeof clock.increment === "number" ? clock.increment : 0}`;
+}
+
+function lichessClockTexts(clocks: number[] | undefined): (string | undefined)[] | undefined {
+  if (!Array.isArray(clocks) || clocks.length === 0) {
+    return undefined;
+  }
+  return clocks.map((cs) => (typeof cs === "number" ? formatClockMs(cs * 10) : undefined));
+}
+
 export async function lichessGamesSince(
   username: string,
   sinceMs: number,
@@ -200,7 +219,9 @@ export async function lichessGamesSince(
 ): Promise<PlayerGame[]> {
   const params = new URLSearchParams({
     max: String(max),
-    clocks: "false",
+    // SIG-1218: per-ply centiseconds feed `[%clk]` in the stored PGN. 200 games
+    // (MAX_SYNC_GAMES) add roughly 0.1 to 0.3 MB, well under MAX_PLAYER_GAMES_BYTES.
+    clocks: "true",
     evals: "false",
     opening: "true",
     moves: "true",
@@ -274,8 +295,10 @@ export async function lichessGamesSince(
               BlackElo: raw.players?.black?.rating ? String(raw.players.black.rating) : "",
               ECO: raw.opening?.eco ?? "",
               Opening: raw.opening?.name ?? "",
+              TimeControl: lichessTimeControl(raw.clock),
             },
             moves,
+            lichessClockTexts(raw.clocks),
           )
         : undefined,
       color,

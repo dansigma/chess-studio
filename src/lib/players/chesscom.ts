@@ -168,6 +168,9 @@ export function compactChesscomGame(
     raw.url?.split("/").filter(Boolean).at(-1) ?? `${whiteName}-${blackName}-${end ?? fallbackId}`;
   const cleaned = raw.pgn ? stripPgnNoise(raw.pgn) : "";
   const moves = cleaned ? sanLineFromPgn(cleaned) : "";
+  // SIG-1218: the stored PGN keeps Chess.com's `[%clk]` (and TimeControl header);
+  // `moves` above stays SAN-only.
+  const storedPgn = raw.pgn ? stripPgnNoise(raw.pgn, { keepClocks: true }) : "";
   return {
     id,
     winner,
@@ -184,7 +187,7 @@ export function compactChesscomGame(
     eco: pgnHeader(raw.pgn, "ECO"),
     opening: chesscomOpeningNameFromUrl(pgnHeader(raw.pgn, "ECOUrl") ?? raw.eco),
     moves: moves || undefined,
-    pgn: cleaned || undefined,
+    pgn: storedPgn || undefined,
     timeClass: raw.time_class ?? null,
     // SIG-1048: absent on old payloads (null = unknown).
     rated: raw.rated ?? null,

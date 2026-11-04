@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { exportPgn, importPgn, openablePgn } from "./pgn.ts";
-import { splitPgnGames } from "./pgn-games.ts";
+import { parsePgnCollection, splitPgnGames } from "./pgn-games.ts";
 import { createEmptyTree } from "./tree.ts";
 
 const CUSTOM_FEN = "r1bq1rk1/pp3ppp/2n1pn2/2pp4/2P5/2NP1N2/PP2BPPP/R1BQ1RK1 w - - 0 8";
@@ -93,9 +93,58 @@ test("splitPgnGames reuses the shared cleanup pipeline", () => {
   assert.equal(chunks.length, 2);
   for (const chunk of chunks) {
     assert.ok(!chunk.split("\n").some((line) => line.startsWith("%")));
-    assert.ok(!chunk.includes("[%clk"));
+    // SIG-1218: splitting keeps clocks now.
     assert.ok(!chunk.includes("\u2026"));
   }
+  assert.ok(chunks[0]?.includes("[%clk 0:03:00]"));
   assert.match(chunks[0] ?? "", /1\. e4/);
   assert.match(chunks[1] ?? "", /1\. d4/);
+});
+
+// SIG-1218
+test("export writes [%clk] back and save/reload keeps every clock", () => {
+  const first = importPgn(
+    '[Event "A"]\n[TimeControl "180+2"]\n\n1. e4 {[%clk 0:03:00]} e5 {[%clk 0:02:59.4]} 2. Nf3 {nice [%cal Gg1f3] [%clk 0:02:55]} Nc6 *\n',
+  );
+  const text = exportPgn(first.tree, first.headers);
+  assert.match(text, /\[TimeControl "180\+2"\]/);
+  assert.match(text, /\[%clk 0:02:59\.4\]/);
+  const second = importPgn(text);
+  const clocks = (tree: typeof first.tree) => {
+    const out: (number | undefined)[] = [];
+    let nodes = tree.children;
+    while (nodes[0]) {
+      out.push(nodes[0].clockMs);
+      nodes = nodes[0].children;
+    }
+    return out;
+  };
+  assert.deepEqual(clocks(second.tree), [180_000, 179_400, 175_000, undefined]);
+  assert.equal(second.tree.children[0]?.children[0]?.children[0]?.comment, "nice");
+  assert.equal(second.headers.TimeControl, "180+2");
+});
+
+test("export without clocks emits no [%clk] and no empty comments", () => {
+  const game = importPgn('[Event "A"]\n\n1. e4 e5 *\n');
+  const text = exportPgn(game.tree, game.headers);
+  assert.ok(!text.includes("%clk"));
+  assert.ok(!text.includes("{}"));
+});
+
+test("parsePgnCollection keeps %clk per game and importPgn reads clockMs", () => {
+  const text =
+    '[Event "A"]\n[TimeControl "600"]\n\n1. e4 {[%clk 0:09:58]} e5 {[%clk 0:09:57]} *\n\n' +
+    '[Event "B"]\n[TimeControl "300+2"]\n\n1. d4 {[%clk 0:04:59.5]} d5 {[%clk 0:04:58]} *\n';
+  const { games } = parsePgnCollection(text);
+  assert.equal(games.length, 2);
+  const expected = [
+    [598_000, 597_000],
+    [299_500, 298_000],
+  ];
+  games.forEach((game, index) => {
+    assert.ok(game.pgn.includes("[%clk"));
+    const first = importPgn(game.pgn).tree.children[0];
+    assert.deepEqual([first?.clockMs, first?.children[0]?.clockMs], expected[index]);
+    assert.equal(first?.comment, undefined);
+  });
 });

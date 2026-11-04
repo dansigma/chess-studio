@@ -83,3 +83,24 @@ test("buildCompactPgn quotes headers and falls back to * result", () => {
   const withResult = buildCompactPgn({ Result: "1-0" }, "e4");
   assert.ok(withResult.trimEnd().endsWith("1-0"));
 });
+
+// SIG-1218
+test("keepClocks leaves [%clk] in place; default still strips it", () => {
+  const raw = '[White "A"]\n\n1. e4 {[%clk 0:01:00]} e5 {[%clk 0:00:59]} *';
+  assert.ok(pgnForImport(raw, { keepClocks: true }).includes("[%clk 0:01:00]"));
+  assert.ok(pgnGameChunks(raw, { keepClocks: true })[0]?.includes("[%clk 0:00:59]"));
+  assert.ok(!pgnForImport(raw).includes("%clk"));
+  assert.ok(!stripPgnDiagnostics(raw).includes("%clk"));
+});
+
+test("stripPgnNoise keepClocks shrinks comments to their clock token", () => {
+  const raw = "1. e4 {[%eval 0.3] [%clk 0:01:00] hi} e5 {just text} 2. Nf3 (2. d4) *";
+  assert.equal(stripPgnNoise(raw, { keepClocks: true }), "1. e4 {[%clk 0:01:00]} e5 2. Nf3 *");
+  assert.equal(stripPgnNoise(raw), "1. e4 e5 2. Nf3 *");
+});
+
+test("buildCompactPgn writes clocks only where given", () => {
+  const pgn = buildCompactPgn({ Result: "*" }, "e4 e5 Nf3", ["0:03:00", undefined, "0:02:55"]);
+  assert.ok(pgn.includes("1. e4 {[%clk 0:03:00]} e5 2. Nf3 {[%clk 0:02:55]}"));
+  assert.equal(buildCompactPgn({ Result: "*" }, "e4 e5"), '[Result "*"]\n\n1. e4 e5 *\n');
+});
