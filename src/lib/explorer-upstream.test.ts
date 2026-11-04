@@ -5,6 +5,7 @@ import {
   _resetExplorerUpstreamForTest,
   EXPLORER_UPSTREAM_MAX_BYTES,
   fetchExplorerUpstream,
+  mapGame,
 } from "./explorer-upstream.ts";
 
 const FEN_A = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -77,4 +78,12 @@ test("an oversized upstream body is treated as a failure and backs off that sour
   const second = await fetchExplorerUpstream("lichess", FEN_B, "");
   assert.equal(second, null);
   assert.equal(fetchCount, 2);
+});
+
+test("SIG-1214: explorer games without a winner are draws, not unknown results", () => {
+  const base = { id: "g1", white: { name: "Carlsen, M.", rating: 2861 }, black: { name: "Nakamura, Hi", rating: 2761 }, year: 2019 };
+  assert.equal(mapGame({ ...base, winner: null }, null).winner, "draw");
+  assert.equal(mapGame({ ...base }, null).winner, "draw");
+  assert.equal(mapGame({ ...base, winner: "white" }, null).winner, "white");
+  assert.equal(mapGame({ ...base, winner: "black" }, null).winner, "black");
 });
