@@ -27,4 +27,9 @@ test("boards sidebar renders Portuguese with the pt-br locale stored", async ({ 
   // Boards is the default sidebar; assert its translated title + action directly.
   await expect(page.getByRole("heading", { name: "Tabuleiros abertos" })).toBeVisible();
   await expect(page.getByRole("complementary").getByRole("button", { name: "Novo tabuleiro" })).toBeVisible();
+  // SIG-1200: default board row title and empty-board subtitle are localized.
+  const sidebar = page.getByRole("complementary");
+  await expect(sidebar.getByText("Tabuleiro", { exact: true }).first()).toBeVisible();
+  await expect(sidebar.getByText("Posição inicial", { exact: true }).first()).toBeVisible();
+  await expect(sidebar.getByText("starting position", { exact: true })).toHaveCount(0);
 });

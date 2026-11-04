@@ -30,9 +30,12 @@ const BOARD_TITLE: Record<SiteLocale, string> = {
   "pt-br": "Tabuleiro",
 };
 
-/** Localized fallback for a per-board session tab title. */
+/**
+ * Localized per-board title. The stored default title "Board" (and an empty
+ * one) is a sentinel localized at display time; any other title is shown as is.
+ */
 export function boardTitle(locale: SiteLocale, title: string): string {
-  return title || BOARD_TITLE[locale];
+  return !title || title === "Board" ? BOARD_TITLE[locale] : title;
 }
 
 /**

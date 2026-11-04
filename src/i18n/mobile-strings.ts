@@ -31,7 +31,7 @@ const EN: Record<MobileStringKey, string> = {
 const PT_BR: Record<MobileStringKey, string> = {
   "mobile.tabs.label": "Painéis do studio",
   "mobile.tabs.moves": "Lances",
-  "mobile.tabs.engine": "Motor",
+  "mobile.tabs.engine": "Engine",
   "mobile.tabs.review": "Análise",
   "mobile.tabs.explorer": "Explorador",
   "mobile.menu.open": "Abrir menu",

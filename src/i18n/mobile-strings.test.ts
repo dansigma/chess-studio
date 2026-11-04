@@ -20,7 +20,7 @@ test("mobile tab labels render the short tab names", () => {
   assert.equal(tMobile("en", "mobile.tabs.moves"), "Moves");
   assert.equal(tMobile("pt-br", "mobile.tabs.moves"), "Lances");
   assert.equal(tMobile("en", "mobile.tabs.engine"), "Engine");
-  assert.equal(tMobile("pt-br", "mobile.tabs.engine"), "Motor");
+  assert.equal(tMobile("pt-br", "mobile.tabs.engine"), "Engine");
   assert.equal(tMobile("en", "mobile.tabs.review"), "Review");
   assert.equal(tMobile("pt-br", "mobile.tabs.review"), "Análise");
   assert.equal(tMobile("en", "mobile.tabs.explorer"), "Explorer");

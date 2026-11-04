@@ -6,7 +6,7 @@ import {
   selectActiveBoard,
   useStudioStore,
 } from "@/src/store/studio-store";
-import { closeBoardPanel, openBoardPanel } from "./dock-api";
+import { boardTitle, closeBoardPanel, openBoardPanel } from "./dock-api";
 import { tSidebar } from "@/src/i18n/studio-sidebar-strings";
 import { IconButton } from "./ui/Button";
 import { SidebarItem, SidebarPanel } from "./ui/Sidebar";
@@ -78,13 +78,13 @@ export function BoardsSidebar() {
           selected={board.id === activeBoardId}
           title={
             <>
-              {board.title}
+              {boardTitle(locale, board.title)}
               {board.preview ? (
                 <span className="text-studio-faint"> {tSidebar(locale, "sidebar.boards.previewSuffix")}</span>
               ) : null}
             </>
           }
-          description={boardPreview(board)}
+          description={boardPreview(board, locale)}
           trailing={
             <span className="flex h-6 items-center">
               {/* SIG-910: visible keep control so the preview no longer needs a
@@ -94,7 +94,7 @@ export function BoardsSidebar() {
                 <button
                   type="button"
                   title={tSidebar(locale, "sidebar.boards.keep")}
-                  aria-label={tSidebar(locale, "sidebar.boards.keepName", { title: board.title })}
+                  aria-label={tSidebar(locale, "sidebar.boards.keepName", { title: boardTitle(locale, board.title) })}
                   className="flex h-6 w-6 items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg"
                   onClick={(event) => {
                     event.stopPropagation();
