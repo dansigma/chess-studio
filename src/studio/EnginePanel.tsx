@@ -22,6 +22,7 @@ import { acquire, type SharedEngineLease } from "@/src/engine/shared-engine";
 import { useActiveFen, useSideToMove } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { tReview } from "@/src/chess/review-strings";
 import { EngineLineContextMenu, type EngineLineMenuState } from "./EngineLineContextMenu";
 import { fenKey } from "@/src/chess/tree";
 import { resolveEvalDisplay } from "@/src/lib/eval-cache";
@@ -65,6 +66,9 @@ export function EnginePanel() {
   const previewKey = useStudioStore((state) => state.enginePreview?.key ?? null);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const side = useSideToMove();
+  // SIG-1209: a Game Review retry sits on the position before the mistake; the
+  // engine would show the answer, so it is stopped and its output replaced.
+  const retryActive = useStudioStore((state) => state.retry.active);
   // SIG-856: the cached eval for this FEN (shown immediately, no engine
   // wait) and the last displayed eval (held instead of zeroed on fresh FENs).
   const cachedForFen = useStudioStore((state) => state.evalByFen[fenKey(fen)]);
@@ -119,12 +123,12 @@ export function EnginePanel() {
     if (!started) {
       return;
     }
-    if (paused) {
+    if (paused || retryActive) {
       engineRef.current?.stop();
       return;
     }
     engineRef.current?.analyze(fen, depthTarget, multiPv, threads);
-  }, [fen, depthTarget, multiPv, threads, paused, runId, engineBuild, started]);
+  }, [fen, depthTarget, multiPv, threads, paused, runId, engineBuild, started, retryActive]);
 
   // SIG-856 choice (b): on a FEN change, show the cached eval immediately
   // when present; otherwise hold the last displayed value — never zero the
@@ -195,6 +199,19 @@ export function EnginePanel() {
         ? tPanels(locale, "engine.status.line", { depth: display.depth, target: depthTarget, nps })
         : tPanels(locale, "engine.status.lineNoNps", { depth: display.depth, target: depthTarget });
   const running = info.running && !paused;
+
+  if (retryActive) {
+    return (
+      <div
+        ref={rootRef}
+        role="status"
+        data-engine-hidden=""
+        className="flex h-full items-center justify-center bg-studio-panel px-3 text-center text-dense text-studio-faint"
+      >
+        {tReview(locale, "retry.engineHidden")}
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">

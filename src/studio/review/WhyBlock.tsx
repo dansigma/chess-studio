@@ -8,8 +8,9 @@ import type { ExplainLocale } from "@/src/chess/explain/locale";
 import { renderExplanation, uiText } from "@/src/chess/explain/render";
 import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
 import { REVIEW_TIERS } from "@/src/chess/review-tiers";
-import { tierName, tReview } from "@/src/chess/review-strings";
+import { retryButtonLabel, tierName, tReview } from "@/src/chess/review-strings";
 import type { ReviewMoveRow } from "./useGameReview";
+import { RetryButton } from "./RetryCard";
 import { marksForStatement } from "./why-marks";
 import { useWhyHover } from "./useWhyHover";
 
@@ -26,6 +27,8 @@ type Props = {
   moveNotation: MoveNotation;
   /** Opens the engine line as a variation and goes to its `ply`-th move. */
   onPlayLine: (ucis: string[], ply: number) => void;
+  /** SIG-1209: starts a retry of this move; the button sits at the end of the body. */
+  onRetry?: () => void;
 };
 
 function moveNumberLabel(fen: string, ply: number): string | null {
@@ -45,7 +48,7 @@ function moveNumberLabel(fen: string, ply: number): string | null {
  * best line. Rendered inline under a key-moment row and inside the collapsible
  * {@link WhyBlock}. Mount it only while it is visible — it computes on mount.
  */
-export function WhyBody({ row, fenBefore, fenAfter, previous, locale, moveNotation, onPlayLine }: Props) {
+export function WhyBody({ row, fenBefore, fenAfter, previous, locale, moveNotation, onPlayLine, onRetry }: Props) {
   const setHover = useWhyHover(fenBefore, fenAfter);
 
   const mover = row.side;
@@ -126,6 +129,19 @@ export function WhyBody({ row, fenBefore, fenAfter, previous, locale, moveNotati
       ) : (
         <p className="text-caption text-studio-faint">{uiText(locale, "noLine")}</p>
       )}
+      {onRetry ? (
+        <div>
+          <RetryButton
+            locale={locale}
+            label={retryButtonLabel(locale, moveNotation, {
+              moveNumber: Number.parseInt(fenBefore.split(" ")[5] ?? "1", 10) || 1,
+              san: row.san,
+              side: row.side,
+            })}
+            onClick={onRetry}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

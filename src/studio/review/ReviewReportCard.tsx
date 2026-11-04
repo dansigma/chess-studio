@@ -7,6 +7,7 @@ import { REPORT_PHASES, type ReviewReport, type SideReport } from "@/src/chess/r
 import {
   keyMomentAccessibleName,
   phaseName,
+  retryButtonLabel,
   reviewPlayerFallback,
   tierName,
   tReview,
@@ -17,6 +18,7 @@ import type { SiteLocale } from "@/src/i18n/locale";
 import { formatDecimal1, formatInteger } from "@/src/i18n/format";
 import { formatMomentEval, momentBestLabel, momentNumberLabel } from "./key-moment-format";
 import { moveNumberForPath, pathsEqual, type Path } from "@/src/chess/tree";
+import { RetryButton } from "./RetryCard";
 
 export type KeyMomentRow = {
   path: Path;
@@ -324,6 +326,12 @@ type MomentsProps = {
   startFen: string;
   /** SIG-1208: the "Why?" body for the active row, rendered inline under it (never exported to the PNG). */
   explanation?: ReactNode;
+  /** SIG-1209: starts a retry of the mistake at `path`; only rows in `retryPaths` get the button. */
+  onRetry?: (path: Path) => void;
+  /** `path.join(".")` of every retryable moment. */
+  retryPaths?: ReadonlySet<string>;
+  /** A retry is open: "best: …" is hidden on every row and the Why? stays collapsed. */
+  retryActive?: boolean;
 };
 
 export function KeyMomentsList({
@@ -335,6 +343,9 @@ export function KeyMomentsList({
   hasUnfilteredMoments = false,
   startFen,
   explanation = null,
+  onRetry,
+  retryPaths,
+  retryActive = false,
 }: MomentsProps) {
   // Clicking the active row collapses its explanation; the flag belongs to one
   // row and resets as soon as the board moves to another path.
@@ -371,20 +382,25 @@ export function KeyMomentsList({
               lossCp: row.lossCp,
             });
             const key = row.path.join(".");
-            const bestLabel = momentBestLabel(locale, moveNotation, row.side, row.bestSan);
-            const open = active && explanation != null && collapsedKey !== key;
+            const bestLabel = retryActive ? null : momentBestLabel(locale, moveNotation, row.side, row.bestSan);
+            const open = !retryActive && active && explanation != null && collapsedKey !== key;
+            const canRetry = onRetry != null && retryPaths?.has(key) === true;
             const sanText = formatSan(row.san, moveNotation, row.side);
             return (
               <li key={key}>
+                {/* SIG-1209: the Retry button is a sibling of the row button (not
+                    nested), so clicking it never navigates and the row's
+                    "best:" text can still truncate. */}
+                <div className="flex items-center">
                 <button
                   type="button"
                   aria-current={active ? "true" : undefined}
-                  aria-expanded={active && explanation != null ? open : undefined}
+                  aria-expanded={!retryActive && active && explanation != null ? open : undefined}
                   aria-label={accessibleName}
                   title={bestLabel ? `${sanText} · ${bestLabel}` : undefined}
-                  className={`flex w-full items-center gap-2 whitespace-nowrap pr-3 py-0.5 text-left hover:bg-studio-hover${
-                    active ? " bg-studio-hover-strong" : ""
-                  }`}
+                  className={`flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap py-0.5 text-left hover:bg-studio-hover ${
+                    canRetry ? "pr-1" : "pr-3"
+                  }${active ? " bg-studio-hover-strong" : ""}`}
                   onClick={() => (active ? setCollapsedKey(open ? key : null) : onSelectMoment(row.path))}
                 >
                   <span aria-hidden className={`w-6 shrink-0 text-center font-semibold ${tier.className}`}>
@@ -403,6 +419,16 @@ export function KeyMomentsList({
                     </span>
                   ) : null}
                 </button>
+                {canRetry ? (
+                  <span className="mr-3 flex shrink-0">
+                    <RetryButton
+                      locale={locale}
+                      label={retryButtonLabel(locale, moveNotation, { moveNumber, san: row.san, side: row.side })}
+                      onClick={() => onRetry(row.path)}
+                    />
+                  </span>
+                ) : null}
+                </div>
                 {open ? (
                   <div
                     data-export-ignore

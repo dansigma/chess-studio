@@ -65,20 +65,37 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const insightMarks = useStudioStore((state) => state.insightMarks);
   const explorerHover = useStudioStore((state) => state.explorerHover);
   const setShowThreat = useStudioStore((state) => state.setShowThreat);
+  // SIG-1209: while a Game Review retry is open on this board, the board shows
+  // the retry position (never the tree), and every engine-derived overlay is off.
+  const retry = useStudioStore((state) => state.retry);
+  const retryHere = retry.active && retry.boardId === board.id;
+  const retryWrong = retry.active && retryHere ? retry.wrongFlash : null;
+  const retryLocked =
+    retry.active && retryHere
+      ? Boolean(retry.wrongFlash) || retry.awaitingReply || retry.status === "solved" || retry.status === "revealed"
+      : false;
   // SIG-907: only the active session's panel drives the shared threat lease
   // so split-view panels never contend for the `threat` slot.
-  useThreat(isActive);
+  useThreat(isActive && !retryHere);
   const baseFen = getFenAt(board.tree, board.path);
   const baseLastMove = getLastMove(board.tree, board.path);
   // Engine preview stays global (active-board-scoped): only the active
   // panel renders the preview FEN; split panels keep their stored position.
-  const fen = isActive && enginePreview ? enginePreview.fen : baseFen;
+  const fen = retry.active && retryHere
+    ? (retry.wrongFlash?.fen ?? retry.fen)
+    : isActive && enginePreview
+      ? enginePreview.fen
+      : baseFen;
   const lastMoveKey =
-    isActive && enginePreview
-      ? enginePreview.lastMove
-      : baseLastMove
-        ? `${baseLastMove.from}${baseLastMove.to}`
-        : "";
+    retry.active && retryHere
+      ? retry.wrongFlash
+        ? `${retry.wrongFlash.from}${retry.wrongFlash.to}`
+        : retry.lastMove
+      : isActive && enginePreview
+        ? enginePreview.lastMove
+        : baseLastMove
+          ? `${baseLastMove.from}${baseLastMove.to}`
+          : "";
   // SIG-857: primitive settings picks — the old `state.settings` object
   // re-rendered the board on every preference change (e.g. move sound).
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
@@ -126,12 +143,12 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const touchStartRef = useRef<TouchPoint | null>(null);
   const touchPressRef = useRef<ReturnType<typeof createLongPress> | null>(null);
 
-  const storedMarks = isActive && enginePreview ? null : getMarksAt(board.tree, board.path);
+  const storedMarks = retryHere || (isActive && enginePreview) ? null : getMarksAt(board.tree, board.path);
   const squareMarks = useMemo(() => storedMarks?.squares ?? [], [storedMarks]);
   const arrowMarks = useMemo(() => storedMarks?.arrows ?? [], [storedMarks]);
   // SIG-959: transient Insights overlay (hover / threat arrows). FEN-guarded
   // against the position actually shown, never stored on the tree.
-  const insight = isActive && insightMarks?.fen === fen ? insightMarks.marks : null;
+  const insight = !retryHere && isActive && insightMarks?.fen === fen ? insightMarks.marks : null;
   const previewing = Boolean(isActive && enginePreview);
   const [wasPreviewing, setWasPreviewing] = useState(previewing);
   if (wasPreviewing !== previewing) {
@@ -186,6 +203,28 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
     return () => window.removeEventListener("keydown", onKey, true);
   }, [promotion]);
 
+  // SIG-1209: Esc leaves the retry (the promotion dialog's capture handler
+  // runs first and marks its Escape as handled).
+  const exitRetry = useStudioStore((state) => state.exitRetry);
+  const retryEscape = retryHere && isActive;
+  useEffect(() => {
+    if (!retryEscape) {
+      return;
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) {
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+      exitRetry();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [retryEscape, exitRetry]);
+
   const dests = useMemo(() => {
     if (!selected) {
       return [] as string[];
@@ -207,8 +246,15 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
         : null;
     const styles: Record<string, CSSProperties> = {};
     if (lastMove) {
-      styles[lastMove.from] = { backgroundColor: "rgba(186, 202, 68, 0.72)" };
-      styles[lastMove.to] = { backgroundColor: "rgba(186, 202, 68, 0.72)" };
+      const tint = retryWrong ? "rgba(220, 38, 38, 0.55)" : "rgba(186, 202, 68, 0.72)";
+      styles[lastMove.from] = { backgroundColor: tint };
+      styles[lastMove.to] = { backgroundColor: tint };
+    }
+    if (retry.active && retryHere && retry.hintSquare) {
+      styles[retry.hintSquare] = {
+        backgroundColor: "rgba(250, 204, 21, 0.6)",
+        boxShadow: "inset 0 0 0 3px rgba(250, 204, 21, 0.95)",
+      };
     }
     for (const mark of squareMarks) {
       styles[mark.square] = {
@@ -236,9 +282,13 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
       };
     }
     return styles;
-  }, [dests, insight, lastMoveKey, squareMarks, selected]);
+  }, [dests, insight, lastMoveKey, squareMarks, selected, retry, retryHere, retryWrong]);
 
   const arrows = useMemo(() => {
+    // SIG-1209: no arrows at all during a retry; any of them could be the answer.
+    if (retryHere) {
+      return [];
+    }
     const marked = arrowsForRender([...arrowMarks, ...(insight?.arrows ?? [])], preview);
     // SIG-1194: the explorer move under the pointer, FEN-guarded like the
     // insight overlay and drawn on the active board only.
@@ -266,7 +316,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
       ...base,
       { startSquare: squares.from, endSquare: squares.to, color: MARK_HEX.R },
     ];
-  }, [arrowMarks, insight, isActive, preview, showThreat, threat, fen, explorerHover]);
+  }, [arrowMarks, insight, isActive, preview, showThreat, threat, fen, explorerHover, retryHere]);
 
   function attemptMove(from: string, to: string): boolean {
     let chess: Chess;
@@ -371,10 +421,13 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
             pawns={engineEval?.pawns ?? 0}
             label={engineEval?.label ?? "0.00"}
             orientation={board.orientation}
+            neutral={retryHere}
           />
         ) : null}
         <div
           data-board-image=""
+          data-orientation={board.orientation}
+          data-retry={retryHere ? "" : undefined}
           className="relative aspect-square h-full overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong"
           onContextMenu={(event) => {
             event.preventDefault();
@@ -406,14 +459,14 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
             squareStyles,
             boardStyle: { width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" },
             canDragPiece: ({ piece }) => {
-              if (previewing) {
+              if (previewing || retryLocked) {
                 return false;
               }
               const color = piece.pieceType.startsWith("w") ? "w" : "b";
               return color === turn;
             },
             onPieceDrop: ({ sourceSquare, targetSquare }) => {
-              if (previewing || !targetSquare) {
+              if (previewing || retryLocked || !targetSquare) {
                 return false;
               }
               return attemptMove(sourceSquare, targetSquare);
@@ -423,6 +476,9 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
                 // Never leave the user in a dead board: a lingering engine
                 // preview (hover that did not clear) must not swallow clicks.
                 setEnginePreview(null);
+                return;
+              }
+              if (retryLocked) {
                 return;
               }
               if (selected && dests.includes(square)) {

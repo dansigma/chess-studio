@@ -75,7 +75,11 @@ const momentRows = [
   { path: [0, 0, 0, 0], san: "e5", side: "b" as const, label: "best" as const, index: 3, lossCp: 0, beforePawns: -2.9, afterPawns: -2.9, bestSan: null },
 ];
 
-function renderMoments(selectedPath: number[] | null, onSelectMoment: (path: number[]) => void = () => {}) {
+function renderMoments(
+  selectedPath: number[] | null,
+  onSelectMoment: (path: number[]) => void = () => {},
+  extra: Partial<Parameters<typeof KeyMomentsList>[0]> = {},
+) {
   return render(
     <KeyMomentsList
       moments={momentRows}
@@ -85,13 +89,14 @@ function renderMoments(selectedPath: number[] | null, onSelectMoment: (path: num
       selectedPath={selectedPath}
       startFen={START_FEN}
       explanation={<p>because reasons</p>}
+      {...extra}
     />,
   );
 }
 
 test("key moment rows show number, move, evals and the best move only when it differs", () => {
   const { container } = renderMoments(null);
-  const rows = container.querySelectorAll("li > button");
+  const rows = container.querySelectorAll("li > div > button:not([data-retry-button])");
   assert.match(rows[0].textContent ?? "", /2\.Nf3\+0\.3 → -2\.9best: Nd5/);
   assert.doesNotMatch(rows[1].textContent ?? "", /best:/);
   assert.match(rows[1].textContent ?? "", /2\.\.\.e5/);
@@ -110,7 +115,7 @@ test("the explanation renders only under the active row, outside the export", ()
 test("clicking the active row collapses its explanation; another row navigates", () => {
   const selected: number[][] = [];
   const { container } = renderMoments([0, 0, 0], (path) => selected.push(path));
-  const rows = container.querySelectorAll("li > button");
+  const rows = container.querySelectorAll("li > div > button:not([data-retry-button])");
   fireEvent.click(rows[0]);
   assert.equal(container.querySelector("[data-export-ignore]"), null);
   assert.equal(rows[0].getAttribute("aria-expanded"), "false");
@@ -131,4 +136,44 @@ test("SIG-1207: summary renders the verdict row and one accuracy bar per side wi
   cleanup();
   render(<ReportSummary report={report} locale="en" verdict={null} />);
   assert.equal(document.querySelector("[data-verdict]"), null);
+});
+
+// SIG-1209: Retry button on eligible rows.
+test("SIG-1209: eligible rows get a Retry button that starts the retry without navigating", () => {
+  const selected: number[][] = [];
+  const retried: number[][] = [];
+  const { container } = renderMoments(null, (path) => selected.push(path), {
+    onRetry: (path) => retried.push(path),
+    retryPaths: new Set(["0.0.0"]),
+  });
+  const buttons = container.querySelectorAll("[data-retry-button]");
+  assert.equal(buttons.length, 1, "only the retryable row has the button");
+  assert.equal(buttons[0].getAttribute("aria-label"), "Retry move 2, Nf3");
+  assert.equal(buttons[0].textContent, "Retry");
+  // Sibling of the row button, never nested inside it.
+  assert.equal(buttons[0].closest("li > div > button"), null);
+  fireEvent.click(buttons[0]);
+  assert.deepEqual(retried, [[0, 0, 0]]);
+  assert.deepEqual(selected, [], "the row did not navigate");
+  // The row still navigates on its own click and keeps the one-line layout.
+  const row = container.querySelector("li > div > button:not([data-retry-button])") as HTMLElement;
+  assert.match(row.className, /min-w-0/);
+  assert.ok(row.querySelector(".truncate"), "the best: text can still truncate");
+});
+
+test("SIG-1209: no Retry buttons without a handler or when the row is not retryable", () => {
+  const { container } = renderMoments(null, () => {}, { retryPaths: new Set(["0.0.0"]) });
+  assert.equal(container.querySelectorAll("[data-retry-button]").length, 0);
+  cleanup();
+  const second = renderMoments(null, () => {}, { onRetry: () => {}, retryPaths: new Set() });
+  assert.equal(second.container.querySelectorAll("[data-retry-button]").length, 0);
+});
+
+test("SIG-1209: while a retry is active the best: text is hidden and the Why? stays collapsed", () => {
+  const { container } = renderMoments([0, 0, 0], () => {}, { retryActive: true });
+  assert.doesNotMatch(container.textContent ?? "", /best:/);
+  assert.equal(container.querySelector("[data-export-ignore]"), null);
+  const row = container.querySelector("li > div > button:not([data-retry-button])") as HTMLElement;
+  assert.equal(row.getAttribute("aria-expanded"), null);
+  assert.equal(row.getAttribute("title"), null);
 });
