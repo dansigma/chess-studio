@@ -101,6 +101,11 @@ test("review run shows progress then the report and chart", async ({ page }) => 
   });
   await expect(page.getByText("Key moments", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("img", { name: /Review evaluation chart/ })).toBeVisible();
+  // SIG-1207: both-player verdict (placeholder names fall back to the colors).
+  await expect(page.locator("[data-verdict]")).toHaveText(
+    /^White \d+\.\d%, Black \d+\.\d%\. The game turned on move \d+ \([A-Za-z0-9+#=-]+\?\??\)\.$/,
+  );
+  await expect(page.locator("[data-accuracy-bar]")).toHaveCount(2);
 });
 
 test("review cancel stops the run and offers resume", async ({ page }) => {

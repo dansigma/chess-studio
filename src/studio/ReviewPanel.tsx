@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { REVIEW_PRESETS, estimateRemainingMs, type ReviewPreset } from "@/src/chess/review-engine";
 import { buildReviewReport, evalSeries, keyMoments } from "@/src/chess/review-report";
 import { buildReviewSummary } from "@/src/chess/review-share";
+import { buildReviewVerdict } from "@/src/chess/review-verdict";
 import {
   formatReviewEta,
   momentNavHint,
@@ -289,6 +290,20 @@ export function ReviewPanel() {
     }
     return null;
   }, [displayRows, points, locale]);
+  // SIG-1207: both-player verdict from every reviewed row; none for a partial preview.
+  const verdict = useMemo(
+    () =>
+      report && displayRows
+        ? buildReviewVerdict(locale, {
+            report,
+            rows: displayRows,
+            moveNotation,
+            startFen: board.tree.startFen,
+            partial: !rows,
+          })
+        : null,
+    [report, displayRows, rows, locale, moveNotation, board.tree.startFen],
+  );
   const lineNote = points[points.length - 1]?.path.some((index) => index !== 0) ? tReview(locale, "panel.lineNote") : null;
 
   // SIG-967: chart filter state lives in the component (resets on line change).
@@ -474,6 +489,7 @@ export function ReviewPanel() {
       moveNotation,
       startFen: board.tree.startFen,
       openingName,
+      verdict,
     });
     try {
       await navigator.clipboard.writeText(text);
@@ -660,7 +676,7 @@ export function ReviewPanel() {
               <p className="px-3 pt-1 text-caption text-studio-faint">{tReview(locale, "panel.partialNote")}</p>
             ) : null}
             <div ref={reportRef} className="bg-studio-panel">
-              <ReportSummary report={report} locale={locale} openingName={openingName} lineNote={lineNote} />
+              <ReportSummary report={report} locale={locale} openingName={openingName} lineNote={lineNote} verdict={verdict} />
               <KeyMomentsList
                 moments={momentRows}
                 moveNotation={moveNotation}

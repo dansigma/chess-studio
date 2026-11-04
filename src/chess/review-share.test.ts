@@ -77,3 +77,13 @@ test("empty moments fall back to the no-mistakes copy", () => {
   });
   assert.ok(text.includes("No mistakes in this line."), text);
 });
+
+test("SIG-1207: the verdict line follows the side lines when present and is omitted otherwise", () => {
+  const input = { report: report(), moments: [], moveNotation: "english" as const, startFen: START_FEN };
+  const verdict = "White 86.0%, Black 86.0%. Clean game: no mistakes or blunders.";
+  const lines = buildReviewSummary("en", { ...input, verdict }).split("\n");
+  const lastSide = lines.findIndex((line) => line.startsWith("Nakamura, Hikaru (2800):"));
+  assert.equal(lines[lastSide + 1], verdict);
+  assert.equal(buildReviewSummary("en", { ...input, verdict: null }).includes("Clean game"), false);
+  assert.equal(buildReviewSummary("en", input), buildReviewSummary("en", { ...input, verdict: null }));
+});

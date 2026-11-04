@@ -4,15 +4,10 @@ import { Pencil } from "lucide-react";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
 import type { GameHeaders } from "@/src/chess/pgn";
+import { isPlaceholderPlayer } from "@/src/chess/player-names.ts";
 import { IconButton } from "./ui/Button";
 
-// SIG-1193: PGN placeholders in any UI language. "Black" stayed bright
-// before because only the localized fallback ("Pretas") counted as empty.
-const PLACEHOLDER_NAMES = new Set(["", "?", "white", "black", "brancas", "pretas"]);
-
-export function isPlaceholderPlayer(name: string | undefined): boolean {
-  return PLACEHOLDER_NAMES.has((name ?? "").trim().toLowerCase());
-}
+export { isPlaceholderPlayer };
 
 function PlayerName({
   name,
