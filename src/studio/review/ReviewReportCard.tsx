@@ -7,17 +7,22 @@ import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
 import { REPORT_PHASES, type ReviewReport, type SideReport } from "@/src/chess/review-report";
 import {
   keyMomentAccessibleName,
+  longestThinkLabel,
+  moveCountText,
+  paceStarsLabel,
   phaseName,
   retryButtonLabel,
   reviewPlayerFallback,
   tierJumpLabel,
   tierName,
+  timeUsageTitle,
   tReview,
 } from "@/src/chess/review-strings";
+import type { SideTime, TimeReport } from "@/src/chess/review-time";
 import { REVIEW_TIERS } from "@/src/chess/review-tiers";
 import { REVIEW_LABELS, type ReviewLabel, type TierLabel } from "@/src/chess/review";
 import type { SiteLocale } from "@/src/i18n/locale";
-import { formatDecimal1, formatInteger } from "@/src/i18n/format";
+import { formatDecimal1, formatDuration, formatInteger } from "@/src/i18n/format";
 import { formatMomentEval, momentBestLabel, momentNumberLabel } from "./key-moment-format";
 import { moveNumberForPath, pathsEqual, type Path } from "@/src/chess/tree";
 import { RetryButton } from "./RetryCard";
@@ -249,30 +254,235 @@ function ClassificationSection({
   );
 }
 
+
+/** SIG-1220: what the Time section needs besides the numbers: where each row's move is and how to go there. */
+export type TimeView = {
+  report: TimeReport;
+  /** Path and SAN per reviewed row, aligned with `report.spentMs`. */
+  moves: Array<{ path: Path; san: string }>;
+  moveNotation: MoveNotation;
+  startFen: string;
+  onSelectMove?: (path: Path) => void;
+};
+
+const STAR_PATH = "M12 2.6l2.9 6.2 6.7.8-4.9 4.6 1.3 6.7L12 17.6 6.0 20.9l1.3-6.7L2.4 9.6l6.7-.8z";
+
+function Star({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden className={className}>
+      <path d={STAR_PATH} fill="currentColor" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** 0-3 stars in half steps, drawn as SVG (no font glyphs, so the PNG export matches). */
+function PaceStars({ stars, locale }: { stars: number; locale: SiteLocale }) {
+  return (
+    <span role="img" data-pace={stars} aria-label={paceStarsLabel(locale, stars)} className="inline-flex items-center gap-0.5">
+      {[0, 1, 2].map((slot) => {
+        const fill = Math.max(0, Math.min(1, stars - slot));
+        return (
+          <span key={slot} className="relative inline-flex size-3.5">
+            <Star className="text-studio-track" />
+            {fill > 0 ? (
+              <span className="absolute inset-y-0 left-0 overflow-hidden" style={{ width: `${fill * 100}%` }}>
+                <Star className="text-studio-tier-inaccuracy" />
+              </span>
+            ) : null}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+function avgText(ms: number | null, locale: SiteLocale): string {
+  return ms == null ? "—" : formatDuration(locale, ms);
+}
+
+function LongestThink({ side, view, locale }: { side: SideTime; view: TimeView; locale: SiteLocale }) {
+  const longest = side.longest;
+  const move = longest ? view.moves[longest.index] : undefined;
+  if (!longest || !move) {
+    return <span className="text-studio-faint">—</span>;
+  }
+  const moveNumber = moveNumberForPath(view.startFen, move.path.length);
+  const piece = side === view.report.white ? "w" : "b";
+  const san = formatSan(move.san, view.moveNotation, piece);
+  const duration = formatDuration(locale, longest.ms);
+  const content = (
+    <>
+      {longest.label ? <TierBadge label={longest.label} size={14} /> : null}
+      <span className="font-medium">
+        <span className="mr-0.5 text-studio-faint">{momentNumberLabel(moveNumber, piece)}</span>
+        {san}
+      </span>
+      <span className="tabular-nums text-studio-muted">{duration}</span>
+    </>
+  );
+  const box = "inline-flex min-h-6 flex-wrap items-center justify-center gap-x-1 gap-y-0 px-1.5";
+  if (!view.onSelectMove) {
+    return <span className={box}>{content}</span>;
+  }
+  return (
+    <button
+      type="button"
+      data-longest-think={piece}
+      aria-label={longestThinkLabel(locale, {
+        moveNumber,
+        san,
+        tier: longest.label ? tierName(locale, longest.label) : null,
+        duration,
+      })}
+      onClick={() => view.onSelectMove?.(move.path)}
+      className={`${box} ${JUMP_BUTTON}`}
+    >
+      {content}
+    </button>
+  );
+}
+
+/**
+ * Section 3: time per side. Hidden (the caller passes no `time`) when the game
+ * has no clocks. The compact layout keeps only the two averages and Pace.
+ */
+function TimeSection({ report, view, locale, compact }: { report: ReviewReport; view: TimeView; locale: SiteLocale; compact: boolean }) {
+  const { white, black } = report;
+  const sides = [
+    [white, view.report.white, "w"],
+    [black, view.report.black, "b"],
+  ] as const;
+  const paceId = useId();
+  const [paceOpen, setPaceOpen] = useState(false);
+  const rows: Array<{ id: string; label: ReactNode; cell: (time: SideTime, piece: "w" | "b") => ReactNode; full?: boolean }> = [
+    {
+      id: "avg",
+      full: true,
+      label: tReview(locale, "report.timeAvg"),
+      cell: (time) => avgText(time.avgMs, locale),
+    },
+    {
+      id: "accurate",
+      label: tReview(locale, "report.timeAvgAccurate"),
+      cell: (time) => avgText(time.avgAccurateMs, locale),
+    },
+    {
+      id: "inaccurate",
+      label: tReview(locale, "report.timeAvgInaccurate"),
+      cell: (time) => avgText(time.avgInaccurateMs, locale),
+    },
+    {
+      id: "longest",
+      full: true,
+      label: tReview(locale, "report.timeLongest"),
+      cell: (time) => <LongestThink side={time} view={view} locale={locale} />,
+    },
+    {
+      id: "premoves",
+      full: true,
+      label: tReview(locale, "report.timePremoves"),
+      cell: (time) => moveCountText(locale, time.premoves),
+    },
+  ];
+  const visible = rows.filter((row) => !compact || !row.full);
+  return (
+    <table data-report-section="time" className={`w-full border-collapse ${SECTION}`}>
+      <caption className="sr-only">{tReview(locale, "report.time")}</caption>
+      <thead className="sr-only">
+        <tr>
+          <th scope="col">{tReview(locale, "report.time")}</th>
+          <th scope="col">{white.name}</th>
+          <th scope="col">{black.name}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {visible.map((row) => (
+          <tr key={row.id} data-time-row={row.id} className={`${ROW} py-px text-dense`}>
+            <th scope="row" className="text-left text-caption font-normal leading-tight text-studio-faint">
+              {row.label}
+            </th>
+            {sides.map(([, time, piece]) => (
+              <td key={piece} className="text-center tabular-nums">
+                {row.cell(time, piece)}
+              </td>
+            ))}
+          </tr>
+        ))}
+        <tr data-time-row="pace" className={`${ROW} py-0.5 text-dense`}>
+          <th scope="row" className="text-left text-caption font-normal text-studio-faint">
+            <button
+              type="button"
+              aria-expanded={paceOpen}
+              aria-controls={paceId}
+              onClick={() => setPaceOpen((open) => !open)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setPaceOpen(false);
+                }
+              }}
+              title={tReview(locale, "report.paceTooltip")}
+              className="underline decoration-dotted underline-offset-2 hover:text-studio-fg focus-visible:outline-2 focus-visible:outline-studio-accent"
+            >
+              {tReview(locale, "report.pace")} <span aria-hidden="true">ⓘ</span>
+            </button>
+          </th>
+          {sides.map(([, time, piece]) => (
+            <td key={piece} className="text-center">
+              {time.pace == null ? <span className="text-studio-faint">—</span> : <PaceStars stars={time.pace} locale={locale} />}
+            </td>
+          ))}
+        </tr>
+        {paceOpen ? (
+          <tr className={`${ROW} py-1`}>
+            <td colSpan={3}>
+              <div role="note" id={paceId} className="text-caption leading-relaxed text-studio-muted">
+                {tReview(locale, "report.paceTooltip")}
+              </div>
+            </td>
+          </tr>
+        ) : null}
+      </tbody>
+    </table>
+  );
+}
+
 /** One value + bar of the phase section; a side that never reached the phase shows a dash. */
-function PhaseBar({ value, locale }: { value: number | null; locale: SiteLocale }) {
+function PhaseBar({ value, locale, timeShare = null }: { value: number | null; locale: SiteLocale; timeShare?: number | null }) {
   if (value == null) {
     return <span className="block text-center text-dense text-studio-faint">—</span>;
   }
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-center text-dense font-semibold tabular-nums">{percent(value, locale)}</span>
-      <div aria-hidden data-phase-bar className="h-1.5 overflow-hidden rounded-full bg-studio-track">
-        <div className="h-full rounded-full bg-studio-accent" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+      <div className="relative">
+        <div aria-hidden data-phase-bar className="h-1.5 overflow-hidden rounded-full bg-studio-track">
+          <div className="h-full rounded-full bg-studio-accent" style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+        </div>
+        {/* SIG-1220: share of the side's total time spent in this phase. A plain
+            positioned element (no SVG, no pseudo-elements), so the PNG export keeps it. */}
+        {timeShare != null ? (
+          <span
+            data-time-marker={timeShare.toFixed(1)}
+            title={timeUsageTitle(locale, timeShare)}
+            className="absolute -top-0.5 h-2.5 w-0.5 -translate-x-1/2 rounded-full bg-studio-fg"
+            style={{ left: `${Math.max(0, Math.min(100, timeShare))}%` }}
+          />
+        ) : null}
       </div>
     </div>
   );
 }
 
 /** Section 4: accuracy per phase, white and black side by side. Phases neither side reached are left out. */
-function PhasesSection({ report, locale }: { report: ReviewReport; locale: SiteLocale }) {
+function PhasesSection({ report, locale, time }: { report: ReviewReport; locale: SiteLocale; time: TimeReport | null }) {
   const { white, black } = report;
   const phases = REPORT_PHASES.filter((phase) => white.phases[phase.id] != null || black.phases[phase.id] != null);
   if (phases.length === 0) {
     return null;
   }
   return (
-    <table data-report-section="phases" className={`w-full border-collapse ${SECTION}`}>
+    <>
+    <table data-report-section="phases" className={`w-full border-collapse ${time ? "" : SECTION}`}>
       <caption className="sr-only">{tReview(locale, "report.phases")}</caption>
       <thead className="sr-only">
         <tr>
@@ -291,7 +501,11 @@ function PhasesSection({ report, locale }: { report: ReviewReport; locale: SiteL
               </th>
               {([[white, "w"], [black, "b"]] as const).map(([side, piece]) => (
                 <td key={piece}>
-                  <PhaseBar value={side.phases[phase.id]} locale={locale} />
+                  <PhaseBar
+                    value={side.phases[phase.id]}
+                    locale={locale}
+                    timeShare={time ? (piece === "w" ? time.white : time.black).phaseShare[phase.id] : null}
+                  />
                 </td>
               ))}
             </tr>
@@ -299,6 +513,15 @@ function PhasesSection({ report, locale }: { report: ReviewReport; locale: SiteL
         })}
       </tbody>
     </table>
+    {time ? (
+      <div data-time-legend className={`${ROW} pb-1 text-caption text-studio-faint ${SECTION}`}>
+        <span aria-hidden className="col-start-2 inline-flex items-center gap-1.5">
+          <span className="h-2.5 w-0.5 rounded-full bg-studio-fg" />
+          {tReview(locale, "report.timeUsage")}
+        </span>
+      </div>
+    ) : null}
+    </>
   );
 }
 
@@ -314,13 +537,15 @@ type SummaryProps = {
   compact?: boolean;
   /** SIG-1219: makes the counts buttons that jump to a move of that tier. */
   onSelectTier?: SelectTier;
+  /** SIG-1220: time metrics; null/absent for games without clocks (the card then renders as before). */
+  time?: TimeView | null;
 };
 
 /**
  * The report card, top to bottom: header (players, accuracy, game rating),
  * classification, [time slot], phases. Key moments follow in KeyMomentsList.
  */
-export function ReportSummary({ report, locale, openingName, lineNote, verdict, compact = false, onSelectTier }: SummaryProps) {
+export function ReportSummary({ report, locale, openingName, lineNote, verdict, compact = false, onSelectTier, time = null }: SummaryProps) {
   const { white, black } = report;
   const ratingDescId = useId();
   const [ratingOpen, setRatingOpen] = useState(false);
@@ -411,11 +636,10 @@ export function ReportSummary({ report, locale, openingName, lineNote, verdict, 
       </table>
       {/* Section 2: classification. */}
       <ClassificationSection report={report} locale={locale} compact={compact} onSelectTier={onSelectTier} />
-      {/* Section 3: TIME. Reserved insertion point for Game Review 2 · 3/5, which
-          renders the clock section here (hidden when the game has no clocks).
-          Intentionally renders nothing in this PR. */}
-      {/* Section 4: phases. */}
-      <PhasesSection report={report} locale={locale} />
+      {/* Section 3: time (SIG-1220), only when the game has clocks. */}
+      {time ? <TimeSection report={report} view={time} locale={locale} compact={compact} /> : null}
+      {/* Section 4: phases; the time-usage markers are wide-layout only. */}
+      <PhasesSection report={report} locale={locale} time={time && !compact ? time.report : null} />
     </div>
   );
 }
