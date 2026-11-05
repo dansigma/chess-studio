@@ -39,3 +39,8 @@ test("studio chrome interpolated strings render whole sentences with vars", () =
     "Sobre Chess Studio",
   );
 });
+
+test("dialog hint 'Esc to close' is translated", () => {
+  assert.equal(tStudioChrome("en", "chrome.dialog.toClose"), "to close");
+  assert.equal(tStudioChrome("pt-br", "chrome.dialog.toClose"), "para fechar");
+});

@@ -25,6 +25,8 @@ export type LegalSection = {
   title: string;
   paragraphs?: string[];
   items?: string[];
+  /** Render the credits rows (src/lib/legal/credits.ts) after the paragraphs. */
+  credits?: boolean;
   /** Paragraphs shown after the list. */
   after?: string[];
 };

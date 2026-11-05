@@ -4,6 +4,8 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { IconButton } from "./Button";
 import { Kbd } from "./Controls";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { useStudioStore } from "@/src/store/studio-store";
 import { useDialogFocus } from "./use-dialog-focus";
 
 export function Dialog({
@@ -23,6 +25,7 @@ export function Dialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const locale = useStudioStore((state) => state.settings.locale);
   useDialogFocus(dialogRef);
 
   useEffect(() => {
@@ -56,7 +59,7 @@ export function Dialog({
       >
         <div className="flex items-center justify-between gap-3 px-4 pb-1 pt-3.5">
           <h2 id={titleId} className="text-title font-semibold text-studio-fg">{title}</h2>
-          <IconButton label="Close" shortcut="Esc" onClick={onClose}>
+          <IconButton label={tStudioChrome(locale, "chrome.dialog.close")} shortcut="Esc" onClick={onClose}>
             <X size={14} />
           </IconButton>
         </div>
@@ -66,7 +69,7 @@ export function Dialog({
             <span className="mr-auto text-caption text-studio-faint">
               {hint ?? (
                 <>
-                  <Kbd>Esc</Kbd> to close
+                  <Kbd>Esc</Kbd> {tStudioChrome(locale, "chrome.dialog.toClose")}
                 </>
               )}
             </span>
