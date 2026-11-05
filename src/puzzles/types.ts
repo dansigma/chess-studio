@@ -90,6 +90,9 @@ export type PuzzleHistoryEntry = {
   delta: number;
 };
 
+// SIG-1232: one local-date bucket of puzzle activity (ms = time spent).
+export type DayActivity = { solved: number; failed: number; ms: number; xp: number };
+
 export type PuzzleProgress = {
   rating: number;
   solved: number;
@@ -101,4 +104,6 @@ export type PuzzleProgress = {
   xp: number;
   history: PuzzleHistoryEntry[];
   motifs: Record<string, MotifStat>;
+  // SIG-1232: keyed by the user's local date YYYY-MM-DD, newest 400 days.
+  days: Record<string, DayActivity>;
 };

@@ -6,6 +6,7 @@ import {
   removeRawCache,
   writeRawCache,
 } from "../lib/local-cache";
+import { mergeDays } from "./activity";
 import { emptyProgress, normalizeProgress } from "./engine";
 import type { MotifStat, PuzzleHistoryEntry, PuzzleProgress } from "./types";
 
@@ -131,6 +132,8 @@ export function mergePuzzleProgress(
     xp: Math.max(local.xp, remote.xp),
     history,
     motifs,
+    // SIG-1232: per-day max, never a sum (idempotent, no double counting).
+    days: mergeDays(local.days, remote.days),
   });
 }
 
