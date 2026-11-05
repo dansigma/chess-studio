@@ -90,6 +90,35 @@ export async function markBoardClosedRecord(
   }
 }
 
+// SIG-1228: last user_settings row known to be on the server per user (written
+// by us or read on load). The settings effect fires on every settings change,
+// including fields with no user_settings column (sidebar width, explorer
+// filters, notation density, ...) and on the post-load hydrate that just echoes
+// the remote row, so identical rows are skipped instead of re-upserted.
+const lastSyncedSettingsRow = new Map<string, string>();
+
+export function forgetSettingsWriteCache(): void {
+  lastSyncedSettingsRow.clear();
+}
+
+function settingsRowKey(row: {
+  show_coordinates: unknown;
+  piece_theme: unknown;
+  board_theme: unknown;
+  engine_depth: unknown;
+  multi_pv: unknown;
+  locale: unknown;
+}): string {
+  return JSON.stringify([
+    row.show_coordinates,
+    row.piece_theme,
+    row.board_theme,
+    row.engine_depth,
+    row.multi_pv,
+    row.locale,
+  ]);
+}
+
 export async function persistSettingsRecord(
   settings: StudioSettings,
   userId: string | null,
@@ -101,18 +130,23 @@ export async function persistSettingsRecord(
   if (!supabase || !userId) {
     return;
   }
-  const { error } = await supabase.from("user_settings").upsert({
-    user_id: userId,
+  const row = {
     show_coordinates: settings.showCoordinates,
     piece_theme: settings.pieceSet,
     board_theme: settings.boardTheme,
     engine_depth: settings.engineDepth,
     multi_pv: settings.multiPv,
     locale: settings.locale,
-  });
+  };
+  const key = settingsRowKey(row);
+  if (lastSyncedSettingsRow.get(userId) === key) {
+    return;
+  }
+  const { error } = await supabase.from("user_settings").upsert({ user_id: userId, ...row });
   if (error) {
     throw error;
   }
+  lastSyncedSettingsRow.set(userId, key);
 }
 
 export async function loadRemoteSettingsForUser(
@@ -133,6 +167,7 @@ export async function loadRemoteSettingsForUser(
   if (error || !data) {
     return null;
   }
+  lastSyncedSettingsRow.set(userId, settingsRowKey(data));
   return {
     showCoordinates: data.show_coordinates,
     boardTheme: isBoardTheme(data.board_theme) ? data.board_theme : undefined,

@@ -9,6 +9,7 @@ import {
 import { boardTitle, closeBoardPanel, openBoardPanel } from "./dock-api";
 import { tSidebar } from "@/src/i18n/studio-sidebar-strings";
 import { IconButton } from "./ui/Button";
+import { isSyncPending } from "@/src/store/slices/selectors";
 import { SidebarItem, SidebarPanel } from "./ui/Sidebar";
 
 export function BoardsSidebar() {
@@ -105,7 +106,7 @@ export function BoardsSidebar() {
                 </button>
               ) : null}
               <span className="relative flex h-6 w-6 items-center justify-center">
-                {signedIn && board.dirty ? (
+                {signedIn && isSyncPending(board) ? (
                   <span className="text-studio-warning-fg group-hover:hidden" title={tSidebar(locale, "sidebar.boards.unsaved")}>
                     ●
                   </span>

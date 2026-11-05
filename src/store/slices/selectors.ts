@@ -51,8 +51,13 @@ export const compareRepertoirePersistOrder = (
 
 // SIG-857: primitive derivations so menu chrome re-renders only when the
 // count changes instead of on every boards array identity change.
+// SIG-1228: same predicate as runDirtySavePass. Preview boards are never
+// saved, so they must not count as "waiting to sync".
+export const isSyncPending = (board: Pick<BoardSession, "dirty" | "preview">): boolean =>
+  board.dirty && !board.preview;
+
 export const selectDirtyCount = (state: { boards: BoardSession[] }): number =>
-  state.boards.reduce((count, board) => count + (board.dirty ? 1 : 0), 0);
+  state.boards.reduce((count, board) => count + (isSyncPending(board) ? 1 : 0), 0);
 
 export const selectActivePathKey = (state: ActiveBoardState): string =>
   selectActiveBoard(state).path.join(".");

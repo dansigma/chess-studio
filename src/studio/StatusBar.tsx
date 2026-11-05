@@ -3,6 +3,7 @@
 import { Cpu, Database } from "lucide-react";
 import { ENGINE_BUILD_INFO } from "@/src/engine/stockfish-client";
 import { explorerSourceTitle } from "@/src/lib/explorer-types";
+import { isSyncPending } from "@/src/store/slices/selectors";
 import { useStudioStore } from "@/src/store/studio-store";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 
@@ -10,7 +11,7 @@ import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 export function useSyncState(): { label: string; dot: string } {
   const locale = useStudioStore((state) => state.settings.locale);
   const signedIn = useStudioStore((state) => Boolean(state.user));
-  const dirty = useStudioStore((state) => state.boards.some((board) => board.dirty));
+  const dirty = useStudioStore((state) => state.boards.some(isSyncPending));
   return !signedIn
     ? { label: tStudioChrome(locale, "chrome.statusBar.guest"), dot: "bg-studio-disabled" }
     : dirty
