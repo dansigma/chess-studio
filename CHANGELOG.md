@@ -18,6 +18,9 @@
   and writes nothing (no book, no manifest, no `--app-manifest`); the pipe is read with backpressure; stdin cut
   mid-game warns; `--min-games-read` aborts a suspiciously small input and `--months` warns about one.
   The runbook now recommends `zstd -dc ... | node ... -` on every OS (`cmd /c` on Windows).
+- Licenses: the masters inputs are Chess-Results, AJ-OTB and Lumbra's CC BY-SA 4.0 Lichess Broadcast PGN only (the
+  full Lumbra DB is CC BY-NC and must not be used); `--license` / `--attribution` are recorded per source in the
+  manifests; see "Licenses and attribution" in `docs/opening-book.md`.
 
 ### Game Review: local opening book (SIG-1226)
 

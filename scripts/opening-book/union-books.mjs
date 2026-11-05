@@ -132,6 +132,7 @@ export function unionBooks(inputs, { version, buildDate }) {
     bytes: raw.length,
     gzipBytes: gz.length,
     sha256: createHash("sha256").update(gz).digest("hex"),
+    licenses: [...new Set(inputs.map((input) => input.manifest.license).filter(Boolean))],
     sources: inputs.map((input, index) => ({ ...input.manifest, profile: input.manifest.profile ?? "lichess", uniqueMoves: unique[index] })),
   };
   return { raw, gz, manifest, stats: { inputs: inputs.length, uniquePerInput: unique } };

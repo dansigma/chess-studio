@@ -278,6 +278,17 @@ describe("CLI helpers", () => {
     assert.throws(() => parseArgs(["a.pgn", "--out-dir", "o", "--version", "1", "--max-ply", "300"]), /at most 255/);
     assert.throws(() => parseArgs(["a.pgn", "--bogus"]), /usage/);
   });
+  it("--license and --attribution are stored in the manifest, and omitted when not given", async () => {
+    const args = parseArgs(["a.pgn", "--out-dir", "o", "--version", "3", "--license", "CC BY-SA 4.0", "--attribution", "Lumbra's GigaBase"]);
+    assert.equal(args.license, "CC BY-SA 4.0");
+    const text = pgn(TEN_MOVES);
+    const withTerms = await buildBook([source(text)], { ...OPTIONS, license: args.license, attribution: args.attribution });
+    assert.equal(withTerms.manifest.license, "CC BY-SA 4.0");
+    assert.equal(withTerms.manifest.attribution, "Lumbra's GigaBase");
+    const without = await buildBook([source(text)], OPTIONS);
+    assert.equal("license" in without.manifest, false);
+    assert.equal("attribution" in without.manifest, false);
+  });
   it("writes the app manifest module", () => {
     const source = appManifestSource({ version: 2, file: "opening-book-v2.bin.gz" });
     assert.match(source, /export const OPENING_BOOK_MANIFEST = \{/);
