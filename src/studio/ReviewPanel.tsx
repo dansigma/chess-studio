@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { REVIEW_PRESETS, estimateRemainingMs, type ReviewPreset } from "@/src/chess/review-engine";
-import { buildReviewReport, evalSeries, keyMoments } from "@/src/chess/review-report";
+import { bookPlyCount, buildReviewReport, evalSeries, keyMoments } from "@/src/chess/review-report";
 import { buildReviewSummary } from "@/src/chess/review-share";
 import { buildReviewVerdict } from "@/src/chess/review-verdict";
 import {
@@ -105,6 +105,7 @@ export function ReviewPanel() {
     running,
     cancelled,
     failed,
+    bookUnavailable,
     progress,
     rows,
     cached,
@@ -433,6 +434,8 @@ export function ReviewPanel() {
   // Chart derivations: white-perspective eval per ply, phase separators,
   // filtered key moments joined with row data, cursor ply (null off-line).
   const series = useMemo(() => (displayRows ? evalSeries(displayRows) : []), [displayRows]);
+  // SIG-1225: leading book plies are unscored; the chart shades them instead of drawing a curve.
+  const bookPlies = useMemo(() => (displayRows ? bookPlyCount(displayRows) : 0), [displayRows]);
   const separators = useMemo(() => (displayRows ? phaseSeparators(displayRows) : []), [displayRows]);
   const filteredMoments = useMemo(
     () => filterKeyMoments(moments, { side: sideFilter, tierGroup }),
@@ -458,7 +461,7 @@ export function ReviewPanel() {
                 side: row.side,
                 label: row.label,
                 moveIndex: row.index,
-                value: row.afterPawns,
+                value: row.afterPawns ?? 0,
                 lossCp: row.lossCp,
               },
             ],
@@ -805,6 +808,11 @@ export function ReviewPanel() {
             {cached ? (
               <p className="px-3 pt-1 text-caption text-studio-faint">{tReview(locale, "panel.savedReview")}</p>
             ) : null}
+            {bookUnavailable ? (
+              <p role="status" className="px-3 pt-1 text-caption text-studio-faint" data-book-unavailable>
+                {tReview(locale, "panel.bookUnavailable")}
+              </p>
+            ) : null}
             {!rows && previewRows ? (
               <p className="px-3 pt-1 text-caption text-studio-faint">{tReview(locale, "panel.partialNote")}</p>
             ) : null}
@@ -898,6 +906,7 @@ export function ReviewPanel() {
                 timeBars={timeBars}
                 timeAriaLabel={tReview(locale, "chart.timeAriaLabel")}
                 series={series}
+                bookPlies={bookPlies}
                 plyPaths={plyPaths}
                 moments={chartMoments}
                 separators={separators}

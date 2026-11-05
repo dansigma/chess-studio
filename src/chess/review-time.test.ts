@@ -233,3 +233,14 @@ test("Pace is clamped to 0..3 in half steps", () => {
   const pace = buildTimeReport(rows, "600")?.white.pace;
   assert.ok(pace != null && pace >= 0 && pace <= 3 && pace * 2 === Math.round(pace * 2));
 });
+
+test("SIG-1225: unscored book rows (null afterPawns) do not break the time report", () => {
+  const rows: TimeRow[] = [
+    { side: "w", phase: "opening", label: "book", afterPawns: null, clockMs: 598_000 },
+    { side: "b", phase: "opening", label: "book", afterPawns: null, clockMs: 599_000 },
+    { side: "w", phase: "opening", label: "best", afterPawns: 0.2, clockMs: 590_000 },
+  ];
+  const report = buildTimeReport(rows, "600");
+  assert.ok(report);
+  assert.equal(report.spentMs.length, 3);
+});

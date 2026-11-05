@@ -156,9 +156,23 @@ export function keyMoments<T extends { label: ReviewLabel | null }>(rows: T[]): 
  * MATE_PAWNS = 900); clamping is a display concern in review-chart.ts.
  * Empty rows → [].
  */
-export function evalSeries(rows: Array<{ beforePawns: number; afterPawns: number }>): number[] {
+export function evalSeries(rows: Array<{ beforePawns: number | null; afterPawns: number | null }>): number[] {
   if (rows.length === 0) {
     return [];
   }
-  return [rows[0].beforePawns, ...rows.map((row) => row.afterPawns)];
+  // SIG-1225: unscored book plies (null) carry the first scored value, so the
+  // series keeps one entry per ply; the chart draws the book band over them
+  // (see `bookPlyCount`) and no curve inside it.
+  const first = rows.find((row) => row.beforePawns != null)?.beforePawns ?? 0;
+  const raw = [rows[0].beforePawns, ...rows.map((row) => row.afterPawns)];
+  return raw.map((value) => value ?? first);
+}
+
+/** Leading rows that are opening-book moves (the band the chart shades). */
+export function bookPlyCount(rows: ReadonlyArray<{ label: ReviewLabel | null }>): number {
+  let count = 0;
+  while (count < rows.length && rows[count].label === "book") {
+    count += 1;
+  }
+  return count;
 }

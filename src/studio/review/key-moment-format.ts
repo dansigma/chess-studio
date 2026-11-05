@@ -12,7 +12,10 @@ const MATE_PAWNS = 900;
  * White-perspective evaluation as a signed string: "+0.3", "-2.1", "0.0".
  * Decimals follow the locale; mate scores (no distance is stored) show "+M" / "-M".
  */
-export function formatMomentEval(locale: SiteLocale, pawns: number): string {
+export function formatMomentEval(locale: SiteLocale, pawns: number | null): string {
+  if (pawns == null) {
+    return "–";
+  }
   if (Math.abs(pawns) >= MATE_PAWNS) {
     return pawns > 0 ? "+M" : "-M";
   }

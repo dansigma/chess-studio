@@ -378,3 +378,60 @@ test("cancel terminates every pool worker", async () => {
     cleanup();
   }
 });
+
+// --- SIG-1225: the opening book is resolved first ---------------------------
+
+test("a resolved book skips the engine for book positions and shows no note", async () => {
+  (globalThis as Record<string, unknown>).fetch = async () =>
+    ({ ok: true, json: async () => ({ available: true, plies: 3, partial: false, counts: [] }) }) as never;
+  const { tree, points } = nextGame();
+  const { result } = renderHook(() => useGameReview({ tree, points, setupMode: false, userSide: "w" }));
+  try {
+    act(() => {
+      result.current.start();
+    });
+    await waitFor(() => assert.equal(result.current.running, false), { timeout: 15_000 });
+    const rows = result.current.rows as Array<{ label: string | null }> | null;
+    assert.ok(rows);
+    assert.deepEqual(rows.slice(0, 3).map((row) => row.label), ["book", "book", "book"]);
+    assert.equal(rows[3].label === "book", false);
+    assert.equal(result.current.bookUnavailable, false);
+    // Positions 0..2 are never searched; the engine starts at position 3.
+    const searched = new Set(analyzeCalls.map((call) => call.fen));
+    for (const point of points.slice(0, 3)) {
+      assert.equal(searched.has(point.fen), false);
+    }
+    assert.equal(searched.has(points[3].fen), true);
+  } finally {
+    cleanup();
+    (globalThis as Record<string, unknown>).fetch = async () => ({ ok: false }) as never;
+  }
+});
+
+test("an unavailable book scores every position, shows the note and is not cached", async () => {
+  // The suite's default fetch fails, which is exactly the fallback.
+  const { tree, points } = nextGame();
+  const { getNodeAt } = await import("@/src/chess/tree.ts");
+  const ucis = points.slice(1).map((point) => getNodeAt(tree, point.path)?.uci ?? "");
+  const { getCachedReview } = await import("./review-cache.ts");
+  const { result } = renderHook(() => useGameReview({ tree, points, setupMode: false, userSide: "w" }));
+  try {
+    act(() => {
+      result.current.start();
+    });
+    await waitFor(() => assert.equal(result.current.running, false), { timeout: 15_000 });
+    assert.equal(result.current.bookUnavailable, true);
+    assert.ok(result.current.rows, "the review still completes");
+    const rows = result.current.rows as Array<{ label: string | null }>;
+    assert.ok(rows.every((row) => row.label !== "book"));
+    const searched = new Set(analyzeCalls.map((call) => call.fen));
+    assert.equal(searched.size, points.length, "every position was scored");
+    assert.equal(
+      getCachedReview(reviewCacheKey(points.map((point) => point.fen), ucis, "standard")),
+      null,
+      "a no-book review is not cached",
+    );
+  } finally {
+    cleanup();
+  }
+});

@@ -13,7 +13,7 @@ import {
 import { getNodeAt, type GameTree, type Path, type VariationPoint } from "@/src/chess/tree";
 import { createReviewPool, reviewPoolSize } from "@/src/engine/review-pool";
 import { createE2eFakeReviewEngine, isE2eFakeReviewEnabled } from "./e2e-fake-review-engine";
-import { fetchBookReplies } from "./book-replies";
+import { fetchOpeningBook } from "./book-client";
 import { extractMistakeExercises } from "@/src/chess/mistake-exercises";
 import type { ReviewSide } from "@/src/chess/review-report";
 import {
@@ -99,6 +99,8 @@ export function useGameReview({ tree, points, setupMode, userSide }: Options) {
   const [running, setRunning] = useState(false);
   const [cancelled, setCancelled] = useState(false);
   const [failed, setFailed] = useState(false);
+  // SIG-1225: the opening book could not be resolved for the last run; every position was scored.
+  const [bookUnavailable, setBookUnavailable] = useState(false);
   const [progress, setProgress] = useState<ReviewProgress>(IDLE_PROGRESS);
   // SIG-966: scored positions from the last cancelled/failed run, memory-only
   // (never cached or persisted). Keyed by cacheKey: a line/preset/engine
@@ -129,6 +131,7 @@ export function useGameReview({ tree, points, setupMode, userSide }: Options) {
     setRunning(false);
     setCancelled(false);
     setFailed(false);
+    setBookUnavailable(false);
     setFreshRun(false);
     setCapture(null);
     setProgress(IDLE_PROGRESS);
@@ -204,6 +207,7 @@ export function useGameReview({ tree, points, setupMode, userSide }: Options) {
     // SIG-1087: per-run controller so cancelling the review aborts the
     // in-flight opening-book fetch, not just the loop's next iteration.
     const bookController = new AbortController();
+    let bookMissing = false;
     // Payload for this run only: resume() stashes the partial here, start()
     // leaves it null for a fresh run.
     const resume = resumeRef.current;
@@ -214,7 +218,17 @@ export function useGameReview({ tree, points, setupMode, userSide }: Options) {
       moves: line.ucis.map((uci) => ({ uci })),
       preset,
       engine: pool ?? createE2eFakeReviewEngine({ delayMs: 40, isCancelled }),
-      bookReplies: useFake ? async () => [] : () => fetchBookReplies(line.tree, line.points, isCancelled, bookController.signal),
+      // SIG-1225: the book is resolved first, in one request; the engine starts after it.
+      book: async () => {
+        const book = useFake
+          ? { plies: 0 }
+          : await fetchOpeningBook(line.tree.startFen, line.ucis, bookController.signal);
+        if (!stopped) {
+          setBookUnavailable(book == null);
+        }
+        bookMissing = book == null;
+        return book;
+      },
       isCancelled,
       resume: resume ?? undefined,
       onProgress: (value) => {
@@ -248,14 +262,18 @@ export function useGameReview({ tree, points, setupMode, userSide }: Options) {
       if (outcome.status !== "done") {
         return;
       }
-      setCachedReview(line.cacheKey, outcome.rows);
-      persistReview(
-        line.points.map((point) => point.fen),
-        line.ucis,
-        preset,
-        line.cacheKey,
-        outcome.rows,
-      );
+      // A review scored without its book is shown but not cached: reopening the
+      // game later retries the book instead of freezing the no-book labels.
+      if (!bookMissing) {
+        setCachedReview(line.cacheKey, outcome.rows);
+        persistReview(
+          line.points.map((point) => point.fen),
+          line.ucis,
+          preset,
+          line.cacheKey,
+          outcome.rows,
+        );
+      }
       setCore(outcome.rows);
       setFreshRun(true);
       // SIG-1096: fresh runs only — cached/IndexedDB restores never reach here.
@@ -283,6 +301,7 @@ export function useGameReview({ tree, points, setupMode, userSide }: Options) {
     setPartial(null);
     setCancelled(false);
     setFailed(false);
+    setBookUnavailable(false);
     setProgress({ done: 0, total: points.length, elapsedMs: 0 });
     setRunning(true);
   }, [points.length]);
@@ -374,6 +393,7 @@ export function useGameReview({ tree, points, setupMode, userSide }: Options) {
     running,
     cancelled,
     failed,
+    bookUnavailable,
     progress,
     rows,
     cached,

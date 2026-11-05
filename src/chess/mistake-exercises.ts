@@ -116,7 +116,7 @@ export function exerciseFromRow(input: {
   if (!isMistakeLabel(row.label)) {
     return null;
   }
-  if (row.forced) {
+  if (row.forced || row.beforePawns == null || row.afterPawns == null) {
     return null;
   }
   const line = row.bestPv;

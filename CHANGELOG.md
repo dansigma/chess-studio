@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Game Review: opening book before the engine (SIG-1225)
+
+- The book is resolved first and the engine only analyzes from the last book position onward (that position's
+  score grades the first out-of-book move). Book moves get the `book` label, are not scored and stay out of
+  accuracy, rating, phases, pace and key moments; the eval chart shades them as a "Book" band with no curve.
+- Source is the Lichess games explorer (`ratings=2200,2500`, `speeds=blitz,rapid,classical`). A move is theory
+  while its position has at least 100 games and the move has at least 20 games and 3% of the position; the book
+  ends at the first move that fails, for either side, and never resumes on transposition. Constants live in
+  `BOOK_RULE` (`src/chess/opening-theory.ts`).
+- One request per review: new `POST /api/explorer/book` walks the explorer server-side (server Lichess token,
+  `explorer_cache` under its own `lichess-book-v1-...` source so it cannot collide with masters/lichess entries,
+  about 8 s total and 2.5 s per request, rate-limited). Non-standard start positions (FEN, Chess960) have no book.
+- If the explorer is unavailable the review still runs with every position scored, shows "Opening book
+  unavailable", and is not cached so the next open retries the book.
+- The review cache key includes the book version, so masters-only reviews recompute once.
+- Removed the per-ply masters request (`book-replies.ts`).
+
 ### Game Review: dedicated review engine (SIG-1223)
 
 - The review no longer shares the analysis panel's worker or settings. It always runs Stockfish 19 lite

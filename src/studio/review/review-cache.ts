@@ -1,3 +1,4 @@
+import { BOOK_RULE } from "@/src/chess/opening-theory";
 import type { ReviewPreset, ReviewRow } from "@/src/chess/review-engine";
 
 // In-memory result cache for finished reviews. Deliberately module-level (not
@@ -48,7 +49,9 @@ export function reviewFingerprintInput(
   preset: ReviewPreset,
 ): string {
   const line = `${fens.join("|")}#${ucis.join(" ")}`;
-  return `${REVIEW_ENGINE_ID}:${preset}:${fens.length}:${line}:${line.length}`;
+  // SIG-1225: the opening book is part of the recipe (book moves are unscored),
+  // so reviews made with the old masters-only book are recomputed once.
+  return `${REVIEW_ENGINE_ID}:book${BOOK_RULE.version}:${preset}:${fens.length}:${line}:${line.length}`;
 }
 
 /** Key for one reviewed line: its FEN sequence and moves and the depth preset (the review engine is fixed). */

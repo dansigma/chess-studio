@@ -343,3 +343,11 @@ test("sides: both also yields the opponent's mistakes, flagged fromOpponent (SIG
   assert.equal(both.find((item) => item.playedUci === "h2h3")?.fromOpponent, undefined);
   assert.equal(both.find((item) => item.playedUci === "h7h6")?.fromOpponent, true);
 });
+
+test("SIG-1225: a row without scores yields no exercise", async () => {
+  const { exerciseFromRow } = await import("./mistake-exercises.ts");
+  assert.equal(
+    exerciseFromRow({ fen: START, row: row({ index: 0, beforePawns: null, afterPawns: null }), createdAt: NOW }),
+    null,
+  );
+});

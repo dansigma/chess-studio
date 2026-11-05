@@ -35,8 +35,8 @@ const BEST_WAS_LABELS: ReadonlySet<ReviewLabel> = new Set(["miss", "mistake", "b
 export type ReviewAnnotationRow = {
   path: Path;
   label: ReviewLabel | null;
-  /** White-perspective pawns after the move; written verbatim, never mover-flipped. */
-  afterPawns: number;
+  /** White-perspective pawns after the move; written verbatim, never mover-flipped. Null on book moves: no eval comment. */
+  afterPawns: number | null;
   /** Engine continuation from the position before the move, best move first (UCI). */
   bestPv: string[];
   playedUci: string;
@@ -134,7 +134,7 @@ export function buildReviewAnnotations(
     }
 
     const lines = [REVIEW_ANNOTATION_SENTINEL];
-    if (options.evals) {
+    if (options.evals && row.afterPawns != null) {
       lines.push(formatEvalTag(row.afterPawns));
     }
     if (options.bestMove && row.label != null && BEST_WAS_LABELS.has(row.label)) {

@@ -185,27 +185,6 @@ export function gradeMove(input: {
   return { label, lossCp, winLoss, accuracy };
 }
 
-const BOOK_KEEPS: ReadonlySet<ReviewLabel> = new Set(["brilliant", "great", "best"]);
-
-export function mergeBookLabel(inBook: boolean, label: ReviewLabel | null): ReviewLabel | null {
-  if (!inBook) {
-    return label;
-  }
-  return label && BOOK_KEEPS.has(label) ? label : "book";
-}
-
-export function bookFlags(playedUcis: string[], replies: Array<readonly string[] | null>): boolean[] {
-  const flags = playedUcis.map(() => false);
-  for (let index = 0; index < playedUcis.length; index += 1) {
-    const repliesAtPly = replies[index];
-    if (!repliesAtPly || !repliesAtPly.includes(playedUcis[index])) {
-      break;
-    }
-    flags[index] = true;
-  }
-  return flags;
-}
-
 export function countLabels(labels: Array<ReviewLabel | null>): Record<TierLabel, number> {
   const counts = {
     brilliant: 0,

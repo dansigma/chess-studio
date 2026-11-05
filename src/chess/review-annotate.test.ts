@@ -130,3 +130,9 @@ test("evals and bestMove options toggle their lines", () => {
   assert.ok(noBest[0]?.comment?.includes("[%eval"), `got: ${noBest[0]?.comment}`);
   assert.ok(!noBest[0]?.comment?.includes("Best was"), `got: ${noBest[0]?.comment}`);
 });
+
+test("SIG-1225: book moves with no eval get no eval comment", () => {
+  const result = buildReviewAnnotations("en", [row({ label: "book", afterPawns: null, bestPv: [] })], ALL_ON);
+  const text = JSON.stringify(result);
+  assert.ok(!text.includes("[%eval"), text);
+});
