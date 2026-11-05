@@ -14,13 +14,13 @@ import type { EngineInfo } from "./stockfish-client";
 
 const OPTIONS = { depth: 12, lines: REVIEW_LINES, timeoutMs: 2000, fresh: true };
 
-function infoFor(fen: string, overrides: Partial<EngineInfo> = {}): EngineInfo {
+function infoFor(fen: string, overrides: Partial<EngineInfo> = {}, lineCount = 3): EngineInfo {
   return {
     depth: 12,
     running: false,
     ready: true,
     failed: false,
-    lines: [1, 2, 3].map((multipv) => ({
+    lines: [1, 2, 3].slice(0, lineCount).map((multipv) => ({
       multipv,
       depth: 12,
       scoreCp: 20 - multipv * 5,
@@ -40,6 +40,8 @@ function infoFor(fen: string, overrides: Partial<EngineInfo> = {}): EngineInfo {
 type FakeWorker = ReviewPoolClient & {
   id: number;
   fens: string[];
+  /** `fresh` flag of each search, in order. */
+  fresh: boolean[];
   disposed: boolean;
   /** Fail permanently on the Nth search (1-based), emitting a failed snapshot. */
   failOnSearch: number | null;
@@ -56,20 +58,22 @@ function fakeFactory() {
     const worker: FakeWorker = {
       id: workers.length,
       fens: [],
+      fresh: [],
       disposed: false,
       failOnSearch: null,
       delayMs: 2,
       hold: false,
       held: [],
-      analyze(fen) {
+      analyze(fen, _depth, multiPv, _threads, _searchMoves, fresh) {
         worker.fens.push(fen);
+        worker.fresh.push(fresh ?? false);
         const answer = () => {
           if (worker.disposed) {
             return;
           }
           const failing = worker.failOnSearch !== null && worker.fens.length >= worker.failOnSearch;
           for (const listener of [...listeners]) {
-            listener(failing ? infoFor(fen, { failed: true, lines: [], running: false }) : infoFor(fen));
+            listener(failing ? infoFor(fen, { failed: true, lines: [], running: false }) : infoFor(fen, {}, multiPv));
           }
         };
         if (worker.hold) {
@@ -313,4 +317,82 @@ test("when every worker is dead the pool answers null and the run fails instead 
   });
   assert.equal(outcome.status, "failed");
   pool.dispose();
+});
+
+test("SIG-1224: searches with a lane stay on that lane's worker, in call order, and keep their hash", async () => {
+  const { workers, createClient } = fakeFactory();
+  const pool = new ReviewEnginePool({ size: 2, createClient });
+  const lane = async (laneId: number, fens: string[]) => {
+    for (const [i, fen] of fens.entries()) {
+      await pool.analyze(fen, { ...OPTIONS, lines: 1, lane: laneId, fresh: i === 0 });
+    }
+  };
+  await Promise.all([lane(0, FENS.slice(0, 6)), lane(1, FENS.slice(6, 12))]);
+  assert.equal(workers.length, 2);
+  assert.deepEqual(workers[0].fens, FENS.slice(0, 6));
+  assert.deepEqual(workers[1].fens, FENS.slice(6, 12));
+  // The hash is cleared on each lane's first search only.
+  assert.deepEqual(workers[0].fresh, [true, false, false, false, false, false]);
+  assert.deepEqual(workers[1].fresh, [true, false, false, false, false, false]);
+  pool.dispose();
+});
+
+test("SIG-1224: when a lane's worker dies, the lane moves to a survivor with a cleared hash", async () => {
+  const { workers, createClient } = fakeFactory();
+  const pool = new ReviewEnginePool({ size: 2, createClient });
+  await Promise.all([
+    pool.analyze(FENS[0], { ...OPTIONS, lines: 1, lane: 0, fresh: true }),
+    pool.analyze(FENS[6], { ...OPTIONS, lines: 1, lane: 1, fresh: true }),
+  ]);
+  workers[0].failOnSearch = workers[0].fens.length + 1;
+  // Lane 0's next search kills worker 0; the position is re-run on worker 1, hash cleared.
+  const result = await pool.analyze(FENS[1], { ...OPTIONS, lines: 1, lane: 0, fresh: false });
+  assert.ok(result);
+  assert.equal(workers[0].disposed, true);
+  assert.equal(workers[1].fens[workers[1].fens.length - 1], FENS[1]);
+  assert.equal(workers[1].fresh[workers[1].fresh.length - 1], true, "takeover clears the hash");
+  // Later searches of both lanes now share the survivor, one at a time.
+  const more = await Promise.all([
+    pool.analyze(FENS[2], { ...OPTIONS, lines: 1, lane: 0, fresh: false }),
+    pool.analyze(FENS[7], { ...OPTIONS, lines: 1, lane: 1, fresh: false }),
+  ]);
+  assert.ok(more.every((entry) => entry !== null));
+  assert.equal(pool.workerCount, 1);
+  pool.dispose();
+});
+
+test("SIG-1224: pinned waiters are released on dispose and the pool serves nothing afterwards", async () => {
+  const { workers, createClient } = fakeFactory();
+  const pool = new ReviewEnginePool({ size: 1, createClient });
+  await pool.analyze(FENS[0], { ...OPTIONS, lane: 0, fresh: true });
+  workers[0].hold = true;
+  const running = pool.analyze(FENS[1], { ...OPTIONS, lane: 0 });
+  const waiting = pool.analyze(FENS[2], { ...OPTIONS, lane: 0 });
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  pool.dispose();
+  assert.deepEqual(await Promise.all([running, waiting]), [null, null]);
+  assert.equal(await pool.analyze(FENS[3], { ...OPTIONS, lane: 0 }), null);
+});
+
+test("a review over the pool is identical for one lane per worker and for the dynamic path", async () => {
+  const replay = new Chess();
+  const fens = [replay.fen()];
+  const ucis: string[] = [];
+  for (const san of ["d4", "d5", "c4", "e6", "Nc3", "Nf6", "Bg5", "Be7", "e3", "O-O", "Nf3", "h6"]) {
+    const played = replay.move(san);
+    ucis.push(`${played.from}${played.to}`);
+    fens.push(replay.fen());
+  }
+  const { createClient } = fakeFactory();
+  const pool = new ReviewEnginePool({ size: 3, createClient });
+  const lanes = await runReview({ fens, moves: ucis.map((uci) => ({ uci })), preset: "standard", engine: pool });
+  pool.dispose();
+  const single = new ReviewEnginePool({ size: 1, createClient: fakeFactory().createClient });
+  const one = await runReview({ fens, moves: ucis.map((uci) => ({ uci })), preset: "standard", engine: single });
+  single.dispose();
+  assert.equal(lanes.status, "done");
+  assert.equal(one.status, "done");
+  if (lanes.status === "done" && one.status === "done") {
+    assert.deepEqual(lanes.rows, one.rows);
+  }
 });

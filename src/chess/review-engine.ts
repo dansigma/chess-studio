@@ -13,8 +13,26 @@ import {
   type PositionScore,
 } from "./review.ts";
 
-/** Lines analysed for every position; the 2nd/3rd scores drive "only move" detection. */
-export const REVIEW_LINES = 3;
+/**
+ * SIG-1224: most lines the review ever asks for. Pass 1 searches every position
+ * with 1 line; pass 2 re-searches with 2 lines only where the played move was the
+ * engine's best, because the 2nd line only matters for great/brilliant. The
+ * 3rd line is no longer searched.
+ */
+export const REVIEW_LINES = 2;
+export const REVIEW_PASS1_LINES = 1;
+
+/**
+ * Order in which each worker walks its contiguous chunk of the line. "reverse"
+ * (later positions first) lets the hash of later positions serve earlier ones.
+ * `NEXT_PUBLIC_REVIEW_CHUNK_ORDER` is a test-only override.
+ */
+export type ReviewChunkOrder = "forward" | "reverse";
+export function reviewChunkOrder(
+  forced: string | undefined = typeof process === "undefined" ? undefined : process.env.NEXT_PUBLIC_REVIEW_CHUNK_ORDER,
+): ReviewChunkOrder {
+  return forced === "forward" ? "forward" : "reverse";
+}
 
 export const REVIEW_PRESETS = {
   fast: { label: "Fast", depth: 10 },
@@ -55,6 +73,12 @@ export type AnalyzeOptions = {
   fresh: boolean;
   /** Legal moves in the position; lets the adapter tell a cut-short search from a legitimately short one. */
   legalMoves?: number;
+  /**
+   * SIG-1224: worker affinity. Searches that share a `lane` run on the same worker
+   * in call order, so its hash stays warm; the pipeline sets `fresh` only on a
+   * lane's first search. Engines without workers ignore it.
+   */
+  lane?: number;
 };
 
 /**
@@ -109,6 +133,8 @@ export type ReviewInput = {
    * ignored defensively (treated as a fresh run).
    */
   resume?: Array<PositionScore | null>;
+  /** Walk order inside each worker's chunk; defaults to `reviewChunkOrder()` (reverse). */
+  chunkOrder?: ReviewChunkOrder;
 };
 
 /** Consecutive positions without any engine result after which the run gives up. */
@@ -144,7 +170,6 @@ export function toPositionScore(evaluation: PositionEval): PositionScore | null 
     bestUci: best.uci,
     bestPv: best.pv ?? (best.uci ? [best.uci] : []),
     secondWhitePawns: evaluation.lines[1]?.whitePawns ?? null,
-    thirdWhitePawns: evaluation.lines[2]?.whitePawns ?? null,
     depth: evaluation.depth,
   };
 }
@@ -243,25 +268,39 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
   // A length mismatch means the resume does not line up with this line: ignore it.
   const resume = input.resume?.length === total ? input.resume : undefined;
   const partialSoFar = (): ReviewPartial => [...scores];
-  const analyzeOptions = (fen: string): AnalyzeOptions => ({
-    depth,
-    lines: REVIEW_LINES,
-    timeoutMs: POSITION_TIMEOUT_MS,
-    fresh: true,
-    legalMoves: legalMoveCount(fen),
-  });
+  const scoreOf = (evaluation: PositionEval | null, lines: 1 | 2): PositionScore | null => {
+    const score = evaluation ? toPositionScore(evaluation) : null;
+    return score ? { ...score, searchedLines: lines } : null;
+  };
+  const legalCounts = new Map<number, number>();
+  const legalAt = (index: number): number => {
+    let count = legalCounts.get(index);
+    if (count === undefined) {
+      count = legalMoveCount(fens[index]);
+      legalCounts.set(index, count);
+    }
+    return count;
+  };
 
-  // SIG-1223: up to `engine.concurrency` positions are in flight at once (a
-  // small promise pool over a shared index counter). Every position is still
-  // searched on its own with a fresh hash, so which worker scores it does not
-  // matter and results equal the sequential run.
+  // SIG-1224: each worker ("lane") owns one contiguous chunk of the line, so the
+  // assignment (and with it every worker's search sequence and hash contents) is a
+  // pure function of the line and the pool size: two runs give the same labels.
+  // Pass 1 scores the chunk with 1 line; pass 2 re-searches, with 2 lines, the
+  // positions where the played move was pass 1's best (the only ones where the
+  // 2nd line can change a label). The hash is cleared once per lane, on its first
+  // search, and kept for the rest of the review.
   const concurrency = Math.max(1, Math.min(total, Math.floor(engine.concurrency ?? 1)));
-  let nextIndex = 0;
-  // Positions finished (scored, carried or missed), in any order: drives progress.
+  const chunkSize = Math.ceil(total / concurrency);
+  const reverse = (input.chunkOrder ?? reviewChunkOrder()) === "reverse";
+  // Positions finished in pass 1 / pass 2, and the pass 2 positions known so far.
   let finished = 0;
-  // Consecutive positions without any engine result, counted in completion order:
-  // a success anywhere resets it, so one slow worker cannot trip the give-up by
-  // itself, and a dead engine (every worker returning null) still trips after
+  let pass2Done = 0;
+  const lanePass2: number[] = new Array<number>(concurrency).fill(-1);
+  const laneSize: number[] = new Array<number>(concurrency).fill(0);
+  let lastDone = 0;
+  // Consecutive pass 1 positions without any engine result, counted in completion
+  // order: a success anywhere resets it, so one slow worker cannot trip the give-up
+  // by itself, and a dead engine (every worker returning null) still trips after
   // MAX_CONSECUTIVE_MISSES completions without waiting on the slowest in-flight search.
   let misses = 0;
   let gaveUp = false;
@@ -269,31 +308,69 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
   const gaveUpSignal = new Promise<void>((resolve) => {
     signalGaveUp = resolve;
   });
-  const reportProgress = () => input.onProgress?.({ done: finished, total, elapsedMs: now() - startedAt });
+  // Progress covers both passes: pass 2 is estimated at half a chunk until a
+  // lane has finished pass 1 and knows its exact count. Never goes backwards.
+  const reportProgress = () => {
+    let expected2 = 0;
+    for (let lane = 0; lane < concurrency; lane += 1) {
+      expected2 += lanePass2[lane] >= 0 ? lanePass2[lane] : Math.round(laneSize[lane] / 2);
+    }
+    const share = (finished + pass2Done) / (total + expected2);
+    lastDone = Math.max(lastDone, Math.min(total - 1, Math.floor(share * total)));
+    const done = finished >= total && pass2Done >= expected2 ? total : lastDone;
+    input.onProgress?.({ done, total, elapsedMs: now() - startedAt });
+  };
+  for (let lane = 0; lane < concurrency; lane += 1) {
+    laneSize[lane] = Math.max(0, Math.min(total, (lane + 1) * chunkSize) - lane * chunkSize);
+  }
   reportProgress();
 
-  const lane = async (): Promise<void> => {
-    while (!gaveUp && !cancelled()) {
-      const index = nextIndex;
-      if (index >= total) {
+  const runLane = async (lane: number): Promise<void> => {
+    const start = lane * chunkSize;
+    const end = Math.min(total, start + chunkSize);
+    const indices: number[] = [];
+    for (let index = start; index < end; index += 1) {
+      indices.push(index);
+    }
+    if (reverse) {
+      indices.reverse();
+    }
+    // The first real search of the lane clears this worker's hash.
+    let fresh = true;
+    const search = async (index: number, lines: number): Promise<PositionEval | null> => {
+      const options: AnalyzeOptions = {
+        depth,
+        lines,
+        timeoutMs: POSITION_TIMEOUT_MS,
+        fresh,
+        legalMoves: legalAt(index),
+        lane,
+      };
+      fresh = false;
+      let evaluation = await engine.analyze(fens[index], options);
+      if (!evaluation && !cancelled() && !gaveUp) {
+        // One extra search (with a cleared hash) before counting a miss: restarts
+        // already ran inside the first analyze; this covers a single dropped result.
+        evaluation = await engine.analyze(fens[index], { ...options, fresh: true });
+      }
+      return evaluation;
+    };
+
+    // Pass 1: every position, 1 line.
+    for (const index of indices) {
+      if (gaveUp || cancelled()) {
         return;
       }
-      nextIndex += 1;
       const carried = resume?.[index];
-      if (carried && carried.depth === depth) {
+      if (carried && carried.depth === depth && carried.searchedLines !== undefined) {
         scores[index] = carried;
         misses = 0;
         finished += 1;
         reportProgress();
         continue;
       }
-      let evaluation = await engine.analyze(fens[index], analyzeOptions(fens[index]));
-      if (!evaluation && !cancelled() && !gaveUp) {
-        // One extra fresh search before counting a miss (restarts already ran
-        // inside the first analyze; this covers a single dropped result).
-        evaluation = await engine.analyze(fens[index], analyzeOptions(fens[index]));
-      }
-      scores[index] = evaluation ? toPositionScore(evaluation) : null;
+      const evaluation = await search(index, REVIEW_PASS1_LINES);
+      scores[index] = scoreOf(evaluation, 1);
       finished += 1;
       misses = evaluation ? 0 : misses + 1;
       if (misses >= MAX_CONSECUTIVE_MISSES && !cancelled()) {
@@ -303,8 +380,37 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
       }
       reportProgress();
     }
+
+    // Pass 2: 2 lines where the played move was pass 1's best. The result replaces
+    // the pass 1 score as a whole (best line and 2nd line from one search), so a
+    // different best move found at 2 lines is graded consistently.
+    const needsSecond = (index: number): boolean => {
+      const score = scores[index];
+      return (
+        score != null &&
+        score.searchedLines === 1 &&
+        index < moves.length &&
+        score.bestUci != null &&
+        score.bestUci === moves[index].uci &&
+        legalAt(index) > 1
+      );
+    };
+    const second = indices.filter(needsSecond);
+    lanePass2[lane] = second.length;
+    reportProgress();
+    for (const index of second) {
+      if (gaveUp || cancelled()) {
+        return;
+      }
+      const evaluation = await search(index, REVIEW_LINES);
+      if (evaluation && evaluation.lines.length >= REVIEW_LINES) {
+        scores[index] = scoreOf(evaluation, 2) ?? scores[index];
+      }
+      pass2Done += 1;
+      reportProgress();
+    }
   };
-  await Promise.race([Promise.all(Array.from({ length: concurrency }, lane)), gaveUpSignal]);
+  await Promise.race([Promise.all(Array.from({ length: concurrency }, (_, lane) => runLane(lane))), gaveUpSignal]);
   if (gaveUp) {
     return { status: "failed", partial: partialSoFar() };
   }

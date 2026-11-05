@@ -58,6 +58,10 @@ type Slot = {
   engine: SearchEngine;
   busy: boolean;
   dead: boolean;
+  /** The next search on this worker must clear its hash (it took over another worker's lane). */
+  needsFresh: boolean;
+  /** Callers pinned to this worker, waiting for it to be free (FIFO). */
+  waiters: Array<() => void>;
 };
 
 function createReviewClient(): ReviewPoolClient {
@@ -69,7 +73,9 @@ export class ReviewEnginePool implements ReviewEngine {
   private readonly createClient: () => ReviewPoolClient;
   private readonly isCancelled: () => boolean;
   private readonly slots: Slot[] = [];
-  /** Callers waiting for a free worker, FIFO. */
+  /** Worker bound to each lane (see `AnalyzeOptions.lane`). */
+  private readonly laneSlots = new Map<number, Slot>();
+  /** Unpinned callers waiting for any free worker, FIFO. */
   private readonly waiters: Array<(slot: Slot | null) => void> = [];
   private disposed = false;
 
@@ -79,21 +85,31 @@ export class ReviewEnginePool implements ReviewEngine {
     this.isCancelled = options.isCancelled ?? (() => false);
   }
 
-  /** Workers created so far (they are spawned on demand, up to `concurrency`). */
+  /** Live workers (they are spawned on demand, up to `concurrency`). */
   get workerCount(): number {
     return this.slots.filter((slot) => !slot.dead).length;
   }
 
+  /**
+   * Unpinned searches take any free worker. Searches with a `lane` always run on
+   * that lane's worker, one at a time and in call order, so the worker's hash
+   * stays warm across the lane's positions. If a lane's worker dies for good, the
+   * lane moves to the least-loaded survivor, whose hash is cleared before its next
+   * search, and the interrupted position is re-run there: recovery runs can differ
+   * slightly from a healthy run (a different hash history), but never lose a position.
+   */
   async analyze(fen: string, options: AnalyzeOptions): Promise<PositionEval | null> {
     while (!this.disposed) {
-      const slot = await this.checkout();
+      const slot = options.lane === undefined ? await this.checkout() : await this.checkoutLane(options.lane);
       if (!slot) {
         return null;
       }
-      const result = await slot.engine.analyze(fen, options);
+      const fresh = options.fresh || slot.needsFresh;
+      slot.needsFresh = false;
+      const result = await slot.engine.analyze(fen, { ...options, fresh });
       if (slot.dead) {
         // The worker died mid-search: the null above says nothing about the
-        // position, so run it again on a surviving worker.
+        // position, so run it again on a surviving worker (hash cleared).
         this.retire(slot);
         continue;
       }
@@ -112,8 +128,12 @@ export class ReviewEnginePool implements ReviewEngine {
     for (const slot of this.slots) {
       slot.engine.abort();
       slot.client.dispose();
+      for (const wake of slot.waiters.splice(0)) {
+        wake();
+      }
     }
     this.slots.length = 0;
+    this.laneSlots.clear();
     for (const waiter of this.waiters.splice(0)) {
       waiter(null);
     }
@@ -141,7 +161,54 @@ export class ReviewEnginePool implements ReviewEngine {
     });
   }
 
+  private async checkoutLane(lane: number): Promise<Slot | null> {
+    for (;;) {
+      if (this.disposed) {
+        return null;
+      }
+      let slot: Slot | null | undefined = this.laneSlots.get(lane);
+      if (!slot || slot.dead) {
+        const moved = slot !== undefined;
+        slot = this.bindLane(lane);
+        if (!slot) {
+          return null;
+        }
+        if (moved) {
+          slot.needsFresh = true;
+        }
+      }
+      if (!slot.busy) {
+        slot.busy = true;
+        return slot;
+      }
+      // Pinned to a busy worker (two lanes share it after a failure): wait our turn.
+      await new Promise<void>((resolve) => slot.waiters.push(resolve));
+    }
+  }
+
+  private bindLane(lane: number): Slot | null {
+    let slot: Slot | undefined;
+    if (this.slots.length < this.concurrency) {
+      slot = this.spawn();
+    } else {
+      const load = (candidate: Slot) => [...this.laneSlots.values()].filter((bound) => bound === candidate).length;
+      slot = this.slots.filter((candidate) => !candidate.dead).sort((x, y) => load(x) - load(y))[0];
+    }
+    if (!slot) {
+      return null;
+    }
+    this.laneSlots.set(lane, slot);
+    return slot;
+  }
+
   private checkin(slot: Slot): void {
+    const pinned = slot.waiters.shift();
+    if (pinned) {
+      // Stays busy: the pinned waiter takes the worker over.
+      slot.busy = false;
+      pinned();
+      return;
+    }
     const waiter = this.waiters.shift();
     if (waiter) {
       waiter(slot);
@@ -153,6 +220,9 @@ export class ReviewEnginePool implements ReviewEngine {
   private retire(slot: Slot): void {
     slot.busy = false;
     slot.client.dispose();
+    for (const wake of slot.waiters.splice(0)) {
+      wake();
+    }
     if (this.slots.every((other) => other.dead) && this.slots.length >= this.concurrency) {
       // Nobody is left to serve the queue.
       for (const waiter of this.waiters.splice(0)) {
@@ -168,6 +238,8 @@ export class ReviewEnginePool implements ReviewEngine {
       engine: createSearchEngine(client, 1, () => this.disposed || this.isCancelled()),
       busy: false,
       dead: false,
+      needsFresh: false,
+      waiters: [],
     };
     // A permanent failure (the client's second consecutive worker error) is
     // sticky; the search adapter already resolves null on it.

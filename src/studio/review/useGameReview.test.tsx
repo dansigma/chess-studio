@@ -335,7 +335,8 @@ test("changing the analysis engine settings does not touch a running review", as
     const firstFen = points[0]?.fen;
     assert.equal(analyzeCalls.filter((call) => call.fen === firstFen).length, 1, "no restart from the first position");
     assert.ok(analyzeCalls.every((call) => call.threads === 1), "review searches are always Threads 1");
-    assert.ok(analyzeCalls.every((call) => call.fresh), "every position is searched with a fresh hash");
+    assert.equal(analyzeCalls.filter((call) => call.fresh).length, 1, "the hash is cleared once per review (one worker), not per position");
+    assert.ok(analyzeCalls.every((call) => call.lines <= 2), "at most two lines are ever searched");
   } finally {
     cleanup();
   }

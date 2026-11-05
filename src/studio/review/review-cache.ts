@@ -13,8 +13,13 @@ import type { ReviewPreset, ReviewRow } from "@/src/chess/review-engine";
  * Cache schema version. Bump whenever the ReviewRow scoring/grading shape
  * changes: it is part of every cache key (sync + persistent), so old persisted
  * reviews miss instead of showing stale ratings.
+ *
+ * v2 (SIG-1224): the review's searches changed (1 line for every position, 2 lines
+ * where the played move was best, warm hash), so scores can differ slightly from
+ * v1 (3 lines, fresh hash per position). v1 reviews are not reused: showing them
+ * would make one game carry different labels depending on when it was reviewed.
  */
-export const REVIEW_SCHEMA_VERSION = 1;
+export const REVIEW_SCHEMA_VERSION = 2;
 
 /**
  * SIG-1223: the engine every review is computed with (Stockfish 19 lite,

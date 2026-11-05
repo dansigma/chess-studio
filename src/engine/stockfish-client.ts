@@ -232,7 +232,13 @@ export class StockfishEngine {
     this.threaded = this.workerUrl === null && supportsEngineThreads();
   }
 
+  /** Hash / Threads last sent to the current worker process (null = never). */
+  private appliedHash: number | null = null;
+  private appliedThreads: number | null = null;
+
   private createWorker(): void {
+    this.appliedHash = null;
+    this.appliedThreads = null;
     this.worker = new Worker(this.workerUrl ?? engineWorkerUrl(this.build));
     this.worker.onmessage = (event: MessageEvent<string>) => {
       this.handleMessage(String(event.data));
@@ -441,8 +447,18 @@ export class StockfishEngine {
     this.pendingSent = false;
     this.readyokForCycle = false;
     if (p.gen === this.generation && this.worker) {
-      this.send(`setoption name Hash value ${ENGINE_HASH_MB}`);
-      this.send(`setoption name Threads value ${p.threads}`);
+      // SIG-1224: send Hash/Threads only when they change on this worker, so a
+      // `fresh: false` search never touches the table. (Measured on stockfish.js:
+      // re-sending the same Hash/Threads does not wipe it, but a resize may on
+      // other builds, and an unchanged option needs no message.)
+      if (this.appliedHash !== ENGINE_HASH_MB) {
+        this.send(`setoption name Hash value ${ENGINE_HASH_MB}`);
+        this.appliedHash = ENGINE_HASH_MB;
+      }
+      if (this.appliedThreads !== p.threads) {
+        this.send(`setoption name Threads value ${p.threads}`);
+        this.appliedThreads = p.threads;
+      }
       this.send(`setoption name MultiPV value ${p.multiPv}`);
       if (p.fresh) {
         this.send("ucinewgame");

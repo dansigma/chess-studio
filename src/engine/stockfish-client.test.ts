@@ -639,3 +639,24 @@ test("SIG-1223: a pinned worker url is used as is and is always single-threaded"
     }
   }
 });
+
+test("SIG-1224: Hash and Threads are sent once per worker, and ucinewgame only when fresh", () => {
+  const { engine, worker } = freshEngine();
+  handshake(worker);
+  engine.analyze(FEN_A, 12, 1, 1, undefined, true);
+  worker.emit("readyok");
+  assert.ok(worker.sent.includes("setoption name Hash value 16"));
+  assert.ok(worker.sent.includes("setoption name Threads value 1"));
+  assert.ok(worker.sent.includes("ucinewgame"));
+  worker.emit("bestmove e2e4");
+  worker.sent.length = 0;
+  // Second search, hash kept: setting Hash/Threads again would reallocate (clear) the table.
+  engine.analyze(FEN_B, 12, 2, 1, undefined, false);
+  worker.emit("readyok");
+  assert.ok(!worker.sent.some((msg) => msg.startsWith("setoption name Hash")));
+  assert.ok(!worker.sent.some((msg) => msg.startsWith("setoption name Threads")));
+  assert.ok(!worker.sent.includes("ucinewgame"));
+  assert.ok(worker.sent.includes("setoption name MultiPV value 2"));
+  assert.ok(worker.sent.includes(`position fen ${FEN_B}`));
+  engine.dispose();
+});

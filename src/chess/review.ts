@@ -28,9 +28,16 @@ export type PositionScore = {
   /** Engine continuation from the position, best move first (UCI); for callers that explain moves. */
   bestPv?: string[];
   secondWhitePawns: number | null;
-  /** Third engine line, when the position has one; carried for callers that compare alternatives. */
+  /** Third engine line, when the position has one. Unused: the review searches at most two lines (SIG-1224). */
   thirdWhitePawns?: number | null;
   depth?: number;
+  /**
+   * SIG-1224: how many lines the search behind this score asked for (1 or 2). A
+   * score with 1 line has no second line, so `great`/`brilliant` cannot be told
+   * apart from `best`; the review upgrades the positions where the played move
+   * was best to 2 lines. Absent on scores that did not come from the review passes.
+   */
+  searchedLines?: 1 | 2;
 };
 
 export type ReviewedMove = {

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Game Review: cheaper searches (SIG-1224)
+
+- Pass 1 searches every position with 1 line; pass 2 re-searches with 2 lines only where the played move was
+  pass 1's best (the only place the 2nd line can change a label). The 3rd line is no longer searched.
+- The hash is cleared once per worker at review start (`fresh` only on a lane's first search) and kept for the
+  rest of the review. Each worker owns one contiguous chunk of the line (`AnalyzeOptions.lane`), walked from
+  later positions to earlier ones (`NEXT_PUBLIC_REVIEW_CHUNK_ORDER=forward` is a test-only override), so a
+  given game and pool size always give the same labels. Results can differ slightly across pool sizes.
+- A worker that dies hands its lane to a survivor with a cleared hash; such recovery runs may differ slightly.
+- `StockfishEngine` sends Hash/Threads once per worker process instead of before every search.
+- Cache schema v2: reviews cached by SIG-1223 and earlier are not reused (one re-review).
+
 ### Game Review: dedicated review engine (SIG-1223)
 
 - The review no longer shares the analysis panel's worker or settings. It always runs Stockfish 19 lite
