@@ -5,6 +5,10 @@
 //   1. the position has at least `minPositionGames` games, and
 //   2. the played move has at least `minMoveGames` games AND at least
 //      `minMoveShare` of the position's games.
+//
+// SIG-1229 (version 2): `minMoveShare` went from 3% to 1%. At 3% the local book
+// stopped far earlier than the explorer in sidelines (King's Gambit ended at
+// 2.f4). Position and move game counts are unchanged.
 // The book ends at the first move that fails, for either side; nothing after it
 // is book, even if the game transposes back into known positions.
 
@@ -13,11 +17,11 @@ export const BOOK_RULE = {
   ratings: [2200, 2500],
   speeds: ["blitz", "rapid", "classical"],
   /** Bump when the rule or the filters change: part of the review cache key. */
-  version: 1,
+  version: 2,
   minPositionGames: 100,
   minMoveGames: 20,
-  /** Fraction of the position's games (0.03 = 3%). */
-  minMoveShare: 0.03,
+  /** Fraction of the position's games (0.01 = 1%). */
+  minMoveShare: 0.01,
   /** Longest line the book route accepts. */
   maxPlies: 120,
 } as const;

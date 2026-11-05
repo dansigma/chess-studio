@@ -1,12 +1,20 @@
 // scripts/opening-book/generate-synthetic-pgn.mjs
 // SIG-1226: synthetic Lichess-style PGN for testing the opening book pipeline
 // where the real dumps (tens of GB) cannot be had. Games follow a handful of
-// weighted opening lines (some rare enough to fail the 3% / 20-game rules),
+// weighted opening lines (some rare enough to fail the 1% / 20-game rules),
 // deviate with a random legal move, then play random legal moves. Headers use
 // the Lichess fields the filter reads (WhiteElo, BlackElo, TimeControl, Event,
 // Termination, Variant), with a spread of ratings, speeds and junk games.
 //
 //   node scripts/opening-book/generate-synthetic-pgn.mjs --games 50000 --seed 1226 > synthetic.pgn
+//
+// SIG-1229: --style otb | corr emits databases shaped like the masters and
+// correspondence sources instead: no Lichess fields, a pool of named players
+// written in several formats ("Carlsen, Magnus", "Carlsen, M", "Magnus
+// Carlsen"), FIDE-like or ICCF-like Elos (some missing or low), no TimeControl
+// (or a day-long one), some online Site values, exact duplicates with the
+// names re-formatted, and one player who repeats a pet line against everybody
+// (many games, one distinct player). Default style `lichess` is unchanged.
 import { Chess } from "chess.js";
 import { pathToFileURL } from "node:url";
 
@@ -133,9 +141,144 @@ export function syntheticGame(random, index) {
   return { headers, plies: sans };
 }
 
+// ---- SIG-1229: OTB-like and correspondence-like games --------------------------------------
+
+// [surname, given name, base Elo]. Includes diacritics and compound surnames.
+const PLAYER_POOL = [
+  ["Carlsen", "Magnus", 2830], ["Caruana", "Fabiano", 2800], ["Nakamura", "Hikaru", 2780], ["Giri", "Anish", 2770],
+  ["Ding", "Liren", 2790], ["Nepomniachtchi", "Ian", 2790], ["Firouzja", "Alireza", 2760], ["Gukesh", "Dommaraju", 2760],
+  ["Rapport", "Richárd", 2740], ["Radjabov", "Teimour", 2720], ["Mamedyarov", "Shakhriyar", 2730], ["Duda", "Jan-Krzysztof", 2730],
+  ["Vachier-Lagrave", "Maxime", 2760], ["Grischuk", "Alexander", 2760], ["Wei", "Yi", 2730], ["Aronian", "Levon", 2750],
+  ["Andersen", "Mads", 2650], ["Grandelius", "Nils", 2680], ["Šarić", "Ivan", 2670], ["Kovalev", "Vladislav", 2660],
+  ["Müller", "Jörg", 2480], ["García", "José", 2460], ["Žižić", "Petar", 2440], ["Łukasz", "Piotr", 2420],
+  ["Øyen", "Henrik", 2410], ["Nguyen", "Thai Dai Van", 2560], ["Rodriguez", "Carlos", 2310], ["Petrov", "Sergei", 2290],
+  ["Rossi", "Marco", 2250], ["Dubois", "Luc", 2210], ["Novak", "Jan", 2180], ["Kowalski", "Tomasz", 2150],
+  ["Silva", "João", 2120], ["Meier", "Hans", 2060], ["Costa", "Pedro", 2020], ["Santos", "Rui", 1980],
+  ["Berg", "Anders", 1940], ["Moreau", "Paul", 1900], ["Lindqvist", "Olof", 2380], ["Takahashi", "Kenji", 2340],
+];
+const PET_PLAYER = ["Smith", "John", 2400];
+const PET_LINE = "b4 e5 Bb2 Bxb4 Bxe5 Nf6 Bb2 O-O";
+const OTB_SITES = ["Reykjavik ISL", "Wijk aan Zee NED", "Moscow RUS", "Dortmund GER", "Stavanger NOR", "Bucharest ROU", "Zagreb CRO", "Madrid ESP"];
+const ONLINE_SITES = ["lichess.org", "Chess.com", "Internet Chess Club", "chess24.com"];
+const CORR_EVENTS = ["ICCF World Championship Final", "ICCF Webserver Open", "IECG Email Tournament", "LSS Server Daily", "Correspondence Chess Olympiad"];
+const CORR_SITES = ["ICCF", "iccf.com", "Server", "LSS", "IECG"];
+
+function asDiacriticFree(text) {
+  return text.normalize("NFD").replace(/\p{M}+/gu, "");
+}
+
+/** The same player written in one of several formats. */
+export function nameVariant(random, [surname, given]) {
+  const roll = random();
+  const firstInitial = given[0];
+  if (roll < 0.3) {
+    return `${surname}, ${given}`;
+  }
+  if (roll < 0.5) {
+    return `${surname}, ${firstInitial}`;
+  }
+  if (roll < 0.65) {
+    return `${given} ${surname}`;
+  }
+  if (roll < 0.75) {
+    return `${surname},${firstInitial}.`;
+  }
+  if (roll < 0.9) {
+    return asDiacriticFree(`${surname}, ${given}`);
+  }
+  return `${surname.toUpperCase()}, ${given}`;
+}
+
+function playOut(random, line, deviateOften = false) {
+  const book = line.split(" ");
+  const board = new Chess();
+  const sans = [];
+  const deviateAt = random() < (deviateOften ? 0.3 : 0.55) ? book.length : Math.floor(random() * book.length);
+  const target = random() < 0.05 ? 8 + Math.floor(random() * 10) : 24 + Math.floor(random() * 23);
+  while (sans.length < target) {
+    let san;
+    if (sans.length < deviateAt && sans.length < book.length) {
+      san = book[sans.length];
+    } else {
+      const legal = board.moves();
+      if (legal.length === 0) {
+        break;
+      }
+      san = legal[Math.floor(random() * legal.length)];
+    }
+    board.move(san);
+    sans.push(san);
+  }
+  return { sans, mate: board.isCheckmate(), whiteMoved: sans.length };
+}
+
+function pickPlayer(random, minBase = 0) {
+  const pool = PLAYER_POOL.filter((player) => player[2] >= minBase);
+  return pool[Math.floor(random() * pool.length)];
+}
+
+function resultOf(random, game) {
+  return game.mate ? (game.sans.length % 2 === 1 ? "1-0" : "0-1") : ["1-0", "0-1", "1/2-1/2"][Math.floor(random() * 3)];
+}
+
+function eloTag(random, base) {
+  const value = base + Math.floor(random() * 60) - 30;
+  return random() < 0.08 ? undefined : String(value);
+}
+
+/** One OTB-like (style "otb") or correspondence-like (style "corr") game. */
+export function databaseGame(random, index, style) {
+  const pet = random() < 0.15;
+  const [, line] = pet ? [0, PET_LINE] : pickWeighted(random, OPENING_LINES);
+  const game = playOut(random, line, true);
+  const white = pet ? PET_PLAYER : pickPlayer(random);
+  let black = pickPlayer(random);
+  while (black === white) {
+    black = pickPlayer(random);
+  }
+  const corr = style === "corr";
+  const headers = {};
+  const year = 2005 + Math.floor(random() * 20);
+  const month = 1 + Math.floor(random() * 12);
+  const day = 1 + Math.floor(random() * 28);
+  if (corr) {
+    const otb = random() < 0.05;
+    const live = !otb && random() < 0.04;
+    headers.Event = otb ? `Open ${year}` : CORR_EVENTS[Math.floor(random() * CORR_EVENTS.length)];
+    headers.Site = otb ? OTB_SITES[Math.floor(random() * OTB_SITES.length)] : live ? "lichess.org" : CORR_SITES[Math.floor(random() * CORR_SITES.length)];
+    if (live) {
+      headers.TimeControl = "180+0";
+    } else if (!otb && random() < 0.5) {
+      headers.TimeControl = random() < 0.5 ? "1/259200" : "10/259200";
+    }
+  } else {
+    const online = random() < 0.06;
+    headers.Event = online ? "Titled Arena" : `Open ${year}`;
+    headers.Site = online ? ONLINE_SITES[Math.floor(random() * ONLINE_SITES.length)] : OTB_SITES[Math.floor(random() * OTB_SITES.length)];
+    if (random() < 0.25) {
+      headers.TimeControl = "40/7200:3600";
+    }
+  }
+  headers.Date = `${year}.${String(month).padStart(2, "0")}.${String(day).padStart(2, "0")}`;
+  headers.Round = String(1 + Math.floor(random() * 9));
+  const scale = corr ? -400 : 0; // correspondence ratings sit lower than top FIDE ratings
+  headers.White = nameVariant(random, white);
+  headers.Black = nameVariant(random, black);
+  headers.Result = resultOf(random, game);
+  const whiteElo = eloTag(random, corr ? 2250 + (white[2] % 450) : white[2] + scale);
+  const blackElo = eloTag(random, corr ? 2250 + (black[2] % 450) : black[2] + scale);
+  if (whiteElo) {
+    headers.WhiteElo = whiteElo;
+  }
+  if (blackElo) {
+    headers.BlackElo = blackElo;
+  }
+  return { headers, plies: game.sans, players: { white, black }, index };
+}
+
 export function formatGame({ headers, plies }, random = () => 0.5) {
   const lines = Object.entries(headers).map(([name, value]) => `[${name} "${value}"]`);
-  const clock = headers.TimeControl === "-" ? 0 : Number(headers.TimeControl.split("+")[0]);
+  const clock = headers.TimeControl === undefined || !/^\d+\+\d+$/.test(headers.TimeControl) ? 0 : Number(headers.TimeControl.split("+")[0]);
   const parts = [];
   plies.forEach((san, ply) => {
     const number = Math.floor(ply / 2) + 1;
@@ -145,11 +288,34 @@ export function formatGame({ headers, plies }, random = () => 0.5) {
   return `${lines.join("\n")}\n\n${parts.join(" ")} ${headers.Result}\n\n`;
 }
 
-/** Generates `games` games as PGN text chunks (an iterator of strings). */
-export function* syntheticPgn({ games, seed }) {
+/**
+ * Generates `games` games as PGN text chunks. `style`: lichess (default), otb or
+ * corr. In the database styles ~5% of the games are exact repeats of an earlier
+ * one with the player names re-formatted (the same game from two collections).
+ */
+export function* syntheticPgn({ games, seed, style = "lichess" }) {
   const random = mulberry32(seed);
+  const recent = [];
   for (let i = 0; i < games; i += 1) {
-    yield formatGame(syntheticGame(random, i), random);
+    if (style === "lichess") {
+      yield formatGame(syntheticGame(random, i), random);
+      continue;
+    }
+    if (recent.length > 20 && random() < 0.05) {
+      const original = recent[Math.floor(random() * recent.length)];
+      const copy = {
+        ...original,
+        headers: { ...original.headers, White: nameVariant(random, original.players.white), Black: nameVariant(random, original.players.black) },
+      };
+      yield formatGame(copy, random);
+      continue;
+    }
+    const game = databaseGame(random, i, style);
+    recent.push(game);
+    if (recent.length > 200) {
+      recent.shift();
+    }
+    yield formatGame(game, random);
   }
 }
 
@@ -159,7 +325,9 @@ function main() {
     const at = argv.indexOf(flag);
     return at >= 0 ? Number(argv[at + 1]) : fallback;
   };
-  for (const chunk of syntheticPgn({ games: value("--games", 50000), seed: value("--seed", 1226) })) {
+  const styleAt = argv.indexOf("--style");
+  const style = styleAt >= 0 ? argv[styleAt + 1] : "lichess";
+  for (const chunk of syntheticPgn({ games: value("--games", 50000), seed: value("--seed", 1226), style })) {
     process.stdout.write(chunk);
   }
 }

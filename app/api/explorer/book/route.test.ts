@@ -122,7 +122,7 @@ test("positions come from explorer_cache under the book source and are written b
   assert.equal(writes.length, 2);
   for (const write of writes) {
     const row = write.row as { source: string };
-    assert.ok(row.source.startsWith("lichess-book-v1-"));
+    assert.ok(row.source.startsWith("lichess-book-v2-"));
     assert.notEqual(row.source, "lichess");
   }
 });
