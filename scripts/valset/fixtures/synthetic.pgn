@@ -1,0 +1,172 @@
+% SIG-1221 synthetic fixture. Every position and comment below was written for
+% this repository; none of it comes from a book or a course. Positions are
+% small constructed settings so each theme is verifiably present (or, for the
+% deliberate miss, verifiably absent from the extractor's facts).
+
+[Event "Forks"]
+[Chapter "Forks"]
+[FEN "r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "<1200"]
+[Phase "endgame"]
+
+1. Nc7+ { A fork on c7: the knight checks the king and attacks the rook at the same time. } 1... Kd7 2. Nxa8 *
+
+[Event "Garfos"]
+[Chapter "Garfos"]
+[FEN "4k3/8/8/3n4/8/8/8/3QK3 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "1200-1599"]
+[Phase "endgame"]
+
+1. Qh5+ { Garfo de dama em h5: dá xeque ao rei e ataca o cavalo ao mesmo tempo. } 1... Ke7 2. Qxd5 *
+
+[Event "Pins"]
+[Chapter "Pins"]
+[FEN "4k3/8/2n5/8/8/8/4B3/4K3 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "1200-1599"]
+[Phase "endgame"]
+
+1. Bb5 { The bishop pins the knight to the king, so the knight cannot move. } 1... Kd8 2. Kd2 *
+
+[Event "Cravadas"]
+[Chapter "Cravadas"]
+[FEN "4k3/8/8/4b3/8/8/8/R5K1 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "1600-1999"]
+[Phase "endgame"]
+
+1. Re1 { A torre cria uma cravada na coluna e: o bispo não pode sair sem expor o rei. } 1... Kd7 2. Rxe5 *
+
+[Event "Skewers"]
+[Chapter "Skewers"]
+[FEN "8/8/8/4k2r/8/8/8/R3K3 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "1600-1999"]
+[Phase "endgame"]
+
+1. Ra5+ $1 { A skewer: the king has to leave the rank and the rook behind it falls. } 1... Kd6 2. Rxh5 *
+
+[Event "Pecas penduradas"]
+[Chapter "Pecas penduradas"]
+[FEN "4k3/8/5n2/8/8/8/8/5RK1 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "<1200"]
+[Phase "endgame"]
+
+1. Rxf6 { O cavalo em f6 estava pendurado: nenhuma peça o defendia. } 1... Ke7 *
+
+[Event "Loose pieces"]
+[Chapter "Loose pieces"]
+[FEN "r3k3/8/8/8/8/5N2/8/4K3 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "1600-1999"]
+[Phase "endgame"]
+
+1. Nd4 { Black's rook on a8 is a loose piece, nothing defends it, so every knight jump now carries a threat. } 1... Kd7 *
+
+[Event "Trapped pieces"]
+[Chapter "Trapped pieces"]
+[FEN "k6n/8/8/8/8/8/1B6/3Q1RK1 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "1200-1599"]
+[Phase "middlegame"]
+
+1. Qd3 { The knight on h8 is trapped: the queen covers g6 and the rook covers f7. } 1... Kb8 2. Bxh8 *
+
+[Event "Back rank"]
+[Chapter "Back rank"]
+[FEN "4r1k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "1200-1599"]
+[Phase "middlegame"]
+
+1. Rxe8# { Back rank mate: the pawns in front of the king leave it no luft. } *
+
+[Event "Mate do corredor"]
+[Chapter "Mate do corredor"]
+[FEN "6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "<1200"]
+[Phase "middlegame"]
+
+1. Rd8# { Mate do corredor: o rei preto não tem para onde ir. } *
+
+[Event "Mate threats"]
+[Chapter "Mate threats"]
+[RatingBand "<1200"]
+
+1. e4 e5 2. Bc4 Nc6 3. Qh5 { The queen threatens mate on f7, so Black must react at once. } 3... Nf6 4. Qxf7# { Checkmate. } *
+
+[Event "Ameacas de mate"]
+[Chapter "Ameacas de mate"]
+[RatingBand "<1200"]
+
+1. e4 e5 2. Qh5 Nc6 3. Bc4 { O bispo cria uma ameaça de mate em f7. } 3... g6 4. Qf3 *
+
+[Event "Discovered attacks"]
+[Chapter "Discovered attacks"]
+[FEN "4k3/4q3/8/8/4B3/8/8/4RK2 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "1600-1999"]
+[Phase "middlegame"]
+
+1. Bd5 { A discovered attack: once the bishop moves, the rook attacks the queen. } 1... Qxe1+ 2. Kxe1 *
+
+[Event "Sacrifices"]
+[Chapter "Sacrifices"]
+[FEN "4k3/3b4/8/8/8/3R4/3K4/8 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "1200-1599"]
+[Phase "endgame"]
+
+1. Rxd7+ $6 { A rook sacrifice that only wins a bishop, which throws the advantage away. } (1. Rd4 Kd8 2. Ke3) 1... Kxd7 *
+
+[Event "Critical annotations"]
+[Chapter "Critical annotations"]
+[RatingBand "1600-1999"]
+
+1. e4 e5 2. Nf3 $4 { This gives the e5 pawn away for nothing. } (2. h4 d5 3. exd5) 2... Nc6 3. Bb5 *
+
+[Event "Passed pawns"]
+[Chapter "Passed pawns"]
+[FEN "8/5k2/8/8/2P5/5K2/8/8 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "2000+"]
+[Phase "endgame"]
+
+1. c5 { The passed pawn on c5 runs while the Black king is too far away. } 1... Ke6 2. c6 *
+
+[Event "Heavy pieces"]
+[Chapter "Heavy pieces"]
+[FEN "6k1/6pp/8/8/8/8/PPP2PPP/2KR4 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "2000+"]
+[Phase "middlegame"]
+
+1. Rd7 { The rook takes the open d-file and lands on the seventh rank. } 1... Kf8 *
+
+[Event "Hand labels"]
+[Chapter "Hand labels"]
+[FEN "4k3/8/q7/3N4/8/8/8/4K3 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "2000+"]
+[Phase "middlegame"]
+
+1. Nc7+ { [%themes garfo,zugzwang,bogus] [%mustmention fork] [%mustnotclaim trapped] The knight jumps in with check and the queen is lost. } 1... Kd8 2. Nxa6 *
+
+[Event "Negated words"]
+[Chapter "Negated words"]
+[FEN "4k3/8/8/3p4/8/8/4P3/4K3 w - - 0 1"]
+[SetUp "1"]
+[RatingBand "<1200"]
+[Phase "endgame"]
+
+1. e4 { There is no fork and no pin in this position, just a plain pawn break. } 1... dxe4 *
+
+[Event "Bold advances"]
+[Chapter "Bold advances"]
+[RatingBand "<1200"]
+
+1. f3 e5 2. g4 $1 { A bold thrust that gains space and starts a fight on the kingside. } 2... Qh4# *
