@@ -38,8 +38,8 @@ export type KeyMomentRow = {
   /** Centipawns lost on this move (ReviewRow.lossCp) — drives the "lost X pawns" clause. */
   lossCp: number;
   /** White-perspective eval (pawns) of the best line before the move / of the position after it. */
-  beforePawns: number;
-  afterPawns: number;
+  beforePawns: number | null;
+  afterPawns: number | null;
   /** SAN of the engine's first choice from the position before the move; null when it equals the played move. */
   bestSan: string | null;
 };

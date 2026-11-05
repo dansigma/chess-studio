@@ -163,4 +163,26 @@ describe("review-queue", () => {
     assert.equal(summary.reviewedAt, new Date(0).toISOString());
     assert.deepEqual(summary.mistakeCounts.opening, { inaccuracy: 1, mistake: 0, miss: 0, blunder: 1 });
   });
+  it("SIG-1225: the book skips scored positions and an unavailable book is not cached", async () => {
+    const withBook = gameFor("b1", "1. e4 c6 2. d4 d5 3. Nc3 dxe4");
+    const noBook = gameFor("b2", "1. c4 e5 2. Nc3 Nf6 3. g3 d5");
+    const seen: string[] = [];
+    const calls: number[] = [];
+    const queue = createReviewQueue({
+      games: [withBook, noBook],
+      preset: "fast",
+      engine: fakeEngine(new Set(), 0.2, seen),
+      book: async (_startFen, ucis) => {
+        calls.push(ucis.length);
+        return ucis.length > 0 && calls.length === 1 ? { plies: 2 } : null;
+      },
+      onGameDone: () => {},
+    });
+    await queue.start();
+    assert.deepEqual(calls, [6, 6], "one book request per game");
+    const first = getCachedReview(queueGameInput(withBook.pgn, withBook, "fast").cacheKey);
+    assert.ok(first && first.slice(0, 2).every((row) => row.label === "book" && row.afterPawns == null));
+    const second = getCachedReview(queueGameInput(noBook.pgn, noBook, "fast").cacheKey);
+    assert.equal(second, null, "a no-book fallback run is not cached");
+  });
 });

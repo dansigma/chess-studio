@@ -4,12 +4,10 @@ import { dividePhases, phaseAt } from "./phases.ts";
 import { volatilityWeights, whiteWinChance } from "./review-accuracy.ts";
 import type { ReportRow } from "./review-report.ts";
 import {
-  bookFlags,
   gradeMove,
   hangsPieceOn,
   isSacrificeOn,
   lineHolds,
-  mergeBookLabel,
   type PositionScore,
 } from "./review.ts";
 
@@ -80,9 +78,12 @@ export type ReviewRow = ReportRow & {
   playedUci: string;
   /** Engine continuation from the position before the move, best move first (UCI). */
   bestPv: string[];
-  /** White-perspective evaluations (pawns) of the best line before the move and of the position after it. */
-  beforePawns: number;
-  afterPawns: number;
+  /**
+   * White-perspective evaluations (pawns) of the best line before the move and of the position after it.
+   * Null on book moves (SIG-1225): they are never scored.
+   */
+  beforePawns: number | null;
+  afterPawns: number | null;
 };
 
 export type ReviewProgress = {
@@ -97,8 +98,13 @@ export type ReviewInput = {
   moves: ReviewMove[];
   preset: ReviewPreset;
   engine: ReviewEngine;
-  /** Masters replies per ply, as returned by the opening explorer (null = unknown). */
-  bookReplies?: () => Promise<Array<readonly string[] | null>>;
+  /**
+   * SIG-1225: resolves the opening book BEFORE any engine call. `plies` leading
+   * moves are theory: they get the `book` label and are never scored; the engine
+   * starts at the position after the last book move. A rejection or null means
+   * "book unavailable": every position is scored.
+   */
+  book?: () => Promise<{ plies: number } | null>;
   isCancelled?: () => boolean;
   onProgress?: (progress: ReviewProgress) => void;
   now?: () => number;
@@ -159,7 +165,9 @@ export function estimateRemainingMs(progress: ReviewProgress): number | null {
 
 /** Win-chance weights per move, from every position's white win chance (unscored positions repeat the last one). */
 export function moveWeights(scores: Array<PositionScore | null>): number[] {
-  let last = 50;
+  // Leading unscored positions (the opening book, SIG-1225) take the first
+  // known win chance, so they add no artificial swing next to the first score.
+  let last = whiteWinChance(scores.find((score) => score != null)?.whitePawns ?? 0);
   const chances = scores.map((score) => {
     if (score) {
       last = whiteWinChance(score.whitePawns);
@@ -234,8 +242,16 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
   const startedAt = now();
   const total = fens.length;
 
-  // Book lookups run alongside the analysis; they never overlap engine calls.
-  const bookPromise = input.bookReplies?.().catch(() => []) ?? Promise.resolve([]);
+  // SIG-1225: the book is resolved first. Book moves are never scored, so the
+  // engine starts at fens[bookPlies] (its score grades the first out-of-book move).
+  const bookInfo = await (input.book?.() ?? Promise.resolve(null)).catch(() => null);
+  if (cancelled()) {
+    return { status: "cancelled", partial: new Array<PositionScore | null>(total).fill(null) };
+  }
+  const bookPlies = Math.max(0, Math.min(moves.length, Math.floor(bookInfo?.plies ?? 0)));
+  // First position the engine scores; nothing at all when the whole game is book.
+  const scoreStart = bookPlies >= moves.length ? total : bookPlies;
+  const work = total - scoreStart;
 
   // Index-aligned, so positions scored out of order by concurrent workers
   // land where the grading below expects them.
@@ -255,8 +271,8 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
   // small promise pool over a shared index counter). Every position is still
   // searched on its own with a fresh hash, so which worker scores it does not
   // matter and results equal the sequential run.
-  const concurrency = Math.max(1, Math.min(total, Math.floor(engine.concurrency ?? 1)));
-  let nextIndex = 0;
+  const concurrency = Math.max(1, Math.min(Math.max(1, work), Math.floor(engine.concurrency ?? 1)));
+  let nextIndex = scoreStart;
   // Positions finished (scored, carried or missed), in any order: drives progress.
   let finished = 0;
   // Consecutive positions without any engine result, counted in completion order:
@@ -269,7 +285,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
   const gaveUpSignal = new Promise<void>((resolve) => {
     signalGaveUp = resolve;
   });
-  const reportProgress = () => input.onProgress?.({ done: finished, total, elapsedMs: now() - startedAt });
+  const reportProgress = () => input.onProgress?.({ done: finished, total: work, elapsedMs: now() - startedAt });
   reportProgress();
 
   const lane = async (): Promise<void> => {
@@ -311,16 +327,8 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
   if (cancelled()) {
     return { status: "cancelled", partial: partialSoFar() };
   }
-  input.onProgress?.({ done: total, total, elapsedMs: now() - startedAt });
+  input.onProgress?.({ done: work, total: work, elapsedMs: now() - startedAt });
 
-  const replies = await bookPromise;
-  if (cancelled()) {
-    return { status: "cancelled", partial: partialSoFar() };
-  }
-  const inBook = bookFlags(
-    moves.map((move) => move.uci),
-    replies,
-  );
   const division = dividePhases(fens);
   const weights = moveWeights(scores);
   const rows: ReviewRow[] = [];
@@ -331,6 +339,26 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
     const before = scores[index];
     const after = scores[index + 1];
     const uci = moves[index].uci;
+    if (index < bookPlies) {
+      // Theory: labelled, never scored, excluded from accuracy by its label.
+      lastWinLoss = 0;
+      rows.push({
+        label: "book",
+        lossCp: 0,
+        winLoss: 0,
+        accuracy: 100,
+        index,
+        playedUci: uci,
+        side: sideOf(fens[index]),
+        phase: phaseAt(division, index + 1),
+        forced: false,
+        weight: weights[index],
+        bestPv: [],
+        beforePawns: null,
+        afterPawns: null,
+      });
+      continue;
+    }
     if (!before || !after || uci.length < 4 || isNullMoveToken(uci)) {
       lastWinLoss = 0;
       continue;
@@ -384,7 +412,7 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
     rows.push({
       ...graded,
       // A forced move has no alternative: it is labelled `forced` instead of a tier.
-      label: forced ? "forced" : mergeBookLabel(inBook[index], graded.label),
+      label: forced ? "forced" : graded.label,
       index,
       playedUci: uci,
       side,

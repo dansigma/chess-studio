@@ -124,8 +124,8 @@ export type TimeRow = {
   forced?: boolean;
   /** Volatility weight of the move (ReportRow.weight); 1 when absent. */
   weight?: number;
-  /** White-perspective evaluation after the move, in pawns. */
-  afterPawns: number;
+  /** White-perspective evaluation after the move, in pawns; null on unscored book moves (SIG-1225). */
+  afterPawns: number | null;
   clockMs?: number;
 };
 
@@ -282,7 +282,8 @@ export function buildTimeReport(rows: ReadonlyArray<TimeRow>, timeControl: strin
   if (spentMs.every((ms) => ms === null)) {
     return null;
   }
-  const lastEval = rows[rows.length - 1].afterPawns;
+  // The last scored evaluation (a fully-book game has none and is not decisive).
+  const lastEval = [...rows].reverse().find((row) => row.afterPawns != null)?.afterPawns ?? 0;
   const decisive = Math.abs(lastEval) >= PACE_WEIGHTS.decisivePawns;
   return {
     control,

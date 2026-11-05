@@ -6,6 +6,7 @@ import {
   REVIEW_LINES,
   REVIEW_PRESETS,
   estimateRemainingMs,
+  moveWeights,
   runReview,
   type AnalyzeOptions,
   type EvalLine,
@@ -212,22 +213,120 @@ test("volatile stretches weigh more than quiet ones", async () => {
   }
 });
 
-test("book replies mark the opening moves as textbook", async () => {
+test("SIG-1225: book moves are labelled book, never scored, and the engine starts at the last book position", async () => {
   const script: Script = { 0: flat(0.2), 1: flat(0.2), 2: flat(0.2), 3: flat(0.2), 4: flat(0.2) };
+  const fake = fakeEngine(OPENING.fens, script);
+  const progress: ReviewProgress[] = [];
   const outcome = await runReview({
     fens: OPENING.fens,
     moves: OPENING.ucis.map((uci) => ({ uci })),
     preset: "standard",
-    engine: fakeEngine(OPENING.fens, script).engine,
-    bookReplies: async () => [[OPENING.ucis[0], "d2d4"], [OPENING.ucis[1]], ["x1x2"]],
+    engine: fake.engine,
+    book: async () => ({ plies: 2 }),
+    onProgress: (value) => progress.push(value),
   });
   assert.equal(outcome.status, "done");
+  // Positions 2, 3 and 4 only: position 2 grades the first out-of-book move.
+  assert.deepEqual(
+    fake.log.map((entry) => entry.fen).sort(),
+    OPENING.fens.slice(2).sort(),
+  );
+  assert.ok(progress.every((entry) => entry.total === 3));
+  assert.equal(progress[progress.length - 1].done, 3);
   if (outcome.status === "done") {
     assert.deepEqual(
       outcome.rows.map((row) => row.label === "book"),
       [true, true, false, false],
     );
+    const [first, second, third] = outcome.rows;
+    assert.equal(first.beforePawns, null);
+    assert.equal(first.afterPawns, null);
+    assert.equal(second.afterPawns, null);
+    assert.notEqual(third.beforePawns, null);
+    assert.equal(first.index, 0);
+    assert.equal(third.index, 2);
   }
+});
+
+test("SIG-1225: a game that is book from start to finish makes no engine call", async () => {
+  const fake = fakeEngine(OPENING.fens, {});
+  const outcome = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "fast",
+    engine: fake.engine,
+    book: async () => ({ plies: OPENING.ucis.length }),
+  });
+  assert.equal(outcome.status, "done");
+  assert.equal(fake.log.length, 0);
+  if (outcome.status === "done") {
+    assert.equal(outcome.rows.length, OPENING.ucis.length);
+    assert.ok(outcome.rows.every((row) => row.label === "book"));
+  }
+});
+
+test("SIG-1225: an unavailable book (null or a rejection) scores every position", async () => {
+  const script: Script = { 0: flat(0.2), 1: flat(0.2), 2: flat(0.2), 3: flat(0.2), 4: flat(0.2) };
+  for (const book of [async () => null, async () => Promise.reject(new Error("429"))]) {
+    const fake = fakeEngine(OPENING.fens, script);
+    const outcome = await runReview({
+      fens: OPENING.fens,
+      moves: OPENING.ucis.map((uci) => ({ uci })),
+      preset: "fast",
+      engine: fake.engine,
+      book,
+    });
+    assert.equal(outcome.status, "done");
+    assert.equal(fake.log.length, OPENING.fens.length);
+    if (outcome.status === "done") {
+      assert.ok(outcome.rows.every((row) => row.label !== "book" && row.beforePawns != null));
+    }
+  }
+});
+
+test("SIG-1225: the book is resolved before the first engine call, and a cancel during it ends the run", async () => {
+  const order: string[] = [];
+  const fake = fakeEngine(OPENING.fens, { 0: flat(0), 1: flat(0), 2: flat(0), 3: flat(0), 4: flat(0) }, []);
+  const engine: ReviewEngine = {
+    analyze(fen, options) {
+      order.push("engine");
+      return fake.engine.analyze(fen, options);
+    },
+  };
+  await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "fast",
+    engine,
+    book: async () => {
+      order.push("book");
+      return { plies: 1 };
+    },
+  });
+  assert.equal(order[0], "book");
+
+  let cancelled = false;
+  const fake2 = fakeEngine(OPENING.fens, {});
+  const outcome = await runReview({
+    fens: OPENING.fens,
+    moves: OPENING.ucis.map((uci) => ({ uci })),
+    preset: "fast",
+    engine: fake2.engine,
+    isCancelled: () => cancelled,
+    book: async () => {
+      cancelled = true;
+      return { plies: 1 };
+    },
+  });
+  assert.equal(outcome.status, "cancelled");
+  assert.equal(fake2.log.length, 0);
+});
+
+test("SIG-1225: unscored book plies add no swing to the first scored moves' weights", () => {
+  const scored = { whitePawns: 3, bestUci: null, secondWhitePawns: null };
+  const withBook = moveWeights([null, null, scored, scored, scored, scored, scored]);
+  const flatScores = moveWeights([scored, scored, scored, scored, scored, scored, scored]);
+  assert.deepEqual(withBook, flatScores);
 });
 
 test("the remaining-time estimate uses the measured pace", () => {

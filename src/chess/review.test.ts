@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Chess } from "chess.js";
-import { MISS_BEST_WIN_CHANCE, MISS_OPPONENT_LOSS, MISS_OWN_LOSS, accuracyPercent, bookFlags, countLabels, gradeMove, hangsPiece, hangsPieceOn, isSacrifice, isSacrificeOn, lineHolds, mergeBookLabel, winChance, type PositionScore } from "./review.ts";
+import { MISS_BEST_WIN_CHANCE, MISS_OPPONENT_LOSS, MISS_OWN_LOSS, accuracyPercent, countLabels, gradeMove, hangsPiece, hangsPieceOn, isSacrifice, isSacrificeOn, lineHolds, winChance, type PositionScore } from "./review.ts";
 
 function score(whitePawns: number, bestUci: string, secondWhitePawns: number | null = null): PositionScore {
   return { whitePawns, bestUci, secondWhitePawns };
@@ -109,25 +109,9 @@ test("the engine's best move is never a mistake, even when the next eval drops",
   assert.equal(graded.label, "brilliant");
 });
 
-test("book continues only while each played move is still a reply", () => {
-  const flags = bookFlags(["e2e4", "e7e5", "a2a3"], [["e2e4", "d2d4"], ["e7e5"], ["e2e4"]]);
-  assert.deepEqual(flags, [true, true, false]);
-  assert.deepEqual(bookFlags(["a2a3"], [["e2e4"]]), [false]);
-  assert.deepEqual(bookFlags(["e2e4"], [null]), [false]);
-});
-
 test("per-move accuracy stays in range", () => {
   assert.ok(accuracyPercent(20, 20) <= 100);
   assert.ok(accuracyPercent(1000, -1000) >= 0);
-});
-
-test("book never overrides brilliant, great, or best", () => {
-  assert.equal(mergeBookLabel(true, "brilliant"), "brilliant");
-  assert.equal(mergeBookLabel(true, "great"), "great");
-  assert.equal(mergeBookLabel(true, "best"), "best");
-  assert.equal(mergeBookLabel(true, "veryGood"), "book");
-  assert.equal(mergeBookLabel(true, null), "book");
-  assert.equal(mergeBookLabel(false, "mistake"), "mistake");
 });
 
 test("the board-based checks match the fen wrappers", () => {

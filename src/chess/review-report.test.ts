@@ -168,3 +168,17 @@ test("a forced label is never counted as a tier", () => {
   assert.equal(Object.values(report.white.counts).reduce((sum, count) => sum + count, 0), 1);
   assert.equal(report.white.forced, 0);
 });
+
+test("SIG-1225: evalSeries backfills unscored book plies and bookPlyCount counts the leading band", async () => {
+  const { evalSeries, bookPlyCount } = await import("./review-report.ts");
+  const rows = [
+    { label: "book" as const, beforePawns: null, afterPawns: null },
+    { label: "book" as const, beforePawns: null, afterPawns: null },
+    { label: "best" as const, beforePawns: 0.3, afterPawns: 0.4 },
+    { label: "book" as const, beforePawns: null, afterPawns: null },
+  ];
+  assert.deepEqual(evalSeries(rows), [0.3, 0.3, 0.3, 0.4, 0.3]);
+  assert.equal(bookPlyCount(rows), 2, "only the leading run counts");
+  assert.equal(bookPlyCount([]), 0);
+  assert.deepEqual(evalSeries([{ beforePawns: null, afterPawns: null }]), [0, 0]);
+});

@@ -62,7 +62,10 @@ export function WhyBody({ row, fenBefore, fenAfter, previous, locale, moveNotati
       label: row.label,
       lossCp: row.lossCp,
       previous,
-      evals: { bestPawns: row.beforePawns * sign, playedPawns: row.afterPawns * sign },
+      evals: {
+        bestPawns: row.beforePawns == null ? null : row.beforePawns * sign,
+        playedPawns: row.afterPawns == null ? null : row.afterPawns * sign,
+      },
     });
     return explanation
       ? renderExplanation(locale, explanation, { formatSan: (san) => formatSan(san, moveNotation, mover) })

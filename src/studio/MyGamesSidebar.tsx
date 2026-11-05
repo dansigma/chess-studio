@@ -38,6 +38,7 @@ import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { toJson } from "@/src/lib/supabase/database.types";
 import { DEFAULT_REVIEW_PRESET } from "@/src/chess/review-engine";
 import { createReviewPool } from "@/src/engine/review-pool";
+import { fetchOpeningBook } from "./review/book-client";
 import { createE2eFakeReviewEngine, isE2eFakeReviewEnabled } from "./review/e2e-fake-review-engine";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
@@ -255,6 +256,7 @@ export function MyGamesSidebar() {
       games: queueGames,
       preset: DEFAULT_REVIEW_PRESET,
       engine,
+      book: useFake ? undefined : (startFen, ucis) => fetchOpeningBook(startFen, ucis),
       isCancelled,
       onProgress: (done, total) => {
         if (!stopped) {

@@ -47,6 +47,8 @@ type Props = {
   timeAriaLabel?: string;
   /** White-perspective eval per ply (evalSeries output); index = ply. */
   series: number[];
+  /** SIG-1225: leading plies that are opening book: shaded band, no curve, no eval. */
+  bookPlies?: number;
   /** Board path per ply, parallel to series (index 0 = start position). */
   plyPaths: Path[];
   moments: ReviewChartMoment[];
@@ -85,6 +87,7 @@ export function ReviewEvalChart({
   timeBars,
   timeAriaLabel,
   series,
+  bookPlies = 0,
   plyPaths,
   moments,
   separators,
@@ -124,11 +127,16 @@ export function ReviewEvalChart({
   const xs = series.map((_, index) => xAt(index, count, width));
   const ys = series.map((value) => yAt(value, height));
   const zeroY = yAt(0, height);
-  const linePath = xs.map((x, index) => `${index === 0 ? "M" : "L"}${x.toFixed(1)},${ys[index].toFixed(1)}`).join(" ");
+  // The curve starts at the first scored position (the one after the last book move).
+  const bookEnd = Math.max(0, Math.min(bookPlies, count - 1));
+  const curveXs = xs.slice(bookEnd);
+  const linePath = curveXs
+    .map((x, index) => `${index === 0 ? "M" : "L"}${x.toFixed(1)},${ys[bookEnd + index].toFixed(1)}`)
+    .join(" ");
   const areaPath =
-    xs.length === 0
+    curveXs.length === 0
       ? ""
-      : `${linePath} L${xs[xs.length - 1].toFixed(1)},${zeroY.toFixed(1)} L${xs[0].toFixed(1)},${zeroY.toFixed(1)} Z`;
+      : `${linePath} L${curveXs[curveXs.length - 1].toFixed(1)},${zeroY.toFixed(1)} L${curveXs[0].toFixed(1)},${zeroY.toFixed(1)} Z`;
 
   function indexFromClientX(clientX: number): number {
     const rect = wrapRef.current?.getBoundingClientRect();
@@ -159,7 +167,8 @@ export function ReviewEvalChart({
   const hoveredGroup =
     hover != null ? groups.find((group) => group.members.some((moment) => moment.moveIndex + 1 === hover)) : undefined;
   const hoveredText = hoveredGroup ? groupTitle(locale, moveNotation, hoveredGroup.members) : undefined;
-  const hoverEval = hover != null && hover < count ? series[hover] : undefined;
+  const hoverEval = hover != null && hover < count && hover >= bookEnd ? series[hover] : undefined;
+  const hoverInBook = hover != null && hover < bookEnd;
   const timeMode = mode === "time" && timeBars != null;
   const hoveredTime = timeMode && hover != null && hover > 0 ? timeBars?.[hover - 1] : undefined;
   const maxTimeMs = timeMode ? Math.max(1, ...timeBars.map((bar) => bar.ms ?? 0)) : 1;
@@ -217,6 +226,21 @@ export function ReviewEvalChart({
                 <text x={2} y={zeroY - 3} fontSize="9" fill="var(--studio-faint)" data-zero-label>
                   {formatChartEval(locale, 0)}
                 </text>
+                {bookEnd > 0 ? (
+                  <g data-book-band>
+                    <rect
+                      x={xs[0]}
+                      y={16}
+                      width={Math.max(0, xs[bookEnd] - xs[0])}
+                      height={height - 32}
+                      fill="var(--studio-muted)"
+                      opacity="0.14"
+                    />
+                    <text x={xs[0] + 4} y={28} fontSize="9" fill="var(--studio-muted)">
+                      {tReview(locale, "chart.book")}
+                    </text>
+                  </g>
+                ) : null}
                 <path d={areaPath} fill="var(--studio-accent)" opacity="0.22" />
                 <path d={linePath} fill="none" stroke="var(--studio-accent)" strokeWidth="2" />
               </>
@@ -269,7 +293,7 @@ export function ReviewEvalChart({
                 strokeWidth="1"
               />
             ) : null}
-            {!timeMode && currentIndex != null && xs[currentIndex] != null && ys[currentIndex] != null ? (
+            {!timeMode && currentIndex != null && currentIndex >= bookEnd && xs[currentIndex] != null && ys[currentIndex] != null ? (
               <circle cx={xs[currentIndex]} cy={ys[currentIndex]} r="4" fill="var(--studio-fg)" />
             ) : null}
             {(timeMode ? [] : groups).map((group) => {
@@ -299,7 +323,7 @@ export function ReviewEvalChart({
                 </g>
               );
             })}
-            {!timeMode && hover != null && hover !== currentIndex && xs[hover] != null && ys[hover] != null ? (
+            {!timeMode && hover != null && hover >= bookEnd && hover !== currentIndex && xs[hover] != null && ys[hover] != null ? (
               <circle cx={xs[hover]} cy={ys[hover]} r="3.5" fill="var(--studio-accent)" />
             ) : null}
           </svg>
@@ -314,7 +338,7 @@ export function ReviewEvalChart({
               <>
                 {chartPlyLabel(locale, hover)}{" "}
                 <span className="text-studio-muted">
-                  {hoverEval != null ? chartEvalText(locale, hoverEval) : "…"}
+                  {hoverInBook ? tReview(locale, "chart.book") : hoverEval != null ? chartEvalText(locale, hoverEval) : "…"}
                 </span>
               </>
             )}

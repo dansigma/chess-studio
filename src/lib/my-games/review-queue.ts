@@ -53,6 +53,11 @@ export type ReviewQueueCallbacks = {
    * a fake in tests. The queue is serial, so it never uses more than one search.
    */
   engine: ReviewEngine;
+  /**
+   * SIG-1225: opening book for one game (one request); null = unavailable, in
+   * which case that game is scored in full and not cached. Omitted in tests.
+   */
+  book?: (startFen: string, ucis: string[]) => Promise<{ plies: number } | null>;
   /** Outer cancel (unmount / Cancel button); combined with per-game flow. */
   isCancelled?: () => boolean;
   onGameDone: (summary: ReviewQueueSummary | null, game: ReviewQueueGame) => void | Promise<void>;
@@ -153,7 +158,7 @@ export function summaryFromRows(
 export function createReviewQueue(callbacks: ReviewQueueCallbacks): { start: () => Promise<void>; cancel: () => void } {
   // The queue intentionally stays serial and the caller gives it a one-worker
   // pool, so a batch never competes with an interactive review for cores.
-  const { games, preset, engine, onGameDone, onProgress, isCancelled, now } = callbacks;
+  const { games, preset, engine, book, onGameDone, onProgress, isCancelled, now } = callbacks;
   const clock = now ?? Date.now;
   let cancelled = false;
 
@@ -172,16 +177,23 @@ export function createReviewQueue(callbacks: ReviewQueueCallbacks): { start: () 
         let summary: ReviewQueueSummary | null = null;
         try {
           const input = queueGameInput(game.pgn, game, preset);
+          let bookMissing = false;
           if (input.playable) {
             const outcome = await runReview({
               fens: input.fens,
               moves: input.ucis.map((uci) => ({ uci })),
               preset,
               engine,
-              // No bookReplies: the batch must not hit the explorer API per
-              // game; book moves grade without the book label (offline
-              // grading), unlike the interactive run. No resume: a cancelled
-              // game is simply unreviewed and retried on the next run.
+              // One book request per game (SIG-1225), same as the interactive
+              // run. No resume: a cancelled game is simply unreviewed and
+              // retried on the next run.
+              book: book
+                ? async () => {
+                    const result = await book(input.fens[0], input.ucis);
+                    bookMissing = result == null;
+                    return result;
+                  }
+                : undefined,
               isCancelled: () => cancelled || isCancelled?.() || false,
             });
             if (outcome.status === "done") {
@@ -191,8 +203,10 @@ export function createReviewQueue(callbacks: ReviewQueueCallbacks): { start: () 
               // The interactive hook caches the raw rows; the cache key is
               // over fens/ucis so filtering null-move rows here keeps the
               // same key valid for the opener.
-              setCachedReview(input.cacheKey, outcome.rows);
-              persistReview(input.fens, input.ucis, preset, input.cacheKey, outcome.rows);
+              if (!bookMissing) {
+                setCachedReview(input.cacheKey, outcome.rows);
+                persistReview(input.fens, input.ucis, preset, input.cacheKey, outcome.rows);
+              }
               summary = summaryFromRows(game, rows, input.headers, clock);
             }
           }

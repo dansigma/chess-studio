@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { BOOK_RULE } from "@/src/chess/opening-theory";
 import {
   REVIEW_ENGINE_ID,
   REVIEW_SCHEMA_VERSION,
@@ -54,11 +55,9 @@ test("reading refreshes recency", () => {
   assert.equal(getCachedReview("k1"), null);
 });
 
-test("SIG-1223: lite-era keys are kept and full-build keys can no longer match", () => {
-  // Fingerprints used to start with the Settings engine build. Lite reviews keep
-  // theirs (still valid); full-build ones ("standard:...") are unreachable.
-  assert.equal(REVIEW_ENGINE_ID, "lite");
+test("SIG-1225: the key includes the book version, so masters-only reviews recompute once", () => {
   const fingerprint = reviewFingerprintInput(["a", "b"], ["e2e4"], "standard");
-  assert.ok(fingerprint.startsWith("lite:standard:"));
-  assert.ok(!fingerprint.startsWith("standard:"));
+  assert.ok(fingerprint.startsWith(`${REVIEW_ENGINE_ID}:book${BOOK_RULE.version}:standard:`));
+  // Full-build and pre-book (SIG-1223) fingerprints can never match.
+  assert.ok(!fingerprint.startsWith("standard:") && !fingerprint.startsWith("lite:standard:"));
 });
