@@ -11,3 +11,9 @@
   Cross-Origin-Embedder-Policy: require-corp
   Cross-Origin-Resource-Policy: same-origin
   Cache-Control: public, max-age=31536000, immutable
+
+# Local opening book (SIG-1226): versioned file names, so immutable. Real builds
+# are served from R2 by app/book/[...path]; only the tiny fixture lives here.
+/book/*
+  Cross-Origin-Resource-Policy: same-origin
+  Cache-Control: public, max-age=31536000, immutable

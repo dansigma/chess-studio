@@ -133,6 +133,9 @@ npx wrangler r2 object get chess-studio-engine/engine/full/stockfish-19.wasm --f
 
 *(These binaries are listed in `.gitignore` and must remain untracked).*
 
+### Local Opening Book (SIG-1226)
+Game Review marks opening theory from a book built offline from the Lichess open database. The file lives in the same R2 bucket under `book/` (served by `app/book/[...path]/route.ts`) and is not in git; `public/book/` only holds a tiny synthetic fixture (`NEXT_PUBLIC_OPENING_BOOK_FILE=opening-book-fixture-v1.bin.gz` selects it in dev). Build, verify and upload steps: [docs/opening-book.md](docs/opening-book.md).
+
 ### Uploading Engine Builds to Cloudflare R2
 To publish or update the full WASM binaries in the `chess-studio-engine` bucket:
 

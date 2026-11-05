@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Game Review: local opening book (SIG-1226)
+
+- Book moves now come from a local book built offline from the Lichess open database (both players 2300+,
+  blitz/rapid/classical, first 40 plies, same rule and constants as the explorer book). The file is fetched
+  lazily on the first review, kept in memory, cached by the browser, and served from R2 (`book/<file>` in the
+  engine bucket, via `app/book/[...path]`). The explorer route is only asked when the file is not available
+  within 3 s or the game is still in book at ply 40.
+- Build tooling in `scripts/opening-book/` (streaming PGN reader, bounded-memory counting with spill to disk,
+  synthetic PGN generator, inspect/compare tool) and a runbook in `docs/opening-book.md`. The real one-month
+  build and the R2 upload are still to be run; until then the app falls back to the explorer book.
+- Binary format: gzip of header + delta-encoded sorted 64-bit position keys + 16-bit move codes
+  (`src/chess/opening-book-format.ts`). The review cache key includes the book manifest version.
+
 ### Game Review: opening book before the engine (SIG-1225)
 
 - The book is resolved first and the engine only analyzes from the last book position onward (that position's

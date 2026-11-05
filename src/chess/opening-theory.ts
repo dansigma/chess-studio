@@ -49,3 +49,18 @@ export function isTheoryMove(position: BookPosition, playedUci: string): boolean
   }
   return move.games >= BOOK_RULE.minMoveGames && move.games >= BOOK_RULE.minMoveShare * position.total;
 }
+
+/**
+ * SIG-1226: how the local book is built from the Lichess open database (CC0).
+ * The theory thresholds are BOOK_RULE's, unchanged; only the game filter differs
+ * from the explorer (both players >= minElo instead of a rating band).
+ */
+export const LOCAL_BOOK_BUILD = {
+  /** Both players must be rated at least this. */
+  minElo: 2300,
+  speeds: ["blitz", "rapid", "classical"],
+  /** Games shorter than this many full moves are skipped. */
+  minGameMoves: 10,
+  /** Plies counted per game: theory is stored for positions at ply 0..maxPly-1. */
+  maxPly: 40,
+} as const;

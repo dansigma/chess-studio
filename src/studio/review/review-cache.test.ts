@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { OPENING_BOOK_MANIFEST } from "@/src/chess/opening-book-manifest.ts";
 import { BOOK_RULE } from "@/src/chess/opening-theory";
 import {
   REVIEW_ENGINE_ID,
@@ -55,9 +56,9 @@ test("reading refreshes recency", () => {
   assert.equal(getCachedReview("k1"), null);
 });
 
-test("SIG-1225: the key includes the book version, so masters-only reviews recompute once", () => {
+test("SIG-1225/1226: the key includes the rule and local book manifest versions, so other books recompute once", () => {
   const fingerprint = reviewFingerprintInput(["a", "b"], ["e2e4"], "standard");
-  assert.ok(fingerprint.startsWith(`${REVIEW_ENGINE_ID}:book${BOOK_RULE.version}:standard:`));
+  assert.ok(fingerprint.startsWith(`${REVIEW_ENGINE_ID}:book${BOOK_RULE.version}.${OPENING_BOOK_MANIFEST.version}:standard:`));
   // Full-build and pre-book (SIG-1223) fingerprints can never match.
   assert.ok(!fingerprint.startsWith("standard:") && !fingerprint.startsWith("lite:standard:"));
 });

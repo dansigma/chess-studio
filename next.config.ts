@@ -35,6 +35,12 @@ const nextConfig: NextConfig = {
         headers: isolation,
       },
       {
+        // SIG-1226: the local opening book (R2 via app/book). The route sets its
+        // own Cache-Control (immutable on success, no-store on errors).
+        source: "/book/:path*",
+        headers: isolation,
+      },
+      {
         source: "/engine/:path*.wasm",
         headers: [
           { key: "Content-Type", value: "application/wasm" },

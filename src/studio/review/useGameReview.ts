@@ -13,7 +13,7 @@ import {
 import { getNodeAt, type GameTree, type Path, type VariationPoint } from "@/src/chess/tree";
 import { createReviewPool, reviewPoolSize } from "@/src/engine/review-pool";
 import { createE2eFakeReviewEngine, isE2eFakeReviewEnabled } from "./e2e-fake-review-engine";
-import { fetchOpeningBook } from "./book-client";
+import { resolveBook } from "./resolve-book";
 import { extractMistakeExercises } from "@/src/chess/mistake-exercises";
 import type { ReviewSide } from "@/src/chess/review-report";
 import {
@@ -222,7 +222,7 @@ export function useGameReview({ tree, points, setupMode, userSide }: Options) {
       book: async () => {
         const book = useFake
           ? { plies: 0 }
-          : await fetchOpeningBook(line.tree.startFen, line.ucis, bookController.signal);
+          : await resolveBook(line.tree.startFen, line.ucis, bookController.signal);
         if (!stopped) {
           setBookUnavailable(book == null);
         }
