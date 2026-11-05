@@ -134,10 +134,15 @@ test("puzzle trainer: rated solve escalates hints, awards xp and advances", asyn
   await solve(page, puzzle);
 
   await expect(bubbleTitle(page)).toHaveText("Solved");
-  // xp for a first solve is 12 + round(puzzleRating / 40) + 8 for the streak.
-  await expect(trainer).toContainText(`+${12 + Math.round(puzzle.rating / 40) + 8}`);
+  // SIG-1234: this solve used hints, so only difficulty applies (speed and
+  // first try are removed): round(20 x clamp(2^((puzzle - 1200) / 400), 0.5, 2)).
+  const difficulty = Math.round(Math.min(2, Math.max(0.5, 2 ** ((puzzle.rating - 1200) / 400))) * 100) / 100;
+  const xp = Math.round(20 * difficulty);
+  await expect(trainer).toContainText(`+${xp} XP · 20 solved`);
+  await expect(trainer.getByTestId("xp-breakdown")).not.toContainText("first try");
+  await expect(trainer.getByTestId("xp-breakdown")).not.toContainText("fast");
   await expect(award(page)).toHaveCount(1);
-  await expect(award(page)).toHaveText(`+${12 + Math.round(puzzle.rating / 40) + 8}`);
+  await expect(award(page)).toHaveText(`+${xp}`);
   await expect(trainer).toContainText(/Rating [\d.,]+ \+\d+/);
 
   await trainer.getByRole("button", { name: "Next puzzle" }).click();

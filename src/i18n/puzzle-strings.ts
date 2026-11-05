@@ -132,6 +132,16 @@ export const PUZZLE_STRING_KEYS = [
   "puzzle.praise.fallback",
   "puzzle.side.white",
   "puzzle.side.black",
+  "puzzle.xp.total",
+  "puzzle.xp.base",
+  "puzzle.xp.factor.difficultyUp",
+  "puzzle.xp.factor.difficultyDown",
+  "puzzle.xp.factor.speed",
+  "puzzle.xp.factor.firstTry",
+  "puzzle.xp.missed",
+  "puzzle.xp.practice",
+  "puzzle.level.toNext",
+  "puzzle.level.progressAria",
 ] as const;
 
 export type PuzzleStringKey = (typeof PUZZLE_STRING_KEYS)[number];
@@ -263,6 +273,16 @@ const EN: Record<PuzzleStringKey, string> = {
   "puzzle.praise.fallback": "Great stuff!",
   "puzzle.side.white": "White",
   "puzzle.side.black": "Black",
+  "puzzle.xp.total": "+{total} XP",
+  "puzzle.xp.base": "{base} solved",
+  "puzzle.xp.factor.difficultyUp": "× {value} hard",
+  "puzzle.xp.factor.difficultyDown": "× {value} easy",
+  "puzzle.xp.factor.speed": "× {value} fast",
+  "puzzle.xp.factor.firstTry": "× {value} first try",
+  "puzzle.xp.missed": "No XP for a missed puzzle",
+  "puzzle.xp.practice": "Practice only, not added to your XP",
+  "puzzle.level.toNext": "{xp} XP to level {level}",
+  "puzzle.level.progressAria": "Level {level}: {into} of {span} XP",
 };
 
 const PT_BR: Record<PuzzleStringKey, string> = {
@@ -392,6 +412,16 @@ const PT_BR: Record<PuzzleStringKey, string> = {
   "puzzle.praise.fallback": "Muito bem!",
   "puzzle.side.white": "Brancas",
   "puzzle.side.black": "Pretas",
+  "puzzle.xp.total": "+{total} XP",
+  "puzzle.xp.base": "{base} resolvido",
+  "puzzle.xp.factor.difficultyUp": "× {value} difícil",
+  "puzzle.xp.factor.difficultyDown": "× {value} fácil",
+  "puzzle.xp.factor.speed": "× {value} rápido",
+  "puzzle.xp.factor.firstTry": "× {value} de primeira",
+  "puzzle.xp.missed": "Sem XP por um problema errado",
+  "puzzle.xp.practice": "Apenas treino, não soma ao seu XP",
+  "puzzle.level.toNext": "{xp} XP para o nível {level}",
+  "puzzle.level.progressAria": "Nível {level}: {into} de {span} XP",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

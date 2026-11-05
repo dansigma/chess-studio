@@ -146,7 +146,18 @@ export function usePuzzleSession({
   moveSound: boolean;
   scoring: PuzzleScoring;
 }) {
-  const { progress, delta, gained, progressRef, hydrate, resetResult, commit: applyScore } = scoring;
+  const {
+    progress,
+    delta,
+    gained,
+    xpResult,
+    sessionXp,
+    progressRef,
+    hydrate,
+    resetResult,
+    resetSessionXp,
+    commit: applyScore,
+  } = scoring;
 
   const [puzzle, setPuzzle] = useState<CompiledPuzzle | null>(null);
   const [fen, setFen] = useState("");
@@ -191,10 +202,19 @@ export function usePuzzleSession({
   // SIG-1103: solve-time clock. Stamped when a puzzle is shown, read when the
   // attempt commits — time is measured, never limited.
   const shownAtRef = useRef<number>(0);
+  // SIG-1234: any hint on this puzzle removes the speed and first-try bonuses.
+  // hintLevel itself resets after every move, so the flag is kept separately.
+  const hintedRef = useRef(false);
 
   useEffect(() => {
     fenRef.current = fen;
   });
+
+  useEffect(() => {
+    if (hintLevel > 0) {
+      hintedRef.current = true;
+    }
+  }, [hintLevel]);
 
   function clearAdvance() {
     if (advanceTimer.current !== null) {
@@ -207,6 +227,7 @@ export function usePuzzleSession({
     clearAdvance();
     resetResult();
     shownAtRef.current = Date.now();
+    hintedRef.current = false;
     setExhausted(false);
     setPuzzle(next);
     setFen(next.fen);
@@ -230,7 +251,7 @@ export function usePuzzleSession({
     }
     const score = nextSessionScore(success, sessionSolvedRef.current);
     const ms = Math.max(0, Date.now() - shownAtRef.current);
-    if (!applyScore(success, currentPuzzle, score, ms)) {
+    if (!applyScore(success, currentPuzzle, score, ms, hintedRef.current)) {
       return;
     }
     // SIG-1179: the attempt commits → the puzzle is seen, whatever the
@@ -321,6 +342,8 @@ export function usePuzzleSession({
             return;
           }
           exclude.current.add(first.id);
+          shownAtRef.current = Date.now();
+          hintedRef.current = false;
           resetResult();
           setPuzzle(first);
           setFen(first.fen);
@@ -368,6 +391,8 @@ export function usePuzzleSession({
           return;
         }
         exclude.current.add(first.id);
+        shownAtRef.current = Date.now();
+        hintedRef.current = false;
         resetResult();
         setPuzzle(first);
         setFen(first.fen);
@@ -576,6 +601,7 @@ export function usePuzzleSession({
       exclude.current = new Set();
       sessionSolvedRef.current = 0;
       setSessionSolved(0);
+      resetSessionXp();
       strikesRef.current = 0;
       setStrikes(0);
       setSessionOver(false);
@@ -602,6 +628,7 @@ export function usePuzzleSession({
     setExhausted(false);
     sessionSolvedRef.current = 0;
     setSessionSolved(0);
+    resetSessionXp();
     strikesRef.current = 0;
     setStrikes(0);
     setSessionOver(false);
@@ -639,6 +666,8 @@ export function usePuzzleSession({
     progress,
     delta,
     gained,
+    xpResult,
+    sessionXp,
     userTurn,
     expected,
     onDrop,

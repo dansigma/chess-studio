@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Crown } from "lucide-react";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "@/src/courses/CourseChrome";
 import { formatInteger } from "@/src/i18n/format";
@@ -11,6 +10,7 @@ import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
 import { dueExercises, hydrateExercises, type MistakeExercisesMap } from "@/src/lib/mistake-exercises-store";
+import { LevelBar } from "./XpBreakdown";
 import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
 import { motifSummary, weakestMotif } from "./motif-stats";
 import { loadPuzzleCatalog } from "./puzzle-client";
@@ -98,18 +98,11 @@ export function PuzzleDashboard() {
             <div className="mt-1 text-3xl font-semibold tabular-nums text-studio-fg">
               {progress ? formatInteger(locale, progress.rating) : "—"}
             </div>
-            <div className="mt-3 flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 text-caption tabular-nums text-studio-muted">
-                <Crown className="size-3 text-studio-warning-fg" aria-hidden />
-                {progress ? level.level : "—"}
-              </span>
-              <div className="h-1.5 w-24 overflow-hidden rounded-full bg-studio-bg">
-                <div
-                  className="h-full rounded-full bg-studio-success"
-                  style={{ width: progress ? `${(level.into / level.span) * 100}%` : "0%" }}
-                />
+            {progress ? (
+              <div className="mt-3">
+                <LevelBar level={level} locale={locale} compact />
               </div>
-            </div>
+            ) : null}
             <Button className="mt-3" variant="primary" onClick={() => router.push("/puzzles/play?mode=rated")}>
               {tPuzzle(locale, "puzzle.dashboard.startTraining")}
             </Button>

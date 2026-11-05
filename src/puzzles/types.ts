@@ -70,6 +70,10 @@ export type PuzzleModeAttempt = {
   now: number;
   themes: PuzzleTheme[];
   ms: number | null;
+  // SIG-1234: XP inputs. Optional so older callers keep compiling; absent
+  // means "no hint used" and a one-move solution.
+  hinted?: boolean;
+  solverMoves?: number;
 };
 
 // SIG-1103: per-motif solve stats. `recent` holds the last 10 results as
