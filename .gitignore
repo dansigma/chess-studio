@@ -59,3 +59,7 @@ supabase/.temp/
 # large engine wasm binaries (served via Cloudflare R2 bucket chess-studio-engine)
 public/engine/stockfish-19-single.wasm
 public/engine/full/stockfish-19.wasm
+
+# SIG-1221: validation-set material and outputs (course text must never be committed)
+/valset-data/
+/valset-out/
