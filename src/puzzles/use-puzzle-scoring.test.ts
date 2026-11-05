@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { applyResult, dateKey, emptyProgress } from "./engine";
+import { localDayKey } from "./activity";
 import { applyPuzzleResult } from "./use-puzzle-scoring";
 
 test("applyPuzzleResult reports rating delta and xp gained for a win", () => {
@@ -160,4 +161,34 @@ test("applyPuzzleResult leaves everything but today's activity for mistakes atte
     assert.equal(delta, 0, "mistakes attempts change no rating");
     assert.equal(gained, 0, "mistakes attempts award no xp");
   }
+});
+
+test("a solved rated puzzle adds the breakdown total to today's activity xp", () => {
+  const now = 1_700_000_000_000;
+  const attempt = {
+    id: "p7",
+    mode: "rated" as const,
+    success: true,
+    puzzleRating: 1400,
+    sessionScore: 1,
+    now,
+    themes: [],
+    ms: 3000,
+    solverMoves: 1,
+  };
+  const first = applyPuzzleResult(emptyProgress(), attempt);
+  const today = localDayKey(now);
+  assert.ok(first.xp.breakdown.total > 0);
+  assert.equal(first.next.days?.[today]?.xp, first.xp.breakdown.total);
+  assert.equal(first.next.days?.[today]?.ms, 3000, "the per-puzzle ms is recorded too");
+
+  const second = applyPuzzleResult(first.next, { ...attempt, id: "p8", hinted: true });
+  assert.equal(second.next.days?.[today]?.xp, first.xp.breakdown.total + second.xp.breakdown.total);
+
+  const missed = applyPuzzleResult(second.next, { ...attempt, id: "p9", success: false });
+  assert.equal(missed.next.days?.[today]?.xp, second.next.days?.[today]?.xp, "a miss adds no xp");
+
+  const practice = applyPuzzleResult(missed.next, { ...attempt, id: "p10", mode: "mistakes" });
+  assert.equal(practice.next.days?.[today]?.xp, missed.next.days?.[today]?.xp, "practice records 0 xp");
+  assert.equal(practice.xp.awarded, false, "practice is flagged as not awarded");
 });
