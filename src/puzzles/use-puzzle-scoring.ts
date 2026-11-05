@@ -57,10 +57,9 @@ export function usePuzzleScoring(mode: PuzzleMode) {
       setProgress(next);
       setDelta(ratingDelta);
       setGained(xpGained);
-      // SIG-1097: mistakes practice never persists puzzle progress. applyResult
-      // early-returns the same reference for this mode, so this is a no-op
-      // write skip, not a behavior fork.
-      if (mode !== "mistakes") {
+      // SIG-1097/SIG-1232: mistakes practice changes only today's activity
+      // counter, which is persisted like any other mode.
+      if (next !== current) {
         void saveProgress(next);
       }
       return true;

@@ -81,7 +81,7 @@ test("applyPuzzleResult keeps non-rated modes from changing the rating", () => {
   assert.ok(gained > 0, "but still awards xp");
 });
 
-test("applyPuzzleResult leaves progress identical for mistakes attempts", () => {
+test("applyPuzzleResult leaves everything but today's activity for mistakes attempts", () => {
   const rated = applyResult(emptyProgress(), {
     id: "rated-1",
     mode: "rated",
@@ -103,7 +103,8 @@ test("applyPuzzleResult leaves progress identical for mistakes attempts", () => 
       themes: [],
       ms: 2000,
     });
-    assert.equal(next, rated, "same reference, no clone");
+    assert.deepEqual({ ...next, days: {} }, { ...rated, days: {} });
+    assert.notEqual(next, rated);
     assert.equal(delta, 0, "mistakes attempts change no rating");
     assert.equal(gained, 0, "mistakes attempts award no xp");
   }

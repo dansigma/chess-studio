@@ -1,4 +1,5 @@
 import { Chess, type Square } from "chess.js";
+import { normalizeDays, recordActivity } from "./activity";
 import {
   PUZZLE_MODES,
   PUZZLE_THEMES,
@@ -31,6 +32,7 @@ export function emptyProgress(): PuzzleProgress {
     xp: 0,
     history: [],
     motifs: {},
+    days: {},
   };
 }
 
@@ -314,14 +316,17 @@ export function normalizeProgress(value: unknown): PuzzleProgress {
         : Math.max(0, Math.round(finiteNumber(record.solved, 0))) * 40,
     history: normalizeHistory(record.history),
     motifs: normalizeMotifs(record.motifs),
+    days: normalizeDays(record.days),
   };
 }
 
 export function applyResult(progress: PuzzleProgress, attempt: PuzzleModeAttempt): PuzzleProgress {
   // SIG-1097: mistakes practice never touches puzzle progress — no rating,
   // XP, solved/failed, streak, daily, history, or motif changes.
+  // SIG-1232: the one exception is today's activity counter (practice still
+  // counts as a day played); it carries no rating/xp.
   if (attempt.mode === "mistakes") {
-    return progress;
+    return recordActivity(progress, { now: attempt.now, success: attempt.success, ms: attempt.ms, xp: 0 });
   }
   if (attempt.mode === "daily" && progress.daily === dateKey(attempt.now)) {
     return progress;
@@ -359,8 +364,9 @@ export function applyResult(progress: PuzzleProgress, attempt: PuzzleModeAttempt
       ...progress.history,
     ].slice(0, 20),
     motifs,
+    days: progress.days,
   };
-  return next;
+  return recordActivity(next, { now: attempt.now, success: attempt.success, ms: attempt.ms, xp: gained });
 }
 
 // SIG-1103: fold one attempt into the per-motif stats. Unknown theme ids are
