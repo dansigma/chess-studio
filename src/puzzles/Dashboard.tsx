@@ -14,6 +14,8 @@ import { dueExercises, hydrateExercises, type MistakeExercisesMap } from "@/src/
 import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
 import { motifSummary, weakestMotif } from "./motif-stats";
 import { loadPuzzleCatalog } from "./puzzle-client";
+import { ProgressHeatmap } from "./ProgressHeatmap";
+import { localDayKey } from "./activity";
 import { hydratePuzzleProgress, progressSource } from "./progress";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { THEME_CARDS, THEME_LABEL_KEYS, type PuzzleMode, type PuzzleProgress } from "./types";
@@ -138,6 +140,17 @@ export function PuzzleDashboard() {
             value={progress ? formatInteger(locale, progress.bestStreak) : "—"}
           />
         </dl>
+
+        {progress && now !== null ? (
+          <div className="mt-8">
+            <ProgressHeatmap
+              days={progress.days}
+              today={localDayKey(now)}
+              locale={locale}
+              onStart={() => router.push("/puzzles/play?mode=rated")}
+            />
+          </div>
+        ) : null}
 
         <div className="mt-8 grid gap-4 lg:grid-cols-3">
           <ModeCard

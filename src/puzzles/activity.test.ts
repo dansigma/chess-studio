@@ -90,7 +90,8 @@ test("one missed day per week is frozen, a second breaks", () => {
   const two = dayStreak(mk("2026-11-01", "2026-11-03", "2026-11-05"), "2026-11-05");
   assert.equal(two.current, 1);
   assert.equal(two.longest, 2);
-  assert.deepEqual(two.frozenDays, ["2026-11-02"]);
+  // SIG-1233: the Wednesday miss broke the run, so Monday's freeze saved nothing.
+  assert.deepEqual(two.frozenDays, []);
 });
 
 test("freeze resets each calendar week (Sunday start)", () => {
@@ -112,4 +113,22 @@ test("yesterday frozen keeps streak alive while today is unplayed; a second miss
 test("no activity", () => {
   assert.deepEqual(dayStreak({}, "2026-11-05"), { current: 0, longest: 0, frozenDays: [] });
   assert.equal(dayStreak({ "2026-11-05": { solved: 0, failed: 0, ms: 5, xp: 0 } }, "2026-11-05").current, 0);
+});
+
+test("a freeze in a run that a later miss in the same week breaks is discarded", () => {
+  // Sun Nov 1 played, Mon Nov 2 missed (would freeze), Tue Nov 3 missed (reset).
+  const s = dayStreak(mk("2026-11-01", "2026-11-04"), "2026-11-04");
+  assert.equal(s.current, 1);
+  assert.equal(s.longest, 1);
+  assert.ok(!s.frozenDays.includes("2026-11-02"));
+  assert.deepEqual(s.frozenDays, []);
+});
+
+test("freezes of the live run survive an earlier broken run", () => {
+  // Run 1: Sun Oct 18 only, then Oct 19-31 missed (reset). Run 2: Sun Nov 1,
+  // Mon Nov 2 missed (frozen), Tue Nov 3 played.
+  const s = dayStreak(mk("2026-10-18", "2026-11-01", "2026-11-03"), "2026-11-03");
+  assert.equal(s.current, 2);
+  assert.equal(s.longest, 2);
+  assert.deepEqual(s.frozenDays, ["2026-11-02"]);
 });
