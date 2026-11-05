@@ -49,6 +49,18 @@ const BADGE_GAME = `${HEADERS("Review Badges")}
 
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. Qe2 *`;
 
+
+// 19 plies with Lichess-style clocks (180+2); the same stem as the other games
+// but ending Re2, so its fens are unique.
+const CLOCK_GAME = `[Event "Review Clocks"]
+[Site "e2e"]
+[White "White"]
+[Black "Black"]
+[Result "*"]
+[TimeControl "180+2"]
+
+1. e4 { [%clk 0:02:58.0] } e5 { [%clk 0:02:59.2] } 2. Nf3 { [%clk 0:02:57.3] } Nc6 { [%clk 0:02:59.4] } 3. Bb5 { [%clk 0:02:56.0] } a6 { [%clk 0:02:50.0] } 4. Ba4 { [%clk 0:02:30.0] } Nf6 { [%clk 0:02:51.9] } 5. O-O { [%clk 0:02:31.9] } Be7 { [%clk 0:02:40.0] } 6. Re1 { [%clk 0:02:20.5] } b5 { [%clk 0:01:40.0] } 7. Bb3 { [%clk 0:02:19.0] } d6 { [%clk 0:01:39.0] } 8. c3 { [%clk 0:02:18.0] } O-O { [%clk 0:01:38.0] } 9. h3 { [%clk 0:02:17.0] } Nb8 { [%clk 0:01:37.0] } 10. Re2 { [%clk 0:02:16.0] } *`;
+
 /** Depth lives in the "⋯" actions menu (SIG-1205). */
 async function selectDepth(page: import("@playwright/test").Page | import("@playwright/test").Locator, name: string) {
   await page.getByRole("button", { name: "Review actions", exact: true }).click();
@@ -355,4 +367,30 @@ test.fixme("language switch re-renders the completed report", async () => {
 test.fixme("reload restores the completed review from persistence", async () => {
   // SIG-970 follow-up (SIG-965): complete a review, reload /studio, and assert
   // the cached report hydrates without re-running the engine.
+});
+
+test("SIG-1220: a game with clocks shows the Time section and the Evaluation | Time chart toggle; one without does not", async ({ page }) => {
+  await importGame(page, CLOCK_GAME, "Review Clocks");
+  await page.getByRole("button", { name: "Review game", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
+  const time = page.locator("[data-report-section=time]");
+  await expect(time).toBeVisible();
+  await expect(time.locator("[data-time-row=pace]")).toBeVisible();
+  const toggle = page.locator("[data-chart-mode-toggle]");
+  await expect(toggle).toBeVisible();
+  await toggle.locator("[data-mode=time]").click();
+  await expect(page.locator("[data-chart-mode=time]")).toBeVisible();
+  await expect(page.locator("[data-time-bar]").first()).toBeVisible();
+  await toggle.locator("[data-mode=eval]").click();
+  await expect(page.locator("[data-chart-mode=eval]")).toBeVisible();
+});
+
+test("SIG-1220: a game without clocks renders no Time section and no chart toggle", async ({ page }) => {
+  await importGame(page, RUN_GAME, "Review Run");
+  await page.getByRole("button", { name: "Review game", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator("[data-report-card]")).toBeVisible();
+  await expect(page.locator("[data-report-section=time]")).toHaveCount(0);
+  await expect(page.locator("[data-chart-mode-toggle]")).toHaveCount(0);
+  await expect(page.locator("[data-time-marker]")).toHaveCount(0);
 });

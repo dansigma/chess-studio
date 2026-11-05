@@ -190,3 +190,15 @@ test("retry strings: context and button label render whole sentences in both loc
   assert.equal(tReview("pt-br", "retry.button"), "Tentar");
   assert.equal(tReview("pt-br", "retry.engineHidden"), "Engine pausada durante a tentativa");
 });
+
+test("SIG-1220: move counts pluralise per locale", async () => {
+  const { moveCountText, paceStarsLabel, timeUsageTitle } = await import("./review-strings.ts");
+  assert.equal(moveCountText("en", 0), "0 moves");
+  assert.equal(moveCountText("en", 1), "1 move");
+  assert.equal(moveCountText("en", 2), "2 moves");
+  assert.equal(moveCountText("pt-br", 1), "1 lance");
+  assert.equal(moveCountText("pt-br", 2), "2 lances");
+  assert.equal(paceStarsLabel("en", 2.5), "Pace: 2.5 of 3 stars");
+  assert.equal(paceStarsLabel("pt-br", 2.5), "Ritmo: 2,5 de 3 estrelas");
+  assert.equal(timeUsageTitle("pt-br", 34.2), "34,2% do tempo");
+});

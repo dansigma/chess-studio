@@ -38,6 +38,20 @@ export const REVIEW_STRING_KEYS = [
   "report.details",
   "report.classifications",
   "report.phases",
+  "report.time",
+  "report.timeAvg",
+  "report.timeAvgAccurate",
+  "report.timeAvgInaccurate",
+  "report.timeLongest",
+  "report.timePremoves",
+  "report.timeUsage",
+  "report.pace",
+  "report.paceTooltip",
+  "chart.modeGroup",
+  "chart.modeEval",
+  "chart.modeTime",
+  "chart.timeAriaLabel",
+  "chart.timeEmpty",
   "report.noMistakes",
   "report.noFilteredMoments",
   "report.whiteFallback",
@@ -166,6 +180,15 @@ const EN: Record<ReviewStringKey, string> = {
   "report.details": "Details",
   "report.classifications": "Move quality",
   "report.phases": "Accuracy by phase",
+  "report.time": "Time",
+  "report.timeAvg": "Time per move",
+  "report.timeAvgAccurate": "Avg. time, accurate",
+  "report.timeAvgInaccurate": "Avg. time, inaccurate",
+  "report.timeLongest": "Longest think",
+  "report.timePremoves": "Premoves",
+  "report.timeUsage": "Time usage",
+  "report.pace": "Pace",
+  "report.paceTooltip": "How well the clock was managed, 0 to 3 stars. It drops for time spent on book moves, for fast moves in critical positions, and for finishing a decisive game with almost no time left.",
   "report.noMistakes": "No mistakes in this line.",
   "report.noFilteredMoments": "No key moments match these filters.",
   "report.whiteFallback": "White",
@@ -180,6 +203,11 @@ const EN: Record<ReviewStringKey, string> = {
   "chart.start": "Start",
   "chart.ply": "Ply {ply}",
   "chart.mate": "mate",
+  "chart.modeGroup": "Chart view",
+  "chart.modeEval": "Evaluation",
+  "chart.modeTime": "Time",
+  "chart.timeAriaLabel": "Time spent per move chart",
+  "chart.timeEmpty": "No clock data for this game.",
   "chart.summary": "Review chart: {plies} plies, {moments} key moments",
   "filter.side": "Side",
   "filter.sideBoth": "Both",
@@ -292,6 +320,15 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "report.details": "Detalhes",
   "report.classifications": "Qualidade dos lances",
   "report.phases": "Precisão por fase",
+  "report.time": "Tempo",
+  "report.timeAvg": "Tempo por lance",
+  "report.timeAvgAccurate": "Tempo médio, precisos",
+  "report.timeAvgInaccurate": "Tempo médio, imprecisos",
+  "report.timeLongest": "Maior reflexão",
+  "report.timePremoves": "Premoves",
+  "report.timeUsage": "Uso do tempo",
+  "report.pace": "Ritmo",
+  "report.paceTooltip": "Quão bem o relógio foi administrado, de 0 a 3 estrelas. Diminui por tempo gasto em lances de livro, por lances rápidos em posições críticas e por terminar uma partida decidida com quase nenhum tempo.",
   "report.noMistakes": "Sem erros nesta linha.",
   "report.noFilteredMoments": "Nenhum momento-chave com estes filtros.",
   "report.whiteFallback": "Brancas",
@@ -306,6 +343,11 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "chart.start": "Início",
   "chart.ply": "Lance {ply}",
   "chart.mate": "mate",
+  "chart.modeGroup": "Visão do gráfico",
+  "chart.modeEval": "Avaliação",
+  "chart.modeTime": "Tempo",
+  "chart.timeAriaLabel": "Gráfico do tempo gasto por lance",
+  "chart.timeEmpty": "Sem dados de relógio nesta partida.",
   "chart.summary": "Gráfico da análise: {plies} lances, {moments} momentos-chave",
   "filter.side": "Lado",
   "filter.sideBoth": "Ambos",
@@ -581,4 +623,37 @@ export function momentNavHint(locale: SiteLocale, dir: "prev" | "next"): string 
     "{key}",
     dir === "prev" ? "[" : "]",
   );
+}
+
+/** "1 move" / "2 moves" (PT-BR "1 lance" / "2 lances"): count with its plural noun. */
+export function moveCountText(locale: SiteLocale, count: number): string {
+  const n = formatInteger(locale, count);
+  if (locale === "pt-br") {
+    return `${n} ${count === 1 ? "lance" : "lances"}`;
+  }
+  return `${n} ${count === 1 ? "move" : "moves"}`;
+}
+
+/** "Longest think: move 14, Nf3, Blunder, 1m 12s, go to move" + PT-BR: name of the clickable longest-think row. */
+export function longestThinkLabel(
+  locale: SiteLocale,
+  args: { moveNumber: number; san: string; tier: string | null; duration: string },
+): string {
+  const number = formatInteger(locale, args.moveNumber);
+  const tier = args.tier ? `, ${args.tier}` : "";
+  return locale === "pt-br"
+    ? `Maior reflexão: lance ${number}, ${args.san}${tier}, ${args.duration}, ir para o lance`
+    : `Longest think: move ${number}, ${args.san}${tier}, ${args.duration}, go to move`;
+}
+
+/** "Pace: 2.5 of 3 stars" / "Ritmo: 2,5 de 3 estrelas" — text alternative of the star row. */
+export function paceStarsLabel(locale: SiteLocale, stars: number): string {
+  const value = formatDecimal1(locale, stars);
+  return locale === "pt-br" ? `Ritmo: ${value} de 3 estrelas` : `Pace: ${value} of 3 stars`;
+}
+
+/** "34.2% of the time" marker title on a phase bar. */
+export function timeUsageTitle(locale: SiteLocale, share: number): string {
+  const value = formatDecimal1(locale, share);
+  return locale === "pt-br" ? `${value}% do tempo` : `${value}% of the time`;
 }

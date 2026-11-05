@@ -303,3 +303,108 @@ test("SIG-1209: while a retry is active the best: text is hidden and the Why? st
   assert.equal(row.getAttribute("aria-expanded"), null);
   assert.equal(row.getAttribute("title"), null);
 });
+
+// ---- SIG-1220: time section ------------------------------------------------------
+
+const { buildTimeReport } = await import("@/src/chess/review-time.ts");
+
+function timeView(onSelectMove?: (path: number[]) => void) {
+  // 180+2: White spends 4.0, 2.7, 3.3, 28.0, 0.1, 13.4 s; Black 2.8, 1.8, 11.4, 0.1, 13.9, 62.0 s.
+  const w = [178_000, 177_300, 176_000, 150_000, 151_900, 140_500];
+  const b = [179_200, 179_400, 170_000, 171_900, 160_000, 100_000];
+  const lw = ["book", "book", "best", "blunder", "veryGood", "mistake"] as const;
+  const lb = ["book", "decent", "inaccuracy", "forced", "miss", "great"] as const;
+  const rows = w.flatMap((clock, i) => [
+    { side: "w" as const, phase: (i < 2 ? "opening" : "middlegame") as "opening" | "middlegame", label: lw[i], afterPawns: 0, clockMs: clock },
+    { side: "b" as const, phase: (i < 2 ? "opening" : "middlegame") as "opening" | "middlegame", label: lb[i], afterPawns: 0, clockMs: b[i] },
+  ]);
+  const timeReport = buildTimeReport(rows, "180+2");
+  assert.ok(timeReport);
+  return {
+    report: timeReport,
+    moves: rows.map((_, i) => ({ path: [0, i], san: i === 6 ? "Qxf7+" : "e4" })),
+    moveNotation: "english" as const,
+    startFen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    onSelectMove,
+  };
+}
+
+test("SIG-1220: no time prop renders no Time section and no markers", () => {
+  render(<ReportSummary report={report} locale="en" />);
+  assert.equal(document.querySelector("[data-report-section=time]"), null);
+  assert.equal(document.querySelector("[data-time-marker]"), null);
+  assert.equal(document.querySelector("[data-time-legend]"), null);
+});
+
+test("SIG-1220: the wide Time section lists the averages, longest think, premoves and Pace", () => {
+  render(<ReportSummary report={report} locale="en" time={timeView()} />);
+  const section = document.querySelector("[data-report-section=time]") as HTMLElement;
+  assert.deepEqual(
+    Array.from(section.querySelectorAll("[data-time-row]")).map((row) => row.getAttribute("data-time-row")),
+    ["avg", "accurate", "inaccurate", "longest", "premoves", "pace"],
+  );
+  const accurate = within(section.querySelector("[data-time-row=accurate]") as HTMLElement);
+  assert.ok(accurate.getByText("1.7s"), "White: (3.3 s + 0.1 s) / 2");
+  assert.ok(accurate.getByText("31.9s"), "Black: (1.8 s + 62.0 s) / 2");
+  const inaccurate = within(section.querySelector("[data-time-row=inaccurate]") as HTMLElement);
+  assert.ok(inaccurate.getByText("20.7s"));
+  assert.ok(inaccurate.getByText("12.7s"));
+  const premoves = within(section.querySelector("[data-time-row=premoves]") as HTMLElement);
+  assert.equal(premoves.getAllByText("1 move").length, 2);
+  assert.equal(section.querySelectorAll("[data-pace]").length, 2);
+  assert.ok(section.querySelector("svg"), "stars are SVG, not font glyphs");
+});
+
+test("SIG-1220: longest think shows badge, move and duration and jumps to the move", () => {
+  const calls: number[][] = [];
+  render(<ReportSummary report={report} locale="en" time={timeView((path) => calls.push(path))} />);
+  const button = document.querySelector("[data-longest-think=w]") as HTMLElement;
+  assert.ok(button.querySelector("[data-tier-badge=blunder]"));
+  assert.match(button.textContent ?? "", /Qxf7\+/);
+  assert.match(button.textContent ?? "", /28\.0s/);
+  fireEvent.click(button);
+  const black = document.querySelector("[data-longest-think=b]") as HTMLElement;
+  assert.match(black.textContent ?? "", /1m 2s/);
+  fireEvent.click(black);
+  assert.deepEqual(calls, [
+    [0, 6],
+    [0, 11],
+  ]);
+});
+
+test("SIG-1220: Pace has a tooltip note that opens on click", () => {
+  render(<ReportSummary report={report} locale="en" time={timeView()} />);
+  assert.equal(screen.queryByRole("note"), null);
+  fireEvent.click(screen.getByRole("button", { name: /Pace/ }));
+  assert.match(screen.getByRole("note").textContent ?? "", /book moves/);
+});
+
+test("SIG-1220: phase bars get a time marker at the side's share, plus a legend", () => {
+  render(<ReportSummary report={report} locale="en" time={timeView()} />);
+  const opening = document.querySelector("[data-phase=opening]") as HTMLElement;
+  const markers = opening.querySelectorAll("[data-time-marker]");
+  assert.equal(markers.length, 2);
+  // White: (4.0 + 2.7) / 53.5 s.
+  assert.equal((markers[0] as HTMLElement).style.left, `${(6700 / 51_500) * 100}%`);
+  assert.ok(screen.getByText("Time usage"));
+});
+
+test("SIG-1220: compact layout keeps only the two averages and Pace, and no phase markers", () => {
+  render(<ReportSummary report={report} locale="en" compact time={timeView()} />);
+  const section = document.querySelector("[data-report-section=time]") as HTMLElement;
+  assert.deepEqual(
+    Array.from(section.querySelectorAll("[data-time-row]")).map((row) => row.getAttribute("data-time-row")),
+    ["accurate", "inaccurate", "pace"],
+  );
+  assert.equal(document.querySelector("[data-time-marker]"), null);
+  assert.equal(document.querySelector("[data-time-legend]"), null);
+});
+
+test("SIG-1220: pt-br uses decimal commas and translated labels", () => {
+  render(<ReportSummary report={report} locale="pt-br" time={timeView()} />);
+  const section = document.querySelector("[data-report-section=time]") as HTMLElement;
+  assert.ok(within(section).getAllByText("Premoves").length >= 1);
+  assert.ok(within(section.querySelector("[data-time-row=accurate]") as HTMLElement).getByText("1,7s"));
+  assert.equal(within(section.querySelector("[data-time-row=premoves]") as HTMLElement).getAllByText("1 lance").length, 2);
+  assert.ok(within(section).getByRole("button", { name: /Ritmo/ }));
+});

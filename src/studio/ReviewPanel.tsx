@@ -15,16 +15,22 @@ import {
   reviewPresetOption,
   reviewProgressText,
   reviewResumeText,
+  tierName,
   tReview,
 } from "@/src/chess/review-strings";
 import { lookupBookOpening } from "@/src/lib/opening-book";
 import { resolveOpeningName } from "@/src/lib/opening-names";
-import { KeyMomentsList, ReportDetails, ReportSummary } from "./review/ReviewReportCard";
+import { KeyMomentsList, ReportDetails, ReportSummary, type TimeView } from "./review/ReviewReportCard";
 import { nextTierPath, tierPaths } from "@/src/chess/review-tier-nav";
 import { useReviewLabelsStore } from "@/src/store/review-labels";
 import type { ReviewLabel, TierLabel } from "@/src/chess/review";
 import { usePanelSize, REPORT_TABLE_MIN_WIDTH } from "./use-panel-size";
-import { ReviewEvalChart, type ReviewChartMoment } from "./review/ReviewEvalChart";
+import { ReviewEvalChart, type ReviewChartMoment, type ReviewChartTimeBar } from "./review/ReviewEvalChart";
+import { buildTimeReport } from "@/src/chess/review-time";
+import { formatDuration } from "@/src/i18n/format";
+import { formatSan } from "@/src/chess/move-notation";
+import { momentNumberLabel } from "./review/key-moment-format";
+import { moveNumberForPath } from "@/src/chess/tree";
 import {
   filterKeyMoments,
   chartSummary,
@@ -216,6 +222,58 @@ export function ReviewPanel() {
     [displayRows, board.headers, locale],
   );
   const moments = useMemo(() => (displayRows ? keyMoments(displayRows) : []), [displayRows]);
+
+  // SIG-1220: time metrics from the clocks kept on import. Null for games
+  // without clocks, which then render exactly as before.
+  const timeReport = useMemo(
+    () =>
+      displayRows
+        ? buildTimeReport(
+            displayRows.map((row) => ({
+              side: row.side,
+              phase: row.phase,
+              label: row.label,
+              forced: row.forced,
+              weight: row.weight,
+              afterPawns: row.afterPawns,
+              clockMs: getNodeAt(board.tree, row.path)?.clockMs,
+            })),
+            board.headers.TimeControl,
+          )
+        : null,
+    [displayRows, board.tree, board.headers.TimeControl],
+  );
+  const timeView = useMemo<TimeView | null>(
+    () =>
+      timeReport && displayRows
+        ? {
+            report: timeReport,
+            moves: displayRows.map((row) => ({ path: row.path, san: row.san })),
+            moveNotation,
+            startFen: board.tree.startFen,
+            onSelectMove: goPath,
+          }
+        : null,
+    [timeReport, displayRows, moveNotation, board.tree.startFen, goPath],
+  );
+  const [chartMode, setChartMode] = useState<"eval" | "time">("eval");
+  const activeChartMode = timeReport ? chartMode : "eval";
+  const timeBars = useMemo<ReviewChartTimeBar[] | undefined>(
+    () =>
+      timeReport && displayRows
+        ? displayRows.map((row, index) => {
+            const ms = timeReport.spentMs[index];
+            const number = momentNumberLabel(moveNumberForPath(board.tree.startFen, row.path.length), row.side);
+            const parts = [`${number} ${formatSan(row.san, moveNotation, row.side)}`];
+            if (row.label) {
+              parts.push(tierName(locale, row.label));
+            }
+            parts.push(ms == null ? "—" : formatDuration(locale, ms));
+            return { ms, side: row.side, label: row.label, text: parts.join(" · ") };
+          })
+        : undefined,
+    [timeReport, displayRows, board.tree.startFen, moveNotation, locale],
+  );
 
   // SIG-1219: tier badges on the move list and the board read the labels of
   // the rows scored so far from a tiny store. Forced moves carry no badge.
@@ -766,6 +824,7 @@ export function ReviewPanel() {
                   verdict={verdict}
                   compact={compactCard}
                   onSelectTier={selectTier}
+                  time={timeView}
                 />
               )}
               <KeyMomentsList
@@ -812,10 +871,36 @@ export function ReviewPanel() {
               />
             ) : null}
             <div className="border-b border-studio-border-subtle px-3 py-2">
-              <div className="mb-1 text-caption uppercase tracking-wide text-studio-faint">
-                {tReview(locale, "chart.title")}
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="text-caption uppercase tracking-wide text-studio-faint">{tReview(locale, "chart.title")}</span>
+                {timeReport ? (
+                  <div
+                    role="group"
+                    aria-label={tReview(locale, "chart.modeGroup")}
+                    data-chart-mode-toggle
+                    className="inline-flex overflow-hidden rounded-md border border-studio-border-strong text-caption"
+                  >
+                    {(["eval", "time"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        data-mode={mode}
+                        aria-pressed={activeChartMode === mode}
+                        onClick={() => setChartMode(mode)}
+                        className={`h-5 px-2 focus-visible:outline-2 focus-visible:outline-studio-accent ${
+                          activeChartMode === mode ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"
+                        }`}
+                      >
+                        {tReview(locale, mode === "eval" ? "chart.modeEval" : "chart.modeTime")}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
               <ReviewEvalChart
+                mode={activeChartMode}
+                timeBars={timeBars}
+                timeAriaLabel={tReview(locale, "chart.timeAriaLabel")}
                 series={series}
                 plyPaths={plyPaths}
                 moments={chartMoments}

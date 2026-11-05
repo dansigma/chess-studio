@@ -13,6 +13,7 @@ import { REVIEW_TIERS } from "@/src/chess/review-tiers";
 import type { ReviewLabel } from "@/src/chess/review";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { formatDecimal1 } from "@/src/i18n/format";
+import { tReview } from "@/src/chess/review-strings";
 import type { Path } from "@/src/chess/tree";
 import { chartEvalText, chartPlyLabel, formatChartEval, groupMoments, xAt, yAt } from "./review-chart";
 
@@ -28,7 +29,22 @@ export type ReviewChartMoment = {
   lossCp: number;
 };
 
+/** SIG-1220: time spent on one move, for the Time view. */
+export type ReviewChartTimeBar = {
+  /** Null when the time is unknown (the bar is left out). */
+  ms: number | null;
+  side: "w" | "b";
+  label: ReviewLabel | null;
+  /** Hover text, e.g. "12. Nf3 · 1.3s". */
+  text: string;
+};
+
 type Props = {
+  /** SIG-1220: "time" draws time spent per move as bars (White above the axis, Black below). Default "eval". */
+  mode?: "eval" | "time";
+  /** One entry per reviewed move (index = move index; its ply is index + 1). */
+  timeBars?: ReviewChartTimeBar[];
+  timeAriaLabel?: string;
   /** White-perspective eval per ply (evalSeries output); index = ply. */
   series: number[];
   /** Board path per ply, parallel to series (index 0 = start position). */
@@ -65,6 +81,9 @@ function groupTitle(locale: SiteLocale, moveNotation: MoveNotation, members: Rev
 }
 
 export function ReviewEvalChart({
+  mode = "eval",
+  timeBars,
+  timeAriaLabel,
   series,
   plyPaths,
   moments,
@@ -141,6 +160,12 @@ export function ReviewEvalChart({
     hover != null ? groups.find((group) => group.members.some((moment) => moment.moveIndex + 1 === hover)) : undefined;
   const hoveredText = hoveredGroup ? groupTitle(locale, moveNotation, hoveredGroup.members) : undefined;
   const hoverEval = hover != null && hover < count ? series[hover] : undefined;
+  const timeMode = mode === "time" && timeBars != null;
+  const hoveredTime = timeMode && hover != null && hover > 0 ? timeBars?.[hover - 1] : undefined;
+  const maxTimeMs = timeMode ? Math.max(1, ...timeBars.map((bar) => bar.ms ?? 0)) : 1;
+  const halfHeight = Math.max(1, height / 2 - 16);
+  const slot = count > 1 ? (width - 56) / (count - 1) : 8;
+  const barWidth = Math.max(1.5, Math.min(14, slot * 0.7));
 
   return (
     <div className="relative flex h-40 min-h-[160px] flex-col bg-studio-panel text-studio-fg">
@@ -153,7 +178,8 @@ export function ReviewEvalChart({
             viewBox={`0 0 ${width} ${height}`}
             preserveAspectRatio="none"
             role="img"
-            aria-label={ariaLabel}
+            aria-label={timeMode ? (timeAriaLabel ?? ariaLabel) : ariaLabel}
+            data-chart-mode={timeMode ? "time" : "eval"}
             onMouseLeave={() => setHover(null)}
             onMouseMove={(event) => setHover(indexFromClientX(event.clientX))}
             onClick={(event) => {
@@ -177,11 +203,48 @@ export function ReviewEvalChart({
               stroke="var(--studio-border)"
               strokeWidth="1"
             />
-            <text x={2} y={zeroY - 3} fontSize="9" fill="var(--studio-faint)" data-zero-label>
-              {formatChartEval(locale, 0)}
-            </text>
-            <path d={areaPath} fill="var(--studio-accent)" opacity="0.22" />
-            <path d={linePath} fill="none" stroke="var(--studio-accent)" strokeWidth="2" />
+            {timeMode ? (
+              <>
+                <text x={2} y={14} fontSize="9" fill="var(--studio-faint)">
+                  {tReview(locale, "filter.sideWhite")}
+                </text>
+                <text x={2} y={height - 6} fontSize="9" fill="var(--studio-faint)">
+                  {tReview(locale, "filter.sideBlack")}
+                </text>
+              </>
+            ) : (
+              <>
+                <text x={2} y={zeroY - 3} fontSize="9" fill="var(--studio-faint)" data-zero-label>
+                  {formatChartEval(locale, 0)}
+                </text>
+                <path d={areaPath} fill="var(--studio-accent)" opacity="0.22" />
+                <path d={linePath} fill="none" stroke="var(--studio-accent)" strokeWidth="2" />
+              </>
+            )}
+            {timeMode
+              ? timeBars.map((bar, moveIndex) => {
+                  const x = xs[moveIndex + 1];
+                  if (bar.ms == null || x == null) {
+                    return null;
+                  }
+                  const h = bar.ms <= 0 ? 0 : Math.max(1, (bar.ms / maxTimeMs) * halfHeight);
+                  // Book, forced and unlabeled moves stay neutral; tiers use their badge colour.
+                  const known = bar.label != null && bar.label !== "book" && bar.label !== "forced";
+                  const fill = known && bar.label ? `var(${REVIEW_TIERS[bar.label].badgeVar})` : "var(--studio-muted)";
+                  return (
+                    <rect
+                      key={moveIndex}
+                      data-time-bar={bar.label ?? "none"}
+                      x={x - barWidth / 2}
+                      y={bar.side === "w" ? zeroY - h : zeroY}
+                      width={barWidth}
+                      height={h}
+                      fill={fill}
+                      opacity={known ? 1 : 0.55}
+                    />
+                  );
+                })
+              : null}
             {separators.map((ply) =>
               xs[ply] == null ? null : (
                 <line
@@ -206,10 +269,10 @@ export function ReviewEvalChart({
                 strokeWidth="1"
               />
             ) : null}
-            {currentIndex != null && xs[currentIndex] != null && ys[currentIndex] != null ? (
+            {!timeMode && currentIndex != null && xs[currentIndex] != null && ys[currentIndex] != null ? (
               <circle cx={xs[currentIndex]} cy={ys[currentIndex]} r="4" fill="var(--studio-fg)" />
             ) : null}
-            {groups.map((group) => {
+            {(timeMode ? [] : groups).map((group) => {
               const moment = group.lead;
               const ply = moment.moveIndex + 1;
               const x = xs[ply];
@@ -236,14 +299,16 @@ export function ReviewEvalChart({
                 </g>
               );
             })}
-            {hover != null && hover !== currentIndex && xs[hover] != null && ys[hover] != null ? (
+            {!timeMode && hover != null && hover !== currentIndex && xs[hover] != null && ys[hover] != null ? (
               <circle cx={xs[hover]} cy={ys[hover]} r="3.5" fill="var(--studio-accent)" />
             ) : null}
           </svg>
         )}
         {hover != null && count > 1 ? (
           <div className="pointer-events-none absolute right-2 top-2 rounded bg-studio-elevated px-2 py-1 text-caption text-studio-fg shadow">
-            {hoveredText ? (
+            {timeMode ? (
+              <span>{hoveredTime?.text ?? chartPlyLabel(locale, hover)}</span>
+            ) : hoveredText ? (
               <span className="whitespace-pre-line">{hoveredText}</span>
             ) : (
               <>
@@ -257,7 +322,7 @@ export function ReviewEvalChart({
         ) : null}
         {count > 1 && hover != null ? (
           <span className="sr-only" aria-live="polite">
-            {hoveredText ? hoveredText.replace(/\n/g, ", ") : chartPlyLabel(locale, hover)}
+            {timeMode ? (hoveredTime?.text ?? chartPlyLabel(locale, hover)) : hoveredText ? hoveredText.replace(/\n/g, ", ") : chartPlyLabel(locale, hover)}
           </span>
         ) : null}
       </div>

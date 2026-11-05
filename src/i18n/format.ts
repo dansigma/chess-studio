@@ -29,3 +29,21 @@ export function formatGameCount(locale: SiteLocale, value: number): string {
   }
   return new Intl.NumberFormat(TAG[locale], { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
+
+/**
+ * SIG-1220: a time span for the review's time metrics: "640ms" under one
+ * second, "1.3s" (pt-BR "1,3s") under a minute, "1m 12s" from a minute on.
+ */
+export function formatDuration(locale: SiteLocale, ms: number): string {
+  const safe = Number.isFinite(ms) ? Math.max(0, ms) : 0;
+  if (safe < 1000) {
+    return `${Math.min(999, Math.round(safe))}ms`;
+  }
+  // Round to tenths first, so 59.96 s reads "1m 0s" instead of "60.0s".
+  const tenths = Math.round(safe / 100);
+  if (tenths < 600) {
+    return `${formatDecimal1(locale, tenths / 10)}s`;
+  }
+  const seconds = Math.round(safe / 1000);
+  return `${formatInteger(locale, Math.floor(seconds / 60))}m ${formatInteger(locale, seconds % 60)}s`;
+}
