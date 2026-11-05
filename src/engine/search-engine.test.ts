@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { EngineInfo, EngineLine } from "@/src/engine/stockfish-client";
-import { createLeaseEngine } from "./lease-engine.ts";
+import { createSearchEngine } from "./search-engine.ts";
 
 const FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -15,11 +15,11 @@ function info(partial: Partial<EngineInfo>): EngineInfo {
 
 type Listener = (value: EngineInfo) => void;
 
-function fakeLease() {
+function fakeClient() {
   let listener: Listener | null = null;
   const calls: unknown[][] = [];
   return {
-    lease: {
+    client: {
       analyze: (...args: unknown[]) => {
         calls.push(args);
       },
@@ -37,8 +37,8 @@ function fakeLease() {
 }
 
 test("resolves with all lines, white-relative, once the target depth is reached", async () => {
-  const fake = fakeLease();
-  const engine = createLeaseEngine(fake.lease as never, 2, () => false);
+  const fake = fakeClient();
+  const engine = createSearchEngine(fake.client as never, 2, () => false);
   const pending = engine.analyze(FEN, { depth: 12, lines: 3, timeoutMs: 1000, fresh: true });
   assert.deepEqual(fake.calls[0], [FEN, 12, 3, 2, undefined, true]);
   fake.emit(info({ depth: 8, lines: [line(1, 20, "e2e4")] }));
@@ -50,12 +50,12 @@ test("resolves with all lines, white-relative, once the target depth is reached"
   assert.equal(fake.hasListener(), false);
 });
 
-test("a search preempted by the threat slot resumes and still resolves", async () => {
-  const fake = fakeLease();
-  const engine = createLeaseEngine(fake.lease as never, 1, () => false);
+test("a search that is silent for a while and then resumes still resolves", async () => {
+  const fake = fakeClient();
+  const engine = createSearchEngine(fake.client as never, 1, () => false);
   const pending = engine.analyze(FEN, { depth: 12, lines: 3, timeoutMs: 1000, fresh: false });
   fake.emit(info({ depth: 6, lines: [line(1, 20, "e2e4")] }));
-  // Preempted: the lease delivers nothing for a while, then the search resumes.
+  // The client delivers nothing for a while, then the search resumes.
   await new Promise((resolve) => setTimeout(resolve, 15));
   fake.emit(info({ depth: 12, running: false, lines: [line(1, 25, "e2e4"), line(2, 10, "d2d4"), line(3, 0, "c2c4")] }));
   const result = await pending;
@@ -63,11 +63,11 @@ test("a search preempted by the threat slot resumes and still resolves", async (
   assert.equal(result?.lines[0].whitePawns, 0.25);
 });
 
-test("a search cut short by another slot is re-issued instead of graded", async () => {
-  const fake = fakeLease();
-  const engine = createLeaseEngine(fake.lease as never, 1, () => false);
+test("a search cut short is re-issued instead of graded", async () => {
+  const fake = fakeClient();
+  const engine = createSearchEngine(fake.client as never, 1, () => false);
   const pending = engine.analyze(FEN, { depth: 16, lines: 3, timeoutMs: 1000, fresh: false, legalMoves: 20 });
-  // Show threat stops the shared worker: shallow, one stale line, not running.
+  // A stopped search: shallow, one stale line, not running.
   fake.emit(info({ depth: 13, running: false, lines: [line(1, 80, "e2e4")] }));
   assert.equal(fake.calls.length, 2);
   fake.emit(info({ depth: 16, running: false, lines: [line(1, 30, "e2e4"), line(2, 10, "d2d4"), line(3, 0, "c2c4")] }));
@@ -77,8 +77,8 @@ test("a search cut short by another slot is re-issued instead of graded", async 
 });
 
 test("a shallow end is accepted for a forced move or a found mate", async () => {
-  const forced = fakeLease();
-  const forcedPending = createLeaseEngine(forced.lease as never, 1, () => false).analyze(FEN, {
+  const forced = fakeClient();
+  const forcedPending = createSearchEngine(forced.client as never, 1, () => false).analyze(FEN, {
     depth: 16,
     lines: 3,
     timeoutMs: 1000,
@@ -89,8 +89,8 @@ test("a shallow end is accepted for a forced move or a found mate", async () => 
   assert.equal((await forcedPending)?.depth, 1);
   assert.equal(forced.calls.length, 1);
 
-  const mate = fakeLease();
-  const matePending = createLeaseEngine(mate.lease as never, 1, () => false).analyze(FEN, {
+  const mate = fakeClient();
+  const matePending = createSearchEngine(mate.client as never, 1, () => false).analyze(FEN, {
     depth: 16,
     lines: 3,
     timeoutMs: 1000,
@@ -103,8 +103,8 @@ test("a shallow end is accepted for a forced move or a found mate", async () => 
 });
 
 test("after the restarts are used up the shallow result is accepted", async () => {
-  const fake = fakeLease();
-  const engine = createLeaseEngine(fake.lease as never, 1, () => false);
+  const fake = fakeClient();
+  const engine = createSearchEngine(fake.client as never, 1, () => false);
   const pending = engine.analyze(FEN, { depth: 16, lines: 3, timeoutMs: 1000, fresh: false, legalMoves: 20 });
   for (let i = 0; i < 3; i += 1) {
     fake.emit(info({ depth: 11, running: false, lines: [line(1, 20, "e2e4"), line(2, 10, "d2d4"), line(3, 0, "c2c4")] }));
@@ -114,8 +114,8 @@ test("after the restarts are used up the shallow result is accepted", async () =
 });
 
 test("a timeout resolves with the latest partial result", async () => {
-  const fake = fakeLease();
-  const engine = createLeaseEngine(fake.lease as never, 1, () => false);
+  const fake = fakeClient();
+  const engine = createSearchEngine(fake.client as never, 1, () => false);
   const pending = engine.analyze(FEN, { depth: 12, lines: 3, timeoutMs: 10, fresh: false });
   fake.emit(info({ depth: 7, lines: [line(1, 40, "e2e4")] }));
   const result = await pending;
@@ -124,9 +124,9 @@ test("a timeout resolves with the latest partial result", async () => {
 });
 
 test("snapshots of another position are ignored and a cancel resolves null", async () => {
-  const fake = fakeLease();
+  const fake = fakeClient();
   let cancelled = false;
-  const engine = createLeaseEngine(fake.lease as never, 1, () => cancelled);
+  const engine = createSearchEngine(fake.client as never, 1, () => cancelled);
   const pending = engine.analyze(FEN, { depth: 12, lines: 3, timeoutMs: 1000, fresh: false });
   fake.emit(info({ depth: 12, fen: "8/8/8/8/8/8/8/K6k w - - 0 1", lines: [line(1, 99, "a1a2")] }));
   cancelled = true;
@@ -135,11 +135,22 @@ test("snapshots of another position are ignored and a cancel resolves null", asy
 });
 
 test("a failed worker resolves immediately instead of waiting for the timeout", async () => {
-  const fake = fakeLease();
-  const engine = createLeaseEngine(fake.lease as never, 1, () => false);
+  const fake = fakeClient();
+  const engine = createSearchEngine(fake.client as never, 1, () => false);
   const started = Date.now();
   const pending = engine.analyze(FEN, { depth: 12, lines: 3, timeoutMs: 5000, fresh: true });
   fake.emit(info({ failed: true, ready: false, running: true }));
   assert.equal(await pending, null);
   assert.ok(Date.now() - started < 1000);
+});
+
+test("abort resolves every in-flight search with null and clears the timers", async () => {
+  const a = fakeClient();
+  const engine = createSearchEngine(a.client as never, 1, () => false);
+  const first = engine.analyze(FEN, { depth: 12, lines: 3, timeoutMs: 60_000, fresh: true });
+  const second = engine.analyze(FEN, { depth: 12, lines: 3, timeoutMs: 60_000, fresh: true });
+  engine.abort();
+  assert.equal(await first, null);
+  assert.equal(await second, null);
+  assert.equal(a.hasListener(), false);
 });

@@ -105,47 +105,47 @@ test("one underlying worker for three leases of the same build", () => {
   setup();
   const engine = acquire("engine", "lite");
   const graph = acquire("graph", "lite");
-  const review = acquire("review", "lite");
+  const threat = acquire("threat", "lite");
   activeSearch(engine, FEN_A);
   assert.equal(instances.length, 1);
   graph.analyze(FEN_B, 12, 1, 1);
-  review.analyze(FEN_C, 12, 1, 1);
+  threat.analyze(FEN_C, 12, 1, 1);
   releaseBarrier(worker());
   releaseBarrier(worker());
   assert.equal(instances.length, 1);
   engine.release();
   graph.release();
-  review.release();
+  threat.release();
 });
 
-test("higher priority preempts: engine active, review analyze forwards", () => {
+test("higher priority preempts: engine active, threat analyze forwards", () => {
   setup();
   const engine = acquire("engine", "lite");
-  const review = acquire("review", "lite");
+  const threat = acquire("threat", "lite");
   activeSearch(engine, FEN_A);
   const w = worker();
   w.sent.length = 0;
-  review.analyze(FEN_B, 12, 1, 1);
+  threat.analyze(FEN_B, 12, 1, 1);
   // Preemption goes through the client's stop+isready barrier (SIG-850).
   assert.deepEqual(w.sent, ["stop", "isready"]);
   releaseBarrier(w);
   assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_B}`));
   assert.ok(w.sent.some((msg) => msg.startsWith("go depth")));
   engine.release();
-  review.release();
+  threat.release();
 });
 
-test("lower priority does not preempt: review active, graph analyze queues", () => {
+test("lower priority does not preempt: threat active, graph analyze queues", () => {
   setup();
   const graph = acquire("graph", "lite");
-  const review = acquire("review", "lite");
-  activeSearch(review, FEN_B);
+  const threat = acquire("threat", "lite");
+  activeSearch(threat, FEN_B);
   const w = worker();
   w.sent.length = 0;
   graph.analyze(FEN_A, 12, 1, 1);
   assert.deepEqual(w.sent, []);
   graph.release();
-  review.release();
+  threat.release();
 });
 
 test("same-priority re-analyze forwards while active", () => {
@@ -164,14 +164,14 @@ test("release promotes highest waiter, not the lower one", () => {
   setup();
   const engine = acquire("engine", "lite");
   const graph = acquire("graph", "lite");
-  const review = acquire("review", "lite");
-  activeSearch(review, FEN_C);
-  // Both wait while review holds the engine (engine outranks graph).
+  const threat = acquire("threat", "lite");
+  activeSearch(threat, FEN_C);
+  // Both wait while threat holds the engine (engine outranks graph).
   engine.analyze(FEN_A, 12, 1, 1);
   graph.analyze(FEN_B, 12, 1, 1);
   const w = worker();
   w.sent.length = 0;
-  review.release();
+  threat.release();
   releaseBarrier(w);
   assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_A}`));
   assert.ok(!w.sent.some((msg) => msg === `position fen ${FEN_B}`));
@@ -182,13 +182,13 @@ test("release promotes highest waiter, not the lower one", () => {
 test("subscribe isolation: inactive slot hears nothing until promoted", () => {
   setup();
   const engine = acquire("engine", "lite");
-  const review = acquire("review", "lite");
+  const threat = acquire("threat", "lite");
   const heardByEngine: EngineInfo[] = [];
   const heardByReview: EngineInfo[] = [];
   const unsubEngine = engine.subscribe((info) => {
     heardByEngine.push(info);
   });
-  const unsubReview = review.subscribe((info) => {
+  const unsubReview = threat.subscribe((info) => {
     heardByReview.push(info);
   });
   void unsubEngine;
@@ -204,8 +204,8 @@ test("subscribe isolation: inactive slot hears nothing until promoted", () => {
   assert.ok(heardByEngine.length > 0);
   assert.deepEqual(heardByReview, []);
 
-  // Review preempts; engine's listener goes silent, review hears its search.
-  review.analyze(FEN_B, 12, 1, 1);
+  // Threat preempts; engine's listener goes silent, threat hears its search.
+  threat.analyze(FEN_B, 12, 1, 1);
   releaseBarrier(worker());
   worker().emit("info depth 10 seldepth 12 multipv 1 score cp 15 nodes 100 nps 1000 pv e2e4 e7e5");
   assert.ok(heardByReview.length > 0);
@@ -213,9 +213,9 @@ test("subscribe isolation: inactive slot hears nothing until promoted", () => {
   worker().emit("info depth 11 seldepth 12 multipv 1 score cp 16 nodes 200 nps 1000 pv e2e4 e7e5");
   assert.equal(heardByEngine.length, engineCount);
 
-  // Review releases: engine resumes and hears again.
+  // Threat releases: engine resumes and hears again.
   heardByEngine.length = 0;
-  review.release();
+  threat.release();
   releaseBarrier(worker());
   worker().emit("info depth 10 seldepth 12 multipv 1 score cp 35 nodes 100 nps 1000 pv e2e4 e7e5");
   assert.ok(heardByEngine.length > 0);
@@ -226,17 +226,17 @@ test("subscribe isolation: inactive slot hears nothing until promoted", () => {
 test("stop from non-active slot is silent; stop from active stops", () => {
   setup();
   const graph = acquire("graph", "lite");
-  const review = acquire("review", "lite");
-  activeSearch(review, FEN_B);
+  const threat = acquire("threat", "lite");
+  activeSearch(threat, FEN_B);
   graph.analyze(FEN_A, 12, 1, 1);
   const w = worker();
   const before = w.sent.length;
   graph.stop();
   assert.equal(w.sent.length, before);
-  review.stop();
+  threat.stop();
   assert.ok(w.sent.slice(before).includes("stop"));
   graph.release();
-  review.release();
+  threat.release();
 });
 
 test("build switch disposes the stale worker and creates lazily", () => {
@@ -259,12 +259,12 @@ test("build switch disposes the stale worker and creates lazily", () => {
   graphStandard.release();
 });
 
-test("analyze-before-subscribe replays running state (Review contract)", () => {
+test("analyze-before-subscribe replays running state (Threat contract)", () => {
   setup();
-  const review = acquire("review", "lite");
-  review.analyze(FEN_A, 12, 1, 1);
+  const threat = acquire("threat", "lite");
+  threat.analyze(FEN_A, 12, 1, 1);
   let seen: EngineInfo | null = null;
-  const unsubscribe = review.subscribe((info) => {
+  const unsubscribe = threat.subscribe((info) => {
     seen = info;
   });
   // subscribe() replays synchronously, after analyze() cleared lines and set
@@ -273,7 +273,7 @@ test("analyze-before-subscribe replays running state (Review contract)", () => {
   assert.equal((seen as EngineInfo | null)?.running, true);
   assert.equal((seen as EngineInfo | null)?.fen, FEN_A);
   unsubscribe();
-  review.release();
+  threat.release();
 });
 
 test("queued waiter starts when the active search completes naturally", async () => {
@@ -327,41 +327,8 @@ test("release from the active slot stops the orphaned search", () => {
 });
 
 test("slots typecheck as the EngineSlot union", () => {
-  const slots: EngineSlot[] = ["engine", "graph", "review", "threat", "batch"];
-  assert.deepEqual(slots.length, 5);
-});
-
-test("SIG-1090: batch is preempted by graph and resumes on graph release", () => {
-  setup();
-  const batch = acquire("batch", "lite");
-  const graph = acquire("graph", "lite");
-  activeSearch(batch, FEN_C);
-  const w = worker();
-  w.sent.length = 0;
-  // Graph outranks batch: the batch search is preempted via the SIG-850 barrier.
-  graph.analyze(FEN_A, 12, 1, 1);
-  assert.deepEqual(w.sent, ["stop", "isready"]);
-  releaseBarrier(w);
-  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_A}`));
-  // Graph releases: the stashed batch params resume.
-  w.sent.length = 0;
-  graph.release();
-  releaseBarrier(w);
-  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_C}`));
-  batch.release();
-});
-
-test("SIG-1090: batch never preempts review — it queues instead", () => {
-  setup();
-  const batch = acquire("batch", "lite");
-  const review = acquire("review", "lite");
-  activeSearch(review, FEN_B);
-  const w = worker();
-  w.sent.length = 0;
-  batch.analyze(FEN_C, 12, 1, 1);
-  assert.deepEqual(w.sent, []);
-  batch.release();
-  review.release();
+  const slots: EngineSlot[] = ["engine", "graph", "threat"];
+  assert.deepEqual(slots.length, 3);
 });
 
 test("SIG-950: acquire alone boots no worker; first analyze does", () => {
@@ -461,11 +428,11 @@ test("threat preempts engine and engine resumes on threat stop", () => {
   threat.release();
 });
 
-test("threat preempts review and review resumes on threat release", () => {
+test("threat preempts graph and graph resumes on threat release", () => {
   setup();
-  const review = acquire("review", "lite");
+  const graph = acquire("graph", "lite");
   const threat = acquire("threat", "lite");
-  activeSearch(review, FEN_C);
+  activeSearch(graph, FEN_C);
   const w = worker();
   w.sent.length = 0;
   threat.analyze(FEN_B, 14, 1, 1);
@@ -477,7 +444,7 @@ test("threat preempts review and review resumes on threat release", () => {
   assert.ok(w.sent.includes("stop"));
   releaseBarrier(w);
   assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_C}`));
-  review.release();
+  graph.release();
 });
 
 test("threat subscribe isolation: engine hears nothing while threat is active", () => {

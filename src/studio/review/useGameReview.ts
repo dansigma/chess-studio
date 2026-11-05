@@ -11,11 +11,9 @@ import {
   type ReviewRow,
 } from "@/src/chess/review-engine";
 import { getNodeAt, type GameTree, type Path, type VariationPoint } from "@/src/chess/tree";
-import { acquire } from "@/src/engine/shared-engine";
-import { clampThreads, type EngineBuild } from "@/src/engine/stockfish-client";
+import { createReviewPool, reviewPoolSize } from "@/src/engine/review-pool";
 import { createE2eFakeReviewEngine, isE2eFakeReviewEnabled } from "./e2e-fake-review-engine";
 import { fetchBookReplies } from "./book-replies";
-import { createLeaseEngine } from "./lease-engine";
 import { extractMistakeExercises } from "@/src/chess/mistake-exercises";
 import type { ReviewSide } from "@/src/chess/review-report";
 import {
@@ -45,8 +43,6 @@ export type ReviewMoveRow = ReviewRow & {
 type Options = {
   tree: GameTree;
   points: VariationPoint[];
-  engineBuild: EngineBuild;
-  engineThreads: number;
   setupMode: boolean;
   userSide: ReviewSide;
 };
@@ -84,12 +80,6 @@ export function captureMistakes(input: {
   }
 }
 
-// SIG-1036: the review uses the user's thread setting, clamped by clampThreads
-// to what the machine and the page can support.
-export function reviewThreads(engineThreads: number): number {
-  return clampThreads(engineThreads);
-}
-
 // SIG-965: one-shot session hydration shared across hook instances. Kicked off
 // lazily on first mount (client only); every lookup awaits it so a reload shows
 // the persisted report instantly. Never rejects.
@@ -104,7 +94,7 @@ function ensureHydrated(): Promise<void> {
   return hydratePromise;
 }
 
-export function useGameReview({ tree, points, engineBuild, engineThreads, setupMode, userSide }: Options) {
+export function useGameReview({ tree, points, setupMode, userSide }: Options) {
   const [preset, setPreset] = useState<ReviewPreset>(DEFAULT_REVIEW_PRESET);
   const [running, setRunning] = useState(false);
   const [cancelled, setCancelled] = useState(false);
@@ -123,8 +113,8 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     [tree, points],
   );
   const cacheKey = useMemo(
-    () => reviewCacheKey(points.map((point) => point.fen), ucis, preset, engineBuild),
-    [points, ucis, preset, engineBuild],
+    () => reviewCacheKey(points.map((point) => point.fen), ucis, preset),
+    [points, ucis, preset],
   );
 
   const [core, setCore] = useState<ReviewRow[] | null>(() => getCachedReview(cacheKey));
@@ -172,7 +162,6 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
           points.map((point) => point.fen),
           ucis,
           preset,
-          engineBuild,
         );
         if (stale) {
           return;
@@ -190,7 +179,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     return () => {
       stale = true;
     };
-  }, [cacheKey, points, ucis, preset, engineBuild]);
+  }, [cacheKey, points, ucis, preset]);
 
   // The run reads the latest line from a ref so a tree edit that leaves the line
   // unchanged (comments, NAGs) does not restart it.
@@ -204,17 +193,17 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
       return;
     }
     const line = lineRef.current;
-    // SIG-970: deterministic e2e seam — no shared-engine lease, no worker.
-    // Trivially satisfies the SIG-950 engine-idle rule. Fails closed: production
+    // SIG-970: deterministic e2e seam — no worker. Fails closed: production
     // builds never set the flag, so this branch is unreachable there.
     const useFake = isE2eFakeReviewEnabled();
-    const lease = useFake ? null : acquire("review", engineBuild);
     let stopped = false;
     const isCancelled = () => stopped;
+    // SIG-1223: the review owns its workers (lite, Threads 1), independent of the
+    // analysis engine settings; terminated in the cleanup below.
+    const pool = useFake ? null : createReviewPool({ size: reviewPoolSize(), isCancelled });
     // SIG-1087: per-run controller so cancelling the review aborts the
     // in-flight opening-book fetch, not just the loop's next iteration.
     const bookController = new AbortController();
-    const threads = reviewThreads(engineThreads);
     // Payload for this run only: resume() stashes the partial here, start()
     // leaves it null for a fresh run.
     const resume = resumeRef.current;
@@ -224,9 +213,7 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
       fens: line.points.map((point) => point.fen),
       moves: line.ucis.map((uci) => ({ uci })),
       preset,
-      engine: lease
-        ? createLeaseEngine(lease, threads, isCancelled)
-        : createE2eFakeReviewEngine({ delayMs: 40, isCancelled }),
+      engine: pool ?? createE2eFakeReviewEngine({ delayMs: 40, isCancelled }),
       bookReplies: useFake ? async () => [] : () => fetchBookReplies(line.tree, line.points, isCancelled, bookController.signal),
       isCancelled,
       resume: resume ?? undefined,
@@ -266,7 +253,6 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
         line.points.map((point) => point.fen),
         line.ucis,
         preset,
-        engineBuild,
         line.cacheKey,
         outcome.rows,
       );
@@ -287,9 +273,9 @@ export function useGameReview({ tree, points, engineBuild, engineThreads, setupM
     return () => {
       stopped = true;
       bookController.abort();
-      lease?.release();
+      pool?.dispose();
     };
-  }, [running, setupMode, engineBuild, engineThreads, preset, cacheKey]);
+  }, [running, setupMode, preset, cacheKey]);
 
   const start = useCallback(() => {
     // Destructive fresh start: drop the partial (SIG-966, no confirm).

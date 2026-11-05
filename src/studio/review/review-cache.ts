@@ -16,6 +16,18 @@ import type { ReviewPreset, ReviewRow } from "@/src/chess/review-engine";
  */
 export const REVIEW_SCHEMA_VERSION = 1;
 
+/**
+ * SIG-1223: the engine every review is computed with (Stockfish 19 lite,
+ * Threads 1), fixed and independent of the Settings engine build. It stays in
+ * the fingerprint at the position the user's build used to occupy, so
+ * (a) reviews already cached from the lite build keep their keys and are still
+ * valid (the lite network searches identically at any thread count), while
+ * (b) reviews cached from the full build (`standard:...`) can never match again
+ * and are simply re-reviewed once. Change this id (or bump the schema version)
+ * if the review engine ever changes.
+ */
+export const REVIEW_ENGINE_ID = "lite";
+
 const MAX_ENTRIES = 12;
 
 const entries = new Map<string, ReviewRow[]>();
@@ -34,15 +46,14 @@ export function reviewFingerprintInput(
   fens: string[],
   ucis: string[],
   preset: ReviewPreset,
-  engineBuild: string,
 ): string {
   const line = `${fens.join("|")}#${ucis.join(" ")}`;
-  return `${engineBuild}:${preset}:${fens.length}:${line}:${line.length}`;
+  return `${REVIEW_ENGINE_ID}:${preset}:${fens.length}:${line}:${line.length}`;
 }
 
-/** Key for one reviewed line: its FEN sequence and moves, the depth preset and the engine build. */
-export function reviewCacheKey(fens: string[], ucis: string[], preset: ReviewPreset, engineBuild: string): string {
-  return `v${REVIEW_SCHEMA_VERSION}:${fnv1a(reviewFingerprintInput(fens, ucis, preset, engineBuild))}`;
+/** Key for one reviewed line: its FEN sequence and moves and the depth preset (the review engine is fixed). */
+export function reviewCacheKey(fens: string[], ucis: string[], preset: ReviewPreset): string {
+  return `v${REVIEW_SCHEMA_VERSION}:${fnv1a(reviewFingerprintInput(fens, ucis, preset))}`;
 }
 
 /**
@@ -69,9 +80,8 @@ export async function persistentReviewKey(
   fens: string[],
   ucis: string[],
   preset: ReviewPreset,
-  engineBuild: string,
 ): Promise<string> {
-  return `v${REVIEW_SCHEMA_VERSION}:${await sha256Hex(reviewFingerprintInput(fens, ucis, preset, engineBuild))}`;
+  return `v${REVIEW_SCHEMA_VERSION}:${await sha256Hex(reviewFingerprintInput(fens, ucis, preset))}`;
 }
 
 export function getCachedReview(key: string): ReviewRow[] | null {
@@ -128,7 +138,6 @@ export function persistReview(
   fens: string[],
   ucis: string[],
   preset: ReviewPreset,
-  engineBuild: string,
   cacheKey: string,
   rows: ReviewRow[],
 ): void {
@@ -136,10 +145,10 @@ export function persistReview(
     void (async () => {
       try {
         const { getReviewStore } = await import("./review-store");
-        const key = await persistentReviewKey(fens, ucis, preset, engineBuild);
+        const key = await persistentReviewKey(fens, ucis, preset);
         await getReviewStore().saveReview(
           key,
-          { preset, engineBuild, moves: ucis.length, cacheKey },
+          { preset, engineBuild: REVIEW_ENGINE_ID, moves: ucis.length, cacheKey },
           rows,
         );
       } catch {

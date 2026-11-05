@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Game Review: dedicated review engine (SIG-1223)
+
+- The review no longer shares the analysis panel's worker or settings. It always runs Stockfish 19 lite
+  (`/engine/stockfish.js`, the single-thread build of the same NNUE net as `stockfish-lite.js`) at Threads 1, in
+  its own `ReviewEnginePool` (`src/engine/review-pool.ts`): `min(4, max(1, cores - 1))` workers, positions
+  scored concurrently, each with the same depth, MultiPV 3 and fresh hash as before, so labels and accuracy are
+  unchanged. Settings engine build/threads now only affect the analysis panel and the eval graph (Settings says so).
+- No preemption: the analysis panel and Show threat neither stop nor wait for the review, and vice versa. The
+  `review` and `batch` slots are removed from `shared-engine`; the My Games batch queue uses a one-worker pool.
+- `reviewCacheKey` no longer includes the Settings engine build. Reviews cached from the lite build stay valid;
+  reviews cached from the full build are not reused (one re-review).
+- Cancel terminates every pool worker; progress counts positions finished across workers.
+- Test-only: `NEXT_PUBLIC_REVIEW_POOL_SIZE` forces the pool size (benchmarks on small machines).
+
 ### Enforce the Content Security Policy (SIG-1059)
 
 - Every response now sends the policy as enforcing `Content-Security-Policy` (same directives as

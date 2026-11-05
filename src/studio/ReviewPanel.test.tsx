@@ -1,5 +1,5 @@
 // SIG-1110: ReviewPanel visible-state tests (idle, running, failed,
-// cancelled with Resume, done). Store-seeded boards, deterministic lease mock,
+// cancelled with Resume, done). Store-seeded boards, deterministic worker mock,
 // no worker; mirrors the e2e assertions in e2e/game-review.spec.ts.
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test, mock } from "node:test";
@@ -9,7 +9,7 @@ import type { EngineInfo } from "@/src/engine/stockfish-client";
 import type { PositionEval } from "@/src/chess/review-engine";
 import type { BoardSession } from "@/src/store/slices/types";
 
-// --- Controllable lease (same shape as useGameReview.test.tsx) ---------------
+// --- Controllable review worker (same shape as useGameReview.test.tsx) ------
 
 type Listener = (info: EngineInfo) => void;
 
@@ -49,33 +49,40 @@ function toInfo(fen: string, evaluation: PositionEval): EngineInfo {
   };
 }
 
-mock.module("@/src/engine/shared-engine", {
+// SIG-1223: the panel's hook builds a ReviewEnginePool; the real pool and
+// search adapter run over one fake worker client (pool size 1).
+const realPool = await import("@/src/engine/review-pool.ts");
+const fakeWorkerClient = () => ({
+  analyze: (fen: string, depth: number, lines: number, threads: number) => {
+    analyzeCalls.push({ fen, depth, lines, threads });
+    const captured = { ...behavior };
+    setTimeout(() => {
+      if (captured.failAll) {
+        for (const listener of [...listeners]) {
+          listener({ depth: 0, running: false, ready: true, failed: true, lines: [], nps: 0, nodes: 0, threaded: false, fen });
+        }
+        return;
+      }
+      const evaluation = evaluationFor({ depth, lines });
+      for (const listener of [...listeners]) {
+        listener(toInfo(fen, evaluation));
+      }
+    }, captured.delayMs);
+  },
+  subscribe: (listener: Listener) => {
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  },
+  dispose: () => undefined,
+});
+mock.module("@/src/engine/review-pool", {
   namedExports: {
-    acquire: () => ({
-      analyze: (fen: string, depth: number, lines: number, threads: number) => {
-        analyzeCalls.push({ fen, depth, lines, threads });
-        const captured = { ...behavior };
-        setTimeout(() => {
-          if (captured.failAll) {
-            for (const listener of [...listeners]) {
-              listener({ depth: 0, running: false, ready: true, failed: true, lines: [], nps: 0, nodes: 0, threaded: false, fen });
-            }
-            return;
-          }
-          const evaluation = evaluationFor({ depth, lines });
-          for (const listener of [...listeners]) {
-            listener(toInfo(fen, evaluation));
-          }
-        }, captured.delayMs);
-      },
-      subscribe: (listener: Listener) => {
-        listeners.add(listener);
-        return () => {
-          listeners.delete(listener);
-        };
-      },
-      release: () => undefined,
-    }),
+    ...realPool,
+    reviewPoolSize: () => 1,
+    createReviewPool: (options: { size: number; isCancelled?: () => boolean }) =>
+      new realPool.ReviewEnginePool({ ...options, createClient: fakeWorkerClient }),
   },
 });
 

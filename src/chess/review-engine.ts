@@ -58,12 +58,17 @@ export type AnalyzeOptions = {
 };
 
 /**
- * Engine seam. `analyze` is awaited one position at a time and resolves with
- * the best result so far (null when nothing was produced, e.g. cancelled or
+ * Engine seam. `analyze` is called for up to `concurrency` positions at a time
+ * (one by default) and resolves with the best result so far (null when nothing was produced, e.g. cancelled or
  * timed out before the first snapshot).
  */
 export type ReviewEngine = {
   analyze(fen: string, options: AnalyzeOptions): Promise<PositionEval | null>;
+  /**
+   * How many `analyze` calls the engine can run at once (default 1: strictly
+   * sequential). The scoring pass keeps up to this many positions in flight.
+   */
+  concurrency?: number;
 };
 
 export type ReviewMove = { uci: string };
@@ -232,17 +237,12 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
   // Book lookups run alongside the analysis; they never overlap engine calls.
   const bookPromise = input.bookReplies?.().catch(() => []) ?? Promise.resolve([]);
 
-  const scores: Array<PositionScore | null> = [];
-  let misses = 0;
+  // Index-aligned, so positions scored out of order by concurrent workers
+  // land where the grading below expects them.
+  const scores: Array<PositionScore | null> = new Array<PositionScore | null>(total).fill(null);
   // A length mismatch means the resume does not line up with this line: ignore it.
   const resume = input.resume?.length === total ? input.resume : undefined;
-  const partialSoFar = (): ReviewPartial => {
-    const partial: ReviewPartial = [...scores];
-    while (partial.length < total) {
-      partial.push(null);
-    }
-    return partial;
-  };
+  const partialSoFar = (): ReviewPartial => [...scores];
   const analyzeOptions = (fen: string): AnalyzeOptions => ({
     depth,
     lines: REVIEW_LINES,
@@ -250,28 +250,63 @@ export async function runReview(input: ReviewInput): Promise<ReviewOutcome> {
     fresh: true,
     legalMoves: legalMoveCount(fen),
   });
-  for (let index = 0; index < total; index += 1) {
-    if (cancelled()) {
-      return { status: "cancelled", partial: partialSoFar() };
+
+  // SIG-1223: up to `engine.concurrency` positions are in flight at once (a
+  // small promise pool over a shared index counter). Every position is still
+  // searched on its own with a fresh hash, so which worker scores it does not
+  // matter and results equal the sequential run.
+  const concurrency = Math.max(1, Math.min(total, Math.floor(engine.concurrency ?? 1)));
+  let nextIndex = 0;
+  // Positions finished (scored, carried or missed), in any order: drives progress.
+  let finished = 0;
+  // Consecutive positions without any engine result, counted in completion order:
+  // a success anywhere resets it, so one slow worker cannot trip the give-up by
+  // itself, and a dead engine (every worker returning null) still trips after
+  // MAX_CONSECUTIVE_MISSES completions without waiting on the slowest in-flight search.
+  let misses = 0;
+  let gaveUp = false;
+  let signalGaveUp: () => void = () => undefined;
+  const gaveUpSignal = new Promise<void>((resolve) => {
+    signalGaveUp = resolve;
+  });
+  const reportProgress = () => input.onProgress?.({ done: finished, total, elapsedMs: now() - startedAt });
+  reportProgress();
+
+  const lane = async (): Promise<void> => {
+    while (!gaveUp && !cancelled()) {
+      const index = nextIndex;
+      if (index >= total) {
+        return;
+      }
+      nextIndex += 1;
+      const carried = resume?.[index];
+      if (carried && carried.depth === depth) {
+        scores[index] = carried;
+        misses = 0;
+        finished += 1;
+        reportProgress();
+        continue;
+      }
+      let evaluation = await engine.analyze(fens[index], analyzeOptions(fens[index]));
+      if (!evaluation && !cancelled() && !gaveUp) {
+        // One extra fresh search before counting a miss (restarts already ran
+        // inside the first analyze; this covers a single dropped result).
+        evaluation = await engine.analyze(fens[index], analyzeOptions(fens[index]));
+      }
+      scores[index] = evaluation ? toPositionScore(evaluation) : null;
+      finished += 1;
+      misses = evaluation ? 0 : misses + 1;
+      if (misses >= MAX_CONSECUTIVE_MISSES && !cancelled()) {
+        gaveUp = true;
+        signalGaveUp();
+        return;
+      }
+      reportProgress();
     }
-    input.onProgress?.({ done: index, total, elapsedMs: now() - startedAt });
-    const carried = resume?.[index];
-    if (carried && carried.depth === depth) {
-      scores.push(carried);
-      misses = 0;
-      continue;
-    }
-    let evaluation = await engine.analyze(fens[index], analyzeOptions(fens[index]));
-    if (!evaluation && !cancelled()) {
-      // One extra fresh search before counting a miss (lease restarts already
-      // ran inside the first analyze; this covers a single dropped result).
-      evaluation = await engine.analyze(fens[index], analyzeOptions(fens[index]));
-    }
-    scores.push(evaluation ? toPositionScore(evaluation) : null);
-    misses = evaluation ? 0 : misses + 1;
-    if (misses >= MAX_CONSECUTIVE_MISSES && !cancelled()) {
-      return { status: "failed", partial: partialSoFar() };
-    }
+  };
+  await Promise.race([Promise.all(Array.from({ length: concurrency }, lane)), gaveUpSignal]);
+  if (gaveUp) {
+    return { status: "failed", partial: partialSoFar() };
   }
   if (cancelled()) {
     return { status: "cancelled", partial: partialSoFar() };

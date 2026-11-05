@@ -80,8 +80,6 @@ describe("review-queue", () => {
     const queue = createReviewQueue({
       games,
       preset: "fast",
-      engineBuild: "lite",
-      threads: 1,
       engine,
       onGameDone: (summary, game) => {
         done.push({ summary, id: game.id });
@@ -95,7 +93,7 @@ describe("review-queue", () => {
     }
     // Accuracy equals a direct buildReviewReport over the cached rows.
     const g1 = games[0];
-    const input = queueGameInput(g1.pgn, g1, "fast", "lite");
+    const input = queueGameInput(g1.pgn, g1, "fast");
     const cached = getCachedReview(input.cacheKey);
     assert.ok(cached && cached.length > 0, "finished rows are cached under the interactive key");
     const report = buildReviewReport(cached, input.headers);
@@ -112,8 +110,6 @@ describe("review-queue", () => {
     const queue = createReviewQueue({
       games,
       preset: "fast",
-      engineBuild: "lite",
-      threads: 1,
       engine,
       onGameDone: (summary, game) => {
         done.push({ summary, id: game.id });
@@ -133,8 +129,6 @@ describe("review-queue", () => {
     const queue = createReviewQueue({
       games,
       preset: "fast",
-      engineBuild: "lite",
-      threads: 1,
       engine,
       onGameDone: () => {
         calls += 1;

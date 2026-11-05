@@ -6,8 +6,8 @@
 //
 // SIG-1090: batch review controls (My Games 4/5). Checkboxes select loaded
 // rows; "Review selected" / "Review all unreviewed" run the sequential
-// `createReviewQueue` at the lowest engine priority (`batch` slot) with the
-// e2e fake seam when enabled. Each finished summary is written back to the 4
+// `createReviewQueue` on a one-worker review pool (lite, Threads 1, SIG-1223)
+// with the e2e fake seam when enabled. Each finished summary is written back to the 4
 // granted columns and patched into local state, so accuracy badges survive
 // reload; opening a reviewed row hits the cached result with no second
 // analysis (same cache key as the interactive hook).
@@ -37,10 +37,8 @@ import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { toJson } from "@/src/lib/supabase/database.types";
 import { DEFAULT_REVIEW_PRESET } from "@/src/chess/review-engine";
-import { acquire } from "@/src/engine/shared-engine";
-import { defaultEngineThreads } from "@/src/engine/stockfish-client";
+import { createReviewPool } from "@/src/engine/review-pool";
 import { createE2eFakeReviewEngine, isE2eFakeReviewEnabled } from "./review/e2e-fake-review-engine";
-import { createLeaseEngine } from "./review/lease-engine";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { GameOpenRow } from "./GameOpenRow";
@@ -60,8 +58,6 @@ type BatchState = { done: number; total: number };
 
 export function MyGamesSidebar() {
   const locale = useStudioStore((state) => state.settings.locale);
-  const engineBuild = useStudioStore((state) => state.settings.engineBuild);
-  const engineThreads = useStudioStore((state) => state.settings.engineThreads);
   const user = useStudioStore((state) => state.user);
   const importPlayerGame = useStudioStore((state) => state.importPlayerGame);
   const setStatus = useStudioStore((state) => state.setStatus);
@@ -246,20 +242,18 @@ export function MyGamesSidebar() {
     }));
     let stopped = false;
     const isCancelled = () => stopped;
-    // Same seam shape as `useGameReview`: the e2e fake never takes a lease.
+    // Same seam shape as `useGameReview`: the e2e fake never starts a worker.
+    // SIG-1223: the batch uses the review engine (lite, Threads 1) with a
+    // single worker, so it stays out of the way of interactive analysis and of
+    // an interactive review; nothing is shared with the analysis engine.
     const useFake = isE2eFakeReviewEnabled();
-    const lease = useFake ? null : acquire("batch", engineBuild);
-    const threads = Math.max(engineThreads, defaultEngineThreads());
-    const engine = lease
-      ? createLeaseEngine(lease, threads, isCancelled)
-      : createE2eFakeReviewEngine({ delayMs: 40, isCancelled });
+    const pool = useFake ? null : createReviewPool({ size: 1, isCancelled });
+    const engine = pool ?? createE2eFakeReviewEngine({ delayMs: 40, isCancelled });
     // Batch preset is fixed (no picker in batch UI); the same preset feeds
     // the cache key, so the interactive opener reuses these rows.
     const queue = createReviewQueue({
       games: queueGames,
       preset: DEFAULT_REVIEW_PRESET,
-      engineBuild,
-      threads,
       engine,
       isCancelled,
       onProgress: (done, total) => {
@@ -305,7 +299,7 @@ export function MyGamesSidebar() {
         stopped = true;
         queue.cancel();
       },
-      release: () => lease?.release(),
+      release: () => pool?.dispose(),
     };
     setNotice(null);
     setBatch({ done: 0, total: queueGames.length });
@@ -314,7 +308,7 @@ export function MyGamesSidebar() {
       .catch(() => undefined)
       .finally(() => {
         batchRef.current = null;
-        lease?.release();
+        pool?.dispose();
         setBatch(null);
         if (failedCount > 0) {
           setNotice({ kind: "review", count: failedCount });

@@ -65,8 +65,6 @@ const PRESET_IDS = Object.keys(REVIEW_PRESETS) as ReviewPreset[];
 export function ReviewPanel() {
   const board = useActiveBoard();
   const setupMode = useStudioStore((state) => state.setupMode);
-  const engineBuild = useStudioStore((state) => state.settings.engineBuild);
-  const engineThreads = useStudioStore((state) => state.settings.engineThreads);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const goPath = useStudioStore((state) => state.goPath);
   const annotateReview = useStudioStore((state) => state.annotateReview);
@@ -120,8 +118,6 @@ export function ReviewPanel() {
   } = useGameReview({
     tree: board.tree,
     points,
-    engineBuild,
-    engineThreads,
     setupMode,
     userSide: userOrientation === "white" ? "w" : "b",
   });

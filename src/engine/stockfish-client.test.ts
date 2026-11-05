@@ -6,6 +6,7 @@ import {
   MAX_LINES,
   MIN_DEPTH,
   MIN_LINES,
+  REVIEW_WORKER_URL,
   StockfishEngine,
   clampDepth,
   clampLines,
@@ -603,4 +604,38 @@ test("SIG-1080: the final snapshot of a scripted search equals the previous outp
     ],
   );
   engine.dispose();
+});
+
+test("SIG-1223: a pinned worker url is used as is and is always single-threaded", () => {
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  // Pretend the page is cross-origin isolated: unpinned engines would pick the threaded build.
+  Object.defineProperty(globalThis, "crossOriginIsolated", { value: true, configurable: true });
+  Object.defineProperty(globalThis, "navigator", { value: { hardwareConcurrency: 8 }, configurable: true });
+  try {
+    instances.length = 0;
+    const unpinned = new StockfishEngine("lite");
+    unpinned.start();
+    assert.equal(last().url, "/engine/stockfish-lite.js");
+    assert.equal(snap(unpinned).threaded, true);
+    unpinned.dispose();
+
+    instances.length = 0;
+    const pinned = new StockfishEngine("lite", { workerUrl: REVIEW_WORKER_URL });
+    pinned.analyze(FEN_A, 12, 3, 4);
+    const worker = last();
+    assert.equal(worker.url, "/engine/stockfish.js");
+    assert.equal(snap(pinned).threaded, false);
+    handshake(worker);
+    worker.emit("readyok");
+    assert.ok(worker.sent.includes("setoption name Threads value 1"), "threads are clamped to 1 on a pinned single-thread worker");
+    assert.ok(worker.sent.includes("setoption name MultiPV value 3"));
+    pinned.dispose();
+  } finally {
+    delete (globalThis as { crossOriginIsolated?: unknown }).crossOriginIsolated;
+    if (navigatorDescriptor) {
+      Object.defineProperty(globalThis, "navigator", navigatorDescriptor);
+    } else {
+      delete (globalThis as { navigator?: unknown }).navigator;
+    }
+  }
 });

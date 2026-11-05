@@ -192,7 +192,8 @@ test("cancelling stops the engine calls and reports partial progress", async () 
   });
   assert.equal(outcome.status, "cancelled");
   assert.equal(fake.log.length, 2);
-  assert.equal(progress[progress.length - 1].done, 1);
+  // Progress counts positions finished (SIG-1223), including the one in flight when the cancel was seen.
+  assert.equal(progress[progress.length - 1].done, 2);
 });
 
 test("volatile stretches weigh more than quiet ones", async () => {
@@ -397,4 +398,122 @@ test("resume entries at a stale depth are rescored", async () => {
   // The stale entry plus the 3 unscored positions are analysed.
   assert.ok(resumedLog.some((entry) => entry.fen === OPENING.fens[0]));
   assert.equal(resumedLog.length, 4);
+});
+
+// --- SIG-1223: concurrent scoring (engine.concurrency > 1) -------------------
+
+const LONG = lineFor(["e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7", "Re1", "b5", "Bb3", "d6", "c3", "O-O"]);
+
+/** Scores vary by position so a mixed-up index shows in the grades. */
+function swingScript(count: number): Script {
+  const script: Script = {};
+  for (let index = 0; index < count; index += 1) {
+    script[index] = [
+      { whitePawns: (index % 5) * 0.4 - 0.6, uci: LONG.ucis[index] ?? null },
+      { whitePawns: (index % 5) * 0.4 - 0.9, uci: null },
+      { whitePawns: (index % 5) * 0.4 - 1.2, uci: null },
+    ];
+  }
+  return script;
+}
+
+/** Fake with `concurrency` workers; later positions finish first, so completion order is reversed. */
+function concurrentEngine(fens: string[], script: Script, concurrency: number, log: string[] = []) {
+  let active = 0;
+  let maxActive = 0;
+  const engine: ReviewEngine = {
+    concurrency,
+    async analyze(fen, options) {
+      log.push(fen);
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      const index = fens.indexOf(fen);
+      await new Promise((resolve) => setTimeout(resolve, Math.max(1, 12 - index)));
+      active -= 1;
+      const lines = script[index];
+      return lines ? { depth: options.depth, lines } : null;
+    },
+  };
+  return { engine, log, maxActive: () => maxActive };
+}
+
+const longInput = (engine: ReviewEngine, extra: Partial<Parameters<typeof runReview>[0]> = {}) => ({
+  fens: LONG.fens,
+  moves: LONG.ucis.map((uci) => ({ uci })),
+  preset: "standard" as const,
+  engine,
+  ...extra,
+});
+
+test("concurrent scoring keeps several positions in flight and grades exactly like the sequential run", async () => {
+  const script = swingScript(LONG.fens.length);
+  const sequential = await runReview(longInput(concurrentEngine(LONG.fens, script, 1).engine));
+  const parallel = concurrentEngine(LONG.fens, script, 3);
+  const outcome = await runReview(longInput(parallel.engine));
+  assert.equal(sequential.status, "done");
+  assert.equal(outcome.status, "done");
+  assert.equal(parallel.maxActive(), 3);
+  if (sequential.status === "done" && outcome.status === "done") {
+    assert.deepEqual(outcome.rows, sequential.rows);
+  }
+});
+
+test("concurrent progress counts finished positions and ends at the total", async () => {
+  const script = swingScript(LONG.fens.length);
+  const progress: ReviewProgress[] = [];
+  await runReview(longInput(concurrentEngine(LONG.fens, script, 4).engine, { onProgress: (value) => progress.push(value) }));
+  assert.equal(progress[0].done, 0);
+  assert.equal(progress[progress.length - 1].done, LONG.fens.length);
+  const dones = progress.map((entry) => entry.done);
+  assert.deepEqual(dones, [...dones].sort((a, b) => a - b), "progress never goes backwards");
+  assert.ok(progress.every((entry) => entry.total === LONG.fens.length));
+});
+
+test("a dead engine still fails fast under concurrency", async () => {
+  let calls = 0;
+  const engine: ReviewEngine = {
+    concurrency: 4,
+    async analyze() {
+      calls += 1;
+      return null;
+    },
+  };
+  const outcome = await runReview(longInput(engine));
+  assert.equal(outcome.status, "failed");
+  // Lanes stop picking up work once the give-up threshold is reached: nowhere
+  // near one attempt (plus retry) per position.
+  assert.ok(calls < LONG.fens.length, `expected an early stop, saw ${calls} calls`);
+});
+
+test("a success between misses keeps a concurrent run alive", async () => {
+  const script = swingScript(LONG.fens.length);
+  script[3] = null;
+  script[9] = null;
+  const outcome = await runReview(longInput(concurrentEngine(LONG.fens, script, 3).engine));
+  assert.equal(outcome.status, "done");
+});
+
+test("a cancelled concurrent run returns an index-aligned partial that a resume completes", async () => {
+  const script = swingScript(LONG.fens.length);
+  const first = concurrentEngine(LONG.fens, script, 3);
+  const cancelled = await runReview(longInput(first.engine, { isCancelled: () => first.log.length >= 7 }));
+  assert.equal(cancelled.status, "cancelled");
+  if (cancelled.status !== "cancelled") {
+    return;
+  }
+  assert.equal(cancelled.partial.length, LONG.fens.length);
+  const scoredBefore = cancelled.partial.filter((entry) => entry != null).length;
+  assert.ok(scoredBefore > 0 && scoredBefore < LONG.fens.length);
+
+  const resumedLog: string[] = [];
+  const resumed = await runReview(
+    longInput(concurrentEngine(LONG.fens, script, 3, resumedLog).engine, { resume: cancelled.partial }),
+  );
+  assert.equal(resumed.status, "done");
+  // Only the holes are rescored.
+  assert.equal(resumedLog.length, LONG.fens.length - scoredBefore);
+  const fresh = await runReview(longInput(concurrentEngine(LONG.fens, script, 1).engine));
+  if (resumed.status === "done" && fresh.status === "done") {
+    assert.deepEqual(resumed.rows, fresh.rows);
+  }
 });
