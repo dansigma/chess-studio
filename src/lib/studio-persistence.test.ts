@@ -34,6 +34,7 @@ const {
   markBoardClosedRecord,
   persistBoardRecord,
   persistSettingsRecord,
+  forgetSettingsWriteCache,
   loadRemoteSettingsForUser,
   forgetRemoteDockSync,
   persistDockLayoutRecord,
@@ -169,7 +170,49 @@ test("SIG-1111 persistBoardRecord returns null without a user or client", async 
   assert.equal(await persistBoardRecord(makeBoard(), "user-1"), null);
 });
 
+test("SIG-1228 persistSettingsRecord skips upserts when the synced columns are unchanged", async () => {
+  forgetSettingsWriteCache();
+  const fake = installFake();
+  const settings = makeSettings();
+  await persistSettingsRecord(settings, "user-1");
+  // Fields without a user_settings column must not trigger a write.
+  await persistSettingsRecord({ ...settings, sidebarWidth: settings.sidebarWidth + 10 }, "user-1");
+  await persistSettingsRecord(settings, "user-1");
+  assert.equal(fake.calls.upsert.length, 1);
+  await persistSettingsRecord({ ...settings, engineDepth: settings.engineDepth + 1 }, "user-1");
+  assert.equal(fake.calls.upsert.length, 2);
+
+  // A failed write is not remembered, so the retry goes through.
+  forgetSettingsWriteCache();
+  installFake({ user_settings: { writeError: new Error("boom") } });
+  await assert.rejects(persistSettingsRecord(settings, "user-1"));
+  const retry = installFake();
+  await persistSettingsRecord(settings, "user-1");
+  assert.equal(retry.calls.upsert.length, 1);
+
+  // A row just loaded from the server is not echoed back.
+  forgetSettingsWriteCache();
+  installFake({
+    user_settings: {
+      maybeSingle: {
+        show_coordinates: settings.showCoordinates,
+        board_theme: settings.boardTheme,
+        piece_theme: settings.pieceSet,
+        engine_depth: settings.engineDepth,
+        multi_pv: settings.multiPv,
+        locale: settings.locale,
+      },
+    },
+  });
+  await loadRemoteSettingsForUser("user-1");
+  const echo = installFake();
+  await persistSettingsRecord(settings, "user-1");
+  assert.equal(echo.calls.upsert.length, 0);
+  forgetSettingsWriteCache();
+});
+
 test("SIG-1111 settings round-trip persists and loads the same values", async () => {
+  forgetSettingsWriteCache();
   const settings = makeSettings();
   const persisted = installFake();
   await persistSettingsRecord(settings, "user-1");
@@ -249,6 +292,7 @@ test("SIG-1111 loadRemoteSettingsForUser returns null on errors and missing inpu
 });
 
 test("SIG-1111 persistSettingsRecord throws on write errors and no-ops without a user", async () => {
+  forgetSettingsWriteCache();
   installFake({ user_settings: { writeError: new Error("upsert boom") } });
   await assert.rejects(persistSettingsRecord(makeSettings(), "user-1"));
 

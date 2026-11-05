@@ -15,6 +15,7 @@ import {
   SETTINGS_KEY,
   type SettingsSlice,
 } from "./settings.ts";
+import { selectDirtyCount } from "./selectors.ts";
 import { useStudioStore } from "../studio-store.ts";
 
 // SIG-944: the settings actions moved out of studio-store.ts into this slice.
@@ -276,4 +277,16 @@ test("engineSparkline defaults on, toggles, and respects the persisted value (SI
 
   storage.delete(SETTINGS_KEY);
   resetSettings();
+});
+
+test("pinPreviewBoard keeps the dirty flag so the next save pass picks it up (SIG-1228)", () => {
+  resetSettings();
+  const preview = { ...emptyBoard(), id: newId(), preview: true, dirty: true };
+  useStudioStore.setState({ boards: [preview], activeBoardId: preview.id });
+  assert.equal(selectDirtyCount(useStudioStore.getState()), 0);
+  actions().pinPreviewBoard(preview.id);
+  const pinned = useStudioStore.getState().boards[0];
+  assert.equal(pinned.preview, false);
+  assert.equal(pinned.dirty, true);
+  assert.equal(selectDirtyCount(useStudioStore.getState()), 1);
 });
