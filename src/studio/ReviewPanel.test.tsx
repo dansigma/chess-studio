@@ -280,3 +280,72 @@ test("done shows the report card and key moments", async () => {
     cleanup();
   }
 });
+
+test("SIG-1219: a count jumps to a move of that tier, and the scored labels are published for the board and move list", async () => {
+  seedBoard();
+  const { useReviewLabelsStore } = await import("@/src/store/review-labels.ts");
+  try {
+    render(<ReviewPanel />);
+    fireEvent.click(screen.getByRole("button", { name: tReview("en", "panel.reviewGame") }));
+    assert.ok(await screen.findByRole("button", { name: tReview("en", "panel.reviewAgain") }, { timeout: 30_000 }));
+    const published = useReviewLabelsStore.getState();
+    assert.equal(published.boardId, useStudioStore.getState().active().id);
+    assert.ok(published.labels.size > 0, "scored moves are published");
+    assert.ok(![...published.labels.values()].includes("forced" as never), "forced moves carry no badge");
+
+    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-classification=table] button[data-tier-count]"));
+    assert.ok(buttons.length > 0, "at least one non-zero count is a button");
+    const button = buttons[0];
+    const tier = button.getAttribute("data-tier-count");
+    const visited: string[] = [];
+    // Click until the cycle wraps: every stop is a move labelled with that tier.
+    for (let click = 0; click < 12; click += 1) {
+      fireEvent.click(button);
+      const key = useStudioStore.getState().active().path.join(".");
+      assert.equal(useReviewLabelsStore.getState().labels.get(key), tier, `click ${click + 1} lands on a ${tier} move`);
+      if (visited.includes(key)) {
+        break;
+      }
+      visited.push(key);
+    }
+    assert.equal(visited.length, Number(button.textContent), "the cycle visits exactly `count` moves");
+  } finally {
+    cleanup();
+  }
+});
+
+test("SIG-1219: below the width threshold the card shows chips instead of the table", async () => {
+  seedBoard();
+  const resize = (globalThis as Record<string, unknown>).ResizeObserver;
+  const callbacks: Array<(entries: unknown[]) => void> = [];
+  (globalThis as Record<string, unknown>).ResizeObserver = class {
+    constructor(callback: (entries: unknown[]) => void) {
+      callbacks.push(callback);
+    }
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  };
+  try {
+    render(<ReviewPanel />);
+    fireEvent.click(screen.getByRole("button", { name: tReview("en", "panel.reviewGame") }));
+    assert.ok(await screen.findByRole("button", { name: tReview("en", "panel.reviewAgain") }, { timeout: 30_000 }));
+    assert.ok(document.querySelector("[data-classification=table]"), "wide by default");
+    act(() => {
+      for (const callback of callbacks) {
+        callback([{ contentRect: { width: 260, height: 600 } }]);
+      }
+    });
+    assert.equal(document.querySelector("[data-classification=table]"), null);
+    assert.ok(document.querySelector("[data-classification=chips]"));
+    act(() => {
+      for (const callback of callbacks) {
+        callback([{ contentRect: { width: 420, height: 600 } }]);
+      }
+    });
+    assert.ok(document.querySelector("[data-classification=table]"), "wide again");
+  } finally {
+    (globalThis as Record<string, unknown>).ResizeObserver = resize;
+    cleanup();
+  }
+});

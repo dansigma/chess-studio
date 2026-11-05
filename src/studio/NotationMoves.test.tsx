@@ -120,3 +120,36 @@ test("PGN placeholders count as no player in any language", () => {
   }
   assert.equal(isPlaceholderPlayer("Jobava London"), false);
 });
+
+test("SIG-1219: reviewed moves carry their tier badge and a screen-reader tier name, others none", async () => {
+  const { useReviewLabelsStore } = await import("@/src/store/review-labels.ts");
+  const { useStudioStore } = await import("@/src/store/studio-store.ts");
+  const boardId = useStudioStore.getState().active().id;
+  useReviewLabelsStore.setState({ boardId, labels: new Map([["0", "blunder"], ["0.0", "best"]]) });
+  try {
+    const { container } = renderLine();
+    const badges = Array.from(container.querySelectorAll("[data-tier-badge]"));
+    assert.deepEqual(
+      badges.map((badge) => badge.getAttribute("data-tier-badge")),
+      ["blunder", "best"],
+    );
+    // Drawn as SVG paths: no text inside the badge, and it is hidden from assistive tech.
+    for (const badge of badges) {
+      assert.equal(badge.tagName.toLowerCase(), "svg");
+      assert.equal(badge.getAttribute("aria-hidden"), "true");
+      assert.equal(badge.textContent, "");
+    }
+    // The badge sits inside the move's own button (so it is part of its click target) with the tier named for screen readers.
+    const first = badges[0].closest("button") as HTMLElement;
+    assert.match(first.textContent ?? "", /^d4\s*Blunder$/);
+    assert.equal(first.querySelector(".sr-only")?.textContent?.trim(), "Blunder");
+    // Not reviewed: no badge.
+    assert.equal(moveButton("Nc3").querySelector("[data-tier-badge]"), null);
+    // A review belonging to another board shows nothing here.
+    useReviewLabelsStore.setState({ boardId: "someone-else" });
+    cleanup();
+    assert.equal(renderLine().container.querySelectorAll("[data-tier-badge]").length, 0);
+  } finally {
+    useReviewLabelsStore.setState({ boardId: null, labels: new Map() });
+  }
+});

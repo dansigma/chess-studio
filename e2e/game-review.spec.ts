@@ -44,6 +44,11 @@ const RETRY_GAME = `${HEADERS("Review Retry")}
 
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. Bc2 *`;
 
+// 19 plies — same stem, white ends with Qe2 (unique fens).
+const BADGE_GAME = `${HEADERS("Review Badges")}
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. Qe2 *`;
+
 /** Depth lives in the "⋯" actions menu (SIG-1205). */
 async function selectDepth(page: import("@playwright/test").Page | import("@playwright/test").Locator, name: string) {
   await page.getByRole("button", { name: "Review actions", exact: true }).click();
@@ -113,6 +118,36 @@ test("review run shows progress then the report and chart", async ({ page }) => 
     /^White \d+\.\d%, Black \d+\.\d%\. The game turned on move \d+ \([A-Za-z0-9+#=-]+\?\??\)\.$/,
   );
   await expect(page.locator("[data-accuracy-bar]")).toHaveCount(2);
+});
+
+test("SIG-1219: tier counts jump to the move, and the badge shows on the board and in the move list", async ({ page }) => {
+  await importGame(page, BADGE_GAME, "Review Badges");
+  await page.getByRole("button", { name: "Review game", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
+
+  // The full table is visible without opening Details, with one badge per tier.
+  const table = page.locator("[data-classification=table]");
+  await expect(table.locator("[data-tier-badge]")).toHaveCount(10);
+  await expect(page.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-expanded", "false");
+
+  // Every count click lands on a blunder: the board shows the blunder badge on the destination square.
+  const blunders = table.locator("button[data-tier-count=blunder]").first();
+  await blunders.click();
+  const boardBadge = page.locator("[data-board-image] [data-board-tier-badge=blunder]");
+  await expect(boardBadge).toHaveCount(1);
+  await expect(boardBadge).toHaveCSS("pointer-events", "none");
+  const square = boardBadge.locator("xpath=ancestor::*[@data-square][1]");
+  await expect(square).toHaveAttribute("data-square", /^[a-h][1-8]$/);
+  const firstSquare = (await square.getAttribute("data-square")) ?? "";
+  // A second click cycles to the next blunder (another destination square).
+  await blunders.click();
+  await expect(square).not.toHaveAttribute("data-square", firstSquare);
+
+  // The move list carries the same badge next to the current (reviewed) move.
+  await page.getByRole("tab", { name: "Notation", exact: true }).click();
+  const current = page.locator('[aria-current="step"]').first();
+  await expect(current).toBeVisible();
+  await expect(current.locator("[data-tier-badge=blunder]")).toHaveCount(1);
 });
 
 test("review cancel stops the run and offers resume", async ({ page }) => {

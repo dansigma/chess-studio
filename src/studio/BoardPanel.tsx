@@ -2,8 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Chess, type Square } from "chess.js";
-import { Chessboard } from "react-chessboard";
+import { Chessboard, type SquareRenderer } from "react-chessboard";
 import { useActiveBoardId } from "@/src/store/hooks";
+import { useReviewLabels } from "@/src/store/review-labels";
+import { tierName } from "@/src/chess/review-strings";
+import { BOARD_BADGE_FRACTION, TierBadge } from "./review/TierBadge";
 import { selectBoard, useStudioStore } from "@/src/store/studio-store";
 import { getFenAt, getLastMove, getMarksAt } from "@/src/chess/tree";
 import {
@@ -284,6 +287,42 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
     return styles;
   }, [dests, insight, lastMoveKey, squareMarks, selected, retry, retryHere, retryWrong]);
 
+  // SIG-1219: Game Review tier badge in the top-right corner of the square the
+  // current move landed on. Only for the position the tree shows (not an engine
+  // preview or a retry) and only once that move has been scored.
+  const reviewLabels = useReviewLabels(board.id);
+  const badgeLabel = !retryHere && !previewing ? reviewLabels.get(board.path.join(".")) : undefined;
+  const badgeSquare = badgeLabel && lastMoveKey.length === 4 ? lastMoveKey.slice(2, 4) : null;
+  const squareRenderer = useMemo(() => {
+    if (!badgeLabel || !badgeSquare) {
+      return undefined;
+    }
+    const BadgeSquare: SquareRenderer = ({ square, children }) => (
+      <div style={{ width: "100%", height: "100%", position: "relative", containerType: square === badgeSquare ? "size" : undefined, ...squareStyles[square] }}>
+        {children}
+        {square === badgeSquare ? (
+          <span
+            data-board-tier-badge={badgeLabel}
+            role="img"
+            aria-label={tierName(locale, badgeLabel)}
+            style={{
+              position: "absolute",
+              top: "2%",
+              right: "2%",
+              width: `${BOARD_BADGE_FRACTION * 100}%`,
+              height: `${BOARD_BADGE_FRACTION * 100}%`,
+              pointerEvents: "none",
+              zIndex: 3,
+            }}
+          >
+            <TierBadge label={badgeLabel} size="fill" />
+          </span>
+        ) : null}
+      </div>
+    );
+    return BadgeSquare;
+  }, [badgeLabel, badgeSquare, squareStyles, locale]);
+
   const arrows = useMemo(() => {
     // SIG-1209: no arrows at all during a retry; any of them could be the answer.
     if (retryHere) {
@@ -457,6 +496,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
             numericNotationStyle: COORDINATE_STYLE,
             pieces,
             squareStyles,
+            squareRenderer,
             boardStyle: { width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" },
             canDragPiece: ({ piece }) => {
               if (previewing || retryLocked) {

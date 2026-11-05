@@ -37,6 +37,7 @@ export const REVIEW_STRING_KEYS = [
   "report.keyMoments",
   "report.details",
   "report.classifications",
+  "report.phases",
   "report.noMistakes",
   "report.noFilteredMoments",
   "report.whiteFallback",
@@ -164,6 +165,7 @@ const EN: Record<ReviewStringKey, string> = {
   "report.keyMoments": "Key moments",
   "report.details": "Details",
   "report.classifications": "Move quality",
+  "report.phases": "Accuracy by phase",
   "report.noMistakes": "No mistakes in this line.",
   "report.noFilteredMoments": "No key moments match these filters.",
   "report.whiteFallback": "White",
@@ -289,6 +291,7 @@ const PT_BR: Record<ReviewStringKey, string> = {
   "report.keyMoments": "Momentos-chave",
   "report.details": "Detalhes",
   "report.classifications": "Qualidade dos lances",
+  "report.phases": "Precisão por fase",
   "report.noMistakes": "Sem erros nesta linha.",
   "report.noFilteredMoments": "Nenhum momento-chave com estes filtros.",
   "report.whiteFallback": "Brancas",
@@ -504,6 +507,14 @@ export function reviewCompleteText(locale: SiteLocale, args: { done: number; tot
   return tReview(locale, "panel.reviewComplete")
     .replace("{done}", formatInteger(locale, args.done))
     .replace("{total}", formatInteger(locale, args.total));
+}
+
+/** "Blunder by White: 2, go to next" / "Capivarada de Brancas: 2, ir para o próximo" — name of a clickable classification count. */
+export function tierJumpLabel(locale: SiteLocale, args: { tier: string; player: string; count: number }): string {
+  const count = formatInteger(locale, args.count);
+  return locale === "pt-br"
+    ? `${args.tier} de ${args.player}: ${count}, ir para o próximo`
+    : `${args.tier} by ${args.player}: ${count}, go to next`;
 }
 
 /** "White"/"Black" / "Brancas"/"Pretas" — fallback when the PGN header has no player name. */

@@ -1,4 +1,4 @@
-// SIG-1205: compact classification chips + collapsed Details disclosure.
+// SIG-1205: compact classification chips + collapsed Details disclosure. SIG-1219: report card redesign.
 import assert from "node:assert/strict";
 import { after, before, afterEach, test } from "node:test";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
@@ -40,20 +40,146 @@ test("classificationChips lists only non-zero labels in REVIEW_LABELS order", ()
   assert.deepEqual(classificationChips(report.black), []);
 });
 
-test("summary shows chips with count and tier name, and nothing for a side without labels", () => {
+test("SIG-1219: the classification table is always visible, one row per tier, with zero counts faint", () => {
   render(<ReportSummary report={report} locale="en" openingName="C60 · Ruy Lopez" />);
+  const table = document.querySelector("[data-classification=table]") as HTMLElement;
+  assert.ok(table);
+  const rows = Array.from(table.querySelectorAll("[data-tier-row]"));
+  assert.deepEqual(
+    rows.map((row) => row.getAttribute("data-tier-row")),
+    [...REVIEW_LABELS],
+  );
+  // One badge per tier row, each with its own mark.
+  assert.equal(table.querySelectorAll("[data-tier-badge]").length, REVIEW_LABELS.length);
+  const perfect = within(table.querySelector("[data-tier-row=best]") as HTMLElement);
+  assert.ok(perfect.getByText("Perfect"));
+  assert.equal(perfect.getByText("4").className.includes("text-studio-faint"), false);
+  // Zero counts (both sides) are faint, including the name.
+  const mistake = table.querySelector("[data-tier-row=mistake]") as HTMLElement;
+  assert.ok(within(mistake).getByText("Mistake").className.includes("text-studio-faint"));
+  for (const zero of Array.from(mistake.querySelectorAll("td span"))) {
+    assert.ok(zero.className.includes("text-studio-faint"), "zero count is faint");
+  }
+  // Zero counts are not buttons; no chips in the wide layout.
+  assert.equal(mistake.querySelectorAll("button").length, 0);
+  assert.equal(document.querySelector("[data-chip]"), null);
+  assert.ok(screen.getByText("C60 · Ruy Lopez"));
+});
+
+test("SIG-1219: counts become buttons only with a handler and a non-zero count", () => {
+  render(<ReportSummary report={report} locale="en" />);
+  assert.equal(document.querySelectorAll("[data-classification=table] button").length, 0, "no handler: plain numbers");
+  cleanup();
+  render(<ReportSummary report={report} locale="en" onSelectTier={() => {}} />);
+  const buttons = Array.from(document.querySelectorAll("[data-classification=table] button"));
+  assert.deepEqual(
+    buttons.map((button) => button.getAttribute("data-tier-count")),
+    ["brilliant", "best", "blunder"],
+    "Ana's non-zero counts only; Bruno has none",
+  );
+  assert.equal(buttons[2].getAttribute("aria-label"), "Blunder by Ana: 1, go to next");
+});
+
+test("SIG-1219: clicking a count reports the side and tier to jump to", () => {
+  const calls: Array<[string, string]> = [];
+  render(<ReportSummary report={report} locale="en" onSelectTier={(side, label) => calls.push([side, label])} />);
+  fireEvent.click(screen.getByRole("button", { name: "Perfect by Ana: 4, go to next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Genius by Ana: 1, go to next" }));
+  assert.deepEqual(calls, [
+    ["w", "best"],
+    ["w", "brilliant"],
+  ]);
+});
+
+test("SIG-1219: pt-br count buttons use the localized name", () => {
+  render(<ReportSummary report={report} locale="pt-br" onSelectTier={() => {}} />);
+  assert.ok(screen.getByRole("button", { name: "Capivarada de Ana: 1, ir para o próximo" }));
+});
+
+test("SIG-1219: compact layout falls back to chips with count and tier name, nothing for a side without labels", () => {
+  render(<ReportSummary report={report} locale="en" openingName="C60 · Ruy Lopez" compact onSelectTier={() => {}} />);
+  assert.equal(document.querySelector("[data-classification=table]"), null);
   const chips = document.querySelectorAll("[data-chip]");
   assert.deepEqual(
     Array.from(chips).map((node) => node.getAttribute("data-chip")),
     ["brilliant", "best", "blunder"],
   );
   assert.match(chips[1].textContent ?? "", /4\s*Perfect/);
-  assert.ok(screen.getByText("C60 · Ruy Lopez"));
-  // Avg. loss and the full table live in Details only.
+  assert.ok(chips[1].querySelector("[data-tier-badge=best]"));
+  // The chip counts still jump.
+  assert.ok(chips[1].querySelector("button[data-tier-count=best]"));
+  assert.equal(chips.length, 3, "Bruno has no labels: no chips for him");
+  // Phases stay in the compact layout; avg. loss stays out of the card.
+  assert.ok(document.querySelector("[data-report-section=phases]"));
   assert.equal(screen.queryByText("Avg. loss"), null);
 });
 
-test("details are collapsed by default, expand with aria-expanded, and hide unreached phases", () => {
+test("SIG-1219: compact layout with no labels at all renders no classification block", () => {
+  const empty = { white: side("Ana", {}), black: side("Bruno", {}) } as unknown as ReviewReport;
+  render(<ReportSummary report={empty} locale="en" compact />);
+  assert.equal(document.querySelector("[data-classification]"), null);
+});
+
+test("SIG-1219: header shows initials avatars, large accuracy and the game rating note", () => {
+  const rated = {
+    white: { ...side("Ana Souza", {}), gameRating: { value: 1600, anchored: false } },
+    black: side("Bruno", {}),
+  } as unknown as ReviewReport;
+  render(<ReportSummary report={rated} locale="en" />);
+  const avatars = document.querySelectorAll("[data-avatar]");
+  assert.deepEqual(
+    Array.from(avatars).map((node) => node.textContent),
+    ["AS", "B"],
+  );
+  assert.equal(screen.getAllByText("82.4").length, 2);
+  assert.ok(screen.getByText(/^≈\s*1[.,]?600$/));
+  const toggle = screen.getByRole("button", { name: /Game rating/ });
+  assert.equal(screen.queryByRole("note"), null);
+  fireEvent.click(toggle);
+  assert.ok(screen.getByRole("note"));
+});
+
+test("SIG-1219: phase bars cover one, two or three phases and skip phases nobody reached", () => {
+  const cases: Array<[Partial<SideReport["phases"]>, Partial<SideReport["phases"]>, string[]]> = [
+    [{ opening: 88, middlegame: null, endgame: null }, { opening: 70, middlegame: null, endgame: null }, ["opening"]],
+    [{ opening: 90, middlegame: 70, endgame: null }, { opening: 80, middlegame: 60, endgame: null }, ["opening", "middlegame"]],
+    [{ opening: 90, middlegame: 70, endgame: 55 }, { opening: 80, middlegame: 60, endgame: 40 }, ["opening", "middlegame", "endgame"]],
+    // One side never reached the endgame: the phase stays, with a dash for that side.
+    [{ opening: 90, middlegame: 70, endgame: 55 }, { opening: 80, middlegame: 60, endgame: null }, ["opening", "middlegame", "endgame"]],
+  ];
+  for (const [whitePhases, blackPhases, expected] of cases) {
+    const phased = {
+      white: side("Ana", {}, whitePhases),
+      black: side("Bruno", {}, blackPhases),
+    } as unknown as ReviewReport;
+    const { unmount } = render(<ReportSummary report={phased} locale="en" />);
+    const rows = Array.from(document.querySelectorAll("[data-phase]"));
+    assert.deepEqual(
+      rows.map((row) => row.getAttribute("data-phase")),
+      expected,
+    );
+    unmount();
+  }
+});
+
+test("SIG-1219: phase bars print the value and size the bar 0-100", () => {
+  render(<ReportSummary report={report} locale="en" />);
+  const opening = document.querySelector("[data-phase=opening]") as HTMLElement;
+  assert.equal(within(opening).getAllByText("90.0").length, 2);
+  const bars = opening.querySelectorAll("[data-phase-bar] > div");
+  assert.equal((bars[0] as HTMLElement).style.width, "90%");
+  assert.equal((bars[1] as HTMLElement).style.width, "90%");
+  // Endgame was reached by nobody in the fixture: left out.
+  assert.equal(document.querySelector("[data-phase=endgame]"), null);
+});
+
+test("SIG-1219: the Time slot renders nothing yet", () => {
+  render(<ReportSummary report={report} locale="en" />);
+  assert.equal(document.querySelector("[data-report-section=time]"), null);
+  assert.equal(screen.queryByText(/time/i), null);
+});
+
+test("SIG-1219: details are collapsed by default and hold only avg. loss and Forced", () => {
   render(<ReportDetails report={report} locale="en" />);
   const toggle = screen.getByRole("button", { name: "Details" });
   assert.equal(toggle.getAttribute("aria-expanded"), "false");
@@ -62,10 +188,10 @@ test("details are collapsed by default, expand with aria-expanded, and hide unre
   assert.equal(toggle.getAttribute("aria-expanded"), "true");
   const table = screen.getByRole("table");
   assert.ok(within(table).getByText("Avg. loss"));
-  assert.ok(within(table).getByText("Opening"));
-  assert.equal(within(table).queryByText("Endgame"), null, "phase not reached by either side is hidden");
   assert.ok(within(table).getByText("Forced"));
-  assert.ok(within(table).getByText("Blunder"));
+  assert.equal(within(table).queryByText("Opening"), null, "phases moved into the card");
+  assert.equal(within(table).queryByText("Blunder"), null, "tiers moved into the card");
+  assert.equal(table.querySelectorAll("tbody tr").length, 2);
 });
 
 // SIG-1208: one-line key-moment rows with the explanation inline under the active one.

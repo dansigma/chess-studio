@@ -20,6 +20,10 @@ import {
 import { lookupBookOpening } from "@/src/lib/opening-book";
 import { resolveOpeningName } from "@/src/lib/opening-names";
 import { KeyMomentsList, ReportDetails, ReportSummary } from "./review/ReviewReportCard";
+import { nextTierPath, tierPaths } from "@/src/chess/review-tier-nav";
+import { useReviewLabelsStore } from "@/src/store/review-labels";
+import type { ReviewLabel, TierLabel } from "@/src/chess/review";
+import { usePanelSize, REPORT_TABLE_MIN_WIDTH } from "./use-panel-size";
 import { ReviewEvalChart, type ReviewChartMoment } from "./review/ReviewEvalChart";
 import {
   filterKeyMoments,
@@ -81,6 +85,10 @@ export function ReviewPanel() {
   // SIG-968/1205: report PNG snapshot target. The ref wraps the summary
   // (players, accuracy, chips, rating, opening) plus the key moments, never the menu.
   const reportRef = useRef<HTMLDivElement | null>(null);
+  // SIG-1219: the card falls back to compact chips when the panel is narrow (SIG-1197 size mechanism).
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const { width: panelWidth } = usePanelSize(rootRef);
+  const compactCard = panelWidth < REPORT_TABLE_MIN_WIDTH;
 
   const points = useMemo(
     () => variationPoints(board.tree, board.path),
@@ -208,6 +216,39 @@ export function ReviewPanel() {
     [displayRows, board.headers, locale],
   );
   const moments = useMemo(() => (displayRows ? keyMoments(displayRows) : []), [displayRows]);
+
+  // SIG-1219: tier badges on the move list and the board read the labels of
+  // the rows scored so far from a tiny store. Forced moves carry no badge.
+  const publishLabels = useReviewLabelsStore((state) => state.set);
+  useEffect(() => {
+    const labels = new Map<string, ReviewLabel>();
+    if (displayRows && !setupMode) {
+      for (const row of displayRows) {
+        if (row.label && row.label !== "forced") {
+          labels.set(row.path.join("."), row.label);
+        }
+      }
+    }
+    publishLabels(board.id, labels);
+  }, [displayRows, board.id, setupMode, publishLabels]);
+  useEffect(() => () => publishLabels(null, new Map()), [publishLabels]);
+
+  // SIG-1219: a click on a classification count goes to that side's first move
+  // of the tier; further clicks walk the others in game order and wrap.
+  const selectTier = (side: "w" | "b", label: TierLabel) => {
+    if (!displayRows) {
+      return;
+    }
+    const paths = tierPaths(
+      displayRows.filter((row) => !row.forced),
+      side,
+      label,
+    );
+    const target = nextTierPath(paths, board.path);
+    if (target) {
+      goPath(target);
+    }
+  };
 
   // SIG-1093: repertoire-deviation line for the active board. The board's
   // orientation is the user side (decided); runs directly on the board tree
@@ -534,7 +575,7 @@ export function ReviewPanel() {
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-studio-panel text-body text-studio-fg">
+    <div ref={rootRef} className="flex h-full min-h-0 flex-col bg-studio-panel text-body text-studio-fg">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-studio-border-subtle px-3 py-1">
         <span className="text-dense font-semibold">{tReview(locale, "panel.title")}</span>
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -717,7 +758,15 @@ export function ReviewPanel() {
               {retryHere ? (
                 <RetryCard locale={locale} moveNotation={moveNotation} startFen={board.tree.startFen} />
               ) : (
-                <ReportSummary report={report} locale={locale} openingName={openingName} lineNote={lineNote} verdict={verdict} />
+                <ReportSummary
+                  report={report}
+                  locale={locale}
+                  openingName={openingName}
+                  lineNote={lineNote}
+                  verdict={verdict}
+                  compact={compactCard}
+                  onSelectTier={selectTier}
+                />
               )}
               <KeyMomentsList
                 moments={momentRows}

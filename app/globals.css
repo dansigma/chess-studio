@@ -44,6 +44,42 @@
   --studio-result-black: #34363c;
   --studio-track: rgb(255 255 255 / 0.06);
   --studio-scrim: rgb(0 0 0 / 0.55);
+  /* SIG-1219: one badge fill per review tier (REVIEW_TIERS) and the mark colour
+     drawn on it. Fill vs --studio-panel must be >= 3:1 (non-text UI); mark vs
+     fill >= 4.5:1. Dark theme, fill / vs panel / mark vs fill:
+       brilliant  #22d3ee  9.42:1  10.69:1
+       great      #60a5fa  6.70:1  7.60:1
+       best       #22c55e  7.47:1  8.48:1
+       very-good  #a3e635  11.29:1  12.81:1
+       decent     #7dbf9f  7.96:1  9.04:1
+       book       #c9a46c  7.30:1  8.29:1
+       inaccuracy #facc15  11.12:1  12.61:1
+       mistake    #fb923c  7.52:1  8.53:1
+       miss       #f472b6  6.43:1  7.29:1
+       blunder    #f87171  6.15:1  6.98:1
+       forced     #71717a  3.52:1  4.83:1 */
+  --studio-tier-brilliant: #22d3ee;
+  --studio-tier-brilliant-fg: #0d0e10;
+  --studio-tier-great: #60a5fa;
+  --studio-tier-great-fg: #0d0e10;
+  --studio-tier-best: #22c55e;
+  --studio-tier-best-fg: #0d0e10;
+  --studio-tier-very-good: #a3e635;
+  --studio-tier-very-good-fg: #0d0e10;
+  --studio-tier-decent: #7dbf9f;
+  --studio-tier-decent-fg: #0d0e10;
+  --studio-tier-book: #c9a46c;
+  --studio-tier-book-fg: #0d0e10;
+  --studio-tier-inaccuracy: #facc15;
+  --studio-tier-inaccuracy-fg: #0d0e10;
+  --studio-tier-mistake: #fb923c;
+  --studio-tier-mistake-fg: #0d0e10;
+  --studio-tier-miss: #f472b6;
+  --studio-tier-miss-fg: #0d0e10;
+  --studio-tier-blunder: #f87171;
+  --studio-tier-blunder-fg: #0d0e10;
+  --studio-tier-forced: #71717a;
+  --studio-tier-forced-fg: #ffffff;
   --background: var(--studio-chrome);
   --foreground: var(--studio-fg);
   color-scheme: dark;
@@ -83,6 +119,40 @@ html[data-color-scheme="light"] {
   --studio-result-black: #3a3b41;
   --studio-track: rgb(0 0 0 / 0.06);
   --studio-scrim: rgb(15 16 20 / 0.4);
+  /* SIG-1219: light theme; every fill is >= 4.6:1 on the white panel, white mark:
+       brilliant  #0e7490  5.36:1
+       great      #2563eb  5.17:1
+       best       #15803d  5.02:1
+       very-good  #4d7c0f  4.99:1
+       decent     #3d7a62  5.05:1
+       book       #8a6a3a  5.00:1
+       inaccuracy #a16207  4.92:1
+       mistake    #c2410c  5.18:1
+       miss       #be185d  6.04:1
+       blunder    #b91c1c  6.47:1
+       forced     #63636b  5.95:1 */
+  --studio-tier-brilliant: #0e7490;
+  --studio-tier-brilliant-fg: #ffffff;
+  --studio-tier-great: #2563eb;
+  --studio-tier-great-fg: #ffffff;
+  --studio-tier-best: #15803d;
+  --studio-tier-best-fg: #ffffff;
+  --studio-tier-very-good: #4d7c0f;
+  --studio-tier-very-good-fg: #ffffff;
+  --studio-tier-decent: #3d7a62;
+  --studio-tier-decent-fg: #ffffff;
+  --studio-tier-book: #8a6a3a;
+  --studio-tier-book-fg: #ffffff;
+  --studio-tier-inaccuracy: #a16207;
+  --studio-tier-inaccuracy-fg: #ffffff;
+  --studio-tier-mistake: #c2410c;
+  --studio-tier-mistake-fg: #ffffff;
+  --studio-tier-miss: #be185d;
+  --studio-tier-miss-fg: #ffffff;
+  --studio-tier-blunder: #b91c1c;
+  --studio-tier-blunder-fg: #ffffff;
+  --studio-tier-forced: #63636b;
+  --studio-tier-forced-fg: #ffffff;
   color-scheme: light;
 }
 
@@ -123,6 +193,28 @@ html[data-color-scheme="light"] {
   --color-studio-result-black: var(--studio-result-black);
   --color-studio-track: var(--studio-track);
   --color-studio-scrim: var(--studio-scrim);
+  --color-studio-tier-brilliant: var(--studio-tier-brilliant);
+  --color-studio-tier-brilliant-fg: var(--studio-tier-brilliant-fg);
+  --color-studio-tier-great: var(--studio-tier-great);
+  --color-studio-tier-great-fg: var(--studio-tier-great-fg);
+  --color-studio-tier-best: var(--studio-tier-best);
+  --color-studio-tier-best-fg: var(--studio-tier-best-fg);
+  --color-studio-tier-very-good: var(--studio-tier-very-good);
+  --color-studio-tier-very-good-fg: var(--studio-tier-very-good-fg);
+  --color-studio-tier-decent: var(--studio-tier-decent);
+  --color-studio-tier-decent-fg: var(--studio-tier-decent-fg);
+  --color-studio-tier-book: var(--studio-tier-book);
+  --color-studio-tier-book-fg: var(--studio-tier-book-fg);
+  --color-studio-tier-inaccuracy: var(--studio-tier-inaccuracy);
+  --color-studio-tier-inaccuracy-fg: var(--studio-tier-inaccuracy-fg);
+  --color-studio-tier-mistake: var(--studio-tier-mistake);
+  --color-studio-tier-mistake-fg: var(--studio-tier-mistake-fg);
+  --color-studio-tier-miss: var(--studio-tier-miss);
+  --color-studio-tier-miss-fg: var(--studio-tier-miss-fg);
+  --color-studio-tier-blunder: var(--studio-tier-blunder);
+  --color-studio-tier-blunder-fg: var(--studio-tier-blunder-fg);
+  --color-studio-tier-forced: var(--studio-tier-forced);
+  --color-studio-tier-forced-fg: var(--studio-tier-forced-fg);
   --text-caption: 11px;
   --text-caption--line-height: 1.4;
   --text-dense: 12px;
