@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { LEGAL_DRAFT_BANNER, LEGAL_DRAFT_BANNER_TEXT, type LegalText } from "@/src/lib/legal/config";
+import { creditRows } from "@/src/lib/legal/credits";
+import { CreditSegments } from "@/src/site/CreditSegments";
 import { SITE_NAME } from "@/src/site/sections";
 
 /**
@@ -65,6 +67,18 @@ function Version({ text, id, primary = false }: { text: LegalText; id: string; p
               {paragraph}
             </p>
           ))}
+          {section.credits ? (
+            <dl className="mt-3 space-y-3 text-body leading-relaxed text-studio-muted">
+              {creditRows(text.lang === "en" ? "en" : "pt-br").map((row) => (
+                <div key={row.id}>
+                  <dt className="font-medium text-studio-fg">{row.label}</dt>
+                  <dd>
+                    <CreditSegments segments={row.segments} />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
           {section.items ? (
             <ul className="mt-3 list-disc space-y-1.5 pl-5 text-body leading-relaxed text-studio-muted">
               {section.items.map((item) => (

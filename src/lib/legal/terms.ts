@@ -103,8 +103,16 @@ export const TERMS_PT: LegalText = {
       ],
     },
     {
+      id: "credits",
+      title: "13. Créditos e licenças",
+      paragraphs: [
+        "O Xadrez Digital usa os componentes e dados abaixo. Cada nome de fonte leva ao seu site e cada licença ao seu texto.",
+      ],
+      credits: true,
+    },
+    {
       id: "contato",
-      title: "13. Contato",
+      title: "14. Contato",
       paragraphs: [`Dúvidas sobre estes Termos: ${P.contact}.`],
     },
   ],
@@ -212,8 +220,16 @@ export const TERMS_EN: LegalText = {
       ],
     },
     {
+      id: "credits",
+      title: "13. Credits and licenses",
+      paragraphs: [
+        "Xadrez Digital uses the components and data below. Each source name links to its site and each license name to its text.",
+      ],
+      credits: true,
+    },
+    {
       id: "contact",
-      title: "13. Contact",
+      title: "14. Contact",
       paragraphs: [`Questions about these Terms: ${P.contact}.`],
     },
   ],

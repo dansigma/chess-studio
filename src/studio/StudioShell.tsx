@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
+import { creditRows } from "@/src/lib/legal/credits";
+import { CreditSegments } from "@/src/site/CreditSegments";
 import { ActivityBar } from "./ActivityBar";
 import { BoardsSidebar } from "./BoardsSidebar";
 import { DatabasesSidebar } from "./DatabasesSidebar";
@@ -613,6 +615,7 @@ export function StudioShell() {
       />
       {aboutOpen ? (
         <Dialog
+          width="w-[36rem]"
           title={<BrandLockup size="lg" />}
           onClose={() => setAboutOpen(false)}
           footer={
@@ -624,14 +627,28 @@ export function StudioShell() {
           <p className="mb-3">
             {tStudioChrome(locale, "chrome.about.body")}
           </p>
-          <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1.5 text-dense">
-            <dt className="text-studio-faint">{tStudioChrome(locale, "chrome.about.engineLabel")}</dt>
-            <dd className="text-studio-fg">{tStudioChrome(locale, "chrome.about.engineValue")}</dd>
-            <dt className="text-studio-faint">{tStudioChrome(locale, "chrome.about.openingLabel")}</dt>
-            <dd className="text-studio-fg">{tStudioChrome(locale, "chrome.about.openingValue")}</dd>
+          <dl className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-1.5 text-dense">
+            {creditRows(locale).map((row) => (
+              <Fragment key={row.id}>
+                <dt className="text-studio-faint">{row.label}</dt>
+                <dd className="text-studio-fg">
+                  <CreditSegments segments={row.segments} />
+                </dd>
+              </Fragment>
+            ))}
             <dt className="text-studio-faint">{tStudioChrome(locale, "chrome.about.storageLabel")}</dt>
             <dd className="text-studio-fg">{tStudioChrome(locale, "chrome.about.storageValue")}</dd>
           </dl>
+          <p className="mt-3 text-dense">
+            <a
+              href={locale === "en" ? "/termos#en-credits" : "/termos#pt-br-credits"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-studio-fg"
+            >
+              {tStudioChrome(locale, "chrome.about.creditsLink")}
+            </a>
+          </p>
         </Dialog>
       ) : null}
       {variationChoice ? <VariationChoiceDialog /> : null}
