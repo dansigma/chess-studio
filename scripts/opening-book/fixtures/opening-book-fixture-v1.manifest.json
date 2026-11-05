@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "format": 1,
+  "file": "opening-book-fixture-v1.bin.gz",
+  "builtAt": "2024-02-01T00:00:00.000Z",
+  "months": [
+    "2024-01"
+  ],
+  "games": 11070,
+  "gamesRead": 50000,
+  "minElo": 2300,
+  "speeds": [
+    "blitz",
+    "rapid",
+    "classical"
+  ],
+  "maxPly": 40,
+  "thresholds": {
+    "minPositionGames": 100,
+    "minMoveGames": 20,
+    "minMoveShare": 0.03
+  },
+  "positions": 147,
+  "moves": 195,
+  "bytes": 1810,
+  "gzipBytes": 1718,
+  "sha256": "76002c7d57e3876d2f1b8936af273ffc89d0826d88c7a04552952d3053c268b5",
+  "synthetic": true,
+  "generator": "node scripts/opening-book/generate-synthetic-pgn.mjs --games 50000 --seed 1226",
+  "build": "node scripts/opening-book/build-book.mjs synthetic.pgn --out-dir out --version 1 --months 2024-01 --build-date 2024-02-01T00:00:00.000Z"
+}
