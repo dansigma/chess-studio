@@ -22,8 +22,9 @@ describe("My Games batch review UI (SIG-1090)", () => {
     assert.ok(sidebar.includes("myGames.reviewFailed"), "skipped games must surface a notice");
   });
 
-  it("runs at the batch engine priority with the e2e fake seam", () => {
-    assert.ok(sidebar.includes('acquire("batch"'), "the batch must lease the lowest-priority engine slot");
+  it("runs on a one-worker review pool with the e2e fake seam", () => {
+    assert.ok(sidebar.includes("createReviewPool({ size: 1"), "the batch must use a single review worker");
+    assert.ok(!sidebar.includes("shared-engine"), "the batch must not share the analysis engine");
     assert.ok(sidebar.includes("isE2eFakeReviewEnabled"), "the batch must honor the e2e fake engine seam");
     assert.ok(sidebar.includes("DEFAULT_REVIEW_PRESET"), "the batch must reuse the default review preset");
   });
@@ -33,7 +34,7 @@ describe("My Games batch review UI (SIG-1090)", () => {
     // pre-batch value, so an unmount mid-batch would cancel nothing.
     assert.ok(!sidebar.includes("const current = batchRef.current"), "must not freeze the batch ref at effect time");
     assert.ok(sidebar.includes("batchRef.current?.cancel()"), "unmount cleanup must cancel the current batch");
-    assert.ok(sidebar.includes("batchRef.current?.release()"), "unmount cleanup must release the current lease");
+    assert.ok(sidebar.includes("batchRef.current?.release()"), "unmount cleanup must dispose the current pool");
   });
 
   it("writes finished summaries to the four granted columns", () => {

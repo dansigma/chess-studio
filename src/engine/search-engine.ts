@@ -1,9 +1,24 @@
 import type { AnalyzeOptions, EvalLine, PositionEval, ReviewEngine } from "@/src/chess/review-engine";
 import { sideFromFen } from "@/src/chess/move-notation";
 import { scoreNumber, type EngineInfo } from "@/src/engine/stockfish-client";
-import type { SharedEngineLease } from "@/src/engine/shared-engine";
 
-type Lease = Pick<SharedEngineLease, "analyze" | "subscribe">;
+/** The slice of `StockfishEngine` the adapter drives (one client = one search at a time). */
+export type SearchClient = {
+  analyze: (
+    fen: string,
+    depth: number,
+    multiPv: number,
+    threads: number,
+    searchMoves?: string,
+    fresh?: boolean,
+  ) => void;
+  subscribe: (listener: (info: EngineInfo) => void) => () => void;
+};
+
+export type SearchEngine = ReviewEngine & {
+  /** Resolves every in-flight `analyze` with null now and clears its timer (cancel / dispose). */
+  abort: () => void;
+};
 
 /** Scores at or beyond this many pawns are mate scores (see `scoreNumber`). */
 const MATE_PAWNS = 900;
@@ -26,8 +41,7 @@ function toEval(fen: string, info: EngineInfo): PositionEval | null {
 /**
  * A finished search below the target depth is only legitimate when the engine
  * had nothing to search (a single legal move) or found a forced mate. Anything
- * else means the search was cut short — typically by another slot (Show threat)
- * stopping the shared worker — and its snapshot must not be graded.
+ * else means the search was cut short and its snapshot must not be graded.
  */
 function legitimateEarlyEnd(evaluation: PositionEval, options: AnalyzeOptions): boolean {
   const legal = options.legalMoves ?? Number.POSITIVE_INFINITY;
@@ -35,13 +49,19 @@ function legitimateEarlyEnd(evaluation: PositionEval, options: AnalyzeOptions): 
 }
 
 /**
- * Adapts a shared-engine lease to the pipeline's `ReviewEngine`. One search at
- * a time: callers await each `analyze` (SIG-850 barrier). A search preempted by
- * a higher slot (threat) emits nothing until it resumes; the timeout is the
+ * Adapts one dedicated `StockfishEngine` to the pipeline's `ReviewEngine`
+ * (SIG-1223: no shared-engine lease, so nothing can preempt a search). One
+ * search at a time per client: callers await each `analyze`. The timeout is the
  * escape hatch, and it resolves with whatever snapshot arrived last.
  */
-export function createLeaseEngine(lease: Lease, threads: number, isCancelled: () => boolean): ReviewEngine {
+export function createSearchEngine(client: SearchClient, threads: number, isCancelled: () => boolean): SearchEngine {
+  const inflight = new Set<() => void>();
   return {
+    abort() {
+      for (const cancel of [...inflight]) {
+        cancel();
+      }
+    },
     analyze(fen: string, options: AnalyzeOptions): Promise<PositionEval | null> {
       return new Promise((resolve) => {
         let unsubscribe: () => void = () => undefined;
@@ -54,17 +74,20 @@ export function createLeaseEngine(lease: Lease, threads: number, isCancelled: ()
             return;
           }
           settled = true;
+          inflight.delete(abortThis);
           clearTimeout(timer);
           unsubscribe();
           resolve(result);
         };
         const timer = setTimeout(() => finish(latest), options.timeoutMs);
+        const abortThis = () => finish(null);
+        inflight.add(abortThis);
         // analyze() must run before subscribe(): subscribe() replays the last
         // snapshot synchronously, and analyze() clears lines / sets running.
         const search = (fresh: boolean) =>
-          lease.analyze(fen, options.depth, options.lines, threads, undefined, fresh);
+          client.analyze(fen, options.depth, options.lines, threads, undefined, fresh);
         search(options.fresh);
-        unsubscribe = lease.subscribe((info) => {
+        unsubscribe = client.subscribe((info) => {
           if (isCancelled() || info.failed) {
             // A failed worker never answers again: do not sit out the timeout.
             finish(null);

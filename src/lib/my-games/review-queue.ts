@@ -48,9 +48,10 @@ export type ReviewQueueSummary = {
 export type ReviewQueueCallbacks = {
   games: ReviewQueueGame[];
   preset: ReviewPreset;
-  engineBuild: string;
-  threads: number;
-  /** Real lease engine or a fake in tests; one position at a time. */
+  /**
+   * The review engine: a `ReviewEnginePool` of one worker in the app (SIG-1223),
+   * a fake in tests. The queue is serial, so it never uses more than one search.
+   */
   engine: ReviewEngine;
   /** Outer cancel (unmount / Cancel button); combined with per-game flow. */
   isCancelled?: () => boolean;
@@ -110,7 +111,7 @@ export type QueueGameInput = {
 };
 
 /** PGN → fens/ucis/cache-key/headers for one queue game (main line). */
-export function queueGameInput(pgn: string, game: ReviewQueueGame, preset: ReviewPreset, engineBuild: string): QueueGameInput {
+export function queueGameInput(pgn: string, game: ReviewQueueGame, preset: ReviewPreset): QueueGameInput {
   const imported = importPgn(pgn);
   const fens: string[] = [imported.tree.startFen];
   const ucis: string[] = [];
@@ -121,7 +122,7 @@ export function queueGameInput(pgn: string, game: ReviewQueueGame, preset: Revie
     ucis.push(node.uci);
     nodes = node.children;
   }
-  const cacheKey = reviewCacheKey(fens, ucis, preset, engineBuild);
+  const cacheKey = reviewCacheKey(fens, ucis, preset);
   return {
     fens,
     ucis,
@@ -150,10 +151,9 @@ export function summaryFromRows(
 }
 
 export function createReviewQueue(callbacks: ReviewQueueCallbacks): { start: () => Promise<void>; cancel: () => void } {
-  // `threads` is plumbing for the caller (it owns the lease engine with its
-  // thread count); the queue intentionally stays serial — one position at a
-  // time — so a batch never disturbs interactive analysis.
-  const { games, preset, engineBuild, engine, onGameDone, onProgress, isCancelled, now } = callbacks;
+  // The queue intentionally stays serial and the caller gives it a one-worker
+  // pool, so a batch never competes with an interactive review for cores.
+  const { games, preset, engine, onGameDone, onProgress, isCancelled, now } = callbacks;
   const clock = now ?? Date.now;
   let cancelled = false;
 
@@ -171,7 +171,7 @@ export function createReviewQueue(callbacks: ReviewQueueCallbacks): { start: () 
         onProgress?.(index, total, game.id);
         let summary: ReviewQueueSummary | null = null;
         try {
-          const input = queueGameInput(game.pgn, game, preset, engineBuild);
+          const input = queueGameInput(game.pgn, game, preset);
           if (input.playable) {
             const outcome = await runReview({
               fens: input.fens,
@@ -192,7 +192,7 @@ export function createReviewQueue(callbacks: ReviewQueueCallbacks): { start: () 
               // over fens/ucis so filtering null-move rows here keeps the
               // same key valid for the opener.
               setCachedReview(input.cacheKey, outcome.rows);
-              persistReview(input.fens, input.ucis, preset, engineBuild, input.cacheKey, outcome.rows);
+              persistReview(input.fens, input.ucis, preset, input.cacheKey, outcome.rows);
               summary = summaryFromRows(game, rows, input.headers, clock);
             }
           }

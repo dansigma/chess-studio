@@ -1,13 +1,14 @@
 // Shared Stockfish engine service (SIG-888).
 //
-// The three dock panels (EnginePanel, EvalGraphPanel, ReviewPanel) previously
+// The dock panels (EnginePanel, EvalGraphPanel) and Show threat previously
 // each owned a `StockfishEngine` worker (~99MB on the standard build). This
 // module owns one resident worker for the active build and arbitrates access
-// by slot priority: threat (4) > review (3) > engine (2) > graph (1) > batch (0).
+// by slot priority: threat (3) > engine (2) > graph (1).
 //
-// The `batch` slot (SIG-1090) is the background My Games review queue: the
-// lowest priority, so every interactive slot preempts it and it resumes via
-// the same stashed-params / promote() path. No extra worker is created.
+// SIG-1223: the Game Review and the background My Games review queue are not
+// slots any more. They run on their own lite, single-thread worker pool
+// (`review-pool.ts`) and never touch this worker, so nothing here can stall a
+// review and a review cannot stall the analysis panel.
 //
 // The `threat` slot (SIG-906) is a one-shot: the Show-threat hook acquires it,
 // analyzes the null-move FEN once, then stops/releases so the preempted victim
@@ -33,7 +34,7 @@
 // queued, the tap schedules promotion on a microtask. The deferral matters:
 // the completion emit is still being delivered to lease wrappers, so
 // promoting synchronously would retarget `activeSlot` before the owner sees
-// its own completion snapshot (Review/Graph treat `!running` as finish).
+// its own completion snapshot (Graph treats `!running` as finish).
 // The microtask re-validates live state and aborts if another slot took over
 // meanwhile (captured-slot guard).
 
@@ -43,16 +44,14 @@ import {
   type EngineInfo,
 } from "./stockfish-client";
 
-export type EngineSlot = "engine" | "graph" | "review" | "threat" | "batch";
+export type EngineSlot = "engine" | "graph" | "threat";
 
 export type EngineSlotListener = (info: EngineInfo) => void;
 
 const SLOT_PRIORITY: Record<EngineSlot, number> = {
-  threat: 4,
-  review: 3,
+  threat: 3,
   engine: 2,
   graph: 1,
-  batch: 0,
 };
 
 export type SharedEngineLease = {

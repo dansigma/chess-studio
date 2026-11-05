@@ -24,6 +24,15 @@ export function engineWorkerUrl(build: EngineBuild): string {
   return threaded ? "/engine/stockfish-lite.js" : "/engine/stockfish.js";
 }
 
+/**
+ * SIG-1223: the Game Review engine. Always the lite network on the single-thread
+ * build (`stockfish.js`): it is the same NNUE net (`nn-61e7af4bb97d`) as the
+ * threaded `stockfish-lite.js` and, at Threads 1, searches bit-identically, but it
+ * needs no cross-origin isolation (no SharedArrayBuffer) and spawns no pthread
+ * sub-workers. Independent of the analysis panel's build/threads settings.
+ */
+export const REVIEW_WORKER_URL = "/engine/stockfish.js";
+
 export const MIN_DEPTH = 8;
 export const MAX_DEPTH = 40;
 export const MIN_LINES = 1;
@@ -204,7 +213,8 @@ export class StockfishEngine {
   private outstandingSearches = 0;
   private readyokForCycle = false;
   private pvSanCache = new Map<string, string[]>();
-  readonly threaded = supportsEngineThreads();
+  readonly threaded: boolean;
+  private readonly workerUrl: string | null;
   // SIG-1081: one automatic retry after the first worker error. The retry
   // counter is reset by explicit user intent (start/analyze with a live
   // worker) and by restart(); a second consecutive error sets failed=true.
@@ -212,12 +222,18 @@ export class StockfishEngine {
   private errorCount = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(build: EngineBuild = "lite") {
+  /**
+   * `workerUrl` pins the worker script (SIG-1223: the review pool passes
+   * `REVIEW_WORKER_URL`); a pinned worker is always single-threaded.
+   */
+  constructor(build: EngineBuild = "lite", options: { workerUrl?: string } = {}) {
     this.build = build;
+    this.workerUrl = options.workerUrl ?? null;
+    this.threaded = this.workerUrl === null && supportsEngineThreads();
   }
 
   private createWorker(): void {
-    this.worker = new Worker(engineWorkerUrl(this.build));
+    this.worker = new Worker(this.workerUrl ?? engineWorkerUrl(this.build));
     this.worker.onmessage = (event: MessageEvent<string>) => {
       this.handleMessage(String(event.data));
     };

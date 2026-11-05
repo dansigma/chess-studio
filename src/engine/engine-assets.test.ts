@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { REVIEW_WORKER_URL } from "./stockfish-client.ts";
 
 // `public/engine/full/stockfish.worker.js` is byte-identical to
 // `public/engine/full/stockfish-19.js`, so it looks like a leftover
@@ -33,5 +34,13 @@ describe("engine assets", () => {
       "public/engine/full/stockfish-19.js no longer references stockfish.worker.js: " +
         "update this guard and the README engine section together",
     );
+  });
+
+  it("keeps the review engine's single-thread lite build and its wasm", () => {
+    // SIG-1223: the review loads REVIEW_WORKER_URL; the wrapper derives the wasm
+    // name from the script name, so stockfish.js needs stockfish.wasm beside it.
+    assert.equal(REVIEW_WORKER_URL, "/engine/stockfish.js");
+    assert.ok(existsSync(new URL("../../public/engine/stockfish.js", import.meta.url)));
+    assert.ok(existsSync(new URL("../../public/engine/stockfish.wasm", import.meta.url)));
   });
 });

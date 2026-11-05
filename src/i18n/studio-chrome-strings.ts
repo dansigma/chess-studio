@@ -112,6 +112,7 @@ export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.settings.moveSound",
   "chrome.settings.gamePreview",
   "chrome.settings.engine",
+  "chrome.settings.engineReviewNote",
   "chrome.settings.notation",
   "chrome.settings.moveNotation",
   "chrome.settings.notationDensity",
@@ -260,6 +261,8 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.settings.moveSound": "Move sound",
   "chrome.settings.gamePreview": "Game preview mode",
   "chrome.settings.engine": "Engine",
+  "chrome.settings.engineReviewNote":
+    "Applies to the analysis panel and the eval graph. Game Review always uses Stockfish 19 lite, so results stay comparable.",
   "chrome.settings.notation": "Notation",
   "chrome.settings.moveNotation": "Move notation",
   "chrome.settings.notationDensity": "Notation density",
@@ -407,6 +410,8 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.settings.moveSound": "Som de lance",
   "chrome.settings.gamePreview": "Modo de prévia de partidas",
   "chrome.settings.engine": "Engine",
+  "chrome.settings.engineReviewNote":
+    "Vale para o painel de análise e o gráfico de avaliação. A Revisão de partida sempre usa o Stockfish 19 lite, para que os resultados sejam comparáveis.",
   "chrome.settings.notation": "Notação",
   "chrome.settings.moveNotation": "Notação de lances",
   "chrome.settings.notationDensity": "Densidade da notação",

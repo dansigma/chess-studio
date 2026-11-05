@@ -1,18 +1,14 @@
 // SIG-1110: useGameReview lifecycle tests (idle, run, cancel, resume,
 // failure, cached result, effect restart). Runs under `node --test` with the
-// SIG-1045 happy-dom harness; no worker needed — the shared-engine lease is
-// mocked and the real `createLeaseEngine` adapter path is exercised.
+// SIG-1045 happy-dom harness; no worker needed. SIG-1223: the hook builds a
+// `ReviewEnginePool`; the real pool and search adapter run over fake worker
+// clients that speak EngineInfo snapshots.
 import assert from "node:assert/strict";
 import { after, before, beforeEach, test, mock } from "node:test";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
 import { act, renderHook, waitFor, cleanup } from "@testing-library/react";
 import type { EngineInfo } from "@/src/engine/stockfish-client";
 import type { PositionEval } from "@/src/chess/review-engine";
-
-// --- Controllable lease -----------------------------------------------------
-// The hook builds its engine via `createLeaseEngine(lease, threads,
-// isCancelled)` (useGameReview.ts), so the mock lease speaks EngineInfo
-// snapshots (same shape as lease-engine.test.ts) instead of PositionEvals.
 
 type Listener = (info: EngineInfo) => void;
 
@@ -23,14 +19,17 @@ type Behavior = {
   failAll: boolean;
   /** when true searches never emit (hang — caller cancels first). */
   silent: boolean;
+  /** Workers the (mocked) pool-size formula asks for. */
+  poolSize: number;
 };
 
-const behavior: Behavior = { delayMs: 5, failAll: false, silent: false };
+const behavior: Behavior = { delayMs: 5, failAll: false, silent: false, poolSize: 1 };
 
 type AnalyzeCall = { fen: string; depth: number; lines: number; threads: number; fresh: boolean };
 const analyzeCalls: AnalyzeCall[] = [];
-
-const listeners = new Set<Listener>();
+let inFlight = 0;
+let maxInFlight = 0;
+const createdClients: Array<{ disposed: boolean }> = [];
 
 function evaluationFor(fen: string, options: { depth: number; lines: number }): PositionEval {
   return {
@@ -64,43 +63,63 @@ function toInfo(fen: string, evaluation: PositionEval, running: boolean): Engine
   };
 }
 
-mock.module("@/src/engine/shared-engine", {
-  namedExports: {
-    acquire: () => ({
-      analyze: (fen: string, depth: number, lines: number, threads: number, _searchMoves?: string, fresh?: boolean) => {
-        analyzeCalls.push({ fen, depth, lines, threads, fresh: fresh ?? false });
-        if (behavior.silent) {
+function fakeWorkerClient() {
+  const listeners = new Set<Listener>();
+  const state = { disposed: false };
+  createdClients.push(state);
+  return {
+    analyze: (fen: string, depth: number, lines: number, threads: number, _searchMoves?: string, fresh?: boolean) => {
+      analyzeCalls.push({ fen, depth, lines, threads, fresh: fresh ?? false });
+      if (behavior.silent) {
+        return;
+      }
+      const captured = { ...behavior };
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      setTimeout(() => {
+        inFlight -= 1;
+        if (state.disposed) {
           return;
         }
-        const captured = { ...behavior };
-        setTimeout(() => {
-          if (captured.failAll) {
-            for (const listener of [...listeners]) {
-              listener({ depth: 0, running: false, ready: true, failed: true, lines: [], nps: 0, nodes: 0, threaded: false, fen });
-            }
-            return;
-          }
-          const options = { depth, lines };
-          const evaluation = evaluationFor(fen, options);
-          // Emit a complete terminal snapshot (depth reached, not running).
+        if (captured.failAll) {
           for (const listener of [...listeners]) {
-            listener(toInfo(fen, evaluation, false));
+            listener({ depth: 0, running: false, ready: true, failed: true, lines: [], nps: 0, nodes: 0, threaded: false, fen });
           }
-        }, captured.delayMs);
-      },
-      subscribe: (listener: Listener) => {
-        listeners.add(listener);
-        return () => {
-          listeners.delete(listener);
-        };
-      },
-      release: () => undefined,
-    }),
+          return;
+        }
+        const evaluation = evaluationFor(fen, { depth, lines });
+        // Emit a complete terminal snapshot (depth reached, not running).
+        for (const listener of [...listeners]) {
+          listener(toInfo(fen, evaluation, false));
+        }
+      }, captured.delayMs);
+    },
+    subscribe: (listener: Listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    dispose: () => {
+      state.disposed = true;
+      listeners.clear();
+    },
+  };
+}
+
+// The real pool over fake workers; the size formula is controlled per test.
+const realPool = await import("@/src/engine/review-pool.ts");
+mock.module("@/src/engine/review-pool", {
+  namedExports: {
+    ...realPool,
+    reviewPoolSize: () => behavior.poolSize,
+    createReviewPool: (options: { size: number; isCancelled?: () => boolean }) =>
+      new realPool.ReviewEnginePool({ ...options, createClient: fakeWorkerClient }),
   },
 });
 
 // Dynamic imports: the hook + cache helpers must load AFTER the mock above.
-const { reviewThreads, useGameReview } = await import("./useGameReview.ts");
+const { useGameReview } = await import("./useGameReview.ts");
 const { clearReviewCache, reviewCacheKey, setCachedReview } = await import("./review-cache.ts");
 const { importPgn } = await import("@/src/chess/pgn.ts");
 const { variationPoints } = await import("@/src/chess/tree.ts");
@@ -127,13 +146,11 @@ function nextGame() {
   return { tree: imported.tree, points: variationPoints(imported.tree, imported.path) };
 }
 
-function renderReview(overrides?: { engineThreads?: number; setupMode?: boolean }) {
+function renderReview(overrides?: { setupMode?: boolean }) {
   const { tree, points } = nextGame();
   const initialProps = {
     tree,
     points,
-    engineBuild: "lite" as const,
-    engineThreads: overrides?.engineThreads ?? 1,
     setupMode: overrides?.setupMode ?? false,
     userSide: "w" as const,
   };
@@ -163,8 +180,11 @@ beforeEach(() => {
   behavior.delayMs = 5;
   behavior.failAll = false;
   behavior.silent = false;
+  behavior.poolSize = 1;
   analyzeCalls.length = 0;
-  listeners.clear();
+  createdClients.length = 0;
+  inFlight = 0;
+  maxInFlight = 0;
   clearReviewCache();
   gameIndex = 0;
   useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS } });
@@ -188,10 +208,11 @@ test("idle starts a run that completes with rows", async () => {
     await waitFor(() => assert.equal(result.current.running, false), { timeout: 15_000 });
     assert.equal(result.current.failed, false);
     assert.equal(result.current.cancelled, false);
-    assert.ok(result.current.rows, "expected rows after a completed run");
-    assert.equal(result.current.rows!.length, result.current.progress.total - 1);
+    const rows = result.current.rows as unknown[] | null;
+    assert.ok(rows, "expected rows after a completed run");
+    assert.equal(rows.length, result.current.progress.total - 1);
     assert.equal(result.current.cached, false);
-    assert.ok(analyzeCalls.length > 0, "expected the lease to be used");
+    assert.ok(analyzeCalls.length > 0, "expected the review workers to be used");
   } finally {
     cleanup();
   }
@@ -274,14 +295,14 @@ test("a cached result returns without running the engine", async () => {
   const fens = points.map((point) => point.fen);
   const { getNodeAt } = await import("@/src/chess/tree.ts");
   const ucis = points.slice(1).map((point) => getNodeAt(tree, point.path)?.uci ?? "");
-  const key = reviewCacheKey(fens, ucis, "standard", "lite");
+  const key = reviewCacheKey(fens, ucis, "standard");
   const seeded = [
     { index: 0, playedUci: ucis[0] ?? "e2e4", beforePawns: 0.2, afterPawns: 0.2 },
   ] as never;
   setCachedReview(key, seeded as never);
 
   const { result } = renderHook(() =>
-    useGameReview({ tree, points, engineBuild: "lite", engineThreads: 1, setupMode: false, userSide: "w" }),
+    useGameReview({ tree, points, setupMode: false, userSide: "w" }),
   );
   try {
     assert.ok(result.current.rows, "expected the seeded cached rows");
@@ -293,90 +314,67 @@ test("a cached result returns without running the engine", async () => {
   }
 });
 
-test("changing engineThreads restarts analysis from the first position", async () => {
-  // Deterministic re-key: the engine stays silent, so with engineThreads in the
-  // effect deps the only way the search for the first FEN issues a NEW analyze
-  // call is the mid-run rerender. Mutation check: removing engineThreads from
-  // the effect deps (useGameReview.ts) leaves analyzeCalls at length 1.
-  behavior.silent = true;
+test("changing the analysis engine settings does not touch a running review", async () => {
+  // SIG-1223: the review is decoupled from Settings. Flip build and threads
+  // mid-run: the run neither restarts (no repeated first position) nor changes
+  // its search parameters, and every search is single-threaded.
+  behavior.delayMs = 30;
   const { tree, points } = nextGame();
-  const initialProps = {
-    tree,
-    points,
-    engineBuild: "lite" as const,
-    engineThreads: 1,
-    setupMode: false,
-    userSide: "w" as const,
-  };
-  const firstFen = points[0]?.fen;
-  assert.ok(firstFen, "expected at least one position");
+  const initialProps = { tree, points, setupMode: false, userSide: "w" as const };
   const rendered = renderHook((props: typeof initialProps) => useGameReview(props), { initialProps });
   try {
     act(() => {
       rendered.result.current.start();
     });
-    await waitFor(() => assert.ok(analyzeCalls.length >= 1), { timeout: 15_000 });
-    const callsBefore = analyzeCalls.length;
-    assert.equal(analyzeCalls.filter((call) => call.fen === firstFen).length, callsBefore);
-
-    // engineThreads is an effect dep: changing it mid-run restarts the search
-    // from the first position instead of continuing the stalled one.
-    rendered.rerender({ ...initialProps, engineThreads: 8 });
-    await waitFor(() => assert.ok(analyzeCalls.length > callsBefore), { timeout: 15_000 });
-    const restarts = analyzeCalls.slice(callsBefore).filter((call) => call.fen === firstFen);
-    assert.ok(restarts.length >= 1, "expected the re-keyed effect to re-analyze the first position");
+    await waitFor(() => assert.ok(analyzeCalls.length >= 2), { timeout: 15_000 });
+    act(() => {
+      useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, engineBuild: "standard", engineThreads: 4 } });
+    });
+    await waitFor(() => assert.equal(rendered.result.current.running, false), { timeout: 15_000 });
+    assert.ok(rendered.result.current.rows, "expected a finished review");
+    const firstFen = points[0]?.fen;
+    assert.equal(analyzeCalls.filter((call) => call.fen === firstFen).length, 1, "no restart from the first position");
+    assert.ok(analyzeCalls.every((call) => call.threads === 1), "review searches are always Threads 1");
+    assert.ok(analyzeCalls.every((call) => call.fresh), "every position is searched with a fresh hash");
   } finally {
-    behavior.silent = false;
     cleanup();
   }
 });
 
-test("reviewThreads propagates the clamp result to analyze calls", async () => {
-  // Deterministic thread propagation: stub thread support so clampThreads
-  // resolves to a value > 1, then assert the search receives it. Restores the
-  // globals afterwards so every other test keeps the real clamp (threads=1).
-  behavior.silent = true;
-  const globals = globalThis as Record<string, unknown>;
-  const sabDescriptor = Object.getOwnPropertyDescriptor(globalThis, "SharedArrayBuffer");
-  const isolationDescriptor = Object.getOwnPropertyDescriptor(globalThis, "crossOriginIsolated");
-  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
-  Object.defineProperty(globalThis, "SharedArrayBuffer", { value: ArrayBuffer, configurable: true });
-  Object.defineProperty(globalThis, "crossOriginIsolated", { value: true, configurable: true });
-  const realNavigator = globals["navigator"];
-  Object.defineProperty(globalThis, "navigator", { value: { hardwareConcurrency: 8 }, configurable: true });
+test("a multi-worker pool reviews positions concurrently and finishes with every row", async () => {
+  behavior.poolSize = 2;
+  behavior.delayMs = 40;
+  const { result } = renderReview();
   try {
-    assert.equal(reviewThreads(4), 4);
-    const { result } = renderReview({ engineThreads: 4 });
-    try {
-      act(() => {
-        result.current.start();
-      });
-      await waitFor(() => assert.ok(analyzeCalls.length >= 1), { timeout: 15_000 });
-      assert.ok(
-        analyzeCalls.some((call) => call.threads === 4),
-        `expected threads=4 in analyze calls, saw ${analyzeCalls.map((call) => call.threads)}`,
-      );
-    } finally {
-      cleanup();
-    }
+    act(() => {
+      result.current.start();
+    });
+    await waitFor(() => assert.equal(result.current.running, false), { timeout: 15_000 });
+    assert.ok(result.current.rows, "expected rows");
+    assert.equal(result.current.rows!.length, result.current.progress.total - 1);
+    assert.equal(maxInFlight, 2, "two searches should have been in flight together");
+    assert.equal(createdClients.length, 2, "one client per pool worker");
+    assert.ok(createdClients.every((client) => client.disposed), "workers are terminated when the review finishes");
   } finally {
-    if (sabDescriptor) {
-      Object.defineProperty(globalThis, "SharedArrayBuffer", sabDescriptor);
-    } else {
-      delete globals["SharedArrayBuffer"];
-    }
-    if (isolationDescriptor) {
-      Object.defineProperty(globalThis, "crossOriginIsolated", isolationDescriptor);
-    } else {
-      delete globals["crossOriginIsolated"];
-    }
-    if (navigatorDescriptor) {
-      Object.defineProperty(globalThis, "navigator", navigatorDescriptor);
-    } else if (realNavigator === undefined) {
-      delete globals["navigator"];
-    } else {
-      Object.defineProperty(globalThis, "navigator", { value: realNavigator, configurable: true });
-    }
-    behavior.silent = false;
+    cleanup();
+  }
+});
+
+test("cancel terminates every pool worker", async () => {
+  behavior.poolSize = 2;
+  behavior.delayMs = 60;
+  const { result } = renderReview();
+  try {
+    act(() => {
+      result.current.start();
+    });
+    await waitFor(() => assert.equal(createdClients.length, 2), { timeout: 15_000 });
+    act(() => {
+      result.current.cancel();
+    });
+    await waitFor(() => assert.ok(createdClients.every((client) => client.disposed)), { timeout: 15_000 });
+    assert.equal(result.current.cancelled, true);
+  } finally {
+    cleanup();
   }
 });

@@ -152,6 +152,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
               onChange={setEngineBuild}
             />
           </Row>
+          <p className="pb-1 text-caption text-studio-faint">{tStudioChrome(locale, "chrome.settings.engineReviewNote")}</p>
         </Section>
         <Section title={tStudioChrome(locale, "chrome.settings.notation")}>
           <Row label={tStudioChrome(locale, "chrome.settings.moveNotation")}>
