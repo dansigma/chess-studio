@@ -81,6 +81,17 @@ describe("unionBooks", () => {
     assert.ok(manifest.sources[2].uniqueMoves > 0, "the English line is only in the correspondence book");
   });
 
+  it("carries license and attribution per source and lists the distinct licenses", async () => {
+    const { lichess, masters, corr } = await threeBuilds();
+    masters.manifest.license = "CC BY-SA 4.0";
+    masters.manifest.attribution = "Lumbra's GigaBase, Lichess Broadcast subset";
+    corr.manifest.license = "CC BY-SA 4.0";
+    const { manifest } = unionBooks([lichess, masters, corr].map(asInput), base);
+    assert.deepEqual(manifest.licenses, ["CC BY-SA 4.0"]);
+    assert.equal(manifest.sources[1].attribution, "Lumbra's GigaBase, Lichess Broadcast subset");
+    assert.equal(manifest.sources[0].license, undefined);
+  });
+
   it("is deterministic and independent of the order of inputs, apart from the sources list", async () => {
     const { lichess, masters, corr } = await threeBuilds();
     const a = unionBooks([lichess, masters, corr].map(asInput), base);

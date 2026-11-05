@@ -46,7 +46,7 @@ const USAGE =
   "usage: node scripts/opening-book/build-book.mjs <input.pgn[.zst|.gz] | -> ... --out-dir DIR --version N\n" +
   "  [--profile lichess|masters|correspondence] [--min-elo N] [--min-players N] [--max-ply 40]\n" +
   "  [--max-games N] [--min-games-read N] [--max-map-entries 3000000] [--tmp-dir DIR]\n" +
-  "  [--months 2026-05,2026-06] [--assume-correspondence] [--build-date ISO] [--app-manifest PATH]";
+  "  [--months 2026-05,2026-06] [--assume-correspondence] [--license TEXT] [--attribution TEXT] [--build-date ISO] [--app-manifest PATH]";
 
 /** Warn when a dump read this fraction of the expected games or less. */
 const SANITY_FRACTION = 0.1;
@@ -67,6 +67,8 @@ export function parseArgs(argv) {
     months: null,
     buildDate: null,
     appManifest: null,
+    license: null,
+    attribution: null,
     assumeCorrespondence: false,
   };
   const numeric = {
@@ -78,7 +80,7 @@ export function parseArgs(argv) {
     "--min-games-read": "minGamesRead",
     "--max-map-entries": "maxMapEntries",
   };
-  const text = { "--out-dir": "outDir", "--tmp-dir": "tmpDir", "--build-date": "buildDate", "--app-manifest": "appManifest" };
+  const text = { "--out-dir": "outDir", "--tmp-dir": "tmpDir", "--build-date": "buildDate", "--app-manifest": "appManifest", "--license": "license", "--attribution": "attribution" };
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (token in numeric) {
@@ -336,6 +338,9 @@ export async function buildBook(sources, options) {
       bytes: raw.length,
       gzipBytes: gz.length,
       sha256: createHash("sha256").update(gz).digest("hex"),
+      // Free-text terms of the input data (docs/opening-book.md, "Licenses and attribution").
+      ...(options.license ? { license: options.license } : {}),
+      ...(options.attribution ? { attribution: options.attribution } : {}),
     };
     return {
       raw,

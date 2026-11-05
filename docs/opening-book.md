@@ -189,25 +189,35 @@ three times the work of the two-month v2 run.
 
 ### B. Masters (over the board)
 
-Inputs: the Chess-Results collection (about 10 million games exported from ChessBase as PGN, **UTF-8**),
-Ajedrez Data AJ-OTB, and Lumbra's GigaBase (lumbrasgigabase.com, about 13 million games, annotations stripped).
-The Ajedrez Data files are 7-Zip archives: extract them first, the script reads plain PGN.
+Inputs, and only these three (see "Licenses and attribution"): the Chess-Results collection (about 10 million
+games exported from ChessBase as PGN, **UTF-8**), Ajedrez Data AJ-OTB, and Lumbra's **"OTB Lichess Broadcast"**
+PGN (lumbrasgigabase.com, CC BY-SA 4.0). **Do not use Lumbra's full GigaBase / "OTB Complete" files: that
+database is CC BY-NC 4.0 (non-commercial) and Xadrez Digital is commercial.** The Ajedrez Data files are 7-Zip
+archives: extract them first, the script reads plain PGN.
 
 ```bash
 7z x AJ-OTB.7z -oaj-otb          # Windows: 7z.exe x AJ-OTB.7z -oaj-otb
-node scripts/opening-book/build-book.mjs chess-results.pgn aj-otb/AJ-OTB.pgn lumbra/LumbrasGigaBase.pgn \
-  --profile masters --out-dir out-masters --version 3 --tmp-dir /big/disk/tmp --min-games-read 20000000
+node scripts/opening-book/build-book.mjs chess-results.pgn aj-otb/AJ-OTB.pgn lumbra/LumbraLichessBroadcast.pgn \
+  --profile masters --out-dir out-masters --version 3 --tmp-dir /big/disk/tmp --min-games-read 9000000 \
+  --license "Chess-Results export; AJ-OTB (public domain, games only); Lumbra Lichess Broadcast (CC BY-SA 4.0)" \
+  --attribution "Includes games from Lumbra's GigaBase, Lichess Broadcast subset (lumbrasgigabase.com), CC BY-SA 4.0"
 ```
 
+`--license` and `--attribution` are free-text strings stored in the build's manifest (and shown per source in the
+union manifest, with a de-duplicated `licenses` list at the top level), so the terms travel with the file.
+
 All files of one run are de-duplicated together, so list every masters file in the same command (a game that is
-in two collections is counted once, even with the names written differently). The three collections overlap
+in two collections is counted once, even with the names written differently). The collections overlap
 heavily, which is exactly what this handles; the output and the manifest (`inputs`) report, per input file, the
 games read, kept and duplicates. Order matters only for that report: a game is credited to the first file that
 has it, so list the collection you trust most first.
 
-Lumbra's games carry a `[Source "..."]` tag (Britbase, ChessNostalgia, ChessOK, Chessopolis, Convekta,
-LichessBroadcast, LichessEliteDatabase, LumbrasGigaBase, PGNMentor, TWIC). `LichessEliteDatabase` is online
-Lichess play, already covered by part A, so it is dropped (counted as `online`). `LichessBroadcast` games are
+Lumbra's games carry a `[Source "..."]` tag (the full database has Britbase, ChessNostalgia, ChessOK,
+Chessopolis, Convekta, LichessBroadcast, LichessEliteDatabase, LumbrasGigaBase, PGNMentor, TWIC; the Broadcast
+file you are allowed to use should only contain `LichessBroadcast`). The script still handles the others so a
+mixed file is safe against online play: `LichessEliteDatabase` is online
+Lichess play, already covered by part A, so it is dropped (counted as `online`). It does NOT check licenses:
+never pass the full database. `LichessBroadcast` games are
 over-the-board tournaments relayed through Lichess and are kept, even though their Site or Event may contain
 lichess.org; the same goes for any game with a `lichess.org/broadcast` URL in Site or Event. The excluded and
 kept sources are constants next to the online-site list in `scripts/opening-book/profiles.mjs`. Set `--min-games-read` to about
@@ -254,10 +264,13 @@ source contributed. Check the sizes in the printed JSON (target: gzipped file un
 
 ### Monthly update (manual for now)
 
-Lumbra publishes weekly and monthly PGN updates. To refresh the masters part and ship a new book:
+Lumbra publishes weekly and monthly updates; only the **Lichess Broadcast** PGN may be used (CC BY-SA 4.0), never
+the full database. To refresh the masters part and ship a new book:
 
-1. Download the new monthly PGN from lumbrasgigabase.com and extract it (plain PGN, UTF-8).
-2. Keep the masters inputs together in one folder and add the new file as the last input. The cross-source
+1. Re-download Lumbra's "OTB Lichess Broadcast" PGN from lumbrasgigabase.com (and/or add any new masters source
+   whose license allows commercial use, for example a newer Chess-Results export; do not add TWIC-derived or
+   other third-party files from the full Lumbra DB) and extract it (plain PGN, UTF-8).
+2. Keep the masters inputs together in one folder and put the new or replaced file last. The cross-source
    de-duplication drops what earlier files already supplied, so overlapping months are harmless.
 3. Rebuild masters with the full list of inputs and a new version (the other parts are rebuilt only when their
    sources changed; keep their `out-lichess` / `out-corr` folders, with `--version N` matching):
@@ -273,23 +286,46 @@ An automated routine for this is a separate issue.
 
 ### Estimates for the masters build (extrapolated from synthetic runs, not measured on real masters files)
 
-Assumes the three collections together hold about 30 million games (Chess-Results about 10 million, Lumbra
-about 13 million, AJ-OTB the rest), heavily overlapping.
+Assumes up to about 15 million input games across the three inputs (Chess-Results about 10 million; AJ-OTB and
+the Lumbra Broadcast subset the rest), overlapping.
 
 - **Time:** about 3 ms per game that is replayed (up to 40 plies), single core. De-duplication runs before the
   replay on a hash of the players, Date, Round and the SAN moves, so an overlapping game costs only a hash.
-  Say 15 to 18 million unique games, of which perhaps half pass the Elo, result and online filters: 7 to 9
-  million replays, so roughly 5 to 8 hours. Reading and hashing the 30 million games adds tens of minutes and
+  Say 10 to 12 million unique games, of which perhaps half pass the Elo, result and online filters: 5 to 6
+  million replays, so roughly 3 to 5 hours. Reading and hashing the 15 million games adds tens of minutes and
   the final merge about as much.
 - **RAM:** de-duplication holds one 64-bit hash per game seen: 9 bytes per slot at most half full, so about
-  600 MB for 30 million games (the table doubles; the old one is alive for a moment). The counts map is capped by
+  300 MB for 15 million games (the table doubles; the old one is alive for a moment). The counts map is capped by
   `--max-map-entries` (default 3,000,000), about 300 bytes per entry, and masters/correspondence also keep up to
-  5 player hashes per move entry, about 1.3 GB at the default. Total: roughly 2.5 GB. With 8 GB or less pass
-  `--max-map-entries 1500000` (more spills, slower, same output). For the 10 million games of Chess-Results
-  alone the de-duplication table is about 300 MB.
+  5 player hashes per move entry, about 1.3 GB at the default. Total: roughly 2 GB. With 8 GB or less pass
+  `--max-map-entries 1500000` (more spills, slower, same output). 
 - **Disk:** every spill writes up to 3,000,000 records of 35 bytes (about 105 MB). A masters run spills tens of
   times: plan 3 to 6 GB under `--tmp-dir`; it is removed when the run ends or fails.
 - Spilled and in-memory builds produce byte-identical files (tested).
+
+## Licenses and attribution
+
+The published book is derived from these sources; keep this list and the `license` / `attribution` fields of the
+manifests in step with what was actually used.
+
+| Source | License | What it requires |
+|---|---|---|
+| Lichess open database (database.lichess.org) | CC0 | nothing |
+| Lumbra's GigaBase, **Lichess Broadcast subset** ("OTB Lichess Broadcast" PGN) | CC BY-SA 4.0 | attribution, and the derived book must be offered under CC BY-SA 4.0 |
+| Ajedrez Data (AJ-OTB, AJ-CORR) | the games are stated to be public domain (no comments) | nothing |
+| Chess-Results collection | as exported by its owner | confirm before publishing |
+
+- **Lumbra's full GigaBase is not an input.** Its main database is CC BY-NC 4.0 (non-commercial) and Xadrez
+  Digital is commercial. It could only be used with a commercial license from business@lumbrasgigabase.com.
+  Do not add the full database, its "OTB Complete" file, or the Source tags it carries (TWIC, Britbase, ...)
+  to any build.
+- Because the masters part includes the Broadcast subset, the **union** (the book served to users) is a derived
+  work under CC BY-SA 4.0: show the attribution where the book is credited (for example the About or credits
+  page, or the repository notice) and offer the derived book under CC BY-SA 4.0 (a link to the
+  `/book/opening-book-vN.bin.gz` file, whose license is stated alongside it).
+- The build records the terms: pass `--license "..."` and `--attribution "..."` to `build-book.mjs`; they are
+  copied into each build's manifest, and the union manifest keeps them per source and lists the distinct
+  licenses in `licenses`.
 
 ## Local development
 
