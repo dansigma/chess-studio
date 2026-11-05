@@ -1,7 +1,7 @@
 // scripts/opening-book/build-book.test.mjs
 // SIG-1226: the offline opening book pipeline on hand-made and synthetic PGN:
 // speed derivation, header filters, the theory rule (position < 100, move < 20,
-// move < 3%), spill-to-disk equivalence, an independent recount oracle, and the
+// move < 1%), spill-to-disk equivalence, an independent recount oracle, and the
 // round trip into the browser decoder.
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
@@ -90,17 +90,19 @@ describe("theory rule", () => {
     assert.equal(selectTheory(recordsFor(99, [[1, 99]]), BOOK_RULE).entries.length, 0);
     assert.equal(selectTheory(recordsFor(100, [[1, 100]]), BOOK_RULE).entries.length, 1);
   });
-  it("a move under 20 games is not theory even above 3%", () => {
+  it("a move under 20 games is not theory even above 1%", () => {
     const result = selectTheory(recordsFor(300, [[1, 281], [2, 19]]), BOOK_RULE); // 19 / 300 = 6.3%
     assert.deepEqual(result.entries.map((entry) => entry.move), [1]);
   });
-  it("a move under 3% of the position is not theory even above 20 games", () => {
-    const result = selectTheory(recordsFor(1000, [[1, 970], [2, 29], [3, 30], [4, 1]]), BOOK_RULE); // 2.9%, 3.0%
-    assert.deepEqual(result.entries.map((entry) => entry.move), [1, 3]);
+  it("a move under 1% of the position is not theory even above 20 games", () => {
+    const result = selectTheory(recordsFor(3000, [[1, 2910], [2, 29], [3, 30], [4, 31]]), BOOK_RULE); // 0.97%, 1.0%, 1.03%
+    assert.deepEqual(result.entries.map((entry) => entry.move), [1, 3, 4]);
   });
-  it("20 games and exactly 3% pass", () => {
+  it("20 games and 20% pass; the 1% share is checked on top of the 20-game floor", () => {
     const result = selectTheory(recordsFor(100, [[1, 80], [2, 20]]), BOOK_RULE);
     assert.equal(result.entries.length, 2);
+    // 1% of 1000 is only 10 games: the 20-game floor still decides.
+    assert.deepEqual(selectTheory(recordsFor(1000, [[1, 981], [2, 19]]), BOOK_RULE).entries.map((entry) => entry.move), [1]);
   });
 });
 
@@ -134,10 +136,10 @@ describe("CountStore", () => {
 });
 
 describe("buildBook", () => {
-  // 1000 games: 1.e4 975 times, 1.d4 25 times (2.5%: under 3%), then 20 plies of line.
+  // 3000 games: 1.e4 2975 times, 1.d4 25 times (0.83%: under 1%), then 20 plies of line.
   function mixedText() {
     let text = "";
-    for (let i = 0; i < 975; i += 1) {
+    for (let i = 0; i < 2975; i += 1) {
       text += pgn(TEN_MOVES);
     }
     for (let i = 0; i < 25; i += 1) {
@@ -148,7 +150,7 @@ describe("buildBook", () => {
 
   it("keeps theory by the shared rule and the decoded book answers by position", async () => {
     const result = await buildBook([source(mixedText())], OPTIONS);
-    assert.equal(result.stats.kept, 1000);
+    assert.equal(result.stats.kept, 3000);
     const book = decodeBook(gunzipSync(result.gz));
     assert.equal(book.maxPly, 40);
     const board = new Chess();
@@ -158,12 +160,12 @@ describe("buildBook", () => {
       assert.equal(book.hasMove(key, move.from + move.to + (move.promotion ?? "")), true, san);
     }
     const keys = [bookKey(new Chess().fen())];
-    assert.equal(book.hasMove(keys[0], "d2d4"), false, "25 of 1000 games is 2.5%");
+    assert.equal(book.hasMove(keys[0], "d2d4"), false, "25 of 3000 games is 0.83%");
     assert.equal(result.manifest.positions, 20);
     assert.equal(result.manifest.moves, 20);
-    assert.equal(result.manifest.games, 1000);
+    assert.equal(result.manifest.games, 3000);
     assert.equal(result.manifest.builtAt, "2024-02-01T00:00:00.000Z");
-    assert.deepEqual(result.manifest.thresholds, { minPositionGames: 100, minMoveGames: 20, minMoveShare: 0.03 });
+    assert.deepEqual(result.manifest.thresholds, { minPositionGames: 100, minMoveGames: 20, minMoveShare: 0.01 });
     assert.equal(result.manifest.gzipBytes, result.gz.length);
     assert.match(result.manifest.sha256, /^[0-9a-f]{64}$/);
   });
@@ -243,7 +245,7 @@ describe("buildBook", () => {
     let expected = 0;
     for (const [key, entry] of positions) {
       for (const [uci, count] of entry.moves) {
-        const theory = entry.total >= 100 && count >= 20 && count >= 0.03 * entry.total;
+        const theory = entry.total >= 100 && count >= 20 && count >= 0.01 * entry.total;
         assert.equal(book.hasMove(key, uci), theory, `${key} ${uci} ${count}/${entry.total}`);
         expected += theory ? 1 : 0;
       }

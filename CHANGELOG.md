@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+### Opening book v3 tooling and a safer zstd build (SIG-1229, SIG-1227)
+
+- Book rule: the move share went from 3% to 1% (`BOOK_RULE` version 2, shared with the explorer path); the
+  100-game position and 20-game move floors are unchanged.
+- `build-book.mjs --profile masters | correspondence` (default `lichess`): over-the-board and correspondence
+  PGN databases with their own Elo bars (2100 FIDE / 2300 ICCF), online-game and live-clock exclusion,
+  de-duplication by normalized players + Date + Round + first 40 plies (also across input files), and a rule
+  that a move is theory only if at least 5 distinct players made it. Bounded memory is kept (player sets
+  survive spilling; spilled builds stay byte-identical).
+- `union-books.mjs` merges built books into the one file the app reads (a pair is in if it is theory in any
+  input) and writes a manifest with a `sources` list; `inspect-book.mjs` retries partial explorer answers and
+  never compares them.
+- SIG-1227: a decompressor that exits non-zero, is killed or cannot start now fails the build with a clear error
+  and writes nothing (no book, no manifest, no `--app-manifest`); the pipe is read with backpressure; stdin cut
+  mid-game warns; `--min-games-read` aborts a suspiciously small input and `--months` warns about one.
+  The runbook now recommends `zstd -dc ... | node ... -` on every OS (`cmd /c` on Windows).
+
 ### Game Review: local opening book (SIG-1226)
 
 - Book moves now come from a local book built offline from the Lichess open database (both players 2300+,

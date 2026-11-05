@@ -52,10 +52,10 @@ test("a transposition back into known positions after the book ended is not book
   assert.ok(!fake.calls.includes(fake.fens[8]));
 });
 
-test("a position under 100 games or a move under 3% ends the book", async () => {
+test("a position under 100 games or a move under 1% ends the book", async () => {
   const small = explorer({ 2: { total: 99, moves: [{ uci: "g1f3", games: 99 }] } });
   assert.equal((await walkBook(GAME, small.fens, small.get, { budgetMs: 1000 })).plies, 2);
-  const share = explorer({ 3: { total: 1000, moves: [{ uci: "b8c6", games: 25 }] } });
+  const share = explorer({ 3: { total: 5000, moves: [{ uci: "b8c6", games: 40 }] } });
   assert.equal((await walkBook(GAME, share.fens, share.get, { budgetMs: 1000 })).plies, 3);
 });
 

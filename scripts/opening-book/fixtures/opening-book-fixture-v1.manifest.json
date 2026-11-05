@@ -2,12 +2,25 @@
   "version": 1,
   "format": 1,
   "file": "opening-book-fixture-v1.bin.gz",
+  "profile": "lichess",
   "builtAt": "2024-02-01T00:00:00.000Z",
   "months": [
     "2024-01"
   ],
+  "files": [
+    "synth50k-b.pgn"
+  ],
   "games": 11070,
   "gamesRead": 50000,
+  "duplicates": 0,
+  "inputs": [
+    {
+      "file": "synth50k-b.pgn",
+      "read": 50000,
+      "kept": 11070,
+      "duplicates": 0
+    }
+  ],
   "minElo": 2300,
   "speeds": [
     "blitz",
@@ -18,13 +31,13 @@
   "thresholds": {
     "minPositionGames": 100,
     "minMoveGames": 20,
-    "minMoveShare": 0.03
+    "minMoveShare": 0.01
   },
   "positions": 147,
-  "moves": 195,
-  "bytes": 1810,
-  "gzipBytes": 1718,
-  "sha256": "76002c7d57e3876d2f1b8936af273ffc89d0826d88c7a04552952d3053c268b5",
+  "moves": 237,
+  "bytes": 1894,
+  "gzipBytes": 1790,
+  "sha256": "8abfc85b1a9e67c0d82597c28cff52fd918da20ca9fc7fffa1e93a1da3fcf56c",
   "synthetic": true,
   "generator": "node scripts/opening-book/generate-synthetic-pgn.mjs --games 50000 --seed 1226",
   "build": "node scripts/opening-book/build-book.mjs synthetic.pgn --out-dir out --version 1 --months 2024-01 --build-date 2024-02-01T00:00:00.000Z"

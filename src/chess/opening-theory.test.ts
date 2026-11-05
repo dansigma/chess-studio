@@ -10,7 +10,7 @@ const position = (total: number, moves: Array<[string, number]>): BookPosition =
 test("the rule constants live in one object", () => {
   assert.equal(BOOK_RULE.minPositionGames, 100);
   assert.equal(BOOK_RULE.minMoveGames, 20);
-  assert.equal(BOOK_RULE.minMoveShare, 0.03);
+  assert.equal(BOOK_RULE.minMoveShare, 0.01);
   assert.deepEqual([...BOOK_RULE.ratings], [2200, 2500]);
   assert.deepEqual([...BOOK_RULE.speeds], ["blitz", "rapid", "classical"]);
   assert.equal(bookFilterQuery(), "&ratings=2200,2500&speeds=blitz,rapid,classical");
@@ -30,12 +30,14 @@ test("a move under 20 games is not theory, whatever its share", () => {
   assert.equal(isTheoryMove(position(100, [["e2e4", 80], ["d2d4", 20]]), "d2d4"), true);
 });
 
-test("a move under 3% of the position is not theory, even with 20+ games", () => {
-  // 20 games of 1000 = 2%
-  assert.equal(isTheoryMove(position(1000, [["e2e4", 980], ["d2d4", 20]]), "d2d4"), false);
-  // 30 games of 1000 = exactly 3%
-  assert.equal(isTheoryMove(position(1000, [["e2e4", 970], ["d2d4", 30]]), "d2d4"), true);
-  assert.equal(isTheoryMove(position(1000, [["e2e4", 971], ["d2d4", 29]]), "d2d4"), false);
+test("a move under 1% of the position is not theory, even with 20+ games", () => {
+  // 25 games of 3000 = 0.83%
+  assert.equal(isTheoryMove(position(3000, [["e2e4", 2975], ["d2d4", 25]]), "d2d4"), false);
+  // 30 games of 3000 = exactly 1%
+  assert.equal(isTheoryMove(position(3000, [["e2e4", 2970], ["d2d4", 30]]), "d2d4"), true);
+  assert.equal(isTheoryMove(position(3000, [["e2e4", 2971], ["d2d4", 29]]), "d2d4"), false);
+  // 2% of 1000 used to fail at the old 3% and passes now
+  assert.equal(isTheoryMove(position(1000, [["e2e4", 980], ["d2d4", 20]]), "d2d4"), true);
 });
 
 test("a move the explorer does not list is not theory", () => {

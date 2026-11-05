@@ -3,7 +3,7 @@
 // Dependency-free so the Node script and the browser share one implementation.
 //
 // The file holds only THEORY: (position key, move) pairs that passed BOOK_RULE
-// (position >= 100 games, move >= 20 games and >= 3%) over the filtered Lichess
+// (position >= 100 games, move >= 20 games and >= 1%) over the filtered Lichess
 // games. Position key = the app's 64-bit position hash (src/chess/zobrist.ts),
 // as an UNSIGNED 64-bit integer. Membership is exact (no Bloom filter).
 //

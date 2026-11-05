@@ -42,21 +42,38 @@ export function uciLine(movetext, limit = 120) {
   return ucis;
 }
 
-async function explorerPlies(url, ucis) {
-  try {
-    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ moves: ucis }) });
-    const payload = await response.json();
-    return payload.available === true ? payload.plies : null;
-  } catch {
-    return null;
+/**
+ * Asks the explorer route until it answers COMPLETELY (`partial: false`): the
+ * route caps its walk by time and returns a shorter book as partial, which must
+ * never be compared as if it were the real length. Retries are bounded; returns
+ * { plies, retries, status } where status is "complete", "partial" (retries
+ * exhausted, plies null) or "unavailable".
+ */
+export async function explorerPlies(url, ucis, { retries = 5, delayMs = 2000, fetchImpl = fetch, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {}) {
+  let status = "unavailable";
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    if (attempt > 0) {
+      await sleep(delayMs);
+    }
+    try {
+      const response = await fetchImpl(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ moves: ucis }) });
+      const payload = await response.json();
+      if (payload.available === true && payload.partial === false) {
+        return { plies: payload.plies, retries: attempt, status: "complete" };
+      }
+      status = payload.available === true ? "partial" : "unavailable";
+    } catch {
+      status = "unavailable";
+    }
   }
+  return { plies: null, retries, status };
 }
 
 async function main() {
   const argv = process.argv.slice(2);
   const file = argv.find((arg, i) => !arg.startsWith("--") && !(argv[i - 1] ?? "").startsWith("--"));
   if (!file) {
-    throw new Error("usage: node scripts/opening-book/inspect-book.mjs <book.bin.gz> [--pgn games.pgn] [--explorer URL] [--max-games N]");
+    throw new Error("usage: node scripts/opening-book/inspect-book.mjs <book.bin.gz> [--pgn games.pgn] [--explorer URL] [--max-games N] [--retries 5] [--retry-delay 2000]");
   }
   const book = loadBook(file);
   console.log(`positions ${book.keyCount}, moves ${book.entryCount}, max ply ${book.maxPly}`);
@@ -69,7 +86,10 @@ async function main() {
   let games = 0;
   let same = 0;
   let compared = 0;
-  console.log("game\tlocal\texplorer");
+  const retries = Number(flag(argv, "--retries") ?? 5);
+  const delayMs = Number(flag(argv, "--retry-delay") ?? 2000);
+  let totalRetries = 0;
+  console.log("game\tlocal\texplorer\tretries");
   for await (const game of readGames(linesOf(createReadStream(pgn)))) {
     if (games >= maxGames) {
       break;
@@ -77,15 +97,17 @@ async function main() {
     games += 1;
     const ucis = uciLine(game.movetext);
     const local = walkLocalBook(book, new Chess().fen(), ucis).plies;
-    const remote = explorer ? await explorerPlies(explorer, ucis) : null;
-    if (remote !== null) {
+    const remote = explorer ? await explorerPlies(explorer, ucis, { retries, delayMs }) : null;
+    if (remote?.status === "complete") {
       compared += 1;
-      same += remote === local ? 1 : 0;
+      same += remote.plies === local ? 1 : 0;
     }
-    console.log(`${game.headers.White ?? "?"}-${game.headers.Black ?? "?"}\t${local}\t${remote ?? (explorer ? "unavailable" : "-")}`);
+    totalRetries += remote?.retries ?? 0;
+    const shown = remote ? (remote.status === "complete" ? remote.plies : `${remote.status} (not compared)`) : "-";
+    console.log(`${game.headers.White ?? "?"}-${game.headers.Black ?? "?"}\t${local}\t${shown}\t${remote?.retries ?? "-"}`);
   }
   if (explorer) {
-    console.log(`identical on ${same} of ${compared} compared games`);
+    console.log(`identical on ${same} of ${compared} compared games (${totalRetries} retries in total; games without a complete answer are not compared)`);
   }
 }
 
