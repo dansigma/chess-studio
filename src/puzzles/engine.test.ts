@@ -1,3 +1,4 @@
+import { localDayKey } from "./activity";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Chess } from "chess.js";
@@ -260,10 +261,11 @@ test("motif recording covers streak, rush and daily but skips mistakes mode", ()
     themes: ["fork"],
     ms: 1000,
   });
-  assert.deepEqual(other, emptyProgress());
+  assert.deepEqual({ ...other, days: {} }, emptyProgress());
+  assert.deepEqual(other.motifs, {});
 });
 
-test("mistakes attempts leave a populated progress object untouched", () => {
+test("mistakes attempts change only today's activity counter", () => {
   const now = new Date(2026, 8, 28, 12).getTime();
   const populated = applyResult(emptyProgress(), {
     id: "rated-1",
@@ -286,7 +288,10 @@ test("mistakes attempts leave a populated progress object untouched", () => {
       themes: [],
       ms: 2000,
     });
-    assert.equal(next, populated, "same reference, no clone");
+    assert.deepEqual({ ...next, days: {} }, { ...populated, days: {} });
+    const key = localDayKey(now + 1000);
+    assert.equal(next.days[key].solved + next.days[key].failed, populated.days[key].solved + populated.days[key].failed + 1);
+    assert.equal(next.days[key].xp, populated.days[key].xp, "mistakes award no xp");
   }
 });
 
