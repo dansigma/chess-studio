@@ -105,6 +105,7 @@ test("openPuzzleInStudio writes the handoff and goes to /studio", () => {
     const saved = JSON.parse(store.get("chess-studio:course-import") ?? "null");
     assert.equal(saved.title, "Puzzle 00sHx");
     assert.equal(saved.atFen, WHITE.fen);
+    assert.equal(saved.kind, "puzzle");
     assert.match(saved.pgn, /1\. Re8#/);
   } finally {
     restore();

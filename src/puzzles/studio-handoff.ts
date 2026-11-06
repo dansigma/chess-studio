@@ -12,7 +12,7 @@ import type { PuzzleMode } from "./types";
 /** The slice of a compiled puzzle the handoff needs. */
 export type StudioPuzzle = { id: string; fen: string; sans: string[] };
 
-export type PuzzleStudioImport = { title: string; pgn: string; atFen: string };
+export type PuzzleStudioImport = { title: string; pgn: string; atFen: string; kind: "puzzle" };
 
 // Lichess puzzle ids are 5 alphanumeric characters (e.g. "00sHx"). The local
 // starter catalog ("queen-corridor"…) and mistake exercises ("mx-h-…") use
@@ -77,7 +77,7 @@ export function buildPuzzleStudioImport(
       ? tPuzzle(locale, "puzzle.studio.mistakeTitle")
       : tPuzzle(locale, "puzzle.studio.boardTitle", { id: puzzle.id });
   const pgn = buildPuzzlePgn(puzzle, title);
-  return pgn ? { title, pgn, atFen: new Chess(puzzle.fen).fen() } : null;
+  return pgn ? { title, pgn, atFen: new Chess(puzzle.fen).fen(), kind: "puzzle" } : null;
 }
 
 /**

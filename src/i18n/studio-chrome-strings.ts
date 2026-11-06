@@ -154,6 +154,7 @@ export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.dialog.close",
   "chrome.dialog.toClose",
   "chrome.shell.courseLineFailed",
+  "chrome.shell.puzzleLineFailed",
   "chrome.shell.saveFailed",
   "chrome.shell.loadFailed",
 ] as const;
@@ -305,6 +306,7 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.dialog.close": "Close",
   "chrome.dialog.toClose": "to close",
   "chrome.shell.courseLineFailed": "Could not open that course line.",
+  "chrome.shell.puzzleLineFailed": "Could not open that puzzle in the Studio.",
   "chrome.shell.saveFailed": "Could not save board.",
   "chrome.shell.loadFailed": "Could not load saved boards.",
 };
@@ -454,6 +456,7 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.dialog.close": "Fechar",
   "chrome.dialog.toClose": "para fechar",
   "chrome.shell.courseLineFailed": "Não foi possível abrir essa linha de curso.",
+  "chrome.shell.puzzleLineFailed": "Não foi possível abrir esse puzzle no Studio.",
   "chrome.shell.saveFailed": "Não foi possível salvar o tabuleiro.",
   "chrome.shell.loadFailed": "Não foi possível carregar os tabuleiros salvos.",
 };

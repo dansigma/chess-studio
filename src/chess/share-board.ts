@@ -21,6 +21,8 @@ export type CourseStudyImport = {
   title: string;
   pgn: string;
   atFen?: string;
+  // SIG-1236: who handed the board over; absent means a course.
+  kind?: "puzzle";
 };
 
 function getSessionStorage(): Storage | null {
@@ -67,7 +69,8 @@ export function readCourseStudyImport(): CourseStudyImport | null {
     if (atFen !== undefined && typeof atFen !== "string") {
       return null;
     }
-    return atFen === undefined ? { title, pgn } : { title, pgn, atFen };
+    const base = atFen === undefined ? { title, pgn } : { title, pgn, atFen };
+    return (parsed as Record<string, unknown>).kind === "puzzle" ? { ...base, kind: "puzzle" } : base;
   } catch {
     return null;
   }

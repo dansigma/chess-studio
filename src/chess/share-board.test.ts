@@ -64,6 +64,20 @@ test("a course study import round-trips through session storage", () => {
   }
 });
 
+test("a puzzle study import keeps its kind; courses stay kind-less", () => {
+  const store = new Map<string, string>();
+  const restore = stubSessionStorage(store);
+  try {
+    const puzzle = { title: "Puzzle", pgn: "1. e4 *", kind: "puzzle" as const };
+    writeCourseStudyImport(puzzle);
+    assert.deepEqual(readCourseStudyImport(), puzzle);
+    writeCourseStudyImport({ title: "Course", pgn: "1. e4 *" });
+    assert.deepEqual(readCourseStudyImport(), { title: "Course", pgn: "1. e4 *" });
+  } finally {
+    restore();
+  }
+});
+
 test("a malformed course study import reads as null", () => {
   const store = new Map<string, string>([["chess-studio:course-import", "not-json{"]]);
   const restore = stubSessionStorage(store);
