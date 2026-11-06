@@ -25,7 +25,7 @@ export function PuzzleSourceLine({ puzzleId, locale }: { puzzleId: string; local
     return null;
   }
   return (
-    <p className="mt-2 text-caption text-studio-muted" data-testid="puzzle-source">
+    <p className="mt-2 text-body text-studio-muted" data-testid="puzzle-source">
       {tPuzzle(locale, "puzzle.source.label")}
       {" · "}
       <a

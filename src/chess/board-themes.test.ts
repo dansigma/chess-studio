@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BOARD_THEME_IDS, boardNotationStyles } from "./board-themes.ts";
+import { BOARD_THEME_IDS, COORDINATE_STYLE, boardCoordinateOptions, boardNotationStyles } from "./board-themes.ts";
 
 test("boardNotationStyles derives readable coordinate colours from the theme", () => {
   assert.deepEqual(boardNotationStyles("studio"), {
@@ -16,4 +16,22 @@ test("boardNotationStyles derives readable coordinate colours from the theme", (
 
 test("boardNotationStyles falls back to the studio theme for unknown ids", () => {
   assert.deepEqual(boardNotationStyles("nope" as never), boardNotationStyles("studio"));
+});
+
+test("boardCoordinateOptions returns all four coordinate options for a theme", () => {
+  const notation = boardNotationStyles("studio");
+  assert.deepEqual(boardCoordinateOptions("studio"), {
+    lightSquareNotationStyle: notation.light,
+    darkSquareNotationStyle: notation.dark,
+    alphaNotationStyle: COORDINATE_STYLE,
+    numericNotationStyle: COORDINATE_STYLE,
+  });
+  for (const theme of BOARD_THEME_IDS) {
+    assert.deepEqual(Object.keys(boardCoordinateOptions(theme)).sort(), [
+      "alphaNotationStyle",
+      "darkSquareNotationStyle",
+      "lightSquareNotationStyle",
+      "numericNotationStyle",
+    ]);
+  }
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { Chessboard } from "react-chessboard";
-import { boardSquareStyles, type BoardTheme } from "@/src/chess/board-themes";
+import { boardCoordinateOptions, boardSquareStyles, type BoardTheme } from "@/src/chess/board-themes";
 import { piecesForSet, type PieceSet } from "@/src/chess/piece-sets";
 import { squareAnchor } from "./feedback";
 import type { PuzzleFeedback } from "./use-puzzle-feedback";
@@ -32,7 +32,7 @@ export function PuzzleBoard({
 
   return (
     <div className="flex h-full min-h-0 w-full items-center justify-center [container-type:size]">
-      <div className="relative size-[min(100cqw,100cqh,520px)] overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong">
+      <div className="relative size-[min(100cqw,100cqh,520px)] lg:size-[min(100cqw,100cqh)] overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong">
         <Chessboard
           key={`${puzzle.id}-${pieceSet}`}
           options={{
@@ -40,6 +40,7 @@ export function PuzzleBoard({
             position: fen,
             boardOrientation: orientation,
             showNotation: showCoordinates,
+            ...boardCoordinateOptions(boardTheme),
             animationDurationInMs: 180,
             allowDrawingArrows: false,
             clearArrowsOnClick: false,

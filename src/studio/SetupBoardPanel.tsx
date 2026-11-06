@@ -18,7 +18,7 @@ import {
   type SetupPiece,
   type SetupPosition,
 } from "@/src/chess/setup-fen";
-import { boardSquareStyles } from "@/src/chess/board-themes";
+import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { publishVisibleFen } from "@/src/chess/copy-board";
 import { Button, IconButton } from "./ui/Button";
@@ -154,6 +154,7 @@ export function SetupBoardPanel() {
               position: fen,
               boardOrientation: board.orientation,
               showNotation: settings.showCoordinates,
+              ...boardCoordinateOptions(settings.boardTheme),
               animationDurationInMs: 0,
               showAnimations: false,
               allowDrawingArrows: false,

@@ -72,7 +72,11 @@ export function PuzzleTrainer() {
           {tPuzzle(locale, "puzzle.trainer.loading")}
         </main>
       ) : (
-        <div className="mx-auto grid min-h-0 w-full max-w-5xl flex-1 grid-rows-[minmax(0,1fr)_auto] gap-3 px-4 py-3 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:grid-rows-1 lg:gap-6 lg:py-6">
+        // SIG-1248: on lg+ this region is a size container; the board is
+        // min(available height, available width - panel - gap, 880px) and the
+        // panel takes exactly that height. Below lg the layout stays stacked.
+        <div className="flex min-h-0 w-full flex-1 flex-col px-4 py-3 lg:items-center lg:justify-center lg:px-8 lg:py-6 lg:[container-type:size]">
+        <div className="grid min-h-0 w-full flex-1 grid-rows-[minmax(0,1fr)_auto] gap-3 lg:h-[var(--board)] lg:w-auto lg:flex-none lg:grid-cols-[var(--board)_24rem] lg:grid-rows-1 lg:gap-6 lg:[--board:min(100cqh,calc(100cqw_-_25.5rem),880px)]">
           <PuzzleBoard
             session={session}
             feedback={feedback}
@@ -81,6 +85,7 @@ export function PuzzleTrainer() {
             showCoordinates={showCoordinates}
           />
           <PuzzlePanel mode={mode} theme={theme} session={session} feedback={feedback} locale={locale} />
+        </div>
         </div>
       )}
     </div>

@@ -66,3 +66,21 @@ export function boardNotationStyles(theme: BoardTheme): {
     dark: { color: mixHex(colors.light, "#ffffff", 0.6) },
   };
 }
+
+/** SIG-1192: shared coordinate-label size and weight, so every board labels squares alike. */
+export const COORDINATE_STYLE = { fontSize: "11px", fontWeight: 600 } as const;
+
+/**
+ * All four react-chessboard coordinate options for a theme. Spread into the
+ * Chessboard `options` on every board (Studio, setup, puzzles, lessons) so the
+ * labels never fall back to the library's brown and cream.
+ */
+export function boardCoordinateOptions(theme: BoardTheme) {
+  const notation = boardNotationStyles(theme);
+  return {
+    lightSquareNotationStyle: notation.light,
+    darkSquareNotationStyle: notation.dark,
+    alphaNotationStyle: COORDINATE_STYLE,
+    numericNotationStyle: COORDINATE_STYLE,
+  };
+}
