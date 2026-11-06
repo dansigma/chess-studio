@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { localDayKey } from "./activity";
 import { emptyProgress } from "./engine";
 import { SessionSummary } from "./SessionSummary.tsx";
 import { buildSessionSummary, type SessionAttempt } from "./session-summary";
 import type { PuzzleMode, PuzzleProgress } from "./types";
-import { cumulativeXpForLevel } from "./xp";
+import { cumulativeXpForLevel, xpBreakdown } from "./xp";
+import { openPuzzleInStudio, type StudioPuzzle } from "./studio-handoff";
 
 before(() => {
   setupDom();
@@ -21,8 +22,11 @@ const day = { solved: 1, failed: 0, ms: 1000, xp: 0 };
 const yesterday = localDayKey(NOW - 86_400_000);
 const today = localDayKey(NOW);
 
-function attempt(success: boolean, ms = 12_000): SessionAttempt {
-  return { success, firstTry: success, ms, at: NOW };
+const PUZZLE = { id: "00sHx", fen: "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", sans: ["Re8#"] };
+
+function attempt(success: boolean, ms = 12_000, id = "00sHx"): SessionAttempt {
+  const breakdown = xpBreakdown({ success, puzzleRating: 1200, userRating: 1200, solverMoves: 1, ms, hinted: false });
+  return { success, firstTry: success, ms, at: NOW, puzzle: { ...PUZZLE, id }, xp: { breakdown, awarded: true } };
 }
 
 function progress(over: Partial<PuzzleProgress> = {}): PuzzleProgress {
@@ -44,9 +48,20 @@ function summaryFor(mode: PuzzleMode, attempts: SessionAttempt[], xpGain = 40, e
   });
 }
 
-function mount(summary: ReturnType<typeof summaryFor>, locale: "en" | "pt-br" = "en", canReview = false) {
+function mount(
+  summary: ReturnType<typeof summaryFor>,
+  locale: "en" | "pt-br" = "en",
+  canReview = false,
+  onAnalyze?: (puzzle: StudioPuzzle) => void,
+) {
   render(
-    <SessionSummary summary={summary} locale={locale} onTrainAgain={() => {}} canReview={canReview} />,
+    <SessionSummary
+      summary={summary}
+      locale={locale}
+      onTrainAgain={() => {}}
+      canReview={canReview}
+      onAnalyze={onAnalyze}
+    />,
   );
 }
 
@@ -84,6 +99,7 @@ test("rated: three cards, stepped with Next and Back, ending in the actions", ()
     assert.match(region.textContent ?? "", /67%/);
     assert.match(region.textContent ?? "", /12\.0s/);
     screen.getByRole("img", { name: "2 solved, 1 failed" });
+    assert.equal(screen.queryAllByTestId("summary-puzzle-row").length, 0, "the list lives on the first card");
     // last card: the three buttons, no Next
     screen.getByRole("button", { name: "Train again" });
     screen.getByRole("link", { name: "Review my mistakes" });
@@ -207,5 +223,91 @@ test("reduced motion: the level bar renders at its end state immediately", () =>
   } finally {
     cleanup();
     setupDom();
+  }
+});
+
+test("the list shows each puzzle with its result, XP breakdown and the Studio action", () => {
+  try {
+    const opened: string[] = [];
+    mount(summaryFor("rated", [attempt(true, 5_000, "aaaaa"), attempt(false, 9_000, "bbbbb")]), "en", false, (puzzle) =>
+      opened.push(puzzle.id),
+    );
+    const rows = screen.getAllByTestId("summary-puzzle-row");
+    assert.equal(rows.length, 2);
+    assert.match(rows[0]?.textContent ?? "", /\+36 XP · 20 solved × 1.5 fast × 1.2 first try/);
+    assert.match(rows[1]?.textContent ?? "", /\+0 XP · No XP for a missed puzzle/);
+    within(rows[0] as HTMLElement).getByRole("img", { name: "Solved" });
+    within(rows[1] as HTMLElement).getByRole("img", { name: "Failed" });
+    fireEvent.click(screen.getByRole("button", { name: "Analyze puzzle 2 in Studio" }));
+    assert.deepEqual(opened, ["bbbbb"]);
+    assert.equal(screen.queryByRole("button", { name: /Show all/ }), null, "no toggle up to 10 puzzles");
+  } finally {
+    cleanup();
+  }
+});
+
+test("daily: one row with the Studio action that runs the real handoff", () => {
+  try {
+    const pushed: string[] = [];
+    mount(summaryFor("daily", [attempt(true)]), "en", false, (puzzle) =>
+      openPuzzleInStudio(puzzle, "daily", "en", (href) => pushed.push(href), "https://example.test"),
+    );
+    assert.equal(screen.getAllByTestId("summary-puzzle-row").length, 1);
+    fireEvent.click(screen.getByRole("button", { name: "Analyze puzzle 1 in Studio" }));
+    assert.deepEqual(pushed.length, 1);
+    assert.ok(pushed[0] === "/studio" || pushed[0]?.startsWith("https://example.test"), pushed[0]);
+  } finally {
+    cleanup();
+  }
+});
+
+test("the list shows the last 10 and a show-all toggle", () => {
+  try {
+    mount(summaryFor("rated", Array.from({ length: 12 }, () => attempt(true))), "en", false, () => {});
+    assert.equal(screen.getAllByTestId("summary-puzzle-row").length, 10);
+    fireEvent.click(screen.getByRole("button", { name: "Show all (12)" }));
+    assert.equal(screen.getAllByTestId("summary-puzzle-row").length, 12);
+    fireEvent.click(screen.getByRole("button", { name: "Show last 10" }));
+    assert.equal(screen.getAllByTestId("summary-puzzle-row").length, 10);
+  } finally {
+    cleanup();
+  }
+});
+
+test("mistakes rows say practice only instead of XP", () => {
+  try {
+    mount(summaryFor("mistakes", [attempt(true), attempt(false)]), "en", false, () => {});
+    for (const row of screen.getAllByTestId("summary-puzzle-xp")) {
+      assert.equal(row.textContent, "practice only");
+    }
+  } finally {
+    cleanup();
+  }
+});
+
+test("pt-BR list: breakdown, action and singular/plural in text and aria-labels", () => {
+  try {
+    mount(summaryFor("rated", [attempt(true), attempt(true), attempt(false)]), "pt-br", false, () => {});
+    const text = screen.getByTestId("summary-puzzles").textContent ?? "";
+    assert.match(text, /\+30 XP · 20 resolvido × 1,27 rápido × 1,2 de primeira/);
+    screen.getByRole("button", { name: "Analisar o problema 3 no Studio" });
+    screen.getByRole("img", { name: "Errado" });
+    screen.getByText("Errado", { selector: "dt" });
+    screen.getByText("Resolvidos", { selector: "dt" });
+    fireEvent.click(screen.getByRole("button", { name: "Próximo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Próximo" }));
+    screen.getByRole("img", { name: "2 resolvidos, 1 errado" });
+  } finally {
+    cleanup();
+  }
+});
+
+test("a single failure reads 'Failed' and '1 errado'", () => {
+  try {
+    mount(summaryFor("rated", [attempt(true), attempt(false)]), "pt-br");
+    screen.getByText("Certo de primeira", { selector: "dt" });
+    screen.getByText("Errado", { selector: "dt" });
+  } finally {
+    cleanup();
   }
 });

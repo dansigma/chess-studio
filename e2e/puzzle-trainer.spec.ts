@@ -253,6 +253,10 @@ test("puzzle trainer: the daily puzzle solves and offers no continue button", as
   // SIG-1235: the daily puzzle is the whole session; the summary follows it.
   await expect(summary(page)).toBeVisible();
   await expect(summary(page)).toContainText("Correct on the first try");
+  // SIG-1245: the daily summary lists the puzzle with its XP and the Studio action.
+  await expect(summary(page).getByTestId("summary-puzzle-row")).toHaveCount(1);
+  await expect(summary(page).getByTestId("summary-puzzle-xp")).toContainText("XP");
+  await expect(summary(page).getByRole("button", { name: "Analyze puzzle 1 in Studio" })).toBeVisible();
   await summary(page).getByRole("button", { name: "Next" }).click();
   await expect(summary(page).getByRole("link", { name: "Back to puzzles" })).toBeVisible();
 });

@@ -78,6 +78,9 @@ export function PuzzlePanel({
         summary={summary}
         locale={locale}
         onTrainAgain={retry}
+        onAnalyze={(played) =>
+          openPuzzleInStudio(played, mode, locale, (href) => router.push(href), window.location.origin)
+        }
         trainAgainHref={mode === "daily" ? "/puzzles/play?mode=rated" : undefined}
         canReview={summary.failed > 0 && mode !== "mistakes" && (dueMistakes ?? 0) > 0}
       />
