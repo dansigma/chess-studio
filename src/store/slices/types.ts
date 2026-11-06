@@ -270,6 +270,8 @@ export type StudioState = {
     // SIG-910: opt-in side-by-side open. When set, the game loads on a new
     // independent board (preview: false) instead of reusing the preview board.
     openInNewBoard?: boolean;
+    // SIG-1247: side at the bottom of the opened board; omitted keeps the default.
+    orientation?: BoardOrientation;
   }) => void;
   importPlayerGame: (game: PlayerGame, options?: { openInNewBoard?: boolean }) => void;
   exportActivePgn: () => string;

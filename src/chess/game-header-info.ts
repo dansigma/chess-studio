@@ -8,10 +8,10 @@ import { chesscomOpeningNameFromUrl } from "../lib/players/chesscom-opening.ts";
 import { resolveOpeningName } from "../lib/opening-names.ts";
 
 export type GameResult = "1-0" | "0-1" | "½-½";
-export type SourceKind = "chesscom" | "lichess" | "otb";
+export type SourceKind = "chesscom" | "lichess" | "other";
 
 export type GameHeaderInfo = {
-  source: { kind: SourceKind; label: string; url?: string } | null;
+  source: { kind: SourceKind; label: string; url: string } | null;
   event: string | null;
   round: string | null;
   site: string | null;
@@ -72,25 +72,55 @@ function isUrl(value: string): boolean {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(value);
 }
 
-function sourceFor(
-  headers: Record<string, string>,
-  event: string | null,
-  site: string | null,
-  locale: SiteLocale,
-): GameHeaderInfo["source"] {
-  const siteText = (site ?? "").toLowerCase();
-  const link = real(headers.Link);
-  const chesscom = siteText === "chess.com" || siteText.includes("chess.com") || (link?.toLowerCase().includes("chess.com") ?? false);
-  if (chesscom) {
-    const url = safeGameUrl(headers.Link) ?? (site && /chess\.com/i.test(site) ? safeGameUrl(site) : null);
-    return { kind: "chesscom", label: "Chess.com", ...(url ? { url: url.href } : {}) };
+function hostOf(value: string): string | null {
+  try {
+    return new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
   }
-  if (siteText.includes("lichess.org")) {
-    const url = safeGameUrl(site ?? undefined);
-    return { kind: "lichess", label: "Lichess", ...(url ? { url: url.href } : {}) };
+}
+
+function hostIs(host: string | null, root: string): boolean {
+  return host !== null && (host === root || host.endsWith(`.${root}`));
+}
+
+/** An http(s) URL without credentials, safe to render as a link (any domain). */
+function httpUrl(value: string | undefined): URL | null {
+  const text = real(value);
+  if (!text || !isUrl(text)) {
+    return null;
   }
-  if (event || site) {
-    return { kind: "otb", label: tPanels(locale, "notation.header.otb") };
+  try {
+    const url = new URL(text);
+    return (url.protocol === "https:" || url.protocol === "http:") && !url.username && !url.password ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * SIG-1247: a link to the original game, or null. The header no longer says
+ * where a game was played (the old "Presencial" label guessed from Event/Site
+ * and was wrong for puzzles, masters and online games). A source element shows
+ * only when a header holds a real http(s) URL: Link first, then Site.
+ * chess.com -> "Chess.com", lichess.org -> "Lichess", any other host -> a
+ * generic "View original" link. No URL (Site "Chess.com" alone, "Internet",
+ * "?", a place name, an Event only) -> null.
+ */
+function sourceFor(headers: Record<string, string>, locale: SiteLocale): GameHeaderInfo["source"] {
+  for (const candidate of [headers.Link, headers.Site]) {
+    const url = httpUrl(candidate);
+    if (!url) {
+      continue;
+    }
+    const host = hostOf(url.href);
+    if (hostIs(host, "chess.com")) {
+      return { kind: "chesscom", label: "Chess.com", url: url.href };
+    }
+    if (hostIs(host, "lichess.org")) {
+      return { kind: "lichess", label: "Lichess", url: url.href };
+    }
+    return { kind: "other", label: tPanels(locale, "notation.header.viewOriginal"), url: url.href };
   }
   return null;
 }
@@ -170,8 +200,12 @@ export function formatTimeControl(value: string | undefined, locale: SiteLocale)
 export function gameHeaderInfo(headers: Record<string, string>, locale: SiteLocale = "en"): GameHeaderInfo {
   const rawEvent = real(headers.Event);
   const rawSite = real(headers.Site);
-  const source = sourceFor(headers, rawEvent, rawSite, locale);
-  const online = source !== null && source.kind !== "otb";
+  const source = sourceFor(headers, locale);
+  // Online games hide the "site" (a platform, not a city) and show the time control.
+  const online =
+    source !== null ||
+    Boolean(real(headers.Link)) ||
+    (rawSite !== null && (isUrl(rawSite) || /^(chess\.com|lichess(\.org)?|internet|online)$/i.test(rawSite)));
   const event = rawEvent && !GENERIC_EVENT.test(rawEvent) && !isUrl(rawEvent) ? rawEvent : null;
   const round = real(headers.Round);
   // No country names in the header: drop a trailing IOC/FIDE code ("Biel SUI"

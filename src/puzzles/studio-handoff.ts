@@ -12,7 +12,14 @@ import type { PuzzleMode } from "./types";
 /** The slice of a compiled puzzle the handoff needs. */
 export type StudioPuzzle = { id: string; fen: string; sans: string[] };
 
-export type PuzzleStudioImport = { title: string; pgn: string; atFen: string; kind: "puzzle" };
+export type PuzzleStudioImport = {
+  title: string;
+  pgn: string;
+  atFen: string;
+  kind: "puzzle";
+  // SIG-1247: the side to move at the puzzle position, i.e. the side the user plays.
+  orientation: "white" | "black";
+};
 
 // Lichess puzzle ids are 5 alphanumeric characters (e.g. "00sHx"). The local
 // starter catalog ("queen-corridor"…) and mistake exercises ("mx-h-…") use
@@ -49,9 +56,13 @@ export function buildPuzzlePgn(puzzle: StudioPuzzle, title: string): string | nu
         text.push(index === 0 ? `${fullmove}... ${move.san}` : move.san);
       }
     }
+    // SIG-1247: a Lichess puzzle id gets its training URL as Site (the header
+    // then shows "Lichess" with a link); other puzzles carry no Site, so the
+    // header shows no source label rather than a wrong one.
+    const lichessUrl = lichessPuzzleUrl(puzzle.id);
     const headers = [
       ["Event", title],
-      ["Site", "?"],
+      ...(lichessUrl ? [["Site", lichessUrl]] : []),
       ["Result", "*"],
       ["SetUp", "1"],
       ["FEN", startFen],
@@ -77,7 +88,17 @@ export function buildPuzzleStudioImport(
       ? tPuzzle(locale, "puzzle.studio.mistakeTitle")
       : tPuzzle(locale, "puzzle.studio.boardTitle", { id: puzzle.id });
   const pgn = buildPuzzlePgn(puzzle, title);
-  return pgn ? { title, pgn, atFen: new Chess(puzzle.fen).fen(), kind: "puzzle" } : null;
+  if (!pgn) {
+    return null;
+  }
+  const start = new Chess(puzzle.fen);
+  return {
+    title,
+    pgn,
+    atFen: start.fen(),
+    kind: "puzzle",
+    orientation: start.turn() === "b" ? "black" : "white",
+  };
 }
 
 /**

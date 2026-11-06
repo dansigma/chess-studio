@@ -23,6 +23,10 @@ export type CourseStudyImport = {
   atFen?: string;
   // SIG-1236: who handed the board over; absent means a course.
   kind?: "puzzle";
+  // SIG-1247: side that should sit at the bottom of the new board. Set by
+  // puzzle handoffs (the side to move); absent for courses, which keep the
+  // default White-at-the-bottom orientation.
+  orientation?: "white" | "black";
 };
 
 function getSessionStorage(): Storage | null {
@@ -69,8 +73,15 @@ export function readCourseStudyImport(): CourseStudyImport | null {
     if (atFen !== undefined && typeof atFen !== "string") {
       return null;
     }
-    const base = atFen === undefined ? { title, pgn } : { title, pgn, atFen };
-    return (parsed as Record<string, unknown>).kind === "puzzle" ? { ...base, kind: "puzzle" } : base;
+    const record = parsed as Record<string, unknown>;
+    const orientation = record.orientation === "white" || record.orientation === "black" ? record.orientation : undefined;
+    const base: CourseStudyImport = {
+      title,
+      pgn,
+      ...(atFen === undefined ? {} : { atFen }),
+      ...(orientation ? { orientation } : {}),
+    };
+    return record.kind === "puzzle" ? { ...base, kind: "puzzle" } : base;
   } catch {
     return null;
   }
