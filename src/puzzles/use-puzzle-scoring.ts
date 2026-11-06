@@ -66,10 +66,10 @@ export function usePuzzleScoring(mode: PuzzleMode) {
       sessionScore: number,
       ms: number | null = null,
       hinted = false,
-    ): boolean => {
+    ): XpResult | null => {
       const current = progressRef.current;
       if (!current || recorded.current) {
-        return false;
+        return null;
       }
       recorded.current = true;
       const { next, delta: ratingDelta, gained: xpGained, xp } = applyPuzzleResult(current, {
@@ -95,7 +95,7 @@ export function usePuzzleScoring(mode: PuzzleMode) {
       if (next !== current) {
         void saveProgress(next);
       }
-      return true;
+      return xp;
     },
     [mode],
   );

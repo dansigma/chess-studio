@@ -260,7 +260,8 @@ export function usePuzzleSession({
     }
     const score = nextSessionScore(success, sessionSolvedRef.current);
     const ms = Math.max(0, Date.now() - shownAtRef.current);
-    if (!applyScore(success, currentPuzzle, score, ms, hintedRef.current)) {
+    const xp = applyScore(success, currentPuzzle, score, ms, hintedRef.current);
+    if (!xp) {
       return;
     }
     // SIG-1179: the attempt commits → the puzzle is seen, whatever the
@@ -273,7 +274,12 @@ export function usePuzzleSession({
     }
     sessionSolvedRef.current = score;
     setSessionSolved(score);
-    setAttempts((list) => [...list, { success, firstTry: success && !hintedRef.current, ms, at: Date.now() }]);
+    // SIG-1245: keep the puzzle and its XP so the summary can list them.
+    const played = { id: currentPuzzle.id, fen: currentPuzzle.fen, sans: currentPuzzle.sans };
+    setAttempts((list) => [
+      ...list,
+      { success, firstTry: success && !hintedRef.current, ms, at: Date.now(), puzzle: played, xp },
+    ]);
     if (!success && mode === "streak") {
       setSessionOver(true);
     }

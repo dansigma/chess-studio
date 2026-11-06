@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { PUZZLE_STRING_KEYS, tPuzzle } from "@/src/i18n/puzzle-strings";
-import { cumulativeXpForLevel } from "./xp";
+import { PUZZLE_STRING_KEYS, tPuzzle, tPuzzleCount } from "@/src/i18n/puzzle-strings";
+import { cumulativeXpForLevel, xpBreakdown } from "./xp";
+import type { XpResult } from "./use-puzzle-scoring";
 import { localDayKey } from "./activity";
 import { emptyProgress } from "./engine";
 import {
@@ -10,7 +11,9 @@ import {
   CHEER_KEYS,
   cheerBucket,
   cheerKeyFor,
+  SUMMARY_LIST_LIMIT,
   summaryVisible,
+  visibleRows,
   type SessionAttempt,
 } from "./session-summary";
 import type { PuzzleProgress } from "./types";
@@ -18,8 +21,22 @@ import type { PuzzleProgress } from "./types";
 const NOW = new Date(2026, 10, 5, 12, 0, 0).getTime();
 const DAY = 86_400_000;
 
+const PUZZLE = { id: "00sHx", fen: "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", sans: ["Re8#"] };
+
+function xpFor(success: boolean): XpResult {
+  const breakdown = xpBreakdown({
+    success,
+    puzzleRating: 1200,
+    userRating: 1200,
+    solverMoves: 1,
+    ms: 10_000,
+    hinted: false,
+  });
+  return { breakdown, awarded: true };
+}
+
 function attempt(success: boolean, over: Partial<SessionAttempt> = {}): SessionAttempt {
-  return { success, firstTry: success, ms: 10_000, at: NOW, ...over };
+  return { success, firstTry: success, ms: 10_000, at: NOW, puzzle: PUZZLE, xp: xpFor(success), ...over };
 }
 
 function progress(over: Partial<PuzzleProgress> = {}): PuzzleProgress {
@@ -214,4 +231,72 @@ test("session end: mistakes when the queue is empty or the user finishes", () =>
 test("session end: an exhausted pool ends a session that has attempts", () => {
   assert.equal(summaryVisible({ ...idle, mode: "rated", exhausted: true }), true);
   assert.equal(summaryVisible({ ...idle, mode: "rated", attempts: 0, exhausted: true }), false);
+});
+
+test("rows list every attempt in order with its own XP breakdown", () => {
+  const summary = buildSessionSummary({
+    mode: "rated",
+    attempts: [attempt(true), attempt(false, { puzzle: { ...PUZZLE, id: "abcde" } })],
+    before: progress(),
+    after: progress(),
+  });
+  assert.equal(summary.rows.length, 2);
+  assert.deepEqual(
+    summary.rows.map((row) => [row.number, row.puzzle.id, row.success, row.breakdown.total, row.practiceOnly]),
+    [
+      [1, "00sHx", true, 32, false],
+      [2, "abcde", false, 0, false],
+    ],
+  );
+});
+
+test("daily has one row; mistakes rows are practice only; an un-awarded XP result is practice only", () => {
+  const daily = buildSessionSummary({ mode: "daily", attempts: [attempt(true)], before: progress(), after: progress() });
+  assert.equal(daily.rows.length, 1);
+  const mistakes = buildSessionSummary({
+    mode: "mistakes",
+    attempts: [attempt(true), attempt(false)],
+    before: progress(),
+    after: progress(),
+  });
+  assert.deepEqual(
+    mistakes.rows.map((row) => row.practiceOnly),
+    [true, true],
+  );
+  const repeated = buildSessionSummary({
+    mode: "daily",
+    attempts: [attempt(true, { xp: { ...xpFor(true), awarded: false } })],
+    before: progress(),
+    after: progress(),
+  });
+  assert.equal(repeated.rows[0]?.practiceOnly, true);
+});
+
+test("visibleRows keeps the last 10 until show-all", () => {
+  const attempts = Array.from({ length: 13 }, () => attempt(true));
+  const { rows } = buildSessionSummary({ mode: "rated", attempts, before: progress(), after: progress() });
+  assert.equal(rows.length, 13);
+  const shown = visibleRows(rows, false);
+  assert.equal(shown.length, SUMMARY_LIST_LIMIT);
+  assert.equal(shown[0]?.number, 4);
+  assert.equal(shown.at(-1)?.number, 13);
+  assert.equal(visibleRows(rows, true).length, 13);
+  assert.equal(visibleRows(rows.slice(0, 3), false).length, 3);
+});
+
+test("counts use singular and plural forms in both locales", () => {
+  const cases: [number, string, string][] = [
+    [1, "1 solved", "1 resolvido"],
+    [2, "2 solved", "2 resolvidos"],
+  ];
+  for (const [n, en, pt] of cases) {
+    assert.equal(tPuzzleCount("en", "puzzle.summary.count.solved", n), en);
+    assert.equal(tPuzzleCount("pt-br", "puzzle.summary.count.solved", n), pt);
+  }
+  assert.equal(tPuzzleCount("en", "puzzle.summary.count.failed", 1), "1 failed");
+  assert.equal(tPuzzleCount("pt-br", "puzzle.summary.count.failed", 1), "1 errado");
+  assert.equal(tPuzzleCount("pt-br", "puzzle.summary.count.failed", 2), "2 errados");
+  assert.equal(tPuzzleCount("pt-br", "puzzle.summary.count.failed", 5), "5 errados");
+  assert.equal(tPuzzleCount("pt-br", "puzzle.summary.did.firstTry", 1), "Certo de primeira");
+  assert.equal(tPuzzleCount("pt-br", "puzzle.summary.did.firstTry", 3), "Certos de primeira");
 });

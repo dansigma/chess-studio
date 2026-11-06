@@ -4,7 +4,9 @@
 // sentences are whole-sentence templates (`{rating}`, `{count}` …), never
 // concatenation, so Portuguese word order is free. Theme ids are stable
 // (stored in progress data); only their display strings live here.
-import { createT } from "./create-t.ts";
+import { createT, type StringVars } from "./create-t.ts";
+import { pluralCategory } from "./format.ts";
+import type { SiteLocale } from "./locale.ts";
 
 export const PUZZLE_STRING_KEYS = [
   "puzzle.mode.rated",
@@ -202,6 +204,20 @@ export const PUZZLE_STRING_KEYS = [
   "puzzle.summary.cheer.tough.0",
   "puzzle.summary.cheer.tough.1",
   "puzzle.summary.cheer.tough.2",
+  "puzzle.summary.did.solved.one",
+  "puzzle.summary.did.firstTry.one",
+  "puzzle.summary.did.failed.one",
+  "puzzle.summary.count.solved",
+  "puzzle.summary.count.solved.one",
+  "puzzle.summary.count.failed",
+  "puzzle.summary.count.failed.one",
+  "puzzle.summary.list.title",
+  "puzzle.summary.list.resultSolved",
+  "puzzle.summary.list.resultFailed",
+  "puzzle.summary.list.practice",
+  "puzzle.summary.list.showAll",
+  "puzzle.summary.list.showLess",
+  "puzzle.summary.list.analyzeAria",
 ] as const;
 
 export type PuzzleStringKey = (typeof PUZZLE_STRING_KEYS)[number];
@@ -388,7 +404,7 @@ const EN: Record<PuzzleStringKey, string> = {
   "puzzle.summary.rating.before": "Before",
   "puzzle.summary.rating.after": "After",
   "puzzle.summary.rating.change": "Change",
-  "puzzle.summary.rating.barAria": "{solved} solved, {failed} failed",
+  "puzzle.summary.rating.barAria": "{solved}, {failed}",
   "puzzle.summary.rating.accuracy": "Accuracy",
   "puzzle.summary.rating.avgTime": "Average time per puzzle",
   "puzzle.summary.action.trainAgain": "Train again",
@@ -403,6 +419,20 @@ const EN: Record<PuzzleStringKey, string> = {
   "puzzle.summary.cheer.tough.0": "A tough one, but this is how you grow.",
   "puzzle.summary.cheer.tough.1": "Hard puzzles teach the most. Come back stronger.",
   "puzzle.summary.cheer.tough.2": "Not your day, and that is fine. Review and try again.",
+  "puzzle.summary.did.solved.one": "Solved",
+  "puzzle.summary.did.firstTry.one": "Correct on the first try",
+  "puzzle.summary.did.failed.one": "Failed",
+  "puzzle.summary.count.solved": "{count} solved",
+  "puzzle.summary.count.solved.one": "{count} solved",
+  "puzzle.summary.count.failed": "{count} failed",
+  "puzzle.summary.count.failed.one": "{count} failed",
+  "puzzle.summary.list.title": "Puzzles in this session",
+  "puzzle.summary.list.resultSolved": "Solved",
+  "puzzle.summary.list.resultFailed": "Failed",
+  "puzzle.summary.list.practice": "practice only",
+  "puzzle.summary.list.showAll": "Show all ({count})",
+  "puzzle.summary.list.showLess": "Show last {count}",
+  "puzzle.summary.list.analyzeAria": "Analyze puzzle {number} in Studio",
 };
 
 const PT_BR: Record<PuzzleStringKey, string> = {
@@ -587,7 +617,7 @@ const PT_BR: Record<PuzzleStringKey, string> = {
   "puzzle.summary.rating.before": "Antes",
   "puzzle.summary.rating.after": "Depois",
   "puzzle.summary.rating.change": "Variação",
-  "puzzle.summary.rating.barAria": "{solved} resolvidos, {failed} errados",
+  "puzzle.summary.rating.barAria": "{solved}, {failed}",
   "puzzle.summary.rating.accuracy": "Precisão",
   "puzzle.summary.rating.avgTime": "Tempo médio por problema",
   "puzzle.summary.action.trainAgain": "Treinar de novo",
@@ -602,8 +632,44 @@ const PT_BR: Record<PuzzleStringKey, string> = {
   "puzzle.summary.cheer.tough.0": "Foi difícil, mas é assim que se evolui.",
   "puzzle.summary.cheer.tough.1": "Problemas difíceis ensinam mais. Volte mais forte.",
   "puzzle.summary.cheer.tough.2": "Não foi seu dia, e tudo bem. Revise e tente de novo.",
+  "puzzle.summary.did.solved.one": "Resolvido",
+  "puzzle.summary.did.firstTry.one": "Certo de primeira",
+  "puzzle.summary.did.failed.one": "Errado",
+  "puzzle.summary.count.solved": "{count} resolvidos",
+  "puzzle.summary.count.solved.one": "{count} resolvido",
+  "puzzle.summary.count.failed": "{count} errados",
+  "puzzle.summary.count.failed.one": "{count} errado",
+  "puzzle.summary.list.title": "Problemas da sessão",
+  "puzzle.summary.list.resultSolved": "Resolvido",
+  "puzzle.summary.list.resultFailed": "Errado",
+  "puzzle.summary.list.practice": "apenas treino",
+  "puzzle.summary.list.showAll": "Mostrar todos ({count})",
+  "puzzle.summary.list.showLess": "Mostrar os últimos {count}",
+  "puzzle.summary.list.analyzeAria": "Analisar o problema {number} no Studio",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;
 
 export const tPuzzle = createT(EN, PT_BR);
+
+/** Keys that have a singular companion `<key>.one` (the bare key is the plural form). */
+export type PuzzlePluralKey =
+  | "puzzle.summary.did.solved"
+  | "puzzle.summary.did.firstTry"
+  | "puzzle.summary.did.failed"
+  | "puzzle.summary.count.solved"
+  | "puzzle.summary.count.failed";
+
+/**
+ * SIG-1245: translate a counted string. Picks `<key>.one` when Intl.PluralRules
+ * says "one" for the locale and the bare key otherwise, and fills `{count}`.
+ */
+export function tPuzzleCount(
+  locale: SiteLocale,
+  key: PuzzlePluralKey,
+  count: number,
+  vars: StringVars = {},
+): string {
+  const picked = pluralCategory(locale, count) === "one" ? (`${key}.one` as PuzzleStringKey) : key;
+  return tPuzzle(locale, picked, { ...vars, count });
+}

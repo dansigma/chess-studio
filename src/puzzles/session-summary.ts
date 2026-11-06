@@ -4,8 +4,10 @@
 // session always produces the same summary (including the encouraging line).
 import type { PuzzleStringKey } from "@/src/i18n/puzzle-strings";
 import { dayStreak, localDayKey } from "./activity";
+import type { StudioPuzzle } from "./studio-handoff";
 import type { PuzzleMode, PuzzleProgress } from "./types";
-import { levelFromXp, type LevelProgress } from "./xp";
+import type { XpResult } from "./use-puzzle-scoring";
+import { levelFromXp, type LevelProgress, type XpBreakdown } from "./xp";
 
 /** One committed puzzle attempt of the current session. */
 export type SessionAttempt = {
@@ -16,6 +18,23 @@ export type SessionAttempt = {
   ms: number;
   /** Timestamp of the attempt; the last one decides which local day "today" is. */
   at: number;
+  /** SIG-1245: the puzzle played, for the list and the "Analyze in Studio" action. */
+  puzzle: StudioPuzzle;
+  /** SIG-1245: the XP the attempt scored and whether it was actually added. */
+  xp: XpResult;
+};
+
+/** SIG-1245: the list shows the last N puzzles; a toggle reveals the rest. */
+export const SUMMARY_LIST_LIMIT = 10;
+
+export type SummaryPuzzleRow = {
+  /** 1-based position in the session. */
+  number: number;
+  puzzle: StudioPuzzle;
+  success: boolean;
+  breakdown: XpBreakdown;
+  /** Mistakes practice (or a repeated daily) never adds XP. */
+  practiceOnly: boolean;
 };
 
 export type SummaryCardId = "did" | "level" | "rating";
@@ -58,7 +77,14 @@ export type SessionSummary = {
     levelUp: boolean;
   };
   rating: { before: number; after: number; change: number } | null;
+  /** SIG-1245: every puzzle of the session, in play order. */
+  rows: SummaryPuzzleRow[];
 };
+
+/** The rows to render: all of them, or only the last SUMMARY_LIST_LIMIT. */
+export function visibleRows(rows: readonly SummaryPuzzleRow[], showAll: boolean): SummaryPuzzleRow[] {
+  return showAll ? [...rows] : rows.slice(-SUMMARY_LIST_LIMIT);
+}
 
 export function cardsForMode(mode: PuzzleMode): SummaryCardId[] {
   return mode === "rated" ? ["did", "level", "rating"] : ["did", "level"];
@@ -129,6 +155,13 @@ export function buildSessionSummary({
       after: levelAfter,
       levelUp: levelAfter.level > levelBefore.level,
     },
+    rows: attempts.map((attempt, index) => ({
+      number: index + 1,
+      puzzle: attempt.puzzle,
+      success: attempt.success,
+      breakdown: attempt.xp.breakdown,
+      practiceOnly: practiceOnly || (!attempt.xp.awarded && attempt.xp.breakdown.total > 0),
+    })),
     rating: mode === "rated" ? { before: before.rating, after: after.rating, change: after.rating - before.rating } : null,
   };
 }

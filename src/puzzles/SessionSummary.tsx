@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowRight, ChevronLeft, ChevronRight, Crown, Flame } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, Crown, Flame, Microscope, X } from "lucide-react";
 import { formatDuration, formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
-import { tPuzzle } from "@/src/i18n/puzzle-strings";
+import { tPuzzle, tPuzzleCount } from "@/src/i18n/puzzle-strings";
 import { Button } from "@/src/studio/ui/Button";
-import type { SessionSummary as Summary } from "./session-summary";
+import { SUMMARY_LIST_LIMIT, visibleRows, type SessionSummary as Summary } from "./session-summary";
+import type { StudioPuzzle } from "./studio-handoff";
+import { xpBreakdownText } from "./XpBreakdown";
 
 /** True when the user asked the OS for less motion; animations then start at their end state. */
 function prefersReducedMotion(): boolean {
@@ -41,18 +43,116 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DidCard({ summary, locale }: { summary: Summary; locale: SiteLocale }) {
+/**
+ * SIG-1245: the session's puzzles, one compact row each: result, that puzzle's
+ * XP breakdown (the level card keeps the session total) and "Analyze in
+ * Studio". Shows the last SUMMARY_LIST_LIMIT, with a toggle for the rest.
+ */
+function PuzzleList({
+  summary,
+  locale,
+  onAnalyze,
+}: {
+  summary: Summary;
+  locale: SiteLocale;
+  onAnalyze?: (puzzle: StudioPuzzle) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  if (summary.rows.length === 0) {
+    return null;
+  }
+  const rows = visibleRows(summary.rows, showAll);
+  const hidden = summary.rows.length > SUMMARY_LIST_LIMIT;
+  return (
+    <div data-testid="summary-puzzles">
+      <h4 className="mb-1.5 text-caption font-semibold text-studio-muted">
+        {tPuzzle(locale, "puzzle.summary.list.title")}
+      </h4>
+      <ul className="space-y-1.5">
+        {rows.map((row) => {
+          const practice = tPuzzle(locale, "puzzle.summary.list.practice");
+          const xpText = summary.level.practiceOnly
+            ? practice
+            : row.practiceOnly
+              ? `${xpBreakdownText(locale, row.breakdown)} · ${practice}`
+              : xpBreakdownText(locale, row.breakdown);
+          return (
+            <li
+              key={row.number}
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-studio-hover px-2.5 py-1.5"
+              data-testid="summary-puzzle-row"
+            >
+              <span
+                role="img"
+                aria-label={tPuzzle(
+                  locale,
+                  row.success ? "puzzle.summary.list.resultSolved" : "puzzle.summary.list.resultFailed",
+                )}
+                className={row.success ? "text-studio-success" : "text-studio-warning-fg"}
+              >
+                {row.success ? <Check className="size-4" aria-hidden /> : <X className="size-4" aria-hidden />}
+              </span>
+              <span className="text-caption tabular-nums text-studio-muted">{formatInteger(locale, row.number)}</span>
+              <span className="min-w-0 flex-1 basis-40 text-caption tabular-nums text-studio-fg" data-testid="summary-puzzle-xp">
+                {xpText}
+              </span>
+              {onAnalyze ? (
+                <button
+                  type="button"
+                  onClick={() => onAnalyze(row.puzzle)}
+                  aria-label={tPuzzle(locale, "puzzle.summary.list.analyzeAria", { number: row.number })}
+                  className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-caption text-studio-accent-text hover:bg-studio-hover-strong"
+                >
+                  <Microscope className="size-3.5" aria-hidden />
+                  {tPuzzle(locale, "puzzle.studio.analyze")}
+                </button>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+      {hidden ? (
+        <button
+          type="button"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((value) => !value)}
+          className="mt-1.5 text-caption text-studio-accent-text hover:underline"
+        >
+          {showAll
+            ? tPuzzle(locale, "puzzle.summary.list.showLess", { count: SUMMARY_LIST_LIMIT })
+            : tPuzzle(locale, "puzzle.summary.list.showAll", { count: formatInteger(locale, summary.rows.length) })}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function DidCard({
+  summary,
+  locale,
+  onAnalyze,
+}: {
+  summary: Summary;
+  locale: SiteLocale;
+  onAnalyze?: (puzzle: StudioPuzzle) => void;
+}) {
   const best = summary.bestLine;
   return (
     <div className="space-y-3">
       <dl className="grid grid-cols-2 gap-2">
         <Stat label={tPuzzle(locale, "puzzle.summary.did.time")} value={formatDuration(locale, summary.trainingMs)} />
-        <Stat label={tPuzzle(locale, "puzzle.summary.did.solved")} value={formatInteger(locale, summary.solved)} />
         <Stat
-          label={tPuzzle(locale, "puzzle.summary.did.firstTry")}
+          label={tPuzzleCount(locale, "puzzle.summary.did.solved", summary.solved)}
+          value={formatInteger(locale, summary.solved)}
+        />
+        <Stat
+          label={tPuzzleCount(locale, "puzzle.summary.did.firstTry", summary.firstTry)}
           value={formatInteger(locale, summary.firstTry)}
         />
-        <Stat label={tPuzzle(locale, "puzzle.summary.did.failed")} value={formatInteger(locale, summary.failed)} />
+        <Stat
+          label={tPuzzleCount(locale, "puzzle.summary.did.failed", summary.failed)}
+          value={formatInteger(locale, summary.failed)}
+        />
       </dl>
       {best ? (
         <p className="text-caption tabular-nums text-studio-muted">
@@ -74,6 +174,7 @@ function DidCard({ summary, locale }: { summary: Summary; locale: SiteLocale }) 
       <p className="text-body text-studio-fg" data-testid="summary-cheer">
         {tPuzzle(locale, summary.cheerKey)}
       </p>
+      <PuzzleList summary={summary} locale={locale} onAnalyze={onAnalyze} />
     </div>
   );
 }
@@ -184,8 +285,8 @@ function RatingCard({ summary, locale }: { summary: Summary; locale: SiteLocale 
       <div
         role="img"
         aria-label={tPuzzle(locale, "puzzle.summary.rating.barAria", {
-          solved: summary.solved,
-          failed: summary.failed,
+          solved: tPuzzleCount(locale, "puzzle.summary.count.solved", summary.solved),
+          failed: tPuzzleCount(locale, "puzzle.summary.count.failed", summary.failed),
         })}
         className="flex h-2 overflow-hidden rounded-full bg-studio-bg"
       >
@@ -230,6 +331,7 @@ export function SessionSummary({
   onTrainAgain,
   trainAgainHref,
   canReview,
+  onAnalyze,
 }: {
   summary: Summary;
   locale: SiteLocale;
@@ -239,6 +341,8 @@ export function SessionSummary({
   trainAgainHref?: string;
   /** True when there were failures and mistake exercises exist to review. */
   canReview: boolean;
+  /** Opens a listed puzzle in the Studio (the panel passes openPuzzleInStudio). */
+  onAnalyze?: (puzzle: StudioPuzzle) => void;
 }) {
   const [index, setIndex] = useState(0);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -311,7 +415,7 @@ export function SessionSummary({
         >
           {tPuzzle(locale, CARD_TITLE_KEYS[card])}
         </h3>
-        {card === "did" ? <DidCard summary={summary} locale={locale} /> : null}
+        {card === "did" ? <DidCard summary={summary} locale={locale} onAnalyze={onAnalyze} /> : null}
         {card === "level" ? <LevelCard summary={summary} locale={locale} /> : null}
         {card === "rating" ? <RatingCard summary={summary} locale={locale} /> : null}
       </div>

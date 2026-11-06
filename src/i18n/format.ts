@@ -52,3 +52,11 @@ export function formatDuration(locale: SiteLocale, ms: number): string {
 export function formatMultiplier(locale: SiteLocale, value: number): string {
   return new Intl.NumberFormat(TAG[locale], { maximumFractionDigits: 2 }).format(value);
 }
+
+/**
+ * SIG-1245: CLDR plural category for a count, from Intl.PluralRules. pt-BR
+ * treats 0 and 1 as "one" ("0 errado", "1 errado", "2 errados"); en only 1.
+ */
+export function pluralCategory(locale: SiteLocale, count: number): Intl.LDMLPluralRule {
+  return new Intl.PluralRules(TAG[locale]).select(count);
+}
