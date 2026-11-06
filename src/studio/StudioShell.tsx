@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { creditRows } from "@/src/lib/legal/credits";
 import { CreditSegments } from "@/src/site/CreditSegments";
 import { ActivityBar } from "./ActivityBar";
@@ -41,7 +41,7 @@ import {
 import { loadRemoteFiles } from "@/src/lib/user-files";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
-import { clearCourseStudyImport, fenFromShareSearch, readCourseStudyImport } from "@/src/chess/share-board";
+import { applyStudioEntryImport, entryImportReady } from "@/src/studio/entry-import";
 import { StatusBar, StatusToast } from "./StatusBar";
 import { VariationChoiceDialog } from "./VariationChoiceDialog";
 import { Dialog } from "./ui/Dialog";
@@ -68,6 +68,10 @@ export function StudioShell() {
   const fileRef = useRef<HTMLInputElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const sharedFenApplied = useRef(false);
+  // SIG-1244: `user` is null until supabase.auth.getUser() answers, and the
+  // signed-in board restore runs after that; the import waits for both.
+  const [authResolved, setAuthResolved] = useState(false);
+  const [restoreSettled, setRestoreSettled] = useState(false);
   const activity = useStudioStore((state) => state.activity);
   const source = useStudioStore((state) => state.databaseSource);
   const explorerRetry = useStudioStore((state) => state.explorerRetry);
@@ -163,10 +167,12 @@ export function StudioShell() {
     void supabase.auth.getUser().then(({ data }) => {
       const current = data.user;
       setUser(current ? toUserInfo(current) : null);
-    });
+      setAuthResolved(true);
+    }, () => setAuthResolved(true));
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       const current = session?.user;
       setUser(current ? toUserInfo(current) : null);
+      setAuthResolved(true);
     });
     return () => data.subscription.unsubscribe();
   }, [setUser]);
@@ -262,7 +268,13 @@ export function StudioShell() {
       // SIG-907: boards query settled — the dock may now prune orphan
       // `board:*` panels whose sessions never arrived.
       setBoardsHydrated();
-    })();
+      setRestoreSettled(true);
+    })().catch(() => {
+      // A throwing restore must not strand the pending import.
+      if (!cancelled) {
+        setRestoreSettled(true);
+      }
+    });
     return () => {
       cancelled = true;
     };
@@ -520,32 +532,16 @@ export function StudioShell() {
     return () => window.removeEventListener("beforeprint", preparePrintFallback);
   }, []);
 
+  // SIG-1244: apply the handoff only after auth and the account board restore
+  // have settled; earlier, the restore replaces `boards` and drops the new one.
+  const importReady = entryImportReady({ authResolved: authResolved || !createBrowserSupabase(), hasUser: Boolean(user), restoreSettled });
   useEffect(() => {
-    if (sharedFenApplied.current) {
+    if (!importReady || sharedFenApplied.current) {
       return;
     }
     sharedFenApplied.current = true;
-    const courseImport = readCourseStudyImport();
-    if (courseImport) {
-      clearCourseStudyImport();
-      try {
-        useStudioStore.getState().openListedGame({
-          title: courseImport.title,
-          pgn: courseImport.pgn,
-          atFen: courseImport.atFen,
-          openInNewBoard: true,
-        });
-      } catch {
-        const failedKey = courseImport.kind === "puzzle" ? "chrome.shell.puzzleLineFailed" : "chrome.shell.courseLineFailed";
-        useStudioStore.setState({ statusMessage: tStudioChrome(useStudioStore.getState().settings.locale, failedKey) });
-      }
-      return;
-    }
-    const fen = fenFromShareSearch(window.location.search);
-    if (fen) {
-      useStudioStore.getState().openSharedPosition(fen);
-    }
-  }, []);
+    applyStudioEntryImport(window.location.search);
+  }, [importReady]);
 
   return (
     <>
