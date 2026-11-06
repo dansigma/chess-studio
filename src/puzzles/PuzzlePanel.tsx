@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, Crown, Flame, X } from "lucide-react";
+import { Check, ChevronRight, Crown } from "lucide-react";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { formatInteger } from "@/src/i18n/format";
 import { tPuzzle } from "@/src/i18n/puzzle-strings";
@@ -11,6 +11,7 @@ import { Button } from "@/src/studio/ui/Button";
 import { THEME_LABEL_KEYS, type PuzzleMode, type PuzzleTheme } from "./types";
 import { RUSH_STRIKES, clock, type PuzzleSession } from "./use-puzzle-session";
 import type { PuzzleFeedback } from "./use-puzzle-feedback";
+import { PanelScore } from "./PanelScore";
 import { LevelBar, XpBreakdownLine } from "./XpBreakdown";
 import { SessionSummary } from "./SessionSummary";
 import { buildSessionSummary } from "./session-summary";
@@ -45,7 +46,6 @@ export function PuzzlePanel({
     dueMistakes,
     finishSession,
     delta,
-    gained,
     xpResult,
     hintLevel,
     setHintLevel,
@@ -88,7 +88,7 @@ export function PuzzlePanel({
   }
 
   return (
-    <section className="flex max-h-[min(48dvh,420px)] min-h-40 flex-col overflow-hidden rounded-xl border border-studio-border bg-studio-chrome lg:max-h-[calc(100dvh-8rem)] lg:min-h-0">
+    <section className="flex max-h-[min(48dvh,420px)] min-h-40 flex-col overflow-hidden rounded-xl border border-studio-border bg-studio-chrome lg:h-full lg:max-h-none lg:min-h-0">
       <div className="flex items-center justify-between gap-3 px-4 py-3">
         <h1 className="flex items-center gap-2 text-body font-semibold text-studio-fg">
           <span className="inline-flex items-center gap-1 rounded-full bg-studio-hover px-2 py-0.5 tabular-nums">
@@ -107,18 +107,31 @@ export function PuzzlePanel({
             {clock(secondsLeft)}
           </span>
         ) : (
-          <span className="text-caption tabular-nums text-studio-muted">
+          <span className="text-body tabular-nums text-studio-muted">
             {tPuzzle(locale, "puzzle.panel.puzzleRating", { rating: formatInteger(locale, puzzle.rating) })}
           </span>
         )}
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4" aria-live="polite">
+        <PanelScore
+          mode={mode}
+          locale={locale}
+          rating={progress.rating}
+          delta={delta}
+          solved={sessionSolved}
+          streak={runStreak}
+          strikes={strikes}
+          strikeLimit={RUSH_STRIKES}
+        />
+
+        <LevelBar level={level} locale={locale} totalXp={mode === "mistakes" ? undefined : progress.xp} />
+
         <div className="rounded-xl bg-studio-hover px-4 py-3">
           <p className="text-body font-semibold text-studio-fg">{bubbleTitle}</p>
           <p className="mt-1 text-body text-studio-muted">{bubbleBody}</p>
           {solverMoves > 1 && status === "playing" && !sessionOver ? (
-            <p className="mt-1 text-caption text-studio-muted">
+            <p className="mt-1 text-body text-studio-muted">
               {tPuzzle(locale, "puzzle.panel.moveCounter", {
                 current: Math.min(solverIndex, solverMoves),
                 total: solverMoves,
@@ -129,62 +142,13 @@ export function PuzzlePanel({
             <XpBreakdownLine breakdown={xpResult.breakdown} awarded={xpResult.awarded} locale={locale} />
           ) : null}
           {sessionOver && mode === "rush" && reveal && miss ? (
-            <p className="mt-1 text-caption text-studio-muted">
+            <p className="mt-1 text-body text-studio-muted">
               {tPuzzle(locale, "puzzle.panel.bestMove", { san: miss.san })}
             </p>
           ) : null}
           {/* SIG-1236: hidden while playing so the Lichess page cannot spoil the line. */}
           {status !== "playing" ? <PuzzleSourceLine puzzleId={puzzle.id} locale={locale} /> : null}
         </div>
-
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-3xl font-semibold tabular-nums leading-none text-studio-fg">
-              {/* SIG-1097: mistakes shows solved-in-session, never XP. */}
-              {mode === "rush" ? sessionSolved : mode === "mistakes" ? sessionSolved : progress.xp}
-              {mode !== "rush" && mode !== "mistakes" && status === "solved" && gained > 0 ? (
-                <span className="ml-2 text-title text-studio-success">+{gained}</span>
-              ) : null}
-            </p>
-            {mode === "rush" || mode === "mistakes" ? (
-              <p className="mt-1 text-caption text-studio-muted">{tPuzzle(locale, "puzzle.panel.solved")}</p>
-            ) : null}
-          </div>
-          {mode === "rush" ? (
-            <p
-              className="flex items-center gap-1"
-              aria-label={tPuzzle(locale, "puzzle.panel.missesAria", { strikes, total: RUSH_STRIKES })}
-            >
-              {Array.from({ length: RUSH_STRIKES }, (_, index) => (
-                <X
-                  key={index}
-                  className={`size-4 ${index < strikes ? "text-red-400" : "text-studio-muted opacity-35"}`}
-                  aria-hidden
-                />
-              ))}
-            </p>
-          ) : (
-            <p className="flex items-center gap-1 text-title font-semibold tabular-nums text-studio-fg">
-              <Flame className="size-5 text-orange-400" aria-hidden />
-              {runStreak}
-            </p>
-          )}
-        </div>
-
-        <LevelBar level={level} locale={locale} />
-
-        {mode === "rated" || mode === "daily" ? (
-          <p className="text-caption text-studio-muted">
-            {tPuzzle(locale, "puzzle.panel.rating")}{" "}
-            <span className="tabular-nums text-studio-fg">{formatInteger(locale, progress.rating)}</span>
-            {delta !== null && delta !== 0 ? (
-              <span className={delta > 0 ? "text-studio-success" : "text-studio-warning-fg"}>
-                {" "}
-                {delta > 0 ? `+${delta}` : delta}
-              </span>
-            ) : null}
-          </p>
-        ) : null}
       </div>
 
       <div className="flex flex-col gap-2 border-t border-studio-border p-3">

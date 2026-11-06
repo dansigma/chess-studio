@@ -46,9 +46,9 @@ export function XpBreakdownLine({
 }) {
   return (
     <div className="mt-2 border-t border-studio-border pt-2" data-testid="xp-breakdown">
-      <p className="text-caption tabular-nums text-studio-fg">{xpBreakdownText(locale, breakdown)}</p>
+      <p className="text-body tabular-nums text-studio-fg">{xpBreakdownText(locale, breakdown)}</p>
       {!awarded && breakdown.total > 0 ? (
-        <p className="mt-0.5 text-caption text-studio-muted">{tPuzzle(locale, "puzzle.xp.practice")}</p>
+        <p className="mt-0.5 text-body text-studio-muted">{tPuzzle(locale, "puzzle.xp.practice")}</p>
       ) : null}
     </div>
   );
@@ -59,10 +59,13 @@ export function LevelBar({
   level,
   locale,
   compact = false,
+  totalXp,
 }: {
   level: LevelProgress;
   locale: SiteLocale;
   compact?: boolean;
+  /** SIG-1248: when given, the caption becomes "Level 14 · 11,747 XP · 1,045 to level 15" at body size. */
+  totalXp?: number;
 }) {
   return (
     <div>
@@ -95,12 +98,23 @@ export function LevelBar({
           </span>
         )}
       </div>
-      <p className="mt-1 text-caption tabular-nums text-studio-muted">
-        {tPuzzle(locale, "puzzle.level.toNext", {
-          xp: formatInteger(locale, level.toNext),
-          level: level.level + 1,
-        })}
-      </p>
+      {totalXp === undefined ? (
+        <p className="mt-1 text-caption tabular-nums text-studio-muted">
+          {tPuzzle(locale, "puzzle.level.toNext", {
+            xp: formatInteger(locale, level.toNext),
+            level: level.level + 1,
+          })}
+        </p>
+      ) : (
+        <p className="mt-2 text-body tabular-nums text-studio-muted" data-testid="level-line">
+          {tPuzzle(locale, "puzzle.level.line", {
+            level: level.level,
+            total: formatInteger(locale, totalXp),
+            xp: formatInteger(locale, level.toNext),
+            next: level.level + 1,
+          })}
+        </p>
+      )}
     </div>
   );
 }

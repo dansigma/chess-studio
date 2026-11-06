@@ -32,7 +32,7 @@ export function PuzzleBoard({
 
   return (
     <div className="flex h-full min-h-0 w-full items-center justify-center [container-type:size]">
-      <div className="relative size-[min(100cqw,100cqh,520px)] overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong">
+      <div className="relative size-[min(100cqw,100cqh,520px)] lg:size-[min(100cqw,100cqh)] overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong">
         <Chessboard
           key={`${puzzle.id}-${pieceSet}`}
           options={{
