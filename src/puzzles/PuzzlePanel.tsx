@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Check, ChevronRight, Crown, Flame, X } from "lucide-react";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { formatInteger } from "@/src/i18n/format";
@@ -13,6 +14,8 @@ import type { PuzzleFeedback } from "./use-puzzle-feedback";
 import { LevelBar, XpBreakdownLine } from "./XpBreakdown";
 import { SessionSummary } from "./SessionSummary";
 import { buildSessionSummary } from "./session-summary";
+import { AnalyzeInStudioButton, PuzzleSourceLine } from "./PuzzleStudioLinks";
+import { openPuzzleInStudio } from "./studio-handoff";
 
 export function PuzzlePanel({
   mode,
@@ -53,6 +56,7 @@ export function PuzzlePanel({
     reveal,
     userTurn,
   } = session;
+  const router = useRouter();
   const { level, modeLabel, continueLabel, bubbleTitle, bubbleBody, solverMoves, solverIndex, runStreak } = feedback;
 
   const summary = useMemo(
@@ -126,6 +130,8 @@ export function PuzzlePanel({
               {tPuzzle(locale, "puzzle.panel.bestMove", { san: miss.san })}
             </p>
           ) : null}
+          {/* SIG-1236: hidden while playing so the Lichess page cannot spoil the line. */}
+          {status !== "playing" ? <PuzzleSourceLine puzzleId={puzzle.id} locale={locale} /> : null}
         </div>
 
         <div className="flex items-end justify-between gap-3">
@@ -190,6 +196,14 @@ export function PuzzlePanel({
             </Button>
             <Button onClick={giveUp}>{tPuzzle(locale, "puzzle.panel.solution")}</Button>
           </div>
+        ) : null}
+        {status !== "playing" ? (
+          <AnalyzeInStudioButton
+            locale={locale}
+            onAnalyze={() =>
+              openPuzzleInStudio(puzzle, mode, locale, (href) => router.push(href), window.location.origin)
+            }
+          />
         ) : null}
         {status !== "playing" && continueLabel && !exhausted ? (
           <Button variant="primary" className="w-full" onClick={nextPuzzle}>

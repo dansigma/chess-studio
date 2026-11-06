@@ -167,6 +167,33 @@ test("puzzle trainer: a rated miss names the best move and drops the rating", as
   await expect(award(page)).toHaveCount(0);
 });
 
+test("puzzle trainer: Analyze in Studio opens the puzzle on a new Studio board", async ({ page }) => {
+  await openTrainer(page, "rated");
+  const trainer = panel(page);
+  // SIG-1236: nothing to analyze (and no source line) while the puzzle is in play.
+  await expect(trainer.getByRole("button", { name: "Analyze in Studio" })).toHaveCount(0);
+  await expect(trainer.getByTestId("puzzle-source")).toHaveCount(0);
+
+  const puzzle = await currentPuzzle(page);
+  await clickMove(page, wrongMove(puzzle));
+  await expect(bubbleTitle(page)).toHaveText("Incorrect");
+
+  // The source line only exists for Lichess puzzle ids (5 characters).
+  const source = trainer.getByTestId("puzzle-source");
+  if (/^[A-Za-z0-9]{5}$/.test(puzzle.id)) {
+    await expect(source.getByRole("link", { name: "View on Lichess" })).toHaveAttribute(
+      "href",
+      `https://lichess.org/training/${puzzle.id}`,
+    );
+  } else {
+    await expect(source).toHaveCount(0);
+  }
+
+  await trainer.getByRole("button", { name: "Analyze in Studio" }).click();
+  await expect(page).toHaveURL(/\/studio$/);
+  await expect(page.locator("[data-board-image]").locator('[data-square="e2"]')).toBeVisible();
+});
+
 test("puzzle trainer: rush counts down, ends after three misses and replays", async ({ page }) => {
   await openTrainer(page, "rush");
   const trainer = panel(page);
