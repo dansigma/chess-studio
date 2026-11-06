@@ -7,7 +7,7 @@ import { Chess, type Square } from "chess.js";
 import { Chessboard } from "react-chessboard";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ExternalLink } from "lucide-react";
 import { importPgn } from "@/src/chess/pgn";
-import { boardSquareStyles } from "@/src/chess/board-themes";
+import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
 import { MARK_HEX } from "@/src/chess/marks";
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { shareBoardUrl, writeCourseStudyImport } from "@/src/chess/share-board";
@@ -293,6 +293,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
                 position: frame.fen,
                 boardOrientation: loaded.course.color,
                 showNotation: showCoordinates,
+                ...boardCoordinateOptions(boardTheme),
                 animationDurationInMs: 0,
                 showAnimations: false,
                 allowDrawingArrows: false,

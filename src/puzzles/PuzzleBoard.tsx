@@ -1,7 +1,7 @@
 "use client";
 
 import { Chessboard } from "react-chessboard";
-import { boardSquareStyles, type BoardTheme } from "@/src/chess/board-themes";
+import { boardCoordinateOptions, boardSquareStyles, type BoardTheme } from "@/src/chess/board-themes";
 import { piecesForSet, type PieceSet } from "@/src/chess/piece-sets";
 import { squareAnchor } from "./feedback";
 import type { PuzzleFeedback } from "./use-puzzle-feedback";
@@ -40,6 +40,7 @@ export function PuzzleBoard({
             position: fen,
             boardOrientation: orientation,
             showNotation: showCoordinates,
+            ...boardCoordinateOptions(boardTheme),
             animationDurationInMs: 180,
             allowDrawingArrows: false,
             clearArrowsOnClick: false,
