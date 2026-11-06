@@ -98,7 +98,13 @@ test("mistakes mode: a miss stays due, a solve advances, rating untouched", asyn
   expect(storedAfterSolve ?? "").toContain('"mistakeCount":1');
   expect(storedAfterSolve ?? "").toContain('"mistakeCount":0');
   await panel(page).getByRole("button", { name: "Next puzzle" }).click();
-  await expect(page.getByRole("heading", { name: "All caught up" })).toBeVisible();
+  // SIG-1235: a queue that runs out after attempts ends with the summary (the
+  // "All caught up" page only shows when there was nothing to practise).
+  const summary = page.getByRole("region", { name: "Session summary" });
+  await expect(summary).toBeVisible();
+  await expect(summary.getByTestId("summary-step")).toHaveText("Step 1 of 2");
+  await summary.getByRole("button", { name: "Next" }).click();
+  await expect(summary.getByTestId("summary-xp")).toHaveText("Practice only, not added to your XP");
 });
 
 function board(page: Page): Locator {

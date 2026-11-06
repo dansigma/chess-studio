@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { Check, ChevronRight, Crown, Flame, X } from "lucide-react";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -10,6 +11,8 @@ import { THEME_LABEL_KEYS, type PuzzleMode, type PuzzleTheme } from "./types";
 import { RUSH_STRIKES, clock, type PuzzleSession } from "./use-puzzle-session";
 import type { PuzzleFeedback } from "./use-puzzle-feedback";
 import { LevelBar, XpBreakdownLine } from "./XpBreakdown";
+import { SessionSummary } from "./SessionSummary";
+import { buildSessionSummary } from "./session-summary";
 
 export function PuzzlePanel({
   mode,
@@ -33,6 +36,11 @@ export function PuzzlePanel({
     secondsLeft,
     exhausted,
     progress,
+    sessionStart,
+    attempts,
+    summaryVisible,
+    dueMistakes,
+    finishSession,
     delta,
     gained,
     xpResult,
@@ -47,8 +55,29 @@ export function PuzzlePanel({
   } = session;
   const { level, modeLabel, continueLabel, bubbleTitle, bubbleBody, solverMoves, solverIndex, runStreak } = feedback;
 
+  const summary = useMemo(
+    () =>
+      summaryVisible && progress && sessionStart
+        ? buildSessionSummary({ mode, attempts, before: sessionStart, after: progress })
+        : null,
+    [summaryVisible, mode, attempts, sessionStart, progress],
+  );
+
   if (!puzzle || !progress) {
     return null;
+  }
+
+  if (summary) {
+    // SIG-1235: the summary replaces the panel; the board stays on screen.
+    return (
+      <SessionSummary
+        summary={summary}
+        locale={locale}
+        onTrainAgain={retry}
+        trainAgainHref={mode === "daily" ? "/puzzles/play?mode=rated" : undefined}
+        canReview={summary.failed > 0 && mode !== "mistakes" && (dueMistakes ?? 0) > 0}
+      />
+    );
   }
 
   return (
@@ -147,14 +176,6 @@ export function PuzzlePanel({
             ) : null}
           </p>
         ) : null}
-
-        {sessionOver ? (
-          <p className="text-body text-studio-muted">
-            {mode === "rush"
-              ? tPuzzle(locale, "puzzle.panel.bestScore", { value: formatInteger(locale, progress.rushBest) })
-              : tPuzzle(locale, "puzzle.panel.streakSummary", { solved: sessionSolved, best: progress.bestStreak })}
-          </p>
-        ) : null}
       </div>
 
       <div className="flex flex-col gap-2 border-t border-studio-border p-3">
@@ -177,24 +198,18 @@ export function PuzzlePanel({
             <ChevronRight className="size-4" aria-hidden />
           </Button>
         ) : null}
-        {sessionOver ? (
-          <Button variant="primary" className="w-full" onClick={retry}>
-            {mode === "rush"
-              ? tPuzzle(locale, "puzzle.panel.playAgain")
-              : tPuzzle(locale, "puzzle.panel.tryAgain")}
+        {(mode === "rated" || mode === "mistakes") && attempts.length > 0 ? (
+          // SIG-1235: rated and mistakes sessions have no natural end; the
+          // user ends them here and sees the summary.
+          <Button className="w-full" onClick={finishSession}>
+            {tPuzzle(locale, "puzzle.summary.action.finish")}
           </Button>
         ) : null}
         <Link
           href="/puzzles"
-          className={`inline-flex h-8 items-center justify-center rounded-lg px-3 text-body ${
-            status !== "playing" && mode === "daily"
-              ? "bg-studio-accent font-medium text-studio-accent-fg hover:bg-studio-accent-strong"
-              : "text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
-          }`}
+          className="inline-flex h-8 items-center justify-center rounded-lg px-3 text-body text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
         >
-          {status !== "playing" && mode === "daily"
-            ? tPuzzle(locale, "puzzle.panel.backToPuzzles")
-            : tPuzzle(locale, "puzzle.panel.puzzles")}
+          {tPuzzle(locale, "puzzle.panel.puzzles")}
         </Link>
       </div>
     </section>
