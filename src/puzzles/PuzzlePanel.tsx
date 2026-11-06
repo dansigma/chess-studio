@@ -113,7 +113,7 @@ export function PuzzlePanel({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4" aria-live="polite">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
         <PanelScore
           mode={mode}
           locale={locale}
@@ -127,7 +127,8 @@ export function PuzzlePanel({
 
         <LevelBar level={level} locale={locale} totalXp={mode === "mistakes" ? undefined : progress.xp} />
 
-        <div className="rounded-xl bg-studio-hover px-4 py-3">
+        {/* SIG-1248: only the result block is live; the score and level stay outside so they are not re-announced. */}
+        <div className="rounded-xl bg-studio-hover px-4 py-3" aria-live="polite">
           <p className="text-body font-semibold text-studio-fg">{bubbleTitle}</p>
           <p className="mt-1 text-body text-studio-muted">{bubbleBody}</p>
           {solverMoves > 1 && status === "playing" && !sessionOver ? (
