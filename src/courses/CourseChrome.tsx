@@ -43,11 +43,11 @@ export function CourseChrome({
   }, [isAdmin, reviewCountProp]);
 
   return (
-    <header className="flex h-12 items-center gap-4 border-b border-studio-border bg-studio-chrome px-4">
+    <header className="flex h-12 min-w-0 items-center gap-2 border-b border-studio-border bg-studio-chrome px-3 sm:gap-4 sm:px-4">
       <Link href="/courses" className="shrink-0">
-        <BrandLockup />
+        <BrandLockup compact />
       </Link>
-      <nav className="flex items-center gap-1 text-body">
+      <nav className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-body [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {siteSections(locale).map((section) => {
           const active = pathname === section.href || pathname.startsWith(`${section.href}/`);
           return (
@@ -92,7 +92,7 @@ export function CourseChrome({
           </Link>
         ) : null}
       </nav>
-      <div className="ml-auto">
+      <div className="ml-auto shrink-0">
         <LocaleSwitcher />
       </div>
     </header>

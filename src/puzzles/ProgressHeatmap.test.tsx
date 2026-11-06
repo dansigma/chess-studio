@@ -67,3 +67,27 @@ test("shows an inviting empty state instead of an empty grid", () => {
     cleanup();
   }
 });
+
+test("weekday labels live outside the scroller; narrow width draws fewer weeks (SIG-1246)", () => {
+  const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 212 });
+  try {
+    render(<ProgressHeatmap days={days} today="2026-11-03" locale="en" onStart={() => {}} />);
+    const scroller = screen.getByTestId("heatmap-scroller");
+    const weekdays = screen.getByTestId("heatmap-weekdays");
+    assert.equal(scroller.contains(weekdays), false);
+    assert.equal(weekdays.textContent, "MonWedFri");
+    // 212px / 15px per column = 14 weeks; every label is whole (not clipped)
+    const grid = screen.getByRole("grid");
+    assert.equal(grid.querySelectorAll('[role="row"]')[0].children.length, 14);
+    assert.match(grid.getAttribute("aria-label") ?? "", /14/);
+    assert.match(screen.getByText(/correct/, { selector: "span" }).textContent ?? "", /14 weeks/);
+  } finally {
+    if (original) {
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", original);
+    } else {
+      delete (HTMLElement.prototype as unknown as Record<string, unknown>).clientWidth;
+    }
+    cleanup();
+  }
+});

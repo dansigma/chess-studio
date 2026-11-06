@@ -1,4 +1,4 @@
-export function BrandLockup({ size = "sm" }: { size?: "sm" | "lg" }) {
+export function BrandLockup({ size = "sm", compact = false }: { size?: "sm" | "lg"; compact?: boolean }) {
   const large = size === "lg";
   return (
     <span className={`inline-flex items-center gap-2 ${large ? "text-title" : "text-body"}`}>
@@ -11,7 +11,9 @@ export function BrandLockup({ size = "sm" }: { size?: "sm" | "lg" }) {
         <i className="bg-studio-accent-soft" />
         <i className="bg-studio-accent" />
       </span>
-      <span className="font-semibold tracking-tight text-studio-fg">
+      <span
+        className={`font-semibold tracking-tight text-studio-fg ${compact ? "max-sm:sr-only" : ""}`}
+      >
         Xadrez <span className="font-normal text-studio-accent-text">Digital</span>
       </span>
     </span>

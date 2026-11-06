@@ -5,13 +5,20 @@
 // the success token at stepped opacity, and every square also carries its
 // numbers in an aria-label / title / detail line, so color is never the only
 // signal.
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { Flame } from "lucide-react";
 import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { Button } from "@/src/studio/ui/Button";
-import { buildHeatmap, HEATMAP_WEEKS, type HeatBucket, type HeatCell } from "./heatmap";
+import {
+  buildHeatmap,
+  HEATMAP_WEEKS,
+  heatmapWeeksForWidth,
+  visibleMonthLabels,
+  type HeatBucket,
+  type HeatCell,
+} from "./heatmap";
 import type { DayActivity } from "./types";
 
 const TAG: Record<SiteLocale, string> = { en: "en-US", "pt-br": "pt-BR" };
@@ -65,19 +72,35 @@ export function ProgressHeatmap({
   locale: SiteLocale;
   onStart: () => void;
 }) {
-  const map = useMemo(() => buildHeatmap(days, today), [days, today]);
+  // SIG-1246: the week count follows the width of the scrolling grid area.
+  const [weekCount, setWeekCount] = useState(HEATMAP_WEEKS);
+  const map = useMemo(() => buildHeatmap(days, today, weekCount), [days, today, weekCount]);
   const scroller = useRef<HTMLDivElement>(null);
   const cellRefs = useRef(new Map<string, HTMLDivElement>());
   const [active, setActive] = useState<string>(today);
   const [detail, setDetail] = useState<HeatCell | null>(null);
 
-  // Keep the most recent weeks in view on narrow screens.
-  useEffect(() => {
+  // Fit the number of weeks to the available width, and keep the most recent
+  // week in view. Runs after layout (and on every resize) so scrollWidth is
+  // the real, post-layout value; the old useEffect on mount ran too early.
+  useLayoutEffect(() => {
     const el = scroller.current;
-    if (el) {
-      el.scrollLeft = el.scrollWidth;
+    if (!el) {
+      return;
     }
-  }, [map.hasActivity]);
+    const sync = () => {
+      const next = heatmapWeeksForWidth(el.clientWidth, STEP);
+      setWeekCount((prev) => (prev === next ? prev : next));
+      el.scrollLeft = el.scrollWidth;
+    };
+    sync();
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+    const observer = new ResizeObserver(sync);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [map.hasActivity, weekCount]);
 
   const monthFmt = useMemo(() => new Intl.DateTimeFormat(TAG[locale], { month: "short", timeZone: "UTC" }), [locale]);
   const weekdayFmt = useMemo(() => new Intl.DateTimeFormat(TAG[locale], { weekday: "short", timeZone: "UTC" }), [locale]);
@@ -182,18 +205,23 @@ export function ProgressHeatmap({
         />
       </dl>
 
-      <div ref={scroller} className="mt-4 overflow-x-auto pb-2" data-testid="heatmap-scroller">
-        <div className="flex w-max gap-2">
-          <div aria-hidden className="flex flex-col text-caption text-studio-faint" style={{ paddingTop: STEP, gap: GAP }}>
+      <div className="mt-4 flex gap-2">
+          <div
+            aria-hidden
+            data-testid="heatmap-weekdays"
+            className="flex shrink-0 flex-col whitespace-nowrap text-caption text-studio-faint"
+            style={{ paddingTop: STEP, gap: GAP }}
+          >
             {[0, 1, 2, 3, 4, 5, 6].map((row) => (
               <span key={row} className="flex items-center" style={{ height: CELL }}>
                 {row % 2 === 1 ? weekdayFmt.format(new Date(Date.UTC(2023, 0, 1 + row))) : ""}
               </span>
             ))}
           </div>
-          <div>
-            <div aria-hidden className="relative text-caption text-studio-faint" style={{ height: STEP, width: map.weeks.length * STEP }}>
-              {map.months.map((m) => (
+          <div ref={scroller} className="min-w-0 flex-1 overflow-x-auto pb-2" data-testid="heatmap-scroller">
+          <div className="w-max">
+            <div aria-hidden className="relative whitespace-nowrap text-caption text-studio-faint" style={{ height: STEP, width: map.weeks.length * STEP }}>
+              {visibleMonthLabels(map.months, map.weeks.length).map((m) => (
                 <span key={`${m.column}-${m.month}`} className="absolute top-0" style={{ left: m.column * STEP }}>
                   {monthFmt.format(new Date(Date.UTC(2023, m.month, 1)))}
                 </span>
@@ -201,7 +229,7 @@ export function ProgressHeatmap({
             </div>
             <div
               role="grid"
-              aria-label={tPuzzle(locale, "puzzle.heatmap.grid", { weeks: HEATMAP_WEEKS })}
+              aria-label={tPuzzle(locale, "puzzle.heatmap.grid", { weeks: map.weeks.length })}
               className="flex flex-col"
               style={{ gap: GAP }}
             >
@@ -257,7 +285,7 @@ export function ProgressHeatmap({
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-caption text-studio-muted">
         <span>
           {tPuzzle(locale, "puzzle.heatmap.footer", {
-            weeks: HEATMAP_WEEKS,
+            weeks: map.weeks.length,
             solved: formatInteger(locale, map.rangeSolved),
             failed: formatInteger(locale, map.rangeFailed),
             days: formatInteger(locale, map.rangeActiveDays),
