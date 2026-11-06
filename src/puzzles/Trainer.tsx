@@ -38,7 +38,7 @@ export function PuzzleTrainer() {
         <main className="px-6 py-10 text-body text-studio-warning-fg">
           {tPuzzle(locale, "puzzle.trainer.loadError")}
         </main>
-      ) : mode === "mistakes" && session.caughtUp && scoring.progress ? (
+      ) : mode === "mistakes" && session.caughtUp && session.attempts.length === 0 && scoring.progress ? (
         // SIG-1097: empty queue renders the caught-up state, not the spinner.
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
           <h1 className="text-2xl font-semibold text-studio-fg">
@@ -53,7 +53,7 @@ export function PuzzleTrainer() {
             {tMistakes(locale, "mistakes.trainer.caughtUp.back")}
           </Link>
         </main>
-      ) : session.exhausted && scoring.progress ? (
+      ) : session.exhausted && session.attempts.length === 0 && scoring.progress ? (
         // SIG-1179: every puzzle in the widened pool is seen — show the empty
         // state instead of re-serving a seen puzzle.
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">

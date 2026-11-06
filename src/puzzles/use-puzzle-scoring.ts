@@ -34,6 +34,8 @@ export function usePuzzleScoring(mode: PuzzleMode) {
   const [xpResult, setXpResult] = useState<XpResult | null>(null);
   // SIG-1234: XP awarded since the session started, for the summary (SIG-1235).
   const [sessionXp, setSessionXp] = useState(0);
+  // SIG-1235: progress when the session started, the "before" of the summary.
+  const [sessionStart, setSessionStart] = useState<PuzzleProgress | null>(null);
   const progressRef = useRef<PuzzleProgress | null>(null);
   const recorded = useRef(false);
 
@@ -41,9 +43,14 @@ export function usePuzzleScoring(mode: PuzzleMode) {
     progressRef.current = loaded;
     setProgress(loaded);
     setSessionXp(0);
+    setSessionStart(loaded);
   }, []);
 
-  const resetSessionXp = useCallback(() => setSessionXp(0), []);
+  // A new session (retry) starts from whatever progress is current.
+  const resetSessionXp = useCallback(() => {
+    setSessionXp(0);
+    setSessionStart(progressRef.current);
+  }, []);
 
   const resetResult = useCallback(() => {
     recorded.current = false;
@@ -99,6 +106,7 @@ export function usePuzzleScoring(mode: PuzzleMode) {
     gained,
     xpResult,
     sessionXp,
+    sessionStart,
     progressRef,
     hydrate,
     resetResult,

@@ -35,6 +35,11 @@ function panel(page: Page): Locator {
   return page.locator("section").filter({ has: page.locator('[aria-live="polite"]') });
 }
 
+/** SIG-1235: the end-of-session summary replaces the panel (it has no live region). */
+function summary(page: Page): Locator {
+  return page.getByRole("region", { name: "Session summary" });
+}
+
 function bubbleTitle(page: Page): Locator {
   return panel(page).locator('[aria-live="polite"] p').first();
 }
@@ -183,11 +188,15 @@ test("puzzle trainer: rush counts down, ends after three misses and replays", as
     }
   }
 
-  await expect(bubbleTitle(page)).toHaveText("Three misses");
-  await expect(trainer).toContainText("0 puzzles solved");
-  await expect(trainer).toContainText("Best 0");
+  // SIG-1235: the third miss ends the run with the summary (rush has no rating card).
+  await expect(summary(page)).toBeVisible();
+  await expect(summary(page).getByTestId("summary-step")).toHaveText("Step 1 of 2");
+  await expect(summary(page)).toContainText("Best 0");
+  await summary(page).getByRole("button", { name: "Next" }).click();
+  await expect(summary(page).getByTestId("summary-xp")).toHaveText("+0 XP");
 
-  await trainer.getByRole("button", { name: "Play again" }).click();
+  await summary(page).getByRole("button", { name: "Train again" }).click();
+  await expect(summary(page)).toHaveCount(0);
   await expect(trainer.locator('[aria-label="0 of 3 misses"]')).toHaveCount(1);
   expect(await clockSeconds(page)).toBeGreaterThan(170);
 });
@@ -199,9 +208,11 @@ test("puzzle trainer: a streak miss ends the run", async ({ page }) => {
 
   await clickMove(page, wrongMove(await currentPuzzle(page)));
 
-  await expect(bubbleTitle(page)).toHaveText("Streak over");
-  await expect(trainer).toContainText("0 in a row · best 0");
-  await expect(trainer.getByRole("button", { name: "Try again" })).toBeVisible();
+  // SIG-1235: the first miss ends the run with the summary.
+  await expect(summary(page)).toBeVisible();
+  await expect(summary(page)).toContainText("0 in a row · best 0");
+  await summary(page).getByRole("button", { name: "Next" }).click();
+  await expect(summary(page).getByRole("button", { name: "Train again" })).toBeVisible();
 });
 
 test("puzzle trainer: the daily puzzle solves and offers no continue button", async ({ page }) => {
@@ -212,9 +223,30 @@ test("puzzle trainer: the daily puzzle solves and offers no continue button", as
 
   await solve(page, await currentPuzzle(page));
 
-  await expect(bubbleTitle(page)).toHaveText("Solved");
-  await expect(trainer.getByRole("button", { name: "Next puzzle" })).toHaveCount(0);
-  await expect(trainer.getByRole("link", { name: "Back to puzzles" })).toBeVisible();
+  // SIG-1235: the daily puzzle is the whole session; the summary follows it.
+  await expect(summary(page)).toBeVisible();
+  await expect(summary(page)).toContainText("Correct on the first try");
+  await summary(page).getByRole("button", { name: "Next" }).click();
+  await expect(summary(page).getByRole("link", { name: "Back to puzzles" })).toBeVisible();
+});
+
+test("puzzle trainer: finishing a rated session shows all three summary cards", async ({ page }) => {
+  await openTrainer(page, "rated");
+  const trainer = panel(page);
+  await expect(trainer.getByRole("button", { name: "Finish session" })).toHaveCount(0);
+
+  await clickMove(page, wrongMove(await currentPuzzle(page)));
+  await expect(bubbleTitle(page)).toHaveText("Incorrect");
+  await trainer.getByRole("button", { name: "Finish session" }).click();
+
+  await expect(summary(page)).toBeVisible();
+  await expect(summary(page).getByTestId("summary-step")).toHaveText("Step 1 of 3");
+  await summary(page).getByRole("button", { name: "Next" }).click();
+  await summary(page).getByRole("button", { name: "Next" }).click();
+  await expect(summary(page).getByTestId("summary-card-title")).toHaveText("Rating");
+  await expect(summary(page).getByTestId("summary-rating-change")).toHaveText(/^-\d+$/);
+  await expect(summary(page).getByRole("button", { name: "Train again" })).toBeVisible();
+  await expect(summary(page).getByRole("link", { name: "Back to puzzles" })).toBeVisible();
 });
 
 /**

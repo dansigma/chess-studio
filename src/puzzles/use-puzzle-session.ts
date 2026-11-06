@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { playMoveSound } from "@/src/chess/move-sound";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import {
+  dueExercises,
   hydrateExercises,
   recordAttempt,
   saveExercises,
@@ -26,6 +27,7 @@ import {
 import { loadPuzzleCatalog } from "./puzzle-client";
 import { hydratePuzzleProgress } from "./progress";
 import { mergeLocalSeenToAccount, recordSeen } from "./seen";
+import { summaryVisible as isSummaryVisible, type SessionAttempt } from "./session-summary";
 import type { PuzzleMode, PuzzleTheme } from "./types";
 import type { PuzzleScoring } from "./use-puzzle-scoring";
 
@@ -152,6 +154,7 @@ export function usePuzzleSession({
     gained,
     xpResult,
     sessionXp,
+    sessionStart,
     progressRef,
     hydrate,
     resetResult,
@@ -183,6 +186,12 @@ export function usePuzzleSession({
   const [nextDue, setNextDue] = useState<string | null>(null);
   const [mistakesTotal, setMistakesTotal] = useState(0);
   const [mistakesIndex, setMistakesIndex] = useState(0);
+  // SIG-1235: attempts of this session for the end-of-session summary, whether
+  // the user ended a rated/mistakes session, and how many mistakes are due
+  // (null until looked up) for the "Review my mistakes" button.
+  const [attempts, setAttempts] = useState<SessionAttempt[]>([]);
+  const [finished, setFinished] = useState(false);
+  const [dueMistakes, setDueMistakes] = useState<number | null>(null);
   // SIG-1070: the display sentence resolves through the puzzle string table
   // at the render site (Trainer), which owns the store locale.
 
@@ -264,6 +273,7 @@ export function usePuzzleSession({
     }
     sessionSolvedRef.current = score;
     setSessionSolved(score);
+    setAttempts((list) => [...list, { success, firstTry: success && !hintedRef.current, ms, at: Date.now() }]);
     if (!success && mode === "streak") {
       setSessionOver(true);
     }
@@ -326,6 +336,9 @@ export function usePuzzleSession({
           sessionSolvedRef.current = 0;
           exclude.current = new Set();
           setSessionSolved(0);
+          setAttempts([]);
+          setFinished(false);
+          setDueMistakes(null);
           strikesRef.current = 0;
           setStrikes(0);
           setSessionOver(false);
@@ -371,6 +384,9 @@ export function usePuzzleSession({
         // retry or remount cannot re-serve an attempted puzzle.
         exclude.current = new Set(seenLocal);
         setSessionSolved(0);
+        setAttempts([]);
+        setFinished(false);
+        setDueMistakes(null);
         strikesRef.current = 0;
         setStrikes(0);
         setSessionOver(false);
@@ -476,7 +492,43 @@ export function usePuzzleSession({
     setSessionOver(true);
   }
 
-  const userTurn = status === "playing" && !sessionOver && ply % 2 === 0;
+  const userTurn = status === "playing" && !sessionOver && !finished && ply % 2 === 0;
+  const failedInSession = attempts.filter((attempt) => !attempt.success).length;
+  const summaryVisible = isSummaryVisible({
+    mode,
+    attempts: attempts.length,
+    finished,
+    sessionOver,
+    status,
+    reveal,
+    caughtUp,
+    exhausted,
+  });
+
+  // SIG-1235: "Review my mistakes" needs exercises to review. Look them up once
+  // the summary shows a failure; the mistakes mode itself never offers it
+  // (its own "Train again" replays the failed, due exercises).
+  useEffect(() => {
+    if (!summaryVisible || mode === "mistakes" || failedInSession === 0 || dueMistakes !== null) {
+      return;
+    }
+    let cancel = false;
+    void (async () => {
+      try {
+        const map = await hydrateExercises(sessionUserIdRef.current);
+        if (!cancel) {
+          setDueMistakes(dueExercises(map).length);
+        }
+      } catch {
+        if (!cancel) {
+          setDueMistakes(0);
+        }
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [summaryVisible, mode, failedInSession, dueMistakes]);
   const expected = puzzle && ply < puzzle.uci.length ? puzzle.uci[ply] : undefined;
 
   function onDrop(from: string, to: string): boolean {
@@ -528,6 +580,13 @@ export function usePuzzleSession({
     if (mode === "rush") {
       registerRushMiss();
     }
+  }
+
+  // SIG-1235: the user ends a rated or mistakes session (the others end on
+  // their own: first miss, timer, the puzzle itself).
+  function finishSession() {
+    clearAdvance();
+    setFinished(true);
   }
 
   function nextPuzzle() {
@@ -601,6 +660,9 @@ export function usePuzzleSession({
       exclude.current = new Set();
       sessionSolvedRef.current = 0;
       setSessionSolved(0);
+      setAttempts([]);
+      setFinished(false);
+      setDueMistakes(null);
       resetSessionXp();
       strikesRef.current = 0;
       setStrikes(0);
@@ -628,6 +690,9 @@ export function usePuzzleSession({
     setExhausted(false);
     sessionSolvedRef.current = 0;
     setSessionSolved(0);
+    setAttempts([]);
+    setFinished(false);
+    setDueMistakes(null);
     resetSessionXp();
     strikesRef.current = 0;
     setStrikes(0);
@@ -668,6 +733,11 @@ export function usePuzzleSession({
     gained,
     xpResult,
     sessionXp,
+    sessionStart,
+    attempts,
+    summaryVisible,
+    dueMistakes,
+    finishSession,
     userTurn,
     expected,
     onDrop,
