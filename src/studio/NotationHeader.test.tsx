@@ -17,14 +17,14 @@ test("over-the-board game renders both lines", () => {
   assert.ok(screen.getByText("GM"));
   assert.ok(screen.getByText("C91"));
   const info = screen.getByTestId("notation-header-info");
-  assert.equal(info.getAttribute("title"), "Over the board · Biel GM · R5 · Jul 17, 2005 · C91 Ruy Lopez");
+  assert.equal(info.getAttribute("title"), "Biel GM · R5 · Jul 17, 2005 · C91 Ruy Lopez");
   assert.equal(info.querySelector("a"), null);
 });
 
 test("unfinished game shows vs, locale pt-br", () => {
   render(<NotationHeader headers={{ ...OTB, Result: "*" }} locale="pt-br" onEdit={() => {}} />);
   assert.ok(screen.getByText("contra"));
-  assert.match(screen.getByTestId("notation-header-info").getAttribute("title") ?? "", /^Presencial · Biel GM · R5/);
+  assert.match(screen.getByTestId("notation-header-info").getAttribute("title") ?? "", /^Biel GM · R5/);
 });
 
 test("Chess.com game links to the original game safely", () => {
@@ -44,7 +44,7 @@ test("inline (wide panel) mode keeps the game details line under the players", (
   render(<NotationHeader inline headers={OTB} onEdit={() => {}} />);
   assert.ok(screen.getByText("½-½"));
   const info = screen.getByTestId("notation-header-info");
-  assert.equal(info.getAttribute("title"), "Over the board · Biel GM · R5 · Jul 17, 2005 · C91 Ruy Lopez");
+  assert.equal(info.getAttribute("title"), "Biel GM · R5 · Jul 17, 2005 · C91 Ruy Lopez");
   assert.equal(screen.getAllByText("C91").length, 1, "ECO shows once, in the details line");
 });
 

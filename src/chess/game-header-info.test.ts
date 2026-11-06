@@ -53,7 +53,7 @@ test("over the board headers", () => {
     { Event: "Biel GM", Site: "Biel SUI", Date: "2005.07.17", Round: "5", ECO: "C91", WhiteElo: "2660", BlackElo: "2528", Result: "1/2-1/2", TimeControl: "5400+30" },
     "en",
   );
-  assert.deepEqual(info.source, { kind: "otb", label: "Over the board" });
+  assert.equal(info.source, null);
   assert.equal(info.event, "Biel GM");
   assert.equal(info.round, "R5");
   assert.equal(info.site, null, "the event already names the city");
@@ -61,8 +61,8 @@ test("over the board headers", () => {
   assert.equal(info.eco, "C91");
   assert.equal(info.timeControl, null);
   assert.equal(info.result, "½-½");
-  const pt = gameHeaderInfo({ Event: "Biel GM", Date: "2005.07.17" }, "pt-br");
-  assert.equal(pt.source?.label, "Presencial");
+  const pt = gameHeaderInfo({ Event: "Biel GM", Site: "Biel SUI", Date: "2005.07.17" }, "pt-br");
+  assert.equal(pt.source, null);
   assert.equal(pt.date?.text, "17 jul 2005");
   // Site equal to Event is not repeated.
   assert.equal(gameHeaderInfo({ Event: "Biel", Site: "Biel" }).site, null);
@@ -98,7 +98,9 @@ test("link allow-list", () => {
   assert.equal(safeGameUrl("javascript:alert(1)"), null);
   assert.equal(safeGameUrl("https://user:pw@lichess.org/x"), null);
   const bad = gameHeaderInfo({ Site: "Chess.com", Link: "https://evil.example/x" });
-  assert.deepEqual(bad.source, { kind: "chesscom", label: "Chess.com" });
+  // Another domain is no longer dropped: it becomes the generic original-game link.
+  assert.deepEqual(bad.source, { kind: "other", label: "View original", url: "https://evil.example/x" });
+  assert.equal(gameHeaderInfo({ Link: "javascript:alert(1)" }).source, null);
 });
 
 test("time control and titles", () => {
@@ -114,4 +116,34 @@ test("time control and titles", () => {
 test("site drops the country code and stays when the event does not name the city", () => {
   const info = gameHeaderInfo({ Event: "Tata Steel Masters", Site: "Wijk aan Zee NED", Date: "2024.01.20" });
   assert.equal(info.site, "Wijk aan Zee");
+});
+
+// SIG-1247: a source element exists only for a real https URL to the original game.
+const SOURCE_TABLE: Array<[string, Record<string, string>, { kind: string; label: string; url: string } | null]> = [
+  ["Lichess game URL as Site", { Event: "Rated Blitz game", Site: "https://lichess.org/AbCd1234" }, { kind: "lichess", label: "Lichess", url: "https://lichess.org/AbCd1234" }],
+  ["Lichess puzzle handoff", { Event: "Puzzle 00sHx", Site: "https://lichess.org/training/00sHx" }, { kind: "lichess", label: "Lichess", url: "https://lichess.org/training/00sHx" }],
+  ["Chess.com PGN", { Event: "Live Chess", Site: "Chess.com", Link: "https://www.chess.com/game/live/1" }, { kind: "chesscom", label: "Chess.com", url: "https://www.chess.com/game/live/1" }],
+  ["Chess.com Site without a link", { Event: "Live Chess", Site: "Chess.com" }, null],
+  ["Site Internet", { Event: "Casual game", Site: "Internet" }, null],
+  ["URL from another site", { Event: "Open", Site: "https://www.chess24.com/en/game/x" }, { kind: "other", label: "View original", url: "https://www.chess24.com/en/game/x" }],
+  ["Link from another site", { Event: "Open", Site: "?", Link: "https://example.org/g/1" }, { kind: "other", label: "View original", url: "https://example.org/g/1" }],
+  ["http URL", { Site: "http://example.org/g/1" }, { kind: "other", label: "View original", url: "http://example.org/g/1" }],
+  ["Link with credentials is not linked", { Site: "Chess.com", Link: "https://u:p@www.chess.com/game/1" }, null],
+  ["Place name (masters / OTB PGN)", { Event: "Tata Steel Masters", Site: "Wijk aan Zee NED" }, null],
+  ["Puzzle header (Event only)", { Event: "Problema tp4Qm", Result: "*" }, null],
+  ["Mistake exercise", { Event: "Meu erro", Site: "?" }, null],
+  ["Event only", { Event: "Biel GM" }, null],
+  ["Site ?", { Event: "?", Site: "?" }, null],
+  ["Studio default Site", { Event: "Casual game", Site: "Studio" }, null],
+  ["Empty", {}, null],
+];
+
+for (const [name, headers, expected] of SOURCE_TABLE) {
+  test(`sourceFor: ${name}`, () => {
+    assert.deepEqual(gameHeaderInfo(headers, "en").source, expected);
+  });
+}
+
+test("sourceFor: generic label is localized", () => {
+  assert.equal(gameHeaderInfo({ Link: "https://example.org/g/1" }, "pt-br").source?.label, "Ver original");
 });

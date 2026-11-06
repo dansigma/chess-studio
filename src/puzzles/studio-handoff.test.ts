@@ -123,3 +123,22 @@ test("openPuzzleInStudio falls back to the shared position without storage", () 
     restore();
   }
 });
+
+test("SIG-1247: Lichess ids carry the training URL as Site, other puzzles carry no Site", () => {
+  const lichess = buildPuzzlePgn(WHITE, "Problema 00sHx");
+  assert.ok(lichess);
+  assert.match(lichess, /\[Site "https:\/\/lichess\.org\/training\/00sHx"\]/);
+  const local = buildPuzzlePgn({ ...WHITE, id: "queen-corridor" }, "Problema queen-corridor");
+  assert.ok(local);
+  assert.doesNotMatch(local, /\[Site /);
+});
+
+test("SIG-1247: the import orientation is the side to move", () => {
+  assert.equal(buildPuzzleStudioImport(WHITE, "catalog" as never, "en" as never)?.orientation, "white");
+  const black = buildPuzzleStudioImport(
+    { id: "tp4Qm", fen: "6k1/5ppp/8/8/8/5n2/5PPP/3R2K1 b - - 0 24", sans: ["Nd2+"] },
+    "catalog" as never,
+    "en" as never,
+  );
+  assert.equal(black?.orientation, "black");
+});

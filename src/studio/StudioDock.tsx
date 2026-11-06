@@ -51,6 +51,7 @@ import {
 import {
   boardIdFromPanelId,
   boardPanelId,
+  ensureActiveBoardPanel,
   boardTitle,
   dedupedBoardTitles,
   closeBoardPanel,
@@ -524,6 +525,7 @@ export function StudioDock() {
         ensureReviewPanel(api);
         ensureInsightsPanel(api);
         ensureMyStatsPanel(api);
+        ensureActiveBoardPanel();
       });
     });
     const saved = takeQueuedDockLayout() ?? readStoredDockLayout();
@@ -536,6 +538,7 @@ export function StudioDock() {
       ensureReviewPanel(api);
       ensureInsightsPanel(api);
       ensureMyStatsPanel(api);
+      ensureActiveBoardPanel();
     });
     // SIG-907: focus→active so notation/engine/explorer follow the focused
     // board panel. Guard on "different + exists" — setActiveBoard clears

@@ -151,6 +151,7 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         tree: imported.tree,
         path: mainlinePathForFen(imported.tree, atFen),
         headers,
+        ...(args.orientation ? { orientation: args.orientation } : {}),
         // SIG-968: a fresh game replaces the tree — drop any annotate undo.
         reviewAnnotateUndo: undefined,
         dirty: false,

@@ -5,6 +5,7 @@ import { buildPuzzleStudioImport, type StudioPuzzle } from "../puzzles/studio-ha
 import { COURSE_STUDY_IMPORT_KEY, readCourseStudyImport, writeCourseStudyImport } from "../chess/share-board.ts";
 import { mergeSessionBoards, type RemoteBoardRow } from "../lib/session-boards.ts";
 import { useStudioStore, emptyBoard } from "../store/studio-store.ts";
+import { registerStudioDock } from "./dock-api.ts";
 import { applyStudioEntryImport, entryImportReady } from "./entry-import.ts";
 
 const session = new Map<string, string>();
@@ -96,4 +97,79 @@ test("SIG-1244: the payload is consumed once (a second pass adds no board)", () 
 
 test("SIG-1244: guests are ready as soon as auth resolves, with no restore", () => {
   assert.equal(entryImportReady({ authResolved: true, hasUser: false, restoreSettled: false }), true);
+});
+
+const BLACK_PUZZLE: StudioPuzzle = {
+  id: "tp4Qm",
+  fen: "6k1/5ppp/8/8/8/5n2/5PPP/3R2K1 b - - 0 24",
+  sans: ["Nh2+"],
+};
+
+function openedBoard() {
+  const { boards, activeBoardId } = useStudioStore.getState();
+  const board = boards.find((b) => b.id === activeBoardId);
+  assert.ok(board);
+  return board;
+}
+
+test("SIG-1247: a black-to-move puzzle opens with Black at the bottom", () => {
+  reset();
+  const payload = buildPuzzleStudioImport({ ...BLACK_PUZZLE, sans: ["Nd2+"] }, "catalog" as never, "pt-br" as never);
+  assert.ok(payload);
+  assert.equal(payload.orientation, "black");
+  assert.ok(writeCourseStudyImport(payload));
+  assert.equal(readCourseStudyImport()?.orientation, "black");
+  applyStudioEntryImport("");
+  assert.equal(openedBoard().orientation, "black");
+});
+
+test("SIG-1247: a white-to-move puzzle opens with White at the bottom", () => {
+  reset();
+  seedPuzzleHandoff();
+  applyStudioEntryImport("");
+  assert.equal(openedBoard().orientation, "white");
+});
+
+test("SIG-1247: the handoff orientation is validated on read and courses carry none", () => {
+  reset();
+  session.set(COURSE_STUDY_IMPORT_KEY, JSON.stringify({ title: "t", pgn: "1. e4 *", orientation: "sideways" }));
+  assert.equal(readCourseStudyImport()?.orientation, undefined);
+  writeCourseStudyImport({ title: "Curso", pgn: "1. e4 e5 *" });
+  applyStudioEntryImport("");
+  assert.equal(openedBoard().orientation, "white");
+});
+
+test("SIG-1247: a flipped board stays white for a course even when another board was flipped", () => {
+  reset();
+  useStudioStore.getState().flip();
+  writeCourseStudyImport({ title: "Curso", pgn: "1. e4 e5 *" });
+  applyStudioEntryImport("");
+  assert.equal(openedBoard().orientation, "white");
+});
+
+test("SIG-1247: the new board gets its own dock tab named after the import, after another game was open", () => {
+  reset();
+  useStudioStore.setState((state) => ({
+    boards: state.boards.map((b) => ({ ...b, title: "Grischuk, A. vs Carlsen, M." })),
+  }));
+  const oldId = useStudioStore.getState().activeBoardId;
+  const panels = new Map<string, { title: string }>([[`board:${oldId}`, { title: "Grischuk, A. vs Carlsen, M." }]]);
+  const added: Array<{ id: string; title: string }> = [];
+  registerStudioDock({
+    getPanel: (id: string) => (panels.has(id) ? { id, api: { setActive: () => {} } } : undefined),
+    panels: [],
+    addPanel: (options: { id: string; title: string }) => {
+      panels.set(options.id, { title: options.title });
+      added.push({ id: options.id, title: options.title });
+    },
+  } as never);
+  try {
+    seedPuzzleHandoff();
+    applyStudioEntryImport("");
+    const board = openedBoard();
+    assert.notEqual(board.id, oldId);
+    assert.deepEqual(added, [{ id: `board:${board.id}`, title: "Puzzle 00sHx" }]);
+  } finally {
+    registerStudioDock(null);
+  }
 });

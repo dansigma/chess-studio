@@ -7,6 +7,7 @@
 import { clearCourseStudyImport, fenFromShareSearch, readCourseStudyImport } from "@/src/chess/share-board";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { useStudioStore } from "@/src/store/studio-store";
+import { boardTitle, openBoardPanel } from "./dock-api";
 
 /**
  * True once opening a board can no longer be overwritten by a restore: either
@@ -32,7 +33,14 @@ export function applyStudioEntryImport(search: string): void {
         pgn: courseImport.pgn,
         atFen: courseImport.atFen,
         openInNewBoard: true,
+        orientation: courseImport.orientation,
       });
+      // SIG-1247: give the new board its own dock tab (named after the import).
+      // Without it the board had no `board:*` panel and the visible tab kept
+      // the title of the game that was open before.
+      const next = useStudioStore.getState();
+      const active = next.active();
+      openBoardPanel(active.id, boardTitle(next.settings.locale, active.title));
     } catch {
       const failedKey = courseImport.kind === "puzzle" ? "chrome.shell.puzzleLineFailed" : "chrome.shell.courseLineFailed";
       useStudioStore.setState({ statusMessage: tStudioChrome(useStudioStore.getState().settings.locale, failedKey) });

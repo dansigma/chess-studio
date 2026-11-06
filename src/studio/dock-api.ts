@@ -322,6 +322,20 @@ export function openBoardPanel(boardId: string, title?: string): void {
   });
 }
 
+// SIG-1247: the active board must always have a dock tab. A restored layout
+// (or an import applied before the dock was ready) can leave the active board
+// without a `board:*` panel; add it with its own title.
+export function ensureActiveBoardPanel(): void {
+  if (!dockApi) {
+    return;
+  }
+  const state = useStudioStore.getState();
+  const active = state.active();
+  if (!dockApi.getPanel(boardPanelId(active.id))) {
+    openBoardPanel(active.id, boardTitle(state.settings.locale, active.title));
+  }
+}
+
 export function closeBoardPanel(boardId: string): void {
   const panel = dockApi?.getPanel(boardPanelId(boardId));
   if (!panel) {
