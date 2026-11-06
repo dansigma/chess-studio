@@ -303,7 +303,14 @@ export function usePuzzleSession({
 
   useEffect(() => {
     let cancel = false;
+    // SIG-1243: the hook outlives a mode change (e.g. "Train again" from the
+    // daily summary), so drop the previous mode's puzzle immediately; the
+    // Trainer shows its loading state instead of the stale panel while the
+    // new pool loads.
     void (async () => {
+      setPuzzle(null);
+      setFen("");
+      setExhausted(false);
       try {
         const supabase = createBrowserSupabase();
         const user = supabase ? (await supabase.auth.getUser()).data.user : null;
