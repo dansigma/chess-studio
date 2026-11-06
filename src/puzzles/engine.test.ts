@@ -13,7 +13,6 @@ import {
   judgeMove,
   levelFromXp,
   materialFor,
-  puzzlePoints,
   rankedPuzzles,
   rate,
 } from "./engine.ts";
@@ -102,7 +101,8 @@ test("rated success updates rating and streak", () => {
   assert.equal(next.solved, 1);
   assert.equal(next.streak, 1);
   assert.equal(next.history[0]?.delta, 16);
-  assert.equal(next.xp, puzzlePoints(1200, 1));
+  // 20 base x 1.2 first try; no timing, so no speed bonus.
+  assert.equal(next.xp, 24);
   const missed = applyResult(next, {
     id: "back-rank-rook",
     mode: "rated",
@@ -174,11 +174,11 @@ test("rush keeps the best score and leaves the rating alone", () => {
   assert.equal(next.streak, 0);
 });
 
-test("puzzle points grow with the streak and levels every 100 xp", () => {
-  assert.ok(puzzlePoints(800, 3) > puzzlePoints(800, 1));
-  assert.deepEqual(levelFromXp(0), { level: 1, into: 0, span: 100 });
-  assert.deepEqual(levelFromXp(100), { level: 2, into: 0, span: 100 });
-  assert.equal(levelFromXp(140).into, 40);
+test("levels grow: 100, 130, 169 xp and levelFromXp reports xp to the next level", () => {
+  assert.deepEqual(levelFromXp(0), { level: 1, into: 0, span: 100, toNext: 100 });
+  assert.deepEqual(levelFromXp(100), { level: 2, into: 0, span: 130, toNext: 130 });
+  assert.deepEqual(levelFromXp(140), { level: 2, into: 40, span: 130, toNext: 90 });
+  assert.equal(levelFromXp(230).level, 3);
 });
 
 test("a failed puzzle does not award points", () => {

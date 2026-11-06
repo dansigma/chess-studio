@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Transparent puzzle XP and a growing level curve (SIG-1234)
+
+- XP is `20 x difficulty (0.5-2.0) x speed (1.0-1.5) x first try (1.2)`, rounded once, and the panel shows the
+  sum after every puzzle ("+42 XP · 20 solved × 1.4 hard × 1.5 fast") in every mode, en and pt-BR. Hints remove
+  the speed and first-try bonuses; a missed puzzle gives 0. Mistakes practice and a repeated daily show the
+  breakdown but add nothing to your XP.
+- Level n costs `round(100 * 1.3^(n-1))` XP (flat after level 20); the level bar shows "XP to level N".
+  Levels are recalculated from stored total XP, so some players will drop a level.
+- `puzzlePoints` and `XP_PER_LEVEL` are gone; the rules live in `src/puzzles/xp.ts`. The scoring hook exposes
+  `xpResult` and `sessionXp` for the session summary (SIG-1235).
+
 ### Opening book v3 tooling and a safer zstd build (SIG-1229, SIG-1227)
 
 - Book rule: the move share went from 3% to 1% (`BOOK_RULE` version 2, shared with the explorer path); the

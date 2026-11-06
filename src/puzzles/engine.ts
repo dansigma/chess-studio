@@ -11,6 +11,7 @@ import {
   type PuzzleProgress,
   type PuzzleTheme,
 } from "./types";
+import { xpBreakdown, type XpBreakdown } from "./xp";
 
 export type CompiledPuzzle = Puzzle & {
   uci: string[];
@@ -36,21 +37,8 @@ export function emptyProgress(): PuzzleProgress {
   };
 }
 
-export const XP_PER_LEVEL = 100;
-
-export function puzzlePoints(puzzleRating: number, streak: number): number {
-  const base = 12 + Math.round(Math.max(0, puzzleRating) / 40);
-  return base + Math.max(1, streak) * 8;
-}
-
-export function levelFromXp(xp: number): { level: number; into: number; span: number } {
-  const safe = Math.max(0, Math.floor(xp));
-  return {
-    level: Math.floor(safe / XP_PER_LEVEL) + 1,
-    into: safe % XP_PER_LEVEL,
-    span: XP_PER_LEVEL,
-  };
-}
+// SIG-1234: XP rules and the level curve live in ./xp (pure, unit-tested).
+export { levelFromXp, xpForLevel } from "./xp";
 
 export function isPuzzleTheme(value: string): value is PuzzleTheme {
   return (PUZZLE_THEMES as readonly string[]).includes(value);
@@ -320,6 +308,22 @@ export function normalizeProgress(value: unknown): PuzzleProgress {
   };
 }
 
+/**
+ * SIG-1234: the XP breakdown for one attempt, scored against the rating the
+ * user had before the attempt. `applyResult` adds `total` to `xp`; the UI
+ * renders the same object.
+ */
+export function attemptXp(progress: PuzzleProgress, attempt: PuzzleModeAttempt): XpBreakdown {
+  return xpBreakdown({
+    success: attempt.success,
+    puzzleRating: attempt.puzzleRating,
+    userRating: progress.rating,
+    solverMoves: attempt.solverMoves ?? 1,
+    ms: attempt.ms,
+    hinted: attempt.hinted ?? false,
+  });
+}
+
 export function applyResult(progress: PuzzleProgress, attempt: PuzzleModeAttempt): PuzzleProgress {
   // SIG-1097: mistakes practice never touches puzzle progress — no rating,
   // XP, solved/failed, streak, daily, history, or motif changes.
@@ -335,8 +339,7 @@ export function applyResult(progress: PuzzleProgress, attempt: PuzzleModeAttempt
   const rating = rated ? rate(progress.rating, attempt.puzzleRating, attempt.success) : progress.rating;
   const tracksStreak = attempt.mode === "rated" || attempt.mode === "streak";
   const streak = !tracksStreak ? progress.streak : attempt.success ? progress.streak + 1 : 0;
-  const pointStreak = attempt.mode === "rush" ? Math.max(1, attempt.sessionScore) : Math.max(1, streak);
-  const gained = attempt.success ? puzzlePoints(attempt.puzzleRating, pointStreak) : 0;
+  const gained = attemptXp(progress, attempt).total;
   const motifs =
     attempt.mode === "rated" ||
     attempt.mode === "streak" ||

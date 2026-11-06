@@ -47,3 +47,8 @@ export function formatDuration(locale: SiteLocale, ms: number): string {
   const seconds = Math.round(safe / 1000);
   return `${formatInteger(locale, Math.floor(seconds / 60))}m ${formatInteger(locale, seconds % 60)}s`;
 }
+
+/** SIG-1234: an XP multiplier, up to two decimals: 1.4 -> "1.4" (en) / "1,4" (pt-br), 2 -> "2". */
+export function formatMultiplier(locale: SiteLocale, value: number): string {
+  return new Intl.NumberFormat(TAG[locale], { maximumFractionDigits: 2 }).format(value);
+}

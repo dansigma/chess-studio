@@ -88,6 +88,8 @@ test("mistakes mode: a miss stays due, a solve advances, rating untouched", asyn
   await clickMove(page, secondSolution.from, secondSolution.to);
   await expect(bubbleTitle(page)).toHaveText("Solved");
   await expect(panel(page).locator("span.bg-studio-success")).toHaveCount(0);
+  // SIG-1234: the breakdown shows, flagged as practice that adds no XP.
+  await expect(panel(page).getByTestId("xp-breakdown")).toContainText("Practice only, not added to your XP");
   // First attempt on a fresh entry schedules interval 1 with tomorrow's due
   // date (scheduleReview: unscheduled → 1 day on correct); a fail records
   // mistakeCount 1, a solve records 0. Assert both directions, not the

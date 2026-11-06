@@ -9,6 +9,7 @@ import { Button } from "@/src/studio/ui/Button";
 import { THEME_LABEL_KEYS, type PuzzleMode, type PuzzleTheme } from "./types";
 import { RUSH_STRIKES, clock, type PuzzleSession } from "./use-puzzle-session";
 import type { PuzzleFeedback } from "./use-puzzle-feedback";
+import { LevelBar, XpBreakdownLine } from "./XpBreakdown";
 
 export function PuzzlePanel({
   mode,
@@ -34,6 +35,7 @@ export function PuzzlePanel({
     progress,
     delta,
     gained,
+    xpResult,
     hintLevel,
     setHintLevel,
     giveUp,
@@ -87,6 +89,9 @@ export function PuzzlePanel({
               })}
             </p>
           ) : null}
+          {xpResult && status !== "playing" ? (
+            <XpBreakdownLine breakdown={xpResult.breakdown} awarded={xpResult.awarded} locale={locale} />
+          ) : null}
           {sessionOver && mode === "rush" && reveal && miss ? (
             <p className="mt-1 text-caption text-studio-muted">
               {tPuzzle(locale, "puzzle.panel.bestMove", { san: miss.san })}
@@ -128,18 +133,7 @@ export function PuzzlePanel({
           )}
         </div>
 
-        <div className="flex items-center gap-2">
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-studio-bg">
-            <div
-              className="h-full rounded-full bg-studio-success transition-[width] duration-500"
-              style={{ width: `${(level.into / level.span) * 100}%` }}
-            />
-          </div>
-          <span className="inline-flex items-center gap-1 text-caption tabular-nums text-studio-muted">
-            <Crown className="size-3 text-studio-warning-fg" aria-hidden />
-            {level.level + 1}
-          </span>
-        </div>
+        <LevelBar level={level} locale={locale} />
 
         {mode === "rated" || mode === "daily" ? (
           <p className="text-caption text-studio-muted">
