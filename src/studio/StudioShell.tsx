@@ -536,7 +536,8 @@ export function StudioShell() {
           openInNewBoard: true,
         });
       } catch {
-        useStudioStore.setState({ statusMessage: tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.courseLineFailed") });
+        const failedKey = courseImport.kind === "puzzle" ? "chrome.shell.puzzleLineFailed" : "chrome.shell.courseLineFailed";
+        useStudioStore.setState({ statusMessage: tStudioChrome(useStudioStore.getState().settings.locale, failedKey) });
       }
       return;
     }
