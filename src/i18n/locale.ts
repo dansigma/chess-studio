@@ -11,6 +11,12 @@ export const SITE_LOCALE_LABELS: Record<SiteLocale, string> = {
   "pt-br": "Português (Brasil)",
 };
 
+/** Compact selector labels for narrow headers (SIG-1246). */
+export const SITE_LOCALE_SHORT_LABELS: Record<SiteLocale, string> = {
+  en: "EN",
+  "pt-br": "PT",
+};
+
 export function isSiteLocale(value: unknown): value is SiteLocale {
   return typeof value === "string" && (SITE_LOCALES as readonly string[]).includes(value);
 }

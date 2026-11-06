@@ -324,3 +324,56 @@ test("puzzles dashboard renders Portuguese with the pt-br locale stored", async 
   await expect(page.getByText("Temas")).toBeVisible();
   await expect(page.getByText("Start training")).toHaveCount(0);
 });
+
+/**
+ * SIG-1246: at phone widths /puzzles must not scroll sideways (the header's
+ * language selector used to reach x=472 at 375px) and the heatmap's weekday
+ * and month labels stay whole, with the most recent week in view.
+ */
+for (const width of [320, 375, 390]) {
+  for (const locale of ["en", "pt-br"] as const) {
+    test(`puzzles at ${width}px (${locale}): no horizontal page scroll, heatmap labels visible`, async ({
+      page,
+      context,
+    }) => {
+      await context.addInitScript((lang) => {
+        window.localStorage.setItem("studio-clone-settings", JSON.stringify({ locale: lang }));
+        const pad = (n: number) => String(n).padStart(2, "0");
+        const now = new Date();
+        const key = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        window.localStorage.setItem(
+          "xadrez-digital.puzzles",
+          JSON.stringify({ days: { [key]: { solved: 6, failed: 1, ms: 120000, xp: 0 } } }),
+        );
+      }, locale);
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/puzzles");
+      const heatmap = page.getByTestId("progress-heatmap");
+      await expect(heatmap).toBeVisible();
+
+      const noOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      );
+      expect(noOverflow).toBe(true);
+
+      // Weekday labels are fully inside the viewport and not clipped.
+      const weekdays = page.getByTestId("heatmap-weekdays");
+      await expect(weekdays).toBeVisible();
+      const clipped = await weekdays.evaluate((el) => el.scrollWidth > el.clientWidth || el.getBoundingClientRect().left < 0);
+      expect(clipped).toBe(false);
+
+      // The most recent week (today's square) is inside the scroller's visible area.
+      const visible = await page.evaluate(() => {
+        const scroller = document.querySelector('[data-testid="heatmap-scroller"]');
+        const today = scroller?.querySelector('[role="gridcell"][tabindex="0"]');
+        if (!scroller || !today) {
+          return false;
+        }
+        const s = scroller.getBoundingClientRect();
+        const t = today.getBoundingClientRect();
+        return t.left >= s.left - 1 && t.right <= s.right + 1;
+      });
+      expect(visible).toBe(true);
+    });
+  }
+}

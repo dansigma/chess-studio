@@ -8,6 +8,21 @@ import type { DayActivity } from "./types";
 export const HEAT_BUCKET_MIN = [1, 5, 10, 20] as const;
 export const HEAT_LEVELS = HEAT_BUCKET_MIN.length + 1;
 export const HEATMAP_WEEKS = 18;
+// SIG-1246: on narrow screens fewer weeks are drawn so the whole grid fits
+// without scrolling and squares keep their full size (never shrunk).
+export const HEATMAP_MIN_WEEKS = 12;
+// A month label ("Nov", "set.") is allowed this many columns before the next
+// label or the right edge; a label that needs more room is hidden, not clipped.
+export const MONTH_LABEL_COLUMNS = 3;
+
+/** Weeks that fit `width` px of grid at `step` px per column, clamped to 12-18. width <= 0 = unmeasured. */
+export function heatmapWeeksForWidth(width: number, step: number): number {
+  if (!(width > 0) || !(step > 0)) {
+    return HEATMAP_WEEKS;
+  }
+  const fit = Math.floor(width / step);
+  return Math.max(HEATMAP_MIN_WEEKS, Math.min(HEATMAP_WEEKS, fit));
+}
 
 export type HeatBucket = 0 | 1 | 2 | 3 | 4;
 
@@ -43,6 +58,18 @@ export type HeatCell = {
 };
 
 export type HeatMonthLabel = { column: number; month: number }; // month 0-11
+
+/** Drops month labels that would overlap the next one or run past the last column. */
+export function visibleMonthLabels(
+  months: HeatMonthLabel[],
+  weeks: number,
+  span: number = MONTH_LABEL_COLUMNS,
+): HeatMonthLabel[] {
+  return months.filter((m, i) => {
+    const nextColumn = i + 1 < months.length ? months[i + 1].column : Infinity;
+    return m.column + span <= weeks && nextColumn - m.column >= span;
+  });
+}
 
 export type Heatmap = {
   // weeks[col][row]; row 0 = Sunday. null = a day after today (not drawn).

@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildHeatmap, heatBucket, HEAT_BUCKET_MIN } from "./heatmap";
+import {
+  buildHeatmap,
+  heatBucket,
+  heatmapWeeksForWidth,
+  HEAT_BUCKET_MIN,
+  visibleMonthLabels,
+} from "./heatmap";
 import type { DayActivity } from "./types";
 
 const d = (solved: number, failed = 0, ms = 60_000): DayActivity => ({ solved, failed, ms, xp: 0 });
@@ -49,4 +55,40 @@ test("buildHeatmap totals, week count and frozen days", () => {
 test("buildHeatmap flags an empty history", () => {
   assert.equal(buildHeatmap({}, "2026-11-05").hasActivity, false);
   assert.equal(buildHeatmap(undefined, "2026-11-05").hasActivity, false);
+});
+
+test("heatmapWeeksForWidth fits whole 15px columns, clamped to 12-18", () => {
+  assert.equal(heatmapWeeksForWidth(0, 15), 18); // unmeasured: default
+  assert.equal(heatmapWeeksForWidth(600, 15), 18);
+  assert.equal(heatmapWeeksForWidth(270, 15), 18);
+  assert.equal(heatmapWeeksForWidth(225, 15), 15);
+  assert.equal(heatmapWeeksForWidth(212, 15), 14);
+  assert.equal(heatmapWeeksForWidth(100, 15), 12);
+});
+
+test("visibleMonthLabels hides labels that overlap or run past the right edge", () => {
+  const months = [
+    { column: 0, month: 6 },
+    { column: 2, month: 7 },
+    { column: 6, month: 8 },
+    { column: 10, month: 9 },
+    { column: 15, month: 10 },
+  ];
+  // Jul is 2 columns from Aug (needs 3): hidden. Nov at 15 needs 15+3 <= 16: hidden.
+  assert.deepEqual(
+    visibleMonthLabels(months, 16).map((m) => m.month),
+    [7, 8, 9],
+  );
+  // With 18 weeks Nov fits (15+3 <= 18).
+  assert.deepEqual(
+    visibleMonthLabels(months, 18).map((m) => m.month),
+    [7, 8, 9, 10],
+  );
+  assert.deepEqual(visibleMonthLabels([], 12), []);
+});
+
+test("buildHeatmap honors a reduced week count", () => {
+  const m = buildHeatmap({ "2026-11-03": d(2) }, "2026-11-03", 12);
+  assert.equal(m.weeks.length, 12);
+  assert.equal(m.weeks[0][0]?.key, "2026-08-16");
 });
