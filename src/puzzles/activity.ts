@@ -136,7 +136,9 @@ export function dayStreak(days: Record<string, DayActivity> | undefined, today: 
   const end = toUtc(today);
   const activeSet = new Set(active);
   const missesByWeek = new Map<string, number>();
-  const frozenDays: string[] = [];
+  // Freezes of the live run only: a reset means the run is over, so its
+  // freezes saved nothing and are discarded (SIG-1233).
+  let frozenDays: string[] = [];
   let current = 0;
   let longest = 0;
   for (let t = toUtc(active[0]); t <= end; t += DAY_MS) {
@@ -156,6 +158,7 @@ export function dayStreak(days: Record<string, DayActivity> | undefined, today: 
       frozenDays.push(key);
     } else {
       current = 0;
+      frozenDays = [];
     }
   }
   return { current, longest, frozenDays };
