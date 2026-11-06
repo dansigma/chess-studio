@@ -164,23 +164,54 @@ test("queryPuzzleTable with unseen returns the RPC rows without calling puzzles_
   holder.authedRpcImpl = null;
 });
 
-test("queryPuzzleTable with unseen returns the empty RPC result without falling back", async () => {
-  // Regression: an empty `puzzles_unseen` page means "everything in this
-  // window is seen" — falling back to `puzzles_window` would re-serve the
-  // ledger ids the RPC just excluded.
+test("queryPuzzleTable with unseen returns [] (exhausted) when the window has rows but none unseen", async () => {
+  // Regression: an empty `puzzles_unseen` page over a LOADED window means
+  // "everything here is seen" — the probe must not leak window rows back.
   holder.authedClient = true;
   const calls: string[] = [];
   holder.authedRpcImpl = (async (fn: string) => {
     calls.push(`authed:${fn}`);
     return { data: [], error: null };
   }) as typeof holder.authedRpcImpl;
-  holder.rpcImpl = (async (fn: string) => {
-    calls.push(`public:${fn}`);
+  holder.rpcImpl = (async (fn: string, args: unknown) => {
+    const a = args as { p_exclude: unknown; p_limit: number };
+    calls.push(`public:${fn}:exclude=${String(a.p_exclude)}:limit=${a.p_limit}`);
     return { data: [GOOD_ROW], error: null };
   }) as typeof holder.rpcImpl;
-  const result = await queryPuzzleTable({ minRating: 1400, maxRating: 1600, unseen: true });
+  const result = await queryPuzzleTable({ minRating: 1400, maxRating: 1600, unseen: true, exclude: ["x"] });
   assert.deepEqual(result, []);
-  assert.deepEqual(calls, ["authed:puzzles_unseen"]);
+  assert.deepEqual(calls, ["authed:puzzles_unseen", "public:puzzles_window:exclude=null:limit=1"]);
+  holder.authedClient = false;
+  holder.authedRpcImpl = null;
+});
+
+test("queryPuzzleTable with unseen returns null and warns once when the table is empty", async () => {
+  // SIG-1243: empty puzzles_unseen + empty puzzles_window = unloaded table,
+  // not "all seen". null makes the route serve the built-in catalog.
+  holder.authedClient = true;
+  holder.authedRpcImpl = (async () => ({ data: [], error: null })) as typeof holder.authedRpcImpl;
+  holder.rpcImpl = (async () => ({ data: [], error: null })) as typeof holder.rpcImpl;
+  let warns = 0;
+  const original = console.warn;
+  console.warn = () => {
+    warns += 1;
+  };
+  try {
+    assert.equal(await queryPuzzleTable({ minRating: 1400, maxRating: 1600, unseen: true }), null);
+    assert.equal(await queryPuzzleTable({ minRating: 1400, maxRating: 1600, unseen: true }), null);
+    assert.equal(warns, 1);
+  } finally {
+    console.warn = original;
+    holder.authedClient = false;
+    holder.authedRpcImpl = null;
+  }
+});
+
+test("queryPuzzleTable with unseen returns null when the empty-result probe errors", async () => {
+  holder.authedClient = true;
+  holder.authedRpcImpl = (async () => ({ data: [], error: null })) as typeof holder.authedRpcImpl;
+  holder.rpcImpl = (async () => ({ data: null, error: new Error("db down") })) as typeof holder.rpcImpl;
+  assert.equal(await queryPuzzleTable({ minRating: 1400, maxRating: 1600, unseen: true }), null);
   holder.authedClient = false;
   holder.authedRpcImpl = null;
 });

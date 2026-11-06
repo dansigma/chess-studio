@@ -200,3 +200,32 @@ test("single id lookup prefers the table row", async () => {
   assert.equal((body as { id: string }).id, raw.id);
   storeHolder.tableRowById = {};
 });
+
+// SIG-1243: an empty/unloaded puzzles table (store returns null) must not
+// look like "all seen" for signed-in callers — they get catalog items.
+test("signed-in windowed request with an empty table falls back to the catalog", async () => {
+  storeHolder.tableRows = null;
+  storeHolder.tableRowById = {};
+  storeHolder.authedUser = true;
+  const { res, body } = await get("?minRating=1100&maxRating=1300&limit=5");
+  assert.equal(res.status, 200);
+  assert.ok((body as CompiledPuzzle[]).length > 0);
+  for (const puzzle of body as CompiledPuzzle[]) {
+    assert.ok(puzzle.rating >= 1100 && puzzle.rating <= 1300);
+  }
+  storeHolder.authedUser = false;
+});
+
+// SIG-1243: a loaded window the user has fully seen stays exhausted: the
+// store returns [] and the route must not substitute catalog puzzles.
+test("signed-in windowed request with a fully seen loaded window stays empty", async () => {
+  storeHolder.tableRows = [];
+  storeHolder.tableRowById = {};
+  storeHolder.authedUser = true;
+  const { res, body } = await get("?minRating=1100&maxRating=1300&limit=5");
+  assert.equal(res.status, 200);
+  assert.deepEqual(body, []);
+  assert.equal(res.headers.get("Cache-Control"), "no-store");
+  storeHolder.tableRows = null;
+  storeHolder.authedUser = false;
+});

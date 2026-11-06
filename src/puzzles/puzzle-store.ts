@@ -22,6 +22,18 @@ export interface PuzzleTableQuery {
 }
 
 let warnedCompileFailure = false;
+let warnedEmptyTable = false;
+
+function warnEmptyTableOnce(): void {
+  if (warnedEmptyTable) {
+    return;
+  }
+  warnedEmptyTable = true;
+  console.warn(
+    "[puzzles] puzzles_unseen returned no rows and puzzles_window has none for the same window: " +
+      "public.puzzles looks empty/unloaded (see docs/puzzles.md). Falling back to the built-in catalog.",
+  );
+}
 
 function warnCompileOnce(message: string): void {
   if (warnedCompileFailure) {
@@ -43,10 +55,15 @@ function warnCompileOnce(message: string): void {
  * - `null` — the table is unavailable (no client, RPC error, or RPC
  *   unavailable). Callers fall back to the compiled catalog.
  * - `CompiledPuzzle[]` (possibly empty) — the signed-in `puzzles_unseen`
- *   path resolved authoritatively. An empty array means the current window
- *   holds no unseen puzzles: callers widen the window / surface the
- *   exhausted state and must NOT fall back to unfiltered sources, which
- *   would re-serve seen puzzles.
+ *   path resolved authoritatively. An empty array means the window HAS
+ *   puzzles but the caller has seen them all: callers widen the window /
+ *   surface the exhausted state and must NOT fall back to unfiltered
+ *   sources, which would re-serve seen puzzles.
+ *
+ * SIG-1243: an empty `puzzles_unseen` result is only trusted as "all seen"
+ * after a probe of `puzzles_window` (same window, no exclude) finds rows. If
+ * the window has no rows at all the table is empty/unloaded, so this returns
+ * `null` and the route serves the built-in catalog, as for anonymous users.
  */
 export async function queryPuzzleTable(options: PuzzleTableQuery = {}): Promise<CompiledPuzzle[] | null> {
   const publicClient = createPublicServerSupabase();
@@ -69,12 +86,30 @@ export async function queryPuzzleTable(options: PuzzleTableQuery = {}): Promise<
       if (authed) {
         const unseen = await authed.rpc("puzzles_unseen", args);
         if (!unseen.error && unseen.data) {
-          // A successful RPC call — even with zero rows — is authoritative:
-          // everything in this window is seen. Return the (possibly empty)
-          // compiled result so the caller's widening/exhausted logic
-          // engages. Never fall through to `puzzles_window` here: it has no
+          // A non-empty result is authoritative. An empty one means "all seen"
+          // only if the window has rows (probe below). Never fall through to `puzzles_window` here: it has no
           // seen anti-join and would re-serve the ledger ids just excluded.
-          return compileRows(unseen.data);
+          if (unseen.data.length > 0) {
+            return compileRows(unseen.data);
+          }
+          // SIG-1243: zero unseen rows is ambiguous — "all seen" or "table
+          // empty". Probe the same window without the seen/exclude filters.
+          const probe = await publicClient.rpc("puzzles_window", {
+            ...args,
+            p_limit: 1,
+            p_seed: null,
+            p_exclude: null,
+          });
+          if (probe.error) {
+            // Cannot tell the cases apart; a repeat-prone catalog beats a
+            // false "you solved everything".
+            return null;
+          }
+          if (probe.data && probe.data.length > 0) {
+            return [];
+          }
+          warnEmptyTableOnce();
+          return null;
         }
         // RPC error: fall through to puzzles_window below (best-effort).
       }
