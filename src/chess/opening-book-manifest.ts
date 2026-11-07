@@ -3,11 +3,11 @@
 // review cache key, `file` is the versioned object under /book/ (R2 key book/<file>). The app
 // reads only those two; `sources` documents what the file was merged from.
 export const OPENING_BOOK_MANIFEST = {
-  "version": 3,
+  "version": 4,
   "format": 1,
-  "file": "opening-book-v3.bin.gz",
+  "file": "opening-book-v4.bin.gz",
   "profile": "union",
-  "builtAt": "2026-11-06T22:03:11.092Z",
+  "builtAt": "2026-11-07T11:23:21.130Z",
   "months": [
     "2026-05",
     "2026-06",
@@ -16,18 +16,18 @@ export const OPENING_BOOK_MANIFEST = {
     "2026-09",
     "2026-10"
   ],
-  "games": 8040148,
-  "gamesRead": 550790821,
-  "duplicates": 64137,
+  "games": 9138680,
+  "gamesRead": 558495592,
+  "duplicates": 33998,
   "maxPly": 40,
-  "positions": 91377,
-  "moves": 217225,
-  "bytes": 1169113,
-  "gzipBytes": 992735,
-  "sha256": "7433491dca1da1d443cc204c54246f720b52e0b0b83422d9c5b2860c0a528e41",
+  "positions": 103009,
+  "moves": 242625,
+  "bytes": 1311247,
+  "gzipBytes": 1117408,
+  "sha256": "e5c2c579dce6babb63a1360542b7ba13a6102ee79fc6975f43dea0f5f3168924",
   "licenses": [
     "Lichess open database (CC0 1.0)",
-    "AJ-OTB (public domain, games only); Lumbra Lichess Broadcast (CC BY-SA 4.0)",
+    "Lumbra's GigaBase (CC BY-NC 4.0)",
     "Ajedrez Data AJ-CORR (games stated as public domain, no annotations)"
   ],
   "sources": [
@@ -76,41 +76,27 @@ export const OPENING_BOOK_MANIFEST = {
       "sha256": "ee2aadc9a9d95e263bf065476e78fc0159aa684f8acd6bc437f5a42ee0f46573",
       "license": "Lichess open database (CC0 1.0)",
       "attribution": "Lichess open database, database.lichess.org, CC0 1.0",
-      "uniqueMoves": 98207
+      "uniqueMoves": 84283
     },
     {
-      "version": 3,
+      "version": 4,
       "format": 1,
-      "file": "opening-book-v3.bin.gz",
+      "file": "opening-book-v4.bin.gz",
       "profile": "masters",
-      "builtAt": "2026-11-06T00:51:25.818Z",
+      "builtAt": "2026-11-07T09:18:03.724Z",
       "months": [],
       "files": [
-        "AJ-OTB-PGN-000.pgn",
-        "AJ-OTB-PGN-001.pgn",
-        "LumbrasGigabase_OTB_LichessBroadcastDB.pgn"
+        "LumbrasGigabase_OTB_Complete.pgn"
       ],
-      "games": 3005690,
-      "gamesRead": 5546566,
-      "duplicates": 60878,
+      "games": 4104222,
+      "gamesRead": 13251337,
+      "duplicates": 30739,
       "inputs": [
         {
-          "file": "AJ-OTB-PGN-000.pgn",
-          "read": 4540263,
-          "kept": 2793216,
-          "duplicates": 9910
-        },
-        {
-          "file": "AJ-OTB-PGN-001.pgn",
-          "read": 868015,
-          "kept": 190401,
-          "duplicates": 32514
-        },
-        {
-          "file": "LumbrasGigabase_OTB_LichessBroadcastDB.pgn",
-          "read": 138288,
-          "kept": 22073,
-          "duplicates": 18454
+          "file": "LumbrasGigabase_OTB_Complete.pgn",
+          "read": 13251337,
+          "kept": 4104222,
+          "duplicates": 30739
         }
       ],
       "minElo": 2100,
@@ -121,14 +107,14 @@ export const OPENING_BOOK_MANIFEST = {
         "minMoveShare": 0.01,
         "minDistinctPlayers": 5
       },
-      "positions": 52626,
-      "moves": 116246,
-      "bytes": 663456,
-      "gzipBytes": 568851,
-      "sha256": "64d7f447c326c065bbc65a3873fb7663ef5714410a5b6ad8ae88079b192952fa",
-      "license": "AJ-OTB (public domain, games only); Lumbra Lichess Broadcast (CC BY-SA 4.0)",
-      "attribution": "Includes games from Ajedrez Data (ajedrezdata.com) and Lumbra's GigaBase, Lichess Broadcast subset (lumbrasgigabase.com), CC BY-SA 4.0",
-      "uniqueMoves": 40982
+      "positions": 71854,
+      "moves": 157918,
+      "bytes": 897480,
+      "gzipBytes": 774716,
+      "sha256": "8bb1572fb8cf076ca18dc71c151127b952e436f47e38a549ff6b03d55c914acf",
+      "license": "Lumbra's GigaBase (CC BY-NC 4.0)",
+      "attribution": "Includes games from Lumbra's GigaBase (lumbrasgigabase.com), CC BY-NC 4.0",
+      "uniqueMoves": 66382
     },
     {
       "version": 3,
@@ -173,7 +159,7 @@ export const OPENING_BOOK_MANIFEST = {
       "sha256": "199b55faf43850c70ea019a7f899ca330414d0939a786c6a97a2cdd305b82858",
       "license": "Ajedrez Data AJ-CORR (games stated as public domain, no annotations)",
       "attribution": "Correspondence games from Ajedrez Data (ajedrezdata.com)",
-      "uniqueMoves": 2386
+      "uniqueMoves": 358
     }
   ]
 } as const;

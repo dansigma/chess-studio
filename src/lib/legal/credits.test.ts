@@ -81,3 +81,34 @@ test("puzzles and explorer rows", () => {
   assert.equal(text(rows[1].segments), "Public Lichess explorer (masters and online database).");
   assert.equal(text(rows[3].segments), "Lichess puzzle database (CC0).");
 });
+
+// SIG-1249: book v4 replaces the Broadcast subset with Lumbra's complete release (CC BY-NC 4.0).
+const V4 = {
+  file: "opening-book-v4.bin.gz",
+  licenses: ["Lichess open database (CC0 1.0)", "Lumbra's GigaBase (CC BY-NC 4.0)", "Ajedrez Data AJ-CORR (games stated as public domain, no annotations)"],
+  sources: [
+    { profile: "lichess", files: ["stdin"], license: "Lichess open database (CC0 1.0)" },
+    {
+      profile: "masters",
+      files: ["LumbrasGigabase_OTB_Complete.pgn"],
+      license: "Lumbra's GigaBase (CC BY-NC 4.0)",
+      attribution: "Includes games from Lumbra's GigaBase (lumbrasgigabase.com), CC BY-NC 4.0",
+    },
+    { profile: "correspondence", files: ["AJ-CORR-PGN-000.pgn"], license: "Ajedrez Data AJ-CORR (games stated as public domain, no annotations)" },
+  ],
+};
+
+test("v4 manifest credits Lumbra's complete GigaBase under CC BY-NC 4.0, with no CC BY-SA claim", () => {
+  const credit = resolveBookCredit(V4);
+  assert.deepEqual(credit.sources.map((s) => s.id), ["lichess-db", "lumbra-gigabase", "ajedrez-data"]);
+  assert.equal(credit.shareAlike, false);
+  for (const locale of ["en", "pt-br"] as const) {
+    const segments = bookRow(locale, V4).segments;
+    const t = text(segments);
+    assert.match(t, /Lumbra's GigaBase \(CC BY-NC 4\.0\)/);
+    assert.doesNotMatch(t, /BY-SA|Broadcast/);
+    const l = links(segments);
+    assert.equal(l["Lumbra's GigaBase"], "https://lumbrasgigabase.com");
+    assert.equal(l["CC BY-NC 4.0"], "https://creativecommons.org/licenses/by-nc/4.0/");
+  }
+});
