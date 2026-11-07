@@ -325,6 +325,10 @@ v4 stops at exactly the same ply as v3 (3 exact, 6 at 1–3, 7 at 4+; mean 10.65
 explorer, mean Δ +1.05), while the book grew from 91,377 to 103,009 positions. The masters book alone grew
 36.6% in kept games (3,005,690 to 4,104,222) and 35.8% in moves. Details: `compare/report-v4.md`.
 
+Spot-check on the book itself: Kasparov–Topalov 1999 is theory through 13.Bd2 (25 plies) with v4 against 22
+plies with v3, stopping at 13...dxc3; the sample Slav game (Kramnik–Topalov 2008) is theory through its whole
+21 plies in both. No move outside the opening is marked as theory in either check.
+
 
 ### Monthly update (manual for now)
 
