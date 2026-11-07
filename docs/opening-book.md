@@ -189,11 +189,11 @@ three times the work of the two-month v2 run.
 
 ### B. Masters (over the board)
 
-Inputs, and only these three (see "Licenses and attribution"): the Chess-Results collection (about 10 million
+This is the v3 masters build, kept for history. Inputs were: the Chess-Results collection (about 10 million
 games exported from ChessBase as PGN, **UTF-8**), Ajedrez Data AJ-OTB, and Lumbra's **"OTB Lichess Broadcast"**
-PGN (lumbrasgigabase.com, CC BY-SA 4.0). **Do not use Lumbra's full GigaBase / "OTB Complete" files: that
-database is CC BY-NC 4.0 (non-commercial) and Xadrez Digital is commercial.** The Ajedrez Data files are 7-Zip
-archives: extract them first, the script reads plain PGN.
+PGN (lumbrasgigabase.com, CC BY-SA 4.0). **From v4 on, the masters profile uses only Lumbra's complete GigaBase
+OTB release under CC BY-NC 4.0, and none of these three inputs — see "Runbook: book v4".** The Ajedrez Data files
+are 7-Zip archives: extract them first, the script reads plain PGN.
 
 ```bash
 7z x AJ-OTB.7z -oaj-otb          # Windows: 7z.exe x AJ-OTB.7z -oaj-otb
@@ -213,11 +213,11 @@ games read, kept and duplicates. Order matters only for that report: a game is c
 has it, so list the collection you trust most first.
 
 Lumbra's games carry a `[Source "..."]` tag (the full database has Britbase, ChessNostalgia, ChessOK,
-Chessopolis, Convekta, LichessBroadcast, LichessEliteDatabase, LumbrasGigaBase, PGNMentor, TWIC; the Broadcast
-file you are allowed to use should only contain `LichessBroadcast`). The script still handles the others so a
-mixed file is safe against online play: `LichessEliteDatabase` is online
+Chessopolis, Convekta, LichessBroadcast, LichessEliteDatabase, LumbrasGigaBase, PGNMentor, TWIC; the v3 Broadcast
+file should only contain `LichessBroadcast`). The script still handles the others so a mixed file (as in the v4
+complete release) is safe against online play: `LichessEliteDatabase` is online
 Lichess play, already covered by part A, so it is dropped (counted as `online`). It does NOT check licenses:
-never pass the full database. `LichessBroadcast` games are
+pass only files whose license you have confirmed. `LichessBroadcast` games are
 over-the-board tournaments relayed through Lichess and are kept, even though their Site or Event may contain
 lichess.org; the same goes for any game with a `lichess.org/broadcast` URL in Site or Event. The excluded and
 kept sources are constants next to the online-site list in `scripts/opening-book/profiles.mjs`. Set `--min-games-read` to about
@@ -262,25 +262,89 @@ source contributed. Check the sizes in the printed JSON (target: gzipped file un
    (partial explorer answers are retried, see "Verify"), and record the exact / earlier / further counts and the
    mean book length against v2 (6/20 exact, 7.3 plies against 10.5).
 
+## Runbook: book v4 (Lichess + Lumbra's full GigaBase + correspondence), SIG-1249
+
+Book v4 changes the masters source only: Lumbra's **complete OTB release** (PGN, CC BY-NC 4.0) instead of
+AJ-OTB + Chess-Results + the Lichess Broadcast subset. The complete release already contains those games, and
+mixing a CC BY-SA input with a CC BY-NC one in the same derived book creates conflicting terms, so v4 uses a
+single masters input. The Lichess and correspondence books are the v3 files, reused unchanged. The use is
+allowed only while the site is 100% free; see "Licenses and attribution" for the condition.
+
+Machine: same as v3. On Windows, do not pipe zstd: extract the `.7z` to a plain PGN first (about 12 GB).
+
+### A. Download and extract (Windows)
+
+```powershell
+# 7-Zip, to a plain PGN
+& "C:\Program Files\7-Zip\7z.exe" x LumbrasGigabase_OTB_Complete.7z -olumbra-otb-complete\extracted
+```
+
+### B. Masters
+
+```bash
+node scripts/opening-book/build-book.mjs lumbra-otb-complete/extracted/LumbrasGigabase_OTB_Complete.pgn \
+  --profile masters --min-elo 2100 --out-dir out-masters-v4 --version 4 \
+  --tmp-dir out-masters-v4/tmp --min-games-read 11900000 \
+  --license "Lumbra's GigaBase (CC BY-NC 4.0)" \
+  --attribution "Includes games from Lumbra's GigaBase (lumbrasgigabase.com), CC BY-NC 4.0"
+```
+
+Measured on 2026-11-07: 13,251,337 games read, 4,104,222 kept, 30,739 duplicates; rejected 5,722,151 by Elo,
+3,208,124 without both Elos, 133,579 online (`LichessEliteDatabase`, dropped by the `[Source]` rule) and 52,522
+too short; 63,485,443 positions and 68,446,974 moves seen; 4h23m, 1,092 MiB peak RSS. Output: 71,854 positions,
+157,918 moves, 774,716 B gzip. For comparison, the v3 masters book kept 3,005,690 games with 52,626 positions
+and 116,246 moves, so dropping AJ-OTB and Chess-Results did not shrink the book.
+
+### C. Lichess and correspondence
+
+Reuse the v3 books; the union reads the files by path and takes the version from `--version`.
+
+```bash
+node scripts/opening-book/union-books.mjs out-lichess/opening-book-v3.bin.gz out-masters-v4/opening-book-v4.bin.gz \
+  out-corr/opening-book-v3.bin.gz --out-dir out --version 4 --app-manifest src/chess/opening-book-manifest.ts
+```
+
+Result: 103,009 positions, 242,625 moves, 1,311,247 B raw, 1,117,408 B gzip, SHA-256
+`e5c2c579dce6babb63a1360542b7ba13a6102ee79fc6975f43dea0f5f3168924`.
+
+### D. Upload
+
+```bash
+npx wrangler r2 object put chess-studio-engine/book/opening-book-v4.bin.gz \
+  --file out/opening-book-v4.bin.gz --content-type application/octet-stream --remote
+# download it back and compare size and SHA-256 against the local file
+npx wrangler r2 object get chess-studio-engine/book/opening-book-v4.bin.gz --file v4-check.bin.gz --remote
+```
+
+Both files matched byte for byte (1,117,408 B). Then commit the manifest (version 4) in a PR and deploy.
+
+### E. Comparison
+
+Same 20 games as the v2/v3 reports, explorer values from the v3 snapshot (all `partial: false`). On these games
+v4 stops at exactly the same ply as v3 (3 exact, 6 at 1–3, 7 at 4+; mean 10.65 plies against 11.70 from the
+explorer, mean Δ +1.05), while the book grew from 91,377 to 103,009 positions. The masters book alone grew
+36.6% in kept games (3,005,690 to 4,104,222) and 35.8% in moves. Details: `compare/report-v4.md`.
+
+
 ### Monthly update (manual for now)
 
-Lumbra publishes weekly and monthly updates; only the **Lichess Broadcast** PGN may be used (CC BY-SA 4.0), never
-the full database. To refresh the masters part and ship a new book:
+Lumbra publishes weekly and monthly updates. For books v4+ (while the site remains 100% free, CC BY-NC 4.0), the
+masters refresh uses the **complete OTB release** PGN from lumbrasgigabase.com (not the Lichess Broadcast subset),
+with the same license condition: obtain Lumbra's commercial Indie license before any paid offering.
 
-1. Re-download Lumbra's "OTB Lichess Broadcast" PGN from lumbrasgigabase.com (and/or add any new masters source
-   whose license allows commercial use, for example a newer Chess-Results export; do not add TWIC-derived or
-   other third-party files from the full Lumbra DB) and extract it (plain PGN, UTF-8).
-2. Keep the masters inputs together in one folder and put the new or replaced file last. The cross-source
-   de-duplication drops what earlier files already supplied, so overlapping months are harmless.
-3. Rebuild masters with the full list of inputs and a new version (the other parts are rebuilt only when their
-   sources changed; keep their `out-lichess` / `out-corr` folders, with `--version N` matching):
-   `node scripts/opening-book/build-book.mjs <all masters files> --profile masters --out-dir out-masters --version 4 ...`
-4. Rebuild the Lichess and correspondence parts with `--version 4` too if their inputs changed, or copy their
-   book and manifest to files named `opening-book-v4.*` in their folders (the union reads books by path and
-   takes the version from `--version`, not from the inputs).
-5. Union: `node scripts/opening-book/union-books.mjs out-lichess/opening-book-v4.bin.gz out-masters/opening-book-v4.bin.gz out-corr/opening-book-v4.bin.gz --out-dir out --version 4 --app-manifest src/chess/opening-book-manifest.ts`.
-6. Upload `out/opening-book-v4.bin.gz` (never overwrite an older version), commit the manifest in a PR, deploy,
-   and run the comparison from step E. Bumping the version changes the review cache key, so reviews recompute once.
+1. Download the latest "OTB Complete" PGN from lumbrasgigabase.com and extract it (7-Zip; plain PGN, UTF-8). On
+   Windows, do not use a zstd pipe.
+2. Rebuild the masters profile from that single (complete) input with a new version:
+   `node scripts/opening-book/build-book.mjs <Lumbra OTB Complete .pgn> --profile masters --min-elo 2100 --out-dir out-masters --version <N> --license "Lumbra's GigaBase (CC BY-NC 4.0)" --attribution "Includes games from Lumbra's GigaBase (lumbrasgigabase.com), CC BY-NC 4.0" [--tmp-dir ...] [--min-games-read <~90% of games read>]`
+   Use `--max-map-entries` / `--tmp-dir` if RAM or temp disk is tight. Do not add AJ-OTB, Chess-Results, or
+   Lichess Broadcast on top of the complete release (it already contains those games).
+3. Rebuild lichess and/or correspondence with `--version <N>` only if their inputs changed; otherwise copy their
+   `opening-book-v3.*` (book + manifest) to `opening-book-v<N>.*` in the same folders (the union takes the version
+   from `--version`, not the inputs).
+4. Union: `node scripts/opening-book/union-books.mjs out-lichess/opening-book-v<N>.bin.gz out-masters/opening-book-v<N>.bin.gz out-corr/opening-book-v<N>.bin.gz --out-dir out --version <N> --app-manifest src/chess/opening-book-manifest.ts`.
+5. Upload `out/opening-book-v<N>.bin.gz` (never overwrite an older version), download it back to verify size and
+   SHA-256, commit the manifest + docs in a PR, deploy, and run the comparison on the same 20 games. Bumping the
+   version changes the review cache key, so reviews recompute once.
 
 An automated routine for this is a separate issue.
 
@@ -311,18 +375,18 @@ manifests in step with what was actually used.
 | Source | License | What it requires |
 |---|---|---|
 | Lichess open database (database.lichess.org) | CC0 | nothing |
-| Lumbra's GigaBase, **Lichess Broadcast subset** ("OTB Lichess Broadcast" PGN) | CC BY-SA 4.0 | attribution, and the derived book must be offered under CC BY-SA 4.0 |
-| Ajedrez Data (AJ-OTB, AJ-CORR) | the games are stated to be public domain (no comments) | nothing |
-| Chess-Results collection | as exported by its owner | confirm before publishing |
+| Lumbra's GigaBase, **complete OTB release** ("OTB Complete" PGN), used from book v4 onward | CC BY-NC 4.0 | attribution and **non-commercial** use. Allowed for Xadrez Digital only while the site is 100% free and has no means of charging users. A commercial "Indie" license from Lumbra (business@lumbrasgigabase.com) is required **before** any paid feature, plan, ad-supported monetization beyond what the license permits, or other form of charge is introduced. |
+| Lumbra's GigaBase, **Lichess Broadcast subset** ("OTB Lichess Broadcast" PGN), used in book v3 | CC BY-SA 4.0 | attribution; kept in the v3 history. The v4+ union no longer includes this subset, so v4+ is not a CC BY-SA derivative of it. |
+| Ajedrez Data (AJ-CORR) | the games are stated to be public domain (no comments) | nothing |
 
-- **Lumbra's full GigaBase is not an input.** Its main database is CC BY-NC 4.0 (non-commercial) and Xadrez
-  Digital is commercial. It could only be used with a commercial license from business@lumbrasgigabase.com.
-  Do not add the full database, its "OTB Complete" file, or the Source tags it carries (TWIC, Britbase, ...)
-  to any build.
-- Because the masters part includes the Broadcast subset, the **union** (the book served to users) is a derived
-  work under CC BY-SA 4.0: show the attribution where the book is credited (for example the About or credits
-  page, or the repository notice) and offer the derived book under CC BY-SA 4.0 (a link to the
-  `/book/opening-book-vN.bin.gz` file, whose license is stated alongside it).
+- **Books v4+ (current policy, while the site is free).** The masters profile uses only the Lumbra's GigaBase
+  complete public OTB release (PGN). Do **not** add AJ-OTB, Chess-Results, or a separate "OTB Lichess Broadcast"
+  file on top of it: the complete base already contains those games, and adding them would only create
+  duplicates the build must drop. The profile still filters/deduplicates and enforces the 5-distinct-players
+  rule (see "Runbook: book v4").
+- **Condition for using the complete base.** CC BY-NC 4.0 permits this use only while Xadrez Digital has no
+  charge of any kind. Before launching any paid offering, obtain Lumbra's commercial Indie license and rebuild
+  the masters source under the terms of that license; record the new license/attribution in the build manifest.
 - The build records the terms: pass `--license "..."` and `--attribution "..."` to `build-book.mjs`; they are
   copied into each build's manifest, and the union manifest keeps them per source and lists the distinct
   licenses in `licenses`.
