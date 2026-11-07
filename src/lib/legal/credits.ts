@@ -12,6 +12,7 @@ export type CreditRow = { id: "engine" | "explorer" | "book" | "puzzles"; label:
 export const LICENSE_URLS = {
   cc0: "https://creativecommons.org/publicdomain/zero/1.0/",
   ccBySa: "https://creativecommons.org/licenses/by-sa/4.0/",
+  ccByNc: "https://creativecommons.org/licenses/by-nc/4.0/",
   /** Served from public/engine; the same text ships next to the WASM build. */
   gpl: "/engine/Copying.txt",
 } as const;
@@ -21,9 +22,9 @@ export const STOCKFISH_SOURCE_URLS = {
   official: "https://github.com/official-stockfish/Stockfish",
 } as const;
 
-export type KnownSourceId = "lichess-db" | "lumbra-broadcast" | "ajedrez-data" | "chess-results";
+export type KnownSourceId = "lichess-db" | "lumbra-gigabase" | "lumbra-broadcast" | "ajedrez-data" | "chess-results";
 
-type LicenseKind = "cc0" | "cc-by-sa" | "note";
+type LicenseKind = "cc0" | "cc-by-sa" | "cc-by-nc" | "note";
 
 type SourceInfo = {
   name: string;
@@ -39,6 +40,14 @@ export const SOURCE_MAP: Record<KnownSourceId, SourceInfo> = {
     name: "Lichess open database",
     url: "https://database.lichess.org",
     license: "cc0",
+    note: { en: "", "pt-br": "" },
+  },
+  // SIG-1249: the complete OTB release (book v4+). CC BY-NC 4.0; used while the site is free,
+  // under Lumbra's commercial license once anything is charged.
+  "lumbra-gigabase": {
+    name: "Lumbra's GigaBase",
+    url: "https://lumbrasgigabase.com",
+    license: "cc-by-nc",
     note: { en: "", "pt-br": "" },
   },
   "lumbra-broadcast": {
@@ -107,7 +116,8 @@ function idsOf(source: ManifestSourceLike): KnownSourceId[] {
     ids.add("lichess-db");
   }
   if (/lumbra/.test(text)) {
-    ids.add("lumbra-broadcast");
+    // The Broadcast subset (CC BY-SA, book v3) vs the complete release (CC BY-NC, book v4+).
+    ids.add(/broadcast|by[\s-]*sa/.test(text) && !/complete|by[\s-]*nc/.test(text) ? "lumbra-broadcast" : "lumbra-gigabase");
   }
   if (/ajedrez|aj-?otb|aj-?corr/.test(text) || profile === "correspondence") {
     ids.add("ajedrez-data");
@@ -215,6 +225,9 @@ function licenseSegments(info: SourceInfo, locale: SiteLocale): CreditSegment[] 
   }
   if (info.license === "cc-by-sa") {
     return [{ text: "CC BY-SA 4.0", href: LICENSE_URLS.ccBySa }];
+  }
+  if (info.license === "cc-by-nc") {
+    return [{ text: "CC BY-NC 4.0", href: LICENSE_URLS.ccByNc }];
   }
   return [info.note[locale]];
 }
