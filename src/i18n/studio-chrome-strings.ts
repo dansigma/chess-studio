@@ -144,7 +144,6 @@ export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.statusBar.synced",
   "chrome.statusBar.threads.one",
   "chrome.statusBar.threads.other",
-  "chrome.locale.siteLanguage",
   "chrome.about.body",
   "chrome.about.engineLabel",
   "chrome.about.storageLabel",
@@ -295,7 +294,6 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.statusBar.synced": "Synced",
   "chrome.statusBar.threads.one": "{count} thread",
   "chrome.statusBar.threads.other": "{count} threads",
-  "chrome.locale.siteLanguage": "Site language",
   "chrome.about.body":
     "Analysis GUI inspired by ChessMonitor Studio. No ChessMonitor assets or private databases are used.",
   "chrome.about.engineLabel": "Engine",
@@ -445,7 +443,6 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.statusBar.synced": "Sincronizado",
   "chrome.statusBar.threads.one": "{count} thread",
   "chrome.statusBar.threads.other": "{count} threads",
-  "chrome.locale.siteLanguage": "Idioma do site",
   "chrome.about.body":
     "GUI de análise inspirada no ChessMonitor Studio. Nenhum recurso ou base de dados privada do ChessMonitor é utilizado.",
   "chrome.about.engineLabel": "Engine",
