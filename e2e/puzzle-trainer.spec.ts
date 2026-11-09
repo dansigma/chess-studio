@@ -320,13 +320,13 @@ test("puzzles dashboard renders Portuguese with the pt-br locale stored", async 
   });
   await page.goto("/puzzles");
   await expect(page.getByRole("heading", { name: "Problemas", level: 1 })).toBeVisible();
-  await expect(page.getByText("Começar o treino")).toBeVisible();
+  await expect(page.getByText("Resolver agora")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Problema do dia" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sequência" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Começar sequência" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Começar rush" })).toBeVisible();
   await expect(page.getByText("Temas")).toBeVisible();
-  await expect(page.getByText("Start training")).toHaveCount(0);
+  await expect(page.getByText("Solve now")).toHaveCount(0);
 });
 
 /**
