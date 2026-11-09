@@ -342,7 +342,7 @@ export function applyResult(progress: PuzzleProgress, attempt: PuzzleModeAttempt
   if (attempt.mode === "daily" && progress.daily === dateKey(attempt.now)) {
     return progress;
   }
-  const rated = attempt.mode === "rated";
+  const rated = attempt.mode === "rated" && !attempt.unrated;
   const rating = rated ? rate(progress.rating, attempt.puzzleRating, attempt.success) : progress.rating;
   const tracksStreak = attempt.mode === "rated" || attempt.mode === "streak";
   const streak = !tracksStreak ? progress.streak : attempt.success ? progress.streak + 1 : 0;

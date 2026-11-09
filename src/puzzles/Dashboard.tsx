@@ -13,10 +13,12 @@ import { tPuzzle, type PuzzleStringKey } from "@/src/i18n/puzzle-strings";
 import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
+import { Chip } from "@/src/studio/ui/Controls";
 import { Panel } from "@/src/studio/ui/Panel";
 import { dueExercises, hydrateExercises, type MistakeExercisesMap } from "@/src/lib/mistake-exercises-store";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
 import { piecesForSet } from "@/src/chess/piece-sets";
+import { DIFFICULTIES, type Difficulty } from "./difficulty";
 import { LevelBar } from "./XpBreakdown";
 import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
 import { orientationFor } from "./use-puzzle-feedback";
@@ -46,6 +48,8 @@ export function PuzzleDashboard() {
   const [source, setSource] = useState<"account" | "browser">("browser");
   // SIG-1097: due mistake-exercise count for the "My mistakes" card.
   const [dueMistakes, setDueMistakes] = useState<number | null>(null);
+  // SIG-1256: difficulty filter for theme links; null = All (normal rated session).
+  const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
 
   useEffect(() => {
     let cancel = false;
@@ -227,25 +231,35 @@ export function PuzzleDashboard() {
         <SectionHeading icon={Shapes} className="mt-6">
           {tPuzzle(locale, "puzzle.dashboard.themesTitle")}
         </SectionHeading>
-        <p className="mt-0.5 text-dense text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.themesSubtitle")}</p>
-        <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {THEME_CARDS.map((theme) => {
-            const count = puzzles.filter((puzzleItem) => puzzleItem.themes.includes(theme.id)).length;
-            return (
-              <button
-                key={theme.id}
-                type="button"
-                onClick={() => router.push(`/puzzles/play?mode=rated&theme=${theme.id}`)}
-                className="rounded-[10px] border border-transparent bg-studio-panel px-3 py-2 text-left hover:border-studio-border-strong"
-              >
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-body font-semibold text-studio-fg">{tPuzzle(locale, theme.labelKey)}</span>
-                  <span className="text-caption tabular-nums text-studio-faint">{count}</span>
-                </div>
-                <p className="mt-0.5 text-dense text-studio-muted">{tPuzzle(locale, theme.blurbKey)}</p>
-              </button>
-            );
-          })}
+        <p className="mt-0.5 text-dense text-studio-muted">
+          {tPuzzle(locale, difficulty ? "puzzle.dashboard.themesSubtitleUnrated" : "puzzle.dashboard.themesSubtitle")}
+        </p>
+        <div
+          role="group"
+          aria-label={tPuzzle(locale, "puzzle.difficulty.label")}
+          className="mt-2 flex flex-wrap gap-1.5"
+        >
+          <Chip active={difficulty === null} onClick={() => setDifficulty(null)}>
+            {tPuzzle(locale, "puzzle.difficulty.all")}
+          </Chip>
+          {DIFFICULTIES.map((value) => (
+            <Chip key={value} active={difficulty === value} onClick={() => setDifficulty(value)}>
+              {tPuzzle(locale, `puzzle.difficulty.${value}`)}
+            </Chip>
+          ))}
+        </div>
+        {/* 9 theme cards: 1 column on phones, 3 from sm up (3 full rows, no orphan). */}
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          {THEME_CARDS.map((theme) => (
+            <Link
+              key={theme.id}
+              href={`/puzzles/play?mode=rated&theme=${theme.id}${difficulty ? `&difficulty=${difficulty}` : ""}`}
+              className="block rounded-[10px] border border-transparent bg-studio-panel px-3 py-2 text-left hover:border-studio-border-strong"
+            >
+              <span className="text-body font-semibold text-studio-fg">{tPuzzle(locale, theme.labelKey)}</span>
+              <p className="mt-0.5 text-dense text-studio-muted">{tPuzzle(locale, theme.blurbKey)}</p>
+            </Link>
+          ))}
         </div>
 
         {motifRows.length > 0 ? (

@@ -192,3 +192,27 @@ test("a solved rated puzzle adds the breakdown total to today's activity xp", ()
   assert.equal(practice.next.days?.[today]?.xp, missed.next.days?.[today]?.xp, "practice records 0 xp");
   assert.equal(practice.xp.awarded, false, "practice is flagged as not awarded");
 });
+
+// SIG-1256: a difficulty session never changes the rating; everything else is rated-mode.
+test("applyPuzzleResult leaves the rating alone only for an unrated attempt", () => {
+  const current = emptyProgress();
+  const attempt = {
+    id: "p1",
+    mode: "rated" as const,
+    success: true,
+    puzzleRating: 1500,
+    sessionScore: 1,
+    now: 1_700_000_000_000,
+    themes: ["fork" as const],
+    ms: 5000,
+  };
+  const normal = applyPuzzleResult(current, attempt);
+  const unrated = applyPuzzleResult(current, { ...attempt, unrated: true });
+  assert.notEqual(normal.next.rating, current.rating);
+  assert.equal(unrated.next.rating, current.rating);
+  assert.equal(unrated.delta, 0);
+  assert.equal(unrated.next.history[0]?.delta, 0);
+  assert.equal(unrated.next.xp, normal.next.xp);
+  assert.equal(unrated.next.solved, normal.next.solved);
+  assert.equal(unrated.next.streak, normal.next.streak);
+});

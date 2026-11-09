@@ -10,6 +10,7 @@ import {
   saveExercises,
   type MistakeExercisesMap,
 } from "@/src/lib/mistake-exercises-store";
+import { difficultyTarget, inDifficultyBand, DIFFICULTY_BANDS, type Difficulty } from "./difficulty";
 import {
   dailyPuzzle,
   judgeMove,
@@ -50,12 +51,15 @@ export function pickPuzzle(
   progress: { rating: number },
   solvedInSession: number,
   exclude: ReadonlySet<string>,
+  difficulty: Difficulty | null = null,
 ): CompiledPuzzle | null {
   if (mode === "daily") {
     return dailyPuzzle(puzzles, Date.now());
   }
-  const target = sessionTarget(progress.rating, solvedInSession, mode);
-  const ranked = rankedPuzzles(puzzles, target, exclude, theme ?? undefined);
+  // SIG-1256: a band session aims at the band, not at the user's rating.
+  const target = difficulty ? difficultyTarget(difficulty) : sessionTarget(progress.rating, solvedInSession, mode);
+  const pool = difficulty ? puzzles.filter((item) => inDifficultyBand(item.rating, difficulty)) : puzzles;
+  const ranked = rankedPuzzles(pool, target, exclude, theme ?? undefined);
   if (ranked.length === 0) {
     return null;
   }
@@ -112,10 +116,15 @@ export async function loadWindowedCatalog(
   solvedInSession: number,
   exclude: ReadonlySet<string>,
   loader: typeof loadPuzzleCatalog = loadPuzzleCatalog,
+  difficulty: Difficulty | null = null,
 ): Promise<CompiledPuzzle[]> {
   const seed = (Math.random() * 0xffffffff) >>> 0;
   let widest: CompiledPuzzle[] = [];
-  for (const window of ratingWindowRequests(sessionTarget(rating, solvedInSession, mode))) {
+  // SIG-1256: a band is one fixed window; it never widens past the band.
+  const windows = difficulty
+    ? [DIFFICULTY_BANDS[difficulty]]
+    : ratingWindowRequests(sessionTarget(rating, solvedInSession, mode));
+  for (const window of windows) {
     const catalog = await loader({
       minRating: window.minRating,
       maxRating: window.maxRating,
@@ -150,11 +159,13 @@ export function elapsedMs(shownAt: number | null, now: number): number | null {
 export function usePuzzleSession({
   mode,
   theme,
+  difficulty = null,
   moveSound,
   scoring,
 }: {
   mode: PuzzleMode;
   theme: PuzzleTheme | null;
+  difficulty?: Difficulty | null;
   moveSound: boolean;
   scoring: PuzzleScoring;
 }) {
@@ -401,7 +412,15 @@ export function usePuzzleSession({
         const catalog =
           mode === "daily"
             ? await loadPuzzleCatalog()
-            : await loadWindowedCatalog(mode, theme, loaded.rating, 0, new Set([...seenLocal, ...exclude.current]));
+            : await loadWindowedCatalog(
+                mode,
+                theme,
+                loaded.rating,
+                0,
+                new Set([...seenLocal, ...exclude.current]),
+                undefined,
+                difficulty,
+              );
         if (cancel) {
           return;
         }
@@ -421,7 +440,7 @@ export function usePuzzleSession({
         secondsRef.current = RUSH_SECONDS;
         setSecondsLeft(RUSH_SECONDS);
         setExhausted(false);
-        const first = pickPuzzle(catalogRef.current, mode, theme, loaded, 0, exclude.current);
+        const first = pickPuzzle(catalogRef.current, mode, theme, loaded, 0, exclude.current, difficulty);
         if (!first) {
           setPuzzle(null);
           setLoadError(false);
@@ -458,7 +477,7 @@ export function usePuzzleSession({
     return () => {
       cancel = true;
     };
-  }, [mode, theme, hydrate, resetResult]);
+  }, [mode, theme, difficulty, hydrate, resetResult]);
 
   useEffect(() => {
     return () => clearAdvance();
@@ -653,7 +672,7 @@ export function usePuzzleSession({
     // SIG-1179: refetch when the cached window is exhausted so a thin window
     // (all ids seen) widens instead of yielding nothing while unseen puzzles
     // exist outside the window. Empty refetch → exhausted empty state.
-    const chosen = pickPuzzle(catalogRef.current, mode, theme, current, sessionSolvedRef.current, exclude.current);
+    const chosen = pickPuzzle(catalogRef.current, mode, theme, current, sessionSolvedRef.current, exclude.current, difficulty);
     if (!chosen) {
       setExhausted(true);
       return;
@@ -667,6 +686,8 @@ export function usePuzzleSession({
           current.rating,
           sessionSolvedRef.current,
           exclude.current,
+          undefined,
+          difficulty,
         ).catch(() => null);
         if (!refetched || refetched.length === 0) {
           return;
@@ -727,7 +748,7 @@ export function usePuzzleSession({
     setSessionOver(false);
     secondsRef.current = RUSH_SECONDS;
     setSecondsLeft(RUSH_SECONDS);
-    const chosen = pickPuzzle(catalogRef.current, mode, theme, current, 0, exclude.current);
+    const chosen = pickPuzzle(catalogRef.current, mode, theme, current, 0, exclude.current, difficulty);
     if (!chosen) {
       setExhausted(true);
       return;

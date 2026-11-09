@@ -8,6 +8,8 @@ import type { SiteLocale } from "@/src/i18n/locale";
 import { formatInteger } from "@/src/i18n/format";
 import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { Button } from "@/src/studio/ui/Button";
+import { Badge } from "@/src/studio/ui/Controls";
+import type { Difficulty } from "./difficulty";
 import { THEME_LABEL_KEYS, type PuzzleMode, type PuzzleTheme } from "./types";
 import { RUSH_STRIKES, clock, type PuzzleSession } from "./use-puzzle-session";
 import type { PuzzleFeedback } from "./use-puzzle-feedback";
@@ -21,12 +23,14 @@ import { openPuzzleInStudio } from "./studio-handoff";
 export function PuzzlePanel({
   mode,
   theme,
+  difficulty = null,
   session,
   feedback,
   locale,
 }: {
   mode: PuzzleMode;
   theme: PuzzleTheme | null;
+  difficulty?: Difficulty | null;
   session: PuzzleSession;
   feedback: PuzzleFeedback;
   locale: SiteLocale;
@@ -62,9 +66,9 @@ export function PuzzlePanel({
   const summary = useMemo(
     () =>
       summaryVisible && progress && sessionStart
-        ? buildSessionSummary({ mode, attempts, before: sessionStart, after: progress })
+        ? buildSessionSummary({ mode, attempts, before: sessionStart, after: progress, unrated: difficulty !== null })
         : null,
-    [summaryVisible, mode, attempts, sessionStart, progress],
+    [summaryVisible, mode, difficulty, attempts, sessionStart, progress],
   );
 
   if (!puzzle || !progress) {
@@ -123,7 +127,14 @@ export function PuzzlePanel({
           streak={runStreak}
           strikes={strikes}
           strikeLimit={RUSH_STRIKES}
+          unrated={difficulty !== null}
         />
+        {difficulty ? (
+          <p className="text-dense text-studio-muted" data-testid="panel-unrated">
+            <Badge tone="accent">{tPuzzle(locale, `puzzle.difficulty.${difficulty}`)}</Badge>{" "}
+            {tPuzzle(locale, "puzzle.panel.unrated")}
+          </p>
+        ) : null}
 
         <LevelBar level={level} locale={locale} totalXp={mode === "mistakes" ? undefined : progress.xp} />
 

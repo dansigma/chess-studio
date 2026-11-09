@@ -8,6 +8,7 @@ import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { PuzzleBoard } from "./PuzzleBoard";
 import { PuzzlePanel } from "./PuzzlePanel";
+import { parseDifficulty, type Difficulty } from "./difficulty";
 import { isPuzzleMode, isPuzzleTheme } from "./engine";
 import type { PuzzleMode, PuzzleTheme } from "./types";
 import { usePuzzleFeedback } from "./use-puzzle-feedback";
@@ -21,14 +22,17 @@ export function PuzzleTrainer() {
   const mode: PuzzleMode = isPuzzleMode(modeParam) ? modeParam : "rated";
   const theme: PuzzleTheme | null = modeParam === "daily" || !isPuzzleTheme(themeParam) ? null : themeParam;
 
+  // SIG-1256: a difficulty only applies to rated sessions; invalid means none.
+  const difficulty: Difficulty | null = mode === "rated" ? parseDifficulty(params.get("difficulty")) : null;
+
   const locale = useStudioStore((state) => state.settings.locale);
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const moveSound = useStudioStore((state) => state.settings.moveSound);
 
-  const scoring = usePuzzleScoring(mode);
-  const session = usePuzzleSession({ mode, theme, moveSound, scoring });
+  const scoring = usePuzzleScoring(mode, difficulty !== null);
+  const session = usePuzzleSession({ mode, theme, difficulty, moveSound, scoring });
   const feedback = usePuzzleFeedback({ mode, session, locale });
 
   return (
@@ -84,7 +88,7 @@ export function PuzzleTrainer() {
             pieceSet={pieceSet}
             showCoordinates={showCoordinates}
           />
-          <PuzzlePanel mode={mode} theme={theme} session={session} feedback={feedback} locale={locale} />
+          <PuzzlePanel mode={mode} theme={theme} difficulty={difficulty} session={session} feedback={feedback} locale={locale} />
         </div>
         </div>
       )}

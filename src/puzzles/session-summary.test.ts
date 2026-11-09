@@ -322,3 +322,17 @@ test("counts use singular and plural forms in both locales", () => {
   assert.equal(tPuzzleCount("pt-br", "puzzle.summary.did.firstTry", 1), "Certo de primeira");
   assert.equal(tPuzzleCount("pt-br", "puzzle.summary.did.firstTry", 3), "Certos de primeira");
 });
+
+// SIG-1256: a difficulty session shows no rating card and no rating numbers.
+test("an unrated rated session has no rating card or rating summary", () => {
+  assert.deepEqual(cardsForMode("rated", true), ["did", "level"]);
+  const summary = buildSessionSummary({
+    mode: "rated",
+    attempts: [attempt(true)],
+    before: progress({ rating: 1200 }),
+    after: progress({ rating: 1200, xp: 40 }),
+    unrated: true,
+  });
+  assert.equal(summary.rating, null);
+  assert.deepEqual(summary.cards, ["did", "level"]);
+});

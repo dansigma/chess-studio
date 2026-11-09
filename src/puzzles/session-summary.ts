@@ -86,8 +86,9 @@ export function visibleRows(rows: readonly SummaryPuzzleRow[], showAll: boolean)
   return showAll ? [...rows] : rows.slice(-SUMMARY_LIST_LIMIT);
 }
 
-export function cardsForMode(mode: PuzzleMode): SummaryCardId[] {
-  return mode === "rated" ? ["did", "level", "rating"] : ["did", "level"];
+/** SIG-1256: an unrated (difficulty) session has no rating card. */
+export function cardsForMode(mode: PuzzleMode, unrated = false): SummaryCardId[] {
+  return mode === "rated" && !unrated ? ["did", "level", "rating"] : ["did", "level"];
 }
 
 export function cheerBucket(solved: number, failed: number): CheerBucket {
@@ -110,6 +111,7 @@ export function buildSessionSummary({
   attempts,
   before,
   after,
+  unrated = false,
 }: {
   mode: PuzzleMode;
   attempts: readonly SessionAttempt[];
@@ -117,6 +119,8 @@ export function buildSessionSummary({
   before: PuzzleProgress;
   /** Progress now. */
   after: PuzzleProgress;
+  /** SIG-1256: difficulty session; the rating is neither shown nor compared. */
+  unrated?: boolean;
 }): SessionSummary {
   const solved = attempts.filter((attempt) => attempt.success).length;
   const failed = attempts.length - solved;
@@ -134,7 +138,7 @@ export function buildSessionSummary({
   const streakAfter = lastAt === null ? 0 : dayStreak(after.days, localDayKey(lastAt)).current;
   return {
     mode,
-    cards: cardsForMode(mode),
+    cards: cardsForMode(mode, unrated),
     attempts: attempts.length,
     solved,
     failed,
@@ -165,7 +169,7 @@ export function buildSessionSummary({
       breakdown: attempt.xp.breakdown,
       practiceOnly: practiceOnly || (!attempt.xp.awarded && attempt.xp.breakdown.total > 0),
     })),
-    rating: mode === "rated" ? { before: before.rating, after: after.rating, change: after.rating - before.rating } : null,
+    rating: mode === "rated" && !unrated ? { before: before.rating, after: after.rating, change: after.rating - before.rating } : null,
   };
 }
 

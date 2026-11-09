@@ -162,3 +162,23 @@ test("elapsedMs returns null for an unstamped clock", () => {
   assert.equal(elapsedMs(1_793_479_690_000, 1_793_479_702_000), 12_000);
   assert.equal(elapsedMs(1_793_479_702_000, 1_793_479_690_000), 0);
 });
+
+// SIG-1256: difficulty bands replace the rating windows and the rating target.
+test("loadWindowedCatalog with a difficulty requests exactly the band, once when enough", async () => {
+  const calls: Array<{ minRating?: number; maxRating?: number }> = [];
+  const loader = async (options?: { minRating?: number; maxRating?: number }) => {
+    calls.push({ minRating: options?.minRating, maxRating: options?.maxRating });
+    return [1, 2, 3, 4, 5].map((n) => candidate(`p${n}`, 1900 + n));
+  };
+  await loadWindowedCatalog("rated", null, 1000, 0, new Set(), loader as never, "advanced");
+  assert.deepEqual(calls, [{ minRating: 1800, maxRating: 3000 }]);
+});
+
+test("pickPuzzle with a difficulty targets the band midpoint and ignores out-of-band puzzles", () => {
+  const puzzles = [candidate("low", 900), candidate("edge", 1810), candidate("mid", 2400)];
+  withRandom(0, () => {
+    assert.equal(pickPuzzle(puzzles, "rated", null, { rating: 900 }, 0, new Set(), "advanced")?.id, "mid");
+    assert.equal(pickPuzzle(puzzles, "rated", null, { rating: 900 }, 0, new Set(["mid"]), "advanced")?.id, "edge");
+    assert.equal(pickPuzzle(puzzles, "rated", null, { rating: 900 }, 0, new Set(["mid", "edge"]), "advanced"), null);
+  });
+});
