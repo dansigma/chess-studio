@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CalendarDays, ChartNoAxesColumn, Flame, History, RotateCcw, Shapes, Zap, type LucideIcon } from "lucide-react";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "@/src/courses/CourseChrome";
 import { formatInteger } from "@/src/i18n/format";
@@ -9,6 +10,7 @@ import { tPuzzle, type PuzzleStringKey } from "@/src/i18n/puzzle-strings";
 import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
+import { Panel } from "@/src/studio/ui/Panel";
 import { dueExercises, hydrateExercises, type MistakeExercisesMap } from "@/src/lib/mistake-exercises-store";
 import { LevelBar } from "./XpBreakdown";
 import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
@@ -85,43 +87,43 @@ export function PuzzleDashboard() {
   return (
     <div className="min-h-full bg-studio-bg">
       <CourseChrome />
-      <main className="mx-auto max-w-5xl px-6 py-8">
-        <div className="flex flex-wrap items-end justify-between gap-6">
+      <main className="mx-auto max-w-[1280px] px-4 py-5 sm:px-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-studio-fg">{tPuzzle(locale, "puzzle.dashboard.heading")}</h1>
-            <p className="mt-2 max-w-2xl text-body text-studio-muted">
+            <h1 className="text-title font-semibold text-studio-fg">{tPuzzle(locale, "puzzle.dashboard.heading")}</h1>
+            <p className="mt-1 max-w-2xl text-body text-studio-muted">
               {tPuzzle(locale, "puzzle.dashboard.intro")}
             </p>
           </div>
-          <div className="rounded-xl border border-studio-border bg-studio-chrome px-5 py-4">
+          <Panel className="px-4 py-3">
             <div className="text-caption uppercase tracking-wide text-studio-muted">
               {tPuzzle(locale, "puzzle.dashboard.yourRating")}
             </div>
-            <div className="mt-1 text-3xl font-semibold tabular-nums text-studio-fg">
+            <div className="mt-0.5 text-3xl font-semibold tabular-nums text-studio-fg">
               {progress ? formatInteger(locale, progress.rating) : "—"}
             </div>
             {progress ? (
-              <div className="mt-3">
+              <div className="mt-2">
                 <LevelBar level={level} locale={locale} compact />
               </div>
             ) : null}
-            <Button className="mt-3" variant="primary" onClick={() => router.push("/puzzles/play?mode=rated")}>
+            <Button className="mt-2" variant="primary" onClick={() => router.push("/puzzles/play?mode=rated")}>
               {tPuzzle(locale, "puzzle.dashboard.startTraining")}
             </Button>
             {progress ? (
-              <p className="mt-2 text-caption text-studio-muted">
+              <p className="mt-1.5 text-caption text-studio-muted">
                 {source === "account"
                   ? tPuzzle(locale, "puzzle.dashboard.savedAccount")
                   : tPuzzle(locale, "puzzle.dashboard.savedBrowser")}
               </p>
             ) : null}
             {loadError ? (
-              <p className="mt-3 text-body text-studio-warning-fg">{tPuzzle(locale, "puzzle.dashboard.loadError")}</p>
+              <p className="mt-2 text-body text-studio-warning-fg">{tPuzzle(locale, "puzzle.dashboard.loadError")}</p>
             ) : null}
-          </div>
+          </Panel>
         </div>
 
-        <dl className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.solved")} value={progress ? formatInteger(locale, progress.solved) : "—"} />
           <Stat
             label={tPuzzle(locale, "puzzle.dashboard.stat.accuracy")}
@@ -135,7 +137,7 @@ export function PuzzleDashboard() {
         </dl>
 
         {progress && now !== null ? (
-          <div className="mt-8">
+          <div className="mt-4">
             <ProgressHeatmap
               days={progress.days}
               today={localDayKey(now)}
@@ -145,8 +147,9 @@ export function PuzzleDashboard() {
           </div>
         ) : null}
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-3">
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <ModeCard
+            icon={CalendarDays}
             title={tPuzzle(locale, "puzzle.dashboard.daily.title")}
             detail={
               daily
@@ -162,6 +165,7 @@ export function PuzzleDashboard() {
             onClick={() => router.push("/puzzles/play?mode=daily")}
           />
           <ModeCard
+            icon={Flame}
             title={tPuzzle(locale, "puzzle.dashboard.streak.title")}
             detail={
               progress
@@ -173,6 +177,7 @@ export function PuzzleDashboard() {
             onClick={() => router.push("/puzzles/play?mode=streak")}
           />
           <ModeCard
+            icon={Zap}
             title={tPuzzle(locale, "puzzle.dashboard.rush.title")}
             detail={
               progress
@@ -184,6 +189,7 @@ export function PuzzleDashboard() {
             onClick={() => router.push("/puzzles/play?mode=rush")}
           />
           <ModeCard
+            icon={RotateCcw}
             title={tMistakes(locale, "mistakes.dashboard.title")}
             detail={
               dueMistakes === null
@@ -203,11 +209,11 @@ export function PuzzleDashboard() {
           />
         </div>
 
-        <h2 className="mt-10 text-title font-semibold text-studio-fg">
+        <SectionHeading icon={Shapes} className="mt-6">
           {tPuzzle(locale, "puzzle.dashboard.themesTitle")}
-        </h2>
-        <p className="mt-1 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.themesSubtitle")}</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        </SectionHeading>
+        <p className="mt-0.5 text-dense text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.themesSubtitle")}</p>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {THEME_CARDS.map((theme) => {
             const count = puzzles.filter((puzzleItem) => puzzleItem.themes.includes(theme.id)).length;
             return (
@@ -215,13 +221,13 @@ export function PuzzleDashboard() {
                 key={theme.id}
                 type="button"
                 onClick={() => router.push(`/puzzles/play?mode=rated&theme=${theme.id}`)}
-                className="rounded-xl border border-studio-border bg-studio-chrome px-4 py-3 text-left hover:border-studio-border-strong"
+                className="rounded-[10px] border border-transparent bg-studio-panel px-3 py-2 text-left hover:border-studio-border-strong"
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-semibold text-studio-fg">{tPuzzle(locale, theme.labelKey)}</span>
+                  <span className="text-body font-semibold text-studio-fg">{tPuzzle(locale, theme.labelKey)}</span>
                   <span className="text-caption tabular-nums text-studio-faint">{count}</span>
                 </div>
-                <p className="mt-1 text-body text-studio-muted">{tPuzzle(locale, theme.blurbKey)}</p>
+                <p className="mt-0.5 text-dense text-studio-muted">{tPuzzle(locale, theme.blurbKey)}</p>
               </button>
             );
           })}
@@ -229,27 +235,27 @@ export function PuzzleDashboard() {
 
         {motifRows.length > 0 ? (
           <>
-            <h2 className="mt-10 text-title font-semibold text-studio-fg">
+            <SectionHeading icon={ChartNoAxesColumn} className="mt-6">
               {tPuzzle(locale, "puzzle.dashboard.motifsTitle")}
-            </h2>
-            <p className="mt-1 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.motifsSubtitle")}</p>
-            <div className="mt-4 overflow-hidden rounded-xl border border-studio-border bg-studio-chrome">
-              <table className="w-full text-body">
+            </SectionHeading>
+            <p className="mt-0.5 text-dense text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.motifsSubtitle")}</p>
+            <Panel className="mt-2 overflow-hidden">
+              <table className="w-full text-dense">
                 <thead>
                   <tr className="text-left text-caption uppercase tracking-wide text-studio-muted">
-                    <th scope="col" className="px-4 py-2 font-medium">
+                    <th scope="col" className="px-3 py-1.5 font-medium">
                       {tPuzzle(locale, "puzzle.dashboard.themesTitle")}
                     </th>
-                    <th scope="col" className="px-4 py-2 text-right font-medium tabular-nums">
+                    <th scope="col" className="px-3 py-1.5 text-right font-medium tabular-nums">
                       {tPuzzle(locale, "puzzle.dashboard.motifs.attempts")}
                     </th>
-                    <th scope="col" className="px-4 py-2 text-right font-medium tabular-nums">
+                    <th scope="col" className="px-3 py-1.5 text-right font-medium tabular-nums">
                       {tPuzzle(locale, "puzzle.dashboard.motifs.successRate")}
                     </th>
-                    <th scope="col" className="px-4 py-2 text-right font-medium tabular-nums">
+                    <th scope="col" className="px-3 py-1.5 text-right font-medium tabular-nums">
                       {tPuzzle(locale, "puzzle.dashboard.motifs.avgTime")}
                     </th>
-                    <th scope="col" className="px-4 py-2 text-right font-medium">
+                    <th scope="col" className="px-3 py-1.5 text-right font-medium">
                       <span className="sr-only">{tPuzzle(locale, "puzzle.dashboard.motifs.trendFlat")}</span>
                     </th>
                   </tr>
@@ -257,20 +263,20 @@ export function PuzzleDashboard() {
                 <tbody className="divide-y divide-studio-border">
                   {motifRows.map((row) => (
                     <tr key={row.theme}>
-                      <td className="px-4 py-2 font-semibold text-studio-fg">
+                      <td className="px-3 py-1.5 font-semibold text-studio-fg">
                         {tPuzzle(locale, THEME_LABEL_KEYS[row.theme])}
                       </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-studio-muted">
+                      <td className="px-3 py-1.5 text-right tabular-nums text-studio-muted">
                         {formatInteger(locale, row.attempts)}
                       </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-studio-fg">
+                      <td className="px-3 py-1.5 text-right tabular-nums text-studio-fg">
                         {formatInteger(locale, row.successPct)}%
                       </td>
-                      <td className="px-4 py-2 text-right tabular-nums text-studio-muted">
+                      <td className="px-3 py-1.5 text-right tabular-nums text-studio-muted">
                         {row.avgSeconds === null ? "—" : `${row.avgSeconds.toFixed(1)}s`}
                       </td>
                       <td
-                        className="px-4 py-2 text-right"
+                        className="px-3 py-1.5 text-right"
                         title={
                           row.trend === "up"
                             ? tPuzzle(locale, "puzzle.dashboard.motifs.trendUp")
@@ -296,14 +302,14 @@ export function PuzzleDashboard() {
                   ))}
                 </tbody>
               </table>
-            </div>
-            <section aria-labelledby="weakest-motif-heading" className="mt-4 rounded-xl border border-studio-border bg-studio-chrome p-5">
-              <h3 id="weakest-motif-heading" className="text-lg font-semibold text-studio-fg">
+            </Panel>
+            <Panel as="section" aria-labelledby="weakest-motif-heading" className="mt-2 p-4">
+              <h3 id="weakest-motif-heading" className="text-body font-semibold text-studio-fg">
                 {tPuzzle(locale, "puzzle.dashboard.weakest.title")}
               </h3>
               {weakest ? (
                 <Button
-                  className="mt-3"
+                  className="mt-2"
                   variant="primary"
                   onClick={() => router.push(`/puzzles/play?mode=rated&theme=${weakest}`)}
                 >
@@ -312,20 +318,20 @@ export function PuzzleDashboard() {
                   })}
                 </Button>
               ) : (
-                <p className="mt-3 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.weakest.empty")}</p>
+                <p className="mt-2 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.weakest.empty")}</p>
               )}
-            </section>
+            </Panel>
           </>
         ) : null}
 
-        <h2 className="mt-10 text-title font-semibold text-studio-fg">
+        <SectionHeading icon={History} className="mt-6">
           {tPuzzle(locale, "puzzle.dashboard.recentTitle")}
-        </h2>
+        </SectionHeading>
         {progress && progress.history.length === 0 ? (
-          <p className="mt-3 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.recentEmpty")}</p>
+          <p className="mt-2 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.recentEmpty")}</p>
         ) : null}
         {progress && progress.history.length > 0 ? (
-          <ul className="mt-3 divide-y divide-studio-border overflow-hidden rounded-xl border border-studio-border bg-studio-chrome">
+          <Panel as="ul" className="mt-2 divide-y divide-studio-border-subtle overflow-hidden">
             {progress.history.map((entry, index) => {
               const puzzle = puzzles.find((item) => item.id === entry.id);
               const themes = puzzle?.themes
@@ -333,21 +339,21 @@ export function PuzzleDashboard() {
                 .map((item) => tPuzzle(locale, THEME_LABEL_KEYS[item]))
                 .join(" · ");
               return (
-                <li key={`${entry.id}-${entry.at}-${index}`} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <div>
-                    <div className="text-body text-studio-fg">
+                <li key={`${entry.id}-${entry.at}-${index}`} className="flex h-8 items-center justify-between gap-3 px-3">
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    <div className="shrink-0 text-dense text-studio-fg">
                       {entry.success
                         ? tPuzzle(locale, "puzzle.dashboard.history.solved")
                         : tPuzzle(locale, "puzzle.dashboard.history.missed")}
                       {puzzle ? ` · ${formatInteger(locale, puzzle.rating)}` : ""}
                     </div>
-                    <div className="text-caption text-studio-muted">
+                    <div className="truncate text-caption text-studio-muted">
                       {tPuzzle(locale, MODE_KEYS[entry.mode satisfies PuzzleMode])}
                       {themes ? ` · ${themes}` : ""}
                     </div>
                   </div>
                   <div
-                    className={`text-body font-medium tabular-nums ${
+                    className={`text-dense font-medium tabular-nums ${
                       entry.delta > 0 ? "text-studio-success" : entry.delta < 0 ? "text-studio-warning-fg" : "text-studio-muted"
                     }`}
                   >
@@ -356,9 +362,9 @@ export function PuzzleDashboard() {
                 </li>
               );
             })}
-          </ul>
+          </Panel>
         ) : null}
-        <p className="mt-8 text-center text-caption text-studio-faint">
+        <p className="mt-6 text-center text-caption text-studio-faint">
           {tPuzzle(locale, "puzzle.dashboard.credit")}
         </p>
       </main>
@@ -369,14 +375,32 @@ export function PuzzleDashboard() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-studio-border bg-studio-chrome px-4 py-3">
+    <Panel className="px-3 py-2">
       <dt className="text-caption uppercase tracking-wide text-studio-muted">{label}</dt>
-      <dd className="mt-1 text-xl font-semibold tabular-nums text-studio-fg">{value}</dd>
-    </div>
+      <dd className="mt-0.5 text-title font-semibold tabular-nums text-studio-fg">{value}</dd>
+    </Panel>
+  );
+}
+
+function SectionHeading({
+  icon: Icon,
+  className = "",
+  children,
+}: {
+  icon: LucideIcon;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <h2 className={`flex items-center gap-1.5 text-body font-semibold text-studio-fg ${className}`}>
+      <Icon className="size-4 text-studio-faint" aria-hidden />
+      {children}
+    </h2>
   );
 }
 
 function ModeCard({
+  icon: Icon,
   title,
   detail,
   body,
@@ -384,6 +408,7 @@ function ModeCard({
   onClick,
   disabled = false,
 }: {
+  icon: LucideIcon;
   title: string;
   detail: string;
   body: string;
@@ -392,13 +417,16 @@ function ModeCard({
   disabled?: boolean;
 }) {
   return (
-    <section className="flex flex-col rounded-xl border border-studio-border bg-studio-chrome p-5">
-      <h2 className="text-lg font-semibold text-studio-fg">{title}</h2>
-      <p className="mt-1 text-caption text-studio-accent-text">{detail}</p>
-      <p className="mt-3 flex-1 text-body text-studio-muted">{body}</p>
-      <Button className="mt-4 self-start" onClick={onClick} disabled={disabled}>
+    <Panel as="section" className="flex flex-col p-3">
+      <h2 className="flex items-center gap-1.5 text-body font-semibold text-studio-fg">
+        <Icon className="size-4 text-studio-faint" aria-hidden />
+        {title}
+      </h2>
+      <p className="mt-0.5 text-caption text-studio-accent-text">{detail}</p>
+      <p className="mt-2 flex-1 text-dense text-studio-muted">{body}</p>
+      <Button className="mt-3 self-start" size="sm" onClick={onClick} disabled={disabled}>
         {action}
       </Button>
-    </section>
+    </Panel>
   );
 }

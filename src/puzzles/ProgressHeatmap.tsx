@@ -11,6 +11,7 @@ import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { Button } from "@/src/studio/ui/Button";
+import { Panel } from "@/src/studio/ui/Panel";
 import {
   buildHeatmap,
   HEATMAP_WEEKS,
@@ -110,8 +111,8 @@ export function ProgressHeatmap({
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-2">
         <h2 className="sr-only">{tPuzzle(locale, "puzzle.heatmap.title")}</h2>
-        <Flame className="size-5 text-studio-warning-fg" aria-hidden />
-        <span className="text-lg font-semibold text-studio-fg">
+        <Flame className="size-4 text-studio-warning-fg" aria-hidden />
+        <span className="text-body font-semibold text-studio-fg">
           {streak.current > 0
             ? tPuzzle(locale, streak.current === 1 ? "puzzle.heatmap.streak.one" : "puzzle.heatmap.streak.other", {
                 count: formatInteger(locale, streak.current),
@@ -119,7 +120,7 @@ export function ProgressHeatmap({
             : tPuzzle(locale, "puzzle.heatmap.streak.none")}
         </span>
       </div>
-      <span className="text-body text-studio-muted">
+      <span className="text-dense text-studio-muted">
         {tPuzzle(locale, streak.longest === 1 ? "puzzle.heatmap.longest.one" : "puzzle.heatmap.longest.other", {
           count: formatInteger(locale, streak.longest),
         })}
@@ -129,15 +130,16 @@ export function ProgressHeatmap({
 
   if (!map.hasActivity) {
     return (
-      <section
+      <Panel
+        as="section"
         aria-label={tPuzzle(locale, "puzzle.heatmap.title")}
-        className="rounded-xl border border-studio-border bg-studio-chrome p-5"
+        className="p-4"
         data-testid="progress-heatmap"
       >
-        <h2 className="text-title font-semibold text-studio-fg">{tPuzzle(locale, "puzzle.heatmap.title")}</h2>
+        <h2 className="text-body font-semibold text-studio-fg">{tPuzzle(locale, "puzzle.heatmap.title")}</h2>
         <div className="mt-3 flex flex-col items-start gap-1">
-          <p className="flex items-center gap-2 font-semibold text-studio-fg">
-            <Flame className="size-5 text-studio-warning-fg" aria-hidden />
+          <p className="flex items-center gap-2 text-body font-semibold text-studio-fg">
+            <Flame className="size-4 text-studio-warning-fg" aria-hidden />
             {tPuzzle(locale, "puzzle.heatmap.emptyTitle")}
           </p>
           <p className="max-w-xl text-body text-studio-muted">{tPuzzle(locale, "puzzle.heatmap.emptyBody")}</p>
@@ -145,7 +147,7 @@ export function ProgressHeatmap({
             {tPuzzle(locale, "puzzle.heatmap.emptyAction")}
           </Button>
         </div>
-      </section>
+      </Panel>
     );
   }
 
@@ -189,14 +191,15 @@ export function ProgressHeatmap({
   const shown = detail ?? order[order.length - 1];
 
   return (
-    <section
+    <Panel
+      as="section"
       aria-label={tPuzzle(locale, "puzzle.heatmap.title")}
-      className="rounded-xl border border-studio-border bg-studio-chrome p-5"
+      className="p-4"
       data-testid="progress-heatmap"
     >
       {heading}
 
-      <dl className="mt-4 grid grid-cols-3 gap-3">
+      <dl className="mt-3 grid grid-cols-3 gap-2">
         <HeatStat label={tPuzzle(locale, "puzzle.heatmap.stat.solved")} value={formatInteger(locale, map.rangeSolved)} />
         <HeatStat label={tPuzzle(locale, "puzzle.heatmap.stat.minutes")} value={formatInteger(locale, map.rangeMinutes)} />
         <HeatStat
@@ -205,7 +208,7 @@ export function ProgressHeatmap({
         />
       </dl>
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-3 flex gap-2">
           <div
             aria-hidden
             data-testid="heatmap-weekdays"
@@ -306,15 +309,15 @@ export function ProgressHeatmap({
         </span>
       </div>
       <p className="mt-2 text-caption text-studio-faint">{tPuzzle(locale, "puzzle.heatmap.freezeNote")}</p>
-    </section>
+    </Panel>
   );
 }
 
 function HeatStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-studio-border bg-studio-bg px-3 py-2">
+    <div className="rounded-lg bg-studio-bg px-3 py-1.5">
       <dt className="text-caption uppercase tracking-wide text-studio-muted">{label}</dt>
-      <dd className="mt-0.5 text-xl font-semibold tabular-nums text-studio-fg">{value}</dd>
+      <dd className="mt-0.5 text-title font-semibold tabular-nums text-studio-fg">{value}</dd>
     </div>
   );
 }
