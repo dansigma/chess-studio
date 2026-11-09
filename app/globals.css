@@ -522,7 +522,7 @@ body {
   height: 100%;
 }
 
-button {
+button:enabled {
   cursor: pointer;
 }
 

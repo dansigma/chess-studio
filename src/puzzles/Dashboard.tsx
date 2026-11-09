@@ -130,7 +130,7 @@ export function PuzzleDashboard() {
             <h1 className="text-title font-semibold text-studio-fg">{tPuzzle(locale, "puzzle.dashboard.heading")}</h1>
             <p className="mt-1 max-w-md text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.intro")}</p>
             <Button
-              className="mt-3 w-full sm:w-auto sm:min-w-40"
+              className="mt-3 w-full transition-colors duration-150 sm:w-auto sm:min-w-40"
               variant="primary"
               onClick={() => router.push("/puzzles/play?mode=rated")}
             >
@@ -146,7 +146,10 @@ export function PuzzleDashboard() {
             ) : null}
             {status === "ready" && signedIn === false ? (
               <p className="mt-1.5 text-caption text-studio-muted" data-testid="signin-prompt">
-                <Link href="/login" className="text-studio-accent-text">
+                <Link
+                  href="/login"
+                  className="text-studio-accent-text underline-offset-2 transition-colors duration-150 hover:text-studio-fg hover:underline"
+                >
                   {tPuzzle(locale, "puzzle.dashboard.signIn.link")}
                 </Link>{" "}
                 {tPuzzle(locale, "puzzle.dashboard.signIn.rest")}
@@ -155,7 +158,7 @@ export function PuzzleDashboard() {
             {failed ? (
               <div role="alert" className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <p className="text-body text-studio-warning-fg">{tPuzzle(locale, "puzzle.dashboard.loadError")}</p>
-                <Button size="sm" variant="secondary" onClick={retry}>
+                <Button size="sm" variant="secondary" className="transition-colors duration-150" onClick={retry}>
                   {tPuzzle(locale, "puzzle.dashboard.retry")}
                 </Button>
               </div>
@@ -308,9 +311,10 @@ export function PuzzleDashboard() {
             <Link
               key={theme.id}
               href={`/puzzles/play?mode=rated&theme=${theme.id}${difficulty ? `&difficulty=${difficulty}` : ""}`}
-              className="block rounded-[10px] border border-transparent bg-studio-panel px-3 py-2 text-left hover:border-studio-border-strong"
+              className="group block rounded-[10px] border border-transparent bg-studio-panel px-3 py-2 text-left transition-colors duration-150 hover:border-studio-border-strong hover:[background-image:linear-gradient(var(--studio-hover-subtle),var(--studio-hover-subtle))] active:[background-image:linear-gradient(var(--studio-hover),var(--studio-hover))]"
             >
-              <span className="text-body font-semibold text-studio-fg">{tPuzzle(locale, theme.labelKey)}</span>
+              <span className="text-body font-semibold text-studio-fg transition-colors duration-150 group-hover:text-studio-accent-text">
+                {tPuzzle(locale, theme.labelKey)}</span>
               <p className="mt-0.5 text-dense text-studio-muted">{tPuzzle(locale, theme.blurbKey)}</p>
             </Link>
           ))}
@@ -392,7 +396,7 @@ export function PuzzleDashboard() {
               </h3>
               {weakest ? (
                 <Button
-                  className="mt-2"
+                  className="mt-2 transition-colors duration-150"
                   variant="secondary"
                   onClick={() => router.push(`/puzzles/play?mode=rated&theme=${weakest}`)}
                 >
@@ -528,13 +532,13 @@ function ModeCard({
       {href && !pending ? (
         <Link
           href={href}
-          className="mt-3 inline-flex h-7 items-center justify-center gap-1.5 self-start rounded-lg bg-studio-hover-strong px-2.5 text-dense font-medium text-studio-fg hover:bg-studio-selected"
+          className="mt-3 inline-flex h-7 items-center justify-center gap-1.5 self-start rounded-lg bg-studio-hover-strong px-2.5 text-dense font-medium text-studio-fg transition-colors duration-150 hover:bg-studio-selected active:brightness-95"
         >
           {action}
         </Link>
       ) : (
         <Button
-          className={`mt-3 self-start ${pending ? "invisible" : ""}`}
+          className={`mt-3 self-start transition-colors duration-150 ${pending ? "invisible" : ""}`}
           size="sm"
           onClick={onClick}
           disabled={pending}
@@ -578,7 +582,7 @@ function DailyPreview({ puzzle, locale }: { puzzle: CompiledPuzzle | null; local
       })}
       className="group flex shrink-0 flex-col items-center gap-1.5 self-center rounded-lg"
     >
-      <div className={`pointer-events-none ${size} overflow-hidden rounded-lg ring-1 ring-studio-border-strong`} aria-hidden>
+      <div className={`pointer-events-none ${size} overflow-hidden rounded-lg ring-1 ring-studio-border-strong transition-shadow duration-150 group-hover:ring-studio-accent`} aria-hidden>
         <Chessboard
           options={{
             id: `puzzle-preview-${puzzle.id}`,
@@ -596,7 +600,7 @@ function DailyPreview({ puzzle, locale }: { puzzle: CompiledPuzzle | null; local
           }}
         />
       </div>
-      <span className="text-caption text-studio-muted group-hover:text-studio-fg">
+      <span className="text-caption text-studio-muted transition-colors duration-150 group-hover:text-studio-fg group-hover:underline">
         {tPuzzle(locale, "puzzle.dashboard.preview.label", { rating })}
       </span>
     </Link>
