@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Chessboard } from "react-chessboard";
 import { useRouter } from "next/navigation";
@@ -44,45 +44,70 @@ export function PuzzleDashboard() {
   const [progress, setProgress] = useState<PuzzleProgress | null>(null);
   const [puzzles, setPuzzles] = useState<CompiledPuzzle[]>([]);
   const [now, setNow] = useState<number | null>(null);
-  const [loadError, setLoadError] = useState<boolean>(false);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  // SIG-1258: known only once the load has read the auth user; null = not known yet.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [source, setSource] = useState<"account" | "browser">("browser");
   // SIG-1097: due mistake-exercise count for the "My mistakes" card.
   const [dueMistakes, setDueMistakes] = useState<number | null>(null);
   // SIG-1256: difficulty filter for theme links; null = All (normal rated session).
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
 
-  useEffect(() => {
-    let cancel = false;
-    void (async () => {
-      try {
-        const supabase = createBrowserSupabase();
-        const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-        const [loaded, catalog, exercises] = await Promise.all([
-          hydratePuzzleProgress(user?.id ?? null),
-          loadPuzzleCatalog(),
-          hydrateExercises(user?.id ?? null),
-        ]);
-        const timestamp = Date.now();
-        if (cancel) {
-          return;
-        }
-        setProgress(loaded);
-        setPuzzles(catalog);
-        setNow(timestamp);
-        setSource(progressSource());
-        setDueMistakes(dueExercises(exercises as MistakeExercisesMap, new Date(timestamp)).length);
-        setLoadError(false);
-      } catch (error) {
-        console.error("Failed to load puzzle progress.", error);
-        if (!cancel) {
-          setLoadError(true);
-        }
+  // Bumped on every load and on unmount, so a stale response is dropped.
+  const requestId = useRef(0);
+  const load = useCallback(async () => {
+    const id = ++requestId.current;
+    const stale = () => requestId.current !== id;
+    try {
+      const supabase = createBrowserSupabase();
+      const user = supabase ? (await supabase.auth.getUser()).data.user : null;
+      const [loaded, catalog, exercises] = await Promise.all([
+        hydratePuzzleProgress(user?.id ?? null),
+        loadPuzzleCatalog(),
+        hydrateExercises(user?.id ?? null),
+      ]);
+      const timestamp = Date.now();
+      if (stale()) {
+        return;
       }
-    })();
-    return () => {
-      cancel = true;
-    };
+      setProgress(loaded);
+      setPuzzles(catalog);
+      setNow(timestamp);
+      setSource(progressSource());
+      setSignedIn(Boolean(user));
+      setDueMistakes(dueExercises(exercises as MistakeExercisesMap, new Date(timestamp)).length);
+      setStatus("ready");
+    } catch (error) {
+      console.error("Failed to load puzzle progress.", error);
+      if (!stale()) {
+        // No partial data: zeros would read as real progress.
+        setProgress(null);
+        setPuzzles([]);
+        setNow(null);
+        setSignedIn(null);
+        setDueMistakes(null);
+        setStatus("error");
+      }
+    }
   }, []);
+
+  const retry = useCallback(() => {
+    setStatus("loading");
+    void load();
+  }, [load]);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- SIG-1258: initial fetch; state is only set after the awaits. */
+  useEffect(() => {
+    void load();
+    const ref = requestId;
+    return () => {
+      ref.current += 1;
+    };
+  }, [load]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const loading = status === "loading";
+  const failed = status === "error";
 
   const daily = now === null ? null : dailyPuzzle(puzzles, now);
   const playedToday = Boolean(progress && now !== null && progress.daily === dateKey(now));
@@ -99,7 +124,7 @@ export function PuzzleDashboard() {
   return (
     <div className="min-h-full bg-studio-bg">
       <CourseChrome />
-      <main className="mx-auto max-w-[1280px] px-4 py-5 sm:px-6">
+      <main className="mx-auto max-w-[1280px] px-4 py-5 sm:px-6" aria-busy={loading}>
         <Panel as="section" className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6">
           <div className="min-w-0 flex-1">
             <h1 className="text-title font-semibold text-studio-fg">{tPuzzle(locale, "puzzle.dashboard.heading")}</h1>
@@ -111,15 +136,29 @@ export function PuzzleDashboard() {
             >
               {tPuzzle(locale, "puzzle.dashboard.solveNow")}
             </Button>
-            {progress ? (
+            {loading ? <Skeleton className="mt-1.5 w-40 text-caption" /> : null}
+            {status === "ready" && signedIn ? (
               <p className="mt-1.5 text-caption text-studio-muted">
                 {source === "account"
                   ? tPuzzle(locale, "puzzle.dashboard.savedAccount")
                   : tPuzzle(locale, "puzzle.dashboard.savedBrowser")}
               </p>
             ) : null}
-            {loadError ? (
-              <p className="mt-2 text-body text-studio-warning-fg">{tPuzzle(locale, "puzzle.dashboard.loadError")}</p>
+            {status === "ready" && signedIn === false ? (
+              <p className="mt-1.5 text-caption text-studio-muted" data-testid="signin-prompt">
+                <Link href="/login" className="text-studio-accent-text">
+                  {tPuzzle(locale, "puzzle.dashboard.signIn.link")}
+                </Link>{" "}
+                {tPuzzle(locale, "puzzle.dashboard.signIn.rest")}
+              </p>
+            ) : null}
+            {failed ? (
+              <div role="alert" className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <p className="text-body text-studio-warning-fg">{tPuzzle(locale, "puzzle.dashboard.loadError")}</p>
+                <Button size="sm" variant="secondary" onClick={retry}>
+                  {tPuzzle(locale, "puzzle.dashboard.retry")}
+                </Button>
+              </div>
             ) : null}
           </div>
           <div className="flex items-center gap-4 sm:flex-col sm:items-start sm:gap-2 sm:w-44">
@@ -128,29 +167,34 @@ export function PuzzleDashboard() {
                 {tPuzzle(locale, "puzzle.dashboard.yourRating")}
               </div>
               <div className="text-title font-semibold tabular-nums text-studio-fg">
-                {progress ? formatInteger(locale, progress.rating) : "—"}
+                {loading ? <Skeleton className="w-16" /> : progress ? formatInteger(locale, progress.rating) : "—"}
               </div>
             </div>
-            {progress ? (
+            {loading ? (
+              <div aria-hidden className="min-w-0 flex-1 text-caption sm:w-full sm:flex-none">
+                <Skeleton className="w-28" />
+                <Skeleton className="mt-1 w-24" />
+              </div>
+            ) : progress ? (
               <div className="min-w-0 flex-1 sm:w-full sm:flex-none">
                 <LevelBar level={level} locale={locale} compact />
               </div>
             ) : null}
           </div>
-          {daily || (now === null && !loadError) ? <DailyPreview puzzle={daily} locale={locale} /> : null}
+          {daily || loading ? <DailyPreview puzzle={daily} locale={locale} /> : null}
         </Panel>
 
         <Panel as="section" className="mt-4 px-4 py-3">
           <dl className="grid grid-cols-2 gap-y-3 sm:grid-cols-4">
-            <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.solved")} value={progress ? formatInteger(locale, progress.solved) : "—"} />
+            <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.solved")} value={loading ? null : progress ? formatInteger(locale, progress.solved) : "—"} />
             <Stat
               label={tPuzzle(locale, "puzzle.dashboard.stat.accuracy")}
-              value={accuracy === null ? "—" : `${formatInteger(locale, accuracy)}%`}
+              value={loading ? null : accuracy === null ? "—" : `${formatInteger(locale, accuracy)}%`}
             />
-            <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.streak")} value={progress ? formatInteger(locale, progress.streak) : "—"} />
+            <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.streak")} value={loading ? null : progress ? formatInteger(locale, progress.streak) : "—"} />
             <Stat
               label={tPuzzle(locale, "puzzle.dashboard.stat.bestStreak")}
-              value={progress ? formatInteger(locale, progress.bestStreak) : "—"}
+              value={loading ? null : progress ? formatInteger(locale, progress.bestStreak) : "—"}
             />
           </dl>
         </Panel>
@@ -170,7 +214,9 @@ export function PuzzleDashboard() {
             icon={CalendarDays}
             title={tPuzzle(locale, "puzzle.dashboard.daily.title")}
             detail={
-              daily
+              loading
+                ? null
+                : daily
                 ? `${playedToday ? tPuzzle(locale, "puzzle.dashboard.daily.solvedToday") : tPuzzle(locale, "puzzle.dashboard.daily.today")} · ${formatInteger(locale, daily.rating)}`
                 : tPuzzle(locale, "puzzle.dashboard.daily.fallback")
             }
@@ -186,7 +232,9 @@ export function PuzzleDashboard() {
             icon={Flame}
             title={tPuzzle(locale, "puzzle.dashboard.streak.title")}
             detail={
-              progress
+              loading
+                ? null
+                : progress
                 ? tPuzzle(locale, "puzzle.dashboard.streak.best", { best: formatInteger(locale, progress.bestStreak) })
                 : tPuzzle(locale, "puzzle.dashboard.streak.fallback")
             }
@@ -198,7 +246,9 @@ export function PuzzleDashboard() {
             icon={Zap}
             title={tPuzzle(locale, "puzzle.dashboard.rush.title")}
             detail={
-              progress
+              loading
+                ? null
+                : progress
                 ? tPuzzle(locale, "puzzle.dashboard.rush.best", { best: formatInteger(locale, progress.rushBest) })
                 : tPuzzle(locale, "puzzle.dashboard.rush.fallback")
             }
@@ -210,7 +260,9 @@ export function PuzzleDashboard() {
             icon={RotateCcw}
             title={tMistakes(locale, "mistakes.dashboard.title")}
             detail={
-              dueMistakes === null
+              loading
+                ? null
+                : dueMistakes === null
                 ? ""
                 : dueMistakes === 0
                   ? tMistakes(locale, "mistakes.dashboard.none")
@@ -220,11 +272,13 @@ export function PuzzleDashboard() {
                       { count: formatInteger(locale, dueMistakes) },
                     )
             }
-            body={tMistakes(locale, dueMistakes === 0 ? "mistakes.dashboard.empty" : "mistakes.dashboard.body")}
+            body={
+              loading ? null : tMistakes(locale, dueMistakes === 0 ? "mistakes.dashboard.empty" : "mistakes.dashboard.body")
+            }
             action={dueMistakes === 0 ? tMistakes(locale, "mistakes.dashboard.analyze") : tMistakes(locale, "mistakes.dashboard.action")}
             onClick={() => router.push("/puzzles/play?mode=mistakes")}
             href={dueMistakes === 0 ? "/studio" : undefined}
-            pending={dueMistakes === null}
+            pending={loading}
           />
         </div>
 
@@ -356,6 +410,7 @@ export function PuzzleDashboard() {
         <SectionHeading icon={History} className="mt-6">
           {tPuzzle(locale, "puzzle.dashboard.recentTitle")}
         </SectionHeading>
+        {loading ? <Skeleton className="mt-2 w-40 text-body" /> : null}
         {progress && progress.history.length === 0 ? (
           <p className="mt-2 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.recentEmpty")}</p>
         ) : null}
@@ -402,11 +457,24 @@ export function PuzzleDashboard() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+/** SIG-1258: loading placeholder. One line tall (`1lh` of the parent's text size), so data arriving does not move the layout. */
+function Skeleton({ className = "", lines = 1 }: { className?: string; lines?: number }) {
+  return (
+    <span
+      aria-hidden
+      style={{ height: `${lines}lh` }}
+      className={`block animate-pulse rounded bg-studio-hover-strong ${className}`}
+    />
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="border-r border-studio-border-subtle pr-3 even:border-r-0 even:pl-4 sm:border-r sm:px-4 sm:first:pl-0 sm:even:border-r sm:even:last:border-r-0">
       <dt className="text-caption uppercase tracking-wide text-studio-muted">{label}</dt>
-      <dd className="mt-0.5 text-title font-semibold tabular-nums text-studio-fg">{value}</dd>
+      <dd className="mt-0.5 text-title font-semibold tabular-nums text-studio-fg">
+        {value === null ? <Skeleton className="w-12" /> : value}
+      </dd>
     </div>
   );
 }
@@ -440,8 +508,8 @@ function ModeCard({
 }: {
   icon: LucideIcon;
   title: string;
-  detail: string;
-  body: string;
+  detail: string | null;
+  body: string | null;
   action: string;
   onClick: () => void;
   /** When set, the action is a link (secondary style) instead of a button. */
@@ -455,8 +523,8 @@ function ModeCard({
         <Icon className="size-4 text-studio-faint" aria-hidden />
         {title}
       </h2>
-      <p className="mt-0.5 min-h-[1lh] text-caption text-studio-muted">{detail}</p>
-      <p className="mt-2 flex-1 text-dense text-studio-muted">{body}</p>
+      <p className="mt-0.5 min-h-[1lh] text-caption text-studio-muted">{detail === null ? <Skeleton className="w-24" /> : detail}</p>
+      <p className="mt-2 flex-1 text-dense text-studio-muted">{body === null ? <Skeleton lines={2} className="w-full" /> : body}</p>
       {href && !pending ? (
         <Link
           href={href}
@@ -491,7 +559,12 @@ function DailyPreview({ puzzle, locale }: { puzzle: CompiledPuzzle | null; local
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const size = "size-40 sm:size-44";
   if (!puzzle) {
-    return <div aria-hidden className={`${size} shrink-0 self-center rounded-lg bg-studio-bg`} />;
+    return (
+      <div aria-hidden className="flex shrink-0 flex-col items-center gap-1.5 self-center">
+        <div className={`${size} rounded-lg bg-studio-bg`} />
+        <Skeleton className="w-28 text-caption" />
+      </div>
+    );
   }
   const orientation = orientationFor(puzzle);
   const rating = formatInteger(locale, puzzle.rating);
