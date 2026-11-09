@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { siteSections } from "@/src/site/sections";
 import { BrandLockup } from "@/src/studio/ui/BrandLockup";
-import { LocaleSwitcher } from "@/src/i18n/LocaleSwitcher";
 import { tCourse } from "@/src/i18n/course-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 
@@ -92,9 +91,6 @@ export function CourseChrome({
           </Link>
         ) : null}
       </nav>
-      <div className="ml-auto shrink-0">
-        <LocaleSwitcher />
-      </div>
     </header>
   );
 }
