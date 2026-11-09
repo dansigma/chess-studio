@@ -71,6 +71,26 @@ test("merge takes per-day max (no double counting) and is idempotent", () => {
   assert.deepEqual(mergePuzzleProgress(merged, merged).days, merged.days);
 });
 
+// SIG-1250: a timestamp-sized day total repairs to zero time on normalize;
+// solved/failed/xp stay untouched. A merge of a repaired day with a stale
+// corrupt copy still displays clean: mergeDays takes the max (the stale
+// value), but the merged result passes through normalizeDays, so the stored
+// stale copy heals on the next write while every read is already clean.
+test("normalizeDays repairs timestamp-sized day totals", () => {
+  const repaired = normalizeDays({
+    "2026-11-04": { solved: 2, failed: 1, ms: 1_793_479_702_000, xp: 50 },
+  });
+  assert.deepEqual(repaired["2026-11-04"], { solved: 2, failed: 1, ms: 0, xp: 50 });
+  const honest = normalizeDays({ "2026-11-04": { solved: 2, failed: 1, ms: 54_000, xp: 50 } });
+  assert.equal(honest["2026-11-04"]?.ms, 54_000);
+  const merged = mergeDays(
+    { "2026-11-04": { solved: 2, failed: 1, ms: 0, xp: 50 } },
+    { "2026-11-04": { solved: 2, failed: 1, ms: 1_793_479_702_000, xp: 50 } },
+  );
+  assert.equal(merged["2026-11-04"]?.ms, 0);
+  assert.deepEqual(normalizeDays(normalizeDays({ "2026-11-04": { solved: 1, failed: 0, ms: 1_793_479_702_000, xp: 10 } })), normalizeDays({ "2026-11-04": { solved: 1, failed: 0, ms: 1_793_479_702_000, xp: 10 } }));
+});
+
 test("streak without a missed day", () => {
   const s = dayStreak(mk("2026-11-03", "2026-11-04", "2026-11-05"), "2026-11-05");
   assert.deepEqual(s, { current: 3, longest: 3, frozenDays: [] });

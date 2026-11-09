@@ -5,6 +5,13 @@ import type { DayActivity, PuzzleProgress } from "./types";
 
 export const MAX_ACTIVITY_DAYS = 400;
 
+// SIG-1250: a stored time total at or above this is a Unix timestamp recorded
+// as a duration (the Oct 26 – Nov 5 first-puzzle clock bug wrote ~1.79e12 ms),
+// never honest play: 1e12 ms is ~31.7 years accumulated in one motif, or a
+// single day holding ~31.7 years. Repair resets the time fields; attempts and
+// results stay untouched.
+export const CORRUPT_TIME_TOTAL_MS = 1e12;
+
 const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/;
 const DAY_MS = 86_400_000;
 
@@ -45,7 +52,10 @@ export function normalizeDays(value: unknown): Record<string, DayActivity> {
       continue;
     }
     const r = raw as Record<string, unknown>;
-    out[key] = { solved: count(r.solved), failed: count(r.failed), ms: count(r.ms), xp: count(r.xp) };
+    const ms = count(r.ms);
+    // SIG-1250: see CORRUPT_TIME_TOTAL_MS — a timestamp-sized day total shows
+    // as "—"-equivalent zero time until the next timed attempt adds to it.
+    out[key] = { solved: count(r.solved), failed: count(r.failed), ms: ms >= CORRUPT_TIME_TOTAL_MS ? 0 : ms, xp: count(r.xp) };
   }
   return out;
 }

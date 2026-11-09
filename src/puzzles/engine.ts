@@ -1,5 +1,5 @@
 import { Chess, type Square } from "chess.js";
-import { normalizeDays, recordActivity } from "./activity";
+import { CORRUPT_TIME_TOTAL_MS, normalizeDays, recordActivity } from "./activity";
 import {
   PUZZLE_MODES,
   PUZZLE_THEMES,
@@ -279,6 +279,13 @@ function normalizeMotifs(value: unknown): Record<string, MotifStat> {
       typeof record.recent === "string"
         ? record.recent.replace(/[^01]/g, "").slice(-10)
         : "";
+    // SIG-1250: a timestamp-sized total is unrecoverable (attempts store no
+    // individual durations), so reset the time fields and let the motif show
+    // "—" until its next timed attempt. Attempts/solved/recent stay untouched.
+    if (totalMs >= CORRUPT_TIME_TOTAL_MS) {
+      motifs[key] = { attempts, solved, timedAttempts: 0, totalMs: 0, recent };
+      continue;
+    }
     motifs[key] = { attempts, solved, timedAttempts, totalMs, recent };
   }
   return motifs;

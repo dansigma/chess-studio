@@ -13,6 +13,7 @@ import {
   judgeMove,
   levelFromXp,
   materialFor,
+  normalizeProgress,
   rankedPuzzles,
   rate,
 } from "./engine.ts";
@@ -352,6 +353,48 @@ test("motif recent caps at ten and multi-theme puzzles record each theme once", 
   assert.equal(multi.motifs.mate?.attempts, 1);
   assert.equal(multi.motifs.fork?.attempts, 1);
   assert.equal(multi.motifs.fork?.totalMs, 2000);
+});
+
+// SIG-1250: a timestamp-sized stored total (the first-puzzle `Date.now() - 0`
+// bug) repairs to zeroed time fields on normalize; attempts, solved and the
+// recent trend stay untouched so the motif shows "—" until its next attempt.
+test("normalizeProgress repairs timestamp-sized motif totals", () => {
+  const raw = {
+    ...emptyProgress(),
+    motifs: {
+      promotion: { attempts: 10, solved: 6, timedAttempts: 10, totalMs: 3_586_534_000_000, recent: "1111100000" },
+      fork: { attempts: 12, solved: 9, timedAttempts: 12, totalMs: 96_000, recent: "1111111111" },
+    },
+  };
+  const repaired = normalizeProgress(raw);
+  assert.deepEqual(repaired.motifs.promotion, {
+    attempts: 10,
+    solved: 6,
+    timedAttempts: 0,
+    totalMs: 0,
+    recent: "1111100000",
+  });
+  assert.deepEqual(repaired.motifs.fork, { attempts: 12, solved: 9, timedAttempts: 12, totalMs: 96_000, recent: "1111111111" });
+});
+
+test("normalizeProgress motif repair keeps honest totals and is idempotent", () => {
+  const justBelow = {
+    ...emptyProgress(),
+    motifs: {
+      fork: { attempts: 3, solved: 2, timedAttempts: 3, totalMs: 999_999_999_999, recent: "110" },
+    },
+  };
+  assert.equal(normalizeProgress(justBelow).motifs.fork?.totalMs, 999_999_999_999);
+  const corrupt = {
+    ...emptyProgress(),
+    motifs: {
+      fork: { attempts: 36, solved: 20, timedAttempts: 36, totalMs: 1_793_479_702_000, recent: "1010101010" },
+    },
+  };
+  const once = normalizeProgress(corrupt);
+  assert.deepEqual(once.motifs.fork, { attempts: 36, solved: 20, timedAttempts: 0, totalMs: 0, recent: "1010101010" });
+  assert.deepEqual(normalizeProgress(once), once);
+  assert.deepEqual(normalizeProgress(normalizeProgress(justBelow)), normalizeProgress(justBelow));
 });
 
 test("coach lines and the award anchor follow the side to move", () => {

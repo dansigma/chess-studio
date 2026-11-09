@@ -137,6 +137,16 @@ export function rushAfterMiss(strikes: number, secondsLeft: number): { strikes: 
   return { strikes: next, over: next >= RUSH_STRIKES || secondsLeft <= 0 };
 }
 
+// SIG-1250: elapsed solve time for one attempt. `shownAt === null` means the
+// clock was never stamped — record no time (null) instead of `now - 0`.
+// Extracted pure so the unstamped-clock rule is unit-testable without the hook.
+export function elapsedMs(shownAt: number | null, now: number): number | null {
+  if (shownAt === null) {
+    return null;
+  }
+  return Math.max(0, now - shownAt);
+}
+
 export function usePuzzleSession({
   mode,
   theme,
@@ -210,7 +220,9 @@ export function usePuzzleSession({
   const advanceTimer = useRef<number | null>(null);
   // SIG-1103: solve-time clock. Stamped when a puzzle is shown, read when the
   // attempt commits — time is measured, never limited.
-  const shownAtRef = useRef<number>(0);
+  // SIG-1250: null means never stamped; commit() then records no time
+  // (ms: null) instead of `Date.now() - 0`, a Unix timestamp.
+  const shownAtRef = useRef<number | null>(null);
   // SIG-1234: any hint on this puzzle removes the speed and first-try bonuses.
   // hintLevel itself resets after every move, so the flag is kept separately.
   const hintedRef = useRef(false);
@@ -259,7 +271,10 @@ export function usePuzzleSession({
       void saveExercises(next, exercisesUserIdRef.current);
     }
     const score = nextSessionScore(success, sessionSolvedRef.current);
-    const ms = Math.max(0, Date.now() - shownAtRef.current);
+    // SIG-1250: an unstamped clock records no time (ms: null), never
+    // `Date.now() - 0`. Downstream already handles null (motifs skip time
+    // fields, XP speed factor is neutral, daily ms adds 0).
+    const ms = elapsedMs(shownAtRef.current, Date.now());
     const xp = applyScore(success, currentPuzzle, score, ms, hintedRef.current);
     if (!xp) {
       return;
