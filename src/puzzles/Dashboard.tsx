@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Chessboard } from "react-chessboard";
 import { useRouter } from "next/navigation";
 import { CalendarDays, ChartNoAxesColumn, Flame, History, RotateCcw, Shapes, Zap, type LucideIcon } from "lucide-react";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "@/src/courses/CourseChrome";
+import type { SiteLocale } from "@/src/i18n/locale";
 import { formatInteger } from "@/src/i18n/format";
 import { tPuzzle, type PuzzleStringKey } from "@/src/i18n/puzzle-strings";
 import { tMistakes } from "@/src/i18n/mistakes-strings";
@@ -12,8 +15,11 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
 import { Panel } from "@/src/studio/ui/Panel";
 import { dueExercises, hydrateExercises, type MistakeExercisesMap } from "@/src/lib/mistake-exercises-store";
+import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
+import { piecesForSet } from "@/src/chess/piece-sets";
 import { LevelBar } from "./XpBreakdown";
 import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
+import { orientationFor } from "./use-puzzle-feedback";
 import { motifSummary, weakestMotif } from "./motif-stats";
 import { loadPuzzleCatalog } from "./puzzle-client";
 import { ProgressHeatmap } from "./ProgressHeatmap";
@@ -88,27 +94,16 @@ export function PuzzleDashboard() {
     <div className="min-h-full bg-studio-bg">
       <CourseChrome />
       <main className="mx-auto max-w-[1280px] px-4 py-5 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
+        <Panel as="section" className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6">
+          <div className="min-w-0 flex-1">
             <h1 className="text-title font-semibold text-studio-fg">{tPuzzle(locale, "puzzle.dashboard.heading")}</h1>
-            <p className="mt-1 max-w-2xl text-body text-studio-muted">
-              {tPuzzle(locale, "puzzle.dashboard.intro")}
-            </p>
-          </div>
-          <Panel className="px-4 py-3">
-            <div className="text-caption uppercase tracking-wide text-studio-muted">
-              {tPuzzle(locale, "puzzle.dashboard.yourRating")}
-            </div>
-            <div className="mt-0.5 text-3xl font-semibold tabular-nums text-studio-fg">
-              {progress ? formatInteger(locale, progress.rating) : "—"}
-            </div>
-            {progress ? (
-              <div className="mt-2">
-                <LevelBar level={level} locale={locale} compact />
-              </div>
-            ) : null}
-            <Button className="mt-2" variant="primary" onClick={() => router.push("/puzzles/play?mode=rated")}>
-              {tPuzzle(locale, "puzzle.dashboard.startTraining")}
+            <p className="mt-1 max-w-md text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.intro")}</p>
+            <Button
+              className="mt-3 w-full sm:w-auto sm:min-w-40"
+              variant="primary"
+              onClick={() => router.push("/puzzles/play?mode=rated")}
+            >
+              {tPuzzle(locale, "puzzle.dashboard.solveNow")}
             </Button>
             {progress ? (
               <p className="mt-1.5 text-caption text-studio-muted">
@@ -120,8 +115,24 @@ export function PuzzleDashboard() {
             {loadError ? (
               <p className="mt-2 text-body text-studio-warning-fg">{tPuzzle(locale, "puzzle.dashboard.loadError")}</p>
             ) : null}
-          </Panel>
-        </div>
+          </div>
+          <div className="flex items-center gap-4 sm:flex-col sm:items-start sm:gap-2 sm:w-44">
+            <div>
+              <div className="text-caption uppercase tracking-wide text-studio-muted">
+                {tPuzzle(locale, "puzzle.dashboard.yourRating")}
+              </div>
+              <div className="text-title font-semibold tabular-nums text-studio-fg">
+                {progress ? formatInteger(locale, progress.rating) : "—"}
+              </div>
+            </div>
+            {progress ? (
+              <div className="min-w-0 flex-1 sm:w-full sm:flex-none">
+                <LevelBar level={level} locale={locale} compact />
+              </div>
+            ) : null}
+          </div>
+          {daily || (now === null && !loadError) ? <DailyPreview puzzle={daily} locale={locale} /> : null}
+        </Panel>
 
         <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.solved")} value={progress ? formatInteger(locale, progress.solved) : "—"} />
@@ -428,5 +439,55 @@ function ModeCard({
         {action}
       </Button>
     </Panel>
+  );
+}
+
+/**
+ * SIG-1252: read-only preview of today's puzzle, linking to the daily mode.
+ * Same start position and orientation as the trainer (`puzzle.fen`, side to
+ * move at the bottom), no arrows or highlights, so it never gives the answer.
+ * `puzzle === null` reserves the space so the hero does not jump on load.
+ */
+function DailyPreview({ puzzle, locale }: { puzzle: CompiledPuzzle | null; locale: SiteLocale }) {
+  const boardTheme = useStudioStore((state) => state.settings.boardTheme);
+  const pieceSet = useStudioStore((state) => state.settings.pieceSet);
+  const size = "size-40 sm:size-44";
+  if (!puzzle) {
+    return <div aria-hidden className={`${size} shrink-0 self-center rounded-lg bg-studio-bg`} />;
+  }
+  const orientation = orientationFor(puzzle);
+  const rating = formatInteger(locale, puzzle.rating);
+  const themeStyles = boardSquareStyles(boardTheme);
+  return (
+    <Link
+      href="/puzzles/play?mode=daily"
+      aria-label={tPuzzle(locale, "puzzle.dashboard.preview.aria", {
+        rating,
+        side: tPuzzle(locale, orientation === "black" ? "puzzle.side.black" : "puzzle.side.white"),
+      })}
+      className="group flex shrink-0 flex-col items-center gap-1.5 self-center rounded-lg"
+    >
+      <div className={`pointer-events-none ${size} overflow-hidden rounded-lg ring-1 ring-studio-border-strong`} aria-hidden>
+        <Chessboard
+          options={{
+            id: `puzzle-preview-${puzzle.id}`,
+            position: puzzle.fen,
+            boardOrientation: orientation,
+            showNotation: false,
+            ...boardCoordinateOptions(boardTheme),
+            allowDragging: false,
+            allowDrawingArrows: false,
+            arrows: [],
+            lightSquareStyle: themeStyles.light,
+            darkSquareStyle: themeStyles.dark,
+            pieces: piecesForSet(pieceSet),
+            boardStyle: { width: "100%", height: "100%" },
+          }}
+        />
+      </div>
+      <span className="text-caption text-studio-muted group-hover:text-studio-fg">
+        {tPuzzle(locale, "puzzle.dashboard.preview.label", { rating })}
+      </span>
+    </Link>
   );
 }
