@@ -274,6 +274,34 @@ describe("mergePuzzleProgress", () => {
     const merged = mergePuzzleProgress(progress({ solved: 4 }), normalizeProgress(raw), null, null);
     assert.deepEqual(merged.motifs, {});
   });
+
+  // SIG-1250: a corrupt motif on either side of a local/account merge repairs
+  // on the merged result (the merge funnels through normalizeProgress), so the
+  // dashboard shows "—" regardless of which side wins max-attempts. A later
+  // timed attempt accumulates from zero, and re-merging is a fixed point.
+  it("repairs corrupt motif totals from either merge side", () => {
+    const corrupt = progress({
+      motifs: {
+        promotion: { attempts: 10, solved: 6, timedAttempts: 10, totalMs: 3_586_534_000_000, recent: "1111100000" },
+      },
+    });
+    const clean = progress({
+      motifs: {
+        promotion: { attempts: 4, solved: 3, timedAttempts: 4, totalMs: 48_000, recent: "1110" },
+      },
+    });
+    for (const [local, remote] of [[corrupt, clean], [clean, corrupt]] as const) {
+      const merged = mergePuzzleProgress(local, remote, null, null);
+      assert.deepEqual(merged.motifs.promotion, {
+        attempts: 10,
+        solved: 6,
+        timedAttempts: 0,
+        totalMs: 0,
+        recent: "1111100000",
+      });
+      assert.deepEqual(mergePuzzleProgress(merged, merged, null, null), merged);
+    }
+  });
 });
 
 describe("hydratePuzzleProgress ownership", () => {

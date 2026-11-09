@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PUZZLE_CATALOG } from "./catalog.ts";
 import { compilePuzzle, dailyPuzzle, type CompiledPuzzle } from "./engine.ts";
-import { RUSH_STRIKES, capExcludeIds, clock, loadWindowedCatalog, nextSessionScore, pickPuzzle, ratingWindowRequests, rushAfterMiss } from "./use-puzzle-session";
+import { RUSH_STRIKES, capExcludeIds, clock, elapsedMs, loadWindowedCatalog, nextSessionScore, pickPuzzle, ratingWindowRequests, rushAfterMiss } from "./use-puzzle-session";
 
 const template = compilePuzzle(PUZZLE_CATALOG[0]);
 
@@ -152,4 +152,13 @@ test("capExcludeIds keeps the newest ids within the cap", () => {
   assert.deepEqual(capExcludeIds(exclude, 2), ["c", "d"]);
   assert.deepEqual(capExcludeIds(exclude), ["a", "b", "c", "d"]);
   assert.deepEqual(capExcludeIds(new Set(), 2), []);
+});
+
+// SIG-1250: an unstamped clock records no time (null) instead of
+// `Date.now() - 0`, a Unix timestamp. A stamped clock measures normally and a
+// future stamp clamps to zero.
+test("elapsedMs returns null for an unstamped clock", () => {
+  assert.equal(elapsedMs(null, 1_793_479_702_000), null);
+  assert.equal(elapsedMs(1_793_479_690_000, 1_793_479_702_000), 12_000);
+  assert.equal(elapsedMs(1_793_479_702_000, 1_793_479_690_000), 0);
 });

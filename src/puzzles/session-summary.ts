@@ -14,8 +14,8 @@ export type SessionAttempt = {
   success: boolean;
   /** Solved without any hint (a wrong move ends the puzzle, so no hint == first try). */
   firstTry: boolean;
-  /** Time from showing the puzzle to the attempt, in ms. */
-  ms: number;
+  /** Time from showing the puzzle to the attempt, in ms; null when the clock was never stamped (SIG-1250). */
+  ms: number | null;
   /** Timestamp of the attempt; the last one decides which local day "today" is. */
   at: number;
   /** SIG-1245: the puzzle played, for the list and the "Analyze in Studio" action. */
@@ -121,7 +121,10 @@ export function buildSessionSummary({
   const solved = attempts.filter((attempt) => attempt.success).length;
   const failed = attempts.length - solved;
   const firstTry = attempts.filter((attempt) => attempt.success && attempt.firstTry).length;
-  const trainingMs = attempts.reduce((total, attempt) => total + Math.max(0, attempt.ms), 0);
+  // SIG-1250: untimed attempts (ms: null) contribute no time and are excluded
+  // from the average denominator; all-untimed means no average.
+  const timed = attempts.filter((attempt) => typeof attempt.ms === "number" && Number.isFinite(attempt.ms));
+  const trainingMs = timed.reduce((total, attempt) => total + Math.max(0, attempt.ms ?? 0), 0);
   const practiceOnly = mode === "mistakes";
   const levelBefore = levelFromXp(before.xp);
   const levelAfter = levelFromXp(after.xp);
@@ -137,7 +140,7 @@ export function buildSessionSummary({
     failed,
     firstTry,
     trainingMs,
-    avgMs: attempts.length > 0 ? trainingMs / attempts.length : null,
+    avgMs: timed.length > 0 ? trainingMs / timed.length : null,
     accuracy: attempts.length > 0 ? Math.round((solved / attempts.length) * 100) : null,
     cheerBucket: cheerBucket(solved, failed),
     cheerKey: cheerKeyFor(solved, failed, firstTry),

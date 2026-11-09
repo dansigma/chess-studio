@@ -81,6 +81,28 @@ test("an empty session has no averages and no division by zero", () => {
   assert.equal(summary.rating, null);
 });
 
+// SIG-1250: untimed attempts (ms: null, e.g. an unstamped first-puzzle clock)
+// contribute no time and are excluded from the average denominator; an
+// all-untimed session has no average.
+test("untimed attempts are excluded from the session average", () => {
+  const mixed = buildSessionSummary({
+    mode: "rated",
+    attempts: [attempt(true, { ms: 5_000 }), attempt(true, { ms: null }), attempt(false, { firstTry: false, ms: 15_000 })],
+    before: progress({ rating: 1200 }),
+    after: progress({ rating: 1230 }),
+  });
+  assert.equal(mixed.trainingMs, 20_000);
+  assert.equal(mixed.avgMs, 10_000);
+  const untimed = buildSessionSummary({
+    mode: "rated",
+    attempts: [attempt(true, { ms: null }), attempt(false, { firstTry: false, ms: null })],
+    before: progress({ rating: 1200 }),
+    after: progress({ rating: 1200 }),
+  });
+  assert.equal(untimed.trainingMs, 0);
+  assert.equal(untimed.avgMs, null);
+});
+
 test("xp earned and the level-up come from the two snapshots", () => {
   const start = cumulativeXpForLevel(6) + 10;
   const levelUp = buildSessionSummary({
