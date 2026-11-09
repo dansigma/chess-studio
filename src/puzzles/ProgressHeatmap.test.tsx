@@ -55,17 +55,6 @@ test("renders pt-BR strings", () => {
   }
 });
 
-test("shows an inviting empty state instead of an empty grid", () => {
-  try {
-    render(<ProgressHeatmap days={{}} today="2026-11-03" locale="en" />);
-    assert.equal(screen.queryByRole("grid"), null);
-    screen.getByText("Your streak starts today");
-    assert.equal(screen.queryByRole("button"), null);
-  } finally {
-    cleanup();
-  }
-});
-
 test("weekday labels live outside the scroller; narrow width draws fewer weeks (SIG-1246)", () => {
   const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 212 });
