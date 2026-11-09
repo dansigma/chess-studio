@@ -18,7 +18,7 @@ const days = {
 
 test("renders streak, labelled squares, frozen marker and legend (en)", () => {
   try {
-    render(<ProgressHeatmap days={days} today="2026-11-03" locale="en" onStart={() => {}} />);
+    render(<ProgressHeatmap days={days} today="2026-11-03" locale="en" />);
     screen.getByText("2-day streak");
     screen.getByText("Longest streak · 2 days");
     screen.getByText("2/7");
@@ -47,7 +47,7 @@ test("renders streak, labelled squares, frozen marker and legend (en)", () => {
 
 test("renders pt-BR strings", () => {
   try {
-    render(<ProgressHeatmap days={days} today="2026-11-03" locale="pt-br" onStart={() => {}} />);
+    render(<ProgressHeatmap days={days} today="2026-11-03" locale="pt-br" />);
     screen.getByText("Sequência de 2 dias");
     screen.getByText("Maior sequência · 2 dias");
   } finally {
@@ -56,13 +56,11 @@ test("renders pt-BR strings", () => {
 });
 
 test("shows an inviting empty state instead of an empty grid", () => {
-  let started = 0;
   try {
-    render(<ProgressHeatmap days={{}} today="2026-11-03" locale="en" onStart={() => (started += 1)} />);
+    render(<ProgressHeatmap days={{}} today="2026-11-03" locale="en" />);
     assert.equal(screen.queryByRole("grid"), null);
     screen.getByText("Your streak starts today");
-    fireEvent.click(screen.getByRole("button", { name: "Solve your first puzzle" }));
-    assert.equal(started, 1);
+    assert.equal(screen.queryByRole("button"), null);
   } finally {
     cleanup();
   }
@@ -72,7 +70,7 @@ test("weekday labels live outside the scroller; narrow width draws fewer weeks (
   const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 212 });
   try {
-    render(<ProgressHeatmap days={days} today="2026-11-03" locale="en" onStart={() => {}} />);
+    render(<ProgressHeatmap days={days} today="2026-11-03" locale="en" />);
     const scroller = screen.getByTestId("heatmap-scroller");
     const weekdays = screen.getByTestId("heatmap-weekdays");
     assert.equal(scroller.contains(weekdays), false);
