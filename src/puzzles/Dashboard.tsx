@@ -207,19 +207,20 @@ export function PuzzleDashboard() {
             title={tMistakes(locale, "mistakes.dashboard.title")}
             detail={
               dueMistakes === null
-                ? tMistakes(locale, "mistakes.dashboard.empty")
+                ? ""
                 : dueMistakes === 0
-                  ? tMistakes(locale, "mistakes.dashboard.empty")
+                  ? tMistakes(locale, "mistakes.dashboard.none")
                   : tMistakes(
                       locale,
                       dueMistakes === 1 ? "mistakes.dashboard.detail.one" : "mistakes.dashboard.detail.other",
                       { count: formatInteger(locale, dueMistakes) },
                     )
             }
-            body={tMistakes(locale, "mistakes.dashboard.body")}
-            action={tMistakes(locale, "mistakes.dashboard.action")}
+            body={tMistakes(locale, dueMistakes === 0 ? "mistakes.dashboard.empty" : "mistakes.dashboard.body")}
+            action={dueMistakes === 0 ? tMistakes(locale, "mistakes.dashboard.analyze") : tMistakes(locale, "mistakes.dashboard.action")}
             onClick={() => router.push("/puzzles/play?mode=mistakes")}
-            disabled={dueMistakes === 0}
+            href={dueMistakes === 0 ? "/studio" : undefined}
+            pending={dueMistakes === null}
           />
         </div>
 
@@ -420,7 +421,8 @@ function ModeCard({
   body,
   action,
   onClick,
-  disabled = false,
+  href,
+  pending = false,
 }: {
   icon: LucideIcon;
   title: string;
@@ -428,19 +430,38 @@ function ModeCard({
   body: string;
   action: string;
   onClick: () => void;
-  disabled?: boolean;
+  /** When set, the action is a link (secondary style) instead of a button. */
+  href?: string;
+  /** Loading: keep the action's slot but render it invisible and inert. */
+  pending?: boolean;
 }) {
   return (
-    <Panel as="section" className="flex flex-col p-3">
+    <Panel as="section" className="flex h-full flex-col p-3">
       <h2 className="flex items-center gap-1.5 text-body font-semibold text-studio-fg">
         <Icon className="size-4 text-studio-faint" aria-hidden />
         {title}
       </h2>
-      <p className="mt-0.5 text-caption text-studio-accent-text">{detail}</p>
+      <p className="mt-0.5 min-h-[1lh] text-caption text-studio-muted">{detail}</p>
       <p className="mt-2 flex-1 text-dense text-studio-muted">{body}</p>
-      <Button className="mt-3 self-start" size="sm" onClick={onClick} disabled={disabled}>
-        {action}
-      </Button>
+      {href && !pending ? (
+        <Link
+          href={href}
+          className="mt-3 inline-flex h-7 items-center justify-center gap-1.5 self-start rounded-lg bg-studio-hover-strong px-2.5 text-dense font-medium text-studio-fg hover:bg-studio-selected"
+        >
+          {action}
+        </Link>
+      ) : (
+        <Button
+          className={`mt-3 self-start ${pending ? "invisible" : ""}`}
+          size="sm"
+          onClick={onClick}
+          disabled={pending}
+          aria-hidden={pending || undefined}
+          tabIndex={pending ? -1 : undefined}
+        >
+          {action}
+        </Button>
+      )}
     </Panel>
   );
 }
