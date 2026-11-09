@@ -10,7 +10,6 @@ import { Flame } from "lucide-react";
 import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tPuzzle } from "@/src/i18n/puzzle-strings";
-import { Button } from "@/src/studio/ui/Button";
 import { Panel } from "@/src/studio/ui/Panel";
 import {
   buildHeatmap,
@@ -66,12 +65,10 @@ export function ProgressHeatmap({
   days,
   today,
   locale,
-  onStart,
 }: {
   days: Record<string, DayActivity> | undefined;
   today: string;
   locale: SiteLocale;
-  onStart: () => void;
 }) {
   // SIG-1246: the week count follows the width of the scrolling grid area.
   const [weekCount, setWeekCount] = useState(HEATMAP_WEEKS);
@@ -143,9 +140,6 @@ export function ProgressHeatmap({
             {tPuzzle(locale, "puzzle.heatmap.emptyTitle")}
           </p>
           <p className="max-w-xl text-body text-studio-muted">{tPuzzle(locale, "puzzle.heatmap.emptyBody")}</p>
-          <Button className="mt-3" variant="primary" onClick={onStart}>
-            {tPuzzle(locale, "puzzle.heatmap.emptyAction")}
-          </Button>
         </div>
       </Panel>
     );

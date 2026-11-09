@@ -153,7 +153,6 @@ export function PuzzleDashboard() {
               days={progress.days}
               today={localDayKey(now)}
               locale={locale}
-              onStart={() => router.push("/puzzles/play?mode=rated")}
             />
           </div>
         ) : null}
@@ -321,7 +320,7 @@ export function PuzzleDashboard() {
               {weakest ? (
                 <Button
                   className="mt-2"
-                  variant="primary"
+                  variant="secondary"
                   onClick={() => router.push(`/puzzles/play?mode=rated&theme=${weakest}`)}
                 >
                   {tPuzzle(locale, "puzzle.dashboard.weakest.action", {
