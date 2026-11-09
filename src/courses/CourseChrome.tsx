@@ -8,6 +8,9 @@ import { BrandLockup } from "@/src/studio/ui/BrandLockup";
 import { tCourse } from "@/src/i18n/course-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 
+const ADMIN_LINK =
+  "rounded-md px-2 py-1 text-studio-accent-text hover:bg-studio-hover-strong transition-colors duration-150";
+
 export function CourseChrome({
   admin = false,
   isAdmin = false,
@@ -43,7 +46,10 @@ export function CourseChrome({
 
   return (
     <header className="flex h-12 min-w-0 items-center gap-2 border-b border-studio-border bg-studio-chrome px-3 sm:gap-4 sm:px-4">
-      <Link href="/courses" className="shrink-0">
+      <Link
+        href="/"
+        className={`-ml-1.5 shrink-0 rounded-md px-1.5 py-1 hover:bg-studio-hover-strong hover:text-studio-fg transition-colors duration-150`}
+      >
         <BrandLockup compact />
       </Link>
       <nav className="flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-body [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -54,10 +60,10 @@ export function CourseChrome({
               key={section.href}
               href={section.href}
               aria-current={active ? "page" : undefined}
-              className={`rounded-md px-2 py-1 ${
+              className={`rounded-md px-2 py-1 transition-colors duration-150 ${
                 active
-                  ? "bg-studio-hover text-studio-fg"
-                  : "text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
+                  ? "bg-studio-accent-soft text-studio-fg"
+                  : "text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
               }`}
             >
               {section.label}
@@ -66,13 +72,10 @@ export function CourseChrome({
         })}
         {isAdmin ? (
           <>
-            <Link href="/admin/users" className="rounded-md px-2 py-1 text-studio-accent-text hover:bg-studio-hover">
+            <Link href="/admin/users" className={ADMIN_LINK}>
               {tCourse(locale, "course.chrome.adminUsers")}
             </Link>
-            <Link
-              href="/admin/courses"
-              className="rounded-md px-2 py-1 text-studio-accent-text hover:bg-studio-hover"
-            >
+            <Link href="/admin/courses" className={ADMIN_LINK}>
               {tCourse(locale, "course.chrome.reviewCourses")}
               {reviewCount > 0 ? (
                 <span
@@ -86,7 +89,7 @@ export function CourseChrome({
           </>
         ) : null}
         {admin ? (
-          <Link href="/courses/admin" className="rounded-md px-2 py-1 text-studio-accent-text hover:bg-studio-hover">
+          <Link href="/courses/admin" className={ADMIN_LINK}>
             {tCourse(locale, "course.chrome.createCourse")}
           </Link>
         ) : null}
