@@ -125,26 +125,6 @@ export function ProgressHeatmap({
     </div>
   );
 
-  if (!map.hasActivity) {
-    return (
-      <Panel
-        as="section"
-        aria-label={tPuzzle(locale, "puzzle.heatmap.title")}
-        className="p-4"
-        data-testid="progress-heatmap"
-      >
-        <h2 className="text-body font-semibold text-studio-fg">{tPuzzle(locale, "puzzle.heatmap.title")}</h2>
-        <div className="mt-3 flex flex-col items-start gap-1">
-          <p className="flex items-center gap-2 text-body font-semibold text-studio-fg">
-            <Flame className="size-4 text-studio-warning-fg" aria-hidden />
-            {tPuzzle(locale, "puzzle.heatmap.emptyTitle")}
-          </p>
-          <p className="max-w-xl text-body text-studio-muted">{tPuzzle(locale, "puzzle.heatmap.emptyBody")}</p>
-        </div>
-      </Panel>
-    );
-  }
-
   const order = map.weeks.flat().filter((c): c is HeatCell => c !== null);
   const focusKey = order.some((c) => c.key === active) ? active : today;
 

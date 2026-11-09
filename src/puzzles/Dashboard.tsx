@@ -83,6 +83,8 @@ export function PuzzleDashboard() {
   const daily = now === null ? null : dailyPuzzle(puzzles, now);
   const playedToday = Boolean(progress && now !== null && progress.daily === dateKey(now));
   const attempts = progress ? progress.solved + progress.failed : 0;
+  // SIG-1254: signed-out users have a zeroed progress object, so gate on real activity.
+  const hasActivity = attempts > 0 || Object.keys(progress?.days ?? {}).length > 0;
   const accuracy = progress && attempts > 0 ? Math.round((progress.solved / attempts) * 100) : null;
   const level = levelFromXp(progress?.xp ?? 0);
   // SIG-1103: per-motif rows, sorted by attempts desc; the weakest-motif
@@ -134,20 +136,22 @@ export function PuzzleDashboard() {
           {daily || (now === null && !loadError) ? <DailyPreview puzzle={daily} locale={locale} /> : null}
         </Panel>
 
-        <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.solved")} value={progress ? formatInteger(locale, progress.solved) : "—"} />
-          <Stat
-            label={tPuzzle(locale, "puzzle.dashboard.stat.accuracy")}
-            value={accuracy === null ? "—" : `${formatInteger(locale, accuracy)}%`}
-          />
-          <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.streak")} value={progress ? formatInteger(locale, progress.streak) : "—"} />
-          <Stat
-            label={tPuzzle(locale, "puzzle.dashboard.stat.bestStreak")}
-            value={progress ? formatInteger(locale, progress.bestStreak) : "—"}
-          />
-        </dl>
+        <Panel as="section" className="mt-4 px-4 py-3">
+          <dl className="grid grid-cols-2 gap-y-3 sm:grid-cols-4">
+            <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.solved")} value={progress ? formatInteger(locale, progress.solved) : "—"} />
+            <Stat
+              label={tPuzzle(locale, "puzzle.dashboard.stat.accuracy")}
+              value={accuracy === null ? "—" : `${formatInteger(locale, accuracy)}%`}
+            />
+            <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.streak")} value={progress ? formatInteger(locale, progress.streak) : "—"} />
+            <Stat
+              label={tPuzzle(locale, "puzzle.dashboard.stat.bestStreak")}
+              value={progress ? formatInteger(locale, progress.bestStreak) : "—"}
+            />
+          </dl>
+        </Panel>
 
-        {progress && now !== null ? (
+        {progress && now !== null && hasActivity ? (
           <div className="mt-4">
             <ProgressHeatmap
               days={progress.days}
@@ -385,10 +389,10 @@ export function PuzzleDashboard() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <Panel className="px-3 py-2">
+    <div className="border-r border-studio-border-subtle pr-3 even:border-r-0 even:pl-4 sm:border-r sm:px-4 sm:first:pl-0 sm:even:border-r sm:even:last:border-r-0">
       <dt className="text-caption uppercase tracking-wide text-studio-muted">{label}</dt>
       <dd className="mt-0.5 text-title font-semibold tabular-nums text-studio-fg">{value}</dd>
-    </Panel>
+    </div>
   );
 }
 
