@@ -21,6 +21,7 @@ export function PanelScore({
   streak,
   strikes,
   strikeLimit,
+  unrated = false,
 }: {
   mode: PuzzleMode;
   locale: SiteLocale;
@@ -30,8 +31,10 @@ export function PanelScore({
   streak: number;
   strikes: number;
   strikeLimit: number;
+  /** SIG-1256: difficulty session — lead with the solved count, never the rating. */
+  unrated?: boolean;
 }) {
-  const ratingMode = mode === "rated" || mode === "daily";
+  const ratingMode = (mode === "rated" && !unrated) || mode === "daily";
   return (
     <div className="flex items-end justify-between gap-3" data-testid="panel-score">
       <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">

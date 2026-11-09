@@ -69,3 +69,14 @@ test("without totalXp the level bar keeps the dashboard caption", () => {
     cleanup();
   }
 });
+
+test("unrated rated session leads with solved, no rating or delta", () => {
+  try {
+    render(<PanelScore {...base} mode="rated" locale="en" rating={1889} delta={0} solved={4} unrated />);
+    assert.equal(screen.getByTestId("panel-hero").textContent, "4");
+    assert.match(screen.getByTestId("panel-score").textContent ?? "", /^Solved 4/);
+    assert.equal(screen.queryByTestId("panel-delta"), null);
+  } finally {
+    cleanup();
+  }
+});

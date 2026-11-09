@@ -381,3 +381,28 @@ for (const width of [320, 375, 390]) {
     });
   }
 }
+
+// SIG-1256: theme cards are links; a difficulty keeps the session in its band
+// and leaves the rating alone.
+test("puzzles dashboard: a difficulty adds to the theme links and the session stays in the band, unrated", async ({ page }) => {
+  await page.goto("/puzzles");
+  const forkLink = page.getByRole("link", { name: /Fork/ }).first();
+  await expect(forkLink).toHaveAttribute("href", "/puzzles/play?mode=rated&theme=fork");
+  const advanced = page.getByRole("button", { name: "Advanced", exact: true });
+  await advanced.click();
+  await expect(advanced).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText(/do not change your rating/)).toBeVisible();
+  await expect(forkLink).toHaveAttribute("href", "/puzzles/play?mode=rated&theme=fork&difficulty=advanced");
+  await forkLink.click();
+  await expect(board(page)).toBeVisible();
+  expect((await currentPuzzle(page)).rating).toBeGreaterThanOrEqual(1800);
+  await expect(page.getByTestId("panel-unrated")).toContainText("Advanced");
+  await expect(page.getByTestId("panel-unrated")).toContainText("Rating unchanged");
+  await expect(page.getByTestId("panel-delta")).toHaveCount(0);
+});
+
+test("puzzle trainer: an invalid difficulty falls back to the normal rated session", async ({ page }) => {
+  await page.goto("/puzzles/play?mode=rated&difficulty=nope");
+  await expect(board(page)).toBeVisible();
+  await expect(page.getByTestId("panel-unrated")).toHaveCount(0);
+});

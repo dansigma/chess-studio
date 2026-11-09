@@ -27,7 +27,7 @@ export function applyPuzzleResult(
   };
 }
 
-export function usePuzzleScoring(mode: PuzzleMode) {
+export function usePuzzleScoring(mode: PuzzleMode, unrated = false) {
   const [progress, setProgress] = useState<PuzzleProgress | null>(null);
   const [delta, setDelta] = useState<number | null>(null);
   const [gained, setGained] = useState(0);
@@ -83,6 +83,7 @@ export function usePuzzleScoring(mode: PuzzleMode) {
         ms,
         hinted,
         solverMoves: Math.ceil(currentPuzzle.uci.length / 2),
+        unrated,
       });
       progressRef.current = next;
       setProgress(next);
@@ -97,7 +98,7 @@ export function usePuzzleScoring(mode: PuzzleMode) {
       }
       return xp;
     },
-    [mode],
+    [mode, unrated],
   );
 
   return {

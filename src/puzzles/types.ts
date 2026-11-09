@@ -74,6 +74,9 @@ export type PuzzleModeAttempt = {
   // means "no hint used" and a one-move solution.
   hinted?: boolean;
   solverMoves?: number;
+  // SIG-1256: a difficulty-band session never changes the rating. XP and the
+  // rest stay as in rated mode.
+  unrated?: boolean;
 };
 
 // SIG-1103: per-motif solve stats. `recent` holds the last 10 results as
