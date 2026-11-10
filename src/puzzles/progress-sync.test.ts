@@ -327,3 +327,13 @@ describe("hydratePuzzleProgress ownership", () => {
     assert.equal(loaded.rating, 1600);
   });
 });
+
+describe("SIG-1268 history extras through merge", () => {
+  it("keeps themes, time and rating when local and account histories merge", () => {
+    const entry = { id: "p", mode: "rated" as const, success: true, at: 9, delta: 4, themes: ["fork" as const], ms: 3000, puzzleRating: 1300 };
+    const old = { id: "q", mode: "rated" as const, success: false, at: 3, delta: -5 };
+    const merged = mergePuzzleProgress({ ...emptyProgress(), history: [entry] }, { ...emptyProgress(), history: [old] });
+    assert.deepEqual(merged.history, [entry, old]);
+    assert.deepEqual(mergePuzzleProgress(merged, merged), merged);
+  });
+});

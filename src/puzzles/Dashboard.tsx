@@ -8,7 +8,7 @@ import { CalendarDays, ChartNoAxesColumn, Check, Flame, History, Play, RotateCcw
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "@/src/courses/CourseChrome";
 import type { SiteLocale } from "@/src/i18n/locale";
-import { formatInteger } from "@/src/i18n/format";
+import { formatDuration, formatInteger } from "@/src/i18n/format";
 import { tPuzzle, type PuzzleStringKey } from "@/src/i18n/puzzle-strings";
 import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -440,14 +440,10 @@ export function PuzzleDashboard() {
           <Panel as="ul" className="mt-2 divide-y divide-studio-border-subtle overflow-hidden">
             {/* SIG-1267: display only the last 10; `progress.history` itself keeps 20. */}
             {progress.history.slice(0, RECENT_LIMIT).map((entry, index) => {
-              const puzzle = puzzles.find((item) => item.id === entry.id);
-              const themes = puzzle?.themes
-                .slice(0, 2)
-                .map((item) => tPuzzle(locale, THEME_LABEL_KEYS[item]))
-                .join(" · ");
+              // SIG-1268: themes, time and rating come from the entry itself (older entries have none).
+              const themes = (entry.themes ?? []).filter((item) => item in THEME_LABEL_KEYS).slice(0, 2);
               // "Rated" is the default, so only the other modes are named.
               const modeLabel = entry.mode === "rated" ? "" : tPuzzle(locale, MODE_KEYS[entry.mode satisfies PuzzleMode]);
-              const detail = [modeLabel, themes].filter(Boolean).join(" · ");
               const ResultIcon = entry.success ? Check : X;
               return (
                 <li key={`${entry.id}-${entry.at}-${index}`} className="flex h-8 items-center justify-between gap-3 px-3">
@@ -458,8 +454,24 @@ export function PuzzleDashboard() {
                         ? tPuzzle(locale, "puzzle.dashboard.history.solved")
                         : tPuzzle(locale, "puzzle.dashboard.history.missed")}
                     </span>
-                    {puzzle ? <span className="shrink-0 text-dense tabular-nums text-studio-fg">{formatInteger(locale, puzzle.rating)}</span> : null}
-                    {detail ? <span className="truncate text-caption text-studio-muted">{detail}</span> : null}
+                    {entry.puzzleRating !== undefined ? (
+                      <span className="shrink-0 text-dense tabular-nums text-studio-fg">{formatInteger(locale, entry.puzzleRating)}</span>
+                    ) : null}
+                    {/* One line tall: a pill that does not fit wraps out of view, so the second theme drops first. */}
+                    {themes.length > 0 ? (
+                      <span className="flex h-[18px] min-w-0 flex-wrap gap-1 overflow-hidden">
+                        {themes.map((item) => (
+                          <Badge key={item}>{tPuzzle(locale, THEME_LABEL_KEYS[item])}</Badge>
+                        ))}
+                      </span>
+                    ) : null}
+                    {entry.ms !== undefined ? (
+                      <span className="shrink-0 text-caption tabular-nums text-studio-muted">
+                        <span className="sr-only">{tPuzzle(locale, "puzzle.dashboard.history.time")} </span>
+                        {formatDuration(locale, entry.ms)}
+                      </span>
+                    ) : null}
+                    {modeLabel ? <span className="min-w-0 truncate text-caption text-studio-muted">{modeLabel}</span> : null}
                   </div>
                   <div
                     className={`shrink-0 text-dense font-medium tabular-nums ${

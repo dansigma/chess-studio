@@ -230,6 +230,39 @@ function finiteNumber(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+// SIG-1268: bounds for the optional per-attempt fields kept in history. One
+// attempt over an hour is not honest play (SIG-1250 stored Unix timestamps,
+// ~1.79e12, as durations); ratings outside 0-4000 are not Elo-like values.
+export const MAX_HISTORY_MS = 3_600_000;
+export const MAX_HISTORY_RATING = 4000;
+const MAX_HISTORY_THEMES = 3;
+
+function historyThemes(value: unknown): PuzzleTheme[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const known = new Set<string>(PUZZLE_THEMES);
+  const out: PuzzleTheme[] = [];
+  for (const item of value) {
+    if (typeof item === "string" && known.has(item) && !out.includes(item as PuzzleTheme)) {
+      out.push(item as PuzzleTheme);
+    }
+  }
+  return out.length > 0 ? out.slice(0, MAX_HISTORY_THEMES) : undefined;
+}
+
+function historyMs(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= MAX_HISTORY_MS
+    ? Math.round(value)
+    : undefined;
+}
+
+function historyRating(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= MAX_HISTORY_RATING
+    ? Math.round(value)
+    : undefined;
+}
+
 function normalizeHistory(value: unknown): PuzzleHistoryEntry[] {
   if (!Array.isArray(value)) {
     return [];
@@ -246,12 +279,18 @@ function normalizeHistory(value: unknown): PuzzleHistoryEntry[] {
     if (typeof record.success !== "boolean") {
       continue;
     }
+    const themes = historyThemes(record.themes);
+    const ms = historyMs(record.ms);
+    const puzzleRating = historyRating(record.puzzleRating);
     entries.push({
       id: record.id,
       mode: record.mode,
       success: record.success,
       at: finiteNumber(record.at, 0),
       delta: finiteNumber(record.delta, 0),
+      ...(themes ? { themes } : {}),
+      ...(ms !== undefined ? { ms } : {}),
+      ...(puzzleRating !== undefined ? { puzzleRating } : {}),
     });
   }
   return entries.slice(0, 20);
@@ -370,6 +409,7 @@ export function applyResult(progress: PuzzleProgress, attempt: PuzzleModeAttempt
         success: attempt.success,
         at: attempt.now,
         delta: rating - progress.rating,
+        ...historyExtras(attempt),
       },
       ...progress.history,
     ].slice(0, 20),
@@ -377,6 +417,19 @@ export function applyResult(progress: PuzzleProgress, attempt: PuzzleModeAttempt
     days: progress.days,
   };
   return recordActivity(next, { now: attempt.now, success: attempt.success, ms: attempt.ms, xp: gained });
+}
+
+// SIG-1268: the themes, time and puzzle rating of an attempt, validated like
+// on load; invalid or missing values are left out of the entry.
+function historyExtras(attempt: PuzzleModeAttempt): Partial<PuzzleHistoryEntry> {
+  const themes = historyThemes(attempt.themes);
+  const ms = historyMs(attempt.ms);
+  const puzzleRating = historyRating(attempt.puzzleRating);
+  return {
+    ...(themes ? { themes } : {}),
+    ...(ms !== undefined ? { ms } : {}),
+    ...(puzzleRating !== undefined ? { puzzleRating } : {}),
+  };
 }
 
 // SIG-1103: fold one attempt into the per-motif stats. Unknown theme ids are

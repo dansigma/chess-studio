@@ -144,3 +144,27 @@ test("a response that arrives after unmount is dropped (no state update, no erro
   await act(async () => releaseOld());
   assert.equal(container.querySelector("[role=alert]"), null);
 });
+
+test("SIG-1268: Recent shows saved themes, time and rating; older entries show only what they have", async () => {
+  ctl.progress = {
+    ...emptyProgress(),
+    history: [
+      { id: "new", mode: "rated", success: true, at: 9, delta: 7, themes: ["fork", "pin", "mate"], ms: 4200, puzzleRating: 1350 },
+      { id: "old", mode: "rated", success: false, at: 3, delta: -5 },
+    ],
+  };
+  const { container } = render(<PuzzleDashboard />);
+  const rows = await waitFor(() => {
+    const found = container.querySelectorAll("ul > li");
+    assert.equal(found.length, 2);
+    return found;
+  });
+  const [fresh, old] = rows;
+  assert.ok(fresh?.textContent?.includes("Fork"));
+  assert.ok(fresh?.textContent?.includes("Pin"));
+  assert.equal(fresh?.textContent?.includes("Mate"), false, "only two themes");
+  assert.ok(fresh?.textContent?.includes("4.2s"));
+  assert.ok(fresh?.textContent?.includes("1,350"));
+  assert.equal(old?.textContent, "Missed-5");
+  for (const row of rows) assert.doesNotMatch(row.textContent ?? "", /undefined|NaN/);
+});
