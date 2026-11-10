@@ -282,7 +282,8 @@ function ensurePlayerPanels(api: DockviewReadyEvent["api"], title: string) {
   api.getPanel("player-games")?.api.setActive();
 }
 
-export function StudioDock() {
+export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const locale = useStudioStore((state) => state.settings.locale);
   // SIG-907: per-board title signature so every `board:*` tab tracks its own
   // session (id+title only — moves must not re-run the title effect).
@@ -618,15 +619,32 @@ export function StudioDock() {
     });
   }
 
+  // SIG-1273: the dock stays mounted while the Library is shown (display:none
+  // measures 0×0), so relayout against the real size when it comes back.
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      const el = containerRef.current;
+      if (el && el.clientWidth > 0 && el.clientHeight > 0) {
+        apiRef.current?.layout(el.clientWidth, el.clientHeight, true);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [visible]);
+
   return (
-    <DockviewReact
-      key={`${layoutNonce}-${DOCK_LAYOUT_VERSION}`}
-      className="h-full w-full"
-      theme={studioTheme}
-      components={components}
-      defaultTabComponent={StudioTab}
-      rightHeaderActionsComponent={BoardGroupHeaderActions}
-      onReady={onReady}
-    />
+    <div ref={containerRef} className="h-full w-full">
+      <DockviewReact
+        key={`${layoutNonce}-${DOCK_LAYOUT_VERSION}`}
+        className="h-full w-full"
+        theme={studioTheme}
+        components={components}
+        defaultTabComponent={StudioTab}
+        rightHeaderActionsComponent={BoardGroupHeaderActions}
+        onReady={onReady}
+      />
+    </div>
   );
 }
