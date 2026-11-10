@@ -19,6 +19,16 @@ export const LIBRARY_STRING_KEYS = [
   "library.error.title",
   "library.error.retry",
   "library.partial",
+  "library.col.white",
+  "library.col.whiteElo",
+  "library.col.black",
+  "library.col.blackElo",
+  "library.col.result",
+  "library.col.eco",
+  "library.col.plyCount",
+  "library.col.event",
+  "library.sort.partial",
+  "library.table.openFailed",
 ] as const;
 
 export type LibraryStringKey = (typeof LIBRARY_STRING_KEYS)[number];
@@ -40,6 +50,16 @@ const EN: Record<LibraryStringKey, string> = {
   "library.error.title": "Could not load games: {message}",
   "library.error.retry": "Try again",
   "library.partial": "Some sources failed and are not shown: {sources}.",
+  "library.col.white": "White",
+  "library.col.whiteElo": "W Elo",
+  "library.col.black": "Black",
+  "library.col.blackElo": "B Elo",
+  "library.col.result": "Result",
+  "library.col.eco": "ECO",
+  "library.col.plyCount": "Moves",
+  "library.col.event": "Event",
+  "library.sort.partial": "Sorting only applies to the games already returned by: {sources}.",
+  "library.table.openFailed": "Could not open that game: {message}",
 };
 
 const PT_BR: Record<LibraryStringKey, string> = {
@@ -60,6 +80,16 @@ const PT_BR: Record<LibraryStringKey, string> = {
   "library.error.title": "Não foi possível carregar as partidas: {message}",
   "library.error.retry": "Tentar novamente",
   "library.partial": "Algumas fontes falharam e não são exibidas: {sources}.",
+  "library.col.white": "Brancas",
+  "library.col.whiteElo": "Elo B",
+  "library.col.black": "Pretas",
+  "library.col.blackElo": "Elo P",
+  "library.col.result": "Resultado",
+  "library.col.eco": "ECO",
+  "library.col.plyCount": "Lances",
+  "library.col.event": "Evento / Torneio",
+  "library.sort.partial": "A ordenação só vale para as partidas já retornadas por: {sources}.",
+  "library.table.openFailed": "Não foi possível abrir a partida: {message}",
 };
 
 export const tLibrary = createT(EN, PT_BR);

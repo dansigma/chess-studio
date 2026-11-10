@@ -13,6 +13,7 @@ import {
   readLibrarySplit,
   writeLibrarySplit,
 } from "./library-layout";
+import { LibraryTable } from "./LibraryTable";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 
 const SKELETON_ROWS = 8;
@@ -100,7 +101,7 @@ export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) 
           style={{ width: `${split}%` }}
           data-testid="library-table-slot"
         >
-          {table ? table(games) : <LibraryPlaceholderList games={games} />}
+          {table ? table(games) : <LibraryTable games={games} />}
         </Panel>
         <div
           role="separator"
