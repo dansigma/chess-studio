@@ -11,7 +11,9 @@ import { playerGameToRow } from "@/src/lib/my-games/game-row";
 import { chesscomGamesSinceDetailed, type ChesscomGamesResult } from "@/src/lib/players/chesscom";
 import { lichessGamesSince } from "@/src/lib/players/lichess";
 import type { PlayerGame } from "@/src/lib/player-types";
+import { indexMyGames } from "@/src/lib/my-games/position-index";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
+import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 
 export const MAX_SYNC_GAMES = 200;
@@ -52,6 +54,45 @@ export function setSyncLoadersForTest(overrides: Partial<Loaders>): void {
 export function resetSyncLoadersForTest(): void {
   loaders.lichess = lichessGamesSince;
   loaders.chesscom = chesscomGamesSinceDetailed;
+}
+
+// SIG-1275: position indexing of freshly stored games. Injectable so route
+// tests can force it to throw; the default needs the service client.
+type IndexFreshGames = (
+  supabase: NonNullable<Awaited<ReturnType<typeof createServerSupabase>>>,
+  userId: string,
+  source: LinkedAccountSource,
+  externalIds: string[],
+) => Promise<void>;
+
+const defaultIndexFreshGames: IndexFreshGames = async (supabase, userId, source, externalIds) => {
+  const service = createServiceSupabase();
+  if (!service || externalIds.length === 0) {
+    return;
+  }
+  const { data, error } = await supabase
+    .from("my_games")
+    .select("id, pgn")
+    .eq("user_id", userId)
+    .eq("source", source)
+    .in("external_id", externalIds);
+  if (error || !Array.isArray(data)) {
+    return;
+  }
+  const games = (data as Array<{ id?: unknown; pgn?: unknown }>).filter(
+    (row): row is { id: string; pgn: string } => typeof row.id === "string" && typeof row.pgn === "string",
+  );
+  await indexMyGames(service, userId, games);
+};
+
+let indexFreshGames: IndexFreshGames = defaultIndexFreshGames;
+
+export function setSyncIndexerForTest(override: IndexFreshGames): void {
+  indexFreshGames = override;
+}
+
+export function resetSyncIndexerForTest(): void {
+  indexFreshGames = defaultIndexFreshGames;
 }
 
 export type SyncAccountResult = {
@@ -195,6 +236,19 @@ export async function POST(request: NextRequest) {
         }
         entry.imported = fresh.length;
         imported += entry.imported;
+        // SIG-1275: index the new games' positions. A failure here must never
+        // fail the sync: the games stay unindexed (indexed_at null) and the
+        // backfill (POST /api/my-games/index) picks them up.
+        try {
+          await indexFreshGames(
+            supabase,
+            user.id,
+            account.source,
+            fresh.map((row) => row.external_id),
+          );
+        } catch (error) {
+          console.error("my-games sync indexing failed", { source: account.source, error });
+        }
       }
       const newestIso = fresh
         .map((row) => row.played_at)

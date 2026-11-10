@@ -9,6 +9,8 @@ import process from "node:process";
 export const PROBES = [
   { object: "linked_accounts", table: "linked_accounts", select: "*" },
   { object: "my_games", table: "my_games", select: "*" },
+  { object: "my_game_positions", table: "my_game_positions", select: "*" },
+  { object: "my_games.indexed_at", table: "my_games", select: "indexed_at" },
   { object: "puzzles", table: "puzzles", select: "*" },
   { object: "course_enrollments", table: "course_enrollments", select: "*" },
   { object: "boards.repertoire_color", table: "boards", select: "repertoire_color" },

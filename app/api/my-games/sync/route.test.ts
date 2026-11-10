@@ -13,7 +13,8 @@ import type { PlayerGame } from "@/src/lib/player-types.ts";
 const state: FakeSupabaseState = {};
 mockSupabaseModules(state);
 
-const { POST, setSyncLoadersForTest, resetSyncLoadersForTest } = await import("./route.ts");
+const { POST, setSyncLoadersForTest, resetSyncLoadersForTest, setSyncIndexerForTest, resetSyncIndexerForTest } =
+  await import("./route.ts");
 
 const URL_ = "http://app.test/api/my-games/sync";
 
@@ -199,6 +200,7 @@ function syncFake(options: {
 
 beforeEach(() => {
   resetSyncLoadersForTest();
+  resetSyncIndexerForTest();
 });
 
 test("anonymous request gets 401", async () => {
@@ -412,4 +414,23 @@ test("a second sync after an all-skipped sync still imports the newest game", as
   assert.deepEqual(seenSince, [Date.parse(since), Date.parse(since)]);
   assert.equal((store.updates as Array<Record<string, unknown>>).length, 1);
   assert.deepEqual((store.updates[0]?.attrs as Record<string, string>).last_synced_at, "2026-10-22T00:00:00.000Z");
+});
+
+test("SIG-1275: sync succeeds when position indexing throws", async () => {
+  const calls: string[][] = [];
+  const { client, store } = syncFake({
+    userId: "user-indexing",
+    linkedRows: [{ source: "lichess", username: "Magnus", last_synced_at: null }],
+  });
+  state.server = client;
+  setSyncLoadersForTest({ lichess: async () => [game("g1", Date.parse("2026-10-21T00:00:00.000Z"))] });
+  setSyncIndexerForTest(async (_supabase, _userId, _source, ids) => {
+    calls.push(ids);
+    throw new Error("indexing exploded");
+  });
+  const res = await POST(post());
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { imported: 1, accounts: [{ source: "lichess", imported: 1 }] });
+  assert.deepEqual(calls, [["g1"]]);
+  assert.equal(store.myGames.my_games.length, 1, "the game stays stored");
 });

@@ -616,6 +616,8 @@ export type Database = {
           opponent_accuracy: number | null;
           reviewed_at: string | null;
           mistake_counts: Json | null;
+          // SIG-1275: null = not yet in my_game_positions (backfill pending).
+          indexed_at: string | null;
         };
         Insert: {
           id?: string;
@@ -640,13 +642,23 @@ export type Database = {
           opponent_accuracy?: number | null;
           reviewed_at?: string | null;
           mistake_counts?: Json | null;
+          indexed_at?: string | null;
         };
         Update: {
           user_accuracy?: number | null;
           opponent_accuracy?: number | null;
           reviewed_at?: string | null;
           mistake_counts?: Json | null;
+          indexed_at?: string | null;
         };
+        Relationships: [];
+      };
+      // SIG-1275: position index for My Games. Server-written (service role),
+      // client read-only through RLS. zkey is pg bigint, a string in postgrest-js.
+      my_game_positions: {
+        Row: { game_id: string; ply: number; zkey: string };
+        Insert: { game_id: string; ply: number; zkey: string };
+        Update: { game_id?: string; ply?: number; zkey?: string };
         Relationships: [];
       };
       // SIG-1042: curated Lichess puzzle subset (slice 1/3, data side only).
@@ -854,6 +866,17 @@ export type Database = {
           popularity: number | null;
           nb_plays: number | null;
         }>;
+      };
+      // SIG-1275: ids of the caller's My Games that reach a position.
+      my_games_at_position: {
+        Args: {
+          p_zkey: string;
+          p_color: string | null;
+          p_result: string | null;
+          p_opponent: string | null;
+          p_query: string | null;
+        };
+        Returns: Array<{ id: string }>;
       };
       swap_database_games: {
         Args: { p_database_id: string };

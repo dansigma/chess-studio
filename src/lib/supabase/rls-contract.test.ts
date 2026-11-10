@@ -823,3 +823,41 @@ describe("sig-1062 accept_coach_invite migration", () => {
     );
   });
 });
+
+describe("sig-1275 my_game_positions migration", () => {
+  const sig1275 = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261110000000_my_game_positions.sql"),
+    "utf8",
+  );
+
+  it("enables RLS with an own-games select policy and no client write policy", () => {
+    assert.ok(sig1275.includes("alter table public.my_game_positions enable row level security"));
+    assert.ok(sig1275.includes('"my_game_positions_select_own"'));
+    assert.ok(/g\.user_id = \(select auth\.uid\(\)\)/.test(sig1275), "select policy scoped to the owner");
+    assert.ok(
+      !/for (insert|update|delete|all)/.test(sig1275.replace(/--.*$/gm, "")),
+      "no client write policy: writes are server-only",
+    );
+    assert.ok(sig1275.includes("grant select on public.my_game_positions to authenticated"));
+    assert.ok(!/grant[^;]*(insert|update|delete)[^;]*my_game_positions/i.test(sig1275), "no client write grants");
+  });
+
+  it("wraps every auth check as a select subquery", () => {
+    const bare = sig1275.match(/(?<![\w(])auth\.uid\(\)(?!\))/g) ?? [];
+    assert.equal(bare.length, 0, `found ${bare.length} unwrapped auth checks`);
+  });
+
+  it("uses (game_id, ply) primary key, cascade delete, zkey index and unindexed tracking", () => {
+    assert.ok(sig1275.includes("references public.my_games (id) on delete cascade"));
+    assert.ok(sig1275.includes("primary key (game_id, ply)"));
+    assert.ok(sig1275.includes("my_game_positions_zkey_idx"));
+    assert.ok(sig1275.includes("add column if not exists indexed_at timestamptz"));
+    assert.ok(sig1275.includes("where indexed_at is null"));
+  });
+
+  it("locks the search function to authenticated callers", () => {
+    assert.ok(sig1275.includes("security invoker"));
+    assert.ok(sig1275.includes("from public, anon"));
+    assert.ok(sig1275.includes("to authenticated"));
+  });
+});
