@@ -7,7 +7,10 @@ import type { DayActivity } from "./types";
 // One place to tune: 1-4, 5-9, 10-19, 20+.
 export const HEAT_BUCKET_MIN = [1, 5, 10, 20] as const;
 export const HEAT_LEVELS = HEAT_BUCKET_MIN.length + 1;
+// Default (unmeasured) week count, and the most weeks ever drawn. Activity is
+// kept for 400 days, so 52 weeks (364 days) is always backed by stored data.
 export const HEATMAP_WEEKS = 18;
+export const HEATMAP_MAX_WEEKS = 52;
 // SIG-1246: on narrow screens fewer weeks are drawn so the whole grid fits
 // without scrolling and squares keep their full size (never shrunk).
 export const HEATMAP_MIN_WEEKS = 12;
@@ -15,13 +18,13 @@ export const HEATMAP_MIN_WEEKS = 12;
 // label or the right edge; a label that needs more room is hidden, not clipped.
 export const MONTH_LABEL_COLUMNS = 3;
 
-/** Weeks that fit `width` px of grid at `step` px per column, clamped to 12-18. width <= 0 = unmeasured. */
+/** Weeks that fit `width` px of grid at `step` px per column, clamped to 12-52. width <= 0 = unmeasured. */
 export function heatmapWeeksForWidth(width: number, step: number): number {
   if (!(width > 0) || !(step > 0)) {
     return HEATMAP_WEEKS;
   }
   const fit = Math.floor(width / step);
-  return Math.max(HEATMAP_MIN_WEEKS, Math.min(HEATMAP_WEEKS, fit));
+  return Math.max(HEATMAP_MIN_WEEKS, Math.min(HEATMAP_MAX_WEEKS, fit));
 }
 
 export type HeatBucket = 0 | 1 | 2 | 3 | 4;
