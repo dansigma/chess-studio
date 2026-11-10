@@ -61,14 +61,19 @@ function FrozenMark() {
   return <span aria-hidden className="size-1.5 rounded-full border border-studio-fg-secondary" />;
 }
 
+/** All-time numbers shown beside the grid (SIG-1264). */
+export type AllTimeMetrics = { solved: number; accuracy: number | null; streak: number; bestStreak: number };
+
 export function ProgressHeatmap({
   days,
   today,
   locale,
+  allTime,
 }: {
   days: Record<string, DayActivity> | undefined;
   today: string;
   locale: SiteLocale;
+  allTime: AllTimeMetrics;
 }) {
   // SIG-1246: the week count follows the width of the scrolling grid area.
   const [weekCount, setWeekCount] = useState(HEATMAP_WEEKS);
@@ -173,16 +178,9 @@ export function ProgressHeatmap({
     >
       {heading}
 
-      <dl className="mt-3 grid grid-cols-3 gap-2">
-        <HeatStat label={tPuzzle(locale, "puzzle.heatmap.stat.solved", { weeks: map.weeks.length })} value={formatInteger(locale, map.rangeSolved)} />
-        <HeatStat label={tPuzzle(locale, "puzzle.heatmap.stat.minutes")} value={formatInteger(locale, map.rangeMinutes)} />
-        <HeatStat
-          label={tPuzzle(locale, "puzzle.heatmap.stat.week")}
-          value={`${formatInteger(locale, map.weekActiveDays)}/7`}
-        />
-      </dl>
-
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 grid gap-4 lg:grid-cols-[3fr_2fr] lg:gap-6">
+      <div className="min-w-0">
+      <div className="flex gap-2">
           <div
             aria-hidden
             data-testid="heatmap-weekdays"
@@ -283,15 +281,70 @@ export function ProgressHeatmap({
         </span>
       </div>
       <p className="mt-2 text-caption text-studio-faint">{tPuzzle(locale, "puzzle.heatmap.freezeNote")}</p>
+      </div>
+      <StreakMetrics
+        locale={locale}
+        allTime={allTime}
+        period={{ weeks: map.weeks.length, solved: map.rangeSolved, minutes: map.rangeMinutes, activeDays: map.weekActiveDays }}
+      />
+      </div>
     </Panel>
   );
 }
 
-function HeatStat({ label, value }: { label: string; value: string }) {
+type PeriodMetrics = { weeks: number; solved: number; minutes: number; activeDays: number };
+
+/** SIG-1264: two labelled groups of label/value rows. `null` = unavailable ("—"), never zeros. */
+export function StreakMetrics({
+  locale,
+  allTime,
+  period,
+}: {
+  locale: SiteLocale;
+  allTime: AllTimeMetrics | null;
+  period: PeriodMetrics | null;
+}) {
+  const num = (value: number | undefined) => (value === undefined ? "—" : formatInteger(locale, value));
   return (
-    <div className="rounded-lg bg-studio-bg px-3 py-1.5">
-      <dt className="text-caption uppercase tracking-wide text-studio-muted">{label}</dt>
-      <dd className="mt-0.5 text-title font-semibold tabular-nums text-studio-fg">{value}</dd>
+    <div className="grid content-start gap-4 border-t border-studio-border-subtle pt-4 sm:grid-cols-2 lg:grid-cols-1 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+      <MetricGroup label={tPuzzle(locale, "puzzle.streakPanel.allTime")}>
+        <Metric label={tPuzzle(locale, "puzzle.dashboard.stat.solved")} value={num(allTime?.solved)} />
+        <Metric
+          label={tPuzzle(locale, "puzzle.dashboard.stat.accuracy")}
+          value={allTime?.accuracy == null ? "—" : `${formatInteger(locale, allTime.accuracy)}%`}
+        />
+        <Metric label={tPuzzle(locale, "puzzle.dashboard.stat.streak")} value={num(allTime?.streak)} />
+        <Metric label={tPuzzle(locale, "puzzle.dashboard.stat.bestStreak")} value={num(allTime?.bestStreak)} />
+      </MetricGroup>
+      <MetricGroup label={tPuzzle(locale, "puzzle.streakPanel.period")}>
+        <Metric
+          label={tPuzzle(locale, "puzzle.heatmap.stat.solved", { weeks: period?.weeks ?? "—" })}
+          value={num(period?.solved)}
+        />
+        <Metric label={tPuzzle(locale, "puzzle.heatmap.stat.minutes")} value={num(period?.minutes)} />
+        <Metric
+          label={tPuzzle(locale, "puzzle.heatmap.stat.week")}
+          value={period ? `${formatInteger(locale, period.activeDays)}/7` : "—"}
+        />
+      </MetricGroup>
+    </div>
+  );
+}
+
+function MetricGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="text-caption font-medium uppercase tracking-wide text-studio-muted">{label}</h3>
+      <dl className="mt-1 divide-y divide-studio-border-subtle">{children}</dl>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1.5">
+      <dt className="text-dense text-studio-muted">{label}</dt>
+      <dd className="text-body font-semibold tabular-nums text-studio-fg">{value}</dd>
     </div>
   );
 }

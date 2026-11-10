@@ -72,7 +72,7 @@ test("loading: skeletons replace the values, hidden from assistive tech, main is
   assert.equal(screen.queryByText("Saved in this browser"), null);
 });
 
-test("signed out: one sign-in prompt linking to /login, no 'saved in browser' line, real dash for accuracy-less data", async () => {
+test("signed out: one sign-in prompt linking to /login, no 'saved in browser' line, no streak panel without activity", async () => {
   ctl.progress = emptyProgress();
   const { container } = render(<PuzzleDashboard />);
   const prompt = await screen.findByTestId("signin-prompt");
@@ -81,8 +81,9 @@ test("signed out: one sign-in prompt linking to /login, no 'saved in browser' li
   assert.equal(screen.queryByText("Saved in this browser"), null);
   assert.equal(skeletons(container).length, 0);
   assert.equal(container.querySelector("main")?.getAttribute("aria-busy"), "false");
-  // accuracy with no attempts is a real "no value"
-  assert.ok(screen.getByText("—"));
+  // SIG-1264: no activity, no streak panel and no wall of zeros
+  assert.equal(screen.queryByRole("region", { name: "Monthly progress" }), null);
+  assert.equal(container.querySelectorAll("dd").length, 0);
 });
 
 test("signed out, pt-BR strings", async () => {
@@ -109,7 +110,7 @@ test("error: message and secondary 'Try again', no skeletons, no zeros; retry re
   assert.equal(skeletons(container).length, 0);
   assert.equal(screen.queryByTestId("signin-prompt"), null);
   const dd = [...container.querySelectorAll("dd")].map((d) => d.textContent);
-  assert.deepEqual(dd, ["—", "—", "—", "—"]);
+  assert.deepEqual(dd, Array(7).fill("—"));
   const retry = screen.getByRole("button", { name: "Try again" });
   assert.ok(!retry.className.includes("bg-studio-accent "));
 

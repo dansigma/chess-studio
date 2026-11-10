@@ -24,7 +24,7 @@ import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine
 import { orientationFor } from "./use-puzzle-feedback";
 import { motifSummary, weakestMotif } from "./motif-stats";
 import { loadPuzzleCatalog } from "./puzzle-client";
-import { ProgressHeatmap } from "./ProgressHeatmap";
+import { ProgressHeatmap, StreakMetrics } from "./ProgressHeatmap";
 import { localDayKey } from "./activity";
 import { hydratePuzzleProgress, progressSource } from "./progress";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
@@ -187,27 +187,19 @@ export function PuzzleDashboard() {
           {daily || loading ? <DailyPreview puzzle={daily} locale={locale} /> : null}
         </Panel>
 
-        <Panel as="section" className="mt-4 px-4 py-3">
-          <dl className="grid grid-cols-2 gap-y-3 sm:grid-cols-4">
-            <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.solved")} value={loading ? null : progress ? formatInteger(locale, progress.solved) : "—"} />
-            <Stat
-              label={tPuzzle(locale, "puzzle.dashboard.stat.accuracy")}
-              value={loading ? null : accuracy === null ? "—" : `${formatInteger(locale, accuracy)}%`}
-            />
-            <Stat label={tPuzzle(locale, "puzzle.dashboard.stat.streak")} value={loading ? null : progress ? formatInteger(locale, progress.streak) : "—"} />
-            <Stat
-              label={tPuzzle(locale, "puzzle.dashboard.stat.bestStreak")}
-              value={loading ? null : progress ? formatInteger(locale, progress.bestStreak) : "—"}
-            />
-          </dl>
-        </Panel>
-
-        {progress && now !== null && hasActivity ? (
+        {loading ? (
+          <Panel aria-hidden className="mt-4 min-h-[17rem] animate-pulse" />
+        ) : failed ? (
+          <Panel as="section" aria-label={tPuzzle(locale, "puzzle.heatmap.title")} className="mt-4 p-4">
+            <StreakMetrics locale={locale} allTime={null} period={null} />
+          </Panel>
+        ) : progress && now !== null && hasActivity ? (
           <div className="mt-4">
             <ProgressHeatmap
               days={progress.days}
               today={localDayKey(now)}
               locale={locale}
+              allTime={{ solved: progress.solved, accuracy, streak: progress.streak, bestStreak: progress.bestStreak }}
             />
           </div>
         ) : null}
@@ -469,17 +461,6 @@ function Skeleton({ className = "", lines = 1 }: { className?: string; lines?: n
       style={{ height: `${lines}lh` }}
       className={`block animate-pulse rounded bg-studio-hover-strong ${className}`}
     />
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div className="border-r border-studio-border-subtle pr-3 even:border-r-0 even:pl-4 sm:border-r sm:px-4 sm:first:pl-0 sm:even:border-r sm:even:last:border-r-0">
-      <dt className="text-caption uppercase tracking-wide text-studio-muted">{label}</dt>
-      <dd className="mt-0.5 text-title font-semibold tabular-nums text-studio-fg">
-        {value === null ? <Skeleton className="w-12" /> : value}
-      </dd>
-    </div>
   );
 }
 

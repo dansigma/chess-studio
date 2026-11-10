@@ -57,10 +57,11 @@ test("buildHeatmap flags an empty history", () => {
   assert.equal(buildHeatmap(undefined, "2026-11-05").hasActivity, false);
 });
 
-test("heatmapWeeksForWidth fits whole 15px columns, clamped to 12-18", () => {
+test("heatmapWeeksForWidth fits whole 15px columns, clamped to 12-52", () => {
   assert.equal(heatmapWeeksForWidth(0, 15), 18); // unmeasured: default
-  assert.equal(heatmapWeeksForWidth(600, 15), 18);
+  assert.equal(heatmapWeeksForWidth(600, 15), 40);
   assert.equal(heatmapWeeksForWidth(270, 15), 18);
+  assert.equal(heatmapWeeksForWidth(2000, 15), 52);
   assert.equal(heatmapWeeksForWidth(225, 15), 15);
   assert.equal(heatmapWeeksForWidth(212, 15), 14);
   assert.equal(heatmapWeeksForWidth(100, 15), 12);

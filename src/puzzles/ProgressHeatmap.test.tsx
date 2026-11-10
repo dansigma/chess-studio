@@ -16,12 +16,18 @@ const days = {
   "2026-11-03": { solved: 1, failed: 0, ms: 60_000, xp: 0 },
 };
 
+const allTime = { solved: 40, accuracy: 85, streak: 3, bestStreak: 9 };
+
 test("renders streak, labelled squares, frozen marker and legend (en)", () => {
   try {
-    render(<ProgressHeatmap days={days} today="2026-11-03" locale="en" />);
+    render(<ProgressHeatmap days={days} today="2026-11-03" locale="en" allTime={allTime} />);
     screen.getByText("2-day streak");
     screen.getByText("Longest streak · 2 days");
     screen.getByText("2/7");
+    // SIG-1264: all-time metrics share the panel
+    screen.getByText("Total solved");
+    screen.getByText("85%");
+    screen.getByText("Best solved in a row");
     screen.getByText("Less");
     screen.getByText("More");
     screen.getByText("One missed day per week does not break your streak.");
@@ -47,7 +53,7 @@ test("renders streak, labelled squares, frozen marker and legend (en)", () => {
 
 test("renders pt-BR strings", () => {
   try {
-    render(<ProgressHeatmap days={days} today="2026-11-03" locale="pt-br" />);
+    render(<ProgressHeatmap days={days} today="2026-11-03" locale="pt-br" allTime={allTime} />);
     screen.getByText("Ofensiva de 2 dias");
     screen.getByText("Maior ofensiva · 2 dias");
     const weeks = screen.getByRole("grid").querySelectorAll('[role="row"]')[0].children.length;
@@ -61,7 +67,7 @@ test("weekday labels live outside the scroller; narrow width draws fewer weeks (
   const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 212 });
   try {
-    render(<ProgressHeatmap days={days} today="2026-11-03" locale="en" />);
+    render(<ProgressHeatmap days={days} today="2026-11-03" locale="en" allTime={allTime} />);
     const scroller = screen.getByTestId("heatmap-scroller");
     const weekdays = screen.getByTestId("heatmap-weekdays");
     assert.equal(scroller.contains(weekdays), false);
