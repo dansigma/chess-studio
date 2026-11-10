@@ -17,6 +17,7 @@ import {
 } from "./library-layout";
 import { LibraryTable } from "./LibraryTable";
 import type { LibraryGameItem } from "@/src/lib/library/types";
+import { LibraryPreview } from "./LibraryPreview";
 
 const SKELETON_ROWS = 8;
 
@@ -135,13 +136,7 @@ export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) 
           className="min-w-0 flex-1 overflow-hidden"
           data-testid="library-preview-slot"
         >
-          {preview ? (
-            preview(selected)
-          ) : (
-            <div className="flex h-full items-center justify-center p-4 text-sm text-studio-muted">
-              {tLibrary(locale, "library.preview.select")}
-            </div>
-          )}
+          {preview ? preview(selected) : <LibraryPreview item={selected} />}
         </Panel>
       </div>
     </div>
