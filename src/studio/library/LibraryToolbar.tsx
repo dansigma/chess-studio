@@ -16,6 +16,7 @@ import {
   type ChipSource,
   type FilterChip,
 } from "./filter-chips";
+import { LibraryFiltersPopover } from "./LibraryFiltersPopover";
 import { useLibraryStore } from "./library-store";
 
 export const LIBRARY_SEARCH_DEBOUNCE_MS = 300;
@@ -43,6 +44,8 @@ export function LibraryToolbar({ total, sourceErrors }: LibraryToolbarProps) {
     capabilities: adapter.capabilities(),
   }));
   const selectedCount = available.filter((source) => filters.sources.includes(source.id)).length;
+  const filtersButtonRef = useRef<HTMLButtonElement>(null);
+  const selectedSources = available.filter((source) => filters.sources.includes(source.id));
   const chips = buildFilterChips(filters, available, locale);
   const advancedCount = countAdvancedFilters(filters);
 
@@ -65,16 +68,20 @@ export function LibraryToolbar({ total, sourceErrors }: LibraryToolbarProps) {
         {tLibrary(locale, "library.sources.selected", { x: selectedCount, y: available.length })}
         {total !== null ? ` · ${tLibrary(locale, "library.total", { count: formatGameCount(total, locale) })}` : ""}
       </span>
+      <div className="relative ml-auto shrink-0">
       <button
+        ref={filtersButtonRef}
         type="button"
         aria-pressed={filtersOpen}
+        aria-haspopup="dialog"
+        aria-expanded={filtersOpen}
         aria-label={
           advancedCount > 0
             ? tLibrary(locale, "library.filters.buttonActive", { count: advancedCount })
             : tLibrary(locale, "library.filters.button")
         }
         onClick={() => setFiltersOpen(!filtersOpen)}
-        className={`ml-auto inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-dense ${
+        className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-dense ${
           filtersOpen || advancedCount > 0
             ? "bg-studio-accent-soft text-studio-accent-text"
             : "text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
@@ -84,6 +91,10 @@ export function LibraryToolbar({ total, sourceErrors }: LibraryToolbarProps) {
         {tLibrary(locale, "library.filters.button")}
         {advancedCount > 0 ? <Badge tone="accent">{advancedCount}</Badge> : null}
       </button>
+        {filtersOpen ? (
+          <LibraryFiltersPopover selectedSources={selectedSources} triggerRef={filtersButtonRef} />
+        ) : null}
+      </div>
       {chips.length > 0 ? (
         <ul className="flex w-full min-w-0 flex-wrap items-center gap-1" aria-label={tLibrary(locale, "library.filters.button")}>
           {chips.map((chip) => (
