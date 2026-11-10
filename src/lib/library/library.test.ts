@@ -5,7 +5,7 @@ import type { Database } from "@/src/lib/supabase/database.types.ts";
 import type { FileDatabase } from "@/src/lib/user-files.ts";
 import { annotationInfo, hasCommentText, matchesAnnotations, normalizePgnDate } from "./filters.ts";
 import { createFileSource, syncFileSources } from "./file-source.ts";
-import { createMyGamesSource, ilikeValue, myGamesRowToItem } from "./my-games-source.ts";
+import { createMyGamesSource, ilikeValue, myGamesPositionKey, myGamesRowToItem } from "./my-games-source.ts";
 import { decodeLibraryCursor, queryLibrary } from "./query.ts";
 import { compareLibraryItems } from "./sort.ts";
 import { clearLibrarySources, getLibrarySource, listLibrarySources, registerLibrarySource } from "./sources.ts";
@@ -160,7 +160,7 @@ function fakeClient(rows: Record<string, unknown>[], count = rows.length, error:
   q.range = (...args: unknown[]) => { calls.push(["range", ...args]); return q; };
   q.abortSignal = () => Promise.resolve({ data: error ? null : rows, error, count });
   q.single = () => Promise.resolve({ data: rows[0], error: null });
-  const client = { from: () => ({ select: () => q }) };
+  const client = { from: () => ({ select: (...args: unknown[]) => { calls.push(["select", ...args]); return q; } }) };
   return { client: client as unknown as SupabaseClient<Database>, calls };
 }
 const row = (o: Record<string, unknown> = {}) => ({
@@ -201,8 +201,21 @@ describe("my games source", () => {
   it("declares capabilities", () => {
     const c = createMyGamesSource(() => null).capabilities();
     assert.equal(c.annotations, "none");
-    assert.equal(c.position, "none");
+    assert.equal(c.position, "full");
     assert.equal(c.textSearch, "full");
+  });
+  it("filters by position through my_game_positions", async () => {
+    const fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
+    const { client, calls } = fakeClient([row()], 1);
+    await createMyGamesSource(() => client).list(filters({ position: { fen } }), null, 10, signal);
+    const select = calls.find((c) => c[0] === "select");
+    assert.ok(String(select?.[1]).includes("my_game_positions!inner(game_id)"));
+    assert.ok(calls.some((c) => c[0] === "eq" && c[1] === "my_game_positions.zkey" && c[2] === myGamesPositionKey(fen)));
+  });
+  it("does not join positions without a position filter", async () => {
+    const { client, calls } = fakeClient([row()], 1);
+    await createMyGamesSource(() => client).list(filters(), null, 10, signal);
+    assert.ok(!String(calls.find((c) => c[0] === "select")?.[1]).includes("my_game_positions"));
   });
 });
 
