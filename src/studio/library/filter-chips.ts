@@ -6,8 +6,8 @@ import {
   type LibraryFilterState,
   type LibrarySourceCapabilities,
   type LibrarySourceId,
-  type LibrarySupport,
 } from "@/src/lib/library/types";
+import { limitedSourceLabels } from "./filter-support";
 
 export type ChipField = "sources" | "query" | "opponent" | "color" | "result" | "annotations" | "position";
 
@@ -52,12 +52,7 @@ export function countAdvancedFilters(filters: LibraryFilterState): number {
 
 function limitedSources(field: ChipField, selected: ChipSource[]): string[] {
   const key = CAPABILITY_KEY[field];
-  if (!key) {
-    return [];
-  }
-  return selected
-    .filter((source) => (source.capabilities[key] as LibrarySupport) !== "full")
-    .map((source) => source.label);
+  return key ? limitedSourceLabels(key, selected) : [];
 }
 
 function fenSummary(fen: string): string {
