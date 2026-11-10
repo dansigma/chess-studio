@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Chess.com removed from the Databases panel (SIG-1270)
+
+- Chess.com has no shared games database (its API is per-username), so it no longer appears under Databases
+  ("3 sources"). Searching a Chess.com player and the Chess.com source in the explorer panel are unchanged.
+- The selected database was never persisted (it resets to Masters on reload), so no saved value needs migrating.
+
 ### Transparent puzzle XP and a growing level curve (SIG-1234)
 
 - XP is `20 x difficulty (0.5-2.0) x speed (1.0-1.5) x first try (1.2)`, rounded once, and the panel shows the

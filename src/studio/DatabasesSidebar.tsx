@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Cloud, Database, Folder, Globe } from "lucide-react";
+import { Database, Folder, Globe } from "lucide-react";
 import { fileExplorerSource, type ExplorerSource } from "@/src/lib/explorer-types";
 import { tSidebar, type StudioSidebarStringKey } from "@/src/i18n/studio-sidebar-strings";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -10,9 +10,10 @@ import { SidebarHint, SidebarItem, SidebarPanel } from "./ui/Sidebar";
 
 const PUBLIC_SOURCES: Array<{
   source: ExplorerSource;
-  // SIG-1178: source titles go through `tSidebar` at render time ("Chess.com"
-  // stays a literal brand); every other user-visible string goes through
-  // `tSidebar` at render time.
+  // SIG-1178: source titles go through `tSidebar` at render time.
+  // SIG-1270: Chess.com is not listed here — it has no shared database (its API
+  // is per-username). Its games are reached via the player search and the
+  // explorer panel's source selector.
   titleKey: StudioSidebarStringKey | null;
   title: string;
   descriptionKey: StudioSidebarStringKey;
@@ -38,13 +39,6 @@ const PUBLIC_SOURCES: Array<{
     title: "",
     descriptionKey: "sidebar.databases.onlineDesc",
     icon: Globe,
-  },
-  {
-    source: "chesscom",
-    titleKey: null,
-    title: "Chess.com",
-    descriptionKey: "sidebar.databases.chesscomDesc",
-    icon: Cloud,
   },
 ];
 
