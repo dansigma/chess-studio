@@ -121,3 +121,16 @@ test("Open in Studio opens a new board and switches the workspace view", async (
   assert.equal(state.boards.length, before + 1);
   assert.equal(state.boards.at(-1)!.preview, false);
 });
+
+test("a list reload with a new object for the same game does not load the PGN again", async () => {
+  let calls = 0;
+  registerLibrarySource(adapter(async () => {
+    calls += 1;
+    return PGN;
+  }));
+  const { rerender } = render(<LibraryPreview item={ITEM} />);
+  await screen.findByTestId("library-preview");
+  rerender(<LibraryPreview item={{ ...ITEM }} />);
+  await screen.findByTestId("library-preview");
+  assert.equal(calls, 1);
+});

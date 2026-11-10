@@ -39,19 +39,23 @@ function useLibraryGamePgn(item: LibraryGameItem | null) {
   const [attempt, setAttempt] = useState(0);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const requestId = item ? `${item.key}#${attempt}` : null;
+  // Keyed on ids, not on the item object: a list reload hands back a new object
+  // for the same game, which must not fetch its PGN again.
+  const sourceId = item?.sourceId ?? null;
+  const gameId = item?.gameId ?? null;
 
   useEffect(() => {
-    if (!item || !requestId) {
+    if (!sourceId || !gameId || !requestId) {
       return;
     }
     const controller = new AbortController();
-    const adapter = getLibrarySource(item.sourceId);
+    const adapter = getLibrarySource(sourceId);
     const run = async () => {
       try {
         if (!adapter) {
-          throw new Error(item.sourceId);
+          throw new Error(sourceId);
         }
-        const pgn = await adapter.loadPgn(item.gameId, controller.signal);
+        const pgn = await adapter.loadPgn(gameId, controller.signal);
         if (!controller.signal.aborted) {
           setOutcome({ requestId, pgn, game: importPgn(pgn) });
         }
@@ -63,7 +67,7 @@ function useLibraryGamePgn(item: LibraryGameItem | null) {
     };
     void run();
     return () => controller.abort();
-  }, [item, requestId]);
+  }, [sourceId, gameId, requestId]);
 
   const current = outcome && outcome.requestId === requestId ? outcome : null;
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
