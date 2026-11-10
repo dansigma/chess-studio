@@ -61,6 +61,14 @@ test("opponent is debounced by 300 ms", async () => {
   assert.equal(filters().opponent, "magnus");
 });
 
+test("closing within the debounce window still commits the typed opponent", () => {
+  fireEvent.change(screen.getByPlaceholderText("Player name"), { target: { value: "nakamura" } });
+  assert.equal(filters().opponent, "");
+  fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+  assert.equal(useLibraryStore.getState().filtersOpen, false);
+  assert.equal(filters().opponent, "nakamura");
+});
+
 test("partial and none support show notes; field stays enabled", () => {
   assert.equal(screen.getAllByText(/Masters: applied only to the games already returned/).length, 2);
   assert.ok(screen.getByText(/Masters: not applied/));

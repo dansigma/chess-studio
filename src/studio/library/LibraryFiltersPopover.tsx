@@ -261,6 +261,12 @@ function DebouncedText({
   const [text, setText] = useState(value);
   const [seen, setSeen] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Text typed but not committed yet, and the latest onCommit, for the unmount flush.
+  const pending = useRef<string | null>(null);
+  const commit = useRef(onCommit);
+  useEffect(() => {
+    commit.current = onCommit;
+  }, [onCommit]);
   if (value !== seen) {
     setSeen(value);
     setText(value);
@@ -270,13 +276,23 @@ function DebouncedText({
     if (timer.current) {
       clearTimeout(timer.current);
       timer.current = null;
+      pending.current = null;
     }
   }, [value]);
-  useEffect(() => () => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-    }
-  }, []);
+  // Closing the popover within the debounce window must not lose what was typed.
+  useEffect(
+    () => () => {
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+      if (pending.current !== null) {
+        commit.current(pending.current);
+        pending.current = null;
+      }
+    },
+    [],
+  );
   return (
     <input
       type="text"
@@ -291,8 +307,10 @@ function DebouncedText({
         if (timer.current) {
           clearTimeout(timer.current);
         }
+        pending.current = next;
         timer.current = setTimeout(() => {
           timer.current = null;
+          pending.current = null;
           onCommit(next);
         }, LIBRARY_FILTERS_DEBOUNCE_MS);
       }}
