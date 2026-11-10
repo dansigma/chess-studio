@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type VirtualWindow = {
   /** First rendered row index (inclusive). */
@@ -60,19 +60,26 @@ export function nearEnd(end: number, count: number, threshold = 10): boolean {
 
 const FALLBACK_VIEWPORT = 480;
 
-/** Fixed-row-height windowing over a scroll container (no dependency). */
-export function useVirtualRows(options: {
-  containerRef: RefObject<HTMLElement | null>;
-  count: number;
-  rowHeight: number;
-  overscan?: number;
-}) {
-  const { containerRef, count, rowHeight, overscan } = options;
+/**
+ * Fixed-row-height windowing over a scroll container (no dependency).
+ * Pass `attachScroll` as the container's `ref`. It is a callback ref because the
+ * container mounts only after the first page loads (skeleton and empty states
+ * render without it); the viewport is measured, and observed, once it exists.
+ */
+export function useVirtualRows(options: { count: number; rowHeight: number; overscan?: number }) {
+  const { count, rowHeight, overscan } = options;
+  // State drives measuring; the ref mirror is what event handlers mutate.
+  const [node, setNode] = useState<HTMLElement | null>(null);
+  const nodeMirror = useRef<HTMLElement | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(FALLBACK_VIEWPORT);
 
+  const attachScroll = useCallback((element: HTMLElement | null) => {
+    nodeMirror.current = element;
+    setNode(element);
+  }, []);
+
   useEffect(() => {
-    const node = containerRef.current;
     if (!node) {
       return;
     }
@@ -88,30 +95,30 @@ export function useVirtualRows(options: {
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [containerRef]);
+  }, [node]);
 
   const onScroll = useCallback(() => {
-    const node = containerRef.current;
-    if (node) {
-      setScrollTop(node.scrollTop);
+    const element = nodeMirror.current;
+    if (element) {
+      setScrollTop(element.scrollTop);
     }
-  }, [containerRef]);
+  }, []);
 
   const scrollToIndex = useCallback(
     (index: number) => {
-      const node = containerRef.current;
-      if (!node) {
+      const element = nodeMirror.current;
+      if (!element) {
         return;
       }
-      const next = scrollTopToReveal({ index, rowHeight, scrollTop: node.scrollTop, viewportHeight });
-      if (next !== node.scrollTop) {
-        node.scrollTop = next;
+      const next = scrollTopToReveal({ index, rowHeight, scrollTop: element.scrollTop, viewportHeight });
+      if (next !== element.scrollTop) {
+        element.scrollTop = next;
         setScrollTop(next);
       }
     },
-    [containerRef, rowHeight, viewportHeight],
+    [rowHeight, viewportHeight],
   );
 
   const window = computeVirtualWindow({ count, rowHeight, scrollTop, viewportHeight, overscan });
-  return { ...window, onScroll, scrollToIndex };
+  return { ...window, attachScroll, onScroll, scrollToIndex };
 }

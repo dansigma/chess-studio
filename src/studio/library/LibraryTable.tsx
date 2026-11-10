@@ -116,14 +116,13 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
   const selectGame = useLibraryStore((s) => s.selectGame);
   const setSort = useLibraryStore((s) => s.setSort);
   const resetFilters = useLibraryStore((s) => s.resetFilters);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const { width } = usePanelSize(rootRef);
   const columns = visibleColumns(width);
   const template = columns.map((c) => c.width).join(" ");
   const { items, loading, loadingMore, error, sourceErrors, hasMore, loadMore } = games;
   const failed = Object.keys(sourceErrors);
 
-  const rows = useVirtualRows({ containerRef: scrollRef, count: items.length, rowHeight: LIBRARY_ROW_HEIGHT });
+  const { attachScroll, ...rows } = useVirtualRows({ count: items.length, rowHeight: LIBRARY_ROW_HEIGHT });
   const selectedIndex = useMemo(() => items.findIndex((item) => item.key === selectedKey), [items, selectedKey]);
 
   const partialSources = filters.sources.filter(
@@ -228,7 +227,6 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
               >
                 <button
                   type="button"
-                  tabIndex={-1}
                   className={`inline-flex max-w-full items-center gap-0.5 py-1.5 text-caption hover:text-studio-fg ${
                     active ? "text-studio-fg" : "text-studio-faint"
                   }`}
@@ -249,7 +247,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
           </div>
         )}
         <div
-          ref={scrollRef}
+          ref={attachScroll}
           onScroll={rows.onScroll}
           className={`min-h-0 flex-1 overflow-auto ${loading ? "opacity-60" : ""}`}
           data-testid="library-scroll"
