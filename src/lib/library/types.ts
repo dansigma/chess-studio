@@ -1,3 +1,5 @@
+// SIG-1272: Library data contract. Shared by every Library issue (SIG-1271);
+// keep it exactly in sync with the Linear spec.
 export type LibrarySourceId = "my-games" | "masters" | `file:${string}`;
 
 export type LibraryResult = "1-0" | "0-1" | "1/2-1/2" | "*";
@@ -43,8 +45,11 @@ export type LibraryFilterState = {
   sort: { key: LibrarySortKey; direction: "asc" | "desc" };
 };
 
+// Sources: every source registered at launch time that is always present
+// (My Games). Personal databases are added by the caller with
+// `defaultLibraryFilters`, since their ids depend on the store.
 export const DEFAULT_LIBRARY_FILTERS: LibraryFilterState = {
-  sources: ["my-games", "masters"],
+  sources: ["my-games"],
   query: "",
   opponent: "",
   color: "both",
@@ -93,3 +98,11 @@ export type LibraryQueryResult = {
   total: number | null;
   sourceErrors: Partial<Record<LibrarySourceId, string>>;
 };
+
+/** Default filters with an explicit source selection. */
+export function defaultLibraryFilters(sources: LibrarySourceId[]): LibraryFilterState {
+  return {
+    ...DEFAULT_LIBRARY_FILTERS,
+    sources: sources.length > 0 ? sources : DEFAULT_LIBRARY_FILTERS.sources,
+  };
+}
