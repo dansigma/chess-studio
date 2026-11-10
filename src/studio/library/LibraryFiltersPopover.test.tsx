@@ -83,10 +83,17 @@ test("field is disabled when no selected source supports it", () => {
   assert.ok(screen.getAllByRole("tooltip").some((n) => /None of the selected sources/.test(n.textContent ?? "")));
 });
 
-test("set-position button is disabled with a coming-soon tooltip; no highlight field", () => {
+test("set-position button opens the position dialog; clicks inside it keep the popover open; no highlight field", () => {
   const button = screen.getByRole("button", { name: "Set position…" }) as HTMLButtonElement;
-  assert.equal(button.disabled, true);
-  assert.ok(screen.getAllByRole("tooltip").some((n) => n.textContent === "Coming soon"));
+  assert.equal(button.disabled, false);
+  assert.equal(screen.queryByText("Coming soon"), null);
+  fireEvent.click(button);
+  const dialog = screen.getByTestId("position-filter-dialog");
+  fireEvent.mouseDown(dialog);
+  assert.equal(useLibraryStore.getState().filtersOpen, true);
+  assert.ok(screen.getByTestId("library-filters-popover"));
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  assert.equal(screen.queryByTestId("position-filter-dialog"), null);
   assert.equal(screen.queryByText(/Highlight|Beauty/), null);
 });
 

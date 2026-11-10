@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tLibrary } from "@/src/i18n/library-strings.ts";
 import { tRepertoire } from "@/src/i18n/repertoire-strings.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
@@ -24,6 +25,7 @@ export function BoardContextMenu({
   onClearMark,
   onCopyFen,
   onCopyImage,
+  onSearchLibrary,
   onClose,
 }: {
   menu: BoardMenuState;
@@ -39,6 +41,7 @@ export function BoardContextMenu({
   onClearMark: () => void;
   onCopyFen: () => void;
   onCopyImage: () => void;
+  onSearchLibrary?: () => void;
   onClose: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -126,6 +129,18 @@ export function BoardContextMenu({
             onClose();
           }}
         />
+        {onSearchLibrary ? (
+          <>
+            <MenuDivider />
+            <MenuItem
+              label={tLibrary(locale, "library.position.searchFromStudio")}
+              onClick={() => {
+                onSearchLibrary();
+                onClose();
+              }}
+            />
+          </>
+        ) : null}
       </MenuSurface>
     </div>
   );

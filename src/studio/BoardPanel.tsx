@@ -18,6 +18,7 @@ import {
 } from "@/src/chess/marks";
 import { threatSquaresFromUci, useThreat } from "./useThreat";
 import { BoardEvalBar } from "./BoardEvalBar";
+import { searchPositionInLibrary } from "./library/search-position";
 import { BoardContextMenu, type BoardMenuState } from "./BoardContextMenu";
 import { SetupBoardPanel } from "./SetupBoardPanel";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
@@ -662,6 +663,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
               }
             })();
           }}
+          onSearchLibrary={() => searchPositionInLibrary(fen)}
           onClose={() => setBoardMenu(null)}
         />
       ) : null}

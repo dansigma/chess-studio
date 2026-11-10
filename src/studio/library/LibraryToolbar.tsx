@@ -1,5 +1,6 @@
 "use client";
 
+import { Chessboard } from "react-chessboard";
 import { useEffect, useRef, useState } from "react";
 import { Database, Info, SlidersHorizontal, TriangleAlert, X } from "lucide-react";
 import { tLibrary } from "@/src/i18n/library-strings";
@@ -119,8 +120,37 @@ export function LibraryToolbar({ total, sourceErrors }: LibraryToolbarProps) {
   );
 }
 
+/** Chip text whose hover tooltip shows a small board thumbnail of the searched position. */
+function PositionChipLabel({ label, fen, alt }: { label: string; fen: string; alt: string }) {
+  return (
+    <span className="group/tip relative inline-flex min-w-0">
+      <span className="truncate">{label}</span>
+      <span
+        role="tooltip"
+        data-testid="library-chip-position-thumbnail"
+        className="pointer-events-none absolute left-0 top-full z-[1100] mt-1 hidden rounded-md border border-studio-border-strong bg-studio-elevated p-1 shadow-lg group-hover/tip:block"
+      >
+        <span role="img" aria-label={alt} className="block aspect-square w-32">
+          <Chessboard
+            options={{
+              id: "library-chip-position",
+              position: fen,
+              allowDragging: false,
+              allowDrawingArrows: false,
+              showAnimations: false,
+              showNotation: false,
+              boardStyle: { width: "100%", height: "100%", borderRadius: 4, overflow: "hidden" },
+            }}
+          />
+        </span>
+      </span>
+    </span>
+  );
+}
+
 function ToolbarChip({ chip, onRemove }: { chip: FilterChip; onRemove: () => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
+  const positionFen = useLibraryStore((s) => s.filters.position?.fen ?? null);
   const limitedText =
     chip.limitedBy.length > 0
       ? tLibrary(locale, "library.chip.limited", { sources: chip.limitedBy.join(", ") })
@@ -130,7 +160,11 @@ function ToolbarChip({ chip, onRemove }: { chip: FilterChip; onRemove: () => voi
       data-testid="library-chip"
       className="inline-flex h-[22px] max-w-full items-center gap-1 rounded-full border border-transparent bg-studio-accent-soft pl-2 pr-1 text-caption text-studio-accent-text"
     >
-      <span className="truncate">{chip.label}</span>
+      {chip.field === "position" && positionFen ? (
+        <PositionChipLabel label={chip.label} fen={positionFen} alt={tLibrary(locale, "library.position.thumbnailAlt")} />
+      ) : (
+        <span className="truncate">{chip.label}</span>
+      )}
       {limitedText ? (
         <Tooltip label={limitedText} side="bottom">
           <span role="img" aria-label={limitedText} className="inline-flex">
