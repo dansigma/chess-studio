@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, type ReactNode } from "react";
+import { createContext, memo, useContext, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { moveNumberForPath, plyColor, type Path, type TreeNode } from "@/src/chess/tree";
 import { formatMoveSuffix, formatPositionGlyphs } from "@/src/chess/nags";
@@ -22,6 +22,12 @@ import { TierBadge } from "./review/TierBadge";
  * mistaken for a new sibling line.
  */
 export const INLINE_FROM_DEPTH = 2;
+
+/**
+ * SIG-1279: read-only notation (Library preview). The tokens then ignore the
+ * active board's Game Review tiers, which belong to another game.
+ */
+export const NotationReadOnlyContext = createContext(false);
 
 /** SIG-1193: weight by depth — mainline 600, first-level variations 500, deeper 400. */
 export function moveWeightClass(depth: number): string {
@@ -89,7 +95,8 @@ const MoveToken = memo(function MoveToken({
 }) {
   const suffix = formatMoveSuffix(nags);
   const rest = formatPositionGlyphs(nags);
-  const tier = useReviewTier(path);
+  const activeTier = useReviewTier(path);
+  const tier = useContext(NotationReadOnlyContext) ? undefined : activeTier;
   const locale = useStudioStore((state) => state.settings.locale);
   return (
     <span className={block ? "flex min-w-0 items-center" : "inline-flex items-center"}>
