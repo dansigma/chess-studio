@@ -9,7 +9,7 @@ function okResponse() {
 test("probes cover the SIG-1188 objects", () => {
   assert.deepEqual(
     PROBES.map((probe) => probe.object),
-    ["linked_accounts", "my_games", "puzzles", "course_enrollments", "boards.repertoire_color"],
+    ["linked_accounts", "my_games", "my_game_positions", "my_games.indexed_at", "puzzles", "course_enrollments", "boards.repertoire_color"],
   );
 });
 
