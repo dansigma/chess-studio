@@ -55,6 +55,8 @@ export type SetupPosition = {
   turn: "w" | "b";
   /** Castling rights pasted with the FEN (`KQkq` alphabet, `"-"` for none). */
   castling: string;
+  /** En passant target square from the FEN ("e3"); only emitted when plausible. */
+  enPassant?: string;
 };
 
 export function emptySetupPosition(): SetupPosition {
@@ -105,7 +107,21 @@ export function parseSetupFen(fen: string): SetupPosition {
       fileIndex += 1;
     }
   }
-  return { pieces, turn, castling };
+  const ep = parts[3] && /^[a-h][36]$/.test(parts[3]) ? parts[3] : undefined;
+  return { pieces, turn, castling, ...(ep ? { enPassant: ep } : {}) };
+}
+
+/** Squares where the side to move could capture en passant, judging by pawn placement only. */
+export function enPassantCandidates(pieces: Record<string, SetupPiece>, turn: "w" | "b"): string[] {
+  const out: string[] = [];
+  for (const file of FILES) {
+    const [pawn, pawnRank, target, behind, targetRank] =
+      turn === "w" ? (["bP", 5, 6, 7, 6] as const) : (["wP", 4, 3, 2, 3] as const);
+    if (pieces[`${file}${pawnRank}`] === pawn && !pieces[`${file}${target}`] && !pieces[`${file}${behind}`]) {
+      out.push(`${file}${targetRank}`);
+    }
+  }
+  return out;
 }
 
 function castleRights(pieces: Record<string, SetupPiece>, kept: string): string {
@@ -147,7 +163,11 @@ export function buildSetupFen(position: SetupPosition): string {
     }
     ranks.push(row || "8");
   }
-  return `${ranks.join("/")} ${position.turn} ${castleRights(position.pieces, position.castling)} - 0 1`;
+  const ep =
+    position.enPassant && enPassantCandidates(position.pieces, position.turn).includes(position.enPassant)
+      ? position.enPassant
+      : "-";
+  return `${ranks.join("/")} ${position.turn} ${castleRights(position.pieces, position.castling)} ${ep} 0 1`;
 }
 
 export function isLegalSetupFen(fen: string): boolean {
@@ -198,4 +218,38 @@ export function moveSetupPiece(
   delete pieces[from];
   pieces[to] = piece;
   return { ...position, pieces };
+}
+
+export type PositionProblem =
+  | { code: "kings"; white: number; black: number }
+  | { code: "pawnRank" }
+  | { code: "opponentInCheck" }
+  | { code: "invalid"; message: string };
+
+/** Structured legality check used by the Library position search (SIG-1281). */
+export function positionProblem(fen: string): PositionProblem | null {
+  const position = parseSetupFen(fen);
+  const all = Object.values(position.pieces);
+  const white = all.filter((piece) => piece === "wK").length;
+  const black = all.filter((piece) => piece === "bK").length;
+  if (white !== 1 || black !== 1) {
+    return { code: "kings", white, black };
+  }
+  if (Object.entries(position.pieces).some(([sq, piece]) => piece.endsWith("P") && (sq[1] === "1" || sq[1] === "8"))) {
+    return { code: "pawnRank" };
+  }
+  const message = setupFenError(fen);
+  if (message) {
+    return { code: "invalid", message: message.replace(/^Error:\s*/, "") };
+  }
+  try {
+    // The side NOT to move must not be in check: pass the move and ask chess.js.
+    const flipped = buildSetupFen({ ...position, turn: position.turn === "w" ? "b" : "w", enPassant: undefined });
+    if (new Chess(flipped).inCheck()) {
+      return { code: "opponentInCheck" };
+    }
+  } catch (error) {
+    return { code: "invalid", message: error instanceof Error ? error.message : "Invalid FEN" };
+  }
+  return null;
 }

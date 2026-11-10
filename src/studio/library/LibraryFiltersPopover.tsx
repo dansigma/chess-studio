@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { Chessboard } from "react-chessboard";
 import { X } from "lucide-react";
 import { tLibrary, type LibraryStringKey } from "@/src/i18n/library-strings";
@@ -10,6 +11,7 @@ import { Tooltip } from "../ui/Controls";
 import { useDialogFocus } from "../ui/use-dialog-focus";
 import { getFieldSupport, type AdvancedFilterField, type SupportSource } from "./filter-support";
 import { useLibraryStore } from "./library-store";
+import { PositionFilterDialog } from "./PositionFilterDialog";
 
 export const LIBRARY_FILTERS_DEBOUNCE_MS = 300;
 
@@ -28,6 +30,12 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
   const setFilter = useLibraryStore((s) => s.setFilter);
   const setFiltersOpen = useLibraryStore((s) => s.setFiltersOpen);
   const rootRef = useRef<HTMLDivElement>(null);
+  const [positionOpen, setPositionOpen] = useState(false);
+  // The position dialog is portaled out of the popover: while it is open, its clicks and Escape are not "outside".
+  const positionOpenRef = useRef(false);
+  useEffect(() => {
+    positionOpenRef.current = positionOpen;
+  }, [positionOpen]);
 
   useDialogFocus(rootRef);
   // Declared after useDialogFocus so its cleanup runs last: the Filters button wins focus on close.
@@ -40,14 +48,14 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
 
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") {
+      if (event.key === "Escape" && !positionOpenRef.current) {
         event.stopPropagation();
         setFiltersOpen(false);
       }
     };
     const onPointer = (event: MouseEvent) => {
       const target = event.target as Node | null;
-      if (!target || rootRef.current?.contains(target) || triggerRef.current?.contains(target)) {
+      if (positionOpenRef.current || !target || rootRef.current?.contains(target) || triggerRef.current?.contains(target)) {
         return;
       }
       setFiltersOpen(false);
@@ -68,7 +76,6 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
     setFilter("annotations", "all");
     setFilter("position", null);
   };
-  const soon = t("library.filtersPopover.positionSoon");
 
   return (
     <div
@@ -108,16 +115,13 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
             ) : (
               <span className="text-caption text-studio-faint">{t("library.filtersPopover.positionNone")}</span>
             )}
-            <Tooltip label={soon} side="bottom">
-              <button
-                type="button"
-                disabled
-                title={soon}
-                className="h-7 rounded-md border border-studio-border px-2 text-dense text-studio-disabled"
-              >
-                {t("library.filtersPopover.positionSet")}
-              </button>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={() => setPositionOpen(true)}
+              className="h-7 rounded-md border border-studio-border px-2 text-dense text-studio-fg hover:bg-studio-hover-strong"
+            >
+              {t("library.filtersPopover.positionSet")}
+            </button>
           </div>
         )}
       </Field>
@@ -195,6 +199,7 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
           {t("library.filtersPopover.clear")}
         </button>
       </div>
+      {positionOpen ? createPortal(<PositionFilterDialog onClose={() => setPositionOpen(false)} />, document.body) : null}
     </div>
   );
 }
