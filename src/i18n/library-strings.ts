@@ -19,6 +19,9 @@ export const LIBRARY_STRING_KEYS = [
   "library.error.title",
   "library.error.retry",
   "library.partial",
+  "library.indexing.running",
+  "library.indexing.remaining",
+  "library.indexing.incomplete",
 ] as const;
 
 export type LibraryStringKey = (typeof LIBRARY_STRING_KEYS)[number];
@@ -40,6 +43,9 @@ const EN: Record<LibraryStringKey, string> = {
   "library.error.title": "Could not load games: {message}",
   "library.error.retry": "Try again",
   "library.partial": "Some sources failed and are not shown: {sources}.",
+  "library.indexing.running": "Indexing your games for position search…",
+  "library.indexing.remaining": "Indexing your games for position search… {count} left.",
+  "library.indexing.incomplete": "Some of your games are not indexed yet, so position search may miss them.",
 };
 
 const PT_BR: Record<LibraryStringKey, string> = {
@@ -60,6 +66,9 @@ const PT_BR: Record<LibraryStringKey, string> = {
   "library.error.title": "Não foi possível carregar as partidas: {message}",
   "library.error.retry": "Tentar novamente",
   "library.partial": "Algumas fontes falharam e não são exibidas: {sources}.",
+  "library.indexing.running": "Indexando suas partidas para a busca por posição…",
+  "library.indexing.remaining": "Indexando suas partidas para a busca por posição… faltam {count}.",
+  "library.indexing.incomplete": "Algumas das suas partidas ainda não foram indexadas, e a busca por posição pode não encontrá-las.",
 };
 
 export const tLibrary = createT(EN, PT_BR);

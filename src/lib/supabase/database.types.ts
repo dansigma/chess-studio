@@ -659,7 +659,15 @@ export type Database = {
         Row: { game_id: string; ply: number; zkey: string };
         Insert: { game_id: string; ply: number; zkey: string };
         Update: { game_id?: string; ply?: number; zkey?: string };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "my_game_positions_game_id_fkey";
+            columns: ["game_id"];
+            isOneToOne: false;
+            referencedRelation: "my_games";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       // SIG-1042: curated Lichess puzzle subset (slice 1/3, data side only).
       // Read-only for clients; loaded offline via \copy (serving in SIG-1102).
