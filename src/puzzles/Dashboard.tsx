@@ -13,7 +13,7 @@ import { tPuzzle, type PuzzleStringKey } from "@/src/i18n/puzzle-strings";
 import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
-import { Chip } from "@/src/studio/ui/Controls";
+import { Badge, Chip } from "@/src/studio/ui/Controls";
 import { Panel } from "@/src/studio/ui/Panel";
 import { dueExercises, hydrateExercises, type MistakeExercisesMap } from "@/src/lib/mistake-exercises-store";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
@@ -207,6 +207,7 @@ export function PuzzleDashboard() {
         <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           <ModeCard
             icon={CalendarDays}
+            iconClass="text-studio-accent-text"
             title={tPuzzle(locale, "puzzle.dashboard.daily.title")}
             detail={
               loading
@@ -225,6 +226,7 @@ export function PuzzleDashboard() {
           />
           <ModeCard
             icon={Flame}
+            iconClass="text-studio-warning-fg"
             title={tPuzzle(locale, "puzzle.dashboard.streak.title")}
             detail={
               loading
@@ -239,6 +241,7 @@ export function PuzzleDashboard() {
           />
           <ModeCard
             icon={Zap}
+            iconClass="text-studio-success"
             title={tPuzzle(locale, "puzzle.dashboard.rush.title")}
             detail={
               loading
@@ -253,6 +256,7 @@ export function PuzzleDashboard() {
           />
           <ModeCard
             icon={RotateCcw}
+            iconClass="text-studio-comment"
             title={tMistakes(locale, "mistakes.dashboard.title")}
             detail={
               loading
@@ -261,12 +265,11 @@ export function PuzzleDashboard() {
                 ? ""
                 : dueMistakes === 0
                   ? tMistakes(locale, "mistakes.dashboard.none")
-                  : tMistakes(
-                      locale,
-                      dueMistakes === 1 ? "mistakes.dashboard.detail.one" : "mistakes.dashboard.detail.other",
-                      { count: formatInteger(locale, dueMistakes) },
-                    )
+                  : tMistakes(locale, dueMistakes === 1 ? "mistakes.dashboard.detail.one" : "mistakes.dashboard.detail.other", {
+                      count: formatInteger(locale, dueMistakes),
+                    })
             }
+            badge={!loading && dueMistakes !== null && dueMistakes > 0 ? formatInteger(locale, dueMistakes) : undefined}
             body={
               loading ? null : tMistakes(locale, dueMistakes === 0 ? "mistakes.dashboard.empty" : "mistakes.dashboard.body")
             }
@@ -483,8 +486,10 @@ function SectionHeading({
 
 function ModeCard({
   icon: Icon,
+  iconClass,
   title,
   detail,
+  badge,
   body,
   action,
   onClick,
@@ -492,8 +497,12 @@ function ModeCard({
   pending = false,
 }: {
   icon: LucideIcon;
+  /** Text colour token for the icon only; the card surface is the same for every mode. */
+  iconClass: string;
   title: string;
   detail: string | null;
+  /** Pending count on the title row. Decorative: the detail line says the same for screen readers. */
+  badge?: string;
   body: string | null;
   action: string;
   onClick: () => void;
@@ -505,8 +514,15 @@ function ModeCard({
   return (
     <Panel as="section" className="flex h-full flex-col p-3">
       <h2 className="flex items-center gap-1.5 text-body font-semibold text-studio-fg">
-        <Icon className="size-4 text-studio-faint" aria-hidden />
+        <Icon className={`size-4 ${iconClass}`} aria-hidden />
         {title}
+        {badge ? (
+          <span aria-hidden data-testid="mistakes-badge" className="ml-auto">
+            <Badge tone="accent">
+              <span className="tabular-nums">{badge}</span>
+            </Badge>
+          </span>
+        ) : null}
       </h2>
       <p className="mt-0.5 min-h-[1lh] text-caption text-studio-muted">{detail === null ? <Skeleton className="w-24" /> : detail}</p>
       <p className="mt-2 flex-1 text-dense text-studio-muted">{body === null ? <Skeleton lines={2} className="w-full" /> : body}</p>
@@ -567,7 +583,7 @@ function DailyPreview({ puzzle, locale }: { puzzle: CompiledPuzzle | null; local
         <div className="pointer-events-none size-full overflow-hidden rounded-lg ring-1 ring-studio-border-strong transition-shadow duration-150 group-hover:ring-studio-accent group-focus-visible:ring-studio-accent" aria-hidden>
           <Chessboard
             options={{
-              id: `puzzle-preview-${puzzle.id}`,
+              id: `daily-preview-${puzzle.id}`,
               position: puzzle.fen,
               boardOrientation: orientation,
               showNotation: false,
