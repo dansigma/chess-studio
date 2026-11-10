@@ -7,6 +7,7 @@ import { Panel } from "../ui/Panel";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { useLibraryGames, type LibraryGamesState } from "./use-library-games";
 import { useLibrarySources } from "./library-sources";
+import { useMyGamesIndexing, type MyGamesIndexingState } from "./use-my-games-indexing";
 import {
   DEFAULT_LIBRARY_SPLIT,
   clampLibrarySplit,
@@ -29,6 +30,11 @@ export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) 
   const locale = useStudioStore((state) => state.settings.locale);
   const selectedKey = useLibraryStore((s) => s.selectedKey);
   const games = useLibraryGames();
+  const filters = useLibraryStore((s) => s.filters);
+  const indexing = useMyGamesIndexing(
+    filters.position !== null && filters.sources.includes("my-games"),
+    games.retry,
+  );
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [split, setSplit] = useState(DEFAULT_LIBRARY_SPLIT);
 
@@ -100,6 +106,7 @@ export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) 
           style={{ width: `${split}%` }}
           data-testid="library-table-slot"
         >
+          <IndexingNotice state={indexing} />
           {table ? table(games) : <LibraryPlaceholderList games={games} />}
         </Panel>
         <div
@@ -136,6 +143,25 @@ export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) 
         </Panel>
       </div>
     </div>
+  );
+}
+
+/** SIG-1275: My Games position backfill progress, shown above the list. */
+function IndexingNotice({ state }: { state: MyGamesIndexingState }) {
+  const locale = useStudioStore((s) => s.settings.locale);
+  if (state.phase === "idle") {
+    return null;
+  }
+  const text =
+    state.phase === "running"
+      ? state.remaining === null
+        ? tLibrary(locale, "library.indexing.running")
+        : tLibrary(locale, "library.indexing.remaining", { count: String(state.remaining) })
+      : tLibrary(locale, "library.indexing.incomplete");
+  return (
+    <p role="status" aria-live="polite" className="px-3 py-1 text-xs text-studio-muted" data-testid="library-indexing">
+      {text}
+    </p>
   );
 }
 

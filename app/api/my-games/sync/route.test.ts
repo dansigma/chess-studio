@@ -13,7 +13,14 @@ import type { PlayerGame } from "@/src/lib/player-types.ts";
 const state: FakeSupabaseState = {};
 mockSupabaseModules(state);
 
-const { POST, setSyncLoadersForTest, resetSyncLoadersForTest, setSyncIndexerForTest, resetSyncIndexerForTest } =
+const {
+  POST,
+  SYNC_INDEX_LIMIT,
+  setSyncLoadersForTest,
+  resetSyncLoadersForTest,
+  setSyncIndexerForTest,
+  resetSyncIndexerForTest,
+} =
   await import("./route.ts");
 
 const URL_ = "http://app.test/api/my-games/sync";
@@ -433,4 +440,24 @@ test("SIG-1275: sync succeeds when position indexing throws", async () => {
   assert.deepEqual(await res.json(), { imported: 1, accounts: [{ source: "lichess", imported: 1 }] });
   assert.deepEqual(calls, [["g1"]]);
   assert.equal(store.myGames.my_games.length, 1, "the game stays stored");
+});
+
+test("SIG-1275: sync indexes at most SYNC_INDEX_LIMIT games and leaves the rest to the backfill", async () => {
+  const calls: string[][] = [];
+  const { client } = syncFake({
+    userId: "user-index-cap",
+    linkedRows: [{ source: "lichess", username: "Magnus", last_synced_at: null }],
+  });
+  state.server = client;
+  const games = Array.from({ length: SYNC_INDEX_LIMIT + 5 }, (_, index) =>
+    game(`cap${index}`, Date.parse("2026-10-21T00:00:00.000Z") - index * 60_000),
+  );
+  setSyncLoadersForTest({ lichess: async () => games });
+  setSyncIndexerForTest(async (_supabase, _userId, _source, ids) => {
+    calls.push(ids);
+  });
+  const res = await POST(post());
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).imported, SYNC_INDEX_LIMIT + 5);
+  assert.equal(calls.flat().length, SYNC_INDEX_LIMIT);
 });
