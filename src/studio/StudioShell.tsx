@@ -14,6 +14,8 @@ import { SearchSidebar } from "./SearchSidebar";
 import { MyGamesSidebar } from "./MyGamesSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
+import { LibraryView } from "./library/LibraryView";
+import { useWorkspaceViewUrl } from "./use-workspace-view-url";
 import { ResizeHandle } from "./ui/ResizeHandle";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
 import { toUserInfo } from "@/src/lib/auth/user-info";
@@ -73,6 +75,17 @@ export function StudioShell() {
   const [authResolved, setAuthResolved] = useState(false);
   const [restoreSettled, setRestoreSettled] = useState(false);
   const activity = useStudioStore((state) => state.activity);
+  const workspaceView = useStudioStore((state) => state.workspaceView);
+  const activeBoardId = useStudioStore((state) => state.activeBoardId);
+  useWorkspaceViewUrl();
+  // SIG-1273: choosing a board (any change of the active board) leaves the Library.
+  const lastBoardId = useRef(activeBoardId);
+  useEffect(() => {
+    if (lastBoardId.current !== activeBoardId) {
+      lastBoardId.current = activeBoardId;
+      useStudioStore.getState().setWorkspaceView("studio");
+    }
+  }, [activeBoardId]);
   const source = useStudioStore((state) => state.databaseSource);
   const explorerRetry = useStudioStore((state) => state.explorerRetry);
   // SIG-908: the shell owns the legacy bare `explorer` panel feed — the hook
@@ -451,6 +464,11 @@ export function StudioShell() {
         event.preventDefault();
         flip();
       }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === "l") {
+        event.preventDefault();
+        useStudioStore.getState().toggleLibrary();
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         // SIG-907: Ctrl+N creates a session, so open its `board:*` panel too.
@@ -584,7 +602,11 @@ export function StudioShell() {
             </>
           )}
           <div className="min-w-0 flex-1 overflow-hidden">
-            <StudioDock />
+            {/* SIG-1273: the dock stays mounted (boards + layout kept) and is only hidden. */}
+            <div className={workspaceView === "library" ? "hidden" : "h-full"}>
+              <StudioDock visible={workspaceView !== "library"} />
+            </div>
+            {workspaceView === "library" ? <LibraryView /> : null}
           </div>
         </div>
       </div>

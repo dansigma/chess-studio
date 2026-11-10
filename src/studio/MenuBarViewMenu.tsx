@@ -69,6 +69,8 @@ export function ViewMenuItems({
   showPanels?: boolean;
 }) {
   const flip = useStudioStore((state) => state.flip);
+  const workspaceView = useStudioStore((state) => state.workspaceView);
+  const toggleLibrary = useStudioStore((state) => state.toggleLibrary);
   const locale = useStudioStore((state) => state.settings.locale);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const showEvalBar = useStudioStore((state) => state.settings.showEvalBar);
@@ -91,6 +93,14 @@ export function ViewMenuItems({
 
   return (
     <>
+      <Item
+        label={tStudioChrome(locale, "chrome.view.library")}
+        shortcut={flat ? undefined : "Ctrl+Shift+L"}
+        checked={workspaceView === "library"}
+        onMouseEnter={flat ? undefined : leaveSubmenu}
+        onClick={run(toggleLibrary)}
+      />
+      <Divider />
       <Item label={tStudioChrome(locale, "chrome.view.flip")} shortcut="Ctrl+F" onMouseEnter={leaveSubmenu} onClick={run(flip)} />
       <Divider />
       <Item label={tStudioChrome(locale, "chrome.view.showCoordinates")} checked={showCoordinates} onMouseEnter={leaveSubmenu} onClick={run(toggleCoordinates)} />

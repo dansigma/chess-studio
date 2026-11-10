@@ -16,6 +16,7 @@ import { SettingsDialog } from "./SettingsDialog";
 import { tMobile } from "@/src/i18n/mobile-strings.ts";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { useStudioStore } from "@/src/store/studio-store";
+import { LibraryView } from "./library/LibraryView";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { MenuDivider as Divider } from "./ui/Menu";
@@ -38,6 +39,7 @@ export type MobileStudioTab = (typeof TABS)[number];
 
 export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
+  const workspaceView = useStudioStore((state) => state.workspaceView);
   const [activeTab, setActiveTab] = useState<MobileStudioTab>("moves");
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewSub, setViewSub] = useState<"theme" | "pieces" | "notation" | "panel" | "scheme" | null>(null);
@@ -93,6 +95,12 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
           {tMobile(locale, "mobile.menu.title")}
         </span>
       </div>
+      {workspaceView === "library" ? (
+        <div data-mobile-library="" className="min-h-0 flex-1 overflow-auto p-1.5">
+          <LibraryView />
+        </div>
+      ) : (
+        <>
       <div className="aspect-square w-full shrink-0 bg-studio-panel [container-type:size]">
         <BoardPanel />
       </div>
@@ -125,6 +133,8 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
           ))}
         </div>
       </nav>
+        </>
+      )}
       {menuOpen ? (
         <BottomSheet title={tMobile(locale, "mobile.menu.title")} onClose={closeMenu}>
           <div role="menu" aria-label={tMobile(locale, "mobile.menu.title")}>
