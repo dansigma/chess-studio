@@ -1,6 +1,8 @@
 // My Games adapter: server-side search, filters, sort and pagination on
-// `public.my_games`. Annotations and position are not supported yet.
+// `public.my_games`. Position search joins `my_game_positions` (SIG-1275);
+// annotations are not supported (these games carry clock comments only).
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { positionKey } from "@/src/chess/zobrist";
 import { formatTimeClass } from "@/src/lib/game-date";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
@@ -29,7 +31,8 @@ const CAPABILITIES: LibrarySourceCapabilities = {
   color: "full",
   result: "full",
   annotations: "none", // clock comments only
-  position: "none", // until the My Games position index lands
+  // Games not indexed yet do not match until the backfill reaches them.
+  position: "full",
   sort: "full",
   maxResults: null,
 };
@@ -91,6 +94,15 @@ export function myGamesRowToItem(row: Row): LibraryGameItem {
   };
 }
 
+/** The `my_game_positions.zkey` value for a FEN, as postgrest-js sends bigints. */
+export function myGamesPositionKey(fen: string): string {
+  try {
+    return positionKey(fen).toString();
+  } catch {
+    throw new Error("Invalid position");
+  }
+}
+
 export function createMyGamesSource(
   getClient: () => SupabaseClient<Database> | null = createBrowserSupabase,
 ): LibrarySourceAdapter {
@@ -107,7 +119,15 @@ export function createMyGamesSource(
     capabilities: () => CAPABILITIES,
     async list(filters: LibraryFilterState, cursor, limit, signal): Promise<LibraryPage> {
       const offset = Math.max(0, Number(cursor ?? 0) || 0);
-      let q = need().from("my_games").select(COLUMNS, { count: "exact" });
+      const zkey = filters.position ? myGamesPositionKey(filters.position.fen) : null;
+      // `!inner` keeps only games with a matching position row; PostgREST returns
+      // each game once even when it reaches the position more than once.
+      let q = need()
+        .from("my_games")
+        .select(zkey ? `${COLUMNS}, my_game_positions!inner(game_id)` : COLUMNS, { count: "exact" });
+      if (zkey) {
+        q = q.eq("my_game_positions.zkey", zkey);
+      }
       for (const token of searchTokens(filters.query)) {
         const v = ilikeValue(token);
         q = q.or(
@@ -144,7 +164,7 @@ export function createMyGamesSource(
       if (error) {
         throw new Error(error.message || "Query failed");
       }
-      const items = ((data ?? []) as Row[]).map(myGamesRowToItem);
+      const items = ((data ?? []) as unknown as Row[]).map(myGamesRowToItem);
       const next = offset + items.length;
       const total = typeof count === "number" ? count : null;
       const more = total === null ? items.length === limit : next < total;

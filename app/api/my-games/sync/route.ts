@@ -17,6 +17,11 @@ import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 
 export const MAX_SYNC_GAMES = 200;
+// SIG-1275: games indexed inside one sync request. Each game costs two or more
+// Supabase calls made one after another, so indexing all 200 would add seconds
+// and could exceed the Workers subrequest limit. The rest stay unindexed and
+// the backfill (POST /api/my-games/index) indexes them.
+export const SYNC_INDEX_LIMIT = 20;
 const FIRST_SYNC_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
 
 // 6 syncs/hour per user, 20/hour per IP (issue quotas). The fallback is the
@@ -165,6 +170,7 @@ export async function POST(request: NextRequest) {
 
   const accounts: SyncAccountResult[] = [];
   let imported = 0;
+  let indexBudget = SYNC_INDEX_LIMIT;
   for (const account of linked.accounts) {
     const entry: SyncAccountResult = { source: account.source, imported: 0 };
     const sinceMs = sinceMsFor(account.lastSyncedAt);
@@ -238,16 +244,16 @@ export async function POST(request: NextRequest) {
         imported += entry.imported;
         // SIG-1275: index the new games' positions. A failure here must never
         // fail the sync: the games stay unindexed (indexed_at null) and the
-        // backfill (POST /api/my-games/index) picks them up.
-        try {
-          await indexFreshGames(
-            supabase,
-            user.id,
-            account.source,
-            fresh.map((row) => row.external_id),
-          );
-        } catch (error) {
-          console.error("my-games sync indexing failed", { source: account.source, error });
+        // backfill (POST /api/my-games/index) picks them up, as it does for
+        // games beyond SYNC_INDEX_LIMIT.
+        const toIndex = fresh.slice(0, indexBudget).map((row) => row.external_id);
+        indexBudget -= toIndex.length;
+        if (toIndex.length > 0) {
+          try {
+            await indexFreshGames(supabase, user.id, account.source, toIndex);
+          } catch (error) {
+            console.error("my-games sync indexing failed", { source: account.source, error });
+          }
         }
       }
       const newestIso = fresh

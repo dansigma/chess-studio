@@ -8,12 +8,14 @@ import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { useLibraryGames, type LibraryGamesState } from "./use-library-games";
 import { LibraryToolbar } from "./LibraryToolbar";
 import { useLibrarySources } from "./library-sources";
+import { useMyGamesIndexing, type MyGamesIndexingState } from "./use-my-games-indexing";
 import {
   DEFAULT_LIBRARY_SPLIT,
   clampLibrarySplit,
   readLibrarySplit,
   writeLibrarySplit,
 } from "./library-layout";
+import { LibraryTable } from "./LibraryTable";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 
 const SKELETON_ROWS = 8;
@@ -30,6 +32,11 @@ export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) 
   const locale = useStudioStore((state) => state.settings.locale);
   const selectedKey = useLibraryStore((s) => s.selectedKey);
   const games = useLibraryGames();
+  const filters = useLibraryStore((s) => s.filters);
+  const indexing = useMyGamesIndexing(
+    filters.position !== null && filters.sources.includes("my-games"),
+    games.retry,
+  );
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [split, setSplit] = useState(DEFAULT_LIBRARY_SPLIT);
 
@@ -101,7 +108,8 @@ export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) 
           style={{ width: `${split}%` }}
           data-testid="library-table-slot"
         >
-          {table ? table(games) : <LibraryPlaceholderList games={games} />}
+          <IndexingNotice state={indexing} />
+          {table ? table(games) : <LibraryTable games={games} />}
         </Panel>
         <div
           role="separator"
@@ -137,6 +145,25 @@ export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) 
         </Panel>
       </div>
     </div>
+  );
+}
+
+/** SIG-1275: My Games position backfill progress, shown above the list. */
+function IndexingNotice({ state }: { state: MyGamesIndexingState }) {
+  const locale = useStudioStore((s) => s.settings.locale);
+  if (state.phase === "idle") {
+    return null;
+  }
+  const text =
+    state.phase === "running"
+      ? state.remaining === null
+        ? tLibrary(locale, "library.indexing.running")
+        : tLibrary(locale, "library.indexing.remaining", { count: String(state.remaining) })
+      : tLibrary(locale, "library.indexing.incomplete");
+  return (
+    <p role="status" aria-live="polite" className="px-3 py-1 text-xs text-studio-muted" data-testid="library-indexing">
+      {text}
+    </p>
   );
 }
 
