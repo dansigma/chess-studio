@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Chessboard } from "react-chessboard";
 import { useRouter } from "next/navigation";
-import { CalendarDays, ChartNoAxesColumn, Flame, History, Play, RotateCcw, Shapes, Target, Zap, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChartNoAxesColumn, Check, Flame, History, Play, RotateCcw, Shapes, Target, X, Zap, type LucideIcon } from "lucide-react";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "@/src/courses/CourseChrome";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -37,6 +37,9 @@ const MODE_KEYS: Record<PuzzleMode, PuzzleStringKey> = {
   daily: "puzzle.mode.daily",
   mistakes: "puzzle.mode.mistakes",
 } as const;
+
+/** Attempts shown in Recent (the stored history keeps more). */
+const RECENT_LIMIT = 10;
 
 export function PuzzleDashboard() {
   const router = useRouter();
@@ -317,9 +320,13 @@ export function PuzzleDashboard() {
           ))}
         </div>
 
+        {/* SIG-1267: From lg, By motif (~65%) and Recent (~35%) sit side by side; with no motif rows, Recent takes the full width. */}
+        <div
+          className={`mt-6 grid gap-x-4 gap-y-6 lg:items-start ${motifRows.length > 0 ? "lg:grid-cols-[13fr_7fr]" : ""}`}
+        >
         {motifRows.length > 0 ? (
-          <>
-            <SectionHeading icon={ChartNoAxesColumn} className="mt-6">
+          <section className="min-w-0">
+            <SectionHeading icon={ChartNoAxesColumn}>
               {tPuzzle(locale, "puzzle.dashboard.motifsTitle")}
             </SectionHeading>
             {weakestRow ? (
@@ -418,10 +425,11 @@ export function PuzzleDashboard() {
                 </tbody>
               </table>
             </Panel>
-          </>
+          </section>
         ) : null}
 
-        <SectionHeading icon={History} className="mt-6">
+        <section className="min-w-0">
+        <SectionHeading icon={History}>
           {tPuzzle(locale, "puzzle.dashboard.recentTitle")}
         </SectionHeading>
         {loading ? <Skeleton className="mt-2 w-40 text-body" /> : null}
@@ -430,28 +438,31 @@ export function PuzzleDashboard() {
         ) : null}
         {progress && progress.history.length > 0 ? (
           <Panel as="ul" className="mt-2 divide-y divide-studio-border-subtle overflow-hidden">
-            {progress.history.map((entry, index) => {
+            {/* SIG-1267: display only the last 10; `progress.history` itself keeps 20. */}
+            {progress.history.slice(0, RECENT_LIMIT).map((entry, index) => {
               const puzzle = puzzles.find((item) => item.id === entry.id);
               const themes = puzzle?.themes
                 .slice(0, 2)
                 .map((item) => tPuzzle(locale, THEME_LABEL_KEYS[item]))
                 .join(" · ");
+              // "Rated" is the default, so only the other modes are named.
+              const modeLabel = entry.mode === "rated" ? "" : tPuzzle(locale, MODE_KEYS[entry.mode satisfies PuzzleMode]);
+              const detail = [modeLabel, themes].filter(Boolean).join(" · ");
+              const ResultIcon = entry.success ? Check : X;
               return (
                 <li key={`${entry.id}-${entry.at}-${index}`} className="flex h-8 items-center justify-between gap-3 px-3">
-                  <div className="flex min-w-0 items-baseline gap-2">
-                    <div className="shrink-0 text-dense text-studio-fg">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <ResultIcon aria-hidden className={`size-4 shrink-0 ${entry.success ? "text-studio-success" : "text-studio-warning-fg"}`} />
+                    <span className="sr-only">
                       {entry.success
                         ? tPuzzle(locale, "puzzle.dashboard.history.solved")
                         : tPuzzle(locale, "puzzle.dashboard.history.missed")}
-                      {puzzle ? ` · ${formatInteger(locale, puzzle.rating)}` : ""}
-                    </div>
-                    <div className="truncate text-caption text-studio-muted">
-                      {tPuzzle(locale, MODE_KEYS[entry.mode satisfies PuzzleMode])}
-                      {themes ? ` · ${themes}` : ""}
-                    </div>
+                    </span>
+                    {puzzle ? <span className="shrink-0 text-dense tabular-nums text-studio-fg">{formatInteger(locale, puzzle.rating)}</span> : null}
+                    {detail ? <span className="truncate text-caption text-studio-muted">{detail}</span> : null}
                   </div>
                   <div
-                    className={`text-dense font-medium tabular-nums ${
+                    className={`shrink-0 text-dense font-medium tabular-nums ${
                       entry.delta > 0 ? "text-studio-success" : entry.delta < 0 ? "text-studio-warning-fg" : "text-studio-muted"
                     }`}
                   >
@@ -462,6 +473,8 @@ export function PuzzleDashboard() {
             })}
           </Panel>
         ) : null}
+        </section>
+        </div>
         <p className="mt-6 text-center text-caption text-studio-faint">
           {tPuzzle(locale, "puzzle.dashboard.credit")}
         </p>
