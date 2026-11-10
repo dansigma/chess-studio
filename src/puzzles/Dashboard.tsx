@@ -40,6 +40,7 @@ const MODE_KEYS: Record<PuzzleMode, PuzzleStringKey> = {
 
 /** Attempts shown in Recent (the stored history keeps more). */
 const RECENT_LIMIT = 10;
+const RECENT_LIMIT_MOBILE = 5;
 
 export function PuzzleDashboard() {
   const router = useRouter();
@@ -135,7 +136,7 @@ export function PuzzleDashboard() {
             <h1 className="text-2xl font-semibold leading-8 text-studio-fg sm:text-[28px] sm:leading-9">{tPuzzle(locale, "puzzle.dashboard.heading")}</h1>
             <p className="mt-2 max-w-md text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.intro")}</p>
             <Button
-              className="mt-4 w-full transition-colors duration-150 sm:w-auto sm:min-w-40"
+              className="mt-4 w-full transition-colors duration-150 max-sm:h-11 sm:w-auto sm:min-w-40"
               variant="primary"
               onClick={() => router.push("/puzzles/play?mode=rated")}
             >
@@ -153,7 +154,7 @@ export function PuzzleDashboard() {
               <p className="mt-1.5 text-caption text-studio-muted" data-testid="signin-prompt">
                 <Link
                   href="/login"
-                  className="text-studio-accent-text underline-offset-2 transition-colors duration-150 hover:text-studio-fg hover:underline"
+                  className="text-studio-accent-text underline-offset-2 transition-colors duration-150 hover:text-studio-fg hover:underline max-sm:-mb-[25px] max-sm:-mt-1 max-sm:inline-block max-sm:pb-[25px] max-sm:pt-1"
                 >
                   {tPuzzle(locale, "puzzle.dashboard.signIn.link")}
                 </Link>{" "}
@@ -163,7 +164,7 @@ export function PuzzleDashboard() {
             {failed ? (
               <div role="alert" className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <p className="text-body text-studio-warning-fg">{tPuzzle(locale, "puzzle.dashboard.loadError")}</p>
-                <Button size="sm" variant="secondary" className="transition-colors duration-150" onClick={retry}>
+                <Button size="sm" variant="secondary" className="transition-colors duration-150 max-sm:h-11" onClick={retry}>
                   {tPuzzle(locale, "puzzle.dashboard.retry")}
                 </Button>
               </div>
@@ -294,7 +295,7 @@ export function PuzzleDashboard() {
         <div
           role="group"
           aria-label={tPuzzle(locale, "puzzle.difficulty.label")}
-          className="mt-2 flex flex-wrap gap-1.5"
+          className="mt-2 flex flex-wrap gap-1.5 max-sm:[&_button]:relative max-sm:[&_button]:after:absolute max-sm:[&_button]:after:inset-x-0 max-sm:[&_button]:after:-bottom-[9px] max-sm:[&_button]:after:-top-[15px] max-sm:[&_button]:after:content-['']"
         >
           <Chip active={difficulty === null} onClick={() => setDifficulty(null)}>
             {tPuzzle(locale, "puzzle.difficulty.all")}
@@ -341,7 +342,7 @@ export function PuzzleDashboard() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="transition-colors duration-150"
+                  className="transition-colors duration-150 max-sm:h-11"
                   onClick={() => router.push(`/puzzles/play?mode=rated&theme=${weakestRow.theme}`)}
                 >
                   {tPuzzle(locale, "puzzle.dashboard.motifs.train")}
@@ -438,7 +439,7 @@ export function PuzzleDashboard() {
         ) : null}
         {progress && progress.history.length > 0 ? (
           <Panel as="ul" className="mt-2 divide-y divide-studio-border-subtle overflow-hidden">
-            {/* SIG-1267: display only the last 10; `progress.history` itself keeps 20. */}
+            {/* SIG-1267: display only the last 10; `progress.history` itself keeps 20. SIG-1269: below `sm` only the first 5 show (CSS, so SSR and hydration agree). */}
             {progress.history.slice(0, RECENT_LIMIT).map((entry, index) => {
               // SIG-1268: themes, time and rating come from the entry itself (older entries have none).
               const themes = (entry.themes ?? []).filter((item) => item in THEME_LABEL_KEYS).slice(0, 2);
@@ -446,7 +447,10 @@ export function PuzzleDashboard() {
               const modeLabel = entry.mode === "rated" ? "" : tPuzzle(locale, MODE_KEYS[entry.mode satisfies PuzzleMode]);
               const ResultIcon = entry.success ? Check : X;
               return (
-                <li key={`${entry.id}-${entry.at}-${index}`} className="flex h-8 items-center justify-between gap-3 px-3">
+                <li
+                  key={`${entry.id}-${entry.at}-${index}`}
+                  className={`flex h-8 items-center justify-between gap-3 px-3 ${index >= RECENT_LIMIT_MOBILE ? "max-sm:hidden" : ""}`}
+                >
                   <div className="flex min-w-0 items-center gap-2">
                     <ResultIcon aria-hidden className={`size-4 shrink-0 ${entry.success ? "text-studio-success" : "text-studio-warning-fg"}`} />
                     <span className="sr-only">
@@ -569,13 +573,13 @@ function ModeCard({
       {href && !pending ? (
         <Link
           href={href}
-          className="mt-3 inline-flex h-7 items-center justify-center gap-1.5 self-start rounded-lg bg-studio-hover-strong px-2.5 text-dense font-medium text-studio-fg transition-colors duration-150 hover:bg-studio-selected active:brightness-95"
+          className="mt-3 inline-flex h-7 items-center justify-center max-sm:h-11 gap-1.5 self-start rounded-lg bg-studio-hover-strong px-2.5 text-dense font-medium text-studio-fg transition-colors duration-150 hover:bg-studio-selected active:brightness-95"
         >
           {action}
         </Link>
       ) : (
         <Button
-          className={`mt-3 self-start transition-colors duration-150 ${pending ? "invisible" : ""}`}
+          className={`mt-3 self-start transition-colors duration-150 max-sm:h-11 ${pending ? "invisible" : ""}`}
           size="sm"
           onClick={onClick}
           disabled={pending}
