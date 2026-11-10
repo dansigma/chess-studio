@@ -174,7 +174,7 @@ export function ProgressHeatmap({
       {heading}
 
       <dl className="mt-3 grid grid-cols-3 gap-2">
-        <HeatStat label={tPuzzle(locale, "puzzle.heatmap.stat.solved")} value={formatInteger(locale, map.rangeSolved)} />
+        <HeatStat label={tPuzzle(locale, "puzzle.heatmap.stat.solved", { weeks: map.weeks.length })} value={formatInteger(locale, map.rangeSolved)} />
         <HeatStat label={tPuzzle(locale, "puzzle.heatmap.stat.minutes")} value={formatInteger(locale, map.rangeMinutes)} />
         <HeatStat
           label={tPuzzle(locale, "puzzle.heatmap.stat.week")}

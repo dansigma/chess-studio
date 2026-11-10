@@ -48,8 +48,10 @@ test("renders streak, labelled squares, frozen marker and legend (en)", () => {
 test("renders pt-BR strings", () => {
   try {
     render(<ProgressHeatmap days={days} today="2026-11-03" locale="pt-br" />);
-    screen.getByText("Sequência de 2 dias");
-    screen.getByText("Maior sequência · 2 dias");
+    screen.getByText("Ofensiva de 2 dias");
+    screen.getByText("Maior ofensiva · 2 dias");
+    const weeks = screen.getByRole("grid").querySelectorAll('[role="row"]')[0].children.length;
+    screen.getByText(`Resolvidos em ${weeks} semanas`);
   } finally {
     cleanup();
   }

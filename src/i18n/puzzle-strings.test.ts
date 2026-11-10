@@ -50,7 +50,7 @@ test("puzzle outcome strings render whole sentences with vars", () => {
   assert.equal(tPuzzle("en", "puzzle.panel.streakSummary", { solved: 0, best: 4 }), "0 in a row · best 4");
   assert.equal(
     tPuzzle("pt-br", "puzzle.panel.streakSummary", { solved: 0, best: 4 }),
-    "0 em sequência · recorde 4",
+    "0 seguidos · recorde 4",
   );
   assert.equal(tPuzzle("en", "puzzle.feedback.solvedCount.other", { count: 5 }), "5 puzzles solved");
   assert.equal(tPuzzle("pt-br", "puzzle.feedback.solvedCount.one", { count: 1 }), "1 problema resolvido");
