@@ -6,6 +6,7 @@ import { tLibrary } from "@/src/i18n/library-strings";
 import { Panel } from "../ui/Panel";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { useLibraryGames, type LibraryGamesState } from "./use-library-games";
+import { LibraryToolbar } from "./LibraryToolbar";
 import { useLibrarySources } from "./library-sources";
 import {
   DEFAULT_LIBRARY_SPLIT,
@@ -90,7 +91,7 @@ export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) 
   return (
     <div className="flex h-full min-h-0 w-full flex-col gap-1.5 bg-studio-bg p-1.5" data-testid="library-view">
       <div aria-label={tLibrary(locale, "library.toolbar.label")} role="search" data-testid="library-toolbar-slot">
-        {toolbar}
+        {toolbar ?? <LibraryToolbar total={games.total} sourceErrors={games.sourceErrors} />}
       </div>
       <div ref={containerRef} className="flex min-h-0 flex-1">
         <Panel
