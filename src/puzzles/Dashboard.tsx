@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Chessboard } from "react-chessboard";
 import { useRouter } from "next/navigation";
-import { CalendarDays, ChartNoAxesColumn, Flame, History, RotateCcw, Shapes, Zap, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChartNoAxesColumn, Flame, History, Play, RotateCcw, Shapes, Zap, type LucideIcon } from "lucide-react";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "@/src/courses/CourseChrome";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -127,10 +127,10 @@ export function PuzzleDashboard() {
       <main className="mx-auto max-w-[1280px] px-4 py-5 sm:px-6" aria-busy={loading}>
         <Panel as="section" className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:gap-6">
           <div className="min-w-0 flex-1">
-            <h1 className="text-title font-semibold text-studio-fg">{tPuzzle(locale, "puzzle.dashboard.heading")}</h1>
-            <p className="mt-1 max-w-md text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.intro")}</p>
+            <h1 className="text-2xl font-semibold leading-8 text-studio-fg sm:text-[28px] sm:leading-9">{tPuzzle(locale, "puzzle.dashboard.heading")}</h1>
+            <p className="mt-2 max-w-md text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.intro")}</p>
             <Button
-              className="mt-3 w-full transition-colors duration-150 sm:w-auto sm:min-w-40"
+              className="mt-4 w-full transition-colors duration-150 sm:w-auto sm:min-w-40"
               variant="primary"
               onClick={() => router.push("/puzzles/play?mode=rated")}
             >
@@ -582,25 +582,33 @@ function DailyPreview({ puzzle, locale }: { puzzle: CompiledPuzzle | null; local
       })}
       className="group flex shrink-0 flex-col items-center gap-1.5 self-center rounded-lg"
     >
-      <div className={`pointer-events-none ${size} overflow-hidden rounded-lg ring-1 ring-studio-border-strong transition-shadow duration-150 group-hover:ring-studio-accent`} aria-hidden>
-        <Chessboard
-          options={{
-            id: `puzzle-preview-${puzzle.id}`,
-            position: puzzle.fen,
-            boardOrientation: orientation,
-            showNotation: false,
-            ...boardCoordinateOptions(boardTheme),
-            allowDragging: false,
-            allowDrawingArrows: false,
-            arrows: [],
-            lightSquareStyle: themeStyles.light,
-            darkSquareStyle: themeStyles.dark,
-            pieces: piecesForSet(pieceSet),
-            boardStyle: { width: "100%", height: "100%" },
-          }}
-        />
+      <div className={`relative ${size}`}>
+        <div className="pointer-events-none size-full overflow-hidden rounded-lg ring-1 ring-studio-border-strong transition-shadow duration-150 group-hover:ring-studio-accent group-focus-visible:ring-studio-accent" aria-hidden>
+          <Chessboard
+            options={{
+              id: `puzzle-preview-${puzzle.id}`,
+              position: puzzle.fen,
+              boardOrientation: orientation,
+              showNotation: false,
+              ...boardCoordinateOptions(boardTheme),
+              allowDragging: false,
+              allowDrawingArrows: false,
+              arrows: [],
+              lightSquareStyle: themeStyles.light,
+              darkSquareStyle: themeStyles.dark,
+              pieces: piecesForSet(pieceSet),
+              boardStyle: { width: "100%", height: "100%" },
+            }}
+          />
+        </div>
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg bg-studio-scrim text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+        >
+          <Play className="size-8 fill-current" strokeWidth={1.5} />
+        </div>
       </div>
-      <span className="text-caption text-studio-muted transition-colors duration-150 group-hover:text-studio-fg group-hover:underline">
+      <span className="text-caption text-studio-muted transition-colors duration-150 group-hover:text-studio-fg group-hover:underline group-focus-visible:text-studio-fg group-focus-visible:underline">
         {tPuzzle(locale, "puzzle.dashboard.preview.label", { rating })}
       </span>
     </Link>
