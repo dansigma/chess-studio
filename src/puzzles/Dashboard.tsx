@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Chessboard } from "react-chessboard";
 import { useRouter } from "next/navigation";
-import { CalendarDays, ChartNoAxesColumn, Flame, History, Play, RotateCcw, Shapes, Zap, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChartNoAxesColumn, Flame, History, Play, RotateCcw, Shapes, Target, Zap, type LucideIcon } from "lucide-react";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "@/src/courses/CourseChrome";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -120,6 +120,8 @@ export function PuzzleDashboard() {
   // button reuses the existing `?mode=rated&theme=` deep link into training.
   const motifRows = progress ? motifSummary(progress) : [];
   const weakest = progress ? weakestMotif(progress) : null;
+  // The callout shows the same rounded % as the table row (no recalculation).
+  const weakestRow = weakest ? (motifRows.find((row) => row.theme === weakest) ?? null) : null;
 
   return (
     <div className="min-h-full bg-studio-bg">
@@ -320,24 +322,43 @@ export function PuzzleDashboard() {
             <SectionHeading icon={ChartNoAxesColumn} className="mt-6">
               {tPuzzle(locale, "puzzle.dashboard.motifsTitle")}
             </SectionHeading>
-            <p className="mt-0.5 text-dense text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.motifsSubtitle")}</p>
+            {weakestRow ? (
+              <Panel className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
+                <Target aria-hidden className="size-4 shrink-0 text-studio-accent-text" />
+                <p className="min-w-0 flex-1 basis-48 text-body text-studio-fg">
+                  {tPuzzle(locale, "puzzle.dashboard.motifs.focus", {
+                    theme: tPuzzle(locale, THEME_LABEL_KEYS[weakestRow.theme]),
+                    pct: formatInteger(locale, weakestRow.successPct),
+                  })}
+                </p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="transition-colors duration-150"
+                  onClick={() => router.push(`/puzzles/play?mode=rated&theme=${weakestRow.theme}`)}
+                >
+                  {tPuzzle(locale, "puzzle.dashboard.motifs.train")}
+                </Button>
+              </Panel>
+            ) : null}
+            <p className="mt-2 text-dense text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.motifsSubtitle")}</p>
             <Panel className="mt-2 overflow-hidden">
               <table className="w-full text-dense">
                 <thead>
-                  <tr className="text-left text-caption uppercase tracking-wide text-studio-muted">
-                    <th scope="col" className="px-3 py-1.5 font-medium">
-                      {tPuzzle(locale, "puzzle.dashboard.themesTitle")}
+                  <tr className="text-left text-caption uppercase tracking-normal sm:tracking-wide text-studio-muted">
+                    <th scope="col" className="px-2 py-1.5 sm:px-3 font-medium">
+                      {tPuzzle(locale, "puzzle.dashboard.motifs.motif")}
                     </th>
-                    <th scope="col" className="px-3 py-1.5 text-right font-medium tabular-nums">
+                    <th scope="col" className="px-2 py-1.5 sm:px-3 text-right font-medium tabular-nums">
                       {tPuzzle(locale, "puzzle.dashboard.motifs.attempts")}
                     </th>
-                    <th scope="col" className="px-3 py-1.5 text-right font-medium tabular-nums">
+                    <th scope="col" className="px-2 py-1.5 sm:px-3 text-right font-medium tabular-nums">
                       {tPuzzle(locale, "puzzle.dashboard.motifs.successRate")}
                     </th>
-                    <th scope="col" className="px-3 py-1.5 text-right font-medium tabular-nums">
+                    <th scope="col" className="hidden px-2 py-1.5 text-right font-medium tabular-nums sm:table-cell sm:px-3">
                       {tPuzzle(locale, "puzzle.dashboard.motifs.avgTime")}
                     </th>
-                    <th scope="col" className="px-3 py-1.5 text-right font-medium">
+                    <th scope="col" className="px-2 py-1.5 text-right font-medium max-[359px]:hidden sm:px-3">
                       <span className="sr-only">{tPuzzle(locale, "puzzle.dashboard.motifs.trendFlat")}</span>
                     </th>
                   </tr>
@@ -345,20 +366,32 @@ export function PuzzleDashboard() {
                 <tbody className="divide-y divide-studio-border">
                   {motifRows.map((row) => (
                     <tr key={row.theme}>
-                      <td className="px-3 py-1.5 font-semibold text-studio-fg">
+                      <td className="px-2 py-1.5 sm:px-3 font-semibold text-studio-fg">
                         {tPuzzle(locale, THEME_LABEL_KEYS[row.theme])}
                       </td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-studio-muted">
+                      <td className="px-2 py-1.5 sm:px-3 text-right tabular-nums text-studio-muted">
                         {formatInteger(locale, row.attempts)}
                       </td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-studio-fg">
-                        {formatInteger(locale, row.successPct)}%
+                      <td className="px-2 py-1.5 sm:px-3 text-right">
+                        <span className="inline-flex items-center justify-end gap-2">
+                          <span aria-hidden className="h-1.5 w-6 shrink-0 max-[359px]:hidden overflow-hidden rounded-full bg-studio-border sm:w-14">
+                            <span
+                              className={`block h-full rounded-full ${row.theme === weakest ? "bg-studio-accent" : "bg-studio-muted"}`}
+                              style={{ width: `${Math.max(0, Math.min(100, row.successPct))}%` }}
+                            />
+                          </span>
+                          <span
+                            className={`tabular-nums ${row.theme === weakest ? "font-semibold text-studio-accent-text" : "text-studio-fg"}`}
+                          >
+                            {formatInteger(locale, row.successPct)}%
+                          </span>
+                        </span>
                       </td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-studio-muted">
+                      <td className="hidden px-2 py-1.5 text-right tabular-nums text-studio-muted sm:table-cell sm:px-3">
                         {row.avgSeconds === null ? "—" : `${row.avgSeconds.toFixed(1)}s`}
                       </td>
                       <td
-                        className="px-3 py-1.5 text-right"
+                        className="px-2 py-1.5 text-right max-[359px]:hidden sm:px-3"
                         title={
                           row.trend === "up"
                             ? tPuzzle(locale, "puzzle.dashboard.motifs.trendUp")
@@ -384,24 +417,6 @@ export function PuzzleDashboard() {
                   ))}
                 </tbody>
               </table>
-            </Panel>
-            <Panel as="section" aria-labelledby="weakest-motif-heading" className="mt-2 p-4">
-              <h3 id="weakest-motif-heading" className="text-body font-semibold text-studio-fg">
-                {tPuzzle(locale, "puzzle.dashboard.weakest.title")}
-              </h3>
-              {weakest ? (
-                <Button
-                  className="mt-2 transition-colors duration-150"
-                  variant="secondary"
-                  onClick={() => router.push(`/puzzles/play?mode=rated&theme=${weakest}`)}
-                >
-                  {tPuzzle(locale, "puzzle.dashboard.weakest.action", {
-                    theme: tPuzzle(locale, THEME_LABEL_KEYS[weakest]),
-                  })}
-                </Button>
-              ) : (
-                <p className="mt-2 text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.weakest.empty")}</p>
-              )}
             </Panel>
           </>
         ) : null}
