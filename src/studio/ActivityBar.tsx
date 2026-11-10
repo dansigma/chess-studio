@@ -7,6 +7,7 @@ import {
   GraduationCap,
   History,
   LayoutDashboard,
+  Library,
   Puzzle,
   PanelLeftClose,
   PanelLeftOpen,
@@ -49,11 +50,13 @@ function ActivityLink({
   href,
   label,
   active,
+  onClick,
   children,
 }: {
   href: string;
   label: string;
   active: boolean;
+  onClick?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -62,6 +65,7 @@ function ActivityLink({
         href={href}
         aria-label={label}
         aria-current={active ? "page" : undefined}
+        onClick={onClick}
         className="flex h-10 w-12 items-center justify-center"
       >
         <span
@@ -120,6 +124,9 @@ export function ActivityBar() {
   const activity = useStudioStore((state) => state.activity);
   const sidebarCollapsed = useStudioStore((state) => state.settings.sidebarCollapsed);
   const setActivity = useStudioStore((state) => state.setActivity);
+  const workspaceView = useStudioStore((state) => state.workspaceView);
+  const setWorkspaceView = useStudioStore((state) => state.setWorkspaceView);
+  const toggleLibrary = useStudioStore((state) => state.toggleLibrary);
   const toggleSidebar = useStudioStore((state) => state.toggleSidebar);
   const pathname = usePathname();
   const sections = siteSections(locale)
@@ -136,7 +143,8 @@ export function ActivityBar() {
               key={section.href}
               href={section.href}
               label={section.label}
-              active={isActivePath(pathname, section.href)}
+              active={isActivePath(pathname, section.href) && !(section.href === "/studio" && workspaceView === "library")}
+              onClick={section.href === "/studio" ? () => setWorkspaceView("studio") : undefined}
             >
               <Icon size={18} />
             </ActivityLink>
@@ -164,6 +172,13 @@ export function ActivityBar() {
           </ActivityButton>
         );
       })}
+      <ActivityButton
+        label={tStudioChrome(locale, "chrome.activity.library")}
+        active={workspaceView === "library"}
+        onClick={toggleLibrary}
+      >
+        <Library size={18} />
+      </ActivityButton>
       <div className="mt-auto">
         <ActivityButton
           label={tStudioChrome(locale, sidebarCollapsed ? "chrome.activity.expand" : "chrome.activity.collapse")}

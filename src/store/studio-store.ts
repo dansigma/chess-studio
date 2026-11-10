@@ -107,8 +107,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       activity,
       settings: { ...state.settings, sidebarCollapsed: false },
     })),
+  setWorkspaceView: (workspaceView) => set({ workspaceView }),
+  toggleLibrary: () =>
+    set((state) => ({ workspaceView: state.workspaceView === "library" ? "studio" : "library" })),
   setDatabaseSource: (databaseSource) => set({ databaseSource }),
   activity: "boards",
+  workspaceView: "studio",
   databaseSource: "masters",
   settings: DEFAULT_SETTINGS,
   user: null,
@@ -188,6 +192,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       // SIG-907: the reset board is the whole session, so it is hydrated.
       boardsHydrated: true,
       activity: "boards",
+      workspaceView: "studio",
       databaseSource: "masters",
       explorer: null,
       explorerLoading: false,

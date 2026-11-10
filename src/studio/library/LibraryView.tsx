@@ -6,6 +6,7 @@ import { tLibrary } from "@/src/i18n/library-strings";
 import { Panel } from "../ui/Panel";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { useLibraryGames, type LibraryGamesState } from "./use-library-games";
+import { useLibrarySources } from "./library-sources";
 import {
   DEFAULT_LIBRARY_SPLIT,
   clampLibrarySplit,
@@ -24,6 +25,7 @@ export type LibraryViewSlots = {
 };
 
 export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) {
+  useLibrarySources();
   const locale = useStudioStore((state) => state.settings.locale);
   const selectedKey = useLibraryStore((s) => s.selectedKey);
   const games = useLibraryGames();
