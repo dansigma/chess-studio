@@ -439,3 +439,79 @@ test("promotion is resolved from the move, not the expected string", () => {
   assert.equal(promotedWithFlag.kind, "correct");
   assert.equal(promotedWithFlag.uci, "f7f8r");
 });
+
+// SIG-1268: Recent reads themes, time and puzzle rating from the entry.
+const historyAttempt = {
+  id: "p-1",
+  mode: "rated" as const,
+  success: true,
+  puzzleRating: 1350,
+  sessionScore: 1,
+  now: 1_760_000_000_000,
+  themes: ["fork", "pin"] as ("fork" | "pin")[],
+  ms: 4200,
+};
+
+test("applyResult saves themes, time and puzzle rating in history", () => {
+  const entry = applyResult(emptyProgress(), historyAttempt).history[0];
+  assert.deepEqual(entry?.themes, ["fork", "pin"]);
+  assert.equal(entry?.ms, 4200);
+  assert.equal(entry?.puzzleRating, 1350);
+});
+
+test("applyResult omits a null time and unknown themes from history", () => {
+  const entry = applyResult(emptyProgress(), {
+    ...historyAttempt,
+    ms: null,
+    themes: ["nope"] as never,
+  }).history[0];
+  assert.equal("ms" in (entry ?? {}), false);
+  assert.equal("themes" in (entry ?? {}), false);
+});
+
+test("applyResult never stores an absurd duration in history", () => {
+  const entry = applyResult(emptyProgress(), { ...historyAttempt, ms: 1.79e12 }).history[0];
+  assert.equal("ms" in (entry ?? {}), false);
+});
+
+test("normalizeProgress keeps older history entries untouched", () => {
+  const old = { id: "x", mode: "rated", success: false, at: 5, delta: -8 };
+  const loaded = normalizeProgress({ ...emptyProgress(), history: [old] });
+  assert.deepEqual(loaded.history, [old]);
+});
+
+test("normalizeProgress keeps valid history extras across a JSON round trip", () => {
+  const saved = applyResult(emptyProgress(), historyAttempt);
+  const loaded = normalizeProgress(JSON.parse(JSON.stringify(saved)));
+  assert.deepEqual(loaded.history, saved.history);
+});
+
+test("normalizeProgress ignores invalid history extras and keeps the entry", () => {
+  const base = { id: "x", mode: "rated", success: true, at: 5, delta: 3 };
+  const cases: Record<string, unknown>[] = [
+    { ms: 1.79e12 },
+    { ms: -1 },
+    { ms: Number.NaN },
+    { ms: "900" },
+    { ms: 3_600_001 },
+    { puzzleRating: 0 },
+    { puzzleRating: 99_999 },
+    { puzzleRating: "1200" },
+    { puzzleRating: Number.POSITIVE_INFINITY },
+    { themes: "fork" },
+    { themes: [1, null, "nope"] },
+  ];
+  for (const extra of cases) {
+    const loaded = normalizeProgress({ ...emptyProgress(), history: [{ ...base, ...extra }] });
+    assert.deepEqual(loaded.history, [base], JSON.stringify(extra));
+  }
+});
+
+test("normalizeProgress filters unknown themes and keeps the valid ones", () => {
+  const loaded = normalizeProgress({
+    ...emptyProgress(),
+    history: [{ id: "x", mode: "rated", success: true, at: 5, delta: 3, themes: ["nope", "fork", "fork", "pin"], ms: 0 }],
+  });
+  assert.deepEqual(loaded.history[0]?.themes, ["fork", "pin"]);
+  assert.equal(loaded.history[0]?.ms, 0);
+});

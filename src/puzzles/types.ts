@@ -95,6 +95,11 @@ export type PuzzleHistoryEntry = {
   success: boolean;
   at: number;
   delta: number;
+  // SIG-1268: what Recent shows. Optional: entries saved before this change
+  // have none of them, and `ms` stays absent when the clock was unstamped.
+  themes?: PuzzleTheme[];
+  ms?: number;
+  puzzleRating?: number;
 };
 
 // SIG-1232: one local-date bucket of puzzle activity (ms = time spent).
