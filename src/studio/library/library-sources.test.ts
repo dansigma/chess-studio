@@ -19,3 +19,15 @@ describe("reconcileLibrarySources", () => {
     assert.deepEqual(reconcileLibrarySources(["file:gone"], ["my-games", "file:a"], false), ["my-games", "file:a"]);
   });
 });
+
+describe("registerLibraryAdapters", () => {
+  it("registers My Games, Masters and one source per personal database", async () => {
+    const { registerLibraryAdapters } = await import("./library-sources");
+    const { getLibrarySource } = await import("@/src/lib/library/sources");
+    const ids = registerLibraryAdapters([{ id: "db1", name: "Mine", folderId: null, games: [] } as never]);
+    assert.deepEqual(ids, ["my-games", "masters", "file:db1"]);
+    for (const id of ids) {
+      assert.ok(getLibrarySource(id), `${id} is registered`);
+    }
+  });
+});

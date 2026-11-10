@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { fileSourceId, syncFileSources } from "@/src/lib/library/file-source";
 import { createMyGamesSource } from "@/src/lib/library/my-games-source";
+import { MASTERS_SOURCE_ID, mastersSource } from "@/src/lib/library/masters-source";
 import { getLibrarySource, registerLibrarySource } from "@/src/lib/library/sources";
 import type { LibrarySourceId } from "@/src/lib/library/types";
 import type { FileDatabase } from "@/src/lib/user-files";
@@ -31,18 +32,21 @@ function sameIds(a: LibrarySourceId[], b: LibrarySourceId[]): boolean {
   return a.length === b.length && a.every((id, index) => id === b[index]);
 }
 
-/** Registers the My Games and Imported PGN adapters (SIG-1272) once. */
+/** Registers the My Games, Masters (SIG-1276) and Imported PGN adapters once. */
 export function registerLibraryAdapters(databases: FileDatabase[]): LibrarySourceId[] {
   if (!getLibrarySource("my-games")) {
     registerLibrarySource(createMyGamesSource());
   }
+  if (!getLibrarySource(MASTERS_SOURCE_ID)) {
+    registerLibrarySource(mastersSource);
+  }
   syncFileSources(databases);
-  return ["my-games", ...databases.map((database) => fileSourceId(database.id))];
+  return ["my-games", MASTERS_SOURCE_ID, ...databases.map((database) => fileSourceId(database.id))];
 }
 
 /**
  * Keeps the adapter registry and the selected sources in step with the store's
- * personal databases. Masters (SIG-1276) registers itself when it lands.
+ * personal databases.
  */
 export function useLibrarySources(): void {
   const databases = useStudioStore((state) => state.files.databases);
