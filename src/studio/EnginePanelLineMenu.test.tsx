@@ -10,12 +10,17 @@ type Listener = (info: EngineInfo) => void;
 
 const listeners = new Set<Listener>();
 let currentFen = "";
+const calls: string[] = [];
 
 mock.module("@/src/engine/shared-engine", {
   namedExports: {
     acquire: () => ({
       analyze: (fen: string) => {
         currentFen = fen;
+        calls.push("analyze");
+      },
+      stop: () => {
+        calls.push("stop");
       },
       subscribe: (listener: Listener) => {
         listeners.add(listener);
@@ -188,5 +193,30 @@ test("single control row: status in the row, settings popover, outlined secondar
     assert.doesNotMatch(chips[1]!.className, /bg-studio-win|bg-studio-loss/u);
   } finally {
     cleanup();
+  }
+});
+
+test("SIG-1293: leaving the studio view stops the search; returning resumes it", async () => {
+  seedBoard();
+  useStudioStore.setState({ workspaceView: "studio" });
+  try {
+    render(<EnginePanel />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: tPanels("en", "engine.start") }));
+    });
+    assert.equal(calls.at(-1), "analyze");
+    calls.length = 0;
+    await act(async () => {
+      useStudioStore.setState({ workspaceView: "library" });
+    });
+    assert.deepEqual(calls, ["stop"]);
+    calls.length = 0;
+    await act(async () => {
+      useStudioStore.setState({ workspaceView: "studio" });
+    });
+    assert.deepEqual(calls, ["analyze"]);
+    assert.ok(currentFen, "resumed on the active FEN");
+  } finally {
+    useStudioStore.setState({ workspaceView: "studio" });
   }
 });

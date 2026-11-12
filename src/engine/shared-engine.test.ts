@@ -327,8 +327,8 @@ test("release from the active slot stops the orphaned search", () => {
 });
 
 test("slots typecheck as the EngineSlot union", () => {
-  const slots: EngineSlot[] = ["engine", "graph", "threat"];
-  assert.deepEqual(slots.length, 3);
+  const slots: EngineSlot[] = ["live", "engine", "graph", "threat"];
+  assert.deepEqual(slots.length, 4);
 });
 
 test("SIG-950: acquire alone boots no worker; first analyze does", () => {
@@ -527,4 +527,58 @@ test("SIG-1081: lease restart() recovers the active search and keeps waiters", (
   } finally {
     mock.timers.reset();
   }
+});
+
+test("SIG-1293: live preempts a depth-40 engine search with go depth of its own", () => {
+  setup();
+  const engine = acquire("engine", "lite");
+  const live = acquire("live", "lite");
+  activeSearch(engine, FEN_A);
+  const w = worker();
+  w.sent.length = 0;
+  live.analyze(FEN_B, 14, 1, 1);
+  assert.deepEqual(w.sent, ["stop", "isready"]);
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_B}`));
+  assert.ok(w.sent.some((msg) => msg === "go depth 14"));
+  // The engine panel cannot take the worker back while live is active.
+  w.sent.length = 0;
+  engine.analyze(FEN_C, 40, 1, 1);
+  assert.ok(!w.sent.includes("stop"));
+  engine.release();
+  live.release();
+});
+
+test("SIG-1293: releasing live resumes the preempted engine search", () => {
+  setup();
+  const engine = acquire("engine", "lite");
+  const live = acquire("live", "lite");
+  engine.analyze(FEN_A, 40, 2, 1);
+  driveToSearch(worker());
+  const w = worker();
+  live.analyze(FEN_B, 14, 1, 1);
+  releaseBarrier(w);
+  w.sent.length = 0;
+  live.release();
+  assert.ok(w.sent.includes("stop"));
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_A}`));
+  assert.ok(w.sent.includes("go depth 40"));
+  engine.release();
+});
+
+test("SIG-1293: a lower slot (graph) waits behind live and starts when live stops", () => {
+  setup();
+  const graph = acquire("graph", "lite");
+  const live = acquire("live", "lite");
+  activeSearch(live, FEN_B);
+  const w = worker();
+  w.sent.length = 0;
+  graph.analyze(FEN_C, 12, 1, 1);
+  assert.deepEqual(w.sent, []);
+  live.stop();
+  releaseBarrier(w);
+  assert.ok(w.sent.some((msg) => msg === `position fen ${FEN_C}`));
+  graph.release();
+  live.release();
 });
