@@ -7,6 +7,7 @@ import {
   type EnqueueOptions,
   type LiveConnection,
 } from "@/src/lib/live/broadcast-manager";
+import { MAX_LIVE_BOARDS } from "./live-board-model";
 import { fetchRound, streamRound } from "@/src/lib/live/lichess-broadcast";
 import { mergeSnapshotGame, mergeStreamUpdate } from "@/src/lib/live/merge";
 import type { BroadcastRoundSnapshot, LiveGame, LiveGameUpdate } from "@/src/lib/live/types";
@@ -30,6 +31,8 @@ export type LiveState = {
   tableRoundId: string | null;
   /** Open live boards (Live 6/7), the URL `games=` param, in opening order. */
   openBoards: LiveGameRef[];
+  /** True after an open was refused because `MAX_LIVE_BOARDS` boards are open; cleared by closing a board. */
+  boardLimitReached: boolean;
   /** Board with the eval bar, the URL `focus=` param. Always one of `openBoards`, or null. */
   focusedGame: LiveGameRef | null;
   /** Derived. Hot rounds: the table round + the rounds of open boards. They are the followed rounds. */
@@ -137,12 +140,25 @@ function applySelection(set: (partial: Partial<LiveState>) => void, selection: S
   getManager().sync({ hotRounds: derived.followedRounds, streamRound: derived.streamRoundId });
 }
 
+/** URL boards past the cap are dropped; the focused one always survives. */
+function capBoards(boards: LiveGameRef[], focus: LiveGameRef | null): LiveGameRef[] {
+  if (boards.length <= MAX_LIVE_BOARDS) {
+    return boards;
+  }
+  const kept = boards.slice(0, MAX_LIVE_BOARDS);
+  if (focus && !kept.some((b) => sameGameRef(b, focus))) {
+    kept[MAX_LIVE_BOARDS - 1] = focus;
+  }
+  return kept;
+}
+
 const EMPTY: Selection = { tableRoundId: null, openBoards: [], focusedGame: null };
 
 export const useLiveStore = create<LiveState>((set, get) => ({
   ...EMPTY,
   followedRounds: [],
   streamRoundId: null,
+  boardLimitReached: false,
   gamesByRound: {},
   roundInfo: {},
   connection: "idle",
@@ -150,9 +166,16 @@ export const useLiveStore = create<LiveState>((set, get) => ({
 
   setTableRound: (tableRoundId) => applySelection(set, { ...get(), tableRoundId }),
 
+  // Past MAX_LIVE_BOARDS a new board is refused (nothing is closed behind the user's back): the open
+  // boards and focus stay as they were, and `boardLimitReached` lets the UI say why.
   openBoard: (ref, options) => {
     const s = get();
-    const openBoards = s.openBoards.some((b) => sameGameRef(b, ref)) ? s.openBoards : [...s.openBoards, ref];
+    const isOpen = s.openBoards.some((b) => sameGameRef(b, ref));
+    if (!isOpen && s.openBoards.length >= MAX_LIVE_BOARDS) {
+      set({ boardLimitReached: true });
+      return;
+    }
+    const openBoards = isOpen ? s.openBoards : [...s.openBoards, ref];
     const focusedGame = options?.focus === false ? s.focusedGame : ref;
     applySelection(set, { ...s, openBoards, focusedGame });
   },
@@ -162,6 +185,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
     const openBoards = s.openBoards.filter((b) => !sameGameRef(b, ref));
     // Focus falls back to the most recently opened remaining board.
     const focusedGame = sameGameRef(s.focusedGame, ref) ? (openBoards[openBoards.length - 1] ?? null) : s.focusedGame;
+    set({ boardLimitReached: false });
     applySelection(set, { ...s, openBoards, focusedGame });
   },
 
@@ -171,8 +195,12 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       applySelection(set, { ...s, focusedGame: null });
       return;
     }
-    const openBoards = s.openBoards.some((b) => sameGameRef(b, ref)) ? s.openBoards : [...s.openBoards, ref];
-    applySelection(set, { ...s, openBoards, focusedGame: ref });
+    const isOpen = s.openBoards.some((b) => sameGameRef(b, ref));
+    if (!isOpen && s.openBoards.length >= MAX_LIVE_BOARDS) {
+      set({ boardLimitReached: true });
+      return;
+    }
+    applySelection(set, { ...s, openBoards: isOpen ? s.openBoards : [...s.openBoards, ref], focusedGame: ref });
   },
 
   applyLiveUrlState: (url) => {
@@ -180,7 +208,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
     if (url.focus && !openBoards.some((b) => sameGameRef(b, url.focus))) {
       openBoards.push(url.focus);
     }
-    applySelection(set, { tableRoundId: url.round, openBoards, focusedGame: url.focus });
+    applySelection(set, { tableRoundId: url.round, openBoards: capBoards(openBoards, url.focus), focusedGame: url.focus });
   },
 
   leaveLive: () => {
@@ -189,6 +217,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       ...EMPTY,
       followedRounds: [],
       streamRoundId: null,
+      boardLimitReached: false,
       gamesByRound: {},
       roundInfo: {},
       connection: "idle",

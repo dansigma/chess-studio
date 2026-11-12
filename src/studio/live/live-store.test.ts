@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import type { BroadcastManagerDeps } from "@/src/lib/live/broadcast-manager";
+import { MAX_LIVE_BOARDS } from "./live-board-model";
 import { LIVE_CONNECTION_LABEL_KEYS } from "./live-connection";
 import { tLive } from "@/src/i18n/live-strings";
 import { deriveLiveRounds, liveSearch, parseLiveUrlState, setLiveManagerDeps, toLiveUrlState, useLiveStore } from "./live-store";
@@ -98,6 +99,38 @@ describe("board set", () => {
     useLiveStore.getState().leaveLive();
     const s = useLiveStore.getState();
     assert.deepEqual([s.openBoards, s.followedRounds, s.focusedGame, s.connection], [[], [], null, "idle"]);
+  });
+});
+
+describe("board cap", () => {
+  const ref = (n: number) => ({ roundId: "A", gameId: String(n) });
+  it("refuses a 7th board, keeps focus and sets the notice; closing clears it", () => {
+    for (let n = 1; n <= 6; n += 1) {
+      useLiveStore.getState().openBoard(ref(n));
+    }
+    useLiveStore.getState().openBoard(ref(7));
+    let s = useLiveStore.getState();
+    assert.equal(s.openBoards.length, MAX_LIVE_BOARDS);
+    assert.deepEqual(s.focusedGame, ref(6));
+    assert.equal(s.boardLimitReached, true);
+    useLiveStore.getState().focusBoard(ref(8));
+    assert.equal(useLiveStore.getState().openBoards.length, MAX_LIVE_BOARDS);
+    useLiveStore.getState().focusBoard(ref(2)); // an open board can still be focused
+    assert.deepEqual(useLiveStore.getState().focusedGame, ref(2));
+    useLiveStore.getState().closeBoard(ref(1));
+    s = useLiveStore.getState();
+    assert.equal(s.boardLimitReached, false);
+    useLiveStore.getState().openBoard(ref(7));
+    assert.equal(useLiveStore.getState().openBoards.length, MAX_LIVE_BOARDS);
+  });
+
+  it("a URL with more boards is cut to the cap and keeps the focused one", () => {
+    const games = Array.from({ length: 9 }, (_, i) => ref(i + 1));
+    useLiveStore.getState().applyLiveUrlState({ round: null, games, focus: ref(9) });
+    const s = useLiveStore.getState();
+    assert.equal(s.openBoards.length, MAX_LIVE_BOARDS);
+    assert.deepEqual(s.focusedGame, ref(9));
+    assert.ok(s.openBoards.some((b) => b.gameId === "9"));
   });
 });
 

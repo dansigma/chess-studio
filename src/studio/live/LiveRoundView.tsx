@@ -9,6 +9,7 @@ import { fetchTour } from "@/src/lib/live/lichess-broadcast";
 import type { BroadcastRoundSummary, LiveGame, LiveResult } from "@/src/lib/live/types";
 import { Button } from "@/src/studio/ui/Button";
 import { LiveConnectionIndicator } from "./LiveConnectionIndicator";
+import { LiveBoardGrid } from "./LiveBoardGrid";
 import { LiveGamesTable } from "./LiveGamesTable";
 import { enqueueLiveRequest, useLiveStore } from "./live-store";
 import { useLiveRound, useLiveRoundInfo } from "./use-live";
@@ -120,6 +121,7 @@ export function LiveRoundView({
     !info.round.finished &&
     info.round.startsAt !== null &&
     info.round.startsAt > openedAt;
+  const hasBoards = useLiveStore((s) => s.openBoards.length > 0);
   const gameCount = games ? Object.keys(games).length : 0;
 
   return (
@@ -192,7 +194,18 @@ export function LiveRoundView({
           {tLive(locale, notStarted ? "live.round.notStarted" : "live.round.empty")}
         </p>
       ) : (
-        <LiveGamesTable roundId={roundId} locale={locale} />
+        // Boards sit beside the table (lg+) or above it (narrow), so a row click always works and the
+        // table stays the way to add boards. Each pane scrolls on its own.
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          {hasBoards ? (
+            <div className="max-h-[65%] min-h-0 shrink-0 overflow-auto border-b border-studio-border-subtle lg:max-h-none lg:flex-1 lg:border-b-0 lg:border-r">
+              <LiveBoardGrid locale={locale} />
+            </div>
+          ) : null}
+          <div className={`flex min-h-48 min-w-0 flex-1 flex-col ${hasBoards ? "lg:w-96 lg:flex-none" : ""}`}>
+            <LiveGamesTable roundId={roundId} locale={locale} />
+          </div>
+        </div>
       )}
     </div>
   );
