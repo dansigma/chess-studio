@@ -110,6 +110,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   setWorkspaceView: (workspaceView) => set({ workspaceView }),
   toggleLibrary: () =>
     set((state) => ({ workspaceView: state.workspaceView === "library" ? "studio" : "library" })),
+  toggleLive: () =>
+    set((state) => ({ workspaceView: state.workspaceView === "live" ? "studio" : "live" })),
   setDatabaseSource: (databaseSource) => set({ databaseSource }),
   activity: "boards",
   workspaceView: "studio",

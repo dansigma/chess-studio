@@ -25,3 +25,22 @@ describe("workspaceView (SIG-1273)", () => {
     assert.equal(useStudioStore.getState().workspaceView, "studio");
   });
 });
+
+describe("toggleLive (SIG-1288)", () => {
+  beforeEach(() => useStudioStore.setState({ workspaceView: "studio" }));
+
+  it("flips between live and studio", () => {
+    useStudioStore.getState().toggleLive();
+    assert.equal(useStudioStore.getState().workspaceView, "live");
+    useStudioStore.getState().toggleLive();
+    assert.equal(useStudioStore.getState().workspaceView, "studio");
+  });
+
+  it("is mutually exclusive with library", () => {
+    useStudioStore.getState().toggleLibrary();
+    useStudioStore.getState().toggleLive();
+    assert.equal(useStudioStore.getState().workspaceView, "live");
+    useStudioStore.getState().toggleLibrary();
+    assert.equal(useStudioStore.getState().workspaceView, "library");
+  });
+});

@@ -49,3 +49,22 @@ test("labels are Biblioteca in pt-br", () => {
   render(<ActivityBar />);
   assert.ok(screen.getByRole("button", { name: "Biblioteca" }));
 });
+
+test("Live button toggles the view, is exclusive with Library, and Studio is not current", () => {
+  render(<ActivityBar />);
+  fireEvent.click(screen.getByRole("button", { name: "Library" }));
+  fireEvent.click(screen.getByRole("button", { name: "Live" }));
+  assert.equal(useStudioStore.getState().workspaceView, "live");
+  assert.equal(screen.getByRole("button", { name: "Live" }).getAttribute("aria-pressed"), "true");
+  assert.equal(screen.getByRole("button", { name: "Library" }).getAttribute("aria-pressed"), "false");
+  const studio = screen.getAllByRole("link").find((a) => a.getAttribute("href") === "/studio")!;
+  assert.equal(studio.getAttribute("aria-current"), null);
+  fireEvent.click(screen.getByRole("button", { name: "Live" }));
+  assert.equal(useStudioStore.getState().workspaceView, "studio");
+});
+
+test("Live label is Ao vivo in pt-br", () => {
+  act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } }));
+  render(<ActivityBar />);
+  assert.ok(screen.getByRole("button", { name: "Ao vivo" }));
+});

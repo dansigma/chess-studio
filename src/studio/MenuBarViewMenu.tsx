@@ -71,6 +71,7 @@ export function ViewMenuItems({
   const flip = useStudioStore((state) => state.flip);
   const workspaceView = useStudioStore((state) => state.workspaceView);
   const toggleLibrary = useStudioStore((state) => state.toggleLibrary);
+  const toggleLive = useStudioStore((state) => state.toggleLive);
   const locale = useStudioStore((state) => state.settings.locale);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const showEvalBar = useStudioStore((state) => state.settings.showEvalBar);
@@ -99,6 +100,12 @@ export function ViewMenuItems({
         checked={workspaceView === "library"}
         onMouseEnter={flat ? undefined : leaveSubmenu}
         onClick={run(toggleLibrary)}
+      />
+      <Item
+        label={tStudioChrome(locale, "chrome.view.live")}
+        checked={workspaceView === "live"}
+        onMouseEnter={flat ? undefined : leaveSubmenu}
+        onClick={run(toggleLive)}
       />
       <Divider />
       <Item label={tStudioChrome(locale, "chrome.view.flip")} shortcut="Ctrl+F" onMouseEnter={leaveSubmenu} onClick={run(flip)} />
