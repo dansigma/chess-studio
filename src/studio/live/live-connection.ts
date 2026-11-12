@@ -1,13 +1,13 @@
 import type { LiveConnection } from "@/src/lib/live/broadcast-manager";
-import type { StudioChromeStringKey } from "@/src/i18n/studio-chrome-strings";
+import type { LiveStringKey } from "@/src/i18n/live-strings";
 
 /** i18n key of the indicator label for each connection state. */
-export const LIVE_CONNECTION_LABEL_KEYS: Record<LiveConnection, StudioChromeStringKey> = {
-  idle: "chrome.live.connection.idle",
-  connecting: "chrome.live.connection.connecting",
-  live: "chrome.live.connection.live",
-  polling: "chrome.live.connection.polling",
-  paused: "chrome.live.connection.paused",
-  "rate-limited": "chrome.live.connection.rate-limited",
-  error: "chrome.live.connection.error",
+export const LIVE_CONNECTION_LABEL_KEYS: Record<LiveConnection, LiveStringKey> = {
+  idle: "live.connection.idle",
+  connecting: "live.connection.connecting",
+  live: "live.connection.live",
+  polling: "live.connection.polling",
+  paused: "live.connection.paused",
+  "rate-limited": "live.connection.rate-limited",
+  error: "live.connection.error",
 };

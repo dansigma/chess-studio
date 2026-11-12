@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import type { BroadcastManagerDeps } from "@/src/lib/live/broadcast-manager";
 import { LIVE_CONNECTION_LABEL_KEYS } from "./live-connection";
-import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { tLive } from "@/src/i18n/live-strings";
 import { deriveLiveRounds, liveSearch, parseLiveUrlState, setLiveManagerDeps, toLiveUrlState, useLiveStore } from "./live-store";
 
 const a1 = { roundId: "A", gameId: "1" };
@@ -141,10 +141,10 @@ describe("ingest", () => {
 describe("indicator labels", () => {
   it("every connection state has an en and pt-BR label (no literals)", () => {
     for (const key of Object.values(LIVE_CONNECTION_LABEL_KEYS)) {
-      assert.ok(tStudioChrome("en", key).length > 0);
-      assert.notEqual(tStudioChrome("pt-br", key), "");
+      assert.ok(tLive("en", key).length > 0);
+      assert.notEqual(tLive("pt-br", key), "");
     }
-    assert.equal(tStudioChrome("pt-br", "chrome.live.connection.live"), "Ao vivo");
-    assert.equal(tStudioChrome("pt-br", "chrome.live.connection.rate-limited"), "Limite do Lichess, aguarde");
+    assert.equal(tLive("pt-br", "live.connection.live"), "Ao vivo");
+    assert.equal(tLive("pt-br", "live.connection.rate-limited"), "Limite do Lichess, aguarde");
   });
 });
