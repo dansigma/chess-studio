@@ -90,7 +90,7 @@ function ActivityLink({
         aria-label={label}
         aria-current={active ? "page" : undefined}
         onClick={onClick}
-        className={`flex h-10 w-full items-center gap-3 overflow-hidden pl-[7px] pr-3 ${
+        className={`group flex h-10 w-full items-center gap-3 overflow-hidden pl-[7px] pr-3 ${
           active ? "text-studio-fg" : INACTIVE_TEXT
         }`}
       >
@@ -98,7 +98,7 @@ function ActivityLink({
           className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg transition-colors ${
             active
               ? "bg-studio-accent-soft text-studio-accent-text"
-              : "hover:bg-studio-hover"
+              : "group-hover:bg-studio-hover"
           }`}
         >
           {children}
