@@ -33,6 +33,13 @@ mock.module("@/src/lib/live/lichess-broadcast", {
   },
 });
 
+// SIG-1293: the focused board mounts the eval bar; keep the real Stockfish worker out of DOM tests.
+mock.module("@/src/engine/shared-engine", {
+  namedExports: {
+    acquire: () => ({ analyze: () => undefined, stop: () => undefined, subscribe: () => () => undefined, release: () => undefined }),
+  },
+});
+
 const { LiveView } = await import("./LiveView.tsx");
 const { useLiveStore } = await import("./live-store.ts");
 const { tickerSubscribers } = await import("./live-ticker.ts");

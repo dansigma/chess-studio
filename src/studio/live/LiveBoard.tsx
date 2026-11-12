@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from "lucide-react";
 import { Chessboard } from "react-chessboard";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
@@ -19,6 +19,7 @@ import { PlayerCell, outcomeFor } from "../ui/PlayerCell";
 import { pgnResultToWinner } from "../ResultMark";
 import { clockAtPath, resolveViewPath } from "./live-board-model";
 import { formatDisplayClock, type Side } from "./live-clock";
+import { LiveEvalBar } from "./LiveEvalBar";
 import { ClockCell } from "./LiveGamesTable";
 import { useLiveStore } from "./live-store";
 import { useLiveBoardNotation } from "./use-live-board-notation";
@@ -87,7 +88,7 @@ export function LiveBoard({
   locale,
   onClose,
   onFocus,
-  evalSlot,
+  showEval = false,
 }: {
   roundId: string;
   gameId: string;
@@ -95,8 +96,8 @@ export function LiveBoard({
   locale: SiteLocale;
   onClose: () => void;
   onFocus: () => void;
-  /** Live 7/7 puts `BoardEvalBar` here, beside the board of the focused card. */
-  evalSlot?: ReactNode;
+  /** Show the eval bar beside this board (only ever rendered while focused). */
+  showEval?: boolean;
 }) {
   const game = useLiveGame(roundId, gameId);
   const info = useLiveRoundInfo(roundId);
@@ -241,7 +242,11 @@ export function LiveBoard({
 
       <PlayerBar game={game} side="black" locale={locale} historic={historic("black")} />
       <div className="flex items-stretch gap-1">
-        {focused ? <div data-live-eval-slot="" className="shrink-0">{evalSlot}</div> : null}
+        {focused && showEval ? (
+          <div data-live-eval-slot="" className="flex shrink-0">
+            <LiveEvalBar fen={fen} />
+          </div>
+        ) : null}
         <div className="aspect-square min-w-0 flex-1" role="img" aria-label={tLive(locale, "live.boards.label")}>
           <Chessboard
             options={{
