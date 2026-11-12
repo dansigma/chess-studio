@@ -6,6 +6,7 @@ import { useIsMobile } from "../use-is-mobile";
 import { LiveBoard } from "./LiveBoard";
 import { sameGameRef, useLiveStore } from "./live-store";
 import { MAX_LIVE_BOARDS } from "./live-board-model";
+import { useLiveEvalPref } from "./use-live-eval-pref";
 
 function SwitcherLabel({ roundId, gameId }: { roundId: string; gameId: string }) {
   const name = useLiveStore((s) => {
@@ -16,8 +17,7 @@ function SwitcherLabel({ roundId, gameId }: { roundId: string; gameId: string })
 }
 
 /**
- * The open boards. Desktop: a grid, the focused board spans two columns (larger) and carries the slot
- * for Live 7/7's eval bar. Mobile: only the focused board, with a selector between the followed games.
+ * The open boards. Desktop: a grid, the focused board spans two columns (larger) and carries the eval bar. Mobile: only the focused board, with a selector between the followed games.
  * Boards come from the store; closing calls `closeBoard`, clicking a board calls `focusBoard`.
  */
 export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
@@ -27,6 +27,7 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
   const closeBoard = useLiveStore((s) => s.closeBoard);
   const limitReached = useLiveStore((s) => s.boardLimitReached);
   const mobile = useIsMobile();
+  const [showEval, setShowEval] = useLiveEvalPref();
 
   if (openBoards.length === 0) {
     return null;
@@ -39,6 +40,15 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
           {tLive(locale, "live.board.limit", { max: MAX_LIVE_BOARDS })}
         </p>
       ) : null}
+      <label className="flex items-center gap-1.5 self-start text-dense text-studio-muted">
+        <input
+          type="checkbox"
+          checked={showEval}
+          onChange={(event) => setShowEval(event.target.checked)}
+          data-live-eval-toggle=""
+        />
+        {tLive(locale, "live.eval.toggle")}
+      </label>
       {mobile && openBoards.length > 1 ? (
         <div role="tablist" aria-label={tLive(locale, "live.board.switcher")} className="flex gap-1 overflow-x-auto">
           {openBoards.map((ref) => {
@@ -72,6 +82,7 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
                 roundId={ref.roundId}
                 gameId={ref.gameId}
                 focused={focused}
+                showEval={showEval}
                 locale={locale}
                 onFocus={() => (focused ? undefined : focusBoard(ref))}
                 onClose={() => closeBoard(ref)}

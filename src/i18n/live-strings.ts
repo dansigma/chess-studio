@@ -70,6 +70,7 @@ export const LIVE_STRING_KEYS = [
   "live.board.limit",
   "live.board.switcher",
   "live.boards.label",
+  "live.eval.toggle",
 ] as const;
 
 export type LiveStringKey = (typeof LIVE_STRING_KEYS)[number];
@@ -143,6 +144,7 @@ const EN: Record<LiveStringKey, string> = {
   "live.board.limit": "Up to {max} boards at once. Close one to open another.",
   "live.board.switcher": "Followed games",
   "live.boards.label": "Live boards",
+  "live.eval.toggle": "Show eval bar",
 };
 
 const PT_BR: Record<LiveStringKey, string> = {
@@ -214,6 +216,7 @@ const PT_BR: Record<LiveStringKey, string> = {
   "live.board.limit": "No máximo {max} tabuleiros ao mesmo tempo. Feche um para abrir outro.",
   "live.board.switcher": "Partidas seguidas",
   "live.boards.label": "Tabuleiros ao vivo",
+  "live.eval.toggle": "Mostrar barra de avaliação",
 };
 
 export const tLive = createT(EN, PT_BR);
