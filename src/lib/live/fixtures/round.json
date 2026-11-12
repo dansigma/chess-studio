@@ -1,0 +1,207 @@
+{
+ "round": {
+  "id": "djmeJZUw",
+  "name": "Round 3",
+  "slug": "round-3",
+  "ongoing": true,
+  "startsAt": 1794492000000,
+  "customScoring": {
+   "white": {
+    "win": 3,
+    "draw": 1
+   },
+   "black": {
+    "win": 3,
+    "draw": 1
+   }
+  },
+  "url": "https://lichess.org/broadcast/total-chess-world-championship-tour-pilot-2026-group-stage-combined/round-3/djmeJZUw"
+ },
+ "tour": {
+  "id": "wLrwkC0C",
+  "name": "Total Chess World Championship Tour Pilot 2026 | Group Stage | Combined",
+  "slug": "total-chess-world-championship-tour-pilot-2026-group-stage-combined",
+  "info": {
+   "format": "6-player double round-robin",
+   "tc": "45 min + 30 sec / move",
+   "fideTC": "standard",
+   "location": "Budapest, Hungary",
+   "timeZone": "Europe/Budapest",
+   "website": "https://www.totalchess.com/tournaments/budapest-2026",
+   "regulations": "https://www.totalchess.com/pilot-2026/regulations"
+  },
+  "createdAt": 1794387021694,
+  "url": "https://lichess.org/broadcast/total-chess-world-championship-tour-pilot-2026-group-stage-combined/wLrwkC0C",
+  "tier": 5,
+  "dates": [
+   1794405600000,
+   1794763800000
+  ],
+  "image": "https://image.lichess.org/display?fmt=webp&h=400&op=thumbnail&path=_WwmlE0iq-Ad.webp&w=800&sig=5edfa195b3f5d5dc40df60a6807ee8f85d9f10ab",
+  "teamTable": true
+ },
+ "study": {
+  "writeable": false,
+  "features": {
+   "chat": true,
+   "computer": true,
+   "explorer": true
+  }
+ },
+ "games": [
+  {
+   "id": "rKzXoQpT",
+   "name": "Abdusattorov, Nodirbek - Duda, Jan-Krzysztof",
+   "fen": "2r5/p2qb1k1/2n1bp2/6p1/2Np2P1/1P3RBQ/P3P2P/2R3K1 w - - 1 30",
+   "players": [
+    {
+     "name": "Abdusattorov, Nodirbek",
+     "title": "GM",
+     "rating": 2772,
+     "fideId": 14204118,
+     "team": "Group A",
+     "fed": "UZB",
+     "clock": 37500
+    },
+    {
+     "name": "Duda, Jan-Krzysztof",
+     "title": "GM",
+     "rating": 2741,
+     "fideId": 1170546,
+     "team": "Group A",
+     "fed": "POL",
+     "clock": 4600
+    }
+   ],
+   "lastMove": "d5d7",
+   "thinkTime": 77,
+   "status": "*"
+  },
+  {
+   "id": "IoIVJ0i3",
+   "name": "Aronian, Levon - Hong, Andrew",
+   "fen": "2r1r1k1/1q1b1ppp/pbnp1n2/1pp1p3/4P3/1PPPNN1P/P2B1PP1/R2QRBK1 b - - 12 23",
+   "players": [
+    {
+     "name": "Aronian, Levon",
+     "title": "GM",
+     "rating": 2719,
+     "fideId": 13300474,
+     "team": "Group A",
+     "fed": "USA",
+     "clock": 147400
+    },
+    {
+     "name": "Hong, Andrew",
+     "title": "GM",
+     "rating": 2609,
+     "fideId": 2099438,
+     "team": "Group A",
+     "fed": "USA",
+     "clock": 141600
+    }
+   ],
+   "lastMove": "g5f3",
+   "status": "½-½"
+  },
+  {
+   "id": "ihNhovmr",
+   "name": "Firouzja, Alireza - Van Foreest, Jorden",
+   "fen": "1r4k1/5p1p/3br1p1/Q2p3q/3P1P2/1p2P1P1/1P2RN1P/4R1K1 w - - 0 34",
+   "players": [
+    {
+     "name": "Firouzja, Alireza",
+     "title": "GM",
+     "rating": 2757,
+     "fideId": 12573981,
+     "team": "Group A",
+     "fed": "FRA",
+     "clock": 55000
+    },
+    {
+     "name": "Van Foreest, Jorden",
+     "title": "GM",
+     "rating": 2715,
+     "fideId": 1039784,
+     "team": "Group A",
+     "fed": "NED",
+     "clock": 4500
+    }
+   ],
+   "lastMove": "b4b3",
+   "thinkTime": 44,
+   "status": "*"
+  },
+  {
+   "id": "qQNmNSJB",
+   "name": "Le, Quang Liem - Keymer, Vincent",
+   "fen": "4r1k1/2b2p2/R1pn1qp1/3p1b2/2nP3p/3BPN1P/2Q2PPN/4B2K b - - 9 30",
+   "players": [
+    {
+     "name": "Le, Quang Liem",
+     "title": "GM",
+     "rating": 2732,
+     "fideId": 12401137,
+     "team": "Group B",
+     "fed": "VIE",
+     "clock": 29400
+    },
+    {
+     "name": "Keymer, Vincent",
+     "title": "GM",
+     "rating": 2761,
+     "fideId": 12940690,
+     "team": "Group B",
+     "fed": "GER",
+     "clock": 8900
+    }
+   ],
+   "lastMove": "a2a6",
+   "thinkTime": 5,
+   "status": "*"
+  }
+ ],
+ "group": {
+  "id": "uMS8kYeS",
+  "slug": "total-chess-world-championship-tour-pilot-2026",
+  "name": "Total Chess World Championship Tour Pilot 2026",
+  "tours": [
+   {
+    "id": "wLrwkC0C",
+    "name": "Group Stage | Combined",
+    "active": true,
+    "live": true
+   },
+   {
+    "id": "9lqCcStZ",
+    "name": "Group Stage | A",
+    "active": true,
+    "live": true
+   },
+   {
+    "id": "h7DnvIHQ",
+    "name": "Group Stage | B",
+    "active": true,
+    "live": true
+   },
+   {
+    "id": "UPwHJSZj",
+    "name": "Group Stage | C",
+    "active": true,
+    "live": true
+   },
+   {
+    "id": "OW6wzikj",
+    "name": "Group Stage | D",
+    "active": true,
+    "live": true
+   },
+   {
+    "id": "WbAxpbqH",
+    "name": "Blitz Tiebreak",
+    "active": false,
+    "live": false
+   }
+  ]
+ }
+}

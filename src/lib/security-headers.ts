@@ -18,6 +18,8 @@ export const CSP_HEADER = "Content-Security-Policy";
 
 /** Third-party hosts the browser talks to directly (everything else goes via /api/* proxies). */
 export const PIECE_IMAGE_HOSTS = ["https://cdn.jsdelivr.net"] as const;
+/** SIG-1287: Live reads the public Lichess Broadcast API straight from the browser (CORS `*`, no token). */
+export const LICHESS_API_HOSTS = ["https://lichess.org"] as const;
 export const VIDEO_EMBED_HOSTS = ["https://www.youtube-nocookie.com", "https://player.vimeo.com"] as const;
 
 function origin(value: string | undefined): string | null {
@@ -57,7 +59,7 @@ export function buildCsp({ isDev = false, supabaseUrl }: CspOptions = {}): strin
     ["img-src", ["'self'", "blob:", "data:", "https:"]],
     ["font-src", ["'self'", "data:"]],
     // html-to-image re-fetches piece SVGs (CDN) when exporting the board.
-    ["connect-src", list("'self'", PIECE_IMAGE_HOSTS, supabase, supabaseWs, isDev ? ["ws:", "http:"] : null)],
+    ["connect-src", list("'self'", PIECE_IMAGE_HOSTS, LICHESS_API_HOSTS, supabase, supabaseWs, isDev ? ["ws:", "http:"] : null)],
     // Lesson videos of kind "file" (`courseVideo`: any https .mp4/.webm) play in <video>, which
     // media-src governs (not frame-src); https: also covers redirects to another https host.
     ["media-src", ["'self'", "blob:", "https:"]],
