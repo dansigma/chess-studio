@@ -68,3 +68,43 @@ test("Live label is Ao vivo in pt-br", () => {
   render(<ActivityBar />);
   assert.ok(screen.getByRole("button", { name: "Ao vivo" }));
 });
+
+// SIG-1298: labels follow settings.sidebarCollapsed.
+const NAV_ITEMS = ["Studio", "Courses", "Puzzles", "Search", "Open boards", "Databases", "Files", "Bookmarks", "My Games", "Library", "Live"];
+
+function labelsFor(name: string) {
+  return Array.from(document.querySelectorAll("[data-activity-label]")).filter((el) => el.textContent === name);
+}
+
+test("collapsed: labels are hidden and tooltips are present", () => {
+  act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", sidebarCollapsed: true } }));
+  render(<ActivityBar />);
+  const labels = Array.from(document.querySelectorAll("[data-activity-label]"));
+  assert.ok(labels.length >= NAV_ITEMS.length);
+  assert.ok(labels.every((el) => el.getAttribute("data-activity-label") === "hidden" && el.className.includes("opacity-0")));
+  assert.ok(document.querySelectorAll('[role="tooltip"]').length >= NAV_ITEMS.length);
+  assert.ok(screen.getByRole("button", { name: "Expand sidebar" }));
+});
+
+test("expanded: every item shows a visible label and no tooltip", () => {
+  act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", sidebarCollapsed: false } }));
+  render(<ActivityBar />);
+  for (const name of NAV_ITEMS) {
+    const found = labelsFor(name);
+    assert.equal(found.length, 1, `label for ${name}`);
+    assert.equal(found[0].getAttribute("data-activity-label"), "visible");
+  }
+  assert.equal(labelsFor("Collapse sidebar").length, 1);
+  assert.equal(document.querySelectorAll('[role="tooltip"]').length, 0);
+  assert.ok(screen.getByRole("button", { name: "Library" }).getAttribute("aria-label"));
+});
+
+test("toggle switches between icon-only and labelled", () => {
+  act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", sidebarCollapsed: false } }));
+  render(<ActivityBar />);
+  fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+  assert.equal(useStudioStore.getState().settings.sidebarCollapsed, true);
+  assert.equal(labelsFor("Library")[0].getAttribute("data-activity-label"), "hidden");
+  fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+  assert.equal(labelsFor("Library")[0].getAttribute("data-activity-label"), "visible");
+});
