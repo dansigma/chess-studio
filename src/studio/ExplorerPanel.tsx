@@ -298,19 +298,26 @@ function ExplorerChrome({
             </button>
           );
         })}
+        {/* SIG-1299: Total lives inside the scroller (sticky bottom) so it shares
+            the rows' width, scrollbar and grid columns exactly. */}
+        {explorer && hasMoves ? (
+          <div
+            data-testid="explorer-total-row"
+            className={`${ROW_GRID} sticky bottom-0 z-[1] border-t border-studio-border bg-studio-panel py-1.5 text-dense`}
+          >
+            <span className="font-semibold text-studio-muted">{tPanels(locale, "explorer.total")}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="w-11 shrink-0 text-right tabular-nums">{formatGameCount(locale, totalGames)}</span>
+              <span className="min-w-0 truncate text-caption text-studio-faint">{explorer.moves.length === 1
+                ? tPanels(locale, "explorer.moves.one", { count: explorer.moves.length })
+                : tPanels(locale, "explorer.moves.other", { count: explorer.moves.length })}</span>
+            </span>
+            <span className="relative">
+              <ResultBar white={explorer.white} draws={explorer.draws} black={explorer.black} />
+            </span>
+          </div>
+        ) : null}
       </div>
-      {explorer && hasMoves ? (
-        <div className={`${ROW_GRID} border-t border-studio-border py-1.5 text-dense`}>
-          <span className="font-semibold text-studio-muted">{tPanels(locale, "explorer.total")}</span>
-          <span className="flex items-center gap-2">
-            <span className="w-11 shrink-0 text-right tabular-nums">{formatGameCount(locale, totalGames)}</span>
-            <span className="text-caption text-studio-faint">{explorer.moves.length === 1
-              ? tPanels(locale, "explorer.moves.one", { count: explorer.moves.length })
-              : tPanels(locale, "explorer.moves.other", { count: explorer.moves.length })}</span>
-          </span>
-          <ResultBar white={explorer.white} draws={explorer.draws} black={explorer.black} />
-        </div>
-      ) : null}
     </div>
   );
 }
