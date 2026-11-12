@@ -60,3 +60,17 @@ export function formatMultiplier(locale: SiteLocale, value: number): string {
 export function pluralCategory(locale: SiteLocale, count: number): Intl.LDMLPluralRule {
   return new Intl.PluralRules(TAG[locale]).select(count);
 }
+
+/**
+ * SIG-1290: a short date and time ("Nov 12, 3:30 PM" / "12 de nov., 15:30") in the user's
+ * timezone. `timeZone` is only for tests; omitted, the runtime timezone is used.
+ */
+export function formatDateTime(locale: SiteLocale, ms: number, timeZone?: string): string {
+  return new Intl.DateTimeFormat(TAG[locale], {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(timeZone ? { timeZone } : {}),
+  }).format(new Date(ms));
+}
