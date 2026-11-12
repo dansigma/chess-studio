@@ -46,7 +46,8 @@ function isActivePath(pathname: string | null, href: string): boolean {
 }
 
 // SIG-1298: label beside the icon while the side panel is open. Always
-// rendered so it can fade; the nav clips it while collapsed. aria-hidden since
+// rendered so it can fade; each item clips it while collapsed (not the nav,
+// which would also clip the tooltips that sit outside it). aria-hidden since
 // the parent already carries aria-label.
 function ItemLabel({ expanded, children }: { expanded: boolean; children: ReactNode }) {
   return (
@@ -86,10 +87,10 @@ function ActivityLink({
         aria-label={label}
         aria-current={active ? "page" : undefined}
         onClick={onClick}
-        className="flex h-10 w-full items-center gap-3 pl-[7px] pr-3"
+        className="flex h-10 w-full items-center gap-3 overflow-hidden pl-[7px] pr-3"
       >
         <span
-          className={`flex h-[34px] w-[34px] items-center justify-center rounded-lg transition-colors ${
+          className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg transition-colors ${
             active
               ? "bg-studio-accent-soft text-studio-accent-text"
               : "text-studio-faint hover:bg-studio-hover hover:text-studio-fg"
@@ -123,7 +124,7 @@ function ActivityButton({
         aria-label={label}
         aria-pressed={active}
         onClick={onClick}
-        className={`group relative flex h-10 w-full items-center gap-3 pl-[7px] pr-3 ${
+        className={`group relative flex h-10 w-full items-center gap-3 overflow-hidden pl-[7px] pr-3 ${
           active ? "text-studio-fg" : "text-studio-faint hover:text-studio-fg"
         }`}
       >
@@ -131,7 +132,7 @@ function ActivityButton({
           <span className="absolute inset-y-2.5 left-0 w-0.5 rounded-r bg-studio-accent" />
         ) : null}
         <span
-          className={`flex h-[34px] w-[34px] items-center justify-center rounded-lg ${
+          className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg ${
             active ? "bg-studio-hover" : "group-hover:bg-studio-hover"
           }`}
         >
@@ -162,7 +163,7 @@ export function ActivityBar() {
   return (
     <nav
       data-expanded={expanded}
-      className={`flex shrink-0 flex-col items-stretch gap-0.5 overflow-hidden bg-studio-bg py-2 transition-[width] duration-200 motion-reduce:transition-none ${
+      className={`flex shrink-0 flex-col items-stretch gap-0.5 bg-studio-bg py-2 transition-[width] duration-200 motion-reduce:transition-none ${
         expanded ? "w-48" : "w-12"
       }`}
     >
