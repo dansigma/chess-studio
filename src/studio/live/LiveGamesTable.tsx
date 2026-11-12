@@ -5,6 +5,7 @@ import { Clock } from "lucide-react";
 import { tLive } from "@/src/i18n/live-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import type { LiveGame } from "@/src/lib/live/types";
+import { Chip } from "../ui/Controls";
 import { pgnResultToWinner, ResultMark } from "../ResultMark";
 import { outcomeFor } from "../ui/PlayerCell";
 import { moveSelection } from "../library/library-columns";
@@ -12,8 +13,15 @@ import { useVirtualRows } from "../library/use-virtual-rows";
 import { displayClockMs, formatDisplayClock, tickingSide, type Side } from "./live-clock";
 import { sameGameRef, useLiveStore } from "./live-store";
 import { LivePlayerCell } from "./LivePlayerCell";
+import { countGames, filterGames, GAMES_FILTERS, type GamesFilter } from "./live-games-filter";
 import { useLiveNow } from "./live-ticker";
 import { useLiveRound } from "./use-live";
+
+const FILTER_LABEL = {
+  all: "live.filter.all",
+  ongoing: "live.filter.ongoing",
+  finished: "live.filter.finished",
+} as const;
 
 export const LIVE_ROW_HEIGHT = 44;
 const FLASH_MS = 1200;
@@ -190,10 +198,18 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
   const openBoards = useLiveStore((s) => s.openBoards);
   const focusedGame = useLiveStore((s) => s.focusedGame);
   const openBoard = useLiveStore((s) => s.openBoard);
-  const rows = useMemo(() => orderedGames(games), [games]);
+  const allRows = useMemo(() => orderedGames(games), [games]);
+  // Local state: the parent keys this component by round, so changing round resets it to "all".
+  const [filter, setFilter] = useState<GamesFilter>("all");
+  const counts = useMemo(() => countGames(allRows), [allRows]);
+  const rows = useMemo(() => filterGames(allRows, filter), [allRows, filter]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const { attachScroll, ...windowing } = useVirtualRows({ count: rows.length, rowHeight: LIVE_ROW_HEIGHT });
   const activeIndex = activeId === null ? -1 : rows.findIndex((g) => g.id === activeId);
+  // The active row left the filter (it finished, or the filter changed): forget it (state adjusted during render).
+  if (activeId !== null && activeIndex === -1) {
+    setActiveId(null);
+  }
 
   // The store focuses a board unless told otherwise, so "add" must pass `focus: false` explicitly.
   const follow = useCallback(
@@ -229,74 +245,93 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
 
   const visible = rows.slice(windowing.start, windowing.end);
   return (
-    <div
-      role="table"
-      aria-label={tLive(locale, "live.table.label")}
-      aria-rowcount={rows.length + 1}
-      className="flex min-h-0 flex-1 flex-col"
-    >
+    <div className="flex min-h-0 flex-1 flex-col">
       <div
-        role="row"
-        className={`grid shrink-0 items-center gap-x-1.5 border-b border-studio-border-subtle px-2 py-1.5 text-caption font-medium text-studio-muted ${GRID}`}
+        role="group"
+        aria-label={tLive(locale, "live.filter.label")}
+        className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-studio-border-subtle px-2 py-1.5"
       >
-        <div role="columnheader" aria-label={tLive(locale, "live.table.open")} />
-        <div role="columnheader" className="truncate">
-          {tLive(locale, "live.table.white")}
-        </div>
-        {/* The clock and result columns are too narrow for words: an icon / short label, full name for AT and on hover. */}
-        <div
-          role="columnheader"
-          aria-label={tLive(locale, "live.table.whiteClock")}
-          title={tLive(locale, "live.table.whiteClock")}
-          className="hidden justify-end sm:flex"
-        >
-          <Clock size={12} aria-hidden="true" />
-        </div>
-        <div role="columnheader" aria-label={tLive(locale, "live.table.result")} title={tLive(locale, "live.table.result")} className="text-center">
-          {tLive(locale, "live.table.resultShort")}
-        </div>
-        <div
-          role="columnheader"
-          aria-label={tLive(locale, "live.table.blackClock")}
-          title={tLive(locale, "live.table.blackClock")}
-          className="hidden justify-end sm:flex"
-        >
-          <Clock size={12} aria-hidden="true" />
-        </div>
-        <div role="columnheader" className="truncate">
-          {tLive(locale, "live.table.black")}
-        </div>
+        {GAMES_FILTERS.map((f) => (
+          <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>
+            {tLive(locale, FILTER_LABEL[f])} ({counts[f]})
+          </Chip>
+        ))}
       </div>
-      <div
-        ref={attachScroll}
-        onScroll={windowing.onScroll}
-        onKeyDown={onKeyDown}
-        tabIndex={0}
-        role="rowgroup"
-        aria-activedescendant={activeIndex >= 0 ? liveRowDomId(rows[activeIndex]!.id) : undefined}
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden outline-none focus-visible:ring-1 focus-visible:ring-studio-accent"
-        data-testid="live-scroll"
-      >
-        <div style={{ height: windowing.totalHeight, position: "relative" }}>
-          <div style={{ transform: `translateY(${windowing.offsetTop}px)` }}>
-            {visible.map((game, offset) => {
-              const ref = { roundId, gameId: game.id };
-              return (
-                <LiveRow
-                  key={game.id}
-                  game={game}
-                  index={windowing.start + offset}
-                  open={openBoards.some((b) => sameGameRef(b, ref))}
-                  focused={sameGameRef(focusedGame, ref)}
-                  active={game.id === activeId}
-                  locale={locale}
-                  onActivate={onActivate}
-                />
-              );
-            })}
+      {rows.length === 0 ? (
+        <p role="status" className="p-4 text-sm text-studio-muted" data-testid="live-filter-empty">
+          {tLive(locale, filter === "finished" ? "live.filter.emptyFinished" : "live.filter.emptyOngoing")}
+        </p>
+      ) : (
+        <div
+          role="table"
+          aria-label={tLive(locale, "live.table.label")}
+          aria-rowcount={rows.length + 1}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div
+            role="row"
+            className={`grid shrink-0 items-center gap-x-1.5 border-b border-studio-border-subtle px-2 py-1.5 text-caption font-medium text-studio-muted ${GRID}`}
+          >
+            <div role="columnheader" aria-label={tLive(locale, "live.table.open")} />
+            <div role="columnheader" className="truncate">
+              {tLive(locale, "live.table.white")}
+            </div>
+            {/* The clock and result columns are too narrow for words: an icon / short label, full name for AT and on hover. */}
+            <div
+              role="columnheader"
+              aria-label={tLive(locale, "live.table.whiteClock")}
+              title={tLive(locale, "live.table.whiteClock")}
+              className="hidden justify-end sm:flex"
+            >
+              <Clock size={12} aria-hidden="true" />
+            </div>
+            <div role="columnheader" aria-label={tLive(locale, "live.table.result")} title={tLive(locale, "live.table.result")} className="text-center">
+              {tLive(locale, "live.table.resultShort")}
+            </div>
+            <div
+              role="columnheader"
+              aria-label={tLive(locale, "live.table.blackClock")}
+              title={tLive(locale, "live.table.blackClock")}
+              className="hidden justify-end sm:flex"
+            >
+              <Clock size={12} aria-hidden="true" />
+            </div>
+            <div role="columnheader" className="truncate">
+              {tLive(locale, "live.table.black")}
+            </div>
+          </div>
+          <div
+            ref={attachScroll}
+            onScroll={windowing.onScroll}
+            onKeyDown={onKeyDown}
+            tabIndex={0}
+            role="rowgroup"
+            aria-activedescendant={activeIndex >= 0 ? liveRowDomId(rows[activeIndex]!.id) : undefined}
+            className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden outline-none focus-visible:ring-1 focus-visible:ring-studio-accent"
+            data-testid="live-scroll"
+          >
+            <div style={{ height: windowing.totalHeight, position: "relative" }}>
+              <div style={{ transform: `translateY(${windowing.offsetTop}px)` }}>
+                {visible.map((game, offset) => {
+                  const ref = { roundId, gameId: game.id };
+                  return (
+                    <LiveRow
+                      key={game.id}
+                      game={game}
+                      index={windowing.start + offset}
+                      open={openBoards.some((b) => sameGameRef(b, ref))}
+                      focused={sameGameRef(focusedGame, ref)}
+                      active={game.id === activeId}
+                      locale={locale}
+                      onActivate={onActivate}
+                    />
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

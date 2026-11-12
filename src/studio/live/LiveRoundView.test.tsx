@@ -209,3 +209,86 @@ test("pt-BR strings", async () => {
   assert.ok(screen.getByLabelText("Torneio"));
   assert.ok(screen.getByText("Clique numa partida para segui-la."));
 });
+
+// SIG-1297: All / Ongoing / Finished filter.
+const filterChip = (name: RegExp) => screen.getByRole("button", { name });
+const rowIds = () => [...document.querySelectorAll("[data-live-row]")].map((r) => (r as HTMLElement).dataset.liveRow);
+
+test("filter: counts per option, default All, switching shows only matching rows", async () => {
+  roundHandler = async () => snapshot([game("a"), game("b", { result: "1-0" }), game("c", { white: player("NoClock", null) }), game("d", { result: "1/2-1/2" })]);
+  render(<LiveView />);
+  await waitFor(() => assert.ok(rowOf("a")));
+  assert.equal(filterChip(/^All \(4\)$/u).getAttribute("aria-pressed"), "true");
+  filterChip(/^Ongoing \(2\)$/u);
+  filterChip(/^Finished \(2\)$/u);
+  assert.deepEqual(rowIds(), ["a", "b", "c", "d"]);
+  fireEvent.click(filterChip(/^Ongoing/u));
+  assert.deepEqual(rowIds(), ["a", "c"]);
+  assert.equal(filterChip(/^Ongoing/u).getAttribute("aria-pressed"), "true");
+  fireEvent.click(filterChip(/^Finished/u));
+  assert.deepEqual(rowIds(), ["b", "d"]);
+  fireEvent.click(filterChip(/^All/u));
+  assert.deepEqual(rowIds(), ["a", "b", "c", "d"]);
+});
+
+test("filter: a game that finishes leaves Ongoing, counts update, open boards are unaffected", async () => {
+  roundHandler = async () => snapshot([game("a"), game("b")]);
+  render(<LiveView />);
+  await waitFor(() => assert.ok(rowOf("a")));
+  fireEvent.click(rowOf("a"));
+  fireEvent.click(filterChip(/^Ongoing/u));
+  assert.deepEqual(rowIds(), ["a", "b"]);
+  act(() => useLiveStore.getState().ingestSnapshot(snapshot([game("a", { result: "0-1" }), game("b")])));
+  assert.deepEqual(rowIds(), ["b"]);
+  filterChip(/^Ongoing \(1\)$/u);
+  filterChip(/^Finished \(1\)$/u);
+  assert.deepEqual(useLiveStore.getState().openBoards.map((b) => b.gameId), ["a"]);
+  fireEvent.click(filterChip(/^Finished/u));
+  assert.equal(rowOf("a").dataset.open, "true");
+});
+
+test("filter: empty state per filter instead of an empty table", async () => {
+  roundHandler = async () => snapshot([game("a")]);
+  render(<LiveView />);
+  await waitFor(() => assert.ok(rowOf("a")));
+  fireEvent.click(filterChip(/^Finished/u));
+  assert.ok(screen.getByText("No finished games yet"));
+  assert.equal(screen.queryByRole("table"), null);
+  act(() => useLiveStore.getState().ingestSnapshot(snapshot([game("a", { result: "1-0" })])));
+  assert.ok(rowOf("a"));
+  fireEvent.click(filterChip(/^Ongoing/u));
+  assert.ok(screen.getByText("No ongoing games"));
+});
+
+test("filter: arrow keys and Enter work on the filtered rows; the active row is cleared when it leaves", async () => {
+  roundHandler = async () => snapshot([game("a", { result: "1-0" }), game("b"), game("c", { result: "0-1" }), game("d")]);
+  render(<LiveView />);
+  await waitFor(() => assert.ok(rowOf("a")));
+  fireEvent.click(filterChip(/^Ongoing/u));
+  const scroll = screen.getByTestId("live-scroll");
+  fireEvent.keyDown(scroll, { key: "ArrowDown" });
+  assert.equal(rowOf("b").dataset.active, "true");
+  fireEvent.keyDown(scroll, { key: "ArrowDown" });
+  assert.equal(rowOf("d").dataset.active, "true");
+  fireEvent.keyDown(scroll, { key: "ArrowDown" });
+  assert.equal(rowOf("d").dataset.active, "true");
+  fireEvent.keyDown(scroll, { key: "Enter" });
+  assert.equal(useLiveStore.getState().focusedGame?.gameId, "d");
+  act(() => useLiveStore.getState().ingestSnapshot(snapshot([game("a", { result: "1-0" }), game("b"), game("c", { result: "0-1" }), game("d", { result: "1-0" })])));
+  assert.deepEqual(rowIds(), ["b"]);
+  assert.equal(scroll.getAttribute("aria-activedescendant"), null);
+});
+
+test("filter: pt-BR labels and reset to All when the round changes", async () => {
+  act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } }));
+  roundHandler = async (id) => ({ ...snapshot([game("a", { roundId: id }), game("b", { roundId: id, result: "1-0" })]), round: { ...rounds[0]!, id } });
+  render(<LiveView />);
+  await waitFor(() => assert.ok(rowOf("a")));
+  filterChip(/^Todas \(2\)$/u);
+  filterChip(/^Finalizadas \(1\)$/u);
+  fireEvent.click(filterChip(/^Em andamento \(1\)$/u));
+  assert.deepEqual(rowIds(), ["a"]);
+  act(() => useLiveStore.getState().setTableRound("R0"));
+  await waitFor(() => assert.ok(rowOf("a") && rowOf("b")));
+  assert.equal(filterChip(/^Todas/u).getAttribute("aria-pressed"), "true");
+});

@@ -204,7 +204,7 @@ export function LiveRoundView({
           ) : null}
           {/* 27–30rem fits the six columns of the games table without sideways scrolling. */}
           <div className={`flex min-h-48 min-w-0 flex-1 flex-col ${hasBoards ? "lg:w-[27rem] lg:flex-none xl:w-[30rem]" : ""}`}>
-            <LiveGamesTable roundId={roundId} locale={locale} />
+            <LiveGamesTable key={roundId} roundId={roundId} locale={locale} />
           </div>
         </div>
       )}
