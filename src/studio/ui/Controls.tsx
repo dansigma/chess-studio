@@ -172,17 +172,22 @@ export function Tooltip({
   label,
   shortcut,
   side = "right",
+  disabled = false,
+  className = "",
   children,
 }: {
   label: string;
   shortcut?: string;
   side?: "right" | "bottom";
+  /** Keep the wrapper (no layout shift) but render no tooltip bubble. */
+  disabled?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <span className="group/tip relative inline-flex">
+    <span className={`group/tip relative inline-flex ${className}`}>
       {children}
-      <span
+      {disabled ? null : <span
         role="tooltip"
         className={`pointer-events-none absolute z-[1100] hidden items-center gap-2 whitespace-nowrap rounded-md border border-studio-border-strong bg-studio-elevated px-2 py-1 text-dense text-studio-fg shadow-lg group-hover/tip:flex ${
           side === "right"
@@ -192,7 +197,7 @@ export function Tooltip({
       >
         {label}
         {shortcut ? <Kbd>{shortcut}</Kbd> : null}
-      </span>
+      </span>}
     </span>
   );
 }

@@ -45,29 +45,48 @@ function isActivePath(pathname: string | null, href: string): boolean {
   return pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
 }
 
+// SIG-1298: label beside the icon while the side panel is open. Always
+// rendered so it can fade; the nav clips it while collapsed. aria-hidden since
+// the parent already carries aria-label.
+function ItemLabel({ expanded, children }: { expanded: boolean; children: ReactNode }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-activity-label={expanded ? "visible" : "hidden"}
+      className={`whitespace-nowrap text-sm transition-opacity duration-200 motion-reduce:transition-none ${
+        expanded ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
 // Active link = accent-tinted square, no left bar, so it never reads like the
 // "sidebar view open" state (left accent bar + neutral hover fill).
 function ActivityLink({
   href,
   label,
   active,
+  expanded,
   onClick,
   children,
 }: {
   href: string;
   label: string;
   active: boolean;
+  expanded: boolean;
   onClick?: () => void;
   children: ReactNode;
 }) {
   return (
-    <Tooltip label={label}>
+    <Tooltip label={label} disabled={expanded} className="w-full">
       <Link
         href={href}
         aria-label={label}
         aria-current={active ? "page" : undefined}
         onClick={onClick}
-        className="flex h-10 w-12 items-center justify-center"
+        className="flex h-10 w-full items-center gap-3 pl-[7px] pr-3"
       >
         <span
           className={`flex h-[34px] w-[34px] items-center justify-center rounded-lg transition-colors ${
@@ -78,6 +97,7 @@ function ActivityLink({
         >
           {children}
         </span>
+        <ItemLabel expanded={expanded}>{label}</ItemLabel>
       </Link>
     </Tooltip>
   );
@@ -86,22 +106,24 @@ function ActivityLink({
 function ActivityButton({
   label,
   active,
+  expanded,
   onClick,
   children,
 }: {
   label: string;
   active?: boolean;
+  expanded: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
   return (
-    <Tooltip label={label}>
+    <Tooltip label={label} disabled={expanded} className="w-full">
       <button
         type="button"
         aria-label={label}
         aria-pressed={active}
         onClick={onClick}
-        className={`group relative flex h-10 w-12 items-center justify-center ${
+        className={`group relative flex h-10 w-full items-center gap-3 pl-[7px] pr-3 ${
           active ? "text-studio-fg" : "text-studio-faint hover:text-studio-fg"
         }`}
       >
@@ -115,6 +137,7 @@ function ActivityButton({
         >
           {children}
         </span>
+        <ItemLabel expanded={expanded}>{label}</ItemLabel>
       </button>
     </Tooltip>
   );
@@ -131,13 +154,19 @@ export function ActivityBar() {
   const toggleLive = useStudioStore((state) => state.toggleLive);
   const toggleSidebar = useStudioStore((state) => state.toggleSidebar);
   const pathname = usePathname();
+  const expanded = !sidebarCollapsed;
   const sections = siteSections(locale)
     .filter((section) => SITE_ICONS[section.href])
     .sort((a, b) => SITE_ORDER.indexOf(a.href) - SITE_ORDER.indexOf(b.href));
 
   return (
-    <nav className="flex w-12 shrink-0 flex-col items-center gap-0.5 bg-studio-bg py-2">
-      <div role="group" aria-label={SITE_NAME} className="flex flex-col items-center gap-0.5">
+    <nav
+      data-expanded={expanded}
+      className={`flex shrink-0 flex-col items-stretch gap-0.5 overflow-hidden bg-studio-bg py-2 transition-[width] duration-200 motion-reduce:transition-none ${
+        expanded ? "w-48" : "w-12"
+      }`}
+    >
+      <div role="group" aria-label={SITE_NAME} className="flex flex-col items-stretch gap-0.5">
         {sections.map((section) => {
           const Icon = SITE_ICONS[section.href];
           return (
@@ -145,6 +174,7 @@ export function ActivityBar() {
               key={section.href}
               href={section.href}
               label={section.label}
+              expanded={expanded}
               active={isActivePath(pathname, section.href) && !(section.href === "/studio" && workspaceView !== "studio")}
               onClick={section.href === "/studio" ? () => setWorkspaceView("studio") : undefined}
             >
@@ -153,7 +183,7 @@ export function ActivityBar() {
           );
         })}
       </div>
-      <div aria-hidden="true" className="mx-3 my-1 h-px w-6 bg-studio-border" />
+      <div aria-hidden="true" className="mx-3 my-1 h-px w-6 shrink-0 self-start bg-studio-border" />
       {items.map((item) => {
         const Icon = item.icon;
         const active = item.id === activity && !sidebarCollapsed;
@@ -162,6 +192,7 @@ export function ActivityBar() {
             key={item.id}
             label={tStudioChrome(locale, item.titleKey)}
             active={active}
+            expanded={expanded}
             onClick={() => {
               if (active) {
                 toggleSidebar();
@@ -176,6 +207,7 @@ export function ActivityBar() {
       })}
       <ActivityButton
         label={tStudioChrome(locale, "chrome.activity.library")}
+        expanded={expanded}
         active={workspaceView === "library"}
         onClick={toggleLibrary}
       >
@@ -183,6 +215,7 @@ export function ActivityBar() {
       </ActivityButton>
       <ActivityButton
         label={tStudioChrome(locale, "chrome.activity.live")}
+        expanded={expanded}
         active={workspaceView === "live"}
         onClick={toggleLive}
       >
@@ -191,6 +224,7 @@ export function ActivityBar() {
       <div className="mt-auto">
         <ActivityButton
           label={tStudioChrome(locale, sidebarCollapsed ? "chrome.activity.expand" : "chrome.activity.collapse")}
+          expanded={expanded}
           onClick={toggleSidebar}
         >
           {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
