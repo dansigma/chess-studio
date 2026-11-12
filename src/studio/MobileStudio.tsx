@@ -16,6 +16,7 @@ import { SettingsDialog } from "./SettingsDialog";
 import { tMobile } from "@/src/i18n/mobile-strings.ts";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { useStudioStore } from "@/src/store/studio-store";
+import { LiveView } from "./live/LiveView";
 import { LibraryView } from "./library/LibraryView";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
@@ -98,6 +99,10 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
       {workspaceView === "library" ? (
         <div data-mobile-library="" className="min-h-0 flex-1 overflow-auto p-1.5">
           <LibraryView />
+        </div>
+      ) : workspaceView === "live" ? (
+        <div data-mobile-live="" className="min-h-0 flex-1 overflow-auto p-1.5">
+          <LiveView />
         </div>
       ) : (
         <>

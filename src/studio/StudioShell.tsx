@@ -15,6 +15,7 @@ import { MyGamesSidebar } from "./MyGamesSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
 import { LibraryView } from "./library/LibraryView";
+import { LiveView } from "./live/LiveView";
 import { useWorkspaceViewUrl } from "./use-workspace-view-url";
 import { ResizeHandle } from "./ui/ResizeHandle";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
@@ -78,7 +79,7 @@ export function StudioShell() {
   const workspaceView = useStudioStore((state) => state.workspaceView);
   const activeBoardId = useStudioStore((state) => state.activeBoardId);
   useWorkspaceViewUrl();
-  // SIG-1273: choosing a board (any change of the active board) leaves the Library.
+  // SIG-1273: choosing a board (any change of the active board) leaves the Library and Live.
   const lastBoardId = useRef(activeBoardId);
   useEffect(() => {
     if (lastBoardId.current !== activeBoardId) {
@@ -603,10 +604,11 @@ export function StudioShell() {
           )}
           <div className="min-w-0 flex-1 overflow-hidden">
             {/* SIG-1273: the dock stays mounted (boards + layout kept) and is only hidden. */}
-            <div className={workspaceView === "library" ? "hidden" : "h-full"}>
-              <StudioDock visible={workspaceView !== "library"} />
+            <div className={workspaceView !== "studio" ? "hidden" : "h-full"}>
+              <StudioDock visible={workspaceView === "studio"} />
             </div>
             {workspaceView === "library" ? <LibraryView /> : null}
+            {workspaceView === "live" ? <LiveView /> : null}
           </div>
         </div>
       </div>

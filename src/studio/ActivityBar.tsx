@@ -8,6 +8,7 @@ import {
   History,
   LayoutDashboard,
   Library,
+  Radio,
   Puzzle,
   PanelLeftClose,
   PanelLeftOpen,
@@ -127,6 +128,7 @@ export function ActivityBar() {
   const workspaceView = useStudioStore((state) => state.workspaceView);
   const setWorkspaceView = useStudioStore((state) => state.setWorkspaceView);
   const toggleLibrary = useStudioStore((state) => state.toggleLibrary);
+  const toggleLive = useStudioStore((state) => state.toggleLive);
   const toggleSidebar = useStudioStore((state) => state.toggleSidebar);
   const pathname = usePathname();
   const sections = siteSections(locale)
@@ -143,7 +145,7 @@ export function ActivityBar() {
               key={section.href}
               href={section.href}
               label={section.label}
-              active={isActivePath(pathname, section.href) && !(section.href === "/studio" && workspaceView === "library")}
+              active={isActivePath(pathname, section.href) && !(section.href === "/studio" && workspaceView !== "studio")}
               onClick={section.href === "/studio" ? () => setWorkspaceView("studio") : undefined}
             >
               <Icon size={18} />
@@ -178,6 +180,13 @@ export function ActivityBar() {
         onClick={toggleLibrary}
       >
         <Library size={18} />
+      </ActivityButton>
+      <ActivityButton
+        label={tStudioChrome(locale, "chrome.activity.live")}
+        active={workspaceView === "live"}
+        onClick={toggleLive}
+      >
+        <Radio size={18} />
       </ActivityButton>
       <div className="mt-auto">
         <ActivityButton

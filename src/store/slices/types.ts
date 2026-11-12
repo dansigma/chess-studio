@@ -32,7 +32,7 @@ import type {
 
 export type BoardOrientation = "white" | "black";
 // SIG-1273: center work area. Separate from ActivityView (sidebars only).
-export type WorkspaceView = "studio" | "library";
+export type WorkspaceView = "studio" | "library" | "live";
 export type ActivityView = "search" | "boards" | "databases" | "files" | "bookmarks" | "mygames";
 
 // SIG-1187: pending Forward continuation choice — the board and cursor position
@@ -261,6 +261,7 @@ export type StudioState = {
   setActivity: (view: ActivityView) => void;
   setWorkspaceView: (view: WorkspaceView) => void;
   toggleLibrary: () => void;
+  toggleLive: () => void;
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   setDatabaseSource: (source: ExplorerSource) => void;
