@@ -1,22 +1,26 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { Clock } from "lucide-react";
 import { tLive } from "@/src/i18n/live-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import type { LiveGame } from "@/src/lib/live/types";
 import { pgnResultToWinner, ResultMark } from "../ResultMark";
-import { PlayerCell, outcomeFor } from "../ui/PlayerCell";
+import { outcomeFor } from "../ui/PlayerCell";
 import { moveSelection } from "../library/library-columns";
 import { useVirtualRows } from "../library/use-virtual-rows";
 import { displayClockMs, formatDisplayClock, tickingSide, type Side } from "./live-clock";
 import { sameGameRef, useLiveStore } from "./live-store";
+import { LivePlayerCell } from "./LivePlayerCell";
 import { useLiveNow } from "./live-ticker";
 import { useLiveRound } from "./use-live";
 
-export const LIVE_ROW_HEIGHT = 40;
+export const LIVE_ROW_HEIGHT = 44;
 const FLASH_MS = 1200;
+// Open-board marker | White | (White clock | Result | Black clock) | Black. The fixed columns are sized
+// for "1:23:45" so the names get the rest; the scroll pane never scrolls sideways (names truncate).
 const GRID =
-  "grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_5.5rem_3rem_5.5rem_minmax(0,1fr)]";
+  "grid-cols-[0.625rem_minmax(0,1fr)_2.25rem_minmax(0,1fr)] sm:grid-cols-[0.625rem_minmax(0,1fr)_3.75rem_2.25rem_3.75rem_minmax(0,1fr)]";
 
 /** Pure: whether a click opens the game as another board (Ctrl/Cmd) instead of following it. */
 export function isAddBoardClick(event: { ctrlKey: boolean; metaKey: boolean }): boolean {
@@ -29,16 +33,51 @@ function TickingClock({ game, side }: { game: LiveGame; side: Side }) {
   return <span data-clock-ticking="">{ms === null ? null : formatDisplayClock(ms)}</span>;
 }
 
-/** Static unless `side` is the one to move in an ongoing game: only then it subscribes to the shared ticker. */
-export function ClockCell({ game, side, locale }: { game: LiveGame; side: Side; locale: SiteLocale }) {
+const CLOCK_CLASSES = {
+  table: {
+    toMove: "inline-flex items-center gap-1 font-semibold text-studio-fg",
+    idle: "text-studio-muted",
+  },
+  board: {
+    toMove: "inline-flex min-w-14 justify-center rounded-md bg-studio-fg px-2 py-0.5 font-semibold text-studio-bg",
+    idle: "inline-flex min-w-14 justify-center rounded-md bg-studio-hover-strong px-2 py-0.5 text-studio-muted",
+  },
+} as const;
+
+/**
+ * Static unless `side` is the one to move in an ongoing game: only then it subscribes to the shared ticker.
+ * The side to move is always the high-contrast one: bold with an accent dot in the table, an inverted
+ * pill on the board cards.
+ */
+export function ClockCell({
+  game,
+  side,
+  locale,
+  variant = "table",
+}: {
+  game: LiveGame;
+  side: Side;
+  locale: SiteLocale;
+  variant?: "table" | "board";
+}) {
   const base = game[side].clockMs;
   if (base === null) {
     return <span className="text-caption text-studio-faint">{tLive(locale, "live.table.noClock")}</span>;
   }
-  if (tickingSide(game) === side) {
-    return <TickingClock game={game} side={side} />;
-  }
-  return <span>{formatDisplayClock(base)}</span>;
+  const toMove = tickingSide(game) === side;
+  const classes = CLOCK_CLASSES[variant];
+  return (
+    <span
+      className={toMove ? classes.toMove : classes.idle}
+      data-to-move={toMove || undefined}
+      title={toMove ? tLive(locale, "live.board.toMove") : undefined}
+    >
+      {toMove && variant === "table" ? (
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-studio-accent" aria-hidden="true" />
+      ) : null}
+      {toMove ? <TickingClock game={game} side={side} /> : formatDisplayClock(base)}
+    </span>
+  );
 }
 
 function useMoveFlash(marker: string): boolean {
@@ -81,6 +120,12 @@ const LiveRow = memo(function LiveRow({ game, index, open, focused, active, loca
       : open
         ? "bg-studio-hover-subtle"
         : "";
+  // On narrow screens the clocks move under the names (second line of the player cell).
+  const narrowClock = (side: Side) => (
+    <span className="tabular-nums sm:hidden">
+      <ClockCell game={game} side={side} locale={locale} />
+    </span>
+  );
   return (
     <div
       id={liveRowDomId(game.id)}
@@ -91,47 +136,45 @@ const LiveRow = memo(function LiveRow({ game, index, open, focused, active, loca
       data-open={open || undefined}
       data-focused={focused || undefined}
       data-active={active || undefined}
-      className={`grid cursor-default items-center gap-x-2 border-l-2 px-3 transition-colors duration-700 hover:bg-studio-hover-subtle ${GRID} ${background} ${
-        open ? "border-studio-accent" : "border-transparent"
-      } ${active ? "outline outline-1 -outline-offset-1 outline-studio-accent" : ""}`}
+      className={`grid cursor-pointer items-center gap-x-1.5 px-2 transition-colors duration-700 hover:bg-studio-hover hover:duration-75 ${GRID} ${background} ${
+        active ? "outline outline-1 -outline-offset-1 outline-studio-accent" : ""
+      }`}
       style={{ height: LIVE_ROW_HEIGHT }}
       title={open ? tLive(locale, "live.table.open") : tLive(locale, "live.table.hint")}
       onClick={(event: MouseEvent) => onActivate(game, isAddBoardClick(event))}
     >
+      <div role="cell" className="flex justify-center" data-live-open-marker={open || undefined}>
+        {open ? (
+          <span
+            aria-label={tLive(locale, "live.table.open")}
+            className={`block h-2 w-2 rounded-full bg-studio-accent ${focused ? "ring-2 ring-studio-accent-soft" : ""}`}
+          />
+        ) : null}
+      </div>
       <div role="cell" className="min-w-0">
-        <PlayerCell
-          name={game.white.name}
-          rating={game.white.rating}
-          title={game.white.title}
-          fed={game.white.fed}
+        <LivePlayerCell
+          player={game.white}
           outcome={outcomeFor(winner, "white")}
           emphasis={focused}
+          extra={narrowClock("white")}
         />
-        <div className="text-caption tabular-nums text-studio-muted sm:hidden">
-          <ClockCell game={game} side="white" locale={locale} />
-        </div>
       </div>
-      <div role="cell" className="hidden text-right text-dense tabular-nums text-studio-fg sm:block">
+      <div role="cell" className="hidden text-right text-dense tabular-nums sm:block">
         <ClockCell game={game} side="white" locale={locale} />
       </div>
       <div role="cell" className="flex justify-center">
         <ResultMark winner={winner} />
       </div>
-      <div role="cell" className="hidden text-right text-dense tabular-nums text-studio-fg sm:block">
+      <div role="cell" className="hidden text-right text-dense tabular-nums sm:block">
         <ClockCell game={game} side="black" locale={locale} />
       </div>
       <div role="cell" className="min-w-0">
-        <PlayerCell
-          name={game.black.name}
-          rating={game.black.rating}
-          title={game.black.title}
-          fed={game.black.fed}
+        <LivePlayerCell
+          player={game.black}
           outcome={outcomeFor(winner, "black")}
           emphasis={focused}
+          extra={narrowClock("black")}
         />
-        <div className="text-caption tabular-nums text-studio-muted sm:hidden">
-          <ClockCell game={game} side="black" locale={locale} />
-        </div>
       </div>
     </div>
   );
@@ -194,19 +237,35 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
     >
       <div
         role="row"
-        className={`grid shrink-0 items-center gap-x-2 border-b border-studio-border-subtle px-3 py-1 text-caption text-studio-muted ${GRID}`}
+        className={`grid shrink-0 items-center gap-x-1.5 border-b border-studio-border-subtle px-2 py-1.5 text-caption font-medium text-studio-muted ${GRID}`}
       >
-        <div role="columnheader">{tLive(locale, "live.table.white")}</div>
-        <div role="columnheader" className="hidden text-right sm:block">
-          {tLive(locale, "live.table.whiteClock")}
+        <div role="columnheader" aria-label={tLive(locale, "live.table.open")} />
+        <div role="columnheader" className="truncate">
+          {tLive(locale, "live.table.white")}
         </div>
-        <div role="columnheader" className="text-center">
-          {tLive(locale, "live.table.result")}
+        {/* The clock and result columns are too narrow for words: an icon / short label, full name for AT and on hover. */}
+        <div
+          role="columnheader"
+          aria-label={tLive(locale, "live.table.whiteClock")}
+          title={tLive(locale, "live.table.whiteClock")}
+          className="hidden justify-end sm:flex"
+        >
+          <Clock size={12} aria-hidden="true" />
         </div>
-        <div role="columnheader" className="hidden text-right sm:block">
-          {tLive(locale, "live.table.blackClock")}
+        <div role="columnheader" aria-label={tLive(locale, "live.table.result")} title={tLive(locale, "live.table.result")} className="text-center">
+          {tLive(locale, "live.table.resultShort")}
         </div>
-        <div role="columnheader">{tLive(locale, "live.table.black")}</div>
+        <div
+          role="columnheader"
+          aria-label={tLive(locale, "live.table.blackClock")}
+          title={tLive(locale, "live.table.blackClock")}
+          className="hidden justify-end sm:flex"
+        >
+          <Clock size={12} aria-hidden="true" />
+        </div>
+        <div role="columnheader" className="truncate">
+          {tLive(locale, "live.table.black")}
+        </div>
       </div>
       <div
         ref={attachScroll}
@@ -215,7 +274,7 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
         tabIndex={0}
         role="rowgroup"
         aria-activedescendant={activeIndex >= 0 ? liveRowDomId(rows[activeIndex]!.id) : undefined}
-        className="min-h-0 flex-1 overflow-auto outline-none focus-visible:ring-1 focus-visible:ring-studio-accent"
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden outline-none focus-visible:ring-1 focus-visible:ring-studio-accent"
         data-testid="live-scroll"
       >
         <div style={{ height: windowing.totalHeight, position: "relative" }}>

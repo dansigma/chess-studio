@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from "lucide-react";
 import { Chessboard } from "react-chessboard";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
 import { piecesForSet } from "@/src/chess/piece-sets";
@@ -14,13 +14,14 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "../dock-api";
 import { Line, NotationReadOnlyContext } from "../NotationMoves";
 import { pathKey } from "../notation-format";
-import { Button } from "../ui/Button";
-import { PlayerCell, outcomeFor } from "../ui/PlayerCell";
+import { Button, IconButton } from "../ui/Button";
+import { outcomeFor } from "../ui/PlayerCell";
 import { pgnResultToWinner } from "../ResultMark";
 import { clockAtPath, resolveViewPath } from "./live-board-model";
 import { formatDisplayClock, type Side } from "./live-clock";
 import { LiveEvalBar } from "./LiveEvalBar";
 import { ClockCell } from "./LiveGamesTable";
+import { LivePlayerCell } from "./LivePlayerCell";
 import { useLiveStore } from "./live-store";
 import { useLiveBoardNotation } from "./use-live-board-notation";
 import { useLiveGame, useLiveRoundInfo } from "./use-live";
@@ -49,25 +50,18 @@ function PlayerBar({
   const winner = pgnResultToWinner(game.result);
   const player = game[side];
   return (
-    <div className="flex items-center justify-between gap-2 px-1 py-0.5" data-live-player={side}>
+    <div className="flex min-h-7 items-center justify-between gap-2" data-live-player={side}>
       <div className="min-w-0 flex-1">
-        <PlayerCell
-          name={player.name}
-          rating={player.rating}
-          title={player.title}
-          fed={player.fed}
-          outcome={outcomeFor(winner, side)}
-        />
+        <LivePlayerCell player={player} outcome={outcomeFor(winner, side)} layout="inline" />
       </div>
-      <div className="shrink-0 text-dense tabular-nums text-studio-fg" data-live-clock={side}>
+      <div className="shrink-0 text-dense tabular-nums" data-live-clock={side}>
         {historic ? (
-          historic.ms === null ? (
-            tLive(locale, "live.board.noClock")
-          ) : (
-            formatDisplayClock(historic.ms)
-          )
+          // Browsing: the clock recorded at that ply, never highlighted (nobody is "to move" in the past).
+          <span className="inline-flex min-w-14 justify-center rounded-md border border-dashed border-studio-border px-2 py-0.5 text-studio-muted">
+            {historic.ms === null ? tLive(locale, "live.board.noClock") : formatDisplayClock(historic.ms)}
+          </span>
         ) : (
-          <ClockCell game={game} side={side} locale={locale} />
+          <ClockCell game={game} side={side} locale={locale} variant="board" />
         )}
       </div>
     </div>
@@ -216,36 +210,61 @@ export function LiveBoard({
       tabIndex={0}
       onKeyDown={onKeyDown}
       onClick={onFocus}
-      className={`flex min-w-0 flex-col gap-1 rounded-lg border bg-studio-panel p-2 outline-none focus-visible:ring-1 focus-visible:ring-studio-accent ${
-        focused ? "border-studio-accent ring-1 ring-studio-accent" : "border-studio-border-subtle"
+      className={`flex min-w-0 cursor-default flex-col gap-2 rounded-xl border bg-studio-panel p-3 shadow-sm outline-none transition-colors focus-visible:ring-1 focus-visible:ring-studio-accent ${
+        focused ? "border-studio-accent ring-1 ring-studio-accent" : "border-studio-border-subtle hover:border-studio-border"
       }`}
     >
-      <header className="flex min-h-7 items-center gap-2 text-caption text-studio-muted">
-        <span className="min-w-0 flex-1 truncate">
-          {!streamed && !finished ? <span data-live-polled-hint="">{tLive(locale, "live.board.polledHint")}</span> : null}
+      <header className="-mr-1 -mt-1 flex h-7 items-center gap-1">
+        <span className="flex min-w-0 flex-1 items-center gap-2 truncate text-caption text-studio-muted">
+          {finished ? null : streamed ? (
+            <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wide text-studio-danger" data-live-badge="">
+              <span className="h-1.5 w-1.5 rounded-full bg-studio-danger motion-safe:animate-pulse" aria-hidden="true" />
+              {tLive(locale, "live.board.liveBadge")}
+            </span>
+          ) : (
+            <span data-live-polled-hint="">{tLive(locale, "live.board.polledHint")}</span>
+          )}
         </span>
-        <Button size="sm" variant="ghost" onClick={openInStudio} disabled={!tree}>
-          {tLive(locale, "live.board.openInStudio")}
-        </Button>
-        <Button
+        <button
+          type="button"
+          className="inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md border border-studio-border px-1.5 text-caption font-medium text-studio-fg-secondary hover:border-studio-accent hover:bg-studio-accent-soft hover:text-studio-accent-text disabled:cursor-default disabled:opacity-50 disabled:hover:border-studio-border disabled:hover:bg-transparent disabled:hover:text-studio-fg-secondary"
+          aria-label={tLive(locale, "live.board.openInStudio")}
+          title={tLive(locale, "live.board.openInStudio")}
+          onClick={(event) => {
+            event.stopPropagation();
+            openInStudio();
+          }}
+          disabled={!tree}
+          data-live-open-studio=""
+        >
+          {tLive(locale, "live.board.studioShort")}
+          <ArrowUpRight size={13} aria-hidden="true" />
+        </button>
+        <IconButton
           size="sm"
-          variant="ghost"
-          aria-label={tLive(locale, "live.board.close")}
+          label={tLive(locale, "live.board.close")}
+          className="text-studio-muted hover:text-studio-fg"
           onClick={(event) => {
             event.stopPropagation();
             onClose();
           }}
         >
           <X size={14} aria-hidden="true" />
-        </Button>
+        </IconButton>
       </header>
 
       <PlayerBar game={game} side="black" locale={locale} historic={historic("black")} />
-      <div className="flex items-stretch gap-1">
-        {focused && showEval ? (
-          <div data-live-eval-slot="" className="flex shrink-0">
-            <LiveEvalBar fen={fen} />
-          </div>
+      <div className="flex items-stretch gap-1.5">
+        {showEval ? (
+          // Every card reserves the eval column, so all boards in the grid keep the same size;
+          // only the focused one fills it (one engine search at a time).
+          focused ? (
+            <div data-live-eval-slot="" className="flex shrink-0">
+              <LiveEvalBar fen={fen} />
+            </div>
+          ) : (
+            <div className="w-5 shrink-0" aria-hidden="true" />
+          )
         ) : null}
         <div className="aspect-square min-w-0 flex-1" role="img" aria-label={tLive(locale, "live.boards.label")}>
           <Chessboard

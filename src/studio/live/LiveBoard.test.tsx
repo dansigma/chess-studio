@@ -48,7 +48,7 @@ const { useStudioStore } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
 
 const SANS = ["e4", "e5", "Nf3", "Nc6"];
-const CLK = ["0:09:50", "0:09:45", "0:09:40", "0:09:35"];
+const CLK = ["0:09:50", "0:09:45", "0:09:40", "0:09:35"]; // %clk in the PGN (h:mm:ss)
 function pgn(gameId: string, plies: number, result = "*", roundId = "R1"): string {
   const moves = SANS.slice(0, plies)
     .map((san, i) => `${i % 2 === 0 ? `${i / 2 + 1}. ` : ""}${san} {[%clk ${CLK[i]}]}`)
@@ -119,14 +119,14 @@ test("follow-latest: browsing back pauses, shows the clock at that ply; Live res
 
   fireEvent.click(screen.getByRole("button", { name: "Previous move" }));
   assert.equal(board("a").dataset.following, undefined);
-  assert.equal(clockText("a", "white"), "0:09:50");
-  assert.equal(clockText("a", "black"), "0:09:45");
+  assert.equal(clockText("a", "white"), "9:50");
+  assert.equal(clockText("a", "black"), "9:45");
   assert.equal(board("a").querySelectorAll("[data-clock-ticking]").length, 0);
 
   act(() => useLiveStore.getState().ingestUpdate(stream("a", 4)));
   assert.match(board("a").textContent!, /Nc6/u, "the notation keeps growing while paused");
   assert.equal(board("a").dataset.following, undefined, "and does not jump");
-  assert.equal(clockText("a", "white"), "0:09:50");
+  assert.equal(clockText("a", "white"), "9:50");
 
   fireEvent.click(screen.getByRole("button", { name: "Live ▸" }));
   assert.equal(board("a").dataset.following, "true");
@@ -229,3 +229,23 @@ function mainlineSans(tree: { children: { san: string; children: unknown[] }[] }
   }
   return out;
 }
+
+test("layout: every open board gets the same grid cell, even the newly focused one (no col-span)", async () => {
+  await openStreamed(2, ["a", "b", "c"]);
+  fireEvent.click(rowOf("c")); // a plain row click focuses the last opened game
+  assert.equal(board("c").dataset.focused, "true");
+  const grid = document.querySelector("[data-live-board-grid]") as HTMLElement;
+  assert.match(grid.style.gridTemplateColumns, /auto-fill/u);
+  for (const id of ["a", "b", "c"]) {
+    assert.doesNotMatch(board(id).parentElement!.className, /col-span/u);
+  }
+});
+
+test("clocks: the side to move is highlighted on the card and in the table; the table never scrolls sideways", async () => {
+  await openStreamed(3); // after 1. e4 e5 2. Nf3, Black is to move
+  await waitFor(() => assert.ok(board("a").querySelector('[data-live-clock="black"] [data-to-move]')));
+  assert.equal(board("a").querySelector('[data-live-clock="white"] [data-to-move]'), null);
+  assert.ok(rowOf("a").querySelector("[data-to-move]"));
+  assert.ok(rowOf("a").querySelector("[data-live-open-marker]"), "an open game is marked in the table");
+  assert.match(screen.getByTestId("live-scroll").className, /overflow-x-hidden/u);
+});

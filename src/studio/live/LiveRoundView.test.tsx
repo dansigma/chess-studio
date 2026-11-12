@@ -106,7 +106,7 @@ test("deep link: skeleton, then rows with players, results, clocks and a no-cloc
     resolve(snapshot([game("a"), game("b", { result: "1-0", white: player("Won", null), black: player("Lost", null, null) })]));
   });
   await waitFor(() => assert.ok(rowOf("a")));
-  assert.match(rowOf("a").textContent!, /GM\s*Wa.*2700.*NOR.*0:10:00.*\*.*0:08:20/u);
+  assert.match(rowOf("a").textContent!, /GM\s*Wa.*2700.*NOR.*10:00.*\*.*8:20/u);
   assert.match(rowOf("b").textContent!, /1-0/u);
   assert.match(rowOf("b").textContent!, /no clock/u);
   assert.equal(screen.getByRole("link", { name: /Powered by Lichess/u }).getAttribute("href"), rounds[0]!.url);
