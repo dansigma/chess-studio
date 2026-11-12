@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchTopBroadcasts, LiveRateLimitedError } from "@/src/lib/live/lichess-broadcast";
 import type { BroadcastListItem } from "@/src/lib/live/types";
+import { enqueueLiveRequest } from "./live-store";
 
 export const BROADCAST_REFRESH_MS = 60_000;
 
@@ -23,6 +24,11 @@ export type BroadcastListState = {
   loadMoreError: boolean;
 };
 
+/** The queue rejects with an AbortError when it is stopped (leaving Live) or the caller aborts. */
+function isAborted(error: unknown, signal: AbortSignal): boolean {
+  return signal.aborted || (error instanceof Error && error.name === "AbortError");
+}
+
 /** Appends `incoming` to `current`, skipping tournaments already listed. */
 export function appendUnique(current: BroadcastListItem[], incoming: BroadcastListItem[]): BroadcastListItem[] {
   const seen = new Set(current.map((item) => item.tour.id));
@@ -37,7 +43,8 @@ export function roundIdForItem(item: BroadcastListItem): string | null {
 /**
  * Broadcast list for Live: page 1 on mount, refreshed every 60 s (skipped while the tab is hidden,
  * never two requests in flight, ~60 s backoff after a 429), plus "load more" for past pages.
- * TODO(SIG-1289): replace the timer with the shared Lichess request queue from the live store.
+ * Requests go through the shared Lichess queue of the live store (`enqueueLiveRequest`), so they never
+ * run in parallel with the round snapshots and share its 429 pause.
  */
 export function useBroadcastList(): BroadcastListState & { retry: () => void; loadMore: () => void } {
   const [state, setState] = useState<BroadcastListState>({
@@ -64,7 +71,7 @@ export function useBroadcastList(): BroadcastListState & { retry: () => void; lo
     const controller = new AbortController();
     aborter.current = controller;
     try {
-      const page = await fetchTopBroadcasts(1, controller.signal);
+      const page = await enqueueLiveRequest((signal) => fetchTopBroadcasts(1, signal), { signal: controller.signal });
       if (!page) {
         return;
       }
@@ -79,6 +86,9 @@ export function useBroadcastList(): BroadcastListState & { retry: () => void; lo
         data: { active: page.active, upcoming: page.upcoming, past, nextPage: nextPage.current },
       }));
     } catch (error) {
+      if (isAborted(error, controller.signal)) {
+        return;
+      }
       if (error instanceof LiveRateLimitedError) {
         backoffUntil.current = Date.now() + error.retryAfterMs;
       }
@@ -101,7 +111,7 @@ export function useBroadcastList(): BroadcastListState & { retry: () => void; lo
     aborter.current = controller;
     setState((s) => ({ ...s, loadingMore: true, loadMoreError: false }));
     try {
-      const result = await fetchTopBroadcasts(page, controller.signal);
+      const result = await enqueueLiveRequest((signal) => fetchTopBroadcasts(page, signal), { signal: controller.signal });
       if (!result) {
         return;
       }
@@ -121,6 +131,9 @@ export function useBroadcastList(): BroadcastListState & { retry: () => void; lo
           : { ...s, loadingMore: false },
       );
     } catch (error) {
+      if (isAborted(error, controller.signal)) {
+        return;
+      }
       if (error instanceof LiveRateLimitedError) {
         backoffUntil.current = Date.now() + error.retryAfterMs;
       }

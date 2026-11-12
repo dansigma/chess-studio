@@ -10,8 +10,21 @@ let handler: (page: number) => Promise<BroadcastListPage | null> = async () => {
   throw new Error("unset");
 };
 
-class FakeRateLimited extends Error {
+/** Like the real client: stays pending, resolves `null` when aborted (so it never wedges the shared queue). */
+function pendingUntilAbort(signal: AbortSignal): Promise<null> {
+  return new Promise((resolve) => signal.addEventListener("abort", () => resolve(null)));
+}
+
+class FakeHttpError extends Error {
+  constructor(readonly status = 500) {
+    super(`HTTP ${status}`);
+  }
+}
+class FakeRateLimited extends FakeHttpError {
   readonly retryAfterMs = 60_000;
+  constructor() {
+    super(429);
+  }
 }
 mock.module("@/src/lib/live/lichess-broadcast", {
   namedExports: {
@@ -20,6 +33,14 @@ mock.module("@/src/lib/live/lichess-broadcast", {
       return handler(page);
     },
     LiveRateLimitedError: FakeRateLimited,
+    LiveHttpError: FakeHttpError,
+    RATE_LIMIT_BACKOFF_MS: 60_000,
+    // The round view starts the live manager: a snapshot that never arrives and a stream that idles until aborted.
+    fetchRound: (_id: string, signal: AbortSignal) => pendingUntilAbort(signal),
+    fetchTour: (_id: string, signal: AbortSignal) => pendingUntilAbort(signal),
+    fetchRoundPgn: () => Promise.resolve(null),
+    streamRound: (_id: string, _on: unknown, signal: AbortSignal) =>
+      new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve())),
   },
 });
 
@@ -94,7 +115,8 @@ test("renders sections in API order; live dot only when ongoing; click sets the 
 
   fireEvent.click(screen.getByText("Tour p"));
   assert.equal(window.location.search, "?view=live&live=linked");
-  assert.ok(screen.getByText("Round linked"));
+  assert.ok(await screen.findByLabelText("Loading round"));
+  assert.ok(screen.getByRole("button", { name: "Back to broadcasts" }));
   // happy-dom does not walk session history: emulate the browser Back (previous entry + popstate).
   window.history.back = () => {
     window.history.replaceState(null, "", "/studio?view=live");
