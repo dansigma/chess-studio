@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatDecimal1, formatDuration, formatGameCount, formatInteger } from "./format.ts";
+import { formatDateTime, formatDecimal1, formatDuration, formatGameCount, formatInteger } from "./format.ts";
 
 test("formatDecimal1 renders one decimal with the locale separator", () => {
   assert.equal(formatDecimal1("en", 86), "86.0");
@@ -36,4 +36,17 @@ test("formatDuration: ms under a second, tenths under a minute, minutes and seco
   assert.equal(formatDuration("en", 59960), "1m 0s");
   assert.equal(formatDuration("en", 3_725_000), "62m 5s");
   assert.equal(formatDuration("en", -5), "0ms");
+});
+
+test("formatDateTime renders day, month and time per locale and timezone", () => {
+  const ms = Date.UTC(2026, 10, 12, 15, 30);
+  const en = formatDateTime("en", ms, "UTC");
+  const pt = formatDateTime("pt-br", ms, "UTC");
+  assert.match(en, /Nov/u);
+  assert.match(en, /12/u);
+  assert.match(en, /3:30\s?PM/u);
+  assert.match(pt, /12/u);
+  assert.match(pt, /nov/iu);
+  assert.match(pt, /15:30/u);
+  assert.match(formatDateTime("en", ms, "America/Sao_Paulo"), /12:30\s?PM/u);
 });
