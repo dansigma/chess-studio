@@ -235,7 +235,13 @@ test("layout: every open board gets the same grid cell, even the newly focused o
   fireEvent.click(rowOf("c")); // a plain row click focuses the last opened game
   assert.equal(board("c").dataset.focused, "true");
   const grid = document.querySelector("[data-live-board-grid]") as HTMLElement;
-  assert.match(grid.style.gridTemplateColumns, /auto-fill/u);
+  // SIG-1295: 1/2/3 columns by container width, never more than 3 and never a fixed auto-fill count.
+  assert.match(grid.className, /@xl:grid-cols-2/u);
+  assert.match(grid.className, /@4xl:grid-cols-3/u);
+  assert.doesNotMatch(grid.className, /@[a-z0-9]+:grid-cols-[4-9]/u);
+  assert.equal(grid.style.gridTemplateColumns, "");
+  assert.match(grid.className, /items-stretch/u);
+  assert.match((document.querySelector("[data-live-boards]") as HTMLElement).className, /@container/u);
   for (const id of ["a", "b", "c"]) {
     assert.doesNotMatch(board(id).parentElement!.className, /col-span/u);
   }
@@ -248,4 +254,37 @@ test("clocks: the side to move is highlighted on the card and in the table; the 
   assert.ok(rowOf("a").querySelector("[data-to-move]"));
   assert.ok(rowOf("a").querySelector("[data-live-open-marker]"), "an open game is marked in the table");
   assert.match(screen.getByTestId("live-scroll").className, /overflow-x-hidden/u);
+});
+
+test("SIG-1295: finished and ongoing cards share one structure; the result row is reserved while ongoing", async () => {
+  roundHandler = async () => snapshot([game("a", 3), game("b", 3, { result: "1/2-1/2" })]);
+  render(<LiveView />);
+  await waitFor(() => assert.ok(rowOf("a")));
+  fireEvent.click(rowOf("a"), { ctrlKey: true });
+  fireEvent.click(rowOf("b"), { ctrlKey: true });
+  act(() => {
+    useLiveStore.getState().ingestUpdate(stream("a", 3));
+    useLiveStore.getState().ingestUpdate(stream("b", 3, "1/2-1/2"));
+  });
+  const ongoing = board("a").querySelector("[data-live-result]") as HTMLElement;
+  const finished = board("b").querySelector("[data-live-result]") as HTMLElement;
+  assert.ok(ongoing && finished, "result row exists in both");
+  assert.equal(ongoing.textContent, "");
+  assert.equal(ongoing.getAttribute("aria-hidden"), "true");
+  assert.equal(finished.getAttribute("aria-hidden"), null);
+  assert.match(finished.textContent!, /½ – ½/u);
+  assert.equal(ongoing.className, finished.className, "same fixed height either way");
+  assert.match(ongoing.className, /\bh-5\b/u);
+  assert.match((board("a").querySelector("[data-live-notation]") as HTMLElement).className, /\bh-40\b/u);
+  assert.match(board("a").className, /\bh-full\b/u);
+});
+
+test("SIG-1296: the close button is hidden by opacity only, shown on hover/focus/touch, and keeps its name", async () => {
+  await openStreamed(2);
+  assert.match(board("a").className, /\bgroup\b/u);
+  const close = within(board("a")).getByRole("button", { name: "Close board" });
+  for (const cls of ["opacity-0", "group-hover:opacity-100", "group-focus-within:opacity-100", "focus-visible:opacity-100", "[@media(hover:none)]:opacity-100"]) {
+    assert.ok(close.className.split(/\s+/u).includes(cls), `has ${cls}`);
+  }
+  assert.doesNotMatch(close.className, /\binvisible\b|\bhidden\b/u);
 });

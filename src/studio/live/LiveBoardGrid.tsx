@@ -17,7 +17,8 @@ function SwitcherLabel({ roundId, gameId }: { roundId: string; gameId: string })
 }
 
 /**
- * The open boards. Desktop: a grid of equal cards (`auto-fill` + `minmax`), so a newly opened or focused
+ * The open boards. Desktop: a grid of equal cards, 1/2/3 columns by the width of this pane (container
+ * queries, not the viewport: the pane is the window minus the games table), so a newly opened or focused
  * board never stretches across the row; the focused one is marked by its ring and carries the eval bar.
  * Mobile: only the focused board, with a selector between the followed games.
  * Boards come from the store; closing calls `closeBoard`, clicking a board calls `focusBoard`.
@@ -36,7 +37,7 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
   }
   const shown = mobile ? openBoards.filter((b) => sameGameRef(b, focusedGame ?? openBoards[0] ?? null)) : openBoards;
   return (
-    <section aria-label={tLive(locale, "live.boards.label")} className="flex min-w-0 flex-col gap-3 p-3" data-live-boards="">
+    <section aria-label={tLive(locale, "live.boards.label")} className="@container flex min-w-0 flex-col gap-3 p-3" data-live-boards="">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         <label className="flex items-center gap-1.5 text-dense text-studio-muted hover:text-studio-fg">
           <input
@@ -76,14 +77,14 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
         </div>
       ) : null}
       <div
-        className={mobile ? "flex flex-col" : "grid items-start gap-3"}
-        style={mobile ? undefined : { gridTemplateColumns: "repeat(auto-fill, minmax(17rem, 1fr))" }}
+        // Thresholds keep a card >= 16rem: 2 cols from 36rem (~17.6rem each), 3 from 56rem (~17.5rem each).
+        className={mobile ? "flex flex-col" : "grid grid-cols-1 items-stretch gap-3 @xl:grid-cols-2 @4xl:grid-cols-3"}
         data-live-board-grid=""
       >
         {shown.map((ref) => {
           const focused = sameGameRef(ref, focusedGame);
           return (
-            <div key={`${ref.roundId}:${ref.gameId}`} className="min-w-0">
+            <div key={`${ref.roundId}:${ref.gameId}`} className="min-w-0 [&>article]:h-full">
               <LiveBoard
                 roundId={ref.roundId}
                 gameId={ref.gameId}

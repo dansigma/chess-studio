@@ -135,10 +135,17 @@ export function LiveBoard({
         role="status"
         aria-busy="true"
         data-live-board={gameId}
-        className="grid aspect-square place-items-center rounded-lg border border-studio-border-subtle p-4 text-sm text-studio-muted"
+        className="group grid aspect-square place-items-center rounded-lg border border-studio-border-subtle p-4 text-sm text-studio-muted"
       >
         <span>{tLive(locale, "live.board.waiting")}</span>
-        <Button size="sm" variant="ghost" onClick={onClose} aria-label={tLive(locale, "live.board.close")}>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onClose}
+          aria-label={tLive(locale, "live.board.close")}
+          data-live-close=""
+          className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+        >
           <X size={14} aria-hidden="true" />
         </Button>
       </div>
@@ -210,7 +217,7 @@ export function LiveBoard({
       tabIndex={0}
       onKeyDown={onKeyDown}
       onClick={onFocus}
-      className={`flex min-w-0 cursor-default flex-col gap-2 rounded-xl border bg-studio-panel p-3 shadow-sm outline-none transition-colors focus-visible:ring-1 focus-visible:ring-studio-accent ${
+      className={`group flex h-full min-w-0 cursor-default flex-col gap-2 rounded-xl border bg-studio-panel p-3 shadow-sm outline-none transition-colors focus-visible:ring-1 focus-visible:ring-studio-accent ${
         focused ? "border-studio-accent ring-1 ring-studio-accent" : "border-studio-border-subtle hover:border-studio-border"
       }`}
     >
@@ -243,7 +250,8 @@ export function LiveBoard({
         <IconButton
           size="sm"
           label={tLive(locale, "live.board.close")}
-          className="text-studio-muted hover:text-studio-fg"
+          className="text-studio-muted hover:text-studio-fg opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+          data-live-close=""
           onClick={(event) => {
             event.stopPropagation();
             onClose();
@@ -289,13 +297,18 @@ export function LiveBoard({
       </div>
       <PlayerBar game={game} side="white" locale={locale} historic={historic("white")} />
 
-      {finished ? (
-        <p className="text-center text-dense font-semibold tabular-nums text-studio-fg" data-live-result="">
-          {tLive(locale, "live.board.gameOver", { result: game.result === "1/2-1/2" ? "½ – ½" : game.result.replace("-", " – ") })}
-        </p>
-      ) : null}
+      {/* Always rendered at a fixed height (empty + aria-hidden while ongoing) so a card never grows when its game ends. */}
+      <p
+        className="h-5 text-center text-dense font-semibold tabular-nums text-studio-fg"
+        data-live-result=""
+        aria-hidden={finished ? undefined : true}
+      >
+        {finished
+          ? tLive(locale, "live.board.gameOver", { result: game.result === "1/2-1/2" ? "½ – ½" : game.result.replace("-", " – ") })
+          : null}
+      </p>
 
-      <div className="flex items-center justify-center gap-1" role="group" aria-label={tLive(locale, "live.board.notation")}>
+      <div className="flex h-7 items-center justify-center gap-1" role="group" aria-label={tLive(locale, "live.board.notation")}>
         <Button variant="ghost" size="sm" onClick={goFirst} disabled={!tree || atStart} aria-label={tLive(locale, "live.board.first")}>
           <ChevronsLeft size={14} />
         </Button>
@@ -318,7 +331,7 @@ export function LiveBoard({
       <div
         ref={notationRef}
         aria-label={tLive(locale, "live.board.notation")}
-        className="max-h-40 min-h-12 overflow-auto text-body"
+        className="h-40 overflow-auto text-body"
         data-live-notation=""
       >
         {!tree || tree.children.length === 0 ? (
