@@ -17,7 +17,9 @@ function SwitcherLabel({ roundId, gameId }: { roundId: string; gameId: string })
 }
 
 /**
- * The open boards. Desktop: a grid, the focused board spans two columns (larger) and carries the eval bar. Mobile: only the focused board, with a selector between the followed games.
+ * The open boards. Desktop: a grid of equal cards (`auto-fill` + `minmax`), so a newly opened or focused
+ * board never stretches across the row; the focused one is marked by its ring and carries the eval bar.
+ * Mobile: only the focused board, with a selector between the followed games.
  * Boards come from the store; closing calls `closeBoard`, clicking a board calls `focusBoard`.
  */
 export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
@@ -34,21 +36,24 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
   }
   const shown = mobile ? openBoards.filter((b) => sameGameRef(b, focusedGame ?? openBoards[0] ?? null)) : openBoards;
   return (
-    <section aria-label={tLive(locale, "live.boards.label")} className="flex min-w-0 flex-col gap-2 p-2" data-live-boards="">
-      {limitReached ? (
-        <p role="status" className="text-dense text-studio-warning-fg" data-live-board-limit="">
-          {tLive(locale, "live.board.limit", { max: MAX_LIVE_BOARDS })}
-        </p>
-      ) : null}
-      <label className="flex items-center gap-1.5 self-start text-dense text-studio-muted">
-        <input
-          type="checkbox"
-          checked={showEval}
-          onChange={(event) => setShowEval(event.target.checked)}
-          data-live-eval-toggle=""
-        />
-        {tLive(locale, "live.eval.toggle")}
-      </label>
+    <section aria-label={tLive(locale, "live.boards.label")} className="flex min-w-0 flex-col gap-3 p-3" data-live-boards="">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <label className="flex items-center gap-1.5 text-dense text-studio-muted hover:text-studio-fg">
+          <input
+            type="checkbox"
+            checked={showEval}
+            onChange={(event) => setShowEval(event.target.checked)}
+            className="accent-[var(--color-studio-accent)]"
+            data-live-eval-toggle=""
+          />
+          {tLive(locale, "live.eval.toggle")}
+        </label>
+        {limitReached ? (
+          <p role="status" className="text-dense text-studio-warning-fg" data-live-board-limit="">
+            {tLive(locale, "live.board.limit", { max: MAX_LIVE_BOARDS })}
+          </p>
+        ) : null}
+      </div>
       {mobile && openBoards.length > 1 ? (
         <div role="tablist" aria-label={tLive(locale, "live.board.switcher")} className="flex gap-1 overflow-x-auto">
           {openBoards.map((ref) => {
@@ -70,14 +75,15 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
           })}
         </div>
       ) : null}
-      <div className={mobile ? "flex flex-col" : "grid grid-cols-2 gap-2 xl:grid-cols-3"}>
+      <div
+        className={mobile ? "flex flex-col" : "grid items-start gap-3"}
+        style={mobile ? undefined : { gridTemplateColumns: "repeat(auto-fill, minmax(17rem, 1fr))" }}
+        data-live-board-grid=""
+      >
         {shown.map((ref) => {
           const focused = sameGameRef(ref, focusedGame);
           return (
-            <div
-              key={`${ref.roundId}:${ref.gameId}`}
-              className={!mobile && focused && openBoards.length > 1 ? "col-span-2" : ""}
-            >
+            <div key={`${ref.roundId}:${ref.gameId}`} className="min-w-0">
               <LiveBoard
                 roundId={ref.roundId}
                 gameId={ref.gameId}

@@ -41,7 +41,9 @@ describe("live clocks", () => {
 
   it("formats whole seconds, rounding up", () => {
     assert.equal(formatDisplayClock(5_025_300), "1:23:46");
-    assert.equal(formatDisplayClock(0), "0:00:00");
-    assert.equal(formatDisplayClock(999), "0:00:01");
+    assert.equal(formatDisplayClock(0), "0:00");
+    assert.equal(formatDisplayClock(999), "0:01");
+    assert.equal(formatDisplayClock(590_000), "9:50");
+    assert.equal(formatDisplayClock(3_600_000), "1:00:00");
   });
 });
