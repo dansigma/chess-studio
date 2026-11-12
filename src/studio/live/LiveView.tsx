@@ -13,7 +13,8 @@ import { useLiveUrlSync } from "./use-live-url-sync";
  */
 export function LiveView() {
   const locale = useStudioStore((state) => state.settings.locale);
-  const roundId = useLiveStore((s) => s.tableRoundId);
+  // A link with boards but no table round (`games=` only) opens the round view of the focused board.
+  const roundId = useLiveStore((s) => s.tableRoundId ?? s.focusedGame?.roundId ?? s.openBoards[0]?.roundId ?? null);
   const setTableRound = useLiveStore((s) => s.setTableRound);
   const { goBack, ready } = useLiveUrlSync();
 
