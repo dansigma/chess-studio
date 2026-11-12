@@ -106,7 +106,7 @@ const EN: Record<MyGamesStringKey, string> = {
 };
 
 const PT_BR: Record<MyGamesStringKey, string> = {
-  "myGames.title": "Minhas partidas",
+  "myGames.title": "Minhas Partidas",
   "myGames.sync": "Sincronizar",
   "myGames.syncing": "Sincronizando…",
   "myGames.synced.one": "Sincronizada {count} nova partida",
