@@ -73,6 +73,10 @@ export function EnginePanel() {
   // wait) and the last displayed eval (held instead of zeroed on fresh FENs).
   const cachedForFen = useStudioStore((state) => state.evalByFen[fenKey(fen)]);
   const heldEval = useStudioStore((state) => state.engineEval);
+  // SIG-1293: the dock is only CSS-hidden outside the studio view; pause the
+  // search there so a hidden panel never keeps the shared worker busy. Panel
+  // state (paused, depth, ...) is untouched, so coming back re-analyzes.
+  const inStudio = useStudioStore((state) => state.workspaceView === "studio");
   const engineRef = useRef<SharedEngineLease | null>(null);
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(true);
@@ -123,12 +127,12 @@ export function EnginePanel() {
     if (!started) {
       return;
     }
-    if (paused || retryActive) {
+    if (paused || retryActive || !inStudio) {
       engineRef.current?.stop();
       return;
     }
     engineRef.current?.analyze(fen, depthTarget, multiPv, threads);
-  }, [fen, depthTarget, multiPv, threads, paused, runId, engineBuild, started, retryActive]);
+  }, [fen, depthTarget, multiPv, threads, paused, runId, engineBuild, started, retryActive, inStudio]);
 
   // SIG-856 choice (b): on a FEN change, show the cached eval immediately
   // when present; otherwise hold the last displayed value — never zero the

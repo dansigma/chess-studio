@@ -3,7 +3,12 @@
 // The dock panels (EnginePanel, EvalGraphPanel) and Show threat previously
 // each owned a `StockfishEngine` worker (~99MB on the standard build). This
 // module owns one resident worker for the active build and arbitrates access
-// by slot priority: threat (3) > engine (2) > graph (1).
+// by slot priority: live (4) > threat (3) > engine (2) > graph (1).
+//
+// The `live` slot (SIG-1293) is for the Live view's eval bar on the focused
+// board. It outranks `engine`, so a Live search preempts a depth-40 panel
+// search; releasing/stopping it lets the preempted slot resume via the stashed
+// params / promote() path.
 //
 // SIG-1223: the Game Review and the background My Games review queue are not
 // slots any more. They run on their own lite, single-thread worker pool
@@ -44,11 +49,24 @@ import {
   type EngineInfo,
 } from "./stockfish-client";
 
-export type EngineSlot = "engine" | "graph" | "threat";
+/**
+ * Slot API (acquire a lease per consumer; one resident worker is shared).
+ *
+ * Consumers MUST pass `settings.engineBuild` (src/store/slices/settings.ts) as
+ * the `build` argument. Requesting a different build discards the shared
+ * worker and every slot's saved search, so a consumer picking its own build
+ * (e.g. a "lite" one) would kill the Studio panels' analysis. There is no
+ * per-slot lite-build path.
+ *
+ * `go` is sent as `go depth N` (clamped 8-40); there is no movetime option.
+ * `lease.stop()` / `lease.release()` drop the slot's saved search.
+ */
+export type EngineSlot = "live" | "engine" | "graph" | "threat";
 
 export type EngineSlotListener = (info: EngineInfo) => void;
 
 const SLOT_PRIORITY: Record<EngineSlot, number> = {
+  live: 4,
   threat: 3,
   engine: 2,
   graph: 1,

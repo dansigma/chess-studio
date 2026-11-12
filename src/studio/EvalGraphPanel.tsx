@@ -102,7 +102,11 @@ function useEvalLine() {
 type EvalLine = ReturnType<typeof useEvalLine>;
 
 /** The engine walk that fills `evalByFen` for every point of the line. */
-function useEvalWalk(line: EvalLine, enabled: boolean): void {
+function useEvalWalk(line: EvalLine, wanted: boolean): void {
+  // SIG-1293: no walking while the studio view is hidden. Leaving releases the
+  // lease; returning restarts the walk, which skips FENs already in evalByFen.
+  const inStudio = useStudioStore((state) => state.workspaceView === "studio");
+  const enabled = wanted && inStudio;
   const engineDepth = useStudioStore((state) => state.settings.engineDepth);
   const engineBuild = useStudioStore((state) => state.settings.engineBuild);
   const walkDepth = Math.min(GRAPH_WALK_DEPTH, engineDepth);
