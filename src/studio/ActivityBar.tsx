@@ -41,6 +41,9 @@ const SITE_ICONS: Record<string, typeof Search> = {
 };
 const SITE_ORDER = ["/studio", "/courses", "/puzzles"];
 
+// SIG-1300: one text colour rule for icon + label, shared by links and buttons.
+const INACTIVE_TEXT = "text-studio-muted hover:text-studio-fg transition-colors";
+
 function isActivePath(pathname: string | null, href: string): boolean {
   return pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
 }
@@ -87,13 +90,15 @@ function ActivityLink({
         aria-label={label}
         aria-current={active ? "page" : undefined}
         onClick={onClick}
-        className="flex h-10 w-full items-center gap-3 overflow-hidden pl-[7px] pr-3"
+        className={`flex h-10 w-full items-center gap-3 overflow-hidden pl-[7px] pr-3 ${
+          active ? "text-studio-fg" : INACTIVE_TEXT
+        }`}
       >
         <span
           className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg transition-colors ${
             active
               ? "bg-studio-accent-soft text-studio-accent-text"
-              : "text-studio-faint hover:bg-studio-hover hover:text-studio-fg"
+              : "hover:bg-studio-hover"
           }`}
         >
           {children}
@@ -125,7 +130,7 @@ function ActivityButton({
         aria-pressed={active}
         onClick={onClick}
         className={`group relative flex h-10 w-full items-center gap-3 overflow-hidden pl-[7px] pr-3 ${
-          active ? "text-studio-fg" : "text-studio-faint hover:text-studio-fg"
+          active ? "text-studio-fg" : INACTIVE_TEXT
         }`}
       >
         {active ? (

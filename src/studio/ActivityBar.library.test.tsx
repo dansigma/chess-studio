@@ -63,10 +63,10 @@ test("Live button toggles the view, is exclusive with Library, and Studio is not
   assert.equal(useStudioStore.getState().workspaceView, "studio");
 });
 
-test("Live label is Ao vivo in pt-br", () => {
+test("Live label is Ao Vivo in pt-br", () => {
   act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } }));
   render(<ActivityBar />);
-  assert.ok(screen.getByRole("button", { name: "Ao vivo" }));
+  assert.ok(screen.getByRole("button", { name: "Ao Vivo" }));
 });
 
 // SIG-1298: labels follow settings.sidebarCollapsed.
@@ -107,4 +107,21 @@ test("toggle switches between icon-only and labelled", () => {
   assert.equal(labelsFor("Library")[0].getAttribute("data-activity-label"), "hidden");
   fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
   assert.equal(labelsFor("Library")[0].getAttribute("data-activity-label"), "visible");
+});
+
+// SIG-1300: icon and label share one text colour rule across links and buttons.
+test("inactive link and button share the label colour; active item uses text-studio-fg", () => {
+  render(<ActivityBar />);
+  const labelWrapper = (el: Element) => el.closest("a, button")!;
+  const courses = labelWrapper(screen.getByRole("link", { name: "Courses" }));
+  const files = labelWrapper(screen.getByRole("button", { name: "Files" }));
+  const colour = (el: Element) => el.className.split(/\s+/).filter((c) => c.startsWith("text-studio-"));
+  assert.deepEqual(colour(courses), ["text-studio-muted"]);
+  assert.deepEqual(colour(files), ["text-studio-muted"]);
+  assert.ok(courses.className.includes("hover:text-studio-fg"));
+  assert.ok(files.className.includes("hover:text-studio-fg"));
+  const studio = labelWrapper(screen.getByRole("link", { name: "Studio" }));
+  assert.deepEqual(colour(studio), ["text-studio-fg"]);
+  fireEvent.click(screen.getByRole("button", { name: "Library" }));
+  assert.deepEqual(colour(screen.getByRole("button", { name: "Library" })), ["text-studio-fg"]);
 });
