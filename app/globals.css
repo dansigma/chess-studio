@@ -566,6 +566,17 @@ button:enabled {
     outline: 2px solid var(--studio-accent);
     outline-offset: 1px;
   }
+
+  /* SIG-1310: Chrome (Linux/Windows) paints the native popup list from each
+     <option>'s own colours; transparent selects otherwise fall back to white. */
+  select {
+    color-scheme: inherit;
+  }
+  select option,
+  select optgroup {
+    background-color: var(--studio-elevated);
+    color: var(--studio-fg);
+  }
 }
 
 /* SIG-969: honor prefers-reduced-motion — review progress/dialog award
