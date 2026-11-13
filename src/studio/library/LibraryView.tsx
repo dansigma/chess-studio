@@ -21,6 +21,7 @@ import { LibraryTable } from "./LibraryTable";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 import { LibraryPreview } from "./LibraryPreview";
 import { LibraryPlayers } from "./LibraryPlayers";
+import { useLibraryDrop } from "./use-library-import";
 
 const SKELETON_ROWS = 8;
 
@@ -35,8 +36,22 @@ export function LibraryView(slots: LibraryViewSlots = {}) {
   const locale = useStudioStore((state) => state.settings.locale);
   const mode = useLibraryStore((s) => s.mode);
   const setMode = useLibraryStore((s) => s.setMode);
+  const drop = useLibraryDrop(mode === "games");
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-1.5 bg-studio-bg p-1.5" data-testid="library-view">
+    <div
+      className="relative flex h-full min-h-0 w-full flex-col gap-1.5 bg-studio-bg p-1.5"
+      data-testid="library-view"
+      {...drop.handlers}
+    >
+      {drop.active ? (
+        <div
+          role="status"
+          data-testid="library-drop-overlay"
+          className="pointer-events-none absolute inset-1.5 z-50 flex items-center justify-center rounded-lg border-2 border-dashed border-studio-accent bg-studio-bg/80 text-body font-medium text-studio-accent-text"
+        >
+          {tLibrary(locale, "library.import.drop")}
+        </div>
+      ) : null}
       <div role="tablist" aria-label={tLibrary(locale, "library.mode.label")} className="flex shrink-0 gap-1">
         {(["games", "players"] as const).map((item) => (
           <button
