@@ -5,7 +5,7 @@
 // moving-average line is drawn on top, and a dashed line marks the mean.
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { formatDecimal1 } from "@/src/i18n/format";
 import { tMyGames } from "@/src/i18n/my-games-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -16,7 +16,18 @@ const HEIGHT = 150;
 const PAD = { top: 10, right: 10, bottom: 8, left: 30 };
 const FALLBACK_WIDTH = 320;
 const GRID = [90, 70, 50] as const;
+const TIP_WIDTH = 160;
 const TAG = { en: "en-US", "pt-br": "pt-BR" } as const;
+
+/**
+ * SIG-1308: centre a box of `boxWidth` on `x` while keeping it inside
+ * `[0, containerWidth]`. A box wider than the container is pinned to the left.
+ * Returns the box's centre.
+ */
+export function clampCenter(x: number, boxWidth: number, containerWidth: number): number {
+  const half = boxWidth / 2;
+  return Math.max(half, Math.min(containerWidth - half, x));
+}
 
 function formatDate(locale: SiteLocale, ms: number | null): string {
   // Undated games sort as 0; never render that as "1 Jan 1970".
@@ -43,6 +54,15 @@ export function MyStatsTrend({
   const [hover, setHover] = useState<number | null>(null);
   const [focused, setFocused] = useState<number | null>(null);
   const [rovingIndex, setRovingIndex] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    // SIG-1308: measure before paint so the SVG never starts at the 320px
+    // fallback (wider than a ~300px dock → horizontal scrollbar).
+    const initial = wrapRef.current?.clientWidth;
+    if (initial && initial > 0) {
+      setWidth(initial);
+    }
+  }, [hasPoints]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -113,8 +133,8 @@ export function MyStatsTrend({
     const meta = [result ? tMyGames(locale, result) : null, g.playedAt != null ? formatDate(locale, g.playedAt) : null, g.timeClass ?? null]
       .filter(Boolean)
       .join(" · ");
-    const half = 80;
-    const left = Math.max(half, Math.min(width - half, xAt(index)));
+    const tipWidth = Math.min(TIP_WIDTH, width);
+    const left = clampCenter(xAt(index), tipWidth, width);
     // Keep the tooltip off the hovered dot: below it for high values, at the
     // top otherwise.
     const top = yAt(p.accuracy) < HEIGHT / 2 ? HEIGHT - 56 : 0;
@@ -122,8 +142,8 @@ export function MyStatsTrend({
       <div
         role="tooltip"
         data-testid="trend-tooltip"
-        className="pointer-events-none absolute z-10 w-40 -translate-x-1/2 rounded border border-studio-border-strong bg-studio-elevated px-2 py-1 text-caption text-studio-fg shadow-lg"
-        style={{ left, top }}
+        className="pointer-events-none absolute z-10 -translate-x-1/2 rounded border border-studio-border-strong bg-studio-elevated px-2 py-1 text-caption text-studio-fg shadow-lg"
+        style={{ left, top, width: tipWidth }}
       >
         <div className="truncate font-semibold">
           {tMyGames(locale, "myGames.trendVs", { name: rating != null ? `${opponent} (${rating})` : opponent })}
@@ -140,7 +160,7 @@ export function MyStatsTrend({
       role="group"
       aria-label={aria}
       data-testid="mystats-trend"
-      className="relative w-full select-none text-caption text-studio-muted"
+      className="relative w-full min-w-0 select-none overflow-hidden text-caption text-studio-muted"
       style={{ height: HEIGHT + 18 }}
       onKeyDown={onKeyDown}
       onMouseLeave={() => setHover(null)}
