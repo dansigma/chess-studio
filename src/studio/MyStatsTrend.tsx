@@ -18,7 +18,11 @@ const FALLBACK_WIDTH = 320;
 const GRID = [90, 70, 50] as const;
 const TAG = { en: "en-US", "pt-br": "pt-BR" } as const;
 
-function formatDate(locale: SiteLocale, ms: number): string {
+function formatDate(locale: SiteLocale, ms: number | null): string {
+  // Undated games sort as 0; never render that as "1 Jan 1970".
+  if (ms == null || ms <= 0) {
+    return "—";
+  }
   return new Intl.DateTimeFormat(TAG[locale], { day: "numeric", month: "short", year: "numeric" }).format(new Date(ms));
 }
 
@@ -111,12 +115,15 @@ export function MyStatsTrend({
       .join(" · ");
     const half = 80;
     const left = Math.max(half, Math.min(width - half, xAt(index)));
+    // Keep the tooltip off the hovered dot: below it for high values, at the
+    // top otherwise.
+    const top = yAt(p.accuracy) < HEIGHT / 2 ? HEIGHT - 56 : 0;
     return (
       <div
         role="tooltip"
         data-testid="trend-tooltip"
         className="pointer-events-none absolute z-10 w-40 -translate-x-1/2 rounded border border-studio-border-strong bg-studio-elevated px-2 py-1 text-caption text-studio-fg shadow-lg"
-        style={{ left, top: 0 }}
+        style={{ left, top }}
       >
         <div className="truncate font-semibold">
           {tMyGames(locale, "myGames.trendVs", { name: rating != null ? `${opponent} (${rating})` : opponent })}
@@ -175,7 +182,7 @@ export function MyStatsTrend({
           }}
           data-testid="trend-dot"
           tabIndex={i === active ? 0 : -1}
-          aria-label={`${formatDate(locale, p.playedAt)} — ${formatDecimal1(locale, p.accuracy)}`}
+          aria-label={`${formatDate(locale, p.game.playedAt)} — ${formatDecimal1(locale, p.accuracy)}`}
           className="absolute flex h-3 w-3 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-studio-accent"
           style={{ left: xAt(i), top: yAt(p.accuracy) }}
           onMouseEnter={() => setHover(i)}
@@ -202,7 +209,7 @@ export function MyStatsTrend({
             transform: k === 0 && dateIdx.length > 1 ? "none" : k === dateIdx.length - 1 && dateIdx.length > 1 ? "translateX(-100%)" : "translateX(-50%)",
           }}
         >
-          {formatDate(locale, points[i]!.playedAt)}
+          {formatDate(locale, points[i]!.game.playedAt)}
         </span>
       ))}
       {tip ? tooltip(tipIndex!) : null}
