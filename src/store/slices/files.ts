@@ -249,6 +249,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         });
       });
     }
+    return database.id;
   },
   showFileDatabase: (id) => set({ activeFileDatabaseId: id }),
   openPgnSource: (name, pgn) => {

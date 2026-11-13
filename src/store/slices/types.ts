@@ -348,7 +348,7 @@ export type StudioState = {
     pgn: string,
     folderId?: string | null,
     options?: { focusFiles?: boolean },
-  ) => void;
+  ) => string;
   showFileDatabase: (id: string) => void;
   openPgnSource: (name: string, pgn: string) => void;
   openFileGame: (game: FileGame, options?: { atFen?: string; openInNewBoard?: boolean }) => void;

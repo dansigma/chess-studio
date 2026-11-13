@@ -18,6 +18,7 @@ import { formatGameCount } from "./filter-chips";
 import { selectAll, selectOnly, toggleSource } from "./library-sources";
 import { useLibraryStore } from "./library-store";
 import { libraryToExplorerSource } from "./reference-source";
+import { useLibraryImport } from "./use-library-import";
 
 const MENU_MIN_WIDTH = 176;
 
@@ -111,6 +112,8 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
   const deleteFileDatabase = useStudioStore((s) => s.deleteFileDatabase);
   const referenceSource = useStudioStore((s) => s.databaseSource);
   const setDatabaseSource = useStudioStore((s) => s.setDatabaseSource);
+  const importFiles = useLibraryImport();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ databaseId: string; x: number; y: number } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -261,13 +264,37 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
   // My Games first, then the PGN files in registration order.
   mineIds.sort((a, b) => Number(b === "my-games") - Number(a === "my-games"));
 
+  const importControl = (
+    <>
+      <Button variant="ghost" size="sm" className="shrink-0" onClick={() => fileInputRef.current?.click()}>
+        {tLibrary(locale, "library.import.button")}
+      </Button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pgn"
+        multiple
+        hidden
+        data-testid="library-import-input"
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? []);
+          event.target.value = "";
+          if (files.length > 0) {
+            void importFiles(files);
+          }
+        }}
+      />
+    </>
+  );
+
   const group = (key: "library.sources.group.public" | "library.sources.group.mine", groupIds: LibrarySourceId[]): ReactNode =>
-    groupIds.length === 0 ? null : (
+    groupIds.length === 0 && key !== "library.sources.group.mine" ? null : (
       <div role="group" aria-label={tLibrary(locale, key)} className="flex shrink-0 items-center gap-1.5">
         <span className="text-caption font-semibold uppercase tracking-wide text-studio-faint">
           {tLibrary(locale, key)}
         </span>
         {groupIds.map(card)}
+        {key === "library.sources.group.mine" ? importControl : null}
       </div>
     );
 
