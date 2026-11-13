@@ -259,6 +259,18 @@ describe("parseGame", () => {
     assert.equal(byId("rKzXoQpT").lastEval, null);
   });
 
+  it("SIG-1313: reads [ECO] and [Opening]; null when absent, empty or the \"?\" placeholder", () => {
+    const update = parseGame(all[0] as string, "r") as LiveGameUpdate;
+    assert.equal(update.eco, "A08");
+    assert.equal(update.opening, "Zukertort Opening: Reversed Grünfeld");
+    const bare = parseGame('[Event "x"]\n[GameURL "https://lichess.org/broadcast/a/r/g1"]\n\n1. e4 *', "r") as LiveGameUpdate;
+    assert.equal(bare.eco, null);
+    assert.equal(bare.opening, null);
+    const unknown = parseGame('[Event "x"]\n[ECO "?"]\n[Opening "  "]\n[GameURL "https://lichess.org/broadcast/a/r/g1"]\n\n1. e4 *', "r") as LiveGameUpdate;
+    assert.equal(unknown.eco, null);
+    assert.equal(unknown.opening, null);
+  });
+
   it("round PGN fixture goes through importPgn with clocks", () => {
     const first = (createPgnStreamSplitter().push(fixture("round.pgn")) as string[])[0] as string;
     const imported = importPgn(first);

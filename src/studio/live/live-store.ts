@@ -48,6 +48,10 @@ export type LiveState = {
   setTableRound: (roundId: string | null) => void;
   openBoard: (ref: LiveGameRef, options?: { focus?: boolean }) => void;
   closeBoard: (ref: LiveGameRef) => void;
+  /** SIG-1313: move the board at index `from` to index `to` (drag to reorder). Order is the grid, URL `games=` and sidebar numbering. */
+  moveBoard: (from: number, to: number) => void;
+  /** SIG-1313: close every board ("Clear grid"). Also resets the limit note and the focus. */
+  closeAllBoards: () => void;
   focusBoard: (ref: LiveGameRef | null) => void;
   /** Replace the board set from `parseLiveUrlState(search)`. */
   applyLiveUrlState: (url: LiveUrlState) => void;
@@ -187,6 +191,27 @@ export const useLiveStore = create<LiveState>((set, get) => ({
     const focusedGame = sameGameRef(s.focusedGame, ref) ? (openBoards[openBoards.length - 1] ?? null) : s.focusedGame;
     set({ boardLimitReached: false });
     applySelection(set, { ...s, openBoards, focusedGame });
+  },
+
+  moveBoard: (from, to) => {
+    const s = get();
+    const last = s.openBoards.length - 1;
+    if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || from > last || to < 0 || to > last || from === to) {
+      return;
+    }
+    const openBoards = [...s.openBoards];
+    const [moved] = openBoards.splice(from, 1);
+    openBoards.splice(to, 0, moved!);
+    applySelection(set, { ...s, openBoards });
+  },
+
+  closeAllBoards: () => {
+    const s = get();
+    if (s.openBoards.length === 0 && s.focusedGame === null && !s.boardLimitReached) {
+      return;
+    }
+    set({ boardLimitReached: false });
+    applySelection(set, { ...s, openBoards: [], focusedGame: null });
   },
 
   focusBoard: (ref) => {

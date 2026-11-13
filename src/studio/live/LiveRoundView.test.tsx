@@ -94,6 +94,12 @@ beforeEach(() => {
   });
 });
 
+// SIG-1313: a round opened with no boards starts with boards 1-3. These tests are about the table and the
+// boards they open themselves, so they start from an empty grid, the way the user gets it after "Clear grid".
+function clearAutoOpened() {
+  act(() => useLiveStore.getState().closeAllBoards());
+}
+
 const rowOf = (id: string) => document.querySelector(`[data-live-row="${id}"]`) as HTMLElement;
 
 test("deep link: skeleton, then rows with players, results, clocks and a no-clock state", async () => {
@@ -106,6 +112,7 @@ test("deep link: skeleton, then rows with players, results, clocks and a no-cloc
     resolve(snapshot([game("a"), game("b", { result: "1-0", white: player("Won", null), black: player("Lost", null, null) })]));
   });
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   assert.match(rowOf("a").textContent!, /GM\s*Wa.*2700.*NOR.*10:00.*\*.*8:20/u);
   assert.match(rowOf("b").textContent!, /1-0/u);
   assert.match(rowOf("b").textContent!, /no clock/u);
@@ -116,6 +123,7 @@ test("only the side to move ticks, on one shared ticker; leaving Live clears the
   roundHandler = async () => snapshot([game("a", { fen: BLACK_TO_MOVE }), game("b", { fen: WHITE_TO_MOVE }), game("c", { result: "1/2-1/2" })]);
   const view = render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   // desktop + mobile clock slot per row, but one ticking side per ongoing game
   assert.equal(rowOf("a").querySelectorAll("[data-clock-ticking]").length, 2);
   assert.equal(rowOf("c").querySelectorAll("[data-clock-ticking]").length, 0);
@@ -131,6 +139,7 @@ test("click follows (focus) and opens boards in click order; URL and row state u
   roundHandler = async () => snapshot([game("a"), game("b")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   fireEvent.click(rowOf("a"));
   assert.deepEqual(useLiveStore.getState().focusedGame, { roundId: "R1", gameId: "a" });
   fireEvent.click(rowOf("b"));
@@ -141,13 +150,16 @@ test("click follows (focus) and opens boards in click order; URL and row state u
   assert.equal(rowOf("b").dataset.focused, "true");
   assert.equal(rowOf("a").dataset.open, "true");
   assert.equal(rowOf("a").dataset.focused, undefined);
-  assert.match(screen.getByText(/Wb/u, { selector: "[data-live-followed] *, [data-live-followed]" }).textContent!, /Wb/u);
+  // SIG-1313: the context bar no longer repeats the focused game's names (its card shows them).
+  assert.doesNotMatch(document.querySelector("[data-live-followed]")!.textContent!, /Wb|Bb/u);
+  assert.equal(document.querySelector('[data-live-board="b"]')!.getAttribute("data-focused"), "true");
 });
 
 test("arrow keys move the row selection and Enter follows", async () => {
   roundHandler = async () => snapshot([game("a"), game("b")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   const scroll = screen.getByTestId("live-scroll");
   fireEvent.keyDown(scroll, { key: "ArrowDown" });
   fireEvent.keyDown(scroll, { key: "ArrowDown" });
@@ -160,6 +172,7 @@ test("round selector lists every round with its state; picking one opens it", as
   roundHandler = async () => snapshot([game("a")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   const select = await screen.findByLabelText("Round");
   await waitFor(() => assert.equal(within(select).getAllByRole("option").length, 3));
   const labels = within(select).getAllByRole("option").map((o) => o.textContent);
@@ -175,6 +188,7 @@ test("tournament selector comes from the group and switching opens the tour's de
   roundHandler = async () => snapshot([game("a")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   const select = await screen.findByLabelText("Tournament");
   assert.deepEqual(within(select).getAllByRole("option").map((o) => o.textContent), ["Open A", "Open B"]);
   fireEvent.change(select, { target: { value: "T2" } });
@@ -186,6 +200,7 @@ test("no group: the tournament is plain text, not a selector", async () => {
   roundHandler = async () => snapshot([game("a")], false);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   assert.equal(screen.queryByLabelText("Tournament"), null);
   assert.ok(screen.getByText("Open A"));
 });
@@ -205,6 +220,7 @@ test("pt-BR strings", async () => {
   roundHandler = async () => snapshot([game("a")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   assert.ok(screen.getByText("Brancas"));
   assert.ok(screen.getByLabelText("Torneio"));
   assert.ok(screen.getByText("Clique numa partida para segui-la."));
@@ -218,6 +234,7 @@ test("filter: counts per option, default All, switching shows only matching rows
   roundHandler = async () => snapshot([game("a"), game("b", { result: "1-0" }), game("c", { white: player("NoClock", null) }), game("d", { result: "1/2-1/2" })]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   assert.equal(filterChip(/^All \(4\)$/u).getAttribute("aria-pressed"), "true");
   filterChip(/^Live \(2\)$/u);
   filterChip(/^Finished \(2\)$/u);
@@ -235,6 +252,7 @@ test("filter: a game that finishes leaves Live, counts update, open boards are u
   roundHandler = async () => snapshot([game("a"), game("b")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   fireEvent.click(rowOf("a"));
   fireEvent.click(filterChip(/^Live/u));
   assert.deepEqual(rowIds(), ["a", "b"]);
@@ -251,6 +269,7 @@ test("filter: empty state per filter instead of an empty table", async () => {
   roundHandler = async () => snapshot([game("a")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   fireEvent.click(filterChip(/^Finished/u));
   assert.ok(screen.getByText("No finished games yet"));
   assert.equal(screen.queryByRole("table"), null);
@@ -264,6 +283,7 @@ test("filter: arrow keys and Enter work on the filtered rows; the active row is 
   roundHandler = async () => snapshot([game("a", { result: "1-0" }), game("b"), game("c", { result: "0-1" }), game("d")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   fireEvent.click(filterChip(/^Live/u));
   const scroll = screen.getByTestId("live-scroll");
   fireEvent.keyDown(scroll, { key: "ArrowDown" });
@@ -284,6 +304,7 @@ test("filter: pt-BR labels and reset to All when the round changes", async () =>
   roundHandler = async (id) => ({ ...snapshot([game("a", { roundId: id }), game("b", { roundId: id, result: "1-0" })]), round: { ...rounds[0]!, id } });
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   filterChip(/^Todas \(2\)$/u);
   filterChip(/^Encerradas \(1\)$/u);
   fireEvent.click(filterChip(/^Ao vivo \(1\)$/u));
@@ -319,6 +340,7 @@ async function renderPlayers() {
     ]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
 }
 
 test("search: filters as you type by White or Black name, ignoring case and accents, with counts per status", async () => {
@@ -394,6 +416,7 @@ test("search, status filter and sort combine; all three reset when the round cha
   });
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   type("anna");
   fireEvent.change(sortSelect(), { target: { value: "rating" } });
   assert.deepEqual(rowIds(), ["b", "c", "a"]);
@@ -412,6 +435,7 @@ test("names show as initial + surname in the table with the full name in the too
     snapshot([game("a", { white: named("Vachier-Lagrave, Maxime"), black: named("Magnus") })]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   const white = within(rowOf("a")).getByText("M. Vachier-Lagrave");
   assert.equal(white.getAttribute("title"), "Vachier-Lagrave, Maxime");
   assert.equal(within(rowOf("a")).getByText("Magnus").getAttribute("title"), "Magnus");

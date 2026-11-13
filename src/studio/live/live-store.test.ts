@@ -102,6 +102,72 @@ describe("board set", () => {
   });
 });
 
+describe("SIG-1313: reorder and clear", () => {
+  const a3 = { roundId: "A", gameId: "3" };
+  const ids = () => useLiveStore.getState().openBoards.map((b) => b.gameId);
+  const openThree = () => {
+    for (const ref of [a1, a2, a3]) {
+      useLiveStore.getState().openBoard(ref, { focus: false });
+    }
+  };
+
+  it("moveBoard moves a board to another index; the order is the URL games= order", () => {
+    useLiveStore.getState().setTableRound("A");
+    openThree();
+    useLiveStore.getState().focusBoard(a2);
+    useLiveStore.getState().moveBoard(0, 2);
+    assert.deepEqual(ids(), ["2", "3", "1"]);
+    assert.deepEqual(useLiveStore.getState().focusedGame, a2, "reordering keeps the focus");
+    const s = useLiveStore.getState();
+    assert.deepEqual(toLiveUrlState(s).games, [a2, a3, a1]);
+    assert.equal(liveSearch("?view=live", s), "?view=live&live=A&games=A%3A2%2CA%3A3%2CA%3A1&focus=A%3A2");
+    useLiveStore.getState().moveBoard(2, 0);
+    assert.deepEqual(ids(), ["1", "2", "3"]);
+  });
+
+  it("moveBoard ignores the same index and indexes outside the boards", () => {
+    openThree();
+    const before = useLiveStore.getState().openBoards;
+    for (const [from, to] of [[1, 1], [-1, 0], [0, 3], [5, 0], [0, 1.5]] as const) {
+      useLiveStore.getState().moveBoard(from, to);
+      assert.equal(useLiveStore.getState().openBoards, before, `${from} -> ${to}`);
+    }
+  });
+
+  it("a reordered URL round-trips: the new order is what a reload restores", () => {
+    useLiveStore.getState().setTableRound("A");
+    openThree();
+    useLiveStore.getState().moveBoard(2, 0);
+    const search = liveSearch("?view=live", useLiveStore.getState());
+    useLiveStore.getState().leaveLive();
+    useLiveStore.getState().applyLiveUrlState(parseLiveUrlState(search));
+    assert.deepEqual(ids(), ["3", "1", "2"]);
+  });
+
+  it("closeAllBoards closes everything and resets the focus and the limit notice", () => {
+    useLiveStore.getState().setTableRound("A");
+    for (let n = 1; n <= MAX_LIVE_BOARDS; n += 1) {
+      useLiveStore.getState().openBoard({ roundId: "A", gameId: String(n) });
+    }
+    useLiveStore.getState().openBoard({ roundId: "A", gameId: "99" });
+    assert.equal(useLiveStore.getState().boardLimitReached, true);
+    useLiveStore.getState().closeAllBoards();
+    const s = useLiveStore.getState();
+    assert.deepEqual([s.openBoards, s.focusedGame, s.boardLimitReached], [[], null, false]);
+    assert.deepEqual(s.followedRounds, ["A"], "goes through applySelection: the table round is still followed");
+    assert.equal(s.streamRoundId, "A");
+    assert.equal(liveSearch("?view=live", s), "?view=live&live=A");
+  });
+
+  it("closing all boards of other rounds stops following them", () => {
+    useLiveStore.getState().setTableRound("A");
+    useLiveStore.getState().openBoard(b1);
+    assert.deepEqual(useLiveStore.getState().followedRounds, ["A", "B"]);
+    useLiveStore.getState().closeAllBoards();
+    assert.deepEqual(useLiveStore.getState().followedRounds, ["A"]);
+  });
+});
+
 describe("board cap", () => {
   const ref = (n: number) => ({ roundId: "A", gameId: String(n) });
   it("refuses a 7th board, keeps focus and sets the notice; closing clears it", () => {
