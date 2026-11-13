@@ -212,23 +212,50 @@ test("a board of a non-streamed round shows the 15 s hint", async () => {
   assert.doesNotMatch(board("a").textContent!, /updates every 15 s/u);
 });
 
-test("Open in Studio hands the game to a new Studio board and leaves Live", async () => {
+// SIG-1315: the game opens in a new browser tab; this tab (store, view, boards, stream) stays as it was.
+function stubWindowOpen() {
+  const calls: unknown[][] = [];
+  const original = window.open;
+  window.open = ((...args: unknown[]) => {
+    calls.push(args);
+    return null;
+  }) as typeof window.open;
+  return { calls, restore: () => void (window.open = original) };
+}
+
+test("Open in Studio opens the game in a new tab and leaves Live untouched", async () => {
   await openStreamed(3);
-  const before = useStudioStore.getState().boards.length;
-  fireEvent.click(within(board("a")).getByRole("button", { name: "Open in Studio" }));
+  const studioBefore = useStudioStore.getState();
+  const liveBefore = useLiveStore.getState();
+  const opened = stubWindowOpen();
+  try {
+    fireEvent.click(within(board("a")).getByRole("button", { name: "Open in Studio" }));
+    assert.deepEqual(opened.calls, [["/studio?broadcast=R1%3Aa", "_blank", "noopener"]]);
+  } finally {
+    opened.restore();
+  }
   const s = useStudioStore.getState();
-  assert.equal(s.workspaceView, "studio");
-  assert.equal(s.boards.length, before + 1);
-  assert.equal(mainlineSans(s.active().tree).join(" "), "e4 e5 Nf3");
+  assert.equal(s.workspaceView, "live");
+  assert.equal(s.boards, studioBefore.boards);
+  assert.equal(s.activeBoardId, studioBefore.activeBoardId);
+  const live = useLiveStore.getState();
+  assert.equal(live.streamRoundId, liveBefore.streamRoundId);
+  assert.deepEqual(live, liveBefore);
+  assert.ok(board("a"));
 });
 
-function mainlineSans(tree: { children: { san: string; children: unknown[] }[] }): string[] {
-  const out: string[] = [];
-  for (let n = tree.children[0] as { san: string; children: unknown[] } | undefined; n; n = n.children[0] as typeof n) {
-    out.push(n.san);
+test("Open in Studio links the ply shown while browsing", async () => {
+  await openStreamed(3);
+  fireEvent.keyDown(board("a"), { key: "ArrowLeft" });
+  assert.equal(board("a").dataset.following, undefined);
+  const opened = stubWindowOpen();
+  try {
+    fireEvent.click(within(board("a")).getByRole("button", { name: "Open in Studio" }));
+    assert.deepEqual(opened.calls, [["/studio?broadcast=R1%3Aa&ply=2", "_blank", "noopener"]]);
+  } finally {
+    opened.restore();
   }
-  return out;
-}
+});
 
 test("layout: every open board gets the same grid cell, even the newly focused one (no col-span)", async () => {
   await openStreamed(2, ["a", "b", "c"]);

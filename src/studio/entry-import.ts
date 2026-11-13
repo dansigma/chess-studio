@@ -8,6 +8,8 @@ import { clearCourseStudyImport, fenFromShareSearch, readCourseStudyImport } fro
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { boardTitle, openBoardPanel } from "./dock-api";
+import { parseLiveStudioLink, withoutLiveStudioLink } from "./live/live-studio-link";
+import { openLiveStudioLink } from "./live/open-live-studio-link";
 
 /**
  * True once opening a board can no longer be overwritten by a restore: either
@@ -22,8 +24,18 @@ export function entryImportReady(state: {
   return state.authResolved && (!state.hasUser || state.restoreSettled);
 }
 
-/** Consume the handoff exactly once (the payload is cleared before use). */
-export function applyStudioEntryImport(search: string): void {
+/**
+ * Consume the handoff exactly once (the payload is cleared before use). A live-game link (SIG-1315)
+ * loads asynchronously; the returned promise settles once it has opened or failed.
+ */
+export function applyStudioEntryImport(search: string): Promise<void> {
+  const liveLink = parseLiveStudioLink(search);
+  if (liveLink) {
+    // Drop the params first so a reload of this tab doesn't import the game twice.
+    const { pathname, hash } = window.location;
+    window.history.replaceState(window.history.state, "", `${pathname}${withoutLiveStudioLink(search)}${hash}`);
+    return openLiveStudioLink(liveLink).then(() => undefined);
+  }
   const courseImport = readCourseStudyImport();
   if (courseImport) {
     clearCourseStudyImport();
@@ -45,10 +57,11 @@ export function applyStudioEntryImport(search: string): void {
       const failedKey = courseImport.kind === "puzzle" ? "chrome.shell.puzzleLineFailed" : "chrome.shell.courseLineFailed";
       useStudioStore.setState({ statusMessage: tStudioChrome(useStudioStore.getState().settings.locale, failedKey) });
     }
-    return;
+    return Promise.resolve();
   }
   const fen = fenFromShareSearch(search);
   if (fen) {
     useStudioStore.getState().openSharedPosition(fen);
   }
+  return Promise.resolve();
 }
