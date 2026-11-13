@@ -6,7 +6,7 @@ import { positionKey } from "@/src/chess/zobrist";
 import { formatTimeClass } from "@/src/lib/game-date";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import { searchTokens } from "./filters";
+import { matchesEloRange, normalizedEloRange, normalizedYearRange, searchTokens } from "./filters";
 import type {
   LibraryFilterState,
   LibraryGameItem,
@@ -33,6 +33,12 @@ const CAPABILITIES: LibrarySourceCapabilities = {
   annotations: "none", // clock comments only
   // Games not indexed yet do not match until the backfill reaches them.
   position: "full",
+  player: "full",
+  // Average rating is not a column: the server narrows by each side's rating and
+  // the exact average is checked on the returned page.
+  eloRange: "partial",
+  eco: "full",
+  date: "full",
   sort: "full",
   maxResults: null,
 };
@@ -53,6 +59,16 @@ const SORT_COLUMN: Record<LibrarySortKey, string> = {
 /** `%text%` with LIKE wildcards in `text` escaped. */
 export function likePattern(text: string): string {
   return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+/** LIKE text with wildcards escaped, no surrounding `%`. */
+export function likePrefix(text: string): string {
+  return text.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/** ISO start of a year, as a timestamptz bound. */
+function yearStart(year: number): string {
+  return `${String(year).padStart(4, "0")}-01-01T00:00:00Z`;
 }
 
 /** Quotes a LIKE pattern for use inside a PostgREST `or()` filter. */
@@ -155,6 +171,41 @@ export function createMyGamesSource(
           `and(color.eq.${winner},result.eq.win),and(color.eq.${loser},result.eq.loss)`,
         );
       }
+      const player = filters.player.trim();
+      if (player) {
+        const v = ilikeValue(player);
+        q =
+          filters.playerColor === "white"
+            ? q.ilike("white", likePattern(player))
+            : filters.playerColor === "black"
+              ? q.ilike("black", likePattern(player))
+              : q.or(`white.ilike.${v},black.ilike.${v}`);
+      }
+      const eco = filters.eco.trim();
+      if (eco) {
+        q = q.ilike("eco", `${likePrefix(eco)}%`);
+      }
+      const years = normalizedYearRange(filters);
+      if (years.from !== null) {
+        q = q.gte("played_at", yearStart(years.from));
+      }
+      if (years.to !== null) {
+        q = q.lt("played_at", yearStart(years.to + 1));
+      }
+      // Average rating is not a column. An average in [min, max] needs the higher
+      // rating >= min and the lower <= max, so narrow with that and check the exact
+      // average on the page below.
+      const elo = normalizedEloRange(filters);
+      const eloActive = elo.min !== null || elo.max !== null;
+      if (eloActive) {
+        q = q.not("white_elo", "is", null).not("black_elo", "is", null);
+        if (elo.min !== null) {
+          q = q.or(`white_elo.gte.${elo.min},black_elo.gte.${elo.min}`);
+        }
+        if (elo.max !== null) {
+          q = q.or(`white_elo.lte.${elo.max},black_elo.lte.${elo.max}`);
+        }
+      }
       const { key, direction } = filters.sort;
       const { data, error, count } = await q
         .order(SORT_COLUMN[key], { ascending: direction === "asc", nullsFirst: false })
@@ -164,10 +215,15 @@ export function createMyGamesSource(
       if (error) {
         throw new Error(error.message || "Query failed");
       }
-      const items = ((data ?? []) as unknown as Row[]).map(myGamesRowToItem);
-      const next = offset + items.length;
+      const fetched = ((data ?? []) as unknown as Row[]).map(myGamesRowToItem);
+      // The exact-average check can drop rows from a server page. The cursor and
+      // `total` keep counting server rows (the page may come back short, and the
+      // total is an upper bound while an Elo range is set); "Load more" still
+      // advances through the whole result.
+      const items = eloActive ? fetched.filter((item) => matchesEloRange(item, filters)) : fetched;
+      const next = offset + fetched.length;
       const total = typeof count === "number" ? count : null;
-      const more = total === null ? items.length === limit : next < total;
+      const more = total === null ? fetched.length === limit : next < total;
       return { items, nextCursor: more ? String(next) : null, total };
     },
     async loadPgn(gameId, signal) {

@@ -42,6 +42,15 @@ export type LibraryFilterState = {
   result: LibraryResultFilter; // from White's point of view
   annotations: LibraryAnnotationsFilter;
   position: { fen: string } | null;
+  // SIG-1326: who played, rating, opening code and period. Unlike `opponent` +
+  // `color` (the account owner's side), `playerColor` is the side of `player`.
+  player: string;
+  playerColor: LibraryColor;
+  eloMin: number | null; // bounds on the average rating of both players
+  eloMax: number | null;
+  eco: string; // code or prefix, e.g. "C65", "C6", "B"
+  yearFrom: number | null;
+  yearTo: number | null;
   sort: { key: LibrarySortKey; direction: "asc" | "desc" };
 };
 
@@ -56,6 +65,13 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFilterState = {
   result: "all",
   annotations: "all",
   position: null,
+  player: "",
+  playerColor: "both",
+  eloMin: null,
+  eloMax: null,
+  eco: "",
+  yearFrom: null,
+  yearTo: null,
   sort: { key: "date", direction: "desc" },
 };
 
@@ -69,6 +85,10 @@ export type LibrarySourceCapabilities = {
   result: LibrarySupport;
   annotations: LibrarySupport;
   position: LibrarySupport;
+  player: LibrarySupport;
+  eloRange: LibrarySupport;
+  eco: LibrarySupport;
+  date: LibrarySupport; // year range
   sort: LibrarySupport;
   maxResults: number | null; // e.g. 15 for Masters; null = unbounded
 };

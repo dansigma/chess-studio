@@ -4,7 +4,7 @@ import { getFieldSupport, limitedSourceLabels, type SupportSource } from "./filt
 import type { LibrarySourceCapabilities } from "@/src/lib/library/types";
 
 const FULL: LibrarySourceCapabilities = {
-  textSearch: "full", color: "full", result: "full", annotations: "full", position: "full", sort: "full", maxResults: null,
+  textSearch: "full", color: "full", result: "full", annotations: "full", position: "full", player: "full", eloRange: "full", eco: "full", date: "full", sort: "full", maxResults: null,
 };
 const src = (label: string, over: Partial<LibrarySourceCapabilities> = {}): SupportSource => ({
   label,
@@ -31,4 +31,13 @@ test("disabled only when every selected source has none", () => {
 test("opponent uses the textSearch capability", () => {
   assert.equal(getFieldSupport("opponent", [src("M", { textSearch: "none" })]).disabled, true);
   assert.deepEqual(limitedSourceLabels("textSearch", [src("A"), src("M", { textSearch: "partial" })]), ["M"]);
+});
+
+test("player, elo, eco and period use their own capabilities", () => {
+  const m = src("M", { player: "partial", eloRange: "none", eco: "partial", date: "none" });
+  assert.deepEqual(getFieldSupport("player", [m]).partial, ["M"]);
+  assert.equal(getFieldSupport("elo", [m]).disabled, true);
+  assert.deepEqual(getFieldSupport("eco", [src("A"), m]).partial, ["M"]);
+  assert.deepEqual(getFieldSupport("period", [src("A"), m]).none, ["M"]);
+  assert.equal(getFieldSupport("period", [src("A"), m]).disabled, false);
 });

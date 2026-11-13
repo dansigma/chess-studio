@@ -9,7 +9,7 @@ import {
 } from "@/src/lib/library/types";
 import { limitedSourceLabels } from "./filter-support";
 
-export type ChipField = "sources" | "query" | "opponent" | "color" | "result" | "annotations" | "position";
+export type ChipField = "sources" | "query" | "opponent" | "color" | "result" | "annotations" | "position" | "player" | "elo" | "eco" | "period";
 
 /** What the chip builder needs to know about one available source. */
 export type ChipSource = {
@@ -37,6 +37,10 @@ const CAPABILITY_KEY: Partial<Record<ChipField, keyof LibrarySourceCapabilities>
   result: "result",
   annotations: "annotations",
   position: "position",
+  player: "player",
+  elo: "eloRange",
+  eco: "eco",
+  period: "date",
 };
 
 /** Filters counted by the Filters button badge (everything but search and sources). */
@@ -46,13 +50,26 @@ export function countAdvancedFilters(filters: LibraryFilterState): number {
     (filters.color !== "both" ? 1 : 0) +
     (filters.result !== "all" ? 1 : 0) +
     (filters.annotations !== "all" ? 1 : 0) +
-    (filters.position !== null ? 1 : 0)
+    (filters.position !== null ? 1 : 0) +
+    (filters.player.trim() !== "" ? 1 : 0) +
+    (filters.eloMin !== null || filters.eloMax !== null ? 1 : 0) +
+    (filters.eco.trim() !== "" ? 1 : 0) +
+    (filters.yearFrom !== null || filters.yearTo !== null ? 1 : 0)
   );
 }
 
 function limitedSources(field: ChipField, selected: ChipSource[]): string[] {
   const key = CAPABILITY_KEY[field];
   return key ? limitedSourceLabels(key, selected) : [];
+}
+
+/** "2500–2800", "≥ 2500" or "≤ 2800"; the bounds are swapped when typed backwards. */
+export function rangeSummary(a: number | null, b: number | null): string {
+  const [low, high] = a !== null && b !== null && a > b ? [b, a] : [a, b];
+  if (low !== null && high !== null) {
+    return low === high ? String(low) : `${low}–${high}`;
+  }
+  return low !== null ? `≥ ${low}` : `≤ ${high}`;
 }
 
 function fenSummary(fen: string): string {
@@ -113,6 +130,24 @@ export function buildFilterChips(
   if (filters.position) {
     push("position", "library.chip.position", fenSummary(filters.position.fen));
   }
+  const player = filters.player.trim();
+  if (player) {
+    const side =
+      filters.playerColor === "both"
+        ? ""
+        : ` (${t(filters.playerColor === "white" ? "library.chip.white" : "library.chip.black")})`;
+    push("player", "library.chip.player", `${player}${side}`);
+  }
+  if (filters.eloMin !== null || filters.eloMax !== null) {
+    push("elo", "library.chip.elo", rangeSummary(filters.eloMin, filters.eloMax));
+  }
+  const eco = filters.eco.trim();
+  if (eco) {
+    push("eco", "library.chip.eco", eco.toUpperCase());
+  }
+  if (filters.yearFrom !== null || filters.yearTo !== null) {
+    push("period", "library.chip.period", rangeSummary(filters.yearFrom, filters.yearTo));
+  }
   return chips;
 }
 
@@ -135,6 +170,14 @@ export function chipRemovalPatch(filters: LibraryFilterState, chip: FilterChip):
       return { annotations: DEFAULT_LIBRARY_FILTERS.annotations };
     case "position":
       return { position: DEFAULT_LIBRARY_FILTERS.position };
+    case "player":
+      return { player: DEFAULT_LIBRARY_FILTERS.player, playerColor: DEFAULT_LIBRARY_FILTERS.playerColor };
+    case "elo":
+      return { eloMin: null, eloMax: null };
+    case "eco":
+      return { eco: DEFAULT_LIBRARY_FILTERS.eco };
+    case "period":
+      return { yearFrom: null, yearTo: null };
   }
 }
 

@@ -4,7 +4,7 @@ import type { LibrarySourceCapabilities, LibrarySupport } from "@/src/lib/librar
 /** Minimal source shape needed to reason about capabilities. */
 export type SupportSource = { label: string; capabilities: LibrarySourceCapabilities };
 
-export type AdvancedFilterField = "opponent" | "color" | "result" | "annotations" | "position";
+export type AdvancedFilterField = "opponent" | "color" | "result" | "annotations" | "position" | "player" | "elo" | "eco" | "period";
 
 export const FIELD_CAPABILITY: Record<AdvancedFilterField, keyof LibrarySourceCapabilities> = {
   opponent: "textSearch",
@@ -12,6 +12,10 @@ export const FIELD_CAPABILITY: Record<AdvancedFilterField, keyof LibrarySourceCa
   result: "result",
   annotations: "annotations",
   position: "position",
+  player: "player",
+  elo: "eloRange",
+  eco: "eco",
+  period: "date",
 };
 
 /** Labels of the sources that do not apply `key` over their whole data set ("partial" or "none"). */

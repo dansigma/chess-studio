@@ -2,6 +2,7 @@ import type { ExplorerGameRow, ExplorerResponse } from "../explorer-types.ts";
 import { isExplorerResponse } from "../explorer-types.ts";
 import { isSiteLocale, DEFAULT_SITE_LOCALE } from "../../i18n/locale.ts";
 import { tPanels } from "../../i18n/studio-panel-strings.ts";
+import { matchesAdvancedFilters } from "./filters.ts";
 import type {
   LibraryFilterState,
   LibraryGameItem,
@@ -22,6 +23,10 @@ const CAPABILITIES: LibrarySourceCapabilities = {
   result: "partial",
   annotations: "none",
   position: "full",
+  player: "partial",
+  eloRange: "partial",
+  eco: "partial",
+  date: "partial",
   sort: "partial",
   maxResults: MASTERS_MAX_RESULTS,
 };
@@ -96,7 +101,7 @@ export function filterMastersItems(items: LibraryGameItem[], filters: LibraryFil
     if (filters.result === "1-0" && item.result !== "1-0") return false;
     if (filters.result === "0-1" && item.result !== "0-1") return false;
     if (filters.result === "draw" && item.result !== "1/2-1/2") return false;
-    return true;
+    return matchesAdvancedFilters(item, filters);
   });
 }
 

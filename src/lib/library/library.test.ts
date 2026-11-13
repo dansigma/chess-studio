@@ -3,8 +3,11 @@ import { beforeEach, describe, it } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/src/lib/supabase/database.types.ts";
 import type { FileDatabase } from "@/src/lib/user-files.ts";
-import { annotationInfo, hasCommentText, matchesAnnotations, normalizePgnDate } from "./filters.ts";
-import { createFileSource, syncFileSources } from "./file-source.ts";
+import {
+  annotationInfo, hasCommentText, matchesAdvancedFilters, matchesAnnotations, matchesEco, matchesEloRange,
+  matchesPlayer, matchesYearRange, normalizePgnDate,
+} from "./filters.ts";
+import { createFileSource, suggestPlayersFromDatabases, syncFileSources } from "./file-source.ts";
 import { createMyGamesSource, ilikeValue, myGamesPositionKey, myGamesRowToItem } from "./my-games-source.ts";
 import { decodeLibraryCursor, queryLibrary } from "./query.ts";
 import { compareLibraryItems } from "./sort.ts";
@@ -33,7 +36,7 @@ function fakeSource(id: LibrarySourceAdapterId, items: LibraryGameItem[]): Libra
   return {
     id,
     label: () => id,
-    capabilities: () => ({ textSearch: "full", color: "full", result: "full", annotations: "full", position: "full", sort: "full", maxResults: null }),
+    capabilities: () => ({ textSearch: "full", color: "full", result: "full", annotations: "full", position: "full", player: "full", eloRange: "full", eco: "full", date: "full", sort: "full", maxResults: null }),
     async list(f, cursor, limit) {
       const sorted = [...items].sort((a, b) => compareLibraryItems(f.sort, a, b));
       const offset = Number(cursor ?? 0);
@@ -154,7 +157,7 @@ type Call = [string, ...unknown[]];
 function fakeClient(rows: Record<string, unknown>[], count = rows.length, error: { message: string } | null = null) {
   const calls: Call[] = [];
   const q: Record<string, unknown> = {};
-  for (const m of ["or", "ilike", "eq", "order"]) {
+  for (const m of ["or", "ilike", "eq", "order", "gte", "lt", "not"]) {
     q[m] = (...args: unknown[]) => { calls.push([m, ...args]); return q; };
   }
   q.range = (...args: unknown[]) => { calls.push(["range", ...args]); return q; };
@@ -192,6 +195,38 @@ describe("my games source", () => {
     assert.deepEqual(calls.find((c) => c[0] === "order"), ["order", "white_elo", { ascending: false, nullsFirst: false }]);
     assert.equal(page.total, 120);
     assert.equal(page.nextCursor, "51");
+  });
+  it("adds player, ECO and period clauses", async () => {
+    const { client, calls } = fakeClient([row()], 5);
+    await createMyGamesSource(() => client).list(
+      filters({ player: "Carl_sen", playerColor: "black", eco: "c6", yearFrom: 2020, yearTo: 2024 }),
+      null, 50, signal,
+    );
+    assert.ok(calls.some((c) => c[0] === "ilike" && c[1] === "black" && c[2] === "%Carl\\_sen%"));
+    assert.ok(!calls.some((c) => c[0] === "ilike" && c[1] === "white"));
+    assert.ok(calls.some((c) => c[0] === "ilike" && c[1] === "eco" && c[2] === "c6%"));
+    assert.ok(calls.some((c) => c[0] === "gte" && c[1] === "played_at" && c[2] === "2020-01-01T00:00:00Z"));
+    assert.ok(calls.some((c) => c[0] === "lt" && c[1] === "played_at" && c[2] === "2025-01-01T00:00:00Z"));
+  });
+  it("matches a player of any color with a quoted or() and swaps backwards years", async () => {
+    const { client, calls } = fakeClient([row()], 5);
+    await createMyGamesSource(() => client).list(filters({ player: "Li, (Q)", yearFrom: 2024, yearTo: 2020 }), null, 50, signal);
+    assert.ok(calls.some((c) => c[0] === "or" && String(c[1]) === 'white.ilike."%Li, (Q)%",black.ilike."%Li, (Q)%"'));
+    assert.ok(calls.some((c) => c[0] === "gte" && c[2] === "2020-01-01T00:00:00Z"));
+  });
+  it("narrows by rating on the server and checks the exact average on the page", async () => {
+    const rows = [
+      row({ id: "a", white_elo: 2600, black_elo: 2600 }),
+      row({ id: "b", white_elo: 2900, black_elo: 2000 }), // within the server bounds, average 2450
+    ];
+    const { client, calls } = fakeClient(rows, 40);
+    const page = await createMyGamesSource(() => client).list(filters({ eloMin: 2500, eloMax: 2700 }), null, 2, signal);
+    assert.ok(calls.some((c) => c[0] === "not" && c[1] === "white_elo"));
+    assert.ok(calls.some((c) => c[0] === "not" && c[1] === "black_elo"));
+    assert.ok(calls.some((c) => c[0] === "or" && c[1] === "white_elo.gte.2500,black_elo.gte.2500"));
+    assert.ok(calls.some((c) => c[0] === "or" && c[1] === "white_elo.lte.2700,black_elo.lte.2700"));
+    assert.deepEqual(page.items.map((i) => i.gameId), ["a"]);
+    assert.equal(page.nextCursor, "2"); // advances by the server rows read, not the kept ones
   });
   it("throws on query error and when unconfigured", async () => {
     const bad = createMyGamesSource(() => fakeClient([], 0, { message: "boom" }).client);
@@ -273,5 +308,74 @@ describe("queryLibrary", () => {
     await assert.rejects(queryLibrary(filters(), null, 10, ac.signal));
     const r = await queryLibrary(filters(), "%%%not-base64", 10, signal);
     assert.equal(r.items.length, 1);
+  });
+});
+
+describe("advanced filter matchers", () => {
+  const g = (o: Partial<LibraryGameItem>) => item("my-games", "x", o);
+  it("player + color", () => {
+    const game = g({ white: "Carlsen, Magnus", black: "Nakamura, Hikaru" });
+    assert.ok(matchesPlayer(game, "carlsen", "both"));
+    assert.ok(matchesPlayer(game, " Carlsen ", "white"));
+    assert.ok(!matchesPlayer(game, "carlsen", "black"));
+    assert.ok(matchesPlayer(game, "naka", "black"));
+    assert.ok(matchesPlayer(game, "", "white"));
+  });
+  it("average Elo leaves out games with a missing rating", () => {
+    const game = g({ whiteElo: 2600, blackElo: 2500 });
+    assert.ok(matchesEloRange(game, { eloMin: 2550, eloMax: 2550 }));
+    assert.ok(matchesEloRange(game, { eloMin: 2500, eloMax: null }));
+    assert.ok(!matchesEloRange(game, { eloMin: 2551, eloMax: null }));
+    assert.ok(!matchesEloRange(game, { eloMin: null, eloMax: 2549 }));
+    assert.ok(matchesEloRange(game, { eloMin: 2600, eloMax: 2500 })); // swapped
+    assert.ok(!matchesEloRange(g({ whiteElo: 2600, blackElo: null }), { eloMin: 1000, eloMax: null }));
+    assert.ok(matchesEloRange(g({ whiteElo: null, blackElo: null }), { eloMin: null, eloMax: null }));
+  });
+  it("ECO prefix, case-insensitive", () => {
+    assert.ok(matchesEco(g({ eco: "C65" }), "c6"));
+    assert.ok(matchesEco(g({ eco: "C65" }), "C65"));
+    assert.ok(matchesEco(g({ eco: "B01" }), "B"));
+    assert.ok(!matchesEco(g({ eco: "C65" }), "C7"));
+    assert.ok(!matchesEco(g({ eco: null }), "C"));
+    assert.ok(matchesEco(g({ eco: null }), ""));
+  });
+  it("year range with partial and full dates", () => {
+    const range = { yearFrom: 2020, yearTo: 2024 };
+    assert.ok(matchesYearRange(g({ date: "2020" }), range));
+    assert.ok(matchesYearRange(g({ date: "2024-12-31" }), range));
+    assert.ok(matchesYearRange(g({ date: "2022-05" }), range));
+    assert.ok(!matchesYearRange(g({ date: "2019-12-31" }), range));
+    assert.ok(!matchesYearRange(g({ date: "2025" }), range));
+    assert.ok(!matchesYearRange(g({ date: null }), range));
+    assert.ok(matchesYearRange(g({ date: "2030" }), { yearFrom: 2020, yearTo: null }));
+    assert.ok(matchesYearRange(g({ date: "1999" }), { yearFrom: null, yearTo: 2024 }));
+    assert.ok(matchesYearRange(g({ date: null }), { yearFrom: null, yearTo: null }));
+  });
+  it("combines with AND", () => {
+    const game = g({ white: "A", black: "B", whiteElo: 2500, blackElo: 2500, eco: "C65", date: "2022" });
+    assert.ok(matchesAdvancedFilters(game, filters({ player: "a", playerColor: "white", eloMin: 2400, eco: "C", yearTo: 2022 })));
+    assert.ok(!matchesAdvancedFilters(game, filters({ player: "a", eco: "B" })));
+  });
+});
+
+describe("player suggestions", () => {
+  const dbOf = (names: [string, string][]): FileDatabase => ({
+    id: "s", name: "S", createdAt: 0, updatedAt: 0,
+    games: names.map(([w, b], i) => ({ id: `g${i}`, white: w, black: b, result: "1-0", event: "", date: "", pgn: `[White "${w}"]\n[Black "${b}"]\n\n1. e4 1-0` })),
+  } as unknown as FileDatabase);
+  const db = dbOf([
+    ["Carlsen, Magnus", "Nakamura, Hikaru"],
+    ["Magnus Smith", "Carlsen, Magnus"],
+    ["Caruana, Fabiano", "Nakamura, Hikaru"],
+  ]);
+  it("matches prefixes and word starts, distinct, prefixes first", () => {
+    assert.deepEqual(suggestPlayersFromDatabases([db], "carl"), ["Carlsen, Magnus"]);
+    assert.deepEqual(suggestPlayersFromDatabases([db], "MAG"), ["Magnus Smith", "Carlsen, Magnus"]);
+    assert.deepEqual(suggestPlayersFromDatabases([db], "ca"), ["Carlsen, Magnus", "Caruana, Fabiano"]);
+    assert.deepEqual(suggestPlayersFromDatabases([db], ""), []);
+  });
+  it("caps at 8", () => {
+    const many = dbOf(Array.from({ length: 20 }, (_, i) => [`Player ${i}`, `Other ${i}`] as [string, string]));
+    assert.equal(suggestPlayersFromDatabases([many], "pl").length, 8);
   });
 });
