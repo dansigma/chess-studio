@@ -6,6 +6,7 @@ import { Chess } from "chess.js";
 import type { MistakeExercise } from "@/src/chess/mistake-exercises";
 import { dueExercises, type MistakeExercisesMap, type StoredExercise } from "@/src/lib/mistake-exercises-store";
 import { compilePuzzle, type CompiledPuzzle } from "./engine";
+import type { GamePhase } from "@/src/chess/phases";
 import type { Puzzle } from "./types";
 
 /** Fixed display rating for converted exercises; scoring is neutral anyway. */
@@ -103,6 +104,48 @@ function fromHex(hex: string): string {
   return new TextDecoder().decode(bytes);
 }
 
+export type MistakeFilter = {
+  label?: MistakeExercise["label"];
+  phase?: GamePhase;
+};
+
+const FILTER_LABELS: readonly string[] = ["miss", "mistake", "blunder"];
+const FILTER_PHASES: readonly string[] = ["opening", "middlegame", "endgame"];
+
+/** SIG-1307: parse optional `label` / `phase` URL params; invalid values are ignored. */
+export function parseMistakeFilter(label: string | null, phase: string | null): MistakeFilter {
+  const filter: MistakeFilter = {};
+  if (label && FILTER_LABELS.includes(label)) {
+    filter.label = label as MistakeExercise["label"];
+  }
+  if (phase && FILTER_PHASES.includes(phase)) {
+    filter.phase = phase as GamePhase;
+  }
+  return filter;
+}
+
+/**
+ * SIG-1307: an explicit filter is a request to train those positions, so
+ * every matching exercise is included (due or not). The usual due order
+ * comes first (`dueExercises`), then the not-yet-due ones by `createdAt`.
+ */
+export function filteredExercises(
+  map: MistakeExercisesMap,
+  filter: MistakeFilter,
+  now: Date = new Date(),
+): StoredExercise[] {
+  const matches = (stored: StoredExercise) =>
+    (!filter.label || stored.exercise.label === filter.label) &&
+    (!filter.phase || stored.exercise.phase === filter.phase) &&
+    stored.exercise.fromOpponent !== true;
+  const due = dueExercises(map, now).filter(matches);
+  const seen = new Set(due.map((stored) => stored.exercise.key));
+  const rest = Object.values(map)
+    .filter((stored) => !seen.has(stored.exercise.key) && matches(stored))
+    .sort((a, b) => (a.exercise.createdAt || "").localeCompare(b.exercise.createdAt || ""));
+  return [...due, ...rest];
+}
+
 /**
  * Build the practice queue from the stored map: due entries first
  * (`dueExercises` order), converted and compiled, skipping nulls.
@@ -112,6 +155,7 @@ export function mistakesQueue(
   map: MistakeExercisesMap,
   exclude: ReadonlySet<string> = new Set(),
   now: Date = new Date(),
+  filter: MistakeFilter | null = null,
 ): MistakesQueueEntry[] {
   const normalized = new Set<string>();
   for (const key of exclude) {
@@ -121,7 +165,7 @@ export function mistakesQueue(
     normalized.add(key);
   }
   const queue: MistakesQueueEntry[] = [];
-  for (const stored of dueExercises(map, now)) {
+  for (const stored of filter && (filter.label || filter.phase) ? filteredExercises(map, filter, now) : dueExercises(map, now)) {
     if (normalized.has(stored.exercise.key)) {
       continue;
     }

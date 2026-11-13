@@ -7,6 +7,7 @@ import {
   exerciseKeyForPuzzle,
   exerciseToPuzzle,
   mistakesQueue,
+  parseMistakeFilter,
   nextDueDate,
   puzzleIdForExercise,
 } from "./mistake-puzzle.ts";
@@ -155,4 +156,41 @@ test("nextDueDate returns the earliest due date or null", () => {
     mistakeCount: 1,
   };
   assert.equal(nextDueDate(map), "2026-10-27T00:00:00.000Z");
+});
+
+// SIG-1307: label/phase filter.
+test("mistakesQueue with a filter keeps only matches, including not-yet-due, in due-then-createdAt order", () => {
+  const future = new Date(Date.parse(NOW) + 5 * 86400000).toISOString();
+  const map = storedMap([
+    exercise({ key: keyOf(START), fen: START, label: "mistake", phase: "opening", createdAt: "2026-10-02T00:00:00.000Z" }),
+    exercise({ key: keyOf(MATE), fen: MATE, solutionUci: ["a1a8"], label: "mistake", phase: "opening", createdAt: "2026-10-01T00:00:00.000Z" }),
+    exercise({ key: keyOf(CAPTURE), fen: CAPTURE, solutionUci: ["e1e6"], label: "blunder", phase: "opening" }),
+    exercise({ key: `${keyOf(START)}#opp`, fen: START, label: "mistake", phase: "opening", fromOpponent: true }),
+    exercise({ key: `${keyOf(START)}#mid`, fen: START, label: "mistake", phase: "middlegame" }),
+  ]);
+  // MATE entry is scheduled in the future (not due); START is unscheduled (due).
+  map[keyOf(MATE)] = {
+    exercise: map[keyOf(MATE)].exercise,
+    srs: { lastReviewedAt: NOW, intervalDays: 5, easeFactor: 2.5, dueDate: future, mistakeCount: 0 },
+  };
+  const now = new Date(NOW);
+  const ids = (filter: Parameters<typeof mistakesQueue>[3], exclude: Set<string> = new Set()) =>
+    mistakesQueue(map, exclude, now, filter).map((entry) => entry.puzzle.id);
+  assert.deepEqual(ids({ label: "mistake", phase: "opening" }), [
+    puzzleIdForExercise(keyOf(START)),
+    puzzleIdForExercise(keyOf(MATE)),
+  ]);
+  assert.deepEqual(ids({ label: "mistake", phase: "opening" }, new Set([keyOf(START)])), [
+    puzzleIdForExercise(keyOf(MATE)),
+  ]);
+  assert.deepEqual(ids({ label: "blunder" }), [puzzleIdForExercise(keyOf(CAPTURE))]);
+  assert.deepEqual(ids({ label: "miss" }), []);
+  // No filter: only due entries, unchanged behaviour (MATE not due).
+  assert.ok(!ids(null).includes(puzzleIdForExercise(keyOf(MATE))));
+});
+
+test("parseMistakeFilter ignores invalid values", () => {
+  assert.deepEqual(parseMistakeFilter("blunder", "endgame"), { label: "blunder", phase: "endgame" });
+  assert.deepEqual(parseMistakeFilter("inaccuracy", "midgame"), {});
+  assert.deepEqual(parseMistakeFilter(null, "opening"), { phase: "opening" });
 });
