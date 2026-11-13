@@ -52,7 +52,7 @@ const db: FileDatabase = {
 };
 
 describe("file source overview", () => {
-  it("summarizes in memory and caches per database object", async () => {
+  it("summarizes in memory and caches per games array", async () => {
     const src = createFileSource("d1", () => db);
     const o = await src.overview!(signal);
     assert.equal(o.games, 2);
@@ -60,7 +60,10 @@ describe("file source overview", () => {
     assert.equal(averageElo(o), 2850);
     assert.deepEqual(topEco(o, 3), [{ code: "C44", count: 1, opening: "Scotch" }]);
     assert.equal(fileDatabaseOverview(db), o);
-    assert.notEqual(fileDatabaseOverview({ ...db }), o);
+    // Rename/move rebuild the wrapper but keep the games array: cache hit.
+    assert.equal(fileDatabaseOverview({ ...db, name: "renamed" }), o);
+    // New games (import, replace, merge): recomputed.
+    assert.notEqual(fileDatabaseOverview({ ...db, games: [...db.games] }), o);
   });
 });
 

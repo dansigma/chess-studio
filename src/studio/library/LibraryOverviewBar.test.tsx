@@ -116,3 +116,36 @@ test("My Games failure: file numbers plus a note; alone, just the note", async (
   const only = screen.getByTestId("library-overview-bar");
   assert.equal(only.textContent, "My Games summary unavailable");
 });
+
+test("My Games failure with an unknown or empty PGN file selected keeps zero file numbers plus the note", async () => {
+  registerLibrarySource(myGames(Promise.reject(new Error("signed out"))));
+  select(["my-games", "file:gone"]);
+  render(<LibraryOverviewBar />);
+  await flush();
+  const bar = screen.getByTestId("library-overview-bar");
+  assert.match(bar.textContent!, /Games\s*0/);
+  assert.ok(screen.getByTestId("library-overview-failed"));
+});
+
+test("My Games refetches after sign-in instead of keeping the signed-out failure", async () => {
+  let calls = 0;
+  registerLibrarySource({
+    ...myGames(Promise.resolve(overviewFromItems([]))),
+    overview: () => {
+      calls += 1;
+      return calls === 1
+        ? Promise.reject(new Error("signed out"))
+        : Promise.resolve(overviewFromItems([row({ white: "Me", black: "Opp", eco: "B01" })]));
+    },
+  });
+  useStudioStore.setState({ user: null });
+  select(["my-games"]);
+  render(<LibraryOverviewBar />);
+  await flush();
+  assert.equal(screen.getByTestId("library-overview-bar").textContent, "My Games summary unavailable");
+  act(() => useStudioStore.setState({ user: { id: "u1" } as never }));
+  await flush();
+  assert.equal(calls, 2);
+  assert.match(screen.getByTestId("library-overview-bar").textContent!, /Games\s*1/);
+  act(() => useStudioStore.setState({ user: null }));
+});

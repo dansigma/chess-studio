@@ -88,14 +88,17 @@ const CAPABILITIES: LibrarySourceCapabilities = {
   maxResults: null,
 };
 
-const overviewCache = new WeakMap<FileDatabase, LibraryOverview>();
+// Keyed on the games array, not the database object: rename/move rebuild the
+// wrapper but keep `games`, so they hit the cache; any change to the games
+// (import, replace, merge) produces a new array and recomputes.
+const overviewCache = new WeakMap<FileDatabase["games"], LibraryOverview>();
 
-/** Summary of a whole database, cached on the database object (a new object recomputes). */
+/** Summary of a whole database, cached on its games array. */
 export function fileDatabaseOverview(db: FileDatabase): LibraryOverview {
-  let hit = overviewCache.get(db);
+  let hit = overviewCache.get(db.games);
   if (!hit) {
     hit = overviewFromItems(db.games.map((game) => parseGame(game).item));
-    overviewCache.set(db, hit);
+    overviewCache.set(db.games, hit);
   }
   return hit;
 }

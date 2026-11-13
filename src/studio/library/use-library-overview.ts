@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fileDatabaseOverview } from "@/src/lib/library/file-source";
 import { MASTERS_SOURCE_ID } from "@/src/lib/library/masters-source";
-import { mergeOverviews, type LibraryOverview } from "@/src/lib/library/overview";
+import { emptyOverview, mergeOverviews, type LibraryOverview } from "@/src/lib/library/overview";
 import { getLibrarySource } from "@/src/lib/library/sources";
 import { useStudioStore } from "@/src/store/studio-store";
 import { useLibraryStore } from "./library-store";
@@ -31,15 +31,18 @@ export function useLibraryOverview(): LibraryOverviewState {
   const databases = useStudioStore((s) => s.files.databases);
   const wantMyGames = selected.includes("my-games");
   const hasAdapter = typeof getLibrarySource("my-games")?.overview === "function";
-  const [myGames, setMyGames] = useState<MyGames>({ status: "idle" });
-  const started = useRef(false);
+  // The fetch is keyed on the signed-in user: signing in, out or switching
+  // account refetches instead of keeping a stale result or failure.
+  const userKey = useStudioStore((s) => s.user?.id ?? "");
+  const [myGames, setMyGames] = useState<MyGames & { userKey?: string }>({ status: "idle" });
+  const fetchedFor = useRef<string | null>(null);
 
   useEffect(() => {
     const adapter = getLibrarySource("my-games");
-    if (!wantMyGames || !adapter?.overview || started.current) {
+    if (!wantMyGames || !adapter?.overview || fetchedFor.current === userKey) {
       return;
     }
-    started.current = true;
+    fetchedFor.current = userKey;
     const controller = new AbortController();
     let settled = false;
     adapter
@@ -47,22 +50,22 @@ export function useLibraryOverview(): LibraryOverviewState {
       .then((overview) => {
         settled = true;
         if (!controller.signal.aborted) {
-          setMyGames({ status: "ready", overview });
+          setMyGames({ status: "ready", overview, userKey });
         }
       })
       .catch((cause: unknown) => {
         settled = true;
         if (!controller.signal.aborted && !isAbort(cause)) {
-          setMyGames({ status: "error" });
+          setMyGames({ status: "error", userKey });
         }
       });
     return () => {
       controller.abort();
       if (!settled) {
-        started.current = false; // restart on the next run (e.g. Strict Mode)
+        fetchedFor.current = null; // restart on the next run (e.g. Strict Mode)
       }
     };
-  }, [wantMyGames, hasAdapter]);
+  }, [wantMyGames, hasAdapter, userKey]);
 
   const fileOverviews = useMemo(() => {
     const list: LibraryOverview[] = [];
@@ -82,7 +85,8 @@ export function useLibraryOverview(): LibraryOverviewState {
     if (summarizable.length === 0) {
       return { kind: "unavailable" };
     }
-    if (wantMyGames && myGames.status === "idle") {
+    const myGamesCurrent = myGames.status !== "idle" && myGames.userKey === userKey;
+    if (wantMyGames && !myGamesCurrent) {
       return { kind: "loading" };
     }
     const parts = [...fileOverviews];
@@ -95,8 +99,18 @@ export function useLibraryOverview(): LibraryOverviewState {
       }
     }
     if (parts.length === 0) {
-      return myGamesFailed ? { kind: "failed" } : { kind: "unavailable" };
+      // Only My Games is summarizable: its failure leaves just the note. When
+      // PGN files are selected too (even unknown or empty ones), keep the file
+      // numbers (possibly zero) next to the note.
+      const fileSelected = summarizable.some((id) => id.startsWith("file:"));
+      if (myGamesFailed && !fileSelected) {
+        return { kind: "failed" };
+      }
+      if (!myGamesFailed) {
+        return { kind: "unavailable" };
+      }
+      return { kind: "ready", overview: emptyOverview(), myGamesFailed };
     }
     return { kind: "ready", overview: mergeOverviews(parts), myGamesFailed };
-  }, [selected, wantMyGames, myGames, fileOverviews]);
+  }, [selected, wantMyGames, myGames, userKey, fileOverviews]);
 }
