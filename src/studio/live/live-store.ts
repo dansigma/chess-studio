@@ -8,6 +8,7 @@ import {
   type LiveConnection,
 } from "@/src/lib/live/broadcast-manager";
 import { MAX_LIVE_BOARDS } from "./live-board-model";
+import { clearTourGamesCache } from "./live-tour-cache";
 import { fetchRound, streamRound } from "@/src/lib/live/lichess-broadcast";
 import { mergeSnapshotGame, mergeStreamUpdate } from "@/src/lib/live/merge";
 import type { BroadcastRoundSnapshot, LiveGame, LiveGameUpdate } from "@/src/lib/live/types";
@@ -213,6 +214,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
 
   leaveLive: () => {
     manager?.stop();
+    clearTourGamesCache();
     set({
       ...EMPTY,
       followedRounds: [],

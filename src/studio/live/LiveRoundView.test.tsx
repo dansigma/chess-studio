@@ -32,6 +32,7 @@ mock.module("@/src/lib/live/lichess-broadcast", {
       return tourHandler(id);
     },
     fetchRoundPgn: () => Promise.resolve(null),
+    fetchTourPgn: () => Promise.resolve(null),
     streamRound: (_id: string, _on: unknown, signal: AbortSignal) =>
       new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve())),
   },

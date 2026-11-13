@@ -26,7 +26,10 @@ import {
 } from "./live-games-filter";
 import { liveStudioHref } from "./live-studio-link";
 import { useLiveNow } from "./live-ticker";
-import { useLiveRound } from "./use-live";
+import { loadTourGames } from "./live-tour-games";
+import { cachedTourGames, type TourGameRow } from "./live-tour-cache";
+import { useLiveRound, useLiveRoundInfo } from "./use-live";
+import { useLiveTour } from "./use-live-tour";
 
 const FILTER_LABEL = {
   all: "live.filter.all",
@@ -132,12 +135,27 @@ type RowProps = {
   gridNumber: number | null;
   focused: boolean;
   active: boolean;
+  /** "All rounds": the name of the game's round, shown on the row. */
+  roundName?: string;
+  /** False for a game known only from the tournament PGN: it has no clock yet (it gets one once opened). */
+  clocks?: boolean;
   locale: SiteLocale;
   onActivate: (game: LiveGame, studio: boolean) => void;
   onClose: (game: LiveGame) => void;
 };
 
-const LiveRow = memo(function LiveRow({ game, index, gridNumber, focused, active, locale, onActivate, onClose }: RowProps) {
+const LiveRow = memo(function LiveRow({
+  game,
+  index,
+  gridNumber,
+  focused,
+  active,
+  roundName,
+  clocks = true,
+  locale,
+  onActivate,
+  onClose,
+}: RowProps) {
   const open = gridNumber !== null;
   // Rows flash when a move arrives; `motion-safe` keeps it off for prefers-reduced-motion.
   const flash = useMoveFlash(`${game.fen}|${game.lastMoveUci ?? ""}`);
@@ -152,9 +170,14 @@ const LiveRow = memo(function LiveRow({ game, index, gridNumber, focused, active
   // On narrow screens the clocks move under the names (second line of the player cell).
   const narrowClock = (side: Side) => (
     <span className="tabular-nums sm:hidden">
-      <ClockCell game={game} side={side} locale={locale} />
+      {clocks ? <ClockCell game={game} side={side} locale={locale} /> : null}
     </span>
   );
+  const roundTag = roundName ? (
+    <span className="min-w-0 truncate text-studio-faint" data-live-round-name="" title={roundName}>
+      {roundName}
+    </span>
+  ) : null;
   return (
     <div
       id={liveRowDomId(game.id)}
@@ -208,17 +231,22 @@ const LiveRow = memo(function LiveRow({ game, index, gridNumber, focused, active
           outcome={outcomeFor(winner, "white")}
           emphasis={focused}
           shortName
-          extra={narrowClock("white")}
+          extra={
+            <>
+              {narrowClock("white")}
+              {roundTag}
+            </>
+          }
         />
       </div>
       <div role="cell" className="hidden text-right text-dense tabular-nums sm:block">
-        <ClockCell game={game} side="white" locale={locale} />
+        {clocks ? <ClockCell game={game} side="white" locale={locale} /> : null}
       </div>
       <div role="cell" className="flex justify-center">
         <ResultMark winner={winner} />
       </div>
       <div role="cell" className="hidden text-right text-dense tabular-nums sm:block">
-        <ClockCell game={game} side="black" locale={locale} />
+        {clocks ? <ClockCell game={game} side="black" locale={locale} /> : null}
       </div>
       <div role="cell" className="min-w-0">
         <LivePlayerCell
@@ -238,17 +266,72 @@ export function orderedGames(games: Record<string, LiveGame> | undefined): LiveG
   return games ? Object.values(games) : [];
 }
 
+type AllRoundsStatus = "idle" | "loading" | "error" | "ready";
+
+/** A row known only from the tournament PGN, as a `LiveGame` (no position, no clocks). */
+function tourRowGame(row: TourGameRow): LiveGame {
+  return { ...row, fen: "", lastMoveUci: null, thinkTimeSec: null, pgn: null, updatedAt: 0 };
+}
+
 export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: SiteLocale }) {
   const games = useLiveRound(roundId);
   const openBoards = useLiveStore((s) => s.openBoards);
   const focusedGame = useLiveStore((s) => s.focusedGame);
   const openBoard = useLiveStore((s) => s.openBoard);
   const closeBoard = useLiveStore((s) => s.closeBoard);
-  const allRows = useMemo(() => orderedGames(games), [games]);
+  const info = useLiveRoundInfo(roundId);
+  const tourId = info?.tour.id ?? null;
+  const gamesByRound = useLiveStore((s) => s.gamesByRound);
+  const roundRows = useMemo(() => orderedGames(games), [games]);
   // Local state: the parent keys this component by round, so changing round resets search, filter and sort.
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<GamesFilter>("all");
   const [sort, setSort] = useState<GamesSort>("board");
+  // SIG-1314: off by default; turning it on is the only thing that requests the tournament's games.
+  const [allRounds, setAllRounds] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [tourRows, setTourRows] = useState<{ tourId: string; rows: TourGameRow[] } | null>(null);
+  const [tourFailed, setTourFailed] = useState(false);
+  const tour = useLiveTour(allRounds ? tourId : null);
+  useEffect(() => {
+    if (!allRounds || !tourId) {
+      return;
+    }
+    if (cachedTourGames(tourId)) {
+      return;
+    }
+    let cancelled = false;
+    loadTourGames(tourId).then(
+      (rows) => !cancelled && setTourRows({ tourId, rows }),
+      () => !cancelled && setTourFailed(true),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [allRounds, tourId, attempt]);
+  // The cache is read while rendering: a tournament fetched earlier in the session is ready at once, without a request.
+  const tourGames =
+    allRounds && tourId ? (cachedTourGames(tourId) ?? (tourRows?.tourId === tourId ? tourRows.rows : undefined)) : undefined;
+  const tourReady = tourGames !== undefined;
+  const status: AllRoundsStatus = !allRounds ? "idle" : tourReady ? "ready" : tourFailed ? "error" : "loading";
+  const roundOrder = useMemo(() => new Map((tour?.rounds ?? []).map((r, i) => [r.id, i] as const)), [tour]);
+  const roundNames = useMemo(() => {
+    const names = new Map((tour?.rounds ?? []).map((r) => [r.id, r.name] as const));
+    if (info) {
+      names.set(info.round.id, info.round.name);
+    }
+    return names;
+  }, [tour, info]);
+  // The open round always comes from the live store (so its rows stay live); the other rounds from the tournament PGN.
+  const allRows = useMemo(() => {
+    if (!tourGames) {
+      return roundRows;
+    }
+    const others = tourGames.filter((r) => r.roundId !== roundId).map((r) => gamesByRound[r.roundId]?.[r.id] ?? tourRowGame(r));
+    // Stable: rounds in the tournament's order (unknown ones after, in PGN order), boards as they came.
+    const rank = (g: LiveGame) => roundOrder.get(g.roundId) ?? Number.MAX_SAFE_INTEGER;
+    return [...roundRows, ...others].sort((a, b) => rank(a) - rank(b));
+  }, [tourGames, roundRows, roundId, gamesByRound, roundOrder]);
   // The search narrows the games first, so the status counts are the matches per status.
   const searched = useMemo(() => searchGames(allRows, query), [allRows, query]);
   const counts = useMemo(() => countGames(searched), [searched]);
@@ -257,6 +340,7 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
   const searchRef = useRef<HTMLInputElement>(null);
   const { attachScroll, ...windowing } = useVirtualRows({ count: rows.length, rowHeight: LIVE_ROW_HEIGHT });
   const activeIndex = activeId === null ? -1 : rows.findIndex((g) => g.id === activeId);
+  const roundOf = useCallback((game: LiveGame) => game.roundId || roundId, [roundId]);
   // The active row left the filter (it finished, or the filter changed): forget it (state adjusted during render).
   if (activeId !== null && activeIndex === -1) {
     setActiveId(null);
@@ -282,12 +366,12 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
   const activate = useCallback(
     (game: LiveGame, studio: boolean) => {
       if (studio) {
-        openGameInStudio(roundId, game.id);
+        openGameInStudio(roundOf(game), game.id);
       } else {
-        openBoard({ roundId, gameId: game.id });
+        openBoard({ roundId: roundOf(game), gameId: game.id });
       }
     },
-    [openBoard, roundId],
+    [openBoard, roundOf],
   );
   const onActivate = useCallback(
     (game: LiveGame, studio: boolean) => {
@@ -296,7 +380,7 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
     },
     [activate],
   );
-  const onClose = useCallback((game: LiveGame) => closeBoard({ roundId, gameId: game.id }), [closeBoard, roundId]);
+  const onClose = useCallback((game: LiveGame) => closeBoard({ roundId: roundOf(game), gameId: game.id }), [closeBoard, roundOf]);
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Enter") {
@@ -355,6 +439,42 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
               </option>
             ))}
           </select>
+        </div>
+        <div className="flex min-h-5 items-center gap-2 text-caption">
+          <label className="flex cursor-pointer items-center gap-1.5 text-studio-muted">
+            <input
+              type="checkbox"
+              role="switch"
+              checked={allRounds}
+              disabled={tourId === null}
+              onChange={(event) => {
+                setAllRounds(event.target.checked);
+                setTourFailed(false);
+              }}
+              className="accent-studio-accent"
+            />
+            {tLive(locale, "live.allRounds.label")}
+          </label>
+          {status === "loading" ? (
+            <span role="status" data-testid="live-all-rounds-loading" className="min-w-0 truncate text-studio-muted">
+              {tLive(locale, "live.allRounds.loading")}
+            </span>
+          ) : null}
+          {status === "error" ? (
+            <span role="alert" data-testid="live-all-rounds-error" className="flex min-w-0 items-center gap-1.5 text-studio-muted">
+              <span className="truncate">{tLive(locale, "live.allRounds.error")}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setTourFailed(false);
+                  setAttempt((n) => n + 1);
+                }}
+                className="shrink-0 rounded px-1 text-studio-accent-text hover:bg-studio-hover-strong"
+              >
+                {tLive(locale, "live.allRounds.retry")}
+              </button>
+            </span>
+          ) : null}
         </div>
         {/* One line at every width: the labels are short and never wrap. */}
         <div
@@ -442,7 +562,7 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
             <div style={{ height: windowing.totalHeight, position: "relative" }}>
               <div style={{ transform: `translateY(${windowing.offsetTop}px)` }}>
                 {visible.map((game, offset) => {
-                  const ref = { roundId, gameId: game.id };
+                  const ref = { roundId: roundOf(game), gameId: game.id };
                   const position = openBoards.findIndex((b) => sameGameRef(b, ref));
                   return (
                     <LiveRow
@@ -452,6 +572,8 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
                       gridNumber={position === -1 ? null : position + 1}
                       focused={sameGameRef(focusedGame, ref)}
                       active={game.id === activeId}
+                      roundName={allRounds ? roundNames.get(game.roundId) : undefined}
+                      clocks={!(allRounds && game.fen === "")}
                       locale={locale}
                       onActivate={onActivate}
                       onClose={onClose}

@@ -9,6 +9,7 @@ import {
   fetchRoundPgn,
   fetchTopBroadcasts,
   fetchTour,
+  fetchTourPgn,
   mapBroadcastRound,
   mapBroadcastTop,
   mapBroadcastTour,
@@ -289,6 +290,12 @@ describe("HTTP client", () => {
   it("fetches the round PGN as text", async () => {
     mockFetch(() => new Response(fixture("round.pgn")));
     assert.equal(await fetchRoundPgn("djmeJZUw"), fixture("round.pgn"));
+  });
+
+  it("fetches the tournament PGN (every round) from one URL, without comments", async () => {
+    const calls = mockFetch(() => new Response(fixture("tour.pgn")));
+    assert.equal(await fetchTourPgn("wLrwkC0C"), fixture("tour.pgn"));
+    assert.deepEqual(calls, ["https://lichess.org/api/broadcast/wLrwkC0C.pgn?comments=false"]);
   });
 
   it("HTTP 429 throws LiveRateLimitedError with a 60s backoff", async () => {

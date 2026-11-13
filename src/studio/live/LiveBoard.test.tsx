@@ -24,6 +24,7 @@ mock.module("@/src/lib/live/lichess-broadcast", {
     RATE_LIMIT_BACKOFF_MS: 60_000,
     fetchRound: (id: string) => roundHandler(id),
     fetchTour: () => Promise.resolve(null),
+    fetchTourPgn: () => Promise.resolve(null),
     fetchRoundPgn: (id: string) => {
       pgnCalls.push(id);
       return pgnHandler(id);

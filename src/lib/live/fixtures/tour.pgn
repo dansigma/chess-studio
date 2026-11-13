@@ -1,0 +1,67 @@
+[Event "Open A"]
+[Site "?"]
+[Round "2"]
+[White "Sevian, Samuel"]
+[Black "Nobody, Joe"]
+[Result "*"]
+[WhiteElo "2600"]
+[BlackElo "2500"]
+[Board "2"]
+[BroadcastURL "https://lichess.org/broadcast/open-a/round-2/RoundBBB"]
+[GameURL "https://lichess.org/broadcast/open-a/round-2/RoundBBB/gameB2xx"]
+
+1. e4 { [%clk 1:30:00] } 1... e5 { [%clk 1:29:00] } *
+
+[Event "Open A"]
+[Site "?"]
+[Round "2"]
+[White "Carlsen, Magnus"]
+[Black "Pérez, José"]
+[Result "1-0"]
+[WhiteElo "2600"]
+[BlackElo "2500"]
+[Board "1"]
+[BroadcastURL "https://lichess.org/broadcast/open-a/round-2/RoundBBB"]
+[GameURL "https://lichess.org/broadcast/open-a/round-2/RoundBBB/gameB1xx"]
+
+1. d4 { [%clk 1:30:00] } 1... d5 { [%clk 1:29:00] } 2. c4 { [%clk 1:29:30] } 1-0
+
+[Event "Open A"]
+[Site "?"]
+[Round "1"]
+[White "Low, Larry"]
+[Black "Sevian, Samuel"]
+[Result "1/2-1/2"]
+[WhiteElo "2600"]
+[BlackElo "2500"]
+[Board "2"]
+[BroadcastURL "https://lichess.org/broadcast/open-a/round-1/RoundAAA"]
+[GameURL "https://lichess.org/broadcast/open-a/round-1/RoundAAA/gameA2xx"]
+
+1. Nf3 { [%clk 1:30:00] } 1... Nf6 { [%clk 1:29:00] } 1/2-1/2
+
+[Event "Open A"]
+[Site "?"]
+[Round "1"]
+[White "Pérez, José"]
+[Black "Carlsen, Magnus"]
+[Result "0-1"]
+[WhiteElo "2600"]
+[BlackElo "2500"]
+[Board "1"]
+[BroadcastURL "https://lichess.org/broadcast/open-a/round-1/RoundAAA"]
+[GameURL "https://lichess.org/broadcast/open-a/round-1/RoundAAA/gameA1xx"]
+
+1. e4 { [%clk 1:30:00] } 1... c5 { [%clk 1:29:00] } 0-1
+
+[Event "Open A"]
+[Site "?"]
+[Round "3"]
+[White "No, Url"]
+[Black "Skipped, Game"]
+[Result "*"]
+[WhiteElo "2600"]
+[BlackElo "2500"]
+[Board "1"]
+
+1. e4 *

@@ -243,6 +243,13 @@ export function fetchRoundPgn(roundId: string, signal?: AbortSignal): Promise<st
   );
 }
 
+/** SIG-1314: every game of a broadcast tournament (all rounds) as one PGN. `null` when `signal` was aborted. */
+export function fetchTourPgn(tourId: string, signal?: AbortSignal): Promise<string | null> {
+  return once(signal, async () =>
+    (await get(`/api/broadcast/${encodeURIComponent(tourId)}.pgn`, "application/x-chess-pgn", signal, "?comments=false")).text(),
+  );
+}
+
 /**
  * Follow a round: calls `onGame` for every complete PGN (all games first, then each update).
  * Resolves when the stream ends or `signal` aborts; rejects on a network or HTTP error.
