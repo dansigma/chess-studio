@@ -1,29 +1,28 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowUpRight, ExternalLink } from "lucide-react";
 import { formatDateTime } from "@/src/i18n/format";
 import { tLive } from "@/src/i18n/live-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { fetchTour } from "@/src/lib/live/lichess-broadcast";
-import type { BroadcastRoundSummary, LiveGame, LiveResult } from "@/src/lib/live/types";
+import type { BroadcastRoundSummary, LiveGame } from "@/src/lib/live/types";
 import { Button } from "@/src/studio/ui/Button";
+import { useIsMobile } from "../use-is-mobile";
 import { LiveConnectionIndicator } from "./LiveConnectionIndicator";
 import { LiveBoardGrid } from "./LiveBoardGrid";
-import { LiveGamesTable } from "./LiveGamesTable";
+import { LiveGamesTable, orderedGames } from "./LiveGamesTable";
 import { enqueueLiveRequest, useLiveStore } from "./live-store";
+import { liveStudioHref } from "./live-studio-link";
 import { useLiveRound, useLiveRoundInfo } from "./use-live";
 import { pickRoundForTour, useLiveTour } from "./use-live-tour";
 
-const RESULT_TEXT: Record<LiveResult, string> = { "*": "*", "1-0": "1 – 0", "0-1": "0 – 1", "1/2-1/2": "½ – ½" };
 const SKELETON_ROWS = 8;
+/** SIG-1313: boards opened for a round that has none open (boards 1, 2 and 3, in board order). */
+export const AUTO_OPEN_BOARDS = 3;
 
 const SELECT_CLASS =
   "h-7 min-w-0 max-w-full rounded-md border border-studio-border bg-studio-panel px-2 text-dense text-studio-fg disabled:opacity-60";
-
-export function playerLabel(player: { title: string | null; name: string }): string {
-  return player.title ? `${player.title} ${player.name}` : player.name;
-}
 
 /** Round selector label: name plus its state (live / finished / start date of a future round). */
 export function roundOptionLabel(round: BroadcastRoundSummary, locale: SiteLocale): string {
@@ -37,15 +36,57 @@ export function roundOptionLabel(round: BroadcastRoundSummary, locale: SiteLocal
   return state ? `${round.name} — ${state}` : round.name;
 }
 
-function FollowedHeader({ game, locale }: { game: LiveGame | undefined; locale: SiteLocale }) {
-  if (!game) {
-    return <span className="text-dense text-studio-muted">{tLive(locale, "live.round.noFollowed")}</span>;
-  }
+/**
+ * Second bar. The focused card already shows the names and the result, so this carries what it does not:
+ * the opening (ECO code + name, once the PGN is known), the round's time control and "Open in Studio".
+ */
+function FollowedHeader({
+  game,
+  timeControl,
+  locale,
+}: {
+  game: LiveGame | undefined;
+  timeControl: string | null;
+  locale: SiteLocale;
+}) {
+  // SIG-1315: opens in a new tab, straight from the click (not blocked as a pop-up); this tab keeps its stream.
+  const openInStudio = () => {
+    if (game) {
+      window.open(liveStudioHref({ roundId: game.roundId, gameId: game.id }), "_blank", "noopener");
+    }
+  };
   return (
-    <span className="min-w-0 truncate text-sm text-studio-fg" data-live-followed="">
-      <span className="font-semibold tabular-nums">{RESULT_TEXT[game.result]}</span>{" "}
-      {playerLabel(game.white)} – {playerLabel(game.black)}
-    </span>
+    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-dense text-studio-muted" data-live-followed="">
+      {game ? (
+        <>
+          {game.eco || game.opening ? (
+            <span className="min-w-0 truncate text-studio-fg" title={tLive(locale, "live.round.opening")} data-live-opening="">
+              {game.eco ? <span className="font-semibold tabular-nums">{game.eco}</span> : null}
+              {game.eco && game.opening ? " · " : null}
+              {game.opening}
+            </span>
+          ) : null}
+        </>
+      ) : (
+        <span>{tLive(locale, "live.round.noFollowed")}</span>
+      )}
+      {timeControl ? (
+        <span className="min-w-0 truncate" title={tLive(locale, "live.round.timeControl")} data-live-time-control="">
+          {timeControl}
+        </span>
+      ) : null}
+      {game ? (
+        <button
+          type="button"
+          className="inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md border border-studio-border px-1.5 text-caption font-medium text-studio-fg-secondary hover:border-studio-accent hover:bg-studio-accent-soft hover:text-studio-accent-text"
+          onClick={openInStudio}
+          data-live-followed-studio=""
+        >
+          {tLive(locale, "live.round.openInStudio")}
+          <ArrowUpRight size={13} aria-hidden="true" />
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -124,6 +165,28 @@ export function LiveRoundView({
   const hasBoards = useLiveStore((s) => s.openBoards.length > 0);
   const gameCount = games ? Object.keys(games).length : 0;
 
+  // SIG-1313: a round opened with no boards starts with boards 1-3 (finished or not), board 1 focused. Once
+  // per round: the round is marked as soon as its first snapshot is in, whatever happens next, so closing or
+  // clearing the boards never brings them back, and a URL that restored `games=` (boards already open when the
+  // snapshot lands) is left as it is. Desktop only: mobile shows a single board the user picks.
+  const mobile = useIsMobile();
+  const openBoard = useLiveStore((s) => s.openBoard);
+  const autoOpened = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (mobile || !info || !games || autoOpened.current.has(roundId)) {
+      return;
+    }
+    const first = orderedGames(games).slice(0, AUTO_OPEN_BOARDS);
+    if (first.length === 0) {
+      return;
+    }
+    autoOpened.current.add(roundId);
+    if (useLiveStore.getState().openBoards.length > 0) {
+      return;
+    }
+    first.forEach((g, index) => openBoard({ roundId, gameId: g.id }, { focus: index === 0 }));
+  }, [mobile, info, games, roundId, openBoard]);
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-studio-bg" data-live-round={roundId}>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-studio-border-subtle px-3 py-2">
@@ -174,7 +237,7 @@ export function LiveRoundView({
         </a>
       </div>
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-studio-border-subtle px-3 py-1.5">
-        <FollowedHeader game={followed} locale={locale} />
+        <FollowedHeader game={followed} timeControl={info?.tour.timeControl ?? null} locale={locale} />
         <LiveConnectionIndicator />
       </div>
       {notStarted && info?.round.startsAt != null ? (

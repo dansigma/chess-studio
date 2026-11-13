@@ -88,6 +88,9 @@ export type LiveGame = {
   pgn: string | null; // filled once the PGN is known (stream or round PGN)
   /** SIG-1312: `[%eval]` of the last mainline move of `pgn`; null/absent when the PGN has none or is behind. */
   lastEval?: PgnEval | null;
+  /** SIG-1313: `[ECO]` / `[Opening]` of the PGN. Only the PGN has them (the JSON snapshot does not): null/absent until it is known. */
+  eco?: string | null;
+  opening?: string | null;
   updatedAt: number; // epoch ms of the last update applied
 };
 
@@ -123,4 +126,7 @@ export type LiveGameUpdate = {
   blackClockMs: number | null;
   /** SIG-1312: `[%eval]` of the last mainline move, White's point of view; null when it has none. */
   lastEval?: PgnEval | null;
+  /** SIG-1313: `[ECO]` and `[Opening]` headers; null when the PGN has none. */
+  eco?: string | null;
+  opening?: string | null;
 };

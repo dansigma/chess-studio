@@ -113,6 +113,9 @@ export function mergeStreamUpdate(prev: LiveGame | undefined, update: LiveGameUp
     thinkTimeSec: prev && prev.fen === update.fen ? prev.thinkTimeSec : null,
     pgn: update.pgn,
     lastEval: update.lastEval ?? null,
+    // SIG-1313: the PGN headers are the only source; a PGN without them keeps what an earlier one said.
+    eco: update.eco ?? prev?.eco ?? null,
+    opening: update.opening ?? prev?.opening ?? null,
     updatedAt: now,
   };
 }

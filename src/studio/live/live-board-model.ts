@@ -14,6 +14,15 @@ import type { Side } from "./live-clock";
 /** Boards open at once. Past the cap the store refuses a new board (see `openBoard`). */
 export const MAX_LIVE_BOARDS = 6;
 
+/**
+ * SIG-1313: columns x rows of the Compact layout, so every open board fits the pane height with no
+ * scroll: 2x2 up to 4 boards, 3x2 for 5-6 (`MAX_LIVE_BOARDS`). One board gets the whole pane, two sit side by side.
+ */
+export function compactGridShape(count: number): { cols: number; rows: number } {
+  const cols = count <= 1 ? 1 : count <= 4 ? 2 : 3;
+  return { cols, rows: Math.max(1, Math.ceil(count / cols)) };
+}
+
 export function mainlineLength(tree: GameTree): number {
   let length = 0;
   for (let node = tree.children[0]; node; node = node.children[0]) {

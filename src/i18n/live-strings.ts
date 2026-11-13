@@ -92,6 +92,15 @@ export const LIVE_STRING_KEYS = [
   "live.board.switcher",
   "live.boards.label",
   "live.eval.toggle",
+  "live.board.flip",
+  "live.layout.label",
+  "live.layout.grid",
+  "live.layout.compact",
+  "live.layout.focus",
+  "live.grid.clear",
+  "live.round.openInStudio",
+  "live.round.timeControl",
+  "live.round.opening",
 ] as const;
 
 export type LiveStringKey = (typeof LIVE_STRING_KEYS)[number];
@@ -187,6 +196,15 @@ const EN: Record<LiveStringKey, string> = {
   "live.board.switcher": "Followed games",
   "live.boards.label": "Live boards",
   "live.eval.toggle": "Show eval bar",
+  "live.board.flip": "Flip board",
+  "live.layout.label": "Board layout",
+  "live.layout.grid": "Grid",
+  "live.layout.compact": "Compact",
+  "live.layout.focus": "Focus",
+  "live.grid.clear": "Clear grid",
+  "live.round.openInStudio": "Open in Studio",
+  "live.round.timeControl": "Time control",
+  "live.round.opening": "Opening",
 };
 
 const PT_BR: Record<LiveStringKey, string> = {
@@ -280,6 +298,15 @@ const PT_BR: Record<LiveStringKey, string> = {
   "live.board.switcher": "Partidas seguidas",
   "live.boards.label": "Tabuleiros ao vivo",
   "live.eval.toggle": "Mostrar barra de avaliação",
+  "live.board.flip": "Virar o tabuleiro",
+  "live.layout.label": "Layout dos tabuleiros",
+  "live.layout.grid": "Grade",
+  "live.layout.compact": "Compacto",
+  "live.layout.focus": "Foco",
+  "live.grid.clear": "Limpar grade",
+  "live.round.openInStudio": "Abrir no Studio",
+  "live.round.timeControl": "Controle de tempo",
+  "live.round.opening": "Abertura",
 };
 
 export const tLive = createT(EN, PT_BR);

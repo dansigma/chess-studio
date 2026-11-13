@@ -34,6 +34,12 @@ function intOrNull(value: string | undefined): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+/** A header value, trimmed; null when absent, empty or Lichess' "?" placeholder. */
+function headerText(headers: Record<string, string>, key: string): string | null {
+  const value = headers[key]?.trim();
+  return value && value !== "?" ? value : null;
+}
+
 function player(headers: Record<string, string>, side: "White" | "Black"): LiveUpdatePlayer {
   const title = headers[`${side}Title`]?.trim();
   return {
@@ -113,5 +119,7 @@ export function parseGame(pgn: string, roundId: string): LiveGameUpdate | null {
     whiteClockMs,
     blackClockMs,
     lastEval: nodeEval(mainline[mainline.length - 1]) ?? null,
+    eco: headerText(headers, "ECO"),
+    opening: headerText(headers, "Opening"),
   };
 }
