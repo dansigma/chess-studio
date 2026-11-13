@@ -20,7 +20,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { phaseName, tierName } from "@/src/chess/review-strings";
 import { sanMovesFromPgn } from "@/src/chess/pgn-clean";
 import { formatDecimal1, formatInteger } from "@/src/i18n/format";
 import { tMyGames } from "@/src/i18n/my-games-strings";
@@ -31,7 +30,7 @@ import {
   accuracyTrend,
   deviationsForRecentGames,
   DEVIATION_TOP_GROUPS,
-  mistakesByPhase,
+  mistakesPerGame,
   MY_STATS_MIN_REVIEWED,
   myStatsViewState,
   resultsByOpening,
@@ -54,14 +53,13 @@ import {
   type OpeningDatePreset,
   type OpeningUiFilters,
 } from "@/src/lib/my-games/opening-rows";
-import type { MistakeTier } from "@/src/lib/my-games/review-queue";
-import type { GamePhase } from "@/src/chess/phases";
 import type { PlayerGame } from "@/src/lib/player-types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
+import { MyStatsPhases } from "./MyStatsPhases";
 
 type LoadState = "signedOut" | "loading" | "ready" | "unavailable";
 
@@ -72,8 +70,6 @@ type LoadState = "signedOut" | "loading" | "ready" | "unavailable";
 // joiners; the loop stops paging once nobody is listening.
 const myStatsLoadByUser = new Map<string, { promise: Promise<PlayerGame[] | null>; refs: number }>();
 
-const PHASES: readonly GamePhase[] = ["opening", "middlegame", "endgame"];
-const TIERS: readonly MistakeTier[] = ["inaccuracy", "mistake", "miss", "blunder"];
 
 function TrendChart({ points, locale, label }: { points: Array<{ playedAt: number; accuracy: number }>; locale: SiteLocale; label: string }) {
   const width = 640;
@@ -235,7 +231,7 @@ export function MyStatsPanel() {
   const view = myStatsViewState(reviewedCount);
   const trend = useMemo(() => accuracyTrend(games), [games]);
   const openings = useMemo(() => resultsByOpening(games, { minGames }), [games, minGames]);
-  const phaseTotals = useMemo(() => mistakesByPhase(games), [games]);
+  const phaseStats = useMemo(() => mistakesPerGame(games), [games]);
   const tabRows = useMemo(
     () => sortOpeningResults(openings.filter((row) => row.color === colorTab), openingSort),
     [openings, colorTab, openingSort],
@@ -494,32 +490,7 @@ export function MyStatsPanel() {
               <h2 id="mystats-phases" className="mb-1 text-caption font-semibold text-studio-muted">
                 {tMyGames(locale, "myGames.statsByPhase")}
               </h2>
-              <div className="flex flex-col gap-3">
-                {PHASES.map((phase) => {
-                  const max = Math.max(1, ...TIERS.map((tier) => phaseTotals[phase][tier]));
-                  return (
-                    <div key={phase}>
-                      <h3 className="mb-1 text-caption text-studio-faint">{phaseName(locale, phase)}</h3>
-                      <dl className="flex flex-col gap-1">
-                        {TIERS.map((tier) => (
-                          <div key={tier} className="grid grid-cols-[88px_1fr_32px] items-center gap-2">
-                            <dt className="text-dense text-studio-muted">{tierName(locale, tier)}</dt>
-                            <dd className="h-2 overflow-hidden rounded bg-studio-hover">
-                              <div
-                                className="h-full rounded bg-[var(--studio-accent)]"
-                                style={{ width: `${(100 * phaseTotals[phase][tier]) / max}%` }}
-                              />
-                            </dd>
-                            <dd className="text-right text-dense tabular-nums text-studio-muted">
-                              {formatInteger(locale, phaseTotals[phase][tier])}
-                            </dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  );
-                })}
-              </div>
+              <MyStatsPhases locale={locale} stats={phaseStats} />
             </section>
             {whiteRepTree === null && blackRepTree === null ? null : (
               <section aria-labelledby="mystats-deviations">

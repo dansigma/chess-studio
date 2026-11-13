@@ -222,6 +222,35 @@ export function mistakesByPhase(games: readonly PlayerGame[]): MistakeCounts {
   return totals;
 }
 
+export type MistakesPerGame = {
+  totals: MistakeCounts;
+  /** `totals / reviewedGames` per phase and tier; all zeros when `reviewedGames` is 0. */
+  perGame: MistakeCounts;
+  /** Reviewed games carrying a valid `mistakeCounts` object (the average's base). */
+  reviewedGames: number;
+};
+
+/**
+ * SIG-1303: totals plus per-reviewed-game averages. The base counts only
+ * reviewed games whose `mistakeCounts` is an object (the same rows
+ * `mistakesByPhase` can sum), never all games; 0 base never divides.
+ */
+export function mistakesPerGame(games: readonly PlayerGame[]): MistakesPerGame {
+  const valid = games.filter(
+    (game) => game.reviewedAt != null && game.mistakeCounts != null && typeof game.mistakeCounts === "object",
+  );
+  const totals = mistakesByPhase(valid);
+  const perGame = emptyMistakeTotals();
+  if (valid.length > 0) {
+    for (const phase of PHASES) {
+      for (const tier of TIERS) {
+        perGame[phase][tier] = totals[phase][tier] / valid.length;
+      }
+    }
+  }
+  return { totals, perGame, reviewedGames: valid.length };
+}
+
 /** Empty-state rule for the stats panel: fewer than 3 reviewed games. */
 export function myStatsViewState(reviewedCount: number): MyStatsViewState {
   return reviewedCount >= MY_STATS_MIN_REVIEWED ? "ready" : "empty";
