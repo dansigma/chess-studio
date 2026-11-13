@@ -115,12 +115,6 @@ export function enqueuePgnFiles(
   deps: ImportQueueDeps,
 ): { skipped: string[]; done: Promise<void> } {
   const { pgn, skipped } = splitPgnFiles(files);
-  if (pgn.length === 0 && pending.length > 0 && !running) {
-    running = runQueue(deps).finally(() => {
-      running = null;
-    });
-    return { skipped, done: running };
-  }
   if (pgn.length === 0) {
     return { skipped, done: running ?? Promise.resolve() };
   }

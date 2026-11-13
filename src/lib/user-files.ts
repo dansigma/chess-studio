@@ -115,7 +115,8 @@ export function saveLocalFiles(library: FilesLibrary): boolean {
 }
 
 export function libraryFromPgn(name: string, pgn: string, folderId: string | null): FileDatabase {
-  const parsed = parsePgnCollection(pgn);
+  // Same per-database cap as the Library import (SIG-1323), not parsePgnCollection's 500 default.
+  const parsed = parsePgnCollection(pgn, MAX_GAMES_PER_DATABASE);
   return {
     id: crypto.randomUUID(),
     remoteId: null,
