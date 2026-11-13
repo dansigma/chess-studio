@@ -13,6 +13,7 @@ import {
   normalizeResult,
   type AnnotationInfo,
 } from "./filters";
+import { overviewFromItems, type LibraryOverview } from "./overview";
 import { registerLibrarySource, listLibrarySources, unregisterLibrarySource } from "./sources";
 import { compareLibraryItems } from "./sort";
 import type {
@@ -87,6 +88,18 @@ const CAPABILITIES: LibrarySourceCapabilities = {
   maxResults: null,
 };
 
+const overviewCache = new WeakMap<FileDatabase, LibraryOverview>();
+
+/** Summary of a whole database, cached on the database object (a new object recomputes). */
+export function fileDatabaseOverview(db: FileDatabase): LibraryOverview {
+  let hit = overviewCache.get(db);
+  if (!hit) {
+    hit = overviewFromItems(db.games.map((game) => parseGame(game).item));
+    overviewCache.set(db, hit);
+  }
+  return hit;
+}
+
 export function fileSourceId(databaseId: string): LibrarySourceId {
   return `file:${databaseId}`;
 }
@@ -141,6 +154,10 @@ export function createFileSource(
       const items = rows.slice(offset, offset + limit);
       const next = offset + items.length;
       return { items, nextCursor: next < rows.length ? String(next) : null, total: rows.length };
+    },
+    async overview(signal) {
+      signal.throwIfAborted();
+      return fileDatabaseOverview(need());
     },
     async loadPgn(gameId) {
       const game = need().games.find((g) => g.id === gameId);

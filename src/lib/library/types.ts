@@ -1,5 +1,7 @@
 // SIG-1272: Library data contract. Shared by every Library issue (SIG-1271);
 // keep it exactly in sync with the Linear spec.
+import type { LibraryOverview } from "./overview";
+
 export type LibrarySourceId = "my-games" | "masters" | `file:${string}`;
 
 export type LibraryResult = "1-0" | "0-1" | "1/2-1/2" | "*";
@@ -110,6 +112,8 @@ export interface LibrarySourceAdapter {
     signal: AbortSignal,
   ): Promise<LibraryPage>;
   loadPgn(gameId: string, signal: AbortSignal): Promise<string>;
+  /** SIG-1327: summary of the whole source. Not implemented by Masters. */
+  overview?(signal: AbortSignal): Promise<LibraryOverview>;
 }
 
 export type LibraryQueryResult = {
