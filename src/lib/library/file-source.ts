@@ -5,6 +5,7 @@ import { searchFilesForPosition } from "@/src/lib/files-explorer";
 import type { FileDatabase, FileGame } from "@/src/lib/user-files";
 import {
   annotationInfo,
+  matchesAdvancedFilters,
   matchesAnnotations,
   matchesResult,
   matchesTextFilters,
@@ -78,6 +79,10 @@ const CAPABILITIES: LibrarySourceCapabilities = {
   result: "full",
   annotations: "full",
   position: "full",
+  player: "full",
+  eloRange: "full",
+  eco: "full",
+  date: "full",
   sort: "full",
   maxResults: null,
 };
@@ -124,6 +129,7 @@ export function createFileSource(
         };
         if (
           matchesTextFilters(item, filters) &&
+          matchesAdvancedFilters(item, filters) &&
           matchesResult(item, filters.result) &&
           matchesAnnotations(parsed.info, filters.annotations)
         ) {
@@ -162,4 +168,69 @@ export function syncFileSources(databases: FileDatabase[]): void {
       unregisterLibrarySource(adapter.id);
     }
   }
+}
+
+// SIG-1326: player-name suggestions from the selected PGN files, no server call.
+const namesCache = new WeakMap<FileDatabase, string[]>();
+
+function distinctNames(db: FileDatabase): string[] {
+  const hit = namesCache.get(db);
+  if (hit) {
+    return hit;
+  }
+  const names = new Set<string>();
+  for (const game of db.games) {
+    const { white, black } = parseGame(game).item;
+    for (const name of [white, black]) {
+      if (name && name !== "?") {
+        names.add(name);
+      }
+    }
+  }
+  const list = [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  namesCache.set(db, list);
+  return list;
+}
+
+/**
+ * Up to `limit` distinct names whose start, or any word start ("carl" →
+ * "Carlsen, Magnus"; "mag" too), matches `text` case-insensitively. Names that
+ * start with the text come first.
+ */
+export function suggestPlayersFromDatabases(databases: FileDatabase[], text: string, limit = 8): string[] {
+  const needle = text.trim().toLowerCase();
+  if (!needle) {
+    return [];
+  }
+  const seen = new Set<string>();
+  const starts: string[] = [];
+  const words: string[] = [];
+  for (const db of databases) {
+    for (const name of distinctNames(db)) {
+      const key = name.toLowerCase();
+      if (seen.has(key)) {
+        continue;
+      }
+      if (key.startsWith(needle)) {
+        seen.add(key);
+        starts.push(name);
+      } else if (key.split(/[\s,.\-]+/).some((word) => word.startsWith(needle))) {
+        seen.add(key);
+        words.push(name);
+      }
+    }
+  }
+  return [...starts, ...words].slice(0, limit);
+}
+
+/** Suggestions from the file sources among `sourceIds` (non-file ids are ignored). */
+export function suggestLibraryPlayers(sourceIds: LibrarySourceId[], text: string, limit = 8): string[] {
+  const databases: FileDatabase[] = [];
+  for (const id of sourceIds) {
+    const db = id.startsWith("file:") ? latest.get(id.slice("file:".length)) : undefined;
+    if (db) {
+      databases.push(db);
+    }
+  }
+  return suggestPlayersFromDatabases(databases, text, limit);
 }

@@ -10,7 +10,7 @@ import {
 } from "./filter-chips";
 
 const FULL: LibrarySourceCapabilities = {
-  textSearch: "full", color: "full", result: "full", annotations: "full", position: "full", sort: "full", maxResults: null,
+  textSearch: "full", color: "full", result: "full", annotations: "full", position: "full", player: "full", eloRange: "full", eco: "full", date: "full", sort: "full", maxResults: null,
 };
 const sources: ChipSource[] = [
   { id: "my-games", label: "My Games", capabilities: FULL },
@@ -75,4 +75,32 @@ test("advanced count ignores search, sources and sort", () => {
 test("game count follows the locale", () => {
   assert.equal(formatGameCount(1234, "pt-br"), "1.234");
   assert.equal(formatGameCount(1234, "en"), "1,234");
+});
+
+test("player, Elo, ECO and period chips, with one-sided ranges", () => {
+  const chips = buildFilterChips(
+    f({ player: " Carlsen ", playerColor: "black", eloMin: 2500, eloMax: 2800, eco: "c65", yearFrom: 2020, yearTo: 2024 }),
+    sources,
+    "pt-br",
+  );
+  assert.deepEqual(chips.map((c) => c.field), ["player", "elo", "eco", "period"]);
+  assert.deepEqual(chips.map((c) => c.label), ["Jogador: Carlsen (Pretas)", "Elo 2500–2800", "ECO C65", "2020–2024"]);
+  const one = buildFilterChips(f({ eloMin: 2500, yearTo: 2024, player: "Li" }), sources, "en");
+  assert.deepEqual(one.map((c) => c.label), ["Player: Li", "Elo ≥ 2500", "≤ 2024"]);
+  assert.equal(buildFilterChips(f({ eloMin: 2800, eloMax: 2500 }), sources, "en")[0].label, "Elo 2500–2800");
+});
+
+test("new chips are limited by sources that apply them partly; removal resets the field", () => {
+  const partial: ChipSource[] = [
+    { id: "my-games", label: "My Games", capabilities: FULL },
+    { id: "masters", label: "Masters", capabilities: { ...FULL, player: "partial", eloRange: "partial", eco: "partial", date: "partial" } },
+  ];
+  const filters = f({ player: "x", playerColor: "white", eloMin: 1, eco: "C", yearFrom: 2000 });
+  const chips = buildFilterChips(filters, partial, "en");
+  assert.ok(chips.every((c) => c.limitedBy.length === 1 && c.limitedBy[0] === "Masters"));
+  assert.deepEqual(chipRemovalPatch(filters, chips[0]), { player: "", playerColor: "both" });
+  assert.deepEqual(chipRemovalPatch(filters, chips[1]), { eloMin: null, eloMax: null });
+  assert.deepEqual(chipRemovalPatch(filters, chips[2]), { eco: "" });
+  assert.deepEqual(chipRemovalPatch(filters, chips[3]), { yearFrom: null, yearTo: null });
+  assert.equal(countAdvancedFilters(filters), 4);
 });

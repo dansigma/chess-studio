@@ -13,7 +13,7 @@ after(() => teardownDom());
 afterEach(() => cleanup());
 
 const FULL: LibrarySourceCapabilities = {
-  textSearch: "full", color: "full", result: "full", annotations: "full", position: "full", sort: "full", maxResults: null,
+  textSearch: "full", color: "full", result: "full", annotations: "full", position: "full", player: "full", eloRange: "full", eco: "full", date: "full", sort: "full", maxResults: null,
 };
 function fake(id: "my-games" | "masters", label: string, caps: LibrarySourceCapabilities = FULL): LibrarySourceAdapter {
   return { id, label: () => label, capabilities: () => caps, list: async () => ({ items: [], nextCursor: null, total: 0 }), loadPgn: async () => "" };
@@ -34,7 +34,7 @@ const wait = (ms: number) => act(async () => { await new Promise((r) => setTimeo
 const filters = () => useLibraryStore.getState().filters;
 
 test("segmented controls and select write their filters", () => {
-  fireEvent.click(screen.getByRole("radio", { name: "White" }));
+  fireEvent.click(screen.getAllByRole("radio", { name: "White" })[1]);
   assert.equal(filters().color, "white");
   fireEvent.click(screen.getByRole("radio", { name: "0-1" }));
   assert.equal(filters().result, "0-1");
@@ -48,7 +48,7 @@ test("arrow keys move and select within a segmented control", () => {
   const both = screen.getByRole("radio", { name: "Both" });
   fireEvent.keyDown(both, { key: "ArrowRight" });
   assert.equal(filters().color, "white");
-  fireEvent.keyDown(screen.getByRole("radio", { name: "White" }), { key: "ArrowLeft" });
+  fireEvent.keyDown(screen.getAllByRole("radio", { name: "White" })[1], { key: "ArrowLeft" });
   assert.equal(filters().color, "both");
 });
 
@@ -79,7 +79,7 @@ test("field is disabled when no selected source supports it", () => {
   cleanup();
   setup(["masters"]);
   assert.equal((screen.getByLabelText("Annotations") as HTMLSelectElement).disabled, true);
-  assert.equal((screen.getByRole("radio", { name: "White" }) as HTMLButtonElement).disabled, false);
+  assert.equal((screen.getAllByRole("radio", { name: "White" })[1] as HTMLButtonElement).disabled, false);
   assert.ok(screen.getAllByRole("tooltip").some((n) => /None of the selected sources/.test(n.textContent ?? "")));
 });
 
@@ -132,4 +132,52 @@ test("Escape closes and returns focus to the Filters button; outside click close
 test("focus moves inside the popover when it opens", () => {
   const pop = screen.getByTestId("library-filters-popover");
   assert.ok(pop.contains(document.activeElement));
+});
+
+test("player is debounced by 200 ms and has its own color", async () => {
+  fireEvent.change(screen.getByPlaceholderText("Name, e.g. Carlsen"), { target: { value: "Carlsen" } });
+  assert.equal(filters().player, "");
+  await wait(50);
+  assert.equal(filters().player, "");
+  await wait(250);
+  assert.equal(filters().player, "Carlsen");
+  fireEvent.click(screen.getByRole("radio", { name: "Any color" }));
+  const group = screen.getByRole("radiogroup", { name: "Player color" });
+  fireEvent.click(group.querySelectorAll("[role=radio]")[2]);
+  assert.equal(filters().playerColor, "black");
+  assert.equal(filters().color, "both"); // the existing owner-color filter is untouched
+});
+
+test("Elo, ECO and period fields ignore non-numeric input and write the store", async () => {
+  fireEvent.change(screen.getByPlaceholderText("Minimum Elo"), { target: { value: "25a00" } });
+  fireEvent.change(screen.getByPlaceholderText("Maximum Elo"), { target: { value: "2800" } });
+  fireEvent.change(screen.getByPlaceholderText("C65, C6 or B"), { target: { value: "c6" } });
+  fireEvent.change(screen.getByPlaceholderText("From year"), { target: { value: "2020" } });
+  await wait(300);
+  const f = filters();
+  assert.equal(f.eloMin, 2500);
+  assert.equal(f.eloMax, 2800);
+  assert.equal(f.eco, "c6");
+  assert.equal(f.yearFrom, 2020);
+  assert.equal(f.yearTo, null);
+  fireEvent.change(screen.getByPlaceholderText("Minimum Elo"), { target: { value: "" } });
+  await wait(300);
+  assert.equal(filters().eloMin, null);
+});
+
+test("Clear filters also resets the new fields", () => {
+  useLibraryStore.setState({
+    filters: { ...filters(), player: "x", playerColor: "white", eloMin: 1, eloMax: 2, eco: "C", yearFrom: 1, yearTo: 2 },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  const f = filters();
+  assert.deepEqual([f.player, f.playerColor, f.eloMin, f.eloMax, f.eco, f.yearFrom, f.yearTo], ["", "both", null, null, "", null, null]);
+});
+
+test("sources that apply the new filters partly show the partial note", () => {
+  cleanup();
+  setup(["my-games", "masters"], { ...MASTERS, player: "partial", eloRange: "partial", eco: "partial", date: "none" });
+  const partial = screen.getAllByText("Masters: applied only to the games already returned");
+  assert.equal(partial.length, 3 + 2); // player, Elo, ECO + color, result from MASTERS
+  assert.equal(screen.getAllByText("Masters: not applied").length, 2); // period + annotations
 });

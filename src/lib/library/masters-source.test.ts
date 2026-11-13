@@ -33,7 +33,8 @@ test("declares masters capabilities", () => {
   const caps = createMastersSource().capabilities();
   assert.deepEqual(caps, {
     textSearch: "partial", color: "partial", result: "partial",
-    annotations: "none", position: "full", sort: "partial", maxResults: 15,
+    annotations: "none", position: "full", player: "partial", eloRange: "partial", eco: "partial", date: "partial",
+    sort: "partial", maxResults: 15,
   });
 });
 

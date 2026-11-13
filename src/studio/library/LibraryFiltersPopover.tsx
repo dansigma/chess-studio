@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { Chessboard } from "react-chessboard";
 import { X } from "lucide-react";
 import { tLibrary, type LibraryStringKey } from "@/src/i18n/library-strings";
+import { suggestLibraryPlayers } from "@/src/lib/library/file-source";
 import type { LibraryFilterState } from "@/src/lib/library/types";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Tooltip } from "../ui/Controls";
@@ -14,6 +15,11 @@ import { useLibraryStore } from "./library-store";
 import { PositionFilterDialog } from "./PositionFilterDialog";
 
 export const LIBRARY_FILTERS_DEBOUNCE_MS = 300;
+/** SIG-1326: player, ECO and number fields filter a whole database, so they commit a little sooner. */
+export const LIBRARY_FILTERS_FIELD_DEBOUNCE_MS = 200;
+
+const digitsOnly = (text: string) => text.replace(/\D/g, "").slice(0, 4);
+const toNumber = (text: string) => (text === "" ? null : Number(text));
 
 export type LibraryFiltersPopoverProps = {
   /** Sources currently selected, with their capabilities. */
@@ -29,6 +35,8 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
   const filters = useLibraryStore((s) => s.filters);
   const setFilter = useLibraryStore((s) => s.setFilter);
   const setFiltersOpen = useLibraryStore((s) => s.setFiltersOpen);
+  const setEloRange = useLibraryStore((s) => s.setEloRange);
+  const setYearRange = useLibraryStore((s) => s.setYearRange);
   const rootRef = useRef<HTMLDivElement>(null);
   const [positionOpen, setPositionOpen] = useState(false);
   // The position dialog is portaled out of the popover: while it is open, its clicks and Escape are not "outside".
@@ -75,6 +83,13 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
     setFilter("result", "all");
     setFilter("annotations", "all");
     setFilter("position", null);
+    setFilter("player", "");
+    setFilter("playerColor", "both");
+    setFilter("eloMin", null);
+    setFilter("eloMax", null);
+    setFilter("eco", "");
+    setFilter("yearFrom", null);
+    setFilter("yearTo", null);
   };
 
   return (
@@ -122,6 +137,104 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
             >
               {t("library.filtersPopover.positionSet")}
             </button>
+          </div>
+        )}
+      </Field>
+
+      <Field label={t("library.filtersPopover.player")} support={support("player")}>
+        {(disabled, describedBy) => (
+          <div className="flex flex-col gap-1.5">
+            <DebouncedText
+              value={filters.player}
+              disabled={disabled}
+              describedBy={describedBy}
+              placeholder={t("library.filtersPopover.playerPlaceholder")}
+              delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
+              suggest={(text) => suggestLibraryPlayers(filters.sources, text)}
+              suggestionsLabel={t("library.filtersPopover.playerSuggestions")}
+              onCommit={(value) => setFilter("player", value)}
+            />
+            <Segmented<LibraryFilterState["playerColor"]>
+              ariaLabel={t("library.filtersPopover.playerColor")}
+              describedBy={describedBy}
+              disabled={disabled}
+              value={filters.playerColor}
+              onChange={(value) => setFilter("playerColor", value)}
+              options={[
+                { value: "both", label: t("library.filtersPopover.playerAnyColor") },
+                { value: "white", label: t("library.filtersPopover.colorWhite") },
+                { value: "black", label: t("library.filtersPopover.colorBlack") },
+              ]}
+            />
+          </div>
+        )}
+      </Field>
+
+      <Field label={t("library.filtersPopover.elo")} support={support("elo")}>
+        {(disabled, describedBy) => (
+          <div className="flex gap-2">
+            <DebouncedText
+              value={filters.eloMin === null ? "" : String(filters.eloMin)}
+              disabled={disabled}
+              describedBy={describedBy}
+              placeholder={t("library.filtersPopover.eloMin")}
+              delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
+              sanitize={digitsOnly}
+              inputMode="numeric"
+              onCommit={(value) => setEloRange(toNumber(value), useLibraryStore.getState().filters.eloMax)}
+            />
+            <DebouncedText
+              value={filters.eloMax === null ? "" : String(filters.eloMax)}
+              disabled={disabled}
+              describedBy={describedBy}
+              placeholder={t("library.filtersPopover.eloMax")}
+              delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
+              sanitize={digitsOnly}
+              inputMode="numeric"
+              onCommit={(value) => setEloRange(useLibraryStore.getState().filters.eloMin, toNumber(value))}
+            />
+          </div>
+        )}
+      </Field>
+
+      <Field label={t("library.filtersPopover.eco")} support={support("eco")}>
+        {(disabled, describedBy) => (
+          <DebouncedText
+            value={filters.eco}
+            disabled={disabled}
+            describedBy={describedBy}
+            placeholder={t("library.filtersPopover.ecoPlaceholder")}
+            ariaLabel={t("library.filtersPopover.eco")}
+            delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
+            sanitize={(text) => text.replace(/[^a-zA-Z0-9]/g, "").slice(0, 3)}
+            onCommit={(value) => setFilter("eco", value)}
+          />
+        )}
+      </Field>
+
+      <Field label={t("library.filtersPopover.period")} support={support("period")}>
+        {(disabled, describedBy) => (
+          <div className="flex gap-2">
+            <DebouncedText
+              value={filters.yearFrom === null ? "" : String(filters.yearFrom)}
+              disabled={disabled}
+              describedBy={describedBy}
+              placeholder={t("library.filtersPopover.yearFrom")}
+              delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
+              sanitize={digitsOnly}
+              inputMode="numeric"
+              onCommit={(value) => setYearRange(toNumber(value), useLibraryStore.getState().filters.yearTo)}
+            />
+            <DebouncedText
+              value={filters.yearTo === null ? "" : String(filters.yearTo)}
+              disabled={disabled}
+              describedBy={describedBy}
+              placeholder={t("library.filtersPopover.yearTo")}
+              delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
+              sanitize={digitsOnly}
+              inputMode="numeric"
+              onCommit={(value) => setYearRange(useLibraryStore.getState().filters.yearFrom, toNumber(value))}
+            />
           </div>
         )}
       </Field>
@@ -255,15 +368,32 @@ function DebouncedText({
   disabled,
   describedBy,
   placeholder,
+  ariaLabel,
+  delay = LIBRARY_FILTERS_DEBOUNCE_MS,
+  sanitize,
+  inputMode,
+  suggest,
+  suggestionsLabel,
   onCommit,
 }: {
   value: string;
   disabled: boolean;
   describedBy?: string;
   placeholder: string;
+  ariaLabel?: string;
+  delay?: number;
+  /** Applied to what is typed (e.g. digits only). */
+  sanitize?: (text: string) => string;
+  inputMode?: "numeric";
+  /** Turns the input into a combobox listing these suggestions for the typed text. */
+  suggest?: (text: string) => string[];
+  suggestionsLabel?: string;
   onCommit: (value: string) => void;
 }) {
   const [text, setText] = useState(value);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const listId = useId();
   const [seen, setSeen] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Text typed but not committed yet, and the latest onCommit, for the unmount flush.
@@ -298,42 +428,130 @@ function DebouncedText({
     },
     [],
   );
+  const suggestions = useMemo(() => (suggest && open ? suggest(text) : []), [suggest, open, text]);
+  const showList = open && suggestions.length > 0;
+  const schedule = (next: string) => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+    }
+    pending.current = next;
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      pending.current = null;
+      onCommit(next);
+    }, delay);
+  };
+  const pick = (name: string) => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    pending.current = null;
+    setText(name);
+    setOpen(false);
+    setActive(-1);
+    onCommit(name);
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (!suggest) {
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (suggestions.length === 0) {
+        return;
+      }
+      event.preventDefault();
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      setActive((index) => (index + step + suggestions.length) % suggestions.length);
+    } else if (event.key === "Enter" && showList && active >= 0) {
+      event.preventDefault();
+      pick(suggestions[active]);
+    } else if (event.key === "Escape" && showList) {
+      // Closes the list only; a second Escape closes the popover.
+      event.preventDefault();
+      event.nativeEvent.stopImmediatePropagation();
+      setOpen(false);
+      setActive(-1);
+    }
+  };
   return (
-    <input
-      type="text"
-      value={text}
-      disabled={disabled}
-      aria-describedby={describedBy}
-      aria-label={placeholder}
-      placeholder={placeholder}
-      onChange={(event) => {
-        const next = event.target.value;
-        setText(next);
-        if (timer.current) {
-          clearTimeout(timer.current);
-        }
-        pending.current = next;
-        timer.current = setTimeout(() => {
-          timer.current = null;
-          pending.current = null;
-          onCommit(next);
-        }, LIBRARY_FILTERS_DEBOUNCE_MS);
-      }}
-      className="h-7 w-full rounded-md border border-studio-border bg-studio-bg px-2 text-dense text-studio-fg placeholder:text-studio-faint disabled:text-studio-disabled"
-    />
+    <div className="relative w-full">
+      <input
+        type="text"
+        inputMode={inputMode}
+        value={text}
+        disabled={disabled}
+        aria-describedby={describedBy}
+        aria-label={ariaLabel ?? placeholder}
+        placeholder={placeholder}
+        {...(suggest
+          ? {
+              role: "combobox" as const,
+              "aria-autocomplete": "list" as const,
+              "aria-expanded": showList,
+              "aria-controls": listId,
+              "aria-activedescendant": showList && active >= 0 ? `${listId}-${active}` : undefined,
+              autoComplete: "off",
+            }
+          : {})}
+        onChange={(event) => {
+          const next = sanitize ? sanitize(event.target.value) : event.target.value;
+          setText(next);
+          setOpen(true);
+          setActive(-1);
+          schedule(next);
+        }}
+        onKeyDown={onKeyDown}
+        onBlur={() => {
+          setOpen(false);
+          setActive(-1);
+        }}
+        className="h-7 w-full rounded-md border border-studio-border bg-studio-bg px-2 text-dense text-studio-fg placeholder:text-studio-faint disabled:text-studio-disabled"
+      />
+      {suggest ? (
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={suggestionsLabel}
+          hidden={!showList}
+          className="absolute left-0 right-0 top-8 z-40 max-h-48 overflow-auto rounded-md border border-studio-border-strong bg-studio-elevated py-1 shadow-xl"
+        >
+          {suggestions.map((name, index) => (
+            <li
+              key={name}
+              id={`${listId}-${index}`}
+              role="option"
+              aria-selected={index === active}
+              // mousedown (not click) so the input's blur does not close the list first.
+              onMouseDown={(event) => {
+                event.preventDefault();
+                pick(name);
+              }}
+              className={`cursor-pointer truncate px-2 py-1 text-dense ${
+                index === active ? "bg-studio-accent-soft text-studio-accent-text" : "text-studio-fg hover:bg-studio-hover-strong"
+              }`}
+            >
+              {name}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
 /** Radio-group segmented control: roving tabindex, arrow keys move and select. */
 function Segmented<T extends string>({
   labelId,
+  ariaLabel,
   describedBy,
   disabled,
   value,
   options,
   onChange,
 }: {
-  labelId: string;
+  labelId?: string;
+  ariaLabel?: string;
   describedBy?: string;
   disabled: boolean;
   value: T;
@@ -356,6 +574,7 @@ function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-labelledby={labelId}
+      aria-label={ariaLabel}
       aria-describedby={describedBy}
       className="flex w-full gap-0.5 rounded-md bg-studio-bg p-0.5"
     >

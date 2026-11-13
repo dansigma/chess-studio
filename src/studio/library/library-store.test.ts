@@ -46,3 +46,20 @@ test("selection and popover state are independent of filters", () => {
   assert.equal(s.filtersOpen, true);
   assert.equal(s.filters, before);
 });
+
+test("new filters set, count as active and reset", () => {
+  const s = useLibraryStore.getState();
+  s.setPlayer("Carlsen");
+  s.setPlayerColor("black");
+  s.setEloRange(2500, null);
+  s.setEco("C6");
+  s.setYearRange(null, 2024);
+  const f = useLibraryStore.getState().filters;
+  assert.deepEqual([f.player, f.playerColor, f.eloMin, f.eloMax, f.eco, f.yearFrom, f.yearTo], ["Carlsen", "black", 2500, null, "C6", null, 2024]);
+  assert.ok(hasActiveFilters(f));
+  for (const patch of [{ player: "x" }, { eloMax: 1 }, { eco: "B" }, { yearFrom: 1 }]) {
+    assert.ok(hasActiveFilters({ ...DEFAULT_LIBRARY_FILTERS, ...patch }));
+  }
+  useLibraryStore.getState().resetFilters();
+  assert.equal(hasActiveFilters(useLibraryStore.getState().filters), false);
+});

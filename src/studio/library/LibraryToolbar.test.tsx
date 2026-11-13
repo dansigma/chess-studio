@@ -13,7 +13,7 @@ after(() => teardownDom());
 afterEach(() => cleanup());
 
 const FULL = {
-  textSearch: "full", color: "full", result: "full", annotations: "full", position: "full", sort: "full", maxResults: null,
+  textSearch: "full", color: "full", result: "full", annotations: "full", position: "full", player: "full", eloRange: "full", eco: "full", date: "full", sort: "full", maxResults: null,
 } satisfies LibrarySourceCapabilities;
 
 function fake(id: "my-games" | "masters", label: string, caps: LibrarySourceCapabilities = FULL): LibrarySourceAdapter {

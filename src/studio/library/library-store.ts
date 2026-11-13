@@ -23,6 +23,11 @@ export type LibraryState = {
   setResult: (result: LibraryFilterState["result"]) => void;
   setAnnotations: (annotations: LibraryFilterState["annotations"]) => void;
   setPosition: (position: LibraryFilterState["position"]) => void;
+  setPlayer: (player: string) => void;
+  setPlayerColor: (color: LibraryFilterState["playerColor"]) => void;
+  setEloRange: (min: number | null, max: number | null) => void;
+  setEco: (eco: string) => void;
+  setYearRange: (from: number | null, to: number | null) => void;
   setSort: (sort: LibraryFilterState["sort"]) => void;
   resetFilters: () => void;
   selectGame: (key: string | null) => void;
@@ -43,6 +48,11 @@ export const useLibraryStore = create<LibraryState>((set) => ({
   setResult: (result) => set((s) => ({ filters: { ...s.filters, result } })),
   setAnnotations: (annotations) => set((s) => ({ filters: { ...s.filters, annotations } })),
   setPosition: (position) => set((s) => ({ filters: { ...s.filters, position } })),
+  setPlayer: (player) => set((s) => ({ filters: { ...s.filters, player } })),
+  setPlayerColor: (playerColor) => set((s) => ({ filters: { ...s.filters, playerColor } })),
+  setEloRange: (eloMin, eloMax) => set((s) => ({ filters: { ...s.filters, eloMin, eloMax } })),
+  setEco: (eco) => set((s) => ({ filters: { ...s.filters, eco } })),
+  setYearRange: (yearFrom, yearTo) => set((s) => ({ filters: { ...s.filters, yearFrom, yearTo } })),
   setSort: (sort) => set((s) => ({ filters: { ...s.filters, sort } })),
   // Keeps the chosen sources and sort: "clear" removes narrowing filters only.
   resetFilters: () =>
@@ -61,7 +71,13 @@ export function hasActiveFilters(filters: LibraryFilterState): boolean {
     filters.color !== "both" ||
     filters.result !== "all" ||
     filters.annotations !== "all" ||
-    filters.position !== null
+    filters.position !== null ||
+    filters.player.trim() !== "" ||
+    filters.eloMin !== null ||
+    filters.eloMax !== null ||
+    filters.eco.trim() !== "" ||
+    filters.yearFrom !== null ||
+    filters.yearTo !== null
   );
 }
 
