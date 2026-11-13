@@ -66,7 +66,7 @@ test("renders a player-perspective bar per row, default sort by games", async ()
   const { container } = setup("en");
   await waitFor(() => assert.ok(screen.getByText("Italian Game")));
   assert.deepEqual(names(), ["Italian Game", "Sicilian Defense: Najdorf Variation", "French Defense"]);
-  const bars = container.querySelectorAll('[data-perspective="player"]');
+  const bars = container.querySelectorAll('table [data-perspective="player"]');
   assert.equal(bars.length, 3);
   assert.equal(bars[2]?.querySelector('[data-segment="loss"]') !== null, true);
   assert.equal(bars[1]?.querySelector('[data-segment="win"]') !== null, true);

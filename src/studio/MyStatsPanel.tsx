@@ -27,7 +27,6 @@ import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { loadCappedMyGames } from "@/src/lib/my-games/load-games";
 import {
-  accuracyTrend,
   deviationsForRecentGames,
   DEVIATION_TOP_GROUPS,
   mistakesPerGame,
@@ -38,7 +37,14 @@ import {
   type OpeningSort,
 } from "@/src/lib/my-games/stats";
 import { localizeOpeningName } from "@/src/lib/opening-names";
+import {
+  DEFAULT_OVERVIEW_FILTERS,
+  filterGames,
+  overviewKpis,
+  type OverviewFilters,
+} from "@/src/lib/my-games/overview-filters";
 import { ResultBar } from "./ui/ResultBar";
+import { MyStatsFilterBar, MyStatsKpiCards } from "./MyStatsOverviewHeader";
 import {
   buildOpeningTree,
   worstLines,
@@ -60,6 +66,7 @@ import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
 import { MyStatsPhases } from "./MyStatsPhases";
+import { MyStatsTrend } from "./MyStatsTrend";
 
 type LoadState = "signedOut" | "loading" | "ready" | "unavailable";
 
@@ -70,55 +77,6 @@ type LoadState = "signedOut" | "loading" | "ready" | "unavailable";
 // joiners; the loop stops paging once nobody is listening.
 const myStatsLoadByUser = new Map<string, { promise: Promise<PlayerGame[] | null>; refs: number }>();
 
-
-function TrendChart({ points, locale, label }: { points: Array<{ playedAt: number; accuracy: number }>; locale: SiteLocale; label: string }) {
-  const width = 640;
-  const height = 120;
-  const padX = 8;
-  const padY = 10;
-  if (points.length === 0) {
-    return null;
-  }
-  const xs = points.map((_, index) =>
-    points.length === 1 ? width / 2 : padX + (index / (points.length - 1)) * (width - padX * 2),
-  );
-  const ys = points.map((point) => padY + ((100 - Math.max(0, Math.min(100, point.accuracy))) / 100) * (height - padY * 2));
-  const line = xs.map((x, index) => `${index === 0 ? "M" : "L"}${x.toFixed(1)},${ys[index]?.toFixed(1)}`).join(" ");
-  const last = points[points.length - 1];
-  return (
-    <svg
-      className="h-28 w-full"
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={label}
-    >
-      <path d={line} fill="none" stroke="var(--studio-accent)" strokeWidth="2" />
-      {xs.map((x, index) => (
-        <circle
-          key={index}
-          cx={x}
-          cy={ys[index]}
-          r="3"
-          fill="var(--studio-accent)"
-        >
-          <title>{`${formatDecimal1(locale, points[index]?.accuracy ?? 0)}`}</title>
-        </circle>
-      ))}
-      {last ? (
-        <text
-          x={width - padX}
-          y={padY + 10}
-          textAnchor="end"
-          fontSize="11"
-          fill="var(--studio-muted)"
-        >
-          {formatDecimal1(locale, last.accuracy)}
-        </text>
-      ) : null}
-    </svg>
-  );
-}
 
 export function MyStatsPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
@@ -131,6 +89,9 @@ export function MyStatsPanel() {
   // loading start, which the eslint-disable there documents).
   const [state, setState] = useState<LoadState>(user ? "loading" : "signedOut");
   const [colorTab, setColorTab] = useState<"white" | "black">("white");
+  // SIG-1305: Overview-only filters (local state; reset on remount). Separate
+  // from the Openings tab's `uiFilters`.
+  const [overviewFilters, setOverviewFilters] = useState<OverviewFilters>(DEFAULT_OVERVIEW_FILTERS);
   // SIG-1304: results-by-opening sort + minimum-games filter (local state).
   const [openingSort, setOpeningSort] = useState<OpeningSort>("games");
   const [minGames, setMinGames] = useState<number>(3);
@@ -224,17 +185,37 @@ export function MyStatsPanel() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [userId]);
 
-  const reviewedCount = useMemo(
+  // SIG-1306: same open flow as My Games — import into a new board, orient to
+  // the user's side, reveal the board panel.
+  function onOpenGame(game: PlayerGame) {
+    importPlayerGame(game, { openInNewBoard: true });
+    if (game.color === "black" && selectActiveBoard(useStudioStore.getState()).orientation !== "black") {
+      flip();
+    }
+    const active = selectActiveBoard(useStudioStore.getState());
+    openBoardPanel(active.id, active.title);
+  }
+
+  // The panel-level gate stays on ALL loaded games (< 3 reviewed overall).
+  const totalReviewed = useMemo(
     () => games.filter((game) => game.reviewedAt != null && game.userAccuracy != null).length,
     [games],
   );
-  const view = myStatsViewState(reviewedCount);
-  const trend = useMemo(() => accuracyTrend(games), [games]);
-  const openings = useMemo(() => resultsByOpening(games, { minGames }), [games, minGames]);
-  const phaseStats = useMemo(() => mistakesPerGame(games), [games]);
+  const view = myStatsViewState(totalReviewed);
+  // SIG-1305: one filtered list feeds every Overview aggregate.
+  /* eslint-disable react-hooks/purity -- `now` is the memo's intentional clock read. */
+  const filteredGames = useMemo(() => filterGames(games, overviewFilters, Date.now()), [games, overviewFilters]);
+  /* eslint-enable react-hooks/purity */
+  const kpis = useMemo(() => overviewKpis(filteredGames), [filteredGames]);
+  const reviewedCount = kpis.reviewed;
+  const filteredReady = myStatsViewState(reviewedCount) === "ready";
+  const openings = useMemo(() => resultsByOpening(filteredGames, { minGames }), [filteredGames, minGames]);
+  const phaseStats = useMemo(() => mistakesPerGame(filteredGames), [filteredGames]);
+  // Global colour (Brancas/Pretas) overrides the White/Black tabs.
+  const openingsColor = overviewFilters.color === "all" ? colorTab : overviewFilters.color;
   const tabRows = useMemo(
-    () => sortOpeningResults(openings.filter((row) => row.color === colorTab), openingSort),
-    [openings, colorTab, openingSort],
+    () => sortOpeningResults(openings.filter((row) => row.color === openingsColor), openingSort),
+    [openings, openingsColor, openingSort],
   );
   // SIG-1099: tree input — SAN paths from PGN (moves-only rows have no PGN;
   // skip them). The tree memo captures `now` once per computation so the
@@ -296,8 +277,8 @@ export function MyStatsPanel() {
   const trainDeviationLine = useStudioStore((state) => state.trainDeviationLine);
   const addGapToRepertoire = useStudioStore((state) => state.addGapToRepertoire);
   const deviationGroups = useMemo(
-    () => deviationsForRecentGames(games, { white: whiteRepTree, black: blackRepTree }).slice(0, DEVIATION_TOP_GROUPS),
-    [games, whiteRepTree, blackRepTree],
+    () => deviationsForRecentGames(filteredGames, { white: whiteRepTree, black: blackRepTree }).slice(0, DEVIATION_TOP_GROUPS),
+    [filteredGames, whiteRepTree, blackRepTree],
   );
 
   return (
@@ -375,17 +356,42 @@ export function MyStatsPanel() {
                 }}
               />
             ) : (
-          <div className="flex flex-col gap-5">
+          <div className="@container flex flex-col gap-5">
+            <MyStatsFilterBar
+              locale={locale}
+              filters={overviewFilters}
+              onChange={setOverviewFilters}
+              timeClasses={timeClasses}
+            />
+            {filteredGames.length === 0 ? (
+              <div role="status" className="flex flex-col items-start gap-2" data-testid="mystats-filter-empty">
+                <p className="text-dense text-studio-muted">{tMyGames(locale, "myGames.filterEmpty")}</p>
+                <button
+                  type="button"
+                  onClick={() => setOverviewFilters(DEFAULT_OVERVIEW_FILTERS)}
+                  className="rounded bg-studio-hover px-2 py-0.5 text-caption font-medium text-studio-accent-text hover:bg-studio-hover-strong"
+                >
+                  {tMyGames(locale, "myGames.filterReset")}
+                </button>
+              </div>
+            ) : (
+            <>
+            <MyStatsKpiCards locale={locale} kpis={kpis} />
             <section aria-labelledby="mystats-trend">
               <h2 id="mystats-trend" className="mb-1 text-caption font-semibold text-studio-muted">
                 {tMyGames(locale, "myGames.statsTrend")}
               </h2>
-              <TrendChart points={trend} locale={locale} label={tMyGames(locale, "myGames.statsTrend")} />
+              {filteredReady ? (
+                <MyStatsTrend games={filteredGames} locale={locale} onOpenGame={onOpenGame} />
+              ) : (
+                <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
+              )}
             </section>
             <section aria-labelledby="mystats-openings">
               <h2 id="mystats-openings" className="mb-1 text-caption font-semibold text-studio-muted">
                 {tMyGames(locale, "myGames.statsByOpening")}
               </h2>
+              {overviewFilters.color === "all" ? (
               <div role="tablist" aria-label={tMyGames(locale, "myGames.statsByOpening")} className="mb-1 flex gap-1">
                 {(["white", "black"] as const).map((color) => (
                   <button
@@ -400,6 +406,7 @@ export function MyStatsPanel() {
                   </button>
                 ))}
               </div>
+              ) : null}
               <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-studio-muted">
                 <div role="group" aria-label={tMyGames(locale, "myGames.statsSortBy")} className="flex items-center gap-1">
                   <span>{tMyGames(locale, "myGames.statsSortBy")}</span>
@@ -490,7 +497,11 @@ export function MyStatsPanel() {
               <h2 id="mystats-phases" className="mb-1 text-caption font-semibold text-studio-muted">
                 {tMyGames(locale, "myGames.statsByPhase")}
               </h2>
-              <MyStatsPhases locale={locale} stats={phaseStats} />
+              {filteredReady ? (
+                <MyStatsPhases locale={locale} stats={phaseStats} />
+              ) : (
+                <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
+              )}
             </section>
             {whiteRepTree === null && blackRepTree === null ? null : (
               <section aria-labelledby="mystats-deviations">
@@ -540,6 +551,8 @@ export function MyStatsPanel() {
                   </ul>
                 )}
               </section>
+            )}
+            </>
             )}
             </div>
             )}

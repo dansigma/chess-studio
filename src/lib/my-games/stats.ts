@@ -73,13 +73,7 @@ function clampWindowSize(windowSize: number): number {
   return Math.max(1, Math.floor(windowSize));
 }
 
-/**
- * Trailing moving average of user accuracy over reviewed games, oldest first.
- * `playedAt` null games sort after dated ones (as `0`) but still contribute
- * in load order; ties break by `id` for determinism.
- */
-export function accuracyTrend(games: readonly PlayerGame[], windowSize: number = ACCURACY_TREND_WINDOW): AccuracyPoint[] {
-  const window = clampWindowSize(windowSize);
+function sortedReviewed(games: readonly PlayerGame[]): PlayerGame[] {
   const reviewed = games.filter(isReviewed);
   reviewed.sort((a, b) => {
     const at = a.playedAt ?? 0;
@@ -89,6 +83,52 @@ export function accuracyTrend(games: readonly PlayerGame[], windowSize: number =
     }
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
+  return reviewed;
+}
+
+export type AccuracySeriesPoint = {
+  game: PlayerGame;
+  accuracy: number;
+  movingAvg: number;
+  playedAt: number;
+};
+
+/**
+ * SIG-1306: per-game accuracy plus trailing moving average (same filter, sort
+ * and tie-break as `accuracyTrend`), and the mean accuracy over those games
+ * (null when there are none).
+ */
+export function accuracySeries(
+  games: readonly PlayerGame[],
+  windowSize: number = ACCURACY_TREND_WINDOW,
+): { points: AccuracySeriesPoint[]; mean: number | null } {
+  const window = clampWindowSize(windowSize);
+  const reviewed = sortedReviewed(games).filter(
+    (game) => typeof game.userAccuracy === "number" && Number.isFinite(game.userAccuracy),
+  );
+  const points: AccuracySeriesPoint[] = [];
+  let total = 0;
+  reviewed.forEach((game, index) => {
+    const accuracy = game.userAccuracy as number;
+    total += accuracy;
+    let sum = 0;
+    const start = Math.max(0, index - window + 1);
+    for (let cursor = start; cursor <= index; cursor += 1) {
+      sum += reviewed[cursor]?.userAccuracy as number;
+    }
+    points.push({ game, accuracy, movingAvg: sum / (index - start + 1), playedAt: game.playedAt ?? 0 });
+  });
+  return { points, mean: points.length ? total / points.length : null };
+}
+
+/**
+ * Trailing moving average of user accuracy over reviewed games, oldest first.
+ * `playedAt` null games sort after dated ones (as `0`) but still contribute
+ * in load order; ties break by `id` for determinism.
+ */
+export function accuracyTrend(games: readonly PlayerGame[], windowSize: number = ACCURACY_TREND_WINDOW): AccuracyPoint[] {
+  const window = clampWindowSize(windowSize);
+  const reviewed = sortedReviewed(games);
   const points: AccuracyPoint[] = [];
   for (let index = 0; index < reviewed.length; index += 1) {
     const start = Math.max(0, index - window + 1);

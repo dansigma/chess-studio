@@ -10,6 +10,7 @@ import type { DeviationPointEvent } from "./stats.ts";
 import type { MistakeCounts } from "./review-queue.ts";
 import {
   ACCURACY_TREND_WINDOW,
+  accuracySeries,
   accuracyTrend,
   aggregateDeviations,
   deviationsForRecentGames,
@@ -454,5 +455,33 @@ describe("mistakesPerGame (SIG-1303)", () => {
     ]);
     assert.equal(result.reviewedGames, 1);
     assert.equal(result.perGame.opening.blunder, 2);
+  });
+});
+
+describe("accuracySeries (SIG-1306)", () => {
+  const rows = [
+    game({ id: "b", playedAt: 2, reviewedAt: "x", userAccuracy: 80 }),
+    game({ id: "a", playedAt: 1, reviewedAt: "x", userAccuracy: 60 }),
+    game({ id: "c", playedAt: 3, reviewedAt: "x", userAccuracy: 100 }),
+    game({ id: "u", playedAt: 4 }),
+  ];
+  it("orders oldest first, excludes unreviewed, computes moving average and mean", () => {
+    const { points, mean } = accuracySeries(rows, 2);
+    assert.deepEqual(points.map((p) => p.game.id), ["a", "b", "c"]);
+    assert.deepEqual(points.map((p) => p.accuracy), [60, 80, 100]);
+    assert.deepEqual(points.map((p) => p.movingAvg), [60, 70, 90]);
+    assert.equal(mean, 80);
+  });
+  it("breaks playedAt ties by id and matches accuracyTrend averages", () => {
+    const tied = [
+      game({ id: "z", playedAt: 1, reviewedAt: "x", userAccuracy: 10 }),
+      game({ id: "y", playedAt: 1, reviewedAt: "x", userAccuracy: 30 }),
+    ];
+    const { points } = accuracySeries(tied);
+    assert.deepEqual(points.map((p) => p.game.id), ["y", "z"]);
+    assert.deepEqual(points.map((p) => p.movingAvg), accuracyTrend(tied).map((p) => p.accuracy));
+  });
+  it("is empty with null mean when nothing is reviewed", () => {
+    assert.deepEqual(accuracySeries([rows[3]!]), { points: [], mean: null });
   });
 });
