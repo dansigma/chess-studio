@@ -22,6 +22,7 @@ import type { LibraryGameItem } from "@/src/lib/library/types";
 import { LibraryPreview } from "./LibraryPreview";
 import { LibraryPlayers } from "./LibraryPlayers";
 import { useLibraryDrop } from "./use-library-import";
+import { LibraryImportWidget } from "./LibraryImportWidget";
 
 const SKELETON_ROWS = 8;
 
@@ -67,6 +68,7 @@ export function LibraryView(slots: LibraryViewSlots = {}) {
         ))}
       </div>
       {mode === "players" ? <LibraryPlayers /> : <LibraryGames {...slots} />}
+      <LibraryImportWidget />
     </div>
   );
 }
