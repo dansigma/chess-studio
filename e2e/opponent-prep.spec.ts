@@ -120,19 +120,20 @@ test("opponent prep: Prepare against updates a panel that is already open", asyn
   // real app path — search a player, open their games, click "Prepare
   // against". The search API is mocked with two players; switching from the
   // first (oldname) to the second (DrNykterstein) while the prep panel stays
-  // open is the QA repro. Note: opening the prep panel leaves the Boards
-  // sidebar behind, so navigate to the Search sidebar explicitly (clicking
-  // the active activity button would collapse it instead).
-  await page.getByRole("button", { name: "Search" }).first().click();
-  await expect(page.getByPlaceholder("Lichess, Chess.com, or book…")).toBeVisible();
-  await page.getByPlaceholder("Lichess, Chess.com, or book…").fill("oldname");
+  // open is the QA repro. SIG-1318: player search lives in the Library's
+  // Players mode; opening a player switches back to the Studio.
+  const search = page.getByPlaceholder("Lichess, Chess.com, FIDE, or book…");
+  await page.getByRole("button", { name: "Library" }).first().click();
+  await page.getByRole("tab", { name: "Players" }).click();
+  await search.fill("oldname");
   await page.getByRole("button", { name: /oldname/ }).first().click();
   await expect(page.getByRole("button", { name: "Prepare against", exact: true })).toBeVisible();
 
-  // Still on the Search sidebar, find the second player; clicking their row
-  // swaps the player-games panel to DrNykterstein, then "Prepare against"
-  // must update the already-open prep panel's input.
-  await page.getByPlaceholder("Lichess, Chess.com, or book…").fill("DrNyk");
+  // Back in the Library (it remembers Players mode), find the second player;
+  // clicking their row swaps the player-games panel to DrNykterstein, then
+  // "Prepare against" must update the already-open prep panel's input.
+  await page.getByRole("button", { name: "Library" }).first().click();
+  await search.fill("DrNyk");
   await page.getByRole("button", { name: /DrNykterstein/ }).first().click();
   await page.getByRole("button", { name: "Prepare against", exact: true }).click();
 

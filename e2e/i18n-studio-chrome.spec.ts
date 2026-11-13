@@ -22,7 +22,7 @@ test("studio chrome renders Portuguese with the pt-br locale stored", async ({ p
   await expect(menubar.getByText("File", { exact: true })).toHaveCount(0);
 
   // Activity bar tooltips use the translated titles.
-  await expect(page.getByRole("button", { name: "Buscar" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Biblioteca" }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Tabuleiros abertos" }).first()).toBeVisible();
 
   // SIG-1201: site navigation links in the activity bar are translated.
