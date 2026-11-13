@@ -267,6 +267,17 @@ async function notationText(page: import("@playwright/test").Page) {
   });
 }
 
+/**
+ * SIG-1316: Notation and Game Review are tabs in the same dock group in the
+ * default layout, so read the notation and come back to the review tab.
+ */
+async function notationTextFromReview(page: import("@playwright/test").Page) {
+  await page.getByRole("tab", { name: "Notation", exact: true }).click();
+  const text = await notationText(page);
+  await page.getByRole("tab", { name: "Game Review", exact: true }).click();
+  return text;
+}
+
 async function storedExercises(page: import("@playwright/test").Page) {
   return page.evaluate(() => JSON.parse(window.localStorage.getItem("xd-mistake-exercises") ?? "{}") as Record<
     string,
@@ -280,13 +291,14 @@ test("retry a mistake in place: wrong move reverts, solving records, engine is h
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
 
   const boardImage = page.locator("[data-board-image]");
-  // The notation panel shares a dock group with the games list; show it.
+  // SIG-1316: Notation shares a dock group with Game Review; show it.
   await page.getByRole("tab", { name: "Notation", exact: true }).click();
   const activeStep = page.locator('button[aria-current="step"]');
   await expect(boardImage).toHaveAttribute("data-orientation", "white");
   await expect(activeStep).toContainText("Bc2");
   const notationBefore = await notationText(page);
   expect(notationBefore).toContain("Bc2");
+  await page.getByRole("tab", { name: "Game Review", exact: true }).click();
 
   // Open the retry for White's 4.Ba4 (a mistake of the user's side).
   await page.getByRole("button", { name: "Retry move 4, Ba4", exact: true }).click();
@@ -313,7 +325,7 @@ test("retry a mistake in place: wrong move reverts, solving records, engine is h
   await expect(card.getByText("Not this one. Try again.")).toBeVisible();
   await expect(boardImage.locator('[data-square="d2"] [role="button"]')).toHaveCount(1, { timeout: 3_000 });
   await expect(boardImage.locator('[data-square="d3"] [role="button"]')).toHaveCount(0);
-  expect(await notationText(page)).toBe(notationBefore);
+  expect(await notationTextFromReview(page)).toBe(notationBefore);
   // The first wrong move is recorded immediately as a miss.
   await expect
     .poll(async () => Object.values(await storedExercises(page)).find((entry) => entry.exercise.playedUci === "b5a4")?.srs?.mistakeCount)
@@ -327,7 +339,7 @@ test("retry a mistake in place: wrong move reverts, solving records, engine is h
   // The correct move solves it; the earlier miss stays the one record.
   await clickMove(page, best.from, best.to);
   await expect(card.getByText("Solved. It will come back in your review.")).toBeVisible();
-  expect(await notationText(page)).toBe(notationBefore);
+  expect(await notationTextFromReview(page)).toBe(notationBefore);
   const afterSolve = await storedExercises(page);
   expect(Object.values(afterSolve).find((entry) => entry.exercise.playedUci === "b5a4")?.srs?.mistakeCount).toBe(1);
 
@@ -346,8 +358,10 @@ test("retry a mistake in place: wrong move reverts, solving records, engine is h
   await card.getByRole("button", { name: "Exit", exact: true }).click();
   await expect(card).toHaveCount(0);
   await expect(boardImage).toHaveAttribute("data-orientation", "white");
+  await page.getByRole("tab", { name: "Notation", exact: true }).click();
   await expect(activeStep).toContainText("Bc2");
   expect(await notationText(page)).toBe(notationBefore);
+  await page.getByRole("tab", { name: "Game Review", exact: true }).click();
   await expect(page.getByRole("button", { name: "Retry move 4, Ba4", exact: true })).toBeVisible();
 
   // Retrying the same exercise later the same day is free practice.
@@ -356,6 +370,7 @@ test("retry a mistake in place: wrong move reverts, solving records, engine is h
   // Esc leaves the retry too.
   await page.keyboard.press("Escape");
   await expect(card).toHaveCount(0);
+  await page.getByRole("tab", { name: "Notation", exact: true }).click();
   await expect(activeStep).toContainText("Bc2");
 });
 
