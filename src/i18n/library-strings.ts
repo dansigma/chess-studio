@@ -4,6 +4,15 @@ import { createT } from "./create-t.ts";
 
 export const LIBRARY_STRING_KEYS = [
   "library.title",
+  "library.mode.label",
+  "library.mode.games",
+  "library.mode.players",
+  "library.players.placeholder",
+  "library.players.label",
+  "library.players.searching",
+  "library.players.none",
+  "library.players.chesscomExact",
+  "library.players.hint",
   "library.toolbar.label",
   "library.table.label",
   "library.preview.label",
@@ -115,6 +124,15 @@ export type LibraryStringKey = (typeof LIBRARY_STRING_KEYS)[number];
 
 const EN: Record<LibraryStringKey, string> = {
   "library.title": "Library",
+  "library.mode.label": "Library mode",
+  "library.mode.games": "Games",
+  "library.mode.players": "Players",
+  "library.players.placeholder": "Lichess, Chess.com, FIDE, or book…",
+  "library.players.label": "Player search",
+  "library.players.searching": "Searching…",
+  "library.players.none": "No players found.",
+  "library.players.chesscomExact": "Chess.com: type the exact username",
+  "library.players.hint": "Type at least two letters to search Lichess, Chess.com, FIDE, and the local sample book.",
   "library.toolbar.label": "Library toolbar",
   "library.table.label": "Games",
   "library.preview.label": "Game preview",
@@ -224,6 +242,15 @@ const EN: Record<LibraryStringKey, string> = {
 
 const PT_BR: Record<LibraryStringKey, string> = {
   "library.title": "Biblioteca",
+  "library.mode.label": "Modo da Biblioteca",
+  "library.mode.games": "Partidas",
+  "library.mode.players": "Jogadores",
+  "library.players.placeholder": "Lichess, Chess.com, FIDE ou livro…",
+  "library.players.label": "Buscar jogadores",
+  "library.players.searching": "Buscando…",
+  "library.players.none": "Nenhum jogador encontrado.",
+  "library.players.chesscomExact": "Chess.com: digite o nome de usuário exato",
+  "library.players.hint": "Digite ao menos duas letras para buscar no Lichess, Chess.com, FIDE e no livro de exemplo local.",
   "library.toolbar.label": "Barra da Biblioteca",
   "library.table.label": "Partidas",
   "library.preview.label": "Prévia da partida",

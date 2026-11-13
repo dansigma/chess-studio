@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { LibraryMode } from "../workspace-view-url";
 import {
   DEFAULT_LIBRARY_FILTERS,
   type LibraryFilterState,
@@ -11,6 +12,9 @@ export type LibraryState = {
   filters: LibraryFilterState;
   selectedKey: string | null;
   filtersOpen: boolean;
+  /** SIG-1318: Games (default) or Players; mirrored in `?mode=players`. */
+  mode: LibraryMode;
+  setMode: (mode: LibraryMode) => void;
   setFilter: <K extends keyof LibraryFilterState>(key: K, value: LibraryFilterState[K]) => void;
   setSources: (sources: LibraryFilterState["sources"]) => void;
   setQuery: (query: string) => void;
@@ -29,6 +33,8 @@ export const useLibraryStore = create<LibraryState>((set) => ({
   filters: DEFAULT_LIBRARY_FILTERS,
   selectedKey: null,
   filtersOpen: false,
+  mode: "games",
+  setMode: (mode) => set({ mode }),
   setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
   setSources: (sources) => set((s) => ({ filters: { ...s.filters, sources } })),
   setQuery: (query) => set((s) => ({ filters: { ...s.filters, query } })),

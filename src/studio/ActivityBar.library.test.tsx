@@ -70,7 +70,7 @@ test("Live label is Ao Vivo in pt-br", () => {
 });
 
 // SIG-1298: labels follow settings.sidebarCollapsed.
-const NAV_ITEMS = ["Studio", "Courses", "Puzzles", "Search", "Open boards", "Databases", "Files", "Bookmarks", "My Games", "Library", "Live"];
+const NAV_ITEMS = ["Studio", "Courses", "Puzzles", "Open boards", "Databases", "Files", "Bookmarks", "My Games", "Library", "Live"];
 
 function labelsFor(name: string) {
   return Array.from(document.querySelectorAll("[data-activity-label]")).filter((el) => el.textContent === name);
@@ -124,4 +124,10 @@ test("inactive link and button share the label colour; active item uses text-stu
   assert.deepEqual(colour(studio), ["text-studio-fg"]);
   fireEvent.click(screen.getByRole("button", { name: "Library" }));
   assert.deepEqual(colour(screen.getByRole("button", { name: "Library" })), ["text-studio-fg"]);
+});
+
+test("the activity bar no longer has a Search item (SIG-1318)", () => {
+  render(<ActivityBar />);
+  assert.equal(screen.queryByRole("button", { name: "Search" }), null);
+  assert.ok(screen.getByRole("button", { name: "Open boards" }));
 });

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   EMPTY_LIVE_URL_STATE,
+  parseLibraryMode,
   parseLiveUrlState,
   parseWorkspaceView,
+  withLibraryMode,
   withLiveUrlState,
   withWorkspaceView,
 } from "./workspace-view-url.ts";
@@ -67,4 +69,21 @@ test("withLiveUrlState writes the whole scheme and round-trips through parse", (
   assert.equal(new URLSearchParams(search).get("a"), "1");
   assert.equal(withLiveUrlState("?view=library", {}), "?view=live");
   assert.equal(withLiveUrlState("?view=live&live=old", { round: "new" }), "?view=live&live=new");
+});
+
+test("Library mode (SIG-1318): players is in the URL, games is the default", () => {
+  assert.equal(parseLibraryMode("?view=library&mode=players"), "players");
+  assert.equal(parseLibraryMode("?view=library"), "games");
+  assert.equal(parseLibraryMode("?view=library&mode=other"), "games");
+  assert.equal(parseLibraryMode("?mode=players"), "games");
+  assert.equal(withLibraryMode("?view=library", "players"), "?view=library&mode=players");
+  assert.equal(withLibraryMode("?view=library&mode=players", "games"), "?view=library");
+  assert.equal(withLibraryMode("", "players"), "");
+  assert.equal(parseLibraryMode(withLibraryMode("?view=library", "players")), "players");
+});
+
+test("mode is cleared when the view leaves the library", () => {
+  assert.equal(withWorkspaceView("?view=library&mode=players", "studio"), "");
+  assert.equal(withWorkspaceView("?view=library&mode=players", "live"), "?view=live");
+  assert.equal(withWorkspaceView("?view=library&mode=players", "library"), "?view=library&mode=players");
 });

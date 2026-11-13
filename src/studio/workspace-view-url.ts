@@ -6,10 +6,12 @@ import type { WorkspaceView } from "@/src/store/slices/types";
 // URL scheme (the Live params are only meaningful with `view=live` and are
 // cleared whenever the view changes away from it):
 //   ?view=library
+//   ?view=library&mode=players                           Library Players mode (SIG-1318)
 //   ?view=live
 //   ?view=live&live=<roundId>                            round open (Live 4/7)
 //   ?view=live&games=<roundId:gameId,...>&focus=<roundId:gameId>   live boards (Live 6/7)
 const PARAM = "view";
+const MODE_PARAM = "mode";
 const LIVE_ROUND_PARAM = "live";
 const LIVE_GAMES_PARAM = "games";
 const LIVE_FOCUS_PARAM = "focus";
@@ -26,6 +28,27 @@ export const EMPTY_LIVE_URL_STATE: LiveUrlState = { round: null, games: [], focu
 export function parseWorkspaceView(search: string): WorkspaceView {
   const value = new URLSearchParams(search).get(PARAM);
   return value === "library" || value === "live" ? value : "studio";
+}
+
+export type LibraryMode = "games" | "players";
+
+/** `games` is the default and carries no parameter; only meaningful with `view=library`. */
+export function parseLibraryMode(search: string): LibraryMode {
+  if (parseWorkspaceView(search) !== "library") {
+    return "games";
+  }
+  return new URLSearchParams(search).get(MODE_PARAM) === "players" ? "players" : "games";
+}
+
+/** Returns `search` carrying the given Library mode (only kept inside the Library view). */
+export function withLibraryMode(search: string, mode: LibraryMode): string {
+  const params = new URLSearchParams(search);
+  if (params.get(PARAM) !== "library" || mode === "games") {
+    params.delete(MODE_PARAM);
+  } else {
+    params.set(MODE_PARAM, mode);
+  }
+  return toSearch(params);
 }
 
 export function serializeLiveGameRef(ref: LiveGameRef): string {
@@ -86,6 +109,9 @@ export function withWorkspaceView(search: string, view: WorkspaceView): string {
   }
   if (view !== "live") {
     clearLiveParams(params);
+  }
+  if (view !== "library") {
+    params.delete(MODE_PARAM);
   }
   return toSearch(params);
 }

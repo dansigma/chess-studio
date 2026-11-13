@@ -18,6 +18,7 @@ import {
 import { LibraryTable } from "./LibraryTable";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 import { LibraryPreview } from "./LibraryPreview";
+import { LibraryPlayers } from "./LibraryPlayers";
 
 const SKELETON_ROWS = 8;
 
@@ -28,7 +29,32 @@ export type LibraryViewSlots = {
   preview?: (selected: LibraryGameItem | null) => ReactNode;
 };
 
-export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) {
+export function LibraryView(slots: LibraryViewSlots = {}) {
+  const locale = useStudioStore((state) => state.settings.locale);
+  const mode = useLibraryStore((s) => s.mode);
+  const setMode = useLibraryStore((s) => s.setMode);
+  return (
+    <div className="flex h-full min-h-0 w-full flex-col gap-1.5 bg-studio-bg p-1.5" data-testid="library-view">
+      <div role="tablist" aria-label={tLibrary(locale, "library.mode.label")} className="flex shrink-0 gap-1">
+        {(["games", "players"] as const).map((item) => (
+          <button
+            key={item}
+            type="button"
+            role="tab"
+            aria-selected={mode === item}
+            onClick={() => setMode(item)}
+            className={`rounded px-2.5 py-1 text-dense ${mode === item ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"}`}
+          >
+            {tLibrary(locale, item === "games" ? "library.mode.games" : "library.mode.players")}
+          </button>
+        ))}
+      </div>
+      {mode === "players" ? <LibraryPlayers /> : <LibraryGames {...slots} />}
+    </div>
+  );
+}
+
+function LibraryGames({ toolbar, table, preview }: LibraryViewSlots) {
   useLibrarySources();
   const locale = useStudioStore((state) => state.settings.locale);
   const selectedKey = useLibraryStore((s) => s.selectedKey);
@@ -97,7 +123,7 @@ export function LibraryView({ toolbar, table, preview }: LibraryViewSlots = {}) 
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col gap-1.5 bg-studio-bg p-1.5" data-testid="library-view">
+    <div className="flex min-h-0 flex-1 flex-col gap-1.5">
       <div aria-label={tLibrary(locale, "library.toolbar.label")} role="search" data-testid="library-toolbar-slot">
         {toolbar ?? <LibraryToolbar total={games.total} sourceErrors={games.sourceErrors} />}
       </div>
