@@ -27,7 +27,6 @@ import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { loadCappedMyGames } from "@/src/lib/my-games/load-games";
 import {
-  accuracyTrend,
   deviationsForRecentGames,
   DEVIATION_TOP_GROUPS,
   mistakesPerGame,
@@ -67,6 +66,7 @@ import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
 import { MyStatsPhases } from "./MyStatsPhases";
+import { MyStatsTrend } from "./MyStatsTrend";
 
 type LoadState = "signedOut" | "loading" | "ready" | "unavailable";
 
@@ -77,55 +77,6 @@ type LoadState = "signedOut" | "loading" | "ready" | "unavailable";
 // joiners; the loop stops paging once nobody is listening.
 const myStatsLoadByUser = new Map<string, { promise: Promise<PlayerGame[] | null>; refs: number }>();
 
-
-function TrendChart({ points, locale, label }: { points: Array<{ playedAt: number; accuracy: number }>; locale: SiteLocale; label: string }) {
-  const width = 640;
-  const height = 120;
-  const padX = 8;
-  const padY = 10;
-  if (points.length === 0) {
-    return null;
-  }
-  const xs = points.map((_, index) =>
-    points.length === 1 ? width / 2 : padX + (index / (points.length - 1)) * (width - padX * 2),
-  );
-  const ys = points.map((point) => padY + ((100 - Math.max(0, Math.min(100, point.accuracy))) / 100) * (height - padY * 2));
-  const line = xs.map((x, index) => `${index === 0 ? "M" : "L"}${x.toFixed(1)},${ys[index]?.toFixed(1)}`).join(" ");
-  const last = points[points.length - 1];
-  return (
-    <svg
-      className="h-28 w-full"
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      role="img"
-      aria-label={label}
-    >
-      <path d={line} fill="none" stroke="var(--studio-accent)" strokeWidth="2" />
-      {xs.map((x, index) => (
-        <circle
-          key={index}
-          cx={x}
-          cy={ys[index]}
-          r="3"
-          fill="var(--studio-accent)"
-        >
-          <title>{`${formatDecimal1(locale, points[index]?.accuracy ?? 0)}`}</title>
-        </circle>
-      ))}
-      {last ? (
-        <text
-          x={width - padX}
-          y={padY + 10}
-          textAnchor="end"
-          fontSize="11"
-          fill="var(--studio-muted)"
-        >
-          {formatDecimal1(locale, last.accuracy)}
-        </text>
-      ) : null}
-    </svg>
-  );
-}
 
 export function MyStatsPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
@@ -234,6 +185,17 @@ export function MyStatsPanel() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [userId]);
 
+  // SIG-1306: same open flow as My Games — import into a new board, orient to
+  // the user's side, reveal the board panel.
+  function onOpenGame(game: PlayerGame) {
+    importPlayerGame(game, { openInNewBoard: true });
+    if (game.color === "black" && selectActiveBoard(useStudioStore.getState()).orientation !== "black") {
+      flip();
+    }
+    const active = selectActiveBoard(useStudioStore.getState());
+    openBoardPanel(active.id, active.title);
+  }
+
   // The panel-level gate stays on ALL loaded games (< 3 reviewed overall).
   const totalReviewed = useMemo(
     () => games.filter((game) => game.reviewedAt != null && game.userAccuracy != null).length,
@@ -247,7 +209,6 @@ export function MyStatsPanel() {
   const kpis = useMemo(() => overviewKpis(filteredGames), [filteredGames]);
   const reviewedCount = kpis.reviewed;
   const filteredReady = myStatsViewState(reviewedCount) === "ready";
-  const trend = useMemo(() => accuracyTrend(filteredGames), [filteredGames]);
   const openings = useMemo(() => resultsByOpening(filteredGames, { minGames }), [filteredGames, minGames]);
   const phaseStats = useMemo(() => mistakesPerGame(filteredGames), [filteredGames]);
   // Global colour (Brancas/Pretas) overrides the White/Black tabs.
@@ -421,7 +382,7 @@ export function MyStatsPanel() {
                 {tMyGames(locale, "myGames.statsTrend")}
               </h2>
               {filteredReady ? (
-                <TrendChart points={trend} locale={locale} label={tMyGames(locale, "myGames.statsTrend")} />
+                <MyStatsTrend games={filteredGames} locale={locale} onOpenGame={onOpenGame} />
               ) : (
                 <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
               )}
