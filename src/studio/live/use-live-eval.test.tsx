@@ -30,6 +30,8 @@ mock.module("@/src/engine/shared-engine", {
 });
 
 const { useLiveEval, LIVE_EVAL_DEPTH } = await import("./use-live-eval.ts");
+const { LiveEvalBar } = await import("./LiveEvalBar.tsx");
+const { render } = await import("@testing-library/react");
 const { useLiveEvalPref, LIVE_EVAL_PREF_KEY } = await import("./use-live-eval-pref.ts");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 
@@ -71,20 +73,21 @@ afterEach(() => {
 test("Black to move: score is flipped to White's point of view", () => {
   const { result } = renderHook(() => useLiveEval(BLACK_FEN, { enabled: true }));
   emit(BLACK_FEN, { scoreCp: 120 }); // good for Black
-  assert.equal(result.current.label, "-1.20");
-  assert.equal(result.current.pawns, -1.2);
+  assert.equal(result.current?.label, "-1.20");
+  assert.equal(result.current?.pawns, -1.2);
 });
 
 test("mate labels use White's point of view", () => {
   const { result } = renderHook(() => useLiveEval(BLACK_FEN, { enabled: true }));
   emit(BLACK_FEN, { mate: 3 });
-  assert.equal(result.current.label, "-M3");
+  assert.equal(result.current?.label, "-M3");
 });
 
 test("snapshots for another FEN are ignored", () => {
   const { result } = renderHook(() => useLiveEval(WHITE_FEN, { enabled: true }));
   emit(BLACK_FEN, { scoreCp: 500 });
-  assert.equal(result.current.label, "0.00");
+  // SIG-1312: no eval yet is null (neutral bar), never "0.00".
+  assert.equal(result.current, null);
 });
 
 test("new FEN calls analyze directly, without a stop, and keeps one lease", () => {
@@ -120,6 +123,27 @@ test("releases while the tab is hidden and resumes when visible", () => {
   setHidden(false);
   assert.equal(calls.filter((c) => c === "acquire").length, 2);
   assert.equal(calls.filter((c) => c.startsWith("analyze")).length, 2);
+});
+
+test("SIG-1312: the focused card with a PGN eval never acquires the lease; without one it does", () => {
+  const { rerender, container } = render(<LiveEvalBar fen={WHITE_FEN} pgnEval={{ mate: -2 }} focused />);
+  assert.equal(calls.filter((c) => c === "acquire").length, 0);
+  assert.ok(container.querySelector('[aria-label="Evaluation -M2"]'));
+  rerender(<LiveEvalBar fen={WHITE_FEN} pgnEval={null} focused />);
+  assert.equal(calls.filter((c) => c === "acquire").length, 1);
+  // Before the engine answers, the bar is neutral: no "0.00".
+  assert.equal(container.textContent, "");
+  emit(WHITE_FEN, { scoreCp: 42 });
+  assert.ok(container.querySelector('[aria-label="Evaluation +0.42"]'));
+  rerender(<LiveEvalBar fen={WHITE_FEN} pgnEval={{ pawns: 1.5 }} focused />);
+  assert.equal(calls.filter((c) => c === "release").length, 1);
+  assert.ok(container.querySelector('[aria-label="Evaluation +1.50"]'));
+});
+
+test("SIG-1312: a non-focused card never starts the engine", () => {
+  render(<LiveEvalBar fen={WHITE_FEN} pgnEval={null} focused={false} />);
+  render(<LiveEvalBar fen={WHITE_FEN} pgnEval={{ pawns: 0 }} focused={false} />);
+  assert.equal(calls.filter((c) => c === "acquire").length, 0);
 });
 
 test("toggle: desktop default on, remembered per device", () => {

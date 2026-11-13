@@ -4,6 +4,7 @@ import type { PgnMove } from "@mliebelt/pgn-types";
 import { formatCommentWithMarks, marksAreEmpty, marksFromPgnArrays, mergeMarks, parseMarksFromComment } from "./marks";
 import { applyNullMoveFen, isNullMoveToken, NULL_MOVE_SAN, NULL_MOVE_UCI } from "./null-move";
 import { clockToken, parseClockMs } from "./clock";
+import { parsePgnEval } from "./pgn-eval";
 import { pgnGameChunks, sanMovesFromPgn } from "./pgn-clean";
 import { formatPgnNagTokens, parseNags } from "./nags";
 import {
@@ -165,6 +166,13 @@ function walkLine(chess: Chess, parent: TreeNode[], moves: PgnMove[], warnings: 
   const clockMs = parseClockMs(first.commentDiag?.clk);
   if (clockMs !== undefined) {
     node.clockMs = clockMs;
+  }
+  // SIG-1312: same rule for `[%eval]`; a missing eval is never stored as 0.
+  const pgnEval = parsePgnEval(first.commentDiag?.eval);
+  if (pgnEval?.mate !== undefined) {
+    node.evalMate = pgnEval.mate;
+  } else if (pgnEval?.pawns !== undefined) {
+    node.evalPawns = pgnEval.pawns;
   }
   parent.push(node);
   for (const variation of first.variations) {

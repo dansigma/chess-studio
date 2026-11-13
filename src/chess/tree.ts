@@ -16,6 +16,10 @@ export type TreeNode = {
   marks?: BoardMarks;
   /** SIG-1218: time left (ms) for the mover after this move, from `[%clk]`. */
   clockMs?: number;
+  /** SIG-1312: `[%eval]` in pawns, White's point of view. Only set when the PGN has one. */
+  evalPawns?: number;
+  /** SIG-1312: `[%eval #n]` mate distance, White's point of view (negative: Black mates). */
+  evalMate?: number;
   children: TreeNode[];
 };
 

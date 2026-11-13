@@ -1,4 +1,5 @@
 // SIG-1287: shared contract for Live (Lichess broadcasts). Pure data, no React.
+import type { PgnEval } from "../../chess/pgn-eval";
 
 export type BroadcastTourSummary = {
   id: string;
@@ -85,6 +86,8 @@ export type LiveGame = {
   result: LiveResult;
   thinkTimeSec: number | null;
   pgn: string | null; // filled once the PGN is known (stream or round PGN)
+  /** SIG-1312: `[%eval]` of the last mainline move of `pgn`; null/absent when the PGN has none or is behind. */
+  lastEval?: PgnEval | null;
   updatedAt: number; // epoch ms of the last update applied
 };
 
@@ -118,4 +121,6 @@ export type LiveGameUpdate = {
   black: LiveUpdatePlayer;
   whiteClockMs: number | null;
   blackClockMs: number | null;
+  /** SIG-1312: `[%eval]` of the last mainline move, White's point of view; null when it has none. */
+  lastEval?: PgnEval | null;
 };

@@ -6,6 +6,7 @@
 // no tree yet) is "stale" and the caller refetches the round PGN.
 import { Chess } from "chess.js";
 import { fenKey, getNodeAt, goEnd, playMove, type GameTree, type Path } from "@/src/chess/tree";
+import { nodeEval, type PgnEval } from "@/src/chess/pgn-eval";
 import { fenPly } from "@/src/lib/live/merge";
 import type { LiveGame } from "@/src/lib/live/types";
 import type { Side } from "./live-clock";
@@ -101,4 +102,20 @@ export function resolveViewPath(tree: GameTree | null, browsing: Path | null): P
     return null;
   }
   return browsing.length === 0 || getNodeAt(tree, browsing) ? browsing : null;
+}
+
+/**
+ * SIG-1312: the PGN `[%eval]` at the ply a card shows, or null when that ply has none (the start
+ * position, a ply appended locally from `lastMoveUci`, a broadcast without evals). While following,
+ * the tree end is used only when it is the game's current position; otherwise the stream's `lastEval`.
+ */
+export function evalAtView(tree: GameTree | null, viewPath: Path | null, game: LiveGame): PgnEval | null {
+  if (viewPath) {
+    return tree ? (nodeEval(getNodeAt(tree, viewPath)) ?? null) : null;
+  }
+  const end = tree ? getNodeAt(tree, goEnd(tree, [])) : null;
+  if (end && fenKey(end.fen) === fenKey(game.fen)) {
+    return nodeEval(end) ?? null;
+  }
+  return game.pgn !== null ? (game.lastEval ?? null) : null;
 }

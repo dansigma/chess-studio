@@ -65,6 +65,8 @@ export function mergeSnapshotGame(prev: LiveGame | undefined, incoming: LiveGame
       thinkTimeSec: incoming.thinkTimeSec,
       // The stored PGN is now behind the board; consumers refetch it (fetchRoundPgn) or wait for the stream.
       pgn: null,
+      // SIG-1312: the stored eval belongs to the old position; a missing eval is never a stale one.
+      lastEval: null,
       updatedAt: incoming.updatedAt,
     };
   }
@@ -110,6 +112,7 @@ export function mergeStreamUpdate(prev: LiveGame | undefined, update: LiveGameUp
     // Think time only exists in the snapshot and describes the position it came with.
     thinkTimeSec: prev && prev.fen === update.fen ? prev.thinkTimeSec : null,
     pgn: update.pgn,
+    lastEval: update.lastEval ?? null,
     updatedAt: now,
   };
 }
