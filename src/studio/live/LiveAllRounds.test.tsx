@@ -105,6 +105,8 @@ async function renderRound() {
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("gameB1xx")));
   await waitFor(() => assert.equal(toggle().disabled, false));
+  // SIG-1313 opens boards 1-3 when a round loads; these tests start from an empty grid.
+  act(() => useLiveStore.getState().closeAllBoards());
 }
 async function turnOn() {
   fireEvent.click(toggle());
