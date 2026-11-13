@@ -19,12 +19,26 @@ test("imports sequentially in order, named without the extension", async () => {
     },
   });
   assert.deepEqual(calls, ["one:X", "Two:Y"]);
-  assert.deepEqual(result, { importedIds: ["id-1", "id-2"], skipped: ["n.txt"] });
+  assert.deepEqual(result, { importedIds: ["id-1", "id-2"], skipped: ["n.txt"], failed: [] });
 });
 
 test("only non-pgn files import nothing", async () => {
   let called = false;
   const result = await importPgnFiles([file("a.txt")], { importDatabase: () => ((called = true), "x") });
   assert.equal(called, false);
-  assert.deepEqual(result, { importedIds: [], skipped: ["a.txt"] });
+  assert.deepEqual(result, { importedIds: [], skipped: ["a.txt"], failed: [] });
+});
+
+test("an unreadable file is reported and the rest of the batch still imports", async () => {
+  const broken = file("broken.pgn");
+  broken.text = () => Promise.reject(new Error("read error"));
+  const names: string[] = [];
+  const result = await importPgnFiles([file("a.pgn"), broken, file("c.pgn")], {
+    importDatabase: (name) => {
+      names.push(name);
+      return `id-${name}`;
+    },
+  });
+  assert.deepEqual(names, ["a", "c"]);
+  assert.deepEqual(result, { importedIds: ["id-a", "id-c"], skipped: [], failed: ["broken.pgn"] });
 });

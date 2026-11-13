@@ -48,7 +48,10 @@ test("dropping files imports each without focusing Files and selects the last on
   assert.deepEqual(dbs.slice(-2).map((d) => d.name), ["First", "Second"]);
   assert.notEqual(useStudioStore.getState().activity, "files");
   assert.deepEqual(useLibraryStore.getState().filters.sources, [`file:${dbs[dbs.length - 1].id}`]);
-  assert.match(useStudioStore.getState().statusMessage ?? "", /notes\.txt/);
+  const status = useStudioStore.getState().statusMessage ?? "";
+  // The skipped note is appended to the import's own success message, not replacing it.
+  assert.match(status, /notes\.txt/);
+  assert.match(status, /Imported \d+ game/);
 });
 
 test("the Import PGN button opens a multiple .pgn input", async () => {

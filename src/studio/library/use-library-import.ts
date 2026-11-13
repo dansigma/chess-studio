@@ -12,7 +12,7 @@ import { importPgnFiles } from "./pgn-import-queue";
 export function useLibraryImport(): (files: File[]) => Promise<void> {
   return useCallback(async (files: File[]) => {
     const store = useStudioStore.getState();
-    const { importedIds, skipped } = await importPgnFiles(files, {
+    const { importedIds, skipped, failed } = await importPgnFiles(files, {
       importDatabase: (name, pgn) => store.importFileDatabase(name, pgn, null, { focusFiles: false }),
     });
     const last = importedIds[importedIds.length - 1];
@@ -21,11 +21,16 @@ export function useLibraryImport(): (files: File[]) => Promise<void> {
       registerLibraryAdapters(useStudioStore.getState().files.databases);
       useLibraryStore.getState().setSources([fileSourceId(last)]);
     }
-    if (skipped.length > 0) {
-      const locale = useStudioStore.getState().settings.locale;
-      useStudioStore.setState({
-        statusMessage: tLibrary(locale, "library.import.skipped", { names: skipped.join(", ") }),
-      });
+    if (skipped.length > 0 || failed.length > 0) {
+      // Append to the import's own "Imported N games" message instead of replacing it.
+      const state = useStudioStore.getState();
+      const locale = state.settings.locale;
+      const notes = [
+        importedIds.length > 0 ? state.statusMessage : null,
+        failed.length > 0 ? tLibrary(locale, "library.import.failed", { names: failed.join(", ") }) : null,
+        skipped.length > 0 ? tLibrary(locale, "library.import.skipped", { names: skipped.join(", ") }) : null,
+      ].filter((part): part is string => Boolean(part));
+      useStudioStore.setState({ statusMessage: notes.join(" · ") });
     }
   }, []);
 }

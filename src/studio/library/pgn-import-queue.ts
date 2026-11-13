@@ -7,6 +7,8 @@ export type PgnImportResult = {
   importedIds: string[];
   /** Names of the files that were not `.pgn`. */
   skipped: string[];
+  /** Names of the `.pgn` files that could not be read or imported. */
+  failed: string[];
 };
 
 const PGN_EXTENSION = /\.pgn$/i;
@@ -42,8 +44,14 @@ export async function importOne(file: File, deps: PgnImportDeps): Promise<string
 export async function importPgnFiles(files: File[], deps: PgnImportDeps): Promise<PgnImportResult> {
   const { pgn, skipped } = splitPgnFiles(files);
   const importedIds: string[] = [];
+  const failed: string[] = [];
   for (const file of pgn) {
-    importedIds.push(await importOne(file, deps));
+    // One unreadable file must not stop the rest of the batch.
+    try {
+      importedIds.push(await importOne(file, deps));
+    } catch {
+      failed.push(file.name);
+    }
   }
-  return { importedIds, skipped };
+  return { importedIds, skipped, failed };
 }
