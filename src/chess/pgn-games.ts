@@ -50,3 +50,98 @@ export function parsePgnCollection(text: string, limit = 500): {
   }
   return { games, skipped };
 }
+
+export type ParsePgnProgress = { done: number; total: number };
+
+export type ParsePgnCollectionOptions = {
+  limit?: number;
+  batchSize?: number;
+  signal?: AbortSignal;
+  onProgress?: (progress: ParsePgnProgress) => void;
+};
+
+export type ParsedPgnCollection = {
+  games: ParsedFileGame[];
+  /** Chunks that held no playable game. */
+  unreadable: number;
+  /** Chunks left unread because the limit was reached. */
+  overLimit: number;
+};
+
+function abortError(): Error {
+  const error = new Error("The operation was aborted.");
+  error.name = "AbortError";
+  return error;
+}
+
+/** Lets the event loop paint and handle input between batches. */
+function yieldToEventLoop(): Promise<void> {
+  const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler;
+  if (scheduler && typeof scheduler.yield === "function") {
+    return scheduler.yield();
+  }
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function parseChunk(chunk: string): ParsedFileGame | null {
+  const imported = importPgn(chunk);
+  if (imported.tree.children.length === 0) {
+    return null;
+  }
+  return {
+    id: crypto.randomUUID(),
+    white: imported.headers.White ?? "White",
+    black: imported.headers.Black ?? "Black",
+    result: imported.headers.Result ?? "*",
+    event: imported.headers.Event ?? "",
+    date: imported.headers.Date ?? "",
+    pgn: chunk,
+    title: titleFromHeaders(imported.headers),
+  };
+}
+
+/**
+ * Chunked, abortable twin of `parsePgnCollection` for big files: parses in
+ * batches, yields between them and reports progress. Over-limit chunks are
+ * counted apart from unreadable ones and never parsed.
+ */
+export async function parsePgnCollectionAsync(
+  text: string,
+  { limit = 5000, batchSize = 50, signal, onProgress }: ParsePgnCollectionOptions = {},
+): Promise<ParsedPgnCollection> {
+  if (signal?.aborted) {
+    throw abortError();
+  }
+  const chunks = splitPgnGames(text);
+  const total = chunks.length;
+  const games: ParsedFileGame[] = [];
+  let unreadable = 0;
+  let index = 0;
+  onProgress?.({ done: 0, total });
+  while (index < total && games.length < limit) {
+    const end = Math.min(index + batchSize, total);
+    for (; index < end && games.length < limit; index += 1) {
+      const game = parseChunk(chunks[index]);
+      if (game) {
+        games.push(game);
+      } else {
+        unreadable += 1;
+      }
+    }
+    onProgress?.({ done: index, total });
+    if (index < total && games.length < limit) {
+      await yieldToEventLoop();
+      if (signal?.aborted) {
+        throw abortError();
+      }
+    }
+  }
+  if (signal?.aborted) {
+    throw abortError();
+  }
+  const overLimit = total - index;
+  if (overLimit > 0) {
+    onProgress?.({ done: total, total });
+  }
+  return { games, unreadable, overLimit };
+}

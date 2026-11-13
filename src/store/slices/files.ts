@@ -47,6 +47,7 @@ export type FilesSlice = Pick<
   | "moveFileFolder"
   | "moveFileDatabase"
   | "importFileDatabase"
+  | "importParsedDatabase"
   | "showFileDatabase"
   | "openPgnSource"
   | "openFileGame"
@@ -57,6 +58,68 @@ export type FilesSlice = Pick<
   | "mergeRemoteBookmarks"
   | "hydrateRemoteBookmarks"
 >;
+
+type FilesSet = Parameters<StateCreator<StudioState, [], [], FilesSlice>>[0];
+type FilesGet = Parameters<StateCreator<StudioState, [], [], FilesSlice>>[1];
+
+const STORAGE_FULL_MESSAGE = "Saved in this session only: browser storage is full";
+
+/** Shared tail of the import entries: local save, status message, remote save. */
+function addImportedDatabase(
+  set: FilesSet,
+  get: FilesGet,
+  database: FileDatabase,
+  options?: { focusFiles?: boolean },
+): string {
+  const focusFiles = options?.focusFiles !== false;
+  set((state) => {
+    const files = {
+      ...state.files,
+      databases: [...state.files.databases, database],
+    };
+    const stored = saveLocalFiles(files);
+    const imported =
+      database.games.length === 0
+        ? "No games found in that PGN"
+        : `Imported ${database.games.length} game${database.games.length === 1 ? "" : "s"}`;
+    return {
+      files,
+      activeFileDatabaseId: database.id,
+      activeFileGameId: null,
+      ...(focusFiles
+        ? {
+            activity: "files" as const,
+            settings: { ...state.settings, sidebarCollapsed: false },
+          }
+        : {}),
+      statusMessage: stored ? imported : `${imported} · ${STORAGE_FULL_MESSAGE}`,
+    };
+  });
+  const user = get().user;
+  if (user) {
+    void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError, saveError }) => {
+      if (saveError) {
+        set({ statusMessage: saveError });
+      } else if (indexError) {
+        set({ statusMessage: "Games imported, but the position index could not be saved." });
+      }
+      if (!remoteId) {
+        return;
+      }
+      set((state) => {
+        const files = {
+          ...state.files,
+          databases: state.files.databases.map((item) =>
+            item.id === database.id ? { ...item, remoteId } : item,
+          ),
+        };
+        saveLocalFiles(files);
+        return { files };
+      });
+    });
+  }
+  return database.id;
+}
 
 export const initialFilesState = {
   files: loadLocalFiles(),
@@ -201,56 +264,20 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       });
     }
   },
-  importFileDatabase: (name, pgn, folderId = null, options) => {
-    const database = libraryFromPgn(name.trim() || "Database", pgn, folderId);
-    const focusFiles = options?.focusFiles !== false;
-    set((state) => {
-      const files = {
-        ...state.files,
-        databases: [...state.files.databases, database],
-      };
-      saveLocalFiles(files);
-      return {
-        files,
-        activeFileDatabaseId: database.id,
-        activeFileGameId: null,
-        ...(focusFiles
-          ? {
-              activity: "files" as const,
-              settings: { ...state.settings, sidebarCollapsed: false },
-            }
-          : {}),
-        statusMessage:
-          database.games.length === 0
-            ? "No games found in that PGN"
-            : `Imported ${database.games.length} game${database.games.length === 1 ? "" : "s"}`,
-      };
-    });
-    const user = get().user;
-    if (user) {
-      void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError, saveError }) => {
-        if (saveError) {
-          set({ statusMessage: saveError });
-        } else if (indexError) {
-          set({ statusMessage: "Games imported, but the position index could not be saved." });
-        }
-        if (!remoteId) {
-          return;
-        }
-        set((state) => {
-          const files = {
-            ...state.files,
-            databases: state.files.databases.map((item) =>
-              item.id === database.id ? { ...item, remoteId } : item,
-            ),
-          };
-          saveLocalFiles(files);
-          return { files };
-        });
-      });
-    }
-    return database.id;
-  },
+  importFileDatabase: (name, pgn, folderId = null, options) =>
+    addImportedDatabase(
+      set,
+      get,
+      libraryFromPgn(name.trim() || "Database", pgn, folderId),
+      options,
+    ),
+  importParsedDatabase: (name, games, folderId = null, options) =>
+    addImportedDatabase(
+      set,
+      get,
+      { id: crypto.randomUUID(), remoteId: null, name: name.trim() || "Database", folderId, games },
+      options,
+    ),
   showFileDatabase: (id) => set({ activeFileDatabaseId: id }),
   openPgnSource: (name, pgn) => {
     get().importFileDatabase(name, pgn, null, { focusFiles: false });

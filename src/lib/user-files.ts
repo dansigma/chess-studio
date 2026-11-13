@@ -101,11 +101,17 @@ export function loadLocalFiles(): FilesLibrary {
   }
 }
 
-export function saveLocalFiles(library: FilesLibrary): void {
+/** Returns false when the browser refused the write (quota full, storage blocked); never throws. */
+export function saveLocalFiles(library: FilesLibrary): boolean {
   if (typeof window === "undefined") {
-    return;
+    return true;
   }
-  window.localStorage.setItem(FILES_KEY, JSON.stringify(library));
+  try {
+    window.localStorage.setItem(FILES_KEY, JSON.stringify(library));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function libraryFromPgn(name: string, pgn: string, folderId: string | null): FileDatabase {
@@ -120,6 +126,9 @@ export function libraryFromPgn(name: string, pgn: string, folderId: string | nul
 }
 
 export const MAX_GAME_PGN_BYTES = 1_000_000;
+/** Account limits, enforced by the server when signed in and by the client always. */
+export const MAX_GAMES_PER_DATABASE = 5000;
+export const MAX_DATABASES = 50;
 
 export type SaveErrorCode =
   | "pgn_too_large"

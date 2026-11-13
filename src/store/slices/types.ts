@@ -31,6 +31,7 @@ import type {
   FileGame,
   FilesLibrary,
 } from "@/src/lib/user-files";
+import type { ParsedFileGame } from "@/src/chess/pgn-games";
 
 export type BoardOrientation = "white" | "black";
 // SIG-1273: center work area. Separate from ActivityView (sidebars only).
@@ -346,6 +347,13 @@ export type StudioState = {
   importFileDatabase: (
     name: string,
     pgn: string,
+    folderId?: string | null,
+    options?: { focusFiles?: boolean },
+  ) => string;
+  /** Adds a database from already parsed games (the Library import queue). Returns its id. */
+  importParsedDatabase: (
+    name: string,
+    games: ParsedFileGame[],
     folderId?: string | null,
     options?: { focusFiles?: boolean },
   ) => string;

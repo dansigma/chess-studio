@@ -6,31 +6,34 @@ import { tLibrary } from "@/src/i18n/library-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { registerLibraryAdapters } from "./library-sources";
 import { useLibraryStore } from "./library-store";
-import { importPgnFiles } from "./pgn-import-queue";
+import { enqueuePgnFiles } from "./import-queue-store";
 
-/** Imports PGN files as personal databases without leaving the Library. */
+/**
+ * Queues PGN files as personal databases without leaving the Library. Progress,
+ * cancel and per-file failures show in the import widget; only non-.pgn files
+ * still go to the status message.
+ */
 export function useLibraryImport(): (files: File[]) => Promise<void> {
   return useCallback(async (files: File[]) => {
-    const store = useStudioStore.getState();
-    const { importedIds, skipped, failed } = await importPgnFiles(files, {
-      importDatabase: (name, pgn) => store.importFileDatabase(name, pgn, null, { focusFiles: false }),
+    const { skipped, done } = enqueuePgnFiles(files, {
+      databaseCount: () => useStudioStore.getState().files.databases.length,
+      importParsedDatabase: (name, games) =>
+        useStudioStore.getState().importParsedDatabase(name, games, null, { focusFiles: false }),
+      onDrained: (importedIds) => {
+        const last = importedIds[importedIds.length - 1];
+        if (last) {
+          // Register the new adapters now so the reconcile effect keeps this selection.
+          registerLibraryAdapters(useStudioStore.getState().files.databases);
+          useLibraryStore.getState().setSources([fileSourceId(last)]);
+        }
+      },
     });
-    const last = importedIds[importedIds.length - 1];
-    if (last) {
-      // Register the new adapters now so the reconcile effect keeps this selection.
-      registerLibraryAdapters(useStudioStore.getState().files.databases);
-      useLibraryStore.getState().setSources([fileSourceId(last)]);
-    }
-    if (skipped.length > 0 || failed.length > 0) {
+    await done;
+    if (skipped.length > 0) {
       // Append to the import's own "Imported N games" message instead of replacing it.
       const state = useStudioStore.getState();
-      const locale = state.settings.locale;
-      const notes = [
-        importedIds.length > 0 ? state.statusMessage : null,
-        failed.length > 0 ? tLibrary(locale, "library.import.failed", { names: failed.join(", ") }) : null,
-        skipped.length > 0 ? tLibrary(locale, "library.import.skipped", { names: skipped.join(", ") }) : null,
-      ].filter((part): part is string => Boolean(part));
-      useStudioStore.setState({ statusMessage: notes.join(" · ") });
+      const note = tLibrary(state.settings.locale, "library.import.skipped", { names: skipped.join(", ") });
+      useStudioStore.setState({ statusMessage: [state.statusMessage, note].filter(Boolean).join(" · ") });
     }
   }, []);
 }

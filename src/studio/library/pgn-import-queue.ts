@@ -1,15 +1,22 @@
+import { parsePgnCollectionAsync, type ParsedFileGame } from "@/src/chess/pgn-games";
+import { MAX_DATABASES, MAX_GAMES_PER_DATABASE } from "@/src/lib/user-files";
+
 export type PgnImportDeps = {
-  /** Creates the database and returns its id. */
-  importDatabase: (name: string, pgn: string) => string;
+  /** Personal databases the account already holds. */
+  databaseCount: () => number;
+  /** Creates the database from the parsed games and returns its id. */
+  importParsedDatabase: (name: string, games: ParsedFileGame[]) => string;
 };
 
-export type PgnImportResult = {
-  importedIds: string[];
-  /** Names of the files that were not `.pgn`. */
-  skipped: string[];
-  /** Names of the `.pgn` files that could not be read or imported. */
-  failed: string[];
+export type ImportOneOptions = {
+  signal?: AbortSignal;
+  onProgress?: (progress: { done: number; total: number }) => void;
 };
+
+export type ImportOneOutcome =
+  | { kind: "imported"; id: string; imported: number; overLimit: number; unreadable: number }
+  /** The 50-database limit is reached; nothing was read. */
+  | { kind: "database-limit" };
 
 const PGN_EXTENSION = /\.pgn$/i;
 
@@ -34,24 +41,39 @@ export function splitPgnFiles(files: File[]): { pgn: File[]; skipped: string[] }
   return { pgn, skipped };
 }
 
-/** Reads and imports a single file. Later issues hook progress / conflicts in here. */
-export async function importOne(file: File, deps: PgnImportDeps): Promise<string> {
-  const text = await file.text();
-  return deps.importDatabase(databaseNameFromFile(file.name), text);
-}
-
-/** Imports the `.pgn` files one after another, in the given order. */
-export async function importPgnFiles(files: File[], deps: PgnImportDeps): Promise<PgnImportResult> {
-  const { pgn, skipped } = splitPgnFiles(files);
-  const importedIds: string[] = [];
-  const failed: string[] = [];
-  for (const file of pgn) {
-    // One unreadable file must not stop the rest of the batch.
-    try {
-      importedIds.push(await importOne(file, deps));
-    } catch {
-      failed.push(file.name);
-    }
+/**
+ * Reads, parses and imports a single file. The database is built from the
+ * fully parsed games and only then handed to the store, so a cancel (abort)
+ * never leaves a half database. SIG-1324 inserts the name-conflict prompt
+ * between the parse and the store write.
+ */
+export async function importOne(
+  file: File,
+  deps: PgnImportDeps,
+  { signal, onProgress }: ImportOneOptions = {},
+): Promise<ImportOneOutcome> {
+  if (deps.databaseCount() >= MAX_DATABASES) {
+    return { kind: "database-limit" };
   }
-  return { importedIds, skipped, failed };
+  const text = await file.text();
+  const parsed = await parsePgnCollectionAsync(text, {
+    limit: MAX_GAMES_PER_DATABASE,
+    signal,
+    onProgress,
+  });
+  if (signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
+  // Re-check: another file of the batch may have taken the last slot while this one parsed.
+  if (deps.databaseCount() >= MAX_DATABASES) {
+    return { kind: "database-limit" };
+  }
+  const id = deps.importParsedDatabase(databaseNameFromFile(file.name), parsed.games);
+  return {
+    kind: "imported",
+    id,
+    imported: parsed.games.length,
+    overLimit: parsed.overLimit,
+    unreadable: parsed.unreadable,
+  };
 }
