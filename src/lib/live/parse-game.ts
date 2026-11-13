@@ -3,6 +3,7 @@
 import { Chess } from "chess.js";
 import { parseClockMs } from "../../chess/clock";
 import { importPgn } from "../../chess/pgn";
+import { nodeEval } from "../../chess/pgn-eval";
 import type { TreeNode } from "../../chess/tree";
 import type { LiveGameUpdate, LiveResult, LiveUpdatePlayer } from "./types";
 
@@ -61,7 +62,9 @@ function replayMainline(startFen: string, nodes: TreeNode[]): Replay {
 
 /**
  * Parse one game PGN as sent by the round stream or the round PGN. Returns null when the game has
- * no `GameURL` (no id to key it by). `[%eval]` and other comments are tolerated.
+ * no `GameURL` (no id to key it by). Other comments are tolerated.
+ *
+ * `lastEval` is the `[%eval]` of the last mainline move (SIG-1312), null when that move has none.
  *
  * Clocks come from the last `[%clk]` of each side; a game with no moves falls back to the
  * `[WhiteClock]`/`[BlackClock]` headers.
@@ -109,5 +112,6 @@ export function parseGame(pgn: string, roundId: string): LiveGameUpdate | null {
     black: player(headers, "Black"),
     whiteClockMs,
     blackClockMs,
+    lastEval: nodeEval(mainline[mainline.length - 1]) ?? null,
   };
 }

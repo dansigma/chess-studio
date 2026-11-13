@@ -33,6 +33,12 @@ describe("snapshot merge", () => {
     assert.equal(next.thinkTimeSec, 4);
   });
 
+  it("SIG-1312: a newer snapshot clears the stream's lastEval; an older one keeps it", () => {
+    const prev = game({ pgn: "pgn", lastEval: { pawns: 0.4 } });
+    assert.equal(mergeSnapshotGame(prev, game({ fen: fen(10, "b") })).lastEval, null);
+    assert.deepEqual(mergeSnapshotGame(prev, game({ fen: fen(9, "b") })).lastEval, { pawns: 0.4 });
+  });
+
   it("never moves a game backwards, but still contributes the federation", () => {
     const prev = game({ fen: fen(12, "w"), pgn: "pgn" });
     const incoming = game({ fen: fen(11, "b"), white: { ...game().white, fed: "NOR", title: "GM", rating: 2800 } });
@@ -74,6 +80,12 @@ describe("stream merge", () => {
     assert.equal(same.white.rating, 2750);
     assert.equal(same.thinkTimeSec, 9);
     assert.equal(mergeStreamUpdate(prev, upd({ pgn: "y", fen: fen(11, "w") }), 1).thinkTimeSec, null);
+  });
+
+  it("SIG-1312: carries the update's lastEval, null when the PGN has none", () => {
+    assert.deepEqual(mergeStreamUpdate(undefined, upd({ lastEval: { mate: -2 } }), 5).lastEval, { mate: -2 });
+    const prev = game({ pgn: "old", lastEval: { pawns: 1 } });
+    assert.equal(mergeStreamUpdate(prev, upd({ pgn: "new", lastEval: null }), 5).lastEval, null);
   });
 
   it("returns the same object for a re-sent identical game", () => {

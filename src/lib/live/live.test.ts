@@ -220,6 +220,45 @@ describe("parseGame", () => {
     assert.equal(parseGame('[Event "x"]\n\n1. e4 *', "R1"), null);
   });
 
+  // SIG-1312: the broadcast [%eval] survives the import (pawns and mate, White's point of view).
+  it("importPgn keeps [%eval] in pawns and as mate; a move without one has none", () => {
+    const byId = (id: string) => all.find((g) => g.includes(`/${id}"]`)) as string;
+    const pawns = importPgn(byId("IoIVJ0i3")).tree.children[0];
+    assert.equal(pawns?.san, "e4");
+    assert.equal(pawns?.evalPawns, 0.18);
+    assert.equal(pawns?.evalMate, undefined);
+    assert.ok(pawns?.clockMs !== undefined);
+
+    const mateGame = importPgn(byId("xrcTvFrf")).tree;
+    const mainline = [];
+    for (let node = mateGame.children[0]; node; node = node.children[0]) {
+      mainline.push(node);
+    }
+    const qxd8 = mainline.at(-2);
+    assert.equal(qxd8?.san, "Qxd8");
+    assert.equal(qxd8?.evalMate, 4); // `{ [%eval #4] } { comment } { [%clk] }`
+    assert.equal(qxd8?.evalPawns, undefined);
+    assert.equal(mainline.at(-1)?.evalMate, 3);
+    assert.equal(mainline.find((n) => n.san === "Ba8")?.evalPawns, 1.08);
+
+    const black = importPgn('[Event "E"]\n\n1. f3 { [%eval -0.5] } 1... e5 2. g4 { [%eval #-1] } *').tree.children[0];
+    assert.equal(black?.evalPawns, -0.5);
+    assert.equal(black?.children[0]?.evalPawns, undefined);
+    assert.equal(black?.children[0]?.evalMate, undefined);
+    assert.equal(black?.children[0]?.children[0]?.evalMate, -1);
+
+    const noEval = importPgn(byId("rKzXoQpT")).tree.children[0];
+    assert.equal(noEval?.evalPawns, undefined);
+    assert.equal(noEval?.evalMate, undefined);
+  });
+
+  it("exposes the [%eval] of the last mainline move as lastEval, null when it has none", () => {
+    const byId = (id: string) => parseGame(all.find((g) => g.includes(`/${id}"]`)) as string, "r") as LiveGameUpdate;
+    assert.deepEqual(byId("IoIVJ0i3").lastEval, { pawns: 0 });
+    assert.deepEqual(byId("xrcTvFrf").lastEval, { mate: 3 });
+    assert.equal(byId("rKzXoQpT").lastEval, null);
+  });
+
   it("round PGN fixture goes through importPgn with clocks", () => {
     const first = (createPgnStreamSplitter().push(fixture("round.pgn")) as string[])[0] as string;
     const imported = importPgn(first);

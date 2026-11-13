@@ -15,7 +15,7 @@ import { pathKey } from "../notation-format";
 import { Button, IconButton } from "../ui/Button";
 import { outcomeFor } from "../ui/PlayerCell";
 import { pgnResultToWinner } from "../ResultMark";
-import { clockAtPath, resolveViewPath } from "./live-board-model";
+import { clockAtPath, evalAtView, resolveViewPath } from "./live-board-model";
 import { formatDisplayClock, type Side } from "./live-clock";
 import { LiveEvalBar } from "./LiveEvalBar";
 import { ClockCell } from "./LiveGamesTable";
@@ -89,7 +89,7 @@ export function LiveBoard({
   locale: SiteLocale;
   onClose: () => void;
   onFocus: () => void;
-  /** Show the eval bar beside this board (only ever rendered while focused). */
+  /** Show the eval bar beside this board (the "Show eval bar" toggle; off hides every bar). */
   showEval?: boolean;
 }) {
   const game = useLiveGame(roundId, gameId);
@@ -235,15 +235,11 @@ export function LiveBoard({
       <PlayerBar game={game} side="black" locale={locale} historic={historic("black")} />
       <div className="flex items-stretch gap-1.5">
         {showEval ? (
-          // Every card reserves the eval column, so all boards in the grid keep the same size;
-          // only the focused one fills it (one engine search at a time).
-          focused ? (
-            <div data-live-eval-slot="" className="flex shrink-0">
-              <LiveEvalBar fen={fen} />
-            </div>
-          ) : (
-            <div className="w-5 shrink-0" aria-hidden="true" />
-          )
+          // SIG-1312: every card shows a bar for its shown ply: the broadcast's [%eval], else local
+          // Stockfish on the focused card only (one engine search at a time), else a neutral bar.
+          <div data-live-eval-slot="" className="flex shrink-0">
+            <LiveEvalBar fen={fen} pgnEval={evalAtView(tree, viewPath, game)} focused={focused} />
+          </div>
         ) : null}
         <div className="aspect-square min-w-0 flex-1" role="img" aria-label={tLive(locale, "live.boards.label")}>
           <Chessboard

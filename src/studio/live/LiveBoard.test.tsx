@@ -34,9 +34,22 @@ mock.module("@/src/lib/live/lichess-broadcast", {
 });
 
 // SIG-1293: the focused board mounts the eval bar; keep the real Stockfish worker out of DOM tests.
+// SIG-1312: acquisitions are recorded so a board with a PGN eval can be checked to leave the engine alone.
+const engineLeases: Array<{ released: boolean }> = [];
 mock.module("@/src/engine/shared-engine", {
   namedExports: {
-    acquire: () => ({ analyze: () => undefined, stop: () => undefined, subscribe: () => () => undefined, release: () => undefined }),
+    acquire: () => {
+      const lease = { released: false };
+      engineLeases.push(lease);
+      return {
+        analyze: () => undefined,
+        stop: () => undefined,
+        subscribe: () => () => undefined,
+        release: () => {
+          lease.released = true;
+        },
+      };
+    },
   },
 });
 
@@ -314,4 +327,60 @@ test("SIG-1296: the close button is hidden by opacity only, shown on hover/focus
     assert.ok(close.className.split(/\s+/u).includes(cls), `has ${cls}`);
   }
   assert.doesNotMatch(close.className, /\binvisible\b|\bhidden\b/u);
+});
+
+// SIG-1312: a stream PGN whose moves carry [%eval] (pawns, then mate), White's point of view.
+const EVALS = ["0.3", "-1.5", "#3", "#-2"];
+function evalPgn(gameId: string, plies: number): string {
+  return pgn(gameId, plies).replace(/\{\[%clk ([^\]]+)\]\}/gu, (_m, clk: string, offset: number, all: string) => {
+    const index = (all.slice(0, offset).match(/%clk/gu) ?? []).length;
+    return `{[%eval ${EVALS[index]}] [%clk ${clk}]}`;
+  });
+}
+const evalSlot = (id: string) => board(id).querySelector("[data-live-eval-slot]") as HTMLElement | null;
+const activeLeases = () => engineLeases.filter((l) => !l.released).length;
+
+test("SIG-1312: every card shows a bar from the PGN [%eval]; without one a neutral bar; Stockfish only for the focused card", async () => {
+  engineLeases.length = 0;
+  await openStreamed(3, ["a", "b"]);
+  act(() => useLiveStore.getState().ingestUpdate(parseGame(evalPgn("a", 3), "R1")!));
+  assert.equal(useLiveStore.getState().focusedGame, null);
+
+  // Not focused, PGN eval at the shown (latest) ply: a bar with the mate label, no engine.
+  await waitFor(() => assert.ok(evalSlot("a")?.querySelector('[aria-label="Evaluation M3"]')));
+  // Not focused, no PGN eval: level bar, no number, never "0.00".
+  const neutral = evalSlot("b")!.firstElementChild as HTMLElement;
+  assert.equal(neutral.getAttribute("aria-hidden"), "true");
+  assert.equal(neutral.getAttribute("aria-label"), null);
+  assert.equal(neutral.textContent, "");
+  assert.doesNotMatch(evalSlot("b")!.textContent!, /0\.00/u);
+  assert.equal(engineLeases.length, 0);
+
+  // Focused with a PGN eval: the engine is not started.
+  fireEvent.click(board("a"));
+  assert.equal(board("a").dataset.focused, "true");
+  assert.ok(evalSlot("a")!.querySelector('[aria-label="Evaluation M3"]'));
+  assert.equal(engineLeases.length, 0);
+
+  // Browsing back shows the [%eval] of the viewed ply.
+  fireEvent.click(within(board("a")).getByRole("button", { name: "Previous move" }));
+  await waitFor(() => assert.ok(evalSlot("a")!.querySelector('[aria-label="Evaluation -1.50"]')));
+  // The start position has no eval: the focused card falls back to Stockfish (neutral until it answers).
+  fireEvent.click(within(board("a")).getByRole("button", { name: "First move" }));
+  await waitFor(() => assert.equal(activeLeases(), 1));
+  assert.equal((evalSlot("a")!.firstElementChild as HTMLElement).getAttribute("aria-hidden"), "true");
+  // Back to a ply with an eval: the lease is released.
+  fireEvent.click(within(board("a")).getByRole("button", { name: "Last move" }));
+  await waitFor(() => assert.equal(activeLeases(), 0));
+
+  // Focused without a PGN eval: Stockfish runs for it.
+  fireEvent.click(board("b"));
+  await waitFor(() => assert.equal(activeLeases(), 1));
+  // a is no longer focused and keeps its PGN bar.
+  assert.ok(evalSlot("a")!.querySelector('[aria-label="Evaluation M3"]'));
+
+  // The "Show eval bar" toggle hides every bar.
+  fireEvent.click(document.querySelector("[data-live-eval-toggle]") as HTMLElement);
+  await waitFor(() => assert.equal(document.querySelectorAll("[data-live-eval-slot]").length, 0));
+  assert.equal(activeLeases(), 0);
 });

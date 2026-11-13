@@ -17,8 +17,6 @@ export const LIVE_EVAL_THROTTLE_MS = 150;
 
 export type LiveEval = { pawns: number; label: string };
 
-const NEUTRAL: LiveEval = { pawns: 0, label: "0.00" };
-
 function sideToMove(fen: string): "w" | "b" {
   return fen.split(" ")[1] === "b" ? "b" : "w";
 }
@@ -48,12 +46,15 @@ function usePageVisible(): boolean {
  * Eval of `fen` (White's point of view) on the shared worker's `live` slot. The lease is held only
  * while `enabled` and the tab is visible, and is released on unmount; mount it for the focused board
  * only. Each new FEN calls `analyze` directly (it stops the running search itself).
+ *
+ * SIG-1312: null until the engine has a line (and again once disabled): a missing eval is never
+ * shown as `0.00`. Pass `enabled: false` when the shown ply already has a PGN `[%eval]`, so the lease is released.
  */
-export function useLiveEval(fen: string | null, { enabled }: { enabled: boolean }): LiveEval {
+export function useLiveEval(fen: string | null, { enabled }: { enabled: boolean }): LiveEval | null {
   const build = useStudioStore((s) => s.settings.engineBuild);
   const visible = usePageVisible();
   const active = enabled && visible && fen !== null;
-  const [value, setValue] = useState<LiveEval>(NEUTRAL);
+  const [value, setValue] = useState<LiveEval | null>(null);
   const leaseRef = useRef<SharedEngineLease | null>(null);
   const fenRef = useRef(fen);
   useEffect(() => {
@@ -82,6 +83,7 @@ export function useLiveEval(fen: string | null, { enabled }: { enabled: boolean 
       unsubscribe();
       leaseRef.current = null;
       lease.release();
+      setValue(null);
     };
   }, [active, build]);
 
