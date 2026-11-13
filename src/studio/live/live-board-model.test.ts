@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { Chess } from "chess.js";
 import { importPgn } from "@/src/chess/pgn";
 import type { LiveGame } from "@/src/lib/live/types";
-import { clockAtPath, mainlineLength, pliesPlayed, reconcileNotation, resolveViewPath } from "./live-board-model";
+import { clockAtPath, compactGridShape, MAX_LIVE_BOARDS, mainlineLength, pliesPlayed, reconcileNotation, resolveViewPath } from "./live-board-model";
 
 function position(sans: string[]): { fen: string; lastMoveUci: string | null } {
   const chess = new Chess();
@@ -71,5 +71,21 @@ describe("resolveViewPath", () => {
     assert.equal(resolveViewPath(tree, null), null);
     assert.deepEqual(resolveViewPath(tree, [0]), [0]);
     assert.equal(resolveViewPath(tree, [0, 0, 0]), null);
+  });
+});
+
+describe("compactGridShape", () => {
+  it("2x2 up to four boards, 3x2 for five and six; one board takes the pane, two sit side by side", () => {
+    assert.deepEqual(compactGridShape(1), { cols: 1, rows: 1 });
+    assert.deepEqual(compactGridShape(2), { cols: 2, rows: 1 });
+    assert.deepEqual(compactGridShape(3), { cols: 2, rows: 2 });
+    assert.deepEqual(compactGridShape(4), { cols: 2, rows: 2 });
+    assert.deepEqual(compactGridShape(5), { cols: 3, rows: 2 });
+    assert.deepEqual(compactGridShape(6), { cols: 3, rows: 2 });
+  });
+  it("never needs more than two rows at the board cap", () => {
+    for (let n = 1; n <= MAX_LIVE_BOARDS; n += 1) {
+      assert.ok(compactGridShape(n).rows <= 2);
+    }
   });
 });
