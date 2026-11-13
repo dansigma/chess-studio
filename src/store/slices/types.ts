@@ -21,6 +21,8 @@ import type { EngineBuild } from "@/src/engine/stockfish-client";
 import type { ExplorerResponse, ExplorerSource } from "@/src/lib/explorer-types";
 import type { ExplorerFilters } from "@/src/lib/explorer-filters";
 import type { NotationDensity } from "@/src/studio/notation-density";
+import type { DockPresetId } from "@/src/studio/dock-layout";
+import type { SavedDockLayout } from "@/src/studio/dock-layouts";
 import type { RetryState, RetryTarget } from "@/src/chess/retry";
 
 export type { NotationDensity } from "@/src/studio/notation-density";
@@ -181,6 +183,11 @@ export type StudioState = {
   aboutOpen: boolean;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
   layoutNonce: number;
+  // SIG-1316: user-saved dock layouts, the last applied layout key
+  // ("preset:<id>" / "saved:<id>") and the open Layouts dialog, if any.
+  savedLayouts: SavedDockLayout[];
+  currentLayoutKey: string | null;
+  layoutDialog: "save" | "manage" | null;
   enginePreview: EnginePreview | null;
   engineEval: EngineEval | null;
   evalByFen: Record<string, CachedEval>;
@@ -363,6 +370,14 @@ export type StudioState = {
   setBoardsHydrated: () => void;
   markSaved: (id: string, remoteId: string) => void;
   resetView: () => void;
+  applyPresetLayout: (id: DockPresetId) => void;
+  applySavedLayout: (id: string) => void;
+  saveCurrentLayout: (name: string) => boolean;
+  renameSavedLayout: (id: string, name: string) => boolean;
+  updateSavedLayout: (id: string) => boolean;
+  deleteSavedLayout: (id: string) => void;
+  hydrateSavedLayouts: (layouts: SavedDockLayout[]) => void;
+  setLayoutDialog: (dialog: "save" | "manage" | null) => void;
 };
 
 // Data (non-function) keys of the store; the reset payload must cover every
@@ -375,5 +390,8 @@ export type SessionDataKey = {
 
 export type SessionResetPayload = Pick<
   StudioState,
-  Exclude<SessionDataKey, "settings" | "user" | "layoutNonce">
+  Exclude<
+    SessionDataKey,
+    "settings" | "user" | "layoutNonce" | "savedLayouts" | "currentLayoutKey" | "layoutDialog"
+  >
 >;

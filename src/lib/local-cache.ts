@@ -23,7 +23,15 @@ export const RETRY_RECORDED_KEY = "xd-retry-recorded";
 export const PUZZLE_SEEN_KEY = "xadrez-digital.puzzles.seen";
 export const PUZZLE_SEEN_OWNER_KEY = `${PUZZLE_SEEN_KEY}:owner`;
 
+// SIG-1316: the user's saved dock layouts (guest copy in localStorage; the
+// account copy lives in user_settings.layouts).
+export const DOCK_LAYOUTS_KEY = "studio-clone-dock-layouts";
+// Which preset / saved layout was applied last (marks it in the Layouts menu).
+export const DOCK_LAYOUT_CURRENT_KEY = "studio-clone-dock-layout-current";
+
 export const USER_LOCAL_CACHE_KEYS = [
+  DOCK_LAYOUTS_KEY,
+  DOCK_LAYOUT_CURRENT_KEY,
   COURSE_PROGRESS_KEY,
   CUSTOM_COURSES_KEY,
   PUZZLE_PROGRESS_KEY,
