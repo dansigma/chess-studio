@@ -9,6 +9,7 @@ import { boardPngBlob, copyPngToClipboard, downloadPng } from "@/src/chess/copy-
 import { printActiveBoard } from "./print-board";
 import { closeBoardPanel, openBoardPanel, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item } from "./ui/Menu";
+import { downloadTextFile } from "@/src/lib/download-file";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 
 // SIG-857: file-menu subscriptions live here so the closed MenuBar root does
@@ -131,13 +132,7 @@ export function FileMenuItems({
   }
 
   function downloadPgn(filename: string) {
-    const blob = new Blob([exportActivePgn()], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadTextFile(filename, exportActivePgn());
     close();
   }
 

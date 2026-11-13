@@ -22,6 +22,7 @@ import {
   libraryFromPgn,
   loadLocalFiles,
   persistRemoteDatabase,
+  persistRemoteDatabaseName,
   persistRemoteFolder,
   saveLocalFiles,
   type FileDatabase,
@@ -42,6 +43,7 @@ export type FilesSlice = Pick<
   | "setFilesQuery"
   | "createFileFolder"
   | "renameFileFolder"
+  | "renameFileDatabase"
   | "moveFileFolder"
   | "moveFileDatabase"
   | "importFileDatabase"
@@ -111,6 +113,37 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     const user = get().user;
     if (user && updatedFolder) {
       void persistRemoteFolder(updatedFolder, user.id).then((saveError) => {
+        if (saveError) {
+          set({ statusMessage: saveError });
+        }
+      });
+    }
+  },
+  renameFileDatabase: (id, name) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return;
+    }
+    let remoteId: string | null = null;
+    let found = false;
+    set((state) => {
+      const databases = state.files.databases.map((database) => {
+        if (database.id === id) {
+          found = true;
+          remoteId = database.remoteId;
+          return { ...database, name: trimmed };
+        }
+        return database;
+      });
+      if (!found) {
+        return {};
+      }
+      const files = { ...state.files, databases };
+      saveLocalFiles(files);
+      return { files };
+    });
+    if (get().user && remoteId) {
+      void persistRemoteDatabaseName(remoteId, trimmed).then((saveError) => {
         if (saveError) {
           set({ statusMessage: saveError });
         }

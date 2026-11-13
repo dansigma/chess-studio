@@ -340,6 +340,7 @@ export type StudioState = {
   setFilesQuery: (query: string) => void;
   createFileFolder: (name?: string, parentId?: string | null) => void;
   renameFileFolder: (id: string, name: string) => void;
+  renameFileDatabase: (id: string, name: string) => void;
   moveFileFolder: (id: string, targetParentId: string | null) => boolean;
   moveFileDatabase: (id: string, targetFolderId: string | null) => void;
   importFileDatabase: (

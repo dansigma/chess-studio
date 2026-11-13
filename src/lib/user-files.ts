@@ -374,6 +374,16 @@ export async function persistRemoteFolder(folder: FileFolder, userId: string): P
   return folderWriteErrorMessage(error);
 }
 
+/** Name-only update of a synced database (does not re-save its games). */
+export async function persistRemoteDatabaseName(remoteId: string, name: string): Promise<string | null> {
+  const supabase = createBrowserSupabase();
+  if (!supabase) {
+    return null;
+  }
+  const { error } = await supabase.from("game_databases").update({ name }).eq("id", remoteId);
+  return error ? (error.message ?? "Could not rename the database.") : null;
+}
+
 export async function deleteRemoteFolder(folderId: string): Promise<void> {
   const supabase = createBrowserSupabase();
   if (!supabase) {
