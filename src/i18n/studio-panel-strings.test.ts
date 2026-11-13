@@ -43,3 +43,10 @@ test("studio panel interpolated strings render whole sentences with vars", () =>
   assert.equal(tPanels("en", "panels.playerExplorer", { title: "Magnus" }), "Magnus");
   assert.equal(tPanels("pt-br", "notation.toolbar.skipForward"), "Avançar vários lances");
 });
+
+test("pt-br panel tab titles use Title Case (SIG-1301)", () => {
+  assert.equal(tPanels("pt-br", "panels.evalGraph"), "Gráfico de Avaliação");
+  assert.equal(tPanels("pt-br", "panels.review"), "Revisão de Partida");
+  assert.equal(tPanels("pt-br", "panels.myStats"), "Minhas Estatísticas");
+  assert.equal(tPanels("pt-br", "panels.positionSearch"), "Busca de Posição");
+});
