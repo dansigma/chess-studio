@@ -8,6 +8,7 @@ import {
   isBoardPanelId,
   isExplorerPanelId,
   sanitizeDockLayout,
+  type DockPresetId,
 } from "./dock-layout";
 import { explorerSourceTitle, type ExplorerSource } from "@/src/lib/explorer-types";
 
@@ -220,72 +221,90 @@ function currentLocale(): SiteLocale {
   return useStudioStore.getState().settings.locale;
 }
 
-export function seedDefaultLayout(api: DockviewApi, boardTitle: string, boardId: string): void {
-  const locale = currentLocale();
-  const firstBoard = boardPanelId(boardId);
+function addBoardPanel(api: DockviewApi, boardTitle: string, boardId: string): string {
+  const id = boardPanelId(boardId);
   api.addPanel({
-    id: firstBoard,
+    id,
     component: "board",
-    title: boardTitle || BOARD_TITLE[locale],
+    title: boardTitle || BOARD_TITLE[currentLocale()],
     params: { boardId },
   });
+  return id;
+}
+
+type PanelPlacement = {
+  initialWidth?: number;
+  initialHeight?: number;
+  /** Open as an inactive tab in `referencePanel`'s group (no direction), or split `direction` of it. */
+  inactive?: boolean;
+  direction?: "right" | "below" | "left" | "above";
+};
+
+function addStaticPanel(
+  api: DockviewApi,
+  id: Exclude<StudioPanelId, "fileGames" | "positionSearch" | "opponentPrep">,
+  referencePanel: string,
+  placement: PanelPlacement = {},
+): void {
   api.addPanel({
-    id: "notation",
-    component: "notation",
-    title: tPanels(locale, "panels.notation"),
-    initialWidth: 460,
-    position: { referencePanel: firstBoard, direction: "right" },
-  });
-  api.addPanel({
-    id: "repertoire",
-    component: "repertoire",
-    title: tPanels(locale, "panels.repertoire"),
-    inactive: true,
-    position: { referencePanel: "notation" },
-  });
-  api.addPanel({
-    id: "engine",
-    component: "engine",
-    title: tPanels(locale, "panels.engine"),
-    initialHeight: 220,
-    position: { referencePanel: firstBoard, direction: "below" },
-  });
-  api.addPanel({
-    id: "evalGraph",
-    component: "evalGraph",
-    title: tPanels(locale, "panels.evalGraph"),
-    inactive: true,
-    position: { referencePanel: "engine" },
-  });
-  api.addPanel({
-    id: "review",
-    component: "review",
-    title: tPanels(locale, "panels.review"),
-    inactive: true,
-    position: { referencePanel: "evalGraph" },
-  });
-  api.addPanel({
-    id: "insights",
-    component: "insights",
-    title: tPanels(locale, "panels.insights"),
-    inactive: true,
-    position: { referencePanel: "review" },
-  });
-  api.addPanel({
-    id: "explorer",
-    component: "explorer",
-    title: tPanels(locale, "panels.explorer"),
-    inactive: true,
-    position: { referencePanel: "notation" },
-  });
-  api.addPanel({
-    id: "games",
-    component: "games",
-    title: tPanels(locale, "panels.games"),
-    inactive: true,
-    position: { referencePanel: "notation" },
+    id,
+    component: id,
+    title: tPanels(currentLocale(), STATIC_PANEL_KEYS[id]),
+    initialWidth: placement.initialWidth,
+    initialHeight: placement.initialHeight,
+    inactive: placement.inactive,
+    position: { referencePanel, direction: placement.direction },
   });
 }
+
+// SIG-1316: the default layout ("Full analysis"). Left column: board over an
+// analysis group (Engine · Eval Graph · Insights). Right column: a reading
+// group (Notation · Repertoire · Game Review · My Stats) over Opening
+// Explorer and Games side by side. The splits are added columns-first so each
+// column is its own branch.
+export function seedDefaultLayout(api: DockviewApi, boardTitle: string, boardId: string): void {
+  const board = addBoardPanel(api, boardTitle, boardId);
+  addStaticPanel(api, "notation", board, { direction: "right", initialWidth: 460 });
+  addStaticPanel(api, "engine", board, { direction: "below", initialHeight: 220 });
+  addStaticPanel(api, "explorer", "notation", { direction: "below", initialHeight: 280 });
+  addStaticPanel(api, "games", "explorer", { direction: "right" });
+  addStaticPanel(api, "repertoire", "notation", { inactive: true });
+  addStaticPanel(api, "review", "repertoire", { inactive: true });
+  addStaticPanel(api, "myStats", "review", { inactive: true });
+  addStaticPanel(api, "evalGraph", "engine", { inactive: true });
+  addStaticPanel(api, "insights", "evalGraph", { inactive: true });
+}
+
+// "Study / Repertoire": Repertoire up front on the right, Opening Explorer up
+// front under the board.
+function seedStudyLayout(api: DockviewApi, boardTitle: string, boardId: string): void {
+  const board = addBoardPanel(api, boardTitle, boardId);
+  addStaticPanel(api, "repertoire", board, { direction: "right", initialWidth: 460 });
+  addStaticPanel(api, "explorer", board, { direction: "below", initialHeight: 260 });
+  addStaticPanel(api, "engine", "repertoire", { direction: "below", initialHeight: 220 });
+  addStaticPanel(api, "notation", "repertoire", { inactive: true });
+  addStaticPanel(api, "review", "notation", { inactive: true });
+  addStaticPanel(api, "myStats", "review", { inactive: true });
+  addStaticPanel(api, "games", "explorer", { inactive: true });
+  addStaticPanel(api, "evalGraph", "engine", { inactive: true });
+  addStaticPanel(api, "insights", "evalGraph", { inactive: true });
+}
+
+// "Engine / Minimal": a big board with Engine and Eval Graph under it.
+function seedMinimalLayout(api: DockviewApi, boardTitle: string, boardId: string): void {
+  const board = addBoardPanel(api, boardTitle, boardId);
+  addStaticPanel(api, "engine", board, { direction: "below", initialHeight: 240 });
+  addStaticPanel(api, "evalGraph", "engine", { inactive: true });
+}
+
+export const DOCK_PRESET_SEEDS: Record<
+  DockPresetId,
+  (api: DockviewApi, boardTitle: string, boardId: string) => void
+> = {
+  full: seedDefaultLayout,
+  study: seedStudyLayout,
+  minimal: seedMinimalLayout,
+};
 
 // SIG-915: one board tab group. New boards open in the SAME group as the
 // existing board tab (reference without direction — the evalGraph/review
@@ -358,8 +377,12 @@ export function openStudioPanel(id: StudioPanelId): void {
   if (id === "engine" || id === "evalGraph" || id === "review" || id === "insights") {
     const locale = currentLocale();
     const fallbackBoard = firstBoardPanel(dockApi);
+    // SIG-1316: Game Review goes with Notation (right column); Insights with
+    // the engine group, as in the default layout.
     const reference =
-      id === "review" || id === "insights"
+      id === "review"
+        ? (dockApi.getPanel("notation") ?? dockApi.getPanel("evalGraph") ?? dockApi.getPanel("engine") ?? fallbackBoard)
+        : id === "insights"
         ? (dockApi.getPanel("evalGraph") ?? dockApi.getPanel("engine") ?? fallbackBoard)
         : id === "evalGraph"
           ? (dockApi.getPanel("engine") ?? fallbackBoard ?? dockApi.getPanel("notation"))

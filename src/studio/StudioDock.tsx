@@ -62,8 +62,9 @@ import {
   panelTitleForId,
   playerExplorerTitle,
   playerGamesTitle,
+  DOCK_PRESET_SEEDS,
   registerStudioDock,
-  seedDefaultLayout,
+  type StudioPanelId,
 } from "./dock-api";
 import { explorerGamesTitle } from "@/src/lib/explorer-types";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
@@ -72,11 +73,16 @@ import {
   DOCK_LAYOUT_VERSION,
   isBoardPanelId,
   isExplorerPanelId,
+  markPanelsEnsured,
+  panelsEnsured,
   readStoredDockLayout,
   sanitizeDockLayout,
   setDockLayoutListener,
+  setDockSnapshotReader,
+  takePendingDockLayout,
   takeQueuedDockLayout,
   type DockLayoutSnapshot,
+  type DockPresetId,
 } from "./dock-layout";
 import { parseExplorerSource } from "./ExplorerPanel";
 import { ChessboardIcon } from "./ui/ChessboardIcon";
@@ -190,13 +196,25 @@ const components = {
   playerGames: () => <PlayerGamesPanel />,
 };
 
+const STATIC_TITLE_IDS: Record<string, true> = {
+  engine: true,
+  evalGraph: true,
+  review: true,
+  insights: true,
+  myStats: true,
+  notation: true,
+  repertoire: true,
+  positionSearch: true,
+};
+
 function ensureReviewPanel(api: DockviewReadyEvent["api"]): void {
   if (api.getPanel("review")) {
     return;
   }
   const locale = useStudioStore.getState().settings.locale;
-  // SIG-907: bare `board` id is retired; fall back to any `board:*` panel.
-  const reference = api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
+  // SIG-1316: Game Review sits with Notation (right column), as in the
+  // default layout; SIG-907: fall back to any `board:*` panel.
+  const reference = api.getPanel("notation") ?? api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
   api.addPanel({
     id: "review",
     component: "review",
@@ -211,7 +229,8 @@ function ensureInsightsPanel(api: DockviewReadyEvent["api"]): void {
     return;
   }
   const locale = useStudioStore.getState().settings.locale;
-  const reference = api.getPanel("review") ?? api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
+  // SIG-1316: Insights sits with the engine group (Engine · Eval Graph).
+  const reference = api.getPanel("evalGraph") ?? api.getPanel("engine") ?? api.getPanel("review") ?? firstBoardPanel(api);
   api.addPanel({
     id: "insights",
     component: "insights",
@@ -226,8 +245,8 @@ function ensureMyStatsPanel(api: DockviewReadyEvent["api"]): void {
     return;
   }
   const locale = useStudioStore.getState().settings.locale;
-  // Stats sits with the analysis panels (review/insights group).
-  const reference = api.getPanel("insights") ?? api.getPanel("review") ?? api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
+  // SIG-1316: My Stats sits with Notation · Repertoire · Game Review.
+  const reference = api.getPanel("review") ?? api.getPanel("notation") ?? api.getPanel("insights") ?? api.getPanel("evalGraph") ?? api.getPanel("engine") ?? firstBoardPanel(api);
   api.addPanel({
     id: "myStats",
     component: "myStats",
@@ -310,10 +329,47 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
   const panelSubscriptions = useRef<Array<{ dispose: () => void }>>([]);
 
   // SIG-907: seed needs the session id for the `board:<boardId>` panel id.
-  function seedFor(api: DockviewApi): void {
+  function seedFor(api: DockviewApi, preset: DockPresetId = "full"): void {
     const state = useStudioStore.getState();
     const active = selectActiveBoard(state);
-    seedDefaultLayout(api, boardTitle(state.settings.locale, active.title), active.id);
+    DOCK_PRESET_SEEDS[preset](api, boardTitle(state.settings.locale, active.title), active.id);
+  }
+
+  // SIG-1316: panels that predate the current default (Repertoire, Review,
+  // Insights, My Stats) are added to a restored layout once; afterwards a
+  // panel the user or a preset left out stays out.
+  function ensureMissingPanels(api: DockviewApi): void {
+    if (panelsEnsured()) {
+      return;
+    }
+    ensureRepertoirePanel(api);
+    ensureReviewPanel(api);
+    ensureInsightsPanel(api);
+    ensureMyStatsPanel(api);
+    markPanelsEnsured();
+  }
+
+  // SIG-1316: after a preset / saved layout is placed, every open board gets
+  // a tab in the board group (never an empty board), and board / static tab
+  // titles are re-synced (a saved layout may carry titles from another
+  // locale or board name).
+  function syncAfterApply(api: DockviewApi): void {
+    const state = useStudioStore.getState();
+    const titles = dedupedBoardTitles(state.settings.locale, state.boards);
+    for (const board of state.boards) {
+      if (!api.getPanel(boardPanelId(board.id))) {
+        openBoardPanel(board.id, titles.get(board.id));
+      }
+    }
+    for (const [id, title] of titles) {
+      api.getPanel(boardPanelId(id))?.setTitle(title);
+    }
+    for (const panel of api.panels) {
+      if (panel.id in STATIC_TITLE_IDS) {
+        panel.setTitle(panelTitleForId(state.settings.locale, panel.id as StudioPanelId));
+      }
+    }
+    api.getPanel(boardPanelId(state.activeBoardId))?.api.setActive();
   }
 
   function disposePanelSubscriptions(): void {
@@ -502,6 +558,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
         window.clearTimeout(saveTimer.current);
       }
       setDockLayoutListener(null);
+      setDockSnapshotReader(null);
       registerStudioDock(null);
     };
   }, []);
@@ -522,25 +579,46 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
           seedFor(api);
         }
         placePlayers(api);
-        ensureRepertoirePanel(api);
-        ensureReviewPanel(api);
-        ensureInsightsPanel(api);
-        ensureMyStatsPanel(api);
+        ensureMissingPanels(api);
         ensureActiveBoardPanel();
       });
     });
-    const saved = takeQueuedDockLayout() ?? readStoredDockLayout();
+    setDockSnapshotReader(() =>
+      sanitizeDockLayout({ version: DOCK_LAYOUT_VERSION, dock: api.toJSON() }),
+    );
+    const pendingLayout = takePendingDockLayout();
+    const saved = pendingLayout ? null : (takeQueuedDockLayout() ?? readStoredDockLayout());
     runWithoutSave(() => {
+      if (pendingLayout) {
+        // SIG-1316: an applied preset / saved layout. A snapshot that fails
+        // to place falls back to the default seed.
+        api.clear();
+        if (pendingLayout.kind === "preset") {
+          seedFor(api, pendingLayout.id);
+        } else if (!placeSnapshot(api, pendingLayout.snapshot)) {
+          api.clear();
+          seedFor(api);
+        }
+        placePlayers(api);
+        ensureActiveBoardPanel();
+        syncAfterApply(api);
+        markPanelsEnsured();
+        return;
+      }
       if (!saved || !placeSnapshot(api, saved)) {
         seedFor(api);
       }
       placePlayers(api);
-      ensureRepertoirePanel(api);
-      ensureReviewPanel(api);
-      ensureInsightsPanel(api);
-      ensureMyStatsPanel(api);
+      ensureMissingPanels(api);
       ensureActiveBoardPanel();
     });
+    if (pendingLayout) {
+      // The applied layout becomes the persisted current layout.
+      const applied = sanitizeDockLayout({ version: DOCK_LAYOUT_VERSION, dock: api.toJSON() });
+      if (applied) {
+        void persistDockLayout(applied, currentDockLayoutEpoch()).catch(() => undefined);
+      }
+    }
     // SIG-907: focus→active so notation/engine/explorer follow the focused
     // board panel. Guard on "different + exists" — setActiveBoard clears
     // enginePreview/threat/setupMode, so a redundant call on every tab

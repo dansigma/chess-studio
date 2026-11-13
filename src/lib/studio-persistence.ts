@@ -9,6 +9,12 @@ import {
   writeStoredDockLayout,
   type DockLayoutSnapshot,
 } from "@/src/studio/dock-layout";
+import {
+  readStoredLayouts,
+  sanitizeSavedLayouts,
+  writeStoredLayouts,
+  type SavedDockLayout,
+} from "@/src/studio/dock-layouts";
 import { exportPgn } from "@/src/chess/pgn";
 import { isBoardTheme } from "@/src/chess/board-themes";
 import { isPieceSet } from "@/src/chess/piece-sets";
@@ -241,4 +247,61 @@ export async function syncRemoteDockLayout(userId: string): Promise<void> {
   if (local) {
     await persistDockLayoutRecord(local, epoch, userId);
   }
+}
+
+// SIG-1316: saved layouts live in user_settings.layouts (the current layout
+// stays in user_settings.layout). Guests keep them in localStorage only.
+let syncedLayoutsUserId: string | null = null;
+
+export function forgetRemoteLayoutsSync(): void {
+  syncedLayoutsUserId = null;
+}
+
+export async function persistSavedLayoutsRecord(
+  layouts: readonly SavedDockLayout[],
+  userId: string | null,
+): Promise<void> {
+  writeStoredLayouts(layouts);
+  const supabase = createBrowserSupabase();
+  if (!supabase || !userId) {
+    return;
+  }
+  const { error } = await supabase.from("user_settings").upsert({
+    user_id: userId,
+    layouts: toJson(layouts),
+  });
+  if (error) {
+    throw error;
+  }
+}
+
+/** Resolves to the list the store should hold, or null to keep what it has. */
+export async function syncRemoteSavedLayouts(userId: string): Promise<SavedDockLayout[] | null> {
+  if (syncedLayoutsUserId === userId) {
+    return null;
+  }
+  syncedLayoutsUserId = userId;
+  const supabase = createBrowserSupabase();
+  if (!supabase) {
+    return null;
+  }
+  const { data, error } = await supabase
+    .from("user_settings")
+    .select("layouts")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (error) {
+    return null;
+  }
+  const remote = sanitizeSavedLayouts(data?.layouts ?? null);
+  if (remote.length > 0) {
+    writeStoredLayouts(remote);
+    return remote;
+  }
+  const local = readStoredLayouts();
+  if (local.length > 0) {
+    await persistSavedLayoutsRecord(local, userId);
+    return local;
+  }
+  return null;
 }

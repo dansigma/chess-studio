@@ -91,6 +91,7 @@ export type Database = {
           piece_theme: string;
           board_theme: string;
           layout: Json | null;
+          layouts: Json | null;
           engine_depth: number;
           multi_pv: number;
           locale: string;
@@ -101,6 +102,7 @@ export type Database = {
           piece_theme?: string;
           board_theme?: string;
           layout?: Json | null;
+          layouts?: Json | null;
           engine_depth?: number;
           multi_pv?: number;
           locale?: string;
@@ -110,6 +112,7 @@ export type Database = {
           piece_theme?: string;
           board_theme?: string;
           layout?: Json | null;
+          layouts?: Json | null;
           engine_depth?: number;
           multi_pv?: number;
           locale?: string;

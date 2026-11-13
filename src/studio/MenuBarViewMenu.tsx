@@ -8,6 +8,7 @@ import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
 import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "@/src/studio/color-scheme";
 import { OPEN_PANEL_ITEMS, openBoardPanel, openExplorerPanel, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
+import { LayoutsSubmenu } from "./LayoutsMenu";
 import { tStudioChrome, type StudioChromeStringKey } from "@/src/i18n/studio-chrome-strings";
 
 function ThemeSwatch({ light, dark }: { light: string; dark: string }) {
@@ -60,8 +61,8 @@ export function ViewMenuItems({
   flat = false,
   showPanels = true,
 }: {
-  viewSub: "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
-  setViewSub: (sub: "theme" | "pieces" | "notation" | "panel" | "scheme" | null) => void;
+  viewSub: "theme" | "pieces" | "notation" | "panel" | "scheme" | "layouts" | null;
+  setViewSub: (sub: "theme" | "pieces" | "notation" | "panel" | "scheme" | "layouts" | null) => void;
   leaveSubmenu: () => void;
   onOpenSettings: () => void;
   run: (action: () => void) => () => void;
@@ -229,6 +230,15 @@ export function ViewMenuItems({
       )}
       <Divider />
       <Item label={tStudioChrome(locale, "chrome.view.settings")} onMouseEnter={flat ? undefined : leaveSubmenu} onClick={run(onOpenSettings)} />
+      {showPanels ? (
+        <LayoutsSubmenu
+          locale={locale}
+          open={viewSub === "layouts"}
+          onOpen={() => setViewSub("layouts")}
+          onClose={leaveSubmenu}
+          run={run}
+        />
+      ) : null}
       <Item
         label={tStudioChrome(locale, "chrome.view.resetView")}
         onMouseEnter={flat ? undefined : leaveSubmenu}
@@ -245,8 +255,8 @@ export function MenuBarViewMenu({
   onOpenSettings,
   run,
 }: {
-  viewSub: "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
-  setViewSub: (sub: "theme" | "pieces" | "notation" | "panel" | "scheme" | null) => void;
+  viewSub: "theme" | "pieces" | "notation" | "panel" | "scheme" | "layouts" | null;
+  setViewSub: (sub: "theme" | "pieces" | "notation" | "panel" | "scheme" | "layouts" | null) => void;
   leaveSubmenu: () => void;
   onOpenSettings: () => void;
   run: (action: () => void) => () => void;

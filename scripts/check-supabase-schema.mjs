@@ -13,6 +13,7 @@ export const PROBES = [
   { object: "my_games.indexed_at", table: "my_games", select: "indexed_at" },
   { object: "puzzles", table: "puzzles", select: "*" },
   { object: "course_enrollments", table: "course_enrollments", select: "*" },
+  { object: "user_settings.layouts", table: "user_settings", select: "layouts" },
   { object: "boards.repertoire_color", table: "boards", select: "repertoire_color" },
 ];
 

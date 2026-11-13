@@ -43,7 +43,7 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
   const workspaceView = useStudioStore((state) => state.workspaceView);
   const [activeTab, setActiveTab] = useState<MobileStudioTab>("moves");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [viewSub, setViewSub] = useState<"theme" | "pieces" | "notation" | "panel" | "scheme" | null>(null);
+  const [viewSub, setViewSub] = useState<"theme" | "pieces" | "notation" | "panel" | "scheme" | "layouts" | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);

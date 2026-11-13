@@ -20,7 +20,7 @@ import { MenuBarEditMenu } from "./MenuBarEditMenu";
 import { MenuBarViewMenu } from "./MenuBarViewMenu";
 
 type MenuKey = "file" | "edit" | "view" | "help" | "account" | null;
-type ViewSubmenu = "theme" | "pieces" | "notation" | "panel" | "scheme" | null;
+type ViewSubmenu = "theme" | "pieces" | "notation" | "panel" | "scheme" | "layouts" | null;
 
 const TOP_MENUS = [
   ["file", "chrome.menu.file"],

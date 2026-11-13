@@ -35,6 +35,8 @@ import {
 import { useExplorerData } from "./use-explorer-data";
 import {
   forgetRemoteDockSync,
+  forgetRemoteLayoutsSync,
+  syncRemoteSavedLayouts,
   loadRemoteSettings,
   persistBoard,
   persistSettings,
@@ -48,6 +50,7 @@ import { applyStudioEntryImport, entryImportReady } from "@/src/studio/entry-imp
 import { StatusBar, StatusToast } from "./StatusBar";
 import { VariationChoiceDialog } from "./VariationChoiceDialog";
 import { Dialog } from "./ui/Dialog";
+import { LayoutDialogs } from "./LayoutDialogs";
 import { Button } from "./ui/Button";
 import { BrandLockup } from "./ui/BrandLockup";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
@@ -297,6 +300,7 @@ export function StudioShell() {
   useEffect(() => {
     if (!user) {
       forgetRemoteDockSync();
+      forgetRemoteLayoutsSync();
       return;
     }
     // SIG-1092: guest and account board stores are disjoint — a signed-in
@@ -304,6 +308,7 @@ export function StudioShell() {
     // avoid re-hydrating it on the next sign-out.
     clearGuestBoards();
     void syncRemoteDockLayout(user.id);
+    void syncRemoteSavedLayouts(user.id).catch(() => undefined);
   }, [user]);
 
   // SIG-1092: persist the guest session list locally (debounced) so the
@@ -673,6 +678,7 @@ export function StudioShell() {
         </Dialog>
       ) : null}
       {variationChoice ? <VariationChoiceDialog /> : null}
+      <LayoutDialogs />
     </div>
     <div id={PRINT_SHEET_ID} />
     </>

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
 import { tLibrary } from "@/src/i18n/library-strings.ts";
 import { tRepertoire } from "@/src/i18n/repertoire-strings.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { LayoutsSubmenu } from "./LayoutsMenu";
 import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
 export type BoardMenuState = {
   x: number;
@@ -45,6 +46,7 @@ export function BoardContextMenu({
   onClose: () => void;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const [layoutsOpen, setLayoutsOpen] = useState(false);
 
   useEffect(() => {
     function onPointer(event: MouseEvent) {
@@ -126,6 +128,18 @@ export function BoardContextMenu({
           label={tPanels(locale, "panels.board.copyImage")}
           onClick={() => {
             onCopyImage();
+            onClose();
+          }}
+        />
+        <MenuDivider />
+        {/* SIG-1316: same Layouts options as View → Layouts. */}
+        <LayoutsSubmenu
+          locale={locale}
+          open={layoutsOpen}
+          onOpen={() => setLayoutsOpen(true)}
+          onClose={() => setLayoutsOpen(false)}
+          run={(action) => () => {
+            action();
             onClose();
           }}
         />

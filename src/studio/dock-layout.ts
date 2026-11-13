@@ -54,8 +54,25 @@ export type DockLayoutSnapshot = {
   dock: SanitizedDock;
 };
 
+// SIG-1316: built-in layout presets. Each one is a seed function in dock-api
+// (`DOCK_PRESET_SEEDS`), not stored JSON; "full" is the default layout.
+export const DOCK_PRESET_IDS = ["full", "study", "minimal"] as const;
+export type DockPresetId = (typeof DOCK_PRESET_IDS)[number];
+
+export function isDockPresetId(value: unknown): value is DockPresetId {
+  return typeof value === "string" && (DOCK_PRESET_IDS as readonly string[]).includes(value);
+}
+
+// A layout the dock should place on its next (re)mount: a preset seed or a
+// saved snapshot already remapped to the open boards.
+export type PendingDockLayout =
+  | { kind: "preset"; id: DockPresetId }
+  | { kind: "snapshot"; snapshot: DockLayoutSnapshot };
+
 let epoch = 0;
 let queued: DockLayoutSnapshot | null = null;
+let pending: PendingDockLayout | null = null;
+let snapshotReader: (() => DockLayoutSnapshot | null) | null = null;
 let listener: ((snapshot: DockLayoutSnapshot) => void) | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -354,6 +371,120 @@ export function currentDockLayoutEpoch(): number {
 export function bumpDockLayoutEpoch(): void {
   epoch += 1;
   queued = null;
+  pending = null;
+}
+
+export function queuePendingDockLayout(next: PendingDockLayout): void {
+  pending = next;
+}
+
+export function takePendingDockLayout(): PendingDockLayout | null {
+  const value = pending;
+  pending = null;
+  return value;
+}
+
+// The mounted dock registers a reader so store actions ("save current
+// layout") can serialize the live arrangement without importing the dock.
+export function setDockSnapshotReader(next: (() => DockLayoutSnapshot | null) | null): void {
+  snapshotReader = next;
+}
+
+export function readLiveDockSnapshot(): DockLayoutSnapshot | null {
+  return snapshotReader ? snapshotReader() : null;
+}
+
+function renameBoardIds(value: unknown, renames: ReadonlyMap<string, string>): unknown {
+  if (typeof value === "string") {
+    return renames.get(value) ?? value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => renameBoardIds(item, renames));
+  }
+  if (isRecord(value)) {
+    const next: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const newKey = renames.get(key) ?? key;
+      if (key === "boardId" && typeof item === "string") {
+        next[newKey] = renames.get(`board:${item}`)?.slice("board:".length) ?? item;
+      } else {
+        next[newKey] = renameBoardIds(item, renames);
+      }
+    }
+    return next;
+  }
+  return value;
+}
+
+/**
+ * SIG-1316: a saved layout carries the `board:<id>` panels of the boards that
+ * were open when it was saved. Remap them onto the boards open now (in order);
+ * surplus saved board panels are dropped, surplus open boards are left for the
+ * caller to add to the board group. Never invents a board.
+ */
+export function remapBoardPanels(
+  snapshot: DockLayoutSnapshot,
+  boardIds: readonly string[],
+): DockLayoutSnapshot | null {
+  const saved: string[] = [];
+  const seen = new Set<string>();
+  const collect = (node: unknown): void => {
+    if (!isRecord(node)) {
+      return;
+    }
+    if (node.type === "leaf" && isRecord(node.data) && Array.isArray(node.data.views)) {
+      for (const id of node.data.views) {
+        if (typeof id === "string" && isBoardPanelId(id) && !seen.has(id)) {
+          seen.add(id);
+          saved.push(id);
+        }
+      }
+    }
+    if (node.type === "branch" && Array.isArray(node.data)) {
+      node.data.forEach(collect);
+    }
+  };
+  const dock = snapshot.dock;
+  collect((dock.grid as { root?: unknown }).root);
+  for (const id of Object.keys(dock.panels)) {
+    if (isBoardPanelId(id) && !seen.has(id)) {
+      seen.add(id);
+      saved.push(id);
+    }
+  }
+  const renames = new Map<string, string>();
+  saved.slice(0, boardIds.length).forEach((id, index) => {
+    renames.set(id, `board:${boardIds[index]}`);
+  });
+  const renamed = renameBoardIds({ version: snapshot.version, dock }, renames);
+  return sanitizeDockLayout(renamed, new Set(boardIds));
+}
+
+// Existing users' saved layouts may predate the Review/Insights/My Stats/
+// Repertoire panels; the dock adds those missing panels once. After that, a
+// panel the user (or a preset) left out stays out across reloads.
+const PANELS_ENSURED_KEY = "studio-clone-dock-panels-ensured";
+
+export function panelsEnsured(): boolean {
+  if (typeof window === "undefined") {
+    return true;
+  }
+  try {
+    return window.localStorage.getItem(PANELS_ENSURED_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+export function markPanelsEnsured(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(PANELS_ENSURED_KEY, "1");
+  } catch {
+    // Without storage the ensure pass simply repeats.
+  }
 }
 
 export function readStoredDockLayout(): DockLayoutSnapshot | null {

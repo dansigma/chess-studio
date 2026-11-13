@@ -28,6 +28,8 @@ import {
   persistSettingsRecord,
   loadRemoteSettingsForUser,
   syncRemoteDockLayout as _syncRemoteDockLayout,
+  forgetRemoteLayoutsSync as _forgetRemoteLayoutsSync,
+  syncRemoteSavedLayouts as _syncRemoteSavedLayouts,
 } from "@/src/lib/studio-persistence";
 import type {
   BoardSession,
@@ -182,6 +184,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     // snapshot never leaks into the next account (sign-in carries the live
     // in-memory boards; the shell clears the snapshot again on user set).
     purgeUserLocalCaches();
+    get().hydrateSavedLayouts([]);
     clearGuestBoards();
     resetCourseProgressState();
     saveLocalFiles(EMPTY_FILES);
@@ -281,6 +284,18 @@ export function forgetRemoteDockSync(): void {
 
 export function syncRemoteDockLayout(userId: string): Promise<void> {
   return _syncRemoteDockLayout(userId);
+}
+
+export function forgetRemoteLayoutsSync(): void {
+  return _forgetRemoteLayoutsSync();
+}
+
+// SIG-1316: pull the account's saved layouts into the store.
+export async function syncRemoteSavedLayouts(userId: string): Promise<void> {
+  const layouts = await _syncRemoteSavedLayouts(userId);
+  if (layouts && useStudioStore.getState().user?.id === userId) {
+    useStudioStore.getState().hydrateSavedLayouts(layouts);
+  }
 }
 
 export async function persistDockLayout(
