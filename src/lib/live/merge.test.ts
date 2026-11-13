@@ -33,6 +33,15 @@ describe("snapshot merge", () => {
     assert.equal(next.thinkTimeSec, 4);
   });
 
+  it("SIG-1313: a snapshot never wipes the opening (it has none): newer, older and same position", () => {
+    const prev = game({ pgn: "pgn", eco: "A08", opening: "Zukertort Opening" });
+    for (const incoming of [game({ fen: fen(10, "b") }), game({ fen: fen(9, "b") }), game()]) {
+      const next = mergeSnapshotGame(prev, incoming);
+      assert.deepEqual([next.eco, next.opening], ["A08", "Zukertort Opening"]);
+    }
+    assert.equal(mergeSnapshotGame(undefined, game()).eco, undefined);
+  });
+
   it("SIG-1312: a newer snapshot clears the stream's lastEval; an older one keeps it", () => {
     const prev = game({ pgn: "pgn", lastEval: { pawns: 0.4 } });
     assert.equal(mergeSnapshotGame(prev, game({ fen: fen(10, "b") })).lastEval, null);
@@ -86,6 +95,16 @@ describe("stream merge", () => {
     assert.deepEqual(mergeStreamUpdate(undefined, upd({ lastEval: { mate: -2 } }), 5).lastEval, { mate: -2 });
     const prev = game({ pgn: "old", lastEval: { pawns: 1 } });
     assert.equal(mergeStreamUpdate(prev, upd({ pgn: "new", lastEval: null }), 5).lastEval, null);
+  });
+
+  it("SIG-1313: carries eco and opening from the PGN; a PGN without them keeps the known ones", () => {
+    const first = mergeStreamUpdate(undefined, upd({ eco: "B50", opening: "Sicilian Defense" }), 1);
+    assert.deepEqual([first.eco, first.opening], ["B50", "Sicilian Defense"]);
+    const without = mergeStreamUpdate(first, upd({ pgn: "later", eco: null, opening: null }), 2);
+    assert.deepEqual([without.eco, without.opening], ["B50", "Sicilian Defense"]);
+    const changed = mergeStreamUpdate(first, upd({ pgn: "corrected", eco: "B51", opening: "Sicilian Defense: Canal Attack" }), 3);
+    assert.deepEqual([changed.eco, changed.opening], ["B51", "Sicilian Defense: Canal Attack"]);
+    assert.deepEqual([mergeStreamUpdate(undefined, upd(), 1).eco, mergeStreamUpdate(undefined, upd(), 1).opening], [null, null]);
   });
 
   it("returns the same object for a re-sent identical game", () => {

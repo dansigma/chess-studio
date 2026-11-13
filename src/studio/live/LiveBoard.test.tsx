@@ -92,6 +92,12 @@ function snapshot(games: LiveGame[], roundId = "R1"): BroadcastRoundSnapshot {
 }
 const stream = (gameId: string, plies: number, result = "*", roundId = "R1") => parseGame(pgn(gameId, plies, result, roundId), roundId)!;
 const board = (id: string) => document.querySelector(`[data-live-board="${id}"]`) as HTMLElement;
+// SIG-1313: a round opened with no boards starts with boards 1-3. These tests are about the table and the
+// boards they open themselves, so they start from an empty grid, the way the user gets it after "Clear grid".
+function clearAutoOpened() {
+  act(() => useLiveStore.getState().closeAllBoards());
+}
+
 const rowOf = (id: string) => document.querySelector(`[data-live-row="${id}"]`) as HTMLElement;
 const clockText = (id: string, side: "white" | "black") => board(id).querySelector(`[data-live-clock="${side}"]`)!.textContent;
 
@@ -114,6 +120,7 @@ async function openStreamed(plies: number, ids = ["a"]) {
   roundHandler = async () => snapshot(ids.map((id) => game(id, plies)));
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf(ids[0]!)));
+  clearAutoOpened();
   // SIG-1311: a row click now focuses the board (Ctrl/Cmd-click opens the Studio), so boards that
   // must stay unfocused are opened through the store.
   act(() => {
@@ -176,6 +183,7 @@ test("past the cap the new board is refused with a notice; closing clears it", a
   roundHandler = async () => snapshot(["a", "b", "c", "d", "e", "f", "g"].map((id) => game(id, 2)));
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("g")));
+  clearAutoOpened();
   for (const id of ["a", "b", "c", "d", "e", "f", "g"]) {
     fireEvent.click(rowOf(id));
   }
@@ -189,6 +197,7 @@ test("finished game: result shown, clocks do not tick", async () => {
   roundHandler = async () => snapshot([game("a", 3, { result: "1-0" })]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   fireEvent.click(rowOf("a"));
   await waitFor(() => assert.ok(board("a")));
   assert.match(board("a").textContent!, /Game over: 1 – 0/u);
@@ -202,6 +211,7 @@ test("polled round: first PGN is fetched, +1 ply is appended locally, a bigger j
   roundHandler = async () => snapshot([game("a", 1), game("b", 1)]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   fireEvent.click(rowOf("a"));
   fireEvent.click(rowOf("b"));
   await waitFor(() => assert.match(board("a").textContent!, /e4/u));
@@ -222,6 +232,7 @@ test("a board of a non-streamed round shows the 15 s hint", async () => {
   roundHandler = async () => snapshot([game("a", 2)]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   fireEvent.click(rowOf("a"));
   act(() => useLiveStore.getState().openBoard({ roundId: "R2", gameId: "z" }, { focus: false }));
   act(() => useLiveStore.getState().ingestSnapshot(snapshot([game("z", 2, {}, "R2")], "R2")));
@@ -305,6 +316,7 @@ test("SIG-1295: finished and ongoing cards share one structure; the result row i
   roundHandler = async () => snapshot([game("a", 3), game("b", 3, { result: "1/2-1/2" })]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
+  clearAutoOpened();
   fireEvent.click(rowOf("a"));
   fireEvent.click(rowOf("b"));
   act(() => {
@@ -346,8 +358,8 @@ const evalSlot = (id: string) => board(id).querySelector("[data-live-eval-slot]"
 const activeLeases = () => engineLeases.filter((l) => !l.released).length;
 
 test("SIG-1312: every card shows a bar from the PGN [%eval]; without one a neutral bar; Stockfish only for the focused card", async () => {
-  engineLeases.length = 0;
   await openStreamed(3, ["a", "b"]);
+  engineLeases.length = 0; // the auto-opened (then cleared) focused board may have taken and released a lease
   act(() => useLiveStore.getState().ingestUpdate(parseGame(evalPgn("a", 3), "R1")!));
   assert.equal(useLiveStore.getState().focusedGame, null);
 

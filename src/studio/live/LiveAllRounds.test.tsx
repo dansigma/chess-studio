@@ -105,6 +105,9 @@ async function renderRound() {
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("gameB1xx")));
   await waitFor(() => assert.equal(toggle().disabled, false));
+  // SIG-1313: entering a round on desktop opens its first boards; these tests start from an empty grid.
+  await waitFor(() => assert.equal(useLiveStore.getState().openBoards.length, 2));
+  act(() => useLiveStore.getState().closeAllBoards());
 }
 async function turnOn() {
   fireEvent.click(toggle());
