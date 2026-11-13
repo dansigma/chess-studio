@@ -13,6 +13,7 @@ import {
   normalizeResult,
   type AnnotationInfo,
 } from "./filters";
+import { overviewFromItems, type LibraryOverview } from "./overview";
 import { registerLibrarySource, listLibrarySources, unregisterLibrarySource } from "./sources";
 import { compareLibraryItems } from "./sort";
 import type {
@@ -87,6 +88,21 @@ const CAPABILITIES: LibrarySourceCapabilities = {
   maxResults: null,
 };
 
+// Keyed on the games array, not the database object: rename/move rebuild the
+// wrapper but keep `games`, so they hit the cache; any change to the games
+// (import, replace, merge) produces a new array and recomputes.
+const overviewCache = new WeakMap<FileDatabase["games"], LibraryOverview>();
+
+/** Summary of a whole database, cached on its games array. */
+export function fileDatabaseOverview(db: FileDatabase): LibraryOverview {
+  let hit = overviewCache.get(db.games);
+  if (!hit) {
+    hit = overviewFromItems(db.games.map((game) => parseGame(game).item));
+    overviewCache.set(db.games, hit);
+  }
+  return hit;
+}
+
 export function fileSourceId(databaseId: string): LibrarySourceId {
   return `file:${databaseId}`;
 }
@@ -141,6 +157,10 @@ export function createFileSource(
       const items = rows.slice(offset, offset + limit);
       const next = offset + items.length;
       return { items, nextCursor: next < rows.length ? String(next) : null, total: rows.length };
+    },
+    async overview(signal) {
+      signal.throwIfAborted();
+      return fileDatabaseOverview(need());
     },
     async loadPgn(gameId) {
       const game = need().games.find((g) => g.id === gameId);

@@ -7,6 +7,7 @@ import { formatTimeClass } from "@/src/lib/game-date";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { matchesEloRange, normalizedEloRange, normalizedYearRange, searchTokens } from "./filters";
+import { addToOverview, emptyOverview, type LibraryOverview } from "./overview";
 import type {
   LibraryFilterState,
   LibraryGameItem,
@@ -25,6 +26,9 @@ type Row = Pick<
 
 const COLUMNS =
   "id, source, played_at, color, result, time_class, white, black, white_elo, black_elo, eco, opening, ply_count";
+
+const OVERVIEW_COLUMNS = "white, black, white_elo, black_elo, eco, opening";
+export const OVERVIEW_PAGE_SIZE = 1000;
 
 const CAPABILITIES: LibrarySourceCapabilities = {
   textSearch: "full",
@@ -225,6 +229,41 @@ export function createMyGamesSource(
       const total = typeof count === "number" ? count : null;
       const more = total === null ? fetched.length === limit : next < total;
       return { items, nextCursor: more ? String(next) : null, total };
+    },
+    // SIG-1327: aggregates the whole table on the client, 1000 rows per request.
+    // Access is scoped to the signed-in user by row-level security, as in `list`.
+    async overview(signal): Promise<LibraryOverview> {
+      const client = need();
+      const overview = emptyOverview();
+      for (let offset = 0; ; offset += OVERVIEW_PAGE_SIZE) {
+        signal.throwIfAborted();
+        const { data, error } = await client
+          .from("my_games")
+          .select(OVERVIEW_COLUMNS)
+          .order("id", { ascending: true })
+          .range(offset, offset + OVERVIEW_PAGE_SIZE - 1)
+          .abortSignal(signal);
+        if (error) {
+          throw new Error(error.message || "Query failed");
+        }
+        const rows = (data ?? []) as unknown as Pick<
+          Row,
+          "white" | "black" | "white_elo" | "black_elo" | "eco" | "opening"
+        >[];
+        for (const row of rows) {
+          addToOverview(overview, {
+            white: row.white ?? "?",
+            black: row.black ?? "?",
+            whiteElo: row.white_elo,
+            blackElo: row.black_elo,
+            eco: row.eco,
+            opening: row.opening,
+          });
+        }
+        if (rows.length < OVERVIEW_PAGE_SIZE) {
+          return overview;
+        }
+      }
     },
     async loadPgn(gameId, signal) {
       const { data, error } = await need()
