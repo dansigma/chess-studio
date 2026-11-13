@@ -1,5 +1,6 @@
 // SIG-1287: browser-side client for the public Lichess Broadcast API. No token, no User-Agent
 // (browsers cannot set one), no server route: the API sends `access-control-allow-origin: *`.
+import { DEFAULT_POSITION } from "chess.js";
 import { createPgnStreamSplitter } from "./pgn-stream";
 import { normalizeResult, parseGame } from "./parse-game";
 import {
@@ -174,7 +175,8 @@ export function mapBroadcastRound(raw: unknown, now: number = Date.now()): Broad
       roundId: round.id,
       white: mapPlayer(players[0]),
       black: mapPlayer(players[1]),
-      fen: str(game.fen) ?? "",
+      // A game that hasn't started has no `fen` in the round JSON: it is at the starting position.
+      fen: str(game.fen) ?? DEFAULT_POSITION,
       lastMoveUci: str(game.lastMove),
       result: normalizeResult(game.status),
       thinkTimeSec: num(game.thinkTime),
