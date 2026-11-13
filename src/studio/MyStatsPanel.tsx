@@ -310,7 +310,11 @@ export function MyStatsPanel() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-studio-panel text-dense text-studio-fg">
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      {/* SIG-1308: overflow-x-hidden is only a safety net. The real offenders
+          were MyStatsTrend (320px fallback SVG + unclamped labels/tooltip
+          poking past the right edge); with overflow-y:auto, overflow-x
+          computes to auto, so any wider child produced a useless scrollbar. */}
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
         {state === "signedOut" ? (
           <p role="status" className="text-dense text-studio-muted">
             {tMyGames(locale, "myGames.signInHint")}
@@ -383,7 +387,7 @@ export function MyStatsPanel() {
                 }}
               />
             ) : (
-          <div className="@container flex flex-col gap-5">
+          <div className="@container flex min-w-0 flex-col gap-5">
             <MyStatsFilterBar
               locale={locale}
               filters={overviewFilters}
@@ -434,7 +438,7 @@ export function MyStatsPanel() {
                 ))}
               </div>
               ) : null}
-              <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-studio-muted">
+              <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-caption text-studio-muted">
                 <div role="group" aria-label={tMyGames(locale, "myGames.statsSortBy")} className="flex items-center gap-1">
                   <span>{tMyGames(locale, "myGames.statsSortBy")}</span>
                   {(["games", "score"] as const).map((sort) => (

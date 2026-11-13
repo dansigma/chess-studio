@@ -15,8 +15,9 @@ export function ResultBar({
   /**
    * "color" (default): White / Draw / Black, as in the explorer.
    * "player" (SIG-1304): wins / draws / losses for the player — `white` is
-   * wins, `black` is losses — in green / grey / red, with no in-bar labels
-   * (the caller shows the counts).
+   * wins, `black` is losses. SIG-1308: same monochrome palette as the
+   * explorer (light / grey / dark), not green / red. No in-bar labels (the
+   * caller shows the counts).
    */
   perspective?: "color" | "player";
   label?: string;
@@ -25,9 +26,9 @@ export function ResultBar({
   const player = perspective === "player";
   const segments = player
     ? [
-        { key: "win", value: white, className: "bg-studio-success" },
-        { key: "draws", value: draws, className: "bg-studio-draw" },
-        { key: "loss", value: black, className: "bg-studio-danger" },
+        { key: "win", value: white, className: "bg-studio-win text-studio-loss" },
+        { key: "draws", value: draws, className: "bg-studio-draw text-studio-loss" },
+        { key: "loss", value: black, className: "bg-studio-result-black text-studio-win" },
       ]
     : [
     { key: "white", value: white, className: "bg-studio-win text-studio-loss" },

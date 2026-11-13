@@ -4,7 +4,7 @@ import { after, afterEach, before, test } from "node:test";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { PlayerGame } from "../lib/player-types.ts";
-import { MyStatsTrend } from "./MyStatsTrend";
+import { MyStatsTrend, clampCenter } from "./MyStatsTrend";
 
 before(() => setupDom());
 afterEach(() => cleanup());
@@ -82,4 +82,12 @@ test("roving tabindex and arrow keys move focus", () => {
   assert.equal(document.activeElement, dots[0]);
   fireEvent.keyDown(dots[0]!, { key: "End" });
   assert.equal(document.activeElement, dots[2]);
+});
+
+test("clampCenter keeps a box inside the container (SIG-1308)", () => {
+  assert.equal(clampCenter(5, 160, 400), 80);
+  assert.equal(clampCenter(395, 160, 400), 320);
+  assert.equal(clampCenter(200, 160, 400), 200);
+  // Box wider than container: pinned left, never negative.
+  assert.equal(clampCenter(50, 160, 100), 80);
 });
