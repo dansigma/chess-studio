@@ -112,6 +112,16 @@ describe("list / tour / round mapping", () => {
     assert.ok(snapshot.games.some((g) => g.result === "1/2-1/2"));
     assert.equal(normalizeResult("½-½"), "1/2-1/2");
   });
+
+  it("a game that hasn't started (no fen in the JSON) is at the starting position, not an empty board", () => {
+    // Shape of a not-yet-started round from the real API: only id, name, status and players.
+    const raw = json("round.json") as { games: Record<string, unknown>[] };
+    const notStarted = { ...raw, games: [{ id: "Z3e4ix4O", name: "A - B", players: raw.games[0]!.players, status: "*" }] };
+    const [game] = mapBroadcastRound(notStarted).games;
+    assert.equal(game?.fen, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    assert.equal(game?.lastMoveUci, null);
+    assert.equal(game?.result, "*");
+  });
 });
 
 describe("stream splitter", () => {

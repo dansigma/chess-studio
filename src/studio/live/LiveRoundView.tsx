@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowUpRight, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { formatDateTime } from "@/src/i18n/format";
 import { tLive } from "@/src/i18n/live-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -13,7 +13,6 @@ import { LiveConnectionIndicator } from "./LiveConnectionIndicator";
 import { LiveBoardGrid } from "./LiveBoardGrid";
 import { LiveGamesTable, orderedGames } from "./LiveGamesTable";
 import { enqueueLiveRequest, useLiveStore } from "./live-store";
-import { liveStudioHref } from "./live-studio-link";
 import { useLiveRound, useLiveRoundInfo } from "./use-live";
 import { pickRoundForTour, useLiveTour } from "./use-live-tour";
 
@@ -37,55 +36,23 @@ export function roundOptionLabel(round: BroadcastRoundSummary, locale: SiteLocal
 }
 
 /**
- * Second bar. The focused card already shows the names and the result, so this carries what it does not:
- * the opening (ECO code + name, once the PGN is known), the round's time control and "Open in Studio".
+ * Second bar: the focused game's opening (ECO code + name, once the PGN is known). Each card already has
+ * the names, the result and its own Studio button, so the bar doesn't repeat them.
  */
-function FollowedHeader({
-  game,
-  timeControl,
-  locale,
-}: {
-  game: LiveGame | undefined;
-  timeControl: string | null;
-  locale: SiteLocale;
-}) {
-  // SIG-1315: opens in a new tab, straight from the click (not blocked as a pop-up); this tab keeps its stream.
-  const openInStudio = () => {
-    if (game) {
-      window.open(liveStudioHref({ roundId: game.roundId, gameId: game.id }), "_blank", "noopener");
-    }
-  };
+function FollowedHeader({ game, locale }: { game: LiveGame | undefined; locale: SiteLocale }) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-dense text-studio-muted" data-live-followed="">
       {game ? (
-        <>
-          {game.eco || game.opening ? (
-            <span className="min-w-0 truncate text-studio-fg" title={tLive(locale, "live.round.opening")} data-live-opening="">
-              {game.eco ? <span className="font-semibold tabular-nums">{game.eco}</span> : null}
-              {game.eco && game.opening ? " · " : null}
-              {game.opening}
-            </span>
-          ) : null}
-        </>
+        game.eco || game.opening ? (
+          <span className="min-w-0 truncate text-studio-fg" title={tLive(locale, "live.round.opening")} data-live-opening="">
+            {game.eco ? <span className="font-semibold tabular-nums">{game.eco}</span> : null}
+            {game.eco && game.opening ? " · " : null}
+            {game.opening}
+          </span>
+        ) : null
       ) : (
         <span>{tLive(locale, "live.round.noFollowed")}</span>
       )}
-      {timeControl ? (
-        <span className="min-w-0 truncate" title={tLive(locale, "live.round.timeControl")} data-live-time-control="">
-          {timeControl}
-        </span>
-      ) : null}
-      {game ? (
-        <button
-          type="button"
-          className="inline-flex h-6 shrink-0 items-center gap-0.5 rounded-md border border-studio-border px-1.5 text-caption font-medium text-studio-fg-secondary hover:border-studio-accent hover:bg-studio-accent-soft hover:text-studio-accent-text"
-          onClick={openInStudio}
-          data-live-followed-studio=""
-        >
-          {tLive(locale, "live.round.openInStudio")}
-          <ArrowUpRight size={13} aria-hidden="true" />
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -165,27 +132,33 @@ export function LiveRoundView({
   const hasBoards = useLiveStore((s) => s.openBoards.length > 0);
   const gameCount = games ? Object.keys(games).length : 0;
 
-  // SIG-1313: a round opened with no boards starts with boards 1-3 (finished or not), board 1 focused. Once
-  // per round: the round is marked as soon as its first snapshot is in, whatever happens next, so closing or
-  // clearing the boards never brings them back, and a URL that restored `games=` (boards already open when the
-  // snapshot lands) is left as it is. Desktop only: mobile shows a single board the user picks.
+  // SIG-1313: boards 1-3 of the round (finished or not), board 1 focused. Desktop only: mobile shows a single
+  // board the user picks. It runs once per round, when the round's first snapshot is in, so closing or clearing
+  // boards never brings them back.
+  //  - First round of the view: only when no boards are open, so a URL that restored `games=` is left as it is.
+  //  - Switching round (round or tournament selector): the grid follows the new round, replacing the boards
+  //    of the previous one.
   const mobile = useIsMobile();
   const openBoard = useLiveStore((s) => s.openBoard);
-  const autoOpened = useRef<Set<string>>(new Set());
+  const closeAllBoards = useLiveStore((s) => s.closeAllBoards);
+  const autoOpenedRound = useRef<string | null>(null);
   useEffect(() => {
-    if (mobile || !info || !games || autoOpened.current.has(roundId)) {
+    if (mobile || !info || !games || autoOpenedRound.current === roundId) {
       return;
     }
     const first = orderedGames(games).slice(0, AUTO_OPEN_BOARDS);
     if (first.length === 0) {
       return;
     }
-    autoOpened.current.add(roundId);
-    if (useLiveStore.getState().openBoards.length > 0) {
+    const switched = autoOpenedRound.current !== null;
+    autoOpenedRound.current = roundId;
+    if (switched) {
+      closeAllBoards();
+    } else if (useLiveStore.getState().openBoards.length > 0) {
       return;
     }
     first.forEach((g, index) => openBoard({ roundId, gameId: g.id }, { focus: index === 0 }));
-  }, [mobile, info, games, roundId, openBoard]);
+  }, [mobile, info, games, roundId, openBoard, closeAllBoards]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-studio-bg" data-live-round={roundId}>
@@ -237,7 +210,7 @@ export function LiveRoundView({
         </a>
       </div>
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-studio-border-subtle px-3 py-1.5">
-        <FollowedHeader game={followed} timeControl={info?.tour.timeControl ?? null} locale={locale} />
+        <FollowedHeader game={followed} locale={locale} />
         <LiveConnectionIndicator />
       </div>
       {notStarted && info?.round.startsAt != null ? (

@@ -254,42 +254,21 @@ test("a drag that is not one of our cards is left alone; one card or the Focus l
   void first;
 });
 
-test("the context bar shows the opening, the time control and Open in Studio, with no names or result", async () => {
+test("the context bar shows only the opening: no time control, Studio button, names or result", async () => {
   await renderRound([game("a", { eco: "B50", opening: "Sicilian Defense: Delayed Alapin Variation", white: player("Sevian, Samuel"), black: player("Carlsen, Magnus"), result: "1-0" })]);
   act(() => useLiveStore.getState().openBoard({ roundId: "R1", gameId: "a" }));
   const bar = document.querySelector("[data-live-followed]") as HTMLElement;
   assert.match(bar.querySelector("[data-live-opening]")!.textContent!, /^B50 · Sicilian Defense: Delayed Alapin Variation$/u);
-  assert.equal(bar.querySelector("[data-live-time-control]")!.textContent, "45 min + 30 sec / move");
+  assert.doesNotMatch(bar.textContent!, /45 min/u, "the time control is gone");
+  assert.equal(within(bar).queryAllByRole("button").length, 0, "no Studio (each card has its own) and no copy button");
   assert.doesNotMatch(bar.textContent!, /Sevian|Carlsen|1 – 0/u);
-  assert.equal(within(bar).queryByRole("button", { name: /copy/iu }), null);
   assert.ok(document.querySelector("[data-live-connection]"), "the connection indicator stays");
 });
 
-test("Open in Studio in the context bar opens the focused game in a new tab and keeps this one", async () => {
-  await renderRound([game("a"), game("b")]);
-  act(() => useLiveStore.getState().openBoard({ roundId: "R1", gameId: "b" }));
-  const calls: unknown[][] = [];
-  const original = window.open;
-  window.open = ((...args: unknown[]) => {
-    calls.push(args);
-    return null;
-  }) as typeof window.open;
-  try {
-    const before = useLiveStore.getState();
-    fireEvent.click(within(document.querySelector("[data-live-followed]") as HTMLElement).getByRole("button", { name: /Open in Studio/u }));
-    assert.deepEqual(calls, [["/studio?broadcast=R1%3Ab", "_blank", "noopener"]]);
-    assert.equal(useLiveStore.getState(), before);
-  } finally {
-    window.open = original;
-  }
-});
-
-test("the opening shows nothing while unknown; time control and the hint stay", async () => {
+test("the opening shows nothing while unknown; the hint shows with no game", async () => {
   await renderRound([game("a")]);
   const bar = () => document.querySelector("[data-live-followed]") as HTMLElement;
   assert.match(bar().textContent!, /Click a game to follow it\./u);
-  assert.equal(within(bar()).queryByRole("button", { name: /Open in Studio/u }), null, "no game, no button");
-  assert.equal(bar().querySelector("[data-live-time-control]")!.textContent, "45 min + 30 sec / move");
   act(() => useLiveStore.getState().openBoard({ roundId: "R1", gameId: "a" }));
   assert.equal(bar().querySelector("[data-live-opening]"), null);
   assert.doesNotMatch(bar().textContent!, /undefined|null|\?|–$/u);
@@ -301,7 +280,7 @@ test("the opening shows nothing while unknown; time control and the hint stay", 
   assert.equal(bar().querySelector("[data-live-opening]")!.textContent, "A08 · Zukertort Opening");
 });
 
-test("pt-BR: layout selector, clear grid, flip and the context bar", async () => {
+test("pt-BR: layout selector, clear grid, flip, and no Studio button in the context bar", async () => {
   act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } }));
   await renderRound([game("a"), game("b")]);
   openBoards("a", "b");
@@ -311,8 +290,7 @@ test("pt-BR: layout selector, clear grid, flip and the context bar", async () =>
   }
   assert.ok(screen.getByRole("button", { name: "Limpar grade" }));
   assert.ok(within(board("a")).getByRole("button", { name: "Virar o tabuleiro" }));
-  act(() => useLiveStore.getState().focusBoard({ roundId: "R1", gameId: "a" }));
-  assert.ok(within(document.querySelector("[data-live-followed]") as HTMLElement).getByRole("button", { name: /Abrir no Studio/u }));
+  assert.equal(within(document.querySelector("[data-live-followed]") as HTMLElement).queryByRole("button", { name: /Abrir no Studio/u }), null);
 });
 
 // ---- auto-open ----
@@ -382,6 +360,29 @@ test("auto-open: switching to another round with no boards open opens its first 
   act(() => useLiveStore.getState().closeAllBoards());
   act(() => useLiveStore.getState().setTableRound("R2"));
   await waitFor(() => assert.deepEqual(useLiveStore.getState().openBoards.map((b) => `${b.roundId}:${b.gameId}`), ["R2:a", "R2:b", "R2:c"]));
+});
+
+test("auto-open: switching round replaces the previous round's boards with the new round's first three", async () => {
+  roundHandler = async (id) => snapshot(ids(4).map((g) => game(g, { roundId: id, ...(id === "R2" ? { result: "1-0" as const } : {}) })), id);
+  render(<LiveView />);
+  await waitFor(() => assert.deepEqual(boardIds(), ["a", "b", "c"]));
+  act(() => useLiveStore.getState().openBoard({ roundId: "R1", gameId: "d" }, { focus: false }));
+  act(() => useLiveStore.getState().setTableRound("R2"));
+  const refs = () => useLiveStore.getState().openBoards.map((b) => `${b.roundId}:${b.gameId}`);
+  await waitFor(() => assert.deepEqual(refs(), ["R2:a", "R2:b", "R2:c"]));
+  assert.deepEqual(useLiveStore.getState().focusedGame, { roundId: "R2", gameId: "a" });
+  // back to the first round: its boards come back the same way
+  act(() => useLiveStore.getState().setTableRound("R1"));
+  await waitFor(() => assert.deepEqual(refs(), ["R1:a", "R1:b", "R1:c"]));
+});
+
+test("a round that hasn't started: cards say Not started, not Live", async () => {
+  roundHandler = async () => ({ ...snapshot(ids(3).map((id) => game(id))), round: { ...round("R1"), ongoing: false, startsAt: Date.now() + 3_600_000 } });
+  render(<LiveView />);
+  await waitFor(() => assert.deepEqual(boardIds(), ["a", "b", "c"]));
+  assert.ok(board("a").querySelector("[data-live-not-started]"));
+  assert.match(board("a").textContent!, /Not started/u);
+  assert.equal(board("a").querySelector("[data-live-badge]"), null);
 });
 
 test("auto-open: not on mobile, which keeps its single board", async () => {

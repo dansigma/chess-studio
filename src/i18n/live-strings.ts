@@ -77,6 +77,7 @@ export const LIVE_STRING_KEYS = [
   "live.board.openInStudio",
   "live.board.studioShort",
   "live.board.liveBadge",
+  "live.board.notStarted",
   "live.board.toMove",
   "live.board.backToLive",
   "live.board.toEnd",
@@ -98,8 +99,6 @@ export const LIVE_STRING_KEYS = [
   "live.layout.compact",
   "live.layout.focus",
   "live.grid.clear",
-  "live.round.openInStudio",
-  "live.round.timeControl",
   "live.round.opening",
 ] as const;
 
@@ -181,6 +180,7 @@ const EN: Record<LiveStringKey, string> = {
   "live.board.openInStudio": "Open in Studio",
   "live.board.studioShort": "Studio",
   "live.board.liveBadge": "Live",
+  "live.board.notStarted": "Not started",
   "live.board.toMove": "To move",
   "live.board.backToLive": "Live ▸",
   "live.board.toEnd": "Final position ▸",
@@ -202,8 +202,6 @@ const EN: Record<LiveStringKey, string> = {
   "live.layout.compact": "Compact",
   "live.layout.focus": "Focus",
   "live.grid.clear": "Clear grid",
-  "live.round.openInStudio": "Open in Studio",
-  "live.round.timeControl": "Time control",
   "live.round.opening": "Opening",
 };
 
@@ -283,6 +281,7 @@ const PT_BR: Record<LiveStringKey, string> = {
   "live.board.openInStudio": "Abrir no Studio",
   "live.board.studioShort": "Studio",
   "live.board.liveBadge": "Ao vivo",
+  "live.board.notStarted": "Não iniciada",
   "live.board.toMove": "Vez de jogar",
   "live.board.backToLive": "Ao vivo ▸",
   "live.board.toEnd": "Posição final ▸",
@@ -304,8 +303,6 @@ const PT_BR: Record<LiveStringKey, string> = {
   "live.layout.compact": "Compacto",
   "live.layout.focus": "Foco",
   "live.grid.clear": "Limpar grade",
-  "live.round.openInStudio": "Abrir no Studio",
-  "live.round.timeControl": "Controle de tempo",
   "live.round.opening": "Abertura",
 };
 

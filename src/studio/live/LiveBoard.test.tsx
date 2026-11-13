@@ -210,7 +210,11 @@ test("polled round: first PGN is fetched, +1 ply is appended locally, a bigger j
   pgnHandler = async () => pgn("a", plies) + pgn("b", plies);
   roundHandler = async () => snapshot([game("a", 1), game("b", 1)]);
   render(<LiveView />);
-  await waitFor(() => assert.ok(rowOf("a")));
+  // The auto-opened boards fetch the round PGN first. Let that request settle before counting: under a
+  // loaded runner the clicks below could land after its 400 ms debounce and start a second one.
+  await waitFor(() => assert.match(board("a").textContent!, /e4/u));
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  pgnCalls.length = 0;
   clearAutoOpened();
   fireEvent.click(rowOf("a"));
   fireEvent.click(rowOf("b"));

@@ -23,7 +23,7 @@ import { LivePlayerCell } from "./LivePlayerCell";
 import { useLiveStore } from "./live-store";
 import { liveStudioHref } from "./live-studio-link";
 import { useLiveBoardNotation } from "./use-live-board-notation";
-import { useLiveGame } from "./use-live";
+import { useLiveGame, useLiveRoundInfo } from "./use-live";
 
 const NO_COLLAPSE = new Set<string>();
 const noop = () => {};
@@ -112,6 +112,9 @@ export function LiveBoard({
   onFlip?: () => void;
 }) {
   const game = useLiveGame(roundId, gameId);
+  // A round that hasn't started: its games are not live yet (the JSON calls it neither ongoing nor finished).
+  const roundInfo = useLiveRoundInfo(roundId);
+  const roundNotStarted = roundInfo !== undefined && !roundInfo.round.ongoing && !roundInfo.round.finished;
   const streamed = useLiveStore((s) => s.streamRoundId === roundId);
   const tree = useLiveBoardNotation(roundId, gameId, game);
   const boardTheme = useStudioStore((s) => s.settings.boardTheme);
@@ -267,7 +270,9 @@ export function LiveBoard({
     >
       <header className="-mr-1 -mt-1 flex h-7 items-center gap-1">
         <span className="flex min-w-0 flex-1 items-center gap-2 truncate text-caption text-studio-muted">
-          {finished ? null : streamed ? (
+          {finished ? null : roundNotStarted ? (
+            <span data-live-not-started="">{tLive(locale, "live.board.notStarted")}</span>
+          ) : streamed ? (
             <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-wide text-studio-danger" data-live-badge="">
               <span className="h-1.5 w-1.5 rounded-full bg-studio-danger motion-safe:animate-pulse" aria-hidden="true" />
               {tLive(locale, "live.board.liveBadge")}

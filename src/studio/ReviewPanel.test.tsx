@@ -295,9 +295,10 @@ test("SIG-1219: a count jumps to a move of that tier, and the scored labels are 
     render(<ReviewPanel />);
     fireEvent.click(screen.getByRole("button", { name: tReview("en", "panel.reviewGame") }));
     assert.ok(await screen.findByRole("button", { name: tReview("en", "panel.reviewAgain") }, { timeout: 30_000 }));
+    // The labels are published from an effect after the report renders: wait for it, don't race it.
+    await waitFor(() => assert.ok(useReviewLabelsStore.getState().labels.size > 0, "scored moves are published"));
     const published = useReviewLabelsStore.getState();
     assert.equal(published.boardId, useStudioStore.getState().active().id);
-    assert.ok(published.labels.size > 0, "scored moves are published");
     assert.ok(![...published.labels.values()].includes("forced" as never), "forced moves carry no badge");
 
     const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-classification=table] button[data-tier-count]"));
