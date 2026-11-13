@@ -17,6 +17,8 @@ import { formatGameCount } from "./filter-chips";
 import { selectAll, selectOnly, toggleSource } from "./library-sources";
 import { useLibraryStore } from "./library-store";
 
+const MENU_MIN_WIDTH = 176;
+
 export type LibrarySourceBarProps = {
   sourceErrors: Partial<Record<LibrarySourceId, string>>;
 };
@@ -158,7 +160,7 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
     return (
       <div
         key={id}
-        className={`flex h-9 shrink-0 items-stretch rounded-md border ${
+        className={`flex h-9 max-w-60 shrink-0 items-stretch rounded-md border ${
           isSelected
             ? "border-studio-accent bg-studio-accent-soft text-studio-accent-text"
             : "border-studio-border bg-studio-hover-subtle text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
@@ -183,7 +185,7 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
             onClick={click(id)}
             className="flex min-w-0 flex-col items-start justify-center rounded-md px-2.5 text-left"
           >
-            <span className="flex max-w-48 items-center gap-1 text-dense font-medium leading-tight">
+            <span className="flex min-w-0 max-w-48 items-center gap-1 text-dense font-medium leading-tight">
               <span className="truncate">{name}</span>
               {error !== undefined ? (
                 <span
@@ -206,11 +208,13 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
             aria-haspopup="menu"
             aria-expanded={menu?.databaseId === database.id}
             data-testid="library-source-menu"
-            className="my-auto mr-1 text-studio-muted"
+            className="my-auto mr-1 shrink-0 text-studio-muted"
             onClick={(event) => {
               event.stopPropagation();
               const rect = event.currentTarget.getBoundingClientRect();
-              setMenu(menu?.databaseId === database.id ? null : { databaseId: database.id, x: rect.left, y: rect.bottom + 4 });
+              // Keep the menu (min-w-44 = 176px) inside the viewport near the right edge.
+              const x = Math.max(8, Math.min(rect.left, window.innerWidth - MENU_MIN_WIDTH - 8));
+              setMenu(menu?.databaseId === database.id ? null : { databaseId: database.id, x, y: rect.bottom + 4 });
             }}
           >
             <Ellipsis size={14} />
