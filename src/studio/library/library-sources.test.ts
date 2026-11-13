@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { reconcileLibrarySources } from "./library-sources";
+import { reconcileLibrarySources, selectAll, selectOnly, toggleSource } from "./library-sources";
+import type { LibrarySourceId } from "@/src/lib/library/types";
 
 describe("reconcileLibrarySources", () => {
   it("selects every available source on the first run", () => {
@@ -29,5 +30,22 @@ describe("registerLibraryAdapters", () => {
     for (const id of ids) {
       assert.ok(getLibrarySource(id), `${id} is registered`);
     }
+  });
+});
+
+describe("selection helpers", () => {
+  const all: LibrarySourceId[] = ["my-games", "masters", "file:a"];
+  it("selectOnly picks a single source", () => {
+    assert.deepEqual(selectOnly("masters"), ["masters"]);
+  });
+  it("toggleSource adds and removes", () => {
+    assert.deepEqual(toggleSource(["my-games"], "masters", all), ["my-games", "masters"]);
+    assert.deepEqual(toggleSource(["my-games", "masters"], "masters", all), ["my-games"]);
+  });
+  it("toggleSource keeps the last selected source", () => {
+    assert.deepEqual(toggleSource(["my-games"], "my-games", all), ["my-games"]);
+  });
+  it("selectAll returns every available source", () => {
+    assert.deepEqual(selectAll(all), all);
   });
 });

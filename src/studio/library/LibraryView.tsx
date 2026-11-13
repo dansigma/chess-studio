@@ -7,6 +7,7 @@ import { Panel } from "../ui/Panel";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { useLibraryGames, type LibraryGamesState } from "./use-library-games";
 import { LibraryToolbar } from "./LibraryToolbar";
+import { LibrarySourceBar } from "./LibrarySourceBar";
 import { useLibrarySources } from "./library-sources";
 import { useMyGamesIndexing, type MyGamesIndexingState } from "./use-my-games-indexing";
 import {
@@ -125,8 +126,9 @@ function LibraryGames({ toolbar, table, preview }: LibraryViewSlots) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
       <div aria-label={tLibrary(locale, "library.toolbar.label")} role="search" data-testid="library-toolbar-slot">
-        {toolbar ?? <LibraryToolbar total={games.total} sourceErrors={games.sourceErrors} />}
+        {toolbar ?? <LibraryToolbar total={games.total} />}
       </div>
+      <LibrarySourceBar sourceErrors={games.sourceErrors} />
       <div ref={containerRef} className="flex min-h-0 flex-1">
         <Panel
           as="section"

@@ -26,7 +26,7 @@ function setup(sources: ("my-games" | "masters")[], masters = MASTERS) {
   registerLibrarySource(fake("masters", "Masters", masters));
   useStudioStore.setState((s) => ({ settings: { ...s.settings, locale: "en" } }));
   useLibraryStore.setState({ filters: { ...DEFAULT_LIBRARY_FILTERS, sources }, filtersOpen: true });
-  render(<LibraryToolbar total={null} sourceErrors={{}} />);
+  render(<LibraryToolbar total={null} />);
 }
 beforeEach(() => setup(["my-games", "masters"]));
 

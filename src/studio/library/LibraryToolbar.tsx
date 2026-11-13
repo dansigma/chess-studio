@@ -2,13 +2,11 @@
 
 import { Chessboard } from "react-chessboard";
 import { useEffect, useRef, useState } from "react";
-import { Database, Info, SlidersHorizontal, TriangleAlert, X } from "lucide-react";
+import { Info, SlidersHorizontal, X } from "lucide-react";
 import { tLibrary } from "@/src/i18n/library-strings";
 import { listLibrarySources } from "@/src/lib/library/sources";
-import type { LibrarySourceId } from "@/src/lib/library/types";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Badge, SearchInput, Tooltip } from "../ui/Controls";
-import { MenuDivider, MenuItem, MenuSurface } from "../ui/Menu";
 import {
   buildFilterChips,
   chipRemovalPatch,
@@ -24,11 +22,10 @@ export const LIBRARY_SEARCH_DEBOUNCE_MS = 300;
 
 export type LibraryToolbarProps = {
   total: number | null;
-  sourceErrors: Partial<Record<LibrarySourceId, string>>;
 };
 
-/** SIG-1278: quick search, source picker, counter, filter chips and Filters button. */
-export function LibraryToolbar({ total, sourceErrors }: LibraryToolbarProps) {
+/** SIG-1278: quick search, counter, filter chips and Filters button. */
+export function LibraryToolbar({ total }: LibraryToolbarProps) {
   const locale = useStudioStore((state) => state.settings.locale);
   // Re-render when personal databases change; the registry itself is not reactive.
   useStudioStore((state) => state.files.databases);
@@ -64,7 +61,6 @@ export function LibraryToolbar({ total, sourceErrors }: LibraryToolbarProps) {
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 px-0.5">
       <DebouncedSearch />
-      <SourcePicker available={available} sourceErrors={sourceErrors} />
       <span className="text-caption tabular-nums text-studio-muted" data-testid="library-counter">
         {tLibrary(locale, "library.sources.selected", { x: selectedCount, y: available.length })}
         {total !== null ? ` · ${tLibrary(locale, "library.total", { count: formatGameCount(total, locale) })}` : ""}
@@ -238,108 +234,6 @@ function DebouncedSearch() {
         onChange={change}
         placeholder={tLibrary(locale, "library.search.placeholder")}
       />
-    </div>
-  );
-}
-
-function SourcePicker({
-  available,
-  sourceErrors,
-}: {
-  available: ChipSource[];
-  sourceErrors: Partial<Record<LibrarySourceId, string>>;
-}) {
-  const locale = useStudioStore((state) => state.settings.locale);
-  const selected = useLibraryStore((s) => s.filters.sources);
-  const setSources = useLibraryStore((s) => s.setSources);
-  const [open, setOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const ids = available.map((source) => source.id);
-  const selectedAvailable = ids.filter((id) => selected.includes(id));
-  const allSelected = selectedAvailable.length === ids.length;
-  const anyFailed = selectedAvailable.some((id) => sourceErrors[id] !== undefined);
-
-  const toggle = (id: LibrarySourceId) => {
-    if (selected.includes(id)) {
-      if (selectedAvailable.length <= 1) {
-        return; // last-source guard
-      }
-      setSources(selected.filter((other) => other !== id));
-    } else {
-      setSources([...selected, id]);
-    }
-  };
-
-  return (
-    <div className="relative shrink-0">
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-dense text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg ${
-          open ? "ring-1 ring-studio-border-strong" : ""
-        }`}
-      >
-        <Database size={14} aria-hidden="true" />
-        {tLibrary(locale, "library.sources.button")}
-        {anyFailed ? <TriangleAlert size={12} className="text-studio-danger" aria-hidden="true" /> : null}
-      </button>
-      {open ? (
-        <>
-          <button
-            type="button"
-            tabIndex={-1}
-            className="fixed inset-0 z-10 cursor-default"
-            aria-label={tLibrary(locale, "library.sources.button")}
-            onClick={() => setOpen(false)}
-          />
-          <MenuSurface
-            label={tLibrary(locale, "library.sources.button")}
-            className="absolute left-0 top-8 z-20 min-w-60 max-w-[calc(100vw-1rem)]"
-            onClose={() => {
-              setOpen(false);
-              buttonRef.current?.focus();
-            }}
-          >
-            <MenuItem
-              label={tLibrary(locale, "library.sources.selectAll")}
-              checked={allSelected}
-              disabled={allSelected}
-              onClick={() => setSources(ids)}
-            />
-            <MenuDivider />
-            {available.map((source) => {
-              const isSelected = selected.includes(source.id);
-              const isLast = isSelected && selectedAvailable.length <= 1;
-              const error = sourceErrors[source.id];
-              return (
-                <MenuItem
-                  key={source.id}
-                  label={source.label}
-                  checked={isSelected}
-                  disabled={isLast}
-                  disabledReason={isLast ? tLibrary(locale, "library.sources.lastGuard") : undefined}
-                  leading={
-                    error !== undefined ? (
-                      <span
-                        role="img"
-                        title={tLibrary(locale, "library.sources.failed", { message: error })}
-                        aria-label={tLibrary(locale, "library.sources.failed", { message: error })}
-                        className="text-studio-danger"
-                      >
-                        <TriangleAlert size={12} />
-                      </span>
-                    ) : undefined
-                  }
-                  onClick={() => toggle(source.id)}
-                />
-              );
-            })}
-          </MenuSurface>
-        </>
-      ) : null}
     </div>
   );
 }
