@@ -1,5 +1,6 @@
 "use client";
 
+import { useReferenceSourcePersistence } from "./library/use-reference-source-persistence";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { creditRows } from "@/src/lib/legal/credits";
 import { CreditSegments } from "@/src/site/CreditSegments";
@@ -81,6 +82,7 @@ export function StudioShell() {
   const workspaceView = useStudioStore((state) => state.workspaceView);
   const activeBoardId = useStudioStore((state) => state.activeBoardId);
   useWorkspaceViewUrl();
+  useReferenceSourcePersistence();
   // SIG-1273: choosing a board (any change of the active board) leaves the Library and Live.
   const lastBoardId = useRef(activeBoardId);
   useEffect(() => {

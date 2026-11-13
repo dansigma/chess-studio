@@ -190,3 +190,35 @@ test("delete asks first, then removes the file", async () => {
   fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
   assert.equal(useStudioStore.getState().files.databases.length, 0);
 });
+
+const stars = () => screen.queryAllByTestId("library-source-reference");
+
+test("stars: Masters and file cards have one, My Games none; only the reference is filled", async () => {
+  useStudioStore.setState({ databaseSource: "masters" });
+  await renderBar();
+  assert.equal(stars().length, 2);
+  const pressed = stars().map((el) => el.getAttribute("aria-pressed"));
+  assert.deepEqual(pressed, ["true", "false"]);
+  assert.equal(stars()[0].getAttribute("aria-label"), "Explorer reference database");
+  assert.equal(stars()[1].getAttribute("aria-label"), "Use as Explorer reference database");
+});
+
+test("stars: clicking an empty star sets the source without selecting the card; filled is a no-op", async () => {
+  useStudioStore.setState({ databaseSource: "masters" });
+  await renderBar();
+  const before = sources();
+  fireEvent.click(stars()[1]);
+  assert.equal(useStudioStore.getState().databaseSource, "file:db1");
+  assert.deepEqual(sources(), before);
+  fireEvent.click(stars()[1]);
+  assert.equal(useStudioStore.getState().databaseSource, "file:db1");
+  assert.equal(stars()[1].getAttribute("aria-pressed"), "true");
+  assert.equal(stars()[0].getAttribute("aria-pressed"), "false");
+});
+
+test("stars: a lichess reference fills none and Masters' tooltip names it", async () => {
+  useStudioStore.setState({ databaseSource: "lichess" });
+  await renderBar();
+  assert.deepEqual(stars().map((el) => el.getAttribute("aria-pressed")), ["false", "false"]);
+  assert.match(stars()[0].getAttribute("aria-label") ?? "", /Explorer reference: Online Database/);
+});

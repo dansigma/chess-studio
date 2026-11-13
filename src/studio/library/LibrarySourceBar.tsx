@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { Ellipsis, TriangleAlert } from "lucide-react";
+import { Ellipsis, Star, TriangleAlert } from "lucide-react";
 import { tLibrary } from "@/src/i18n/library-strings";
+import { explorerSourceTitle } from "@/src/lib/explorer-types";
 import { MASTERS_SOURCE_ID } from "@/src/lib/library/masters-source";
 import { getLibrarySource, listLibrarySources } from "@/src/lib/library/sources";
 import { defaultLibraryFilters, type LibrarySourceId } from "@/src/lib/library/types";
@@ -16,6 +17,7 @@ import { MenuItem, MenuSurface } from "../ui/Menu";
 import { formatGameCount } from "./filter-chips";
 import { selectAll, selectOnly, toggleSource } from "./library-sources";
 import { useLibraryStore } from "./library-store";
+import { libraryToExplorerSource } from "./reference-source";
 
 const MENU_MIN_WIDTH = 176;
 
@@ -107,6 +109,8 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
   const myGamesCount = useMyGamesCount(hasMyGames);
   const renameFileDatabase = useStudioStore((s) => s.renameFileDatabase);
   const deleteFileDatabase = useStudioStore((s) => s.deleteFileDatabase);
+  const referenceSource = useStudioStore((s) => s.databaseSource);
+  const setDatabaseSource = useStudioStore((s) => s.setDatabaseSource);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ databaseId: string; x: number; y: number } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -157,6 +161,33 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
     const databaseId = id.startsWith("file:") ? id.slice("file:".length) : null;
     const database = databaseId ? databases.find((item) => item.id === databaseId) : undefined;
     const name = adapter.label(locale);
+    const explorerSource = libraryToExplorerSource(id);
+    const isReference = explorerSource !== null && explorerSource === referenceSource;
+    // Curated/Lichess have no card: Masters' tooltip says which database is really in use.
+    const outsideLibrary = id === MASTERS_SOURCE_ID && referenceSource !== "masters" && !referenceSource.startsWith("file:");
+    const starLabel = isReference
+      ? tLibrary(locale, "library.sources.reference.active")
+      : outsideLibrary
+        ? `${tLibrary(locale, "library.sources.reference.other", { name: explorerSourceTitle(referenceSource, databases, locale) })}. ${tLibrary(locale, "library.sources.reference.use")}`
+        : tLibrary(locale, "library.sources.reference.use");
+    const star =
+      explorerSource !== null && (!database || renamingId !== database.id) ? (
+        <IconButton
+          label={starLabel}
+          size="sm"
+          active={isReference}
+          data-testid="library-source-reference"
+          className={`my-auto shrink-0 ${database ? "" : "mr-1"} ${isReference ? "text-studio-accent-text" : "text-studio-muted"}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (!isReference) {
+              setDatabaseSource(explorerSource);
+            }
+          }}
+        >
+          <Star size={14} fill={isReference ? "currentColor" : "none"} />
+        </IconButton>
+      ) : null;
     return (
       <div
         key={id}
@@ -201,6 +232,7 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
             {detail !== null ? <span className="text-caption leading-tight tabular-nums opacity-80">{detail}</span> : null}
           </button>
         )}
+        {star}
         {database && renamingId !== database.id ? (
           <IconButton
             label={tLibrary(locale, "library.sources.file.menu", { name })}
