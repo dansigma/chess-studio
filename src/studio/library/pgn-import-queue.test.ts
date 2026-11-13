@@ -4,7 +4,13 @@ import { importOne, splitPgnFiles, type PgnImportDeps } from "./pgn-import-queue
 import { enqueuePgnFiles, resetImportQueue, useImportQueue } from "./import-queue-store";
 import type { ParsedFileGame } from "@/src/chess/pgn-games";
 
-afterEach(() => resetImportQueue());
+const stops: Array<() => void> = [];
+afterEach(() => {
+  resetImportQueue();
+  for (const stop of stops.splice(0)) {
+    stop();
+  }
+});
 
 const GAME = '[Event "t"]\n[White "A"]\n[Black "B"]\n[Result "1-0"]\n\n1. e4 e5 1-0\n\n';
 const file = (name: string, text = GAME) => new File([text], name);
@@ -18,6 +24,9 @@ function makeDeps(existing = 0): Recorder & { onDrained: (ids: string[]) => void
     calls,
     drained,
     databaseCount: () => existing + calls.length,
+    databases: () => [],
+    replaceDatabaseGames: () => false,
+    resolveConflict: async () => "cancel",
     importParsedDatabase: (name, games) => {
       calls.push({ name, games });
       return `id-${name}`;
@@ -136,4 +145,151 @@ test("importOne rejects with AbortError when the signal is already aborted", asy
   const controller = new AbortController();
   controller.abort();
   await assert.rejects(importOne(file("a.pgn"), makeDeps(), { signal: controller.signal }), { name: "AbortError" });
+});
+
+// --- SIG-1324: name conflicts ---
+const g = (move: string) => `[Event "t"]\n[White "A"]\n[Black "B"]\n[Date "2020.01.01"]\n[Result "1-0"]\n\n1. e4 e5 2. ${move} 1-0\n\n`;
+const parsedGame = (id: string, move: string): ParsedFileGame => ({
+  id,
+  white: "A",
+  black: "B",
+  result: "1-0",
+  event: "t",
+  date: "2020.01.01",
+  pgn: g(move),
+  title: "",
+});
+
+function conflictDeps(existingNames: string[], choice: "replace" | "keep-both" | "merge" | "cancel" | null, total = existingNames.length) {
+  const dbs = existingNames.map((name, i) => ({
+    id: `db${i}`,
+    remoteId: null,
+    name,
+    folderId: null,
+    games: [parsedGame(`g${i}`, "Nf3")],
+  }));
+  const replaced: Array<{ id: string; games: ParsedFileGame[] }> = [];
+  const asked: Array<{ name: string; keepBothAllowed: boolean }> = [];
+  const deps = {
+    ...makeDeps(),
+    databaseCount: () => total + (deps?.calls.length ?? 0),
+    databases: () => [...dbs, ...(deps?.calls ?? []).map((c) => ({ id: `id-${c.name}`, remoteId: null, name: c.name, folderId: null, games: c.games }))],
+    replaceDatabaseGames: (id: string, games: ParsedFileGame[]) => {
+      replaced.push({ id, games });
+      return true;
+    },
+  };
+  // The queue store owns the dialog state; answer it like the dialog buttons do.
+  const stop = useImportQueue.subscribe((state) => {
+    if (state.pendingConflict) {
+      asked.push({ name: state.pendingConflict.databaseName, keepBothAllowed: state.pendingConflict.keepBothAllowed });
+      if (choice) {
+        queueMicrotask(() => state.answerConflict(choice));
+      }
+    }
+  });
+  stops.push(stop);
+  return Object.assign(deps, { replaced, asked });
+}
+
+test("no dialog when the name does not match", async () => {
+  const deps = conflictDeps(["Other"], "replace");
+  await enqueuePgnFiles([file("New.pgn")], deps).done;
+  assert.equal(deps.asked.length, 0);
+  assert.deepEqual(deps.calls.map((c) => c.name), ["New"]);
+});
+
+test("a name match (case, spaces) asks and Replace keeps the database id", async () => {
+  const deps = conflictDeps(["Sicilian"], "replace");
+  await enqueuePgnFiles([file("sicilian.PGN", g("Nc3") + g("Bc4"))], deps).done;
+  assert.deepEqual(deps.asked, [{ name: "Sicilian", keepBothAllowed: true }]);
+  assert.equal(deps.calls.length, 0);
+  assert.equal(deps.replaced[0].id, "db0");
+  assert.equal(deps.replaced[0].games.length, 2);
+  assert.deepEqual(deps.drained, [["db0"]]);
+  const [entry] = useImportQueue.getState().entries;
+  assert.equal(entry.state, "done");
+  assert.equal(entry.mode, "replace");
+  assert.equal(entry.imported, 2);
+});
+
+test("Keep both imports as 'name (2)', then (3)", async () => {
+  const deps = conflictDeps(["Sicilian", "Sicilian (2)"], "keep-both");
+  await enqueuePgnFiles([file("Sicilian.pgn")], deps).done;
+  assert.deepEqual(deps.calls.map((c) => c.name), ["Sicilian (3)"]);
+  assert.equal(deps.replaced.length, 0);
+});
+
+test("Merge adds only new games and reports added and duplicates", async () => {
+  const deps = conflictDeps(["Sicilian"], "merge");
+  await enqueuePgnFiles([file("Sicilian.pgn", g("Nf3") + g("Nc3"))], deps).done;
+  assert.equal(deps.replaced[0].id, "db0");
+  assert.equal(deps.replaced[0].games.length, 2);
+  const [entry] = useImportQueue.getState().entries;
+  assert.equal(entry.mode, "merge");
+  assert.equal(entry.added, 1);
+  assert.equal(entry.duplicates, 1);
+  assert.equal(entry.overLimit, 0);
+});
+
+test("Cancel skips only that file and the queue continues", async () => {
+  const deps = conflictDeps(["Sicilian"], "cancel");
+  await enqueuePgnFiles([file("Sicilian.pgn"), file("Other.pgn")], deps).done;
+  assert.deepEqual(deps.calls.map((c) => c.name), ["Other"]);
+  assert.equal(deps.replaced.length, 0);
+  assert.deepEqual(useImportQueue.getState().entries.map((e) => e.state), ["cancelled", "done"]);
+});
+
+test("the queue waits on the dialog answer, and the widget cancel closes it", async () => {
+  const deps = conflictDeps(["Sicilian"], null);
+  const { done } = enqueuePgnFiles([file("Sicilian.pgn"), file("Other.pgn")], deps);
+  while (!useImportQueue.getState().pendingConflict) {
+    await new Promise((r) => setTimeout(r, 0));
+  }
+  const pending = useImportQueue.getState().pendingConflict!;
+  assert.equal(pending.databaseName, "Sicilian");
+  assert.equal(useImportQueue.getState().entries[0].state, "awaiting");
+  assert.equal(deps.calls.length, 0);
+  useImportQueue.getState().cancel(pending.entryId);
+  await done;
+  assert.equal(useImportQueue.getState().pendingConflict, null);
+  assert.deepEqual(deps.calls.map((c) => c.name), ["Other"]);
+  assert.deepEqual(useImportQueue.getState().entries.map((e) => e.state), ["cancelled", "done"]);
+});
+
+test("at 50 databases a name match still asks; Keep both is blocked, Replace and Merge work", async () => {
+  const names = Array.from({ length: 50 }, (_, i) => (i === 0 ? "Sicilian" : `db ${i}`));
+  const blocked = conflictDeps(names, "keep-both");
+  await enqueuePgnFiles([file("Sicilian.pgn")], blocked).done;
+  assert.deepEqual(blocked.asked, [{ name: "Sicilian", keepBothAllowed: false }]);
+  assert.equal(blocked.calls.length, 0);
+  assert.equal(useImportQueue.getState().entries[0].error, "database-limit");
+
+  resetImportQueue();
+  for (const stop of stops.splice(0)) stop();
+  const replace = conflictDeps(names, "replace");
+  await enqueuePgnFiles([file("Sicilian.pgn")], replace).done;
+  assert.equal(replace.replaced.length, 1);
+  resetImportQueue();
+  for (const stop of stops.splice(0)) stop();
+  const merge = conflictDeps(names, "merge");
+  await enqueuePgnFiles([file("Sicilian.pgn", g("Nc3"))], merge).done;
+  assert.equal(merge.replaced.length, 1);
+  // A non-matching file at 50 is still refused without prompting.
+  resetImportQueue();
+  for (const stop of stops.splice(0)) stop();
+  const other = conflictDeps(names, "replace");
+  await enqueuePgnFiles([file("Fresh.pgn")], other).done;
+  assert.equal(other.asked.length, 0);
+  assert.equal(useImportQueue.getState().entries[0].error, "database-limit");
+});
+
+test("Merge counts new games past the 5,000 limit", async () => {
+  const deps = conflictDeps(["Sicilian"], "merge");
+  const many = Array.from({ length: 5010 }, (_, i) => `[White "P${i}"]\n[Black "B"]\n[Result "1-0"]\n\n1. e4 e5 1-0\n\n`).join("");
+  await enqueuePgnFiles([file("Sicilian.pgn", many)], deps).done;
+  assert.equal(deps.replaced[0].games.length, 5000);
+  const [entry] = useImportQueue.getState().entries;
+  assert.equal(entry.added, 4999);
+  assert.equal(entry.overLimit, 10 + 1);
 });

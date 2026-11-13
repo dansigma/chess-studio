@@ -48,6 +48,7 @@ export type FilesSlice = Pick<
   | "moveFileDatabase"
   | "importFileDatabase"
   | "importParsedDatabase"
+  | "replaceFileDatabaseGames"
   | "showFileDatabase"
   | "openPgnSource"
   | "openFileGame"
@@ -63,6 +64,34 @@ type FilesSet = Parameters<StateCreator<StudioState, [], [], FilesSlice>>[0];
 type FilesGet = Parameters<StateCreator<StudioState, [], [], FilesSlice>>[1];
 
 const STORAGE_FULL_MESSAGE = "Saved in this session only: browser storage is full";
+
+/** Saves the database to the account (signed in) and keeps the remote id it returns. */
+function syncRemoteDatabase(set: FilesSet, get: FilesGet, database: FileDatabase, indexMessage: string) {
+  const user = get().user;
+  if (!user) {
+    return;
+  }
+  void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError, saveError }) => {
+    if (saveError) {
+      set({ statusMessage: saveError });
+    } else if (indexError) {
+      set({ statusMessage: indexMessage });
+    }
+    if (!remoteId) {
+      return;
+    }
+    set((state) => {
+      const files = {
+        ...state.files,
+        databases: state.files.databases.map((item) =>
+          item.id === database.id ? { ...item, remoteId } : item,
+        ),
+      };
+      saveLocalFiles(files);
+      return { files };
+    });
+  });
+}
 
 /** Shared tail of the import entries: local save, status message, remote save. */
 function addImportedDatabase(
@@ -95,29 +124,7 @@ function addImportedDatabase(
       statusMessage: stored ? imported : `${imported} · ${STORAGE_FULL_MESSAGE}`,
     };
   });
-  const user = get().user;
-  if (user) {
-    void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError, saveError }) => {
-      if (saveError) {
-        set({ statusMessage: saveError });
-      } else if (indexError) {
-        set({ statusMessage: "Games imported, but the position index could not be saved." });
-      }
-      if (!remoteId) {
-        return;
-      }
-      set((state) => {
-        const files = {
-          ...state.files,
-          databases: state.files.databases.map((item) =>
-            item.id === database.id ? { ...item, remoteId } : item,
-          ),
-        };
-        saveLocalFiles(files);
-        return { files };
-      });
-    });
-  }
+  syncRemoteDatabase(set, get, database, "Games imported, but the position index could not be saved.");
   return database.id;
 }
 
@@ -278,6 +285,32 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       { id: crypto.randomUUID(), remoteId: null, name: name.trim() || "Database", folderId, games },
       options,
     ),
+  replaceFileDatabaseGames: (id, games) => {
+    const target = get().files.databases.find((item) => item.id === id);
+    if (!target) {
+      return false;
+    }
+    const updated: FileDatabase = { ...target, games };
+    dropFilesExplorerIndex(id);
+    set((state) => {
+      const files = {
+        ...state.files,
+        databases: state.files.databases.map((item) => (item.id === id ? updated : item)),
+      };
+      const stored = saveLocalFiles(files);
+      const message = `${updated.name}: ${games.length} game${games.length === 1 ? "" : "s"}`;
+      return {
+        files,
+        activeFileGameId:
+          state.activeFileDatabaseId === id && !games.some((game) => game.id === state.activeFileGameId)
+            ? null
+            : state.activeFileGameId,
+        statusMessage: stored ? message : `${message} · ${STORAGE_FULL_MESSAGE}`,
+      };
+    });
+    syncRemoteDatabase(set, get, updated, "Games saved, but the position index could not be saved.");
+    return true;
+  },
   showFileDatabase: (id) => set({ activeFileDatabaseId: id }),
   openPgnSource: (name, pgn) => {
     get().importFileDatabase(name, pgn, null, { focusFiles: false });
