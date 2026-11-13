@@ -44,3 +44,45 @@ describe("toggleLive (SIG-1288)", () => {
     assert.equal(useStudioStore.getState().workspaceView, "library");
   });
 });
+
+describe("workspace view change closes the side panel (SIG-1317)", () => {
+  const open = () =>
+    useStudioStore.setState({
+      workspaceView: "studio",
+      settings: { ...useStudioStore.getState().settings, sidebarCollapsed: false },
+    });
+  const collapsed = () => useStudioStore.getState().settings.sidebarCollapsed;
+
+  it("toggleLibrary collapses the panel", () => {
+    open();
+    useStudioStore.getState().toggleLibrary();
+    assert.equal(collapsed(), true);
+  });
+
+  it("toggleLive collapses the panel", () => {
+    open();
+    useStudioStore.getState().toggleLive();
+    assert.equal(collapsed(), true);
+  });
+
+  it("setWorkspaceView to a new view collapses the panel", () => {
+    open();
+    useStudioStore.getState().setWorkspaceView("library");
+    assert.equal(collapsed(), true);
+  });
+
+  it("setWorkspaceView with the current view keeps the panel open", () => {
+    open();
+    useStudioStore.getState().setWorkspaceView("studio");
+    assert.equal(collapsed(), false);
+  });
+
+  it("going back to studio from library also collapses", () => {
+    open();
+    useStudioStore.getState().setWorkspaceView("library");
+    useStudioStore.getState().setActivity("files");
+    assert.equal(collapsed(), false);
+    useStudioStore.getState().setWorkspaceView("studio");
+    assert.equal(collapsed(), true);
+  });
+});

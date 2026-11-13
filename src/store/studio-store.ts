@@ -84,6 +84,14 @@ export {
 export { DEFAULT_SETTINGS, SETTINGS_KEY, loadLocalSettings } from "./slices/settings";
 export { emptyBoard, newId, withActive, analysisFen } from "./slices/board-helpers";
 
+function withWorkspaceView(
+  state: StudioState,
+  workspaceView: StudioState["workspaceView"],
+): Partial<StudioState> {
+  if (state.workspaceView === workspaceView) return {};
+  return { workspaceView, settings: { ...state.settings, sidebarCollapsed: true } };
+}
+
 export const useStudioStore = create<StudioState>((set, get) => ({
   // Board navigation/move state lives in slices/boards.ts and engine state in
   // slices/engine.ts; the third StateCreator arg (store api) is unused by
@@ -109,11 +117,18 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       activity,
       settings: { ...state.settings, sidebarCollapsed: false },
     })),
-  setWorkspaceView: (workspaceView) => set({ workspaceView }),
+  // SIG-1317: any real change of the center view closes the side panel (it
+  // belongs to the Studio). Re-selecting the current view is a no-op.
+  setWorkspaceView: (workspaceView) =>
+    set((state) => withWorkspaceView(state, workspaceView)),
   toggleLibrary: () =>
-    set((state) => ({ workspaceView: state.workspaceView === "library" ? "studio" : "library" })),
+    set((state) =>
+      withWorkspaceView(state, state.workspaceView === "library" ? "studio" : "library"),
+    ),
   toggleLive: () =>
-    set((state) => ({ workspaceView: state.workspaceView === "live" ? "studio" : "live" })),
+    set((state) =>
+      withWorkspaceView(state, state.workspaceView === "live" ? "studio" : "live"),
+    ),
   setDatabaseSource: (databaseSource) => set({ databaseSource }),
   activity: "boards",
   workspaceView: "studio",
