@@ -24,7 +24,6 @@ import { Tooltip } from "./ui/Controls";
 import { ChessboardIcon } from "./ui/ChessboardIcon";
 
 const items: { id: ActivityView; icon: typeof Search; titleKey: StudioChromeStringKey }[] = [
-  { id: "search", icon: Search, titleKey: "chrome.activity.search" },
   { id: "boards", icon: ChessboardIcon, titleKey: "chrome.activity.boards" },
   { id: "databases", icon: Database, titleKey: "chrome.activity.databases" },
   { id: "files", icon: Folder, titleKey: "chrome.activity.files" },

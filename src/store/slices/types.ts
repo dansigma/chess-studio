@@ -35,7 +35,7 @@ import type {
 export type BoardOrientation = "white" | "black";
 // SIG-1273: center work area. Separate from ActivityView (sidebars only).
 export type WorkspaceView = "studio" | "library" | "live";
-export type ActivityView = "search" | "boards" | "databases" | "files" | "bookmarks" | "mygames";
+export type ActivityView = "boards" | "databases" | "files" | "bookmarks" | "mygames";
 
 // SIG-1187: pending Forward continuation choice — the board and cursor position
 // the chooser was opened from. Nullable so "no chooser open" needs no sentinel.
