@@ -113,9 +113,13 @@ async function openStreamed(plies: number, ids = ["a"]) {
   roundHandler = async () => snapshot(ids.map((id) => game(id, plies)));
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf(ids[0]!)));
-  for (const id of ids) {
-    fireEvent.click(rowOf(id), { ctrlKey: true });
-  }
+  // SIG-1311: a row click now focuses the board (Ctrl/Cmd-click opens the Studio), so boards that
+  // must stay unfocused are opened through the store.
+  act(() => {
+    for (const id of ids) {
+      useLiveStore.getState().openBoard({ roundId: "R1", gameId: id }, { focus: false });
+    }
+  });
   act(() => {
     for (const id of ids) {
       useLiveStore.getState().ingestUpdate(stream(id, plies));
@@ -149,7 +153,7 @@ test("follow-latest: browsing back pauses, shows the clock at that ply; Live res
 
 test("focus: clicking a board focuses it and moves the stream to its round", async () => {
   await openStreamed(2, ["a", "b"]);
-  assert.equal(useLiveStore.getState().focusedGame, null, "Ctrl-click adds without focusing");
+  assert.equal(useLiveStore.getState().focusedGame, null, "boards opened without focus stay unfocused");
   fireEvent.click(board("b"));
   assert.deepEqual(useLiveStore.getState().focusedGame, { roundId: "R1", gameId: "b" });
   assert.equal(board("b").dataset.focused, "true");
@@ -172,7 +176,7 @@ test("past the cap the new board is refused with a notice; closing clears it", a
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("g")));
   for (const id of ["a", "b", "c", "d", "e", "f", "g"]) {
-    fireEvent.click(rowOf(id), { ctrlKey: true });
+    fireEvent.click(rowOf(id));
   }
   assert.equal(useLiveStore.getState().openBoards.length, 6);
   await screen.findByText("Up to 6 boards at once. Close one to open another.");
@@ -184,7 +188,7 @@ test("finished game: result shown, clocks do not tick", async () => {
   roundHandler = async () => snapshot([game("a", 3, { result: "1-0" })]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
-  fireEvent.click(rowOf("a"), { ctrlKey: true });
+  fireEvent.click(rowOf("a"));
   await waitFor(() => assert.ok(board("a")));
   assert.match(board("a").textContent!, /Game over: 1 – 0/u);
   assert.equal(board("a").querySelectorAll("[data-clock-ticking]").length, 0);
@@ -197,8 +201,8 @@ test("polled round: first PGN is fetched, +1 ply is appended locally, a bigger j
   roundHandler = async () => snapshot([game("a", 1), game("b", 1)]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
-  fireEvent.click(rowOf("a"), { ctrlKey: true });
-  fireEvent.click(rowOf("b"), { ctrlKey: true });
+  fireEvent.click(rowOf("a"));
+  fireEvent.click(rowOf("b"));
   await waitFor(() => assert.match(board("a").textContent!, /e4/u));
   assert.equal(pgnCalls.length, 1, "two boards of one round share one request");
 
@@ -300,8 +304,8 @@ test("SIG-1295: finished and ongoing cards share one structure; the result row i
   roundHandler = async () => snapshot([game("a", 3), game("b", 3, { result: "1/2-1/2" })]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
-  fireEvent.click(rowOf("a"), { ctrlKey: true });
-  fireEvent.click(rowOf("b"), { ctrlKey: true });
+  fireEvent.click(rowOf("a"));
+  fireEvent.click(rowOf("b"));
   act(() => {
     useLiveStore.getState().ingestUpdate(stream("a", 3));
     useLiveStore.getState().ingestUpdate(stream("b", 3, "1/2-1/2"));

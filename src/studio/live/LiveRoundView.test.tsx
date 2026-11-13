@@ -127,21 +127,21 @@ test("only the side to move ticks, on one shared ticker; leaving Live clears the
   assert.deepEqual(s.gamesByRound, {});
 });
 
-test("click follows (focus), Ctrl-click adds a board without focus, URL and row state update", async () => {
+test("click follows (focus) and opens boards in click order; URL and row state update", async () => {
   roundHandler = async () => snapshot([game("a"), game("b")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
   fireEvent.click(rowOf("a"));
   assert.deepEqual(useLiveStore.getState().focusedGame, { roundId: "R1", gameId: "a" });
-  fireEvent.click(rowOf("b"), { ctrlKey: true });
+  fireEvent.click(rowOf("b"));
   const s = useLiveStore.getState();
   assert.deepEqual(s.openBoards.map((b) => b.gameId), ["a", "b"]);
-  assert.equal(s.focusedGame?.gameId, "a");
-  assert.equal(window.location.search, "?view=live&live=R1&games=R1%3Aa%2CR1%3Ab&focus=R1%3Aa");
-  assert.equal(rowOf("a").dataset.focused, "true");
-  assert.equal(rowOf("b").dataset.open, "true");
-  assert.equal(rowOf("b").dataset.focused, undefined);
-  assert.match(screen.getByText(/Wa/u, { selector: "[data-live-followed] *, [data-live-followed]" }).textContent!, /Wa/u);
+  assert.equal(s.focusedGame?.gameId, "b");
+  assert.equal(window.location.search, "?view=live&live=R1&games=R1%3Aa%2CR1%3Ab&focus=R1%3Ab");
+  assert.equal(rowOf("b").dataset.focused, "true");
+  assert.equal(rowOf("a").dataset.open, "true");
+  assert.equal(rowOf("a").dataset.focused, undefined);
+  assert.match(screen.getByText(/Wb/u, { selector: "[data-live-followed] *, [data-live-followed]" }).textContent!, /Wb/u);
 });
 
 test("arrow keys move the row selection and Enter follows", async () => {
@@ -210,7 +210,7 @@ test("pt-BR strings", async () => {
   assert.ok(screen.getByText("Clique numa partida para segui-la."));
 });
 
-// SIG-1297: All / Ongoing / Finished filter.
+// SIG-1297: All / Live / Finished filter (labels: SIG-1311).
 const filterChip = (name: RegExp) => screen.getByRole("button", { name });
 const rowIds = () => [...document.querySelectorAll("[data-live-row]")].map((r) => (r as HTMLElement).dataset.liveRow);
 
@@ -219,28 +219,28 @@ test("filter: counts per option, default All, switching shows only matching rows
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
   assert.equal(filterChip(/^All \(4\)$/u).getAttribute("aria-pressed"), "true");
-  filterChip(/^Ongoing \(2\)$/u);
+  filterChip(/^Live \(2\)$/u);
   filterChip(/^Finished \(2\)$/u);
   assert.deepEqual(rowIds(), ["a", "b", "c", "d"]);
-  fireEvent.click(filterChip(/^Ongoing/u));
+  fireEvent.click(filterChip(/^Live/u));
   assert.deepEqual(rowIds(), ["a", "c"]);
-  assert.equal(filterChip(/^Ongoing/u).getAttribute("aria-pressed"), "true");
+  assert.equal(filterChip(/^Live/u).getAttribute("aria-pressed"), "true");
   fireEvent.click(filterChip(/^Finished/u));
   assert.deepEqual(rowIds(), ["b", "d"]);
   fireEvent.click(filterChip(/^All/u));
   assert.deepEqual(rowIds(), ["a", "b", "c", "d"]);
 });
 
-test("filter: a game that finishes leaves Ongoing, counts update, open boards are unaffected", async () => {
+test("filter: a game that finishes leaves Live, counts update, open boards are unaffected", async () => {
   roundHandler = async () => snapshot([game("a"), game("b")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
   fireEvent.click(rowOf("a"));
-  fireEvent.click(filterChip(/^Ongoing/u));
+  fireEvent.click(filterChip(/^Live/u));
   assert.deepEqual(rowIds(), ["a", "b"]);
   act(() => useLiveStore.getState().ingestSnapshot(snapshot([game("a", { result: "0-1" }), game("b")])));
   assert.deepEqual(rowIds(), ["b"]);
-  filterChip(/^Ongoing \(1\)$/u);
+  filterChip(/^Live \(1\)$/u);
   filterChip(/^Finished \(1\)$/u);
   assert.deepEqual(useLiveStore.getState().openBoards.map((b) => b.gameId), ["a"]);
   fireEvent.click(filterChip(/^Finished/u));
@@ -256,7 +256,7 @@ test("filter: empty state per filter instead of an empty table", async () => {
   assert.equal(screen.queryByRole("table"), null);
   act(() => useLiveStore.getState().ingestSnapshot(snapshot([game("a", { result: "1-0" })])));
   assert.ok(rowOf("a"));
-  fireEvent.click(filterChip(/^Ongoing/u));
+  fireEvent.click(filterChip(/^Live/u));
   assert.ok(screen.getByText("No ongoing games"));
 });
 
@@ -264,7 +264,7 @@ test("filter: arrow keys and Enter work on the filtered rows; the active row is 
   roundHandler = async () => snapshot([game("a", { result: "1-0" }), game("b"), game("c", { result: "0-1" }), game("d")]);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
-  fireEvent.click(filterChip(/^Ongoing/u));
+  fireEvent.click(filterChip(/^Live/u));
   const scroll = screen.getByTestId("live-scroll");
   fireEvent.keyDown(scroll, { key: "ArrowDown" });
   assert.equal(rowOf("b").dataset.active, "true");
@@ -285,10 +285,210 @@ test("filter: pt-BR labels and reset to All when the round changes", async () =>
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
   filterChip(/^Todas \(2\)$/u);
-  filterChip(/^Finalizadas \(1\)$/u);
-  fireEvent.click(filterChip(/^Em andamento \(1\)$/u));
+  filterChip(/^Encerradas \(1\)$/u);
+  fireEvent.click(filterChip(/^Ao vivo \(1\)$/u));
   assert.deepEqual(rowIds(), ["a"]);
   act(() => useLiveStore.getState().setTableRound("R0"));
   await waitFor(() => assert.ok(rowOf("a") && rowOf("b")));
   assert.equal(filterChip(/^Todas/u).getAttribute("aria-pressed"), "true");
+});
+
+// SIG-1311: player search, sort, short names, grid markers and Ctrl/Cmd-click to the Studio.
+const named = (name: string, rating: number | null = 2600) => ({ ...player(name, 600_000), rating });
+const searchBox = () => screen.getByRole("textbox", { name: "Search players" }) as HTMLInputElement;
+const sortSelect = () => screen.getByLabelText("Sort games") as HTMLSelectElement;
+const type = (value: string) => fireEvent.change(searchBox(), { target: { value } });
+
+function stubWindowOpen() {
+  const calls: unknown[][] = [];
+  const original = window.open;
+  window.open = ((...args: unknown[]) => {
+    calls.push(args);
+    return null;
+  }) as typeof window.open;
+  return { calls, restore: () => void (window.open = original) };
+}
+
+async function renderPlayers() {
+  roundHandler = async () =>
+    snapshot([
+      game("a", { white: named("Sevian, Samuel", 2650), black: named("Carlsen, Magnus", 2830) }),
+      game("b", { white: named("Pérez, José", 2500), black: named("Nobody, Joe", null), result: "1-0" }),
+      game("c", { white: named("Unrated, Una", null), black: named("Unrated, Uno", null) }),
+      game("d", { white: named("Low, Larry", 2400), black: named("Tie, Tom", 2830), result: "1/2-1/2" }),
+    ]);
+  render(<LiveView />);
+  await waitFor(() => assert.ok(rowOf("a")));
+}
+
+test("search: filters as you type by White or Black name, ignoring case and accents, with counts per status", async () => {
+  await renderPlayers();
+  type("sevian");
+  assert.deepEqual(rowIds(), ["a"]);
+  type("CARLSEN");
+  assert.deepEqual(rowIds(), ["a"]);
+  type("jose");
+  assert.deepEqual(rowIds(), ["b"]);
+  type("pérez");
+  assert.deepEqual(rowIds(), ["b"]);
+  type("  ");
+  assert.deepEqual(rowIds(), ["a", "b", "c", "d"]);
+  type("tie");
+  filterChip(/^All \(1\)$/u);
+  filterChip(/^Live \(0\)$/u);
+  filterChip(/^Finished \(1\)$/u);
+});
+
+test("search: never closes open boards and shows 'No player found' with nothing to list; Esc clears", async () => {
+  await renderPlayers();
+  fireEvent.click(rowOf("a"));
+  type("zzz");
+  assert.equal(screen.queryByRole("table"), null);
+  assert.ok(screen.getByText("No player found"));
+  assert.deepEqual(useLiveStore.getState().openBoards.map((b) => b.gameId), ["a"]);
+  fireEvent.keyDown(searchBox(), { key: "Escape" });
+  assert.equal(searchBox().value, "");
+  assert.deepEqual(rowIds(), ["a", "b", "c", "d"]);
+  assert.equal(rowOf("a").dataset.open, "true");
+  type("sevian");
+  fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+  assert.equal(searchBox().value, "");
+});
+
+test("'/' focuses the search field, but not while typing in another input", async () => {
+  await renderPlayers();
+  assert.notEqual(document.activeElement, searchBox());
+  assert.equal(fireEvent.keyDown(document.body, { key: "/" }), false, "the key is consumed");
+  assert.equal(document.activeElement, searchBox());
+  searchBox().blur();
+  const other = document.createElement("input");
+  document.body.appendChild(other);
+  other.focus();
+  assert.equal(fireEvent.keyDown(other, { key: "/" }), true, "typing elsewhere keeps the slash");
+  assert.equal(document.activeElement, other);
+  other.remove();
+  searchBox().focus();
+  fireEvent.keyDown(searchBox(), { key: "/" });
+  assert.equal(document.activeElement, searchBox());
+});
+
+test("sort: Board is the default; Highest rating uses the higher rating, unrated last, ties in board order", async () => {
+  await renderPlayers();
+  assert.equal(sortSelect().value, "board");
+  assert.deepEqual(within(sortSelect()).getAllByRole("option").map((o) => o.textContent), ["Board", "Highest rating"]);
+  fireEvent.change(sortSelect(), { target: { value: "rating" } });
+  assert.deepEqual(rowIds(), ["a", "d", "b", "c"]);
+  fireEvent.change(sortSelect(), { target: { value: "board" } });
+  assert.deepEqual(rowIds(), ["a", "b", "c", "d"]);
+});
+
+test("search, status filter and sort combine; all three reset when the round changes", async () => {
+  roundHandler = async (id) => ({
+    ...snapshot([
+      game("a", { roundId: id, white: named("Anna Low", 2400), black: named("Zed", 2100) }),
+      game("b", { roundId: id, white: named("Anna High", 2700), black: named("Yan", 2100), result: "1-0" }),
+      game("c", { roundId: id, white: named("Anna Mid", 2500), black: named("Xu", 2100) }),
+      game("d", { roundId: id, white: named("Other", 2800), black: named("Wu", 2100) }),
+    ]),
+    round: { ...rounds[0]!, id },
+  });
+  render(<LiveView />);
+  await waitFor(() => assert.ok(rowOf("a")));
+  type("anna");
+  fireEvent.change(sortSelect(), { target: { value: "rating" } });
+  assert.deepEqual(rowIds(), ["b", "c", "a"]);
+  filterChip(/^Live \(2\)$/u);
+  fireEvent.click(filterChip(/^Live/u));
+  assert.deepEqual(rowIds(), ["c", "a"]);
+  act(() => useLiveStore.getState().setTableRound("R0"));
+  await waitFor(() => assert.deepEqual(rowIds(), ["a", "b", "c", "d"]));
+  assert.equal(searchBox().value, "");
+  assert.equal(sortSelect().value, "board");
+  assert.equal(filterChip(/^All/u).getAttribute("aria-pressed"), "true");
+});
+
+test("names show as initial + surname in the table with the full name in the tooltip; cards keep full names", async () => {
+  roundHandler = async () =>
+    snapshot([game("a", { white: named("Vachier-Lagrave, Maxime"), black: named("Magnus") })]);
+  render(<LiveView />);
+  await waitFor(() => assert.ok(rowOf("a")));
+  const white = within(rowOf("a")).getByText("M. Vachier-Lagrave");
+  assert.equal(white.getAttribute("title"), "Vachier-Lagrave, Maxime");
+  assert.equal(within(rowOf("a")).getByText("Magnus").getAttribute("title"), "Magnus");
+  fireEvent.click(rowOf("a"));
+  const card = document.querySelector("[data-live-board]") as HTMLElement;
+  assert.ok(card, "the board card is open");
+  assert.ok(within(card).getByText("Vachier-Lagrave, Maxime"));
+});
+
+test("status filter is one non-wrapping line in both languages", async () => {
+  await renderPlayers();
+  const group = screen.getByRole("group", { name: "Filter games" });
+  assert.doesNotMatch(group.className, /flex-wrap/u);
+  const buttons = within(group).getAllByRole("button");
+  assert.deepEqual(buttons.map((b) => b.textContent), ["All (4)", "Live (2)", "Finished (2)"]);
+  for (const b of buttons) {
+    assert.match(b.className, /whitespace-nowrap/u);
+  }
+});
+
+test("open rows show their grid position, a hover × closes the board without focusing or reopening", async () => {
+  await renderPlayers();
+  fireEvent.click(rowOf("c"));
+  fireEvent.click(rowOf("a"));
+  fireEvent.click(rowOf("d"));
+  const number = (id: string) => rowOf(id).querySelector("[data-live-grid-number]")?.textContent;
+  assert.equal(number("c"), "1");
+  assert.equal(number("a"), "2");
+  assert.equal(number("d"), "3");
+  assert.equal(number("b"), undefined);
+  // focus is on d; close the first board from its row
+  fireEvent.click(within(rowOf("c")).getByRole("button", { name: "Close board" }));
+  const s = useLiveStore.getState();
+  assert.deepEqual(s.openBoards.map((b) => b.gameId), ["a", "d"]);
+  assert.equal(s.focusedGame?.gameId, "d", "closing another board does not move the focus");
+  assert.equal(rowOf("c").dataset.open, undefined);
+  assert.equal(number("a"), "1", "the numbers follow the grid order");
+  assert.equal(number("d"), "2");
+  assert.equal(rowOf("c").querySelector("[data-live-row-close]"), null);
+});
+
+test("Ctrl/Cmd-click and Ctrl/Cmd+Enter open the game in the Studio in a new tab, not on the grid", async () => {
+  await renderPlayers();
+  const opened = stubWindowOpen();
+  try {
+    fireEvent.click(rowOf("a"), { ctrlKey: true });
+    fireEvent.click(rowOf("b"), { metaKey: true });
+    const scroll = screen.getByTestId("live-scroll");
+    fireEvent.keyDown(scroll, { key: "ArrowDown" }); // the clicked row b is active: c is next
+    fireEvent.keyDown(scroll, { key: "Enter", ctrlKey: true });
+    fireEvent.keyDown(scroll, { key: "Enter", metaKey: true });
+    assert.deepEqual(opened.calls, [
+      ["/studio?broadcast=R1%3Aa", "_blank", "noopener"],
+      ["/studio?broadcast=R1%3Ab", "_blank", "noopener"],
+      ["/studio?broadcast=R1%3Ac", "_blank", "noopener"],
+      ["/studio?broadcast=R1%3Ac", "_blank", "noopener"],
+    ]);
+    const s = useLiveStore.getState();
+    assert.deepEqual(s.openBoards, []);
+    assert.equal(s.focusedGame, null);
+    assert.equal(window.location.search, "?view=live&live=R1");
+  } finally {
+    opened.restore();
+  }
+  assert.match(rowOf("d").getAttribute("title")!, /^Click opens the game on the grid\. Ctrl\/Cmd-click opens it in the Studio in a new tab\.$/u);
+});
+
+test("pt-BR: search, sort and segmented labels", async () => {
+  act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } }));
+  await renderPlayers();
+  assert.ok(screen.getByPlaceholderText("Buscar jogador"));
+  assert.deepEqual(within(screen.getByLabelText("Ordenar partidas")).getAllByRole("option").map((o) => o.textContent), ["Tabuleiro", "Maior rating"]);
+  filterChip(/^Todas \(4\)$/u);
+  filterChip(/^Ao vivo \(2\)$/u);
+  filterChip(/^Encerradas \(2\)$/u);
+  fireEvent.change(screen.getByRole("textbox", { name: "Buscar jogadores" }), { target: { value: "zzz" } });
+  assert.ok(screen.getByText("Nenhum jogador encontrado"));
+  fireEvent.change(screen.getByRole("textbox", { name: "Buscar jogadores" }), { target: { value: "" } });
+  assert.equal(rowOf("a").getAttribute("title"), "Clique abre a partida na grade. Ctrl/Cmd-clique abre no Studio em uma nova aba.");
 });

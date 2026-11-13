@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode, Ref } from "react";
 import { Minus, Plus, Search, X } from "lucide-react";
 
 export function Kbd({ children }: { children: ReactNode }) {
@@ -118,6 +118,10 @@ export function SearchInput({
   className = "",
   id,
   autoFocus,
+  inputRef,
+  onKeyDown,
+  label,
+  clearLabel = "Clear search",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -125,6 +129,11 @@ export function SearchInput({
   className?: string;
   id?: string;
   autoFocus?: boolean;
+  inputRef?: Ref<HTMLInputElement>;
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
+  /** Accessible name of the field (defaults to the placeholder). */
+  label?: string;
+  clearLabel?: string;
 }) {
   return (
     <label
@@ -133,16 +142,19 @@ export function SearchInput({
       <Search size={14} className="shrink-0" />
       <input
         id={id}
+        ref={inputRef}
         autoFocus={autoFocus}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onKeyDown={onKeyDown}
+        aria-label={label}
         placeholder={placeholder}
         className="min-w-0 flex-1 bg-transparent text-dense text-studio-fg outline-none placeholder:text-studio-faint"
       />
       {value ? (
         <button
           type="button"
-          aria-label="Clear search"
+          aria-label={clearLabel}
           onClick={() => onChange("")}
           className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-studio-hover-strong text-studio-muted hover:text-studio-fg"
         >

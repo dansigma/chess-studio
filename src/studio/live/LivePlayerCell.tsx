@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { PlayerOutcome } from "../ui/PlayerCell";
+import { shortPlayerName } from "./live-games-filter";
 
 /** GM stands out (solid accent); the other high titles get the soft accent; the rest a neutral pill. */
 export function titleTone(title: string): "strong" | "accent" | "neutral" {
@@ -53,6 +54,7 @@ export function LivePlayerCell({
   layout = "stacked",
   align = "start",
   extra,
+  shortName = false,
 }: {
   player: LivePlayer;
   outcome: PlayerOutcome;
@@ -60,6 +62,8 @@ export function LivePlayerCell({
   layout?: "stacked" | "inline";
   align?: "start" | "end";
   extra?: ReactNode;
+  /** Games table: "Surname, Firstname" as "F. Surname"; the full name stays in the tooltip. */
+  shortName?: boolean;
 }) {
   const tone =
     outcome === "won" ? "font-semibold text-studio-fg" : outcome === "lost" ? "text-studio-muted" : "text-studio-fg";
@@ -67,7 +71,7 @@ export function LivePlayerCell({
   const justify = align === "end" ? "justify-end" : "";
   const name = (
     <span className={`min-w-0 truncate ${tone} ${weight}`} title={player.name}>
-      {player.name}
+      {shortName ? shortPlayerName(player.name) : player.name}
     </span>
   );
   const rating =
