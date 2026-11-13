@@ -451,7 +451,7 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.layouts.manage": "Gerenciar layouts…",
   "chrome.layouts.preset.full": "Análise completa",
   "chrome.layouts.preset.study": "Estudo / Repertório",
-  "chrome.layouts.preset.minimal": "Motor / Mínimo",
+  "chrome.layouts.preset.minimal": "Engine / Mínimo",
   "chrome.layouts.saveTitle": "Salvar layout atual",
   "chrome.layouts.nameLabel": "Nome do layout",
   "chrome.layouts.namePlaceholder": "Meu layout",
