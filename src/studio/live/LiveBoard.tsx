@@ -5,13 +5,11 @@ import { ArrowUpRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X
 import { Chessboard } from "react-chessboard";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
 import { piecesForSet } from "@/src/chess/piece-sets";
-import { exportPgn } from "@/src/chess/pgn";
 import { getFenAt, getNodeAt, goBack, goEnd, type Path } from "@/src/chess/tree";
 import { tLive } from "@/src/i18n/live-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import type { LiveGame } from "@/src/lib/live/types";
 import { useStudioStore } from "@/src/store/studio-store";
-import { openBoardPanel } from "../dock-api";
 import { Line, NotationReadOnlyContext } from "../NotationMoves";
 import { pathKey } from "../notation-format";
 import { Button, IconButton } from "../ui/Button";
@@ -23,8 +21,9 @@ import { LiveEvalBar } from "./LiveEvalBar";
 import { ClockCell } from "./LiveGamesTable";
 import { LivePlayerCell } from "./LivePlayerCell";
 import { useLiveStore } from "./live-store";
+import { liveStudioHref } from "./live-studio-link";
 import { useLiveBoardNotation } from "./use-live-board-notation";
-import { useLiveGame, useLiveRoundInfo } from "./use-live";
+import { useLiveGame } from "./use-live";
 
 const NO_COLLAPSE = new Set<string>();
 const noop = () => {};
@@ -94,15 +93,12 @@ export function LiveBoard({
   showEval?: boolean;
 }) {
   const game = useLiveGame(roundId, gameId);
-  const info = useLiveRoundInfo(roundId);
   const streamed = useLiveStore((s) => s.streamRoundId === roundId);
   const tree = useLiveBoardNotation(roundId, gameId, game);
   const boardTheme = useStudioStore((s) => s.settings.boardTheme);
   const pieceSet = useStudioStore((s) => s.settings.pieceSet);
   const showCoordinates = useStudioStore((s) => s.settings.showCoordinates);
   const moveNotation = useStudioStore((s) => s.settings.moveNotation);
-  const openListedGame = useStudioStore((s) => s.openListedGame);
-  const setWorkspaceView = useStudioStore((s) => s.setWorkspaceView);
 
   const [browsing, setBrowsing] = useState<Path | null>(null);
   const notationRef = useRef<HTMLDivElement | null>(null);
@@ -176,35 +172,11 @@ export function LiveBoard({
 
   const historic = (side: Side) => (viewPath && tree ? { ms: clockAtPath(tree, viewPath, side) } : undefined);
 
+  // SIG-1315: open the game in a new browser tab, straight from the click (no request first, so it is
+  // not blocked as a pop-up). Switching this tab would unmount Live and stop the broadcast.
   const openInStudio = () => {
-    if (!tree) {
-      return;
-    }
-    const headers: Record<string, string> = {
-      Event: info?.tour.name ?? "Lichess Broadcast",
-      Site: info?.round.url ?? "https://lichess.org/broadcast",
-      White: game.white.name,
-      Black: game.black.name,
-      Result: game.result,
-    };
-    for (const [prefix, player] of [["White", game.white], ["Black", game.black]] as const) {
-      if (player.rating !== null) {
-        headers[`${prefix}Elo`] = String(player.rating);
-      }
-      if (player.title) {
-        headers[`${prefix}Title`] = player.title;
-      }
-    }
-    // Live boards never touch the Studio boards; only this explicit action does (same flow as LibraryPreview).
-    openListedGame({
-      title: `${game.white.name} vs ${game.black.name}`,
-      pgn: exportPgn(tree, headers),
-      atFen: fen,
-      openInNewBoard: true,
-    });
-    const active = useStudioStore.getState().active();
-    setWorkspaceView("studio");
-    openBoardPanel(active.id, active.title);
+    const href = liveStudioHref({ roundId, gameId, ...(viewPath ? { ply: viewPath.length } : {}) });
+    window.open(href, "_blank", "noopener");
   };
 
   const atStart = (viewPath ?? latest).length === 0;
@@ -241,7 +213,6 @@ export function LiveBoard({
             event.stopPropagation();
             openInStudio();
           }}
-          disabled={!tree}
           data-live-open-studio=""
         >
           {tLive(locale, "live.board.studioShort")}

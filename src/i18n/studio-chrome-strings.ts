@@ -158,6 +158,7 @@ export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.dialog.toClose",
   "chrome.shell.courseLineFailed",
   "chrome.shell.puzzleLineFailed",
+  "chrome.shell.liveGameFailed",
   "chrome.shell.saveFailed",
   "chrome.shell.loadFailed",
 ] as const;
@@ -313,6 +314,7 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.dialog.toClose": "to close",
   "chrome.shell.courseLineFailed": "Could not open that course line.",
   "chrome.shell.puzzleLineFailed": "Could not open that puzzle in the Studio.",
+  "chrome.shell.liveGameFailed": "Could not load that broadcast game from Lichess.",
   "chrome.shell.saveFailed": "Could not save board.",
   "chrome.shell.loadFailed": "Could not load saved boards.",
 };
@@ -466,6 +468,7 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.dialog.toClose": "para fechar",
   "chrome.shell.courseLineFailed": "Não foi possível abrir essa linha de curso.",
   "chrome.shell.puzzleLineFailed": "Não foi possível abrir esse puzzle no Studio.",
+  "chrome.shell.liveGameFailed": "Não foi possível carregar essa partida da transmissão do Lichess.",
   "chrome.shell.saveFailed": "Não foi possível salvar o tabuleiro.",
   "chrome.shell.loadFailed": "Não foi possível carregar os tabuleiros salvos.",
 };

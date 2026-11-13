@@ -559,7 +559,7 @@ export function StudioShell() {
       return;
     }
     sharedFenApplied.current = true;
-    applyStudioEntryImport(window.location.search);
+    void applyStudioEntryImport(window.location.search);
   }, [importReady]);
 
   return (
