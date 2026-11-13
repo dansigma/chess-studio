@@ -439,7 +439,7 @@ export function MyStatsPanel() {
                   {tMyGames(locale, "myGames.statsByOpeningEmpty")}
                 </p>
               ) : (
-                <table className="w-full text-left text-dense">
+                <table className="w-full table-fixed text-left text-dense">
                   <thead>
                     <tr className="text-caption text-studio-faint">
                       <th scope="col" className="py-0.5 pr-2 font-normal">
