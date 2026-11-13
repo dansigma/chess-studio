@@ -19,6 +19,7 @@ import {
   myStatsViewState,
   RECENT_DEVIATION_WINDOW,
   resultsByOpening,
+  sortOpeningResults,
   type DeviationGroupEvent,
 } from "./stats.ts";
 
@@ -348,5 +349,68 @@ describe("deviationsForRecentGames", () => {
     );
     assert.equal(rows.length, 1);
     assert.deepEqual(rows[0]?.gameIds, ["w3"]);
+  });
+});
+
+describe("resultsByOpening minGames + case-insensitive grouping (SIG-1304)", () => {
+  const mk = (id: string, opening: string, result: "win" | "draw" | "loss", color: "white" | "black" = "white") =>
+    game({ id, opening, color, playerResult: result });
+
+  it("honours minGames", () => {
+    const games = [
+      ...Array.from({ length: 5 }, (_, i) => mk(`a${i}`, "Italian Game", "win")),
+      ...Array.from({ length: 3 }, (_, i) => mk(`b${i}`, "French Defense", "loss")),
+    ];
+    assert.equal(resultsByOpening(games).length, 2);
+    assert.deepEqual(resultsByOpening(games, { minGames: 5 }).map((r) => r.opening), ["Italian Game"]);
+    assert.equal(resultsByOpening(games, { minGames: 10 }).length, 0);
+  });
+
+  it("merges trim/case/whitespace variants under the most frequent spelling", () => {
+    const rows = resultsByOpening([
+      mk("1", "Italian Game", "win"),
+      mk("2", "  italian game ", "draw"),
+      mk("3", "Italian  Game", "loss"),
+      mk("4", "ITALIAN GAME", "win"),
+    ]);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.opening, "Italian Game");
+    assert.equal(rows[0]?.games, 4);
+    assert.equal(rows[0]?.wins, 2);
+  });
+
+  it("keeps colours separate", () => {
+    const rows = resultsByOpening([
+      mk("1", "Italian Game", "win"),
+      mk("2", "italian game", "win"),
+      mk("3", "Italian Game", "win"),
+      mk("4", "Italian Game", "win", "black"),
+    ]);
+    assert.equal(rows.length, 1);
+  });
+});
+
+describe("sortOpeningResults (SIG-1304)", () => {
+  const row = (opening: string, games: number, scorePct: number) => ({
+    opening, color: "white" as const, games, wins: 0, draws: 0, losses: 0, scorePct,
+  });
+  const rows = [row("B", 5, 50), row("A", 5, 50), row("C", 9, 20), row("D", 4, 90)];
+
+  it("sorts by games with name tie-break", () => {
+    assert.deepEqual(sortOpeningResults(rows, "games").map((r) => r.opening), ["C", "A", "B", "D"]);
+  });
+
+  it("sorts by score, then games, then name", () => {
+    assert.deepEqual(sortOpeningResults(rows, "score").map((r) => r.opening), ["D", "A", "B", "C"]);
+    assert.deepEqual(
+      sortOpeningResults([row("Z", 3, 50), row("Y", 8, 50)], "score").map((r) => r.opening),
+      ["Y", "Z"],
+    );
+  });
+
+  it("does not mutate its input", () => {
+    const copy = [...rows];
+    sortOpeningResults(rows, "score");
+    assert.deepEqual(rows, copy);
   });
 });
