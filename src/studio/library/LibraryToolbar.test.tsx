@@ -40,7 +40,7 @@ beforeEach(() => {
 const wait = (ms: number) => act(async () => { await new Promise((r) => setTimeout(r, ms)); });
 
 test("search is debounced by 300 ms and Escape clears", async () => {
-  render(<LibraryToolbar total={null} sourceErrors={{}} />);
+  render(<LibraryToolbar total={null} />);
   const input = screen.getByPlaceholderText(/Search players/) as HTMLInputElement;
   fireEvent.change(input, { target: { value: "carlsen" } });
   await wait(100);
@@ -53,32 +53,24 @@ test("search is debounced by 300 ms and Escape clears", async () => {
 });
 
 test("counter shows selected sources and a locale-formatted total", () => {
-  const { rerender } = render(<LibraryToolbar total={1234} sourceErrors={{}} />);
+  const { rerender } = render(<LibraryToolbar total={1234} />);
   assert.ok(screen.getByTestId("library-counter").textContent?.includes("Selected databases: 2 of 2 · 1,234 games"));
-  rerender(<LibraryToolbar total={null} sourceErrors={{}} />);
+  rerender(<LibraryToolbar total={null} />);
   assert.equal(screen.getByTestId("library-counter").textContent, "Selected databases: 2 of 2");
   act(() => useStudioStore.setState((s) => ({ settings: { ...s.settings, locale: "pt-br" } })));
-  rerender(<LibraryToolbar total={1234} sourceErrors={{}} />);
+  rerender(<LibraryToolbar total={1234} />);
   assert.equal(screen.getByTestId("library-counter").textContent, "Bases selecionadas: 2 de 2 · 1.234 partidas");
 });
 
-test("last selected source cannot be unchecked; select all restores", () => {
-  render(<LibraryToolbar total={0} sourceErrors={{ masters: "boom" }} />);
-  fireEvent.click(screen.getByRole("button", { name: /Databases/ }));
-  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: /Masters/ }));
-  assert.deepEqual(useLibraryStore.getState().filters.sources, ["my-games"]);
-  const last = screen.getByRole("menuitemcheckbox", { name: /My Games/ }) as HTMLButtonElement;
-  assert.equal(last.disabled, true);
-  fireEvent.click(last);
-  assert.deepEqual(useLibraryStore.getState().filters.sources, ["my-games"]);
-  assert.ok(screen.getByRole("img", { name: /Failed to load: boom/ }));
-  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Select all" }));
-  assert.equal(useLibraryStore.getState().filters.sources.length, 2);
+test("toolbar no longer renders the Databases popover", () => {
+  render(<LibraryToolbar total={0} />);
+  assert.equal(screen.queryByRole("button", { name: /Databases/ }), null);
+  assert.equal(screen.queryByRole("menuitemcheckbox"), null);
 });
 
 test("chips remove one field, Clear all appears from two chips, badge counts advanced filters", () => {
   useLibraryStore.setState((s) => ({ filters: { ...s.filters, color: "white", result: "1-0" } }));
-  render(<LibraryToolbar total={0} sourceErrors={{}} />);
+  render(<LibraryToolbar total={0} />);
   assert.equal(screen.getAllByTestId("library-chip").length, 2);
   assert.ok(screen.getByRole("button", { name: "Filters, 2 active" }));
   assert.ok(screen.getByRole("img", { name: /Masters \(Lichess\)/ })); // color unsupported by Masters
@@ -90,7 +82,7 @@ test("chips remove one field, Clear all appears from two chips, badge counts adv
 
 test("Clear all resets chips; Filters button toggles filtersOpen", () => {
   useLibraryStore.setState((s) => ({ filters: { ...s.filters, sources: ["masters"], opponent: "Nakamura" } }));
-  render(<LibraryToolbar total={0} sourceErrors={{}} />);
+  render(<LibraryToolbar total={0} />);
   fireEvent.click(screen.getByText("Clear all"));
   const { filters } = useLibraryStore.getState();
   assert.equal(filters.opponent, "");

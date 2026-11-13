@@ -62,3 +62,26 @@ export function useLibrarySources(): void {
     }
   }, [databases]);
 }
+
+/** Plain click: select only this source. */
+export function selectOnly(id: LibrarySourceId): LibrarySourceId[] {
+  return [id];
+}
+
+/** Ctrl/⌘-click: add or remove a source; the last selected source stays. */
+export function toggleSource(
+  current: LibrarySourceId[],
+  id: LibrarySourceId,
+  available: LibrarySourceId[],
+): LibrarySourceId[] {
+  if (!current.includes(id)) {
+    return [...current, id];
+  }
+  const live = current.filter((other) => available.includes(other));
+  return live.length <= 1 ? current : current.filter((other) => other !== id);
+}
+
+/** The "All" chip: every available source. */
+export function selectAll(available: LibrarySourceId[]): LibrarySourceId[] {
+  return [...available];
+}
