@@ -35,7 +35,11 @@ import {
   MY_STATS_MIN_REVIEWED,
   myStatsViewState,
   resultsByOpening,
+  sortOpeningResults,
+  type OpeningSort,
 } from "@/src/lib/my-games/stats";
+import { localizeOpeningName } from "@/src/lib/opening-names";
+import { ResultBar } from "./ui/ResultBar";
 import {
   buildOpeningTree,
   worstLines,
@@ -131,6 +135,9 @@ export function MyStatsPanel() {
   // loading start, which the eslint-disable there documents).
   const [state, setState] = useState<LoadState>(user ? "loading" : "signedOut");
   const [colorTab, setColorTab] = useState<"white" | "black">("white");
+  // SIG-1304: results-by-opening sort + minimum-games filter (local state).
+  const [openingSort, setOpeningSort] = useState<OpeningSort>("games");
+  const [minGames, setMinGames] = useState<number>(3);
   // SIG-1099: panel-level tab + Openings-tab filter/expansion state. `lineColor`
   // is separate from Overview's `colorTab` so the tabs don't fight.
   const [panelTab, setPanelTab] = useState<"overview" | "openings">("overview");
@@ -227,9 +234,12 @@ export function MyStatsPanel() {
   );
   const view = myStatsViewState(reviewedCount);
   const trend = useMemo(() => accuracyTrend(games), [games]);
-  const openings = useMemo(() => resultsByOpening(games), [games]);
+  const openings = useMemo(() => resultsByOpening(games, { minGames }), [games, minGames]);
   const phaseTotals = useMemo(() => mistakesByPhase(games), [games]);
-  const tabRows = useMemo(() => openings.filter((row) => row.color === colorTab), [openings, colorTab]);
+  const tabRows = useMemo(
+    () => sortOpeningResults(openings.filter((row) => row.color === colorTab), openingSort),
+    [openings, colorTab, openingSort],
+  );
   // SIG-1099: tree input — SAN paths from PGN (moves-only rows have no PGN;
   // skip them). The tree memo captures `now` once per computation so the
   // trend windows and date-preset filter stay consistent; it recomputes only
@@ -394,12 +404,42 @@ export function MyStatsPanel() {
                   </button>
                 ))}
               </div>
+              <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-studio-muted">
+                <div role="group" aria-label={tMyGames(locale, "myGames.statsSortBy")} className="flex items-center gap-1">
+                  <span>{tMyGames(locale, "myGames.statsSortBy")}</span>
+                  {(["games", "score"] as const).map((sort) => (
+                    <button
+                      key={sort}
+                      type="button"
+                      aria-pressed={openingSort === sort}
+                      onClick={() => setOpeningSort(sort)}
+                      className={`rounded px-2 py-0.5 text-caption ${openingSort === sort ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"}`}
+                    >
+                      {tMyGames(locale, sort === "games" ? "myGames.statsSortGames" : "myGames.statsSortScore")}
+                    </button>
+                  ))}
+                </div>
+                <div role="group" aria-label={tMyGames(locale, "myGames.statsMinGames")} className="flex items-center gap-1">
+                  <span>{tMyGames(locale, "myGames.statsMinGames")}</span>
+                  {[3, 5, 10].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={minGames === value}
+                      onClick={() => setMinGames(value)}
+                      className={`rounded px-2 py-0.5 text-caption tabular-nums ${minGames === value ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"}`}
+                    >
+                      {formatInteger(locale, value)}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {tabRows.length === 0 ? (
                 <p className="text-dense text-studio-faint">
-                  {tMyGames(locale, "myGames.statsEmpty")}
+                  {tMyGames(locale, "myGames.statsByOpeningEmpty")}
                 </p>
               ) : (
-                <table className="w-full text-left text-dense">
+                <table className="w-full table-fixed text-left text-dense">
                   <thead>
                     <tr className="text-caption text-studio-faint">
                       <th scope="col" className="py-0.5 pr-2 font-normal">
@@ -425,7 +465,20 @@ export function MyStatsPanel() {
                   <tbody>
                     {tabRows.map((row) => (
                       <tr key={`${row.color}:${row.opening}`} className="border-t border-studio-border-subtle">
-                        <td className="py-1 pr-2">{row.opening}</td>
+                        <td className="min-w-0 py-1 pr-2">
+                          <div className="truncate" title={row.opening}>
+                            {localizeOpeningName(row.opening, locale)}
+                          </div>
+                          <div className="mt-0.5">
+                            <ResultBar
+                              perspective="player"
+                              white={row.wins}
+                              draws={row.draws}
+                              black={row.losses}
+                              label={`${tMyGames(locale, "myGames.statsWins")} ${row.wins}, ${tMyGames(locale, "myGames.statsDraws")} ${row.draws}, ${tMyGames(locale, "myGames.statsLosses")} ${row.losses}`}
+                            />
+                          </div>
+                        </td>
                         <td className="py-1 text-center tabular-nums">{formatInteger(locale, row.games)}</td>
                         <td className="py-1 text-center tabular-nums">{formatInteger(locale, row.wins)}</td>
                         <td className="py-1 text-center tabular-nums">{formatInteger(locale, row.draws)}</td>

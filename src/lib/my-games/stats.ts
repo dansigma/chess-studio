@@ -30,6 +30,24 @@ export type OpeningResult = {
   scorePct: number;
 };
 
+export type OpeningSort = "games" | "score";
+
+/** Pure, stable sort: by games (desc) or score (desc); ties fall back to games, then name, then colour. */
+export function sortOpeningResults(rows: readonly OpeningResult[], sort: OpeningSort): OpeningResult[] {
+  return [...rows].sort((a, b) => {
+    if (sort === "score" && a.scorePct !== b.scorePct) {
+      return b.scorePct - a.scorePct;
+    }
+    if (a.games !== b.games) {
+      return b.games - a.games;
+    }
+    if (a.opening !== b.opening) {
+      return a.opening < b.opening ? -1 : 1;
+    }
+    return a.color < b.color ? -1 : a.color > b.color ? 1 : 0;
+  });
+}
+
 export type MyStatsViewState = "empty" | "ready";
 
 /** Minimum reviewed games before the stats panel shows charts. */
@@ -93,23 +111,31 @@ export function accuracyTrend(games: readonly PlayerGame[], windowSize: number =
 
 /**
  * Win/draw/loss rows grouped by trimmed opening name × side color, over all
- * games (results need no review). Null/blank openings are skipped; case is
- * preserved with no normalization. Null `playerResult` rows count as a game
- * played with 0 points. Groups with fewer than 3 games are dropped.
+ * games (results need no review). Null/blank openings are skipped. SIG-1304:
+ * grouping ignores case and repeated whitespace; the displayed name is the
+ * most frequent spelling in the group (ties: alphabetical). Null `playerResult`
+ * rows count as a game played with 0 points. Groups with fewer than
+ * `minGames` (default 3) games are dropped.
  */
-export function resultsByOpening(games: readonly PlayerGame[]): OpeningResult[] {
-  const groups = new Map<string, { opening: string; color: "white" | "black"; games: number; wins: number; draws: number; losses: number; points: number }>();
+export function resultsByOpening(
+  games: readonly PlayerGame[],
+  options: { minGames?: number } = {},
+): OpeningResult[] {
+  const minGames = options.minGames ?? 3;
+  const groups = new Map<string, { opening: string; spellings: Map<string, number>; color: "white" | "black"; games: number; wins: number; draws: number; losses: number; points: number }>();
   for (const game of games) {
     const raw = game.opening?.trim() ?? "";
     if (!raw) {
       continue;
     }
-    const key = `${game.color}	${raw}`;
+    const normalised = raw.replace(/\s+/g, " ");
+    const key = `${game.color}	${normalised.toLowerCase()}`;
     let group = groups.get(key);
     if (!group) {
-      group = { opening: raw, color: game.color, games: 0, wins: 0, draws: 0, losses: 0, points: 0 };
+      group = { opening: normalised, spellings: new Map(), color: game.color, games: 0, wins: 0, draws: 0, losses: 0, points: 0 };
       groups.set(key, group);
     }
+    group.spellings.set(normalised, (group.spellings.get(normalised) ?? 0) + 1);
     group.games += 1;
     if (game.playerResult === "win") {
       group.wins += 1;
@@ -126,11 +152,19 @@ export function resultsByOpening(games: readonly PlayerGame[]): OpeningResult[] 
   }
   const rows: OpeningResult[] = [];
   for (const group of groups.values()) {
-    if (group.games < 3) {
+    if (group.games < minGames) {
       continue;
     }
+    let canonical = group.opening;
+    let best = 0;
+    for (const [spelling, count] of group.spellings) {
+      if (count > best || (count === best && spelling < canonical)) {
+        canonical = spelling;
+        best = count;
+      }
+    }
     rows.push({
-      opening: group.opening,
+      opening: canonical,
       color: group.color,
       games: group.games,
       wins: group.wins,
