@@ -15,6 +15,7 @@ import {
   deviationsForRecentGames,
   emptyMistakeTotals,
   mistakesByPhase,
+  mistakesPerGame,
   MY_STATS_MIN_REVIEWED,
   myStatsViewState,
   RECENT_DEVIATION_WINDOW,
@@ -412,5 +413,46 @@ describe("sortOpeningResults (SIG-1304)", () => {
     const copy = [...rows];
     sortOpeningResults(rows, "score");
     assert.deepEqual(rows, copy);
+  });
+});
+
+describe("mistakesPerGame (SIG-1303)", () => {
+  const blunders = (blunder: number, mistake = 0) => ({
+    opening: { inaccuracy: 0, mistake, miss: 0, blunder },
+    middlegame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+    endgame: { inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+  });
+  const reviewed = (id: string, mistakeCounts: PlayerGame["mistakeCounts"]) =>
+    game({ id, reviewedAt: "2026-01-01T00:00:00Z", mistakeCounts });
+
+  it("returns totals and per-reviewed-game averages", () => {
+    const games = [
+      reviewed("a", blunders(3, 1)),
+      reviewed("b", blunders(1)),
+      game({ id: "unreviewed", reviewedAt: null, mistakeCounts: blunders(100) }),
+    ];
+    const result = mistakesPerGame(games);
+    assert.equal(result.reviewedGames, 2);
+    assert.equal(result.totals.opening.blunder, 4);
+    assert.equal(result.perGame.opening.blunder, 2);
+    assert.equal(result.perGame.opening.mistake, 0.5);
+    assert.deepEqual(result.totals, mistakesByPhase(games));
+  });
+
+  it("handles 0 games without dividing by zero", () => {
+    const result = mistakesPerGame([]);
+    assert.equal(result.reviewedGames, 0);
+    assert.deepEqual(result.totals, emptyMistakeTotals());
+    assert.deepEqual(result.perGame, emptyMistakeTotals());
+  });
+
+  it("ignores reviewed games with invalid mistakeCounts in the base", () => {
+    const result = mistakesPerGame([
+      reviewed("ok", blunders(2)),
+      reviewed("null", null),
+      reviewed("bad", "oops" as unknown as PlayerGame["mistakeCounts"]),
+    ]);
+    assert.equal(result.reviewedGames, 1);
+    assert.equal(result.perGame.opening.blunder, 2);
   });
 });
