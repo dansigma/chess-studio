@@ -357,6 +357,8 @@ export type StudioState = {
     folderId?: string | null,
     options?: { focusFiles?: boolean },
   ) => string;
+  /** Replaces a database's games, keeping its id (Library import: Replace / Merge). False if the id is unknown. */
+  replaceFileDatabaseGames: (id: string, games: ParsedFileGame[]) => boolean;
   showFileDatabase: (id: string) => void;
   openPgnSource: (name: string, pgn: string) => void;
   openFileGame: (game: FileGame, options?: { atFen?: string; openInNewBoard?: boolean }) => void;

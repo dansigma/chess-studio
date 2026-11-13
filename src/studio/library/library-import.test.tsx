@@ -82,3 +82,45 @@ test("a file that cannot be read shows as failed in the widget and the rest stil
   assert.match(widget.textContent ?? "", /Could not read this file/);
   assert.ok(screen.getByRole("button", { name: "Close" }));
 });
+
+test("a file named like an existing database opens the dialog; Replace keeps the id and Esc skips only that file", async () => {
+  const game = { id: "old", white: "A", black: "B", result: "1-0", event: "", date: "", pgn: PGN, title: "" };
+  useStudioStore.setState((s) => ({
+    files: { ...s.files, databases: [{ id: "dup", remoteId: null, name: "Dup", folderId: null, games: [game] }] },
+    user: null,
+  }));
+  await act(async () => { render(<LibraryView />); });
+  const root = screen.getByTestId("library-view");
+  await act(async () => {
+    fireEvent.drop(root, { dataTransfer: dt([pgnFile("dup.pgn"), pgnFile("fresh.pgn")]) });
+  });
+  await settle();
+  assert.ok(screen.getByRole("dialog"));
+  assert.ok(screen.getByTestId("library-import-conflict").textContent?.includes("Dup"));
+  assert.equal(screen.getAllByTestId("library-import-entry")[0].getAttribute("data-state"), "awaiting");
+  assert.equal(useStudioStore.getState().files.databases.length, 1);
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Replace" })); });
+  await settle();
+  assert.equal(screen.queryByRole("dialog"), null);
+  const dbs = useStudioStore.getState().files.databases;
+  assert.deepEqual(dbs.map((d) => d.id).slice(0, 1), ["dup"]);
+  assert.notEqual(dbs[0].games[0].id, "old");
+  assert.deepEqual(dbs.map((d) => d.name), ["Dup", "fresh"]);
+  assert.deepEqual(useLibraryStore.getState().filters.sources, [`file:${dbs[1].id}`]);
+});
+
+test("Esc in the conflict dialog cancels that file and the next one imports", async () => {
+  useStudioStore.setState((s) => ({
+    files: { ...s.files, databases: [{ id: "dup", remoteId: null, name: "Dup", folderId: null, games: [] }] },
+    user: null,
+  }));
+  await act(async () => { render(<LibraryView />); });
+  await act(async () => {
+    fireEvent.drop(screen.getByTestId("library-view"), { dataTransfer: dt([pgnFile("Dup.pgn"), pgnFile("next.pgn")]) });
+  });
+  await settle();
+  await act(async () => { fireEvent.keyDown(window, { key: "Escape" }); });
+  await settle();
+  assert.deepEqual(useStudioStore.getState().files.databases.map((d) => d.name), ["Dup", "next"]);
+  assert.deepEqual(useImportQueue.getState().entries.map((e) => e.state), ["cancelled", "done"]);
+});

@@ -17,6 +17,8 @@ export function useLibraryImport(): (files: File[]) => Promise<void> {
   return useCallback(async (files: File[]) => {
     const { skipped, done } = enqueuePgnFiles(files, {
       databaseCount: () => useStudioStore.getState().files.databases.length,
+      databases: () => useStudioStore.getState().files.databases,
+      replaceDatabaseGames: (id, games) => useStudioStore.getState().replaceFileDatabaseGames(id, games),
       importParsedDatabase: (name, games) =>
         useStudioStore.getState().importParsedDatabase(name, games, null, { focusFiles: false }),
       onDrained: (importedIds) => {
