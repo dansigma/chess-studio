@@ -68,19 +68,19 @@ test("renders both groups with counts and the Masters limit label", async () => 
 
 test("click selects only that source; aria-pressed marks selection", async () => {
   await renderBar();
-  fireEvent.click(card(/Tactics/));
+  fireEvent.click(card(/^Tactics/));
   assert.deepEqual(sources(), ["file:db1"]);
-  assert.equal(card(/Tactics/).getAttribute("aria-pressed"), "true");
-  assert.equal(card(/Masters/).getAttribute("aria-pressed"), "false");
+  assert.equal(card(/^Tactics/).getAttribute("aria-pressed"), "true");
+  assert.equal(card(/^Masters/).getAttribute("aria-pressed"), "false");
 });
 
 test("modifier-click toggles and keeps at least one; All restores", async () => {
   await renderBar();
-  fireEvent.click(card(/Masters/), { ctrlKey: true });
+  fireEvent.click(card(/^Masters/), { ctrlKey: true });
   assert.deepEqual(sources(), ["my-games", "file:db1"]);
-  fireEvent.click(card(/Tactics/), { metaKey: true });
+  fireEvent.click(card(/^Tactics/), { metaKey: true });
   assert.deepEqual(sources(), ["my-games"]);
-  fireEvent.click(card(/My Games/), { ctrlKey: true });
+  fireEvent.click(card(/^My Games/), { ctrlKey: true });
   assert.deepEqual(sources(), ["my-games"]);
   fireEvent.click(screen.getByRole("button", { name: "All" }));
   assert.equal(sources().length, 3);
@@ -93,4 +93,100 @@ test("shows a failure marker on the card and no count when My Games fails", asyn
   await renderBar({ masters: "boom" });
   assert.ok(screen.getByRole("img", { name: /Failed to load: boom/ }));
   assert.equal(screen.queryByText(/games$/), null);
+});
+
+const downloads: { name: string; text: string }[] = [];
+const openMenu = () => fireEvent.click(screen.getByRole("button", { name: /File actions: Tactics/ }));
+const withDownloadSpy = async (run: () => void) => {
+  const g = globalThis as unknown as { URL: typeof URL };
+  const blobs = new Map<string, Blob>();
+  const origCreate = g.URL.createObjectURL;
+  const origRevoke = g.URL.revokeObjectURL;
+  let n = 0;
+  g.URL.createObjectURL = ((blob: Blob) => {
+    const url = `blob:${n++}`;
+    blobs.set(url, blob);
+    return url;
+  }) as never;
+  g.URL.revokeObjectURL = (() => {}) as never;
+  const origClick = window.HTMLAnchorElement.prototype.click;
+  const pending: Promise<void>[] = [];
+  window.HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+    const blob = blobs.get(this.href);
+    pending.push(blob!.text().then((text) => void downloads.push({ name: this.download, text })));
+  };
+  try {
+    run();
+    await Promise.all(pending);
+  } finally {
+    window.HTMLAnchorElement.prototype.click = origClick;
+    g.URL.createObjectURL = origCreate;
+    g.URL.revokeObjectURL = origRevoke;
+  }
+};
+
+test("only PGN file cards have a menu", async () => {
+  await renderBar();
+  assert.equal(screen.getAllByTestId("library-source-menu").length, 1);
+  openMenu();
+  assert.deepEqual(
+    screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ["Rename", "Export (.pgn)", "Delete"],
+  );
+});
+
+test("opening the menu does not select the card", async () => {
+  useLibraryStore.setState({ filters: { ...DEFAULT_LIBRARY_FILTERS, sources: ["masters"] } });
+  await renderBar();
+  openMenu();
+  assert.deepEqual(sources(), ["masters"]);
+});
+
+test("rename: Enter saves, empty is refused, Esc cancels", async () => {
+  await renderBar();
+  openMenu();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+  let input = screen.getByRole("textbox", { name: "File name" });
+  fireEvent.change(input, { target: { value: "  " } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  assert.equal(useStudioStore.getState().files.databases[0].name, "Tactics");
+  assert.ok(screen.getByRole("textbox", { name: "File name" }));
+  fireEvent.change(input, { target: { value: "Endgames" } });
+  fireEvent.keyDown(input, { key: "Escape" });
+  assert.equal(screen.queryByRole("textbox"), null);
+  assert.equal(useStudioStore.getState().files.databases[0].name, "Tactics");
+
+  openMenu();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+  input = screen.getByRole("textbox", { name: "File name" });
+  fireEvent.change(input, { target: { value: " Endgames " } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  assert.equal(screen.queryByRole("textbox"), null);
+  assert.equal(useStudioStore.getState().files.databases[0].name, "Endgames");
+});
+
+test("export downloads every game joined by a blank line", async () => {
+  useStudioStore.setState((s) => ({
+    files: {
+      ...s.files,
+      databases: [{ id: "db1", name: 'Tac/tics:"1"', folderId: null, games: [{ pgn: "1. e4 *\n" }, { pgn: "1. d4 *" }] } as never],
+    },
+  }));
+  await renderBar();
+  fireEvent.click(screen.getByRole("button", { name: /File actions/ }));
+  await withDownloadSpy(() => fireEvent.click(screen.getByRole("menuitem", { name: "Export (.pgn)" })));
+  assert.deepEqual(downloads.pop(), { name: "Tactics1.pgn", text: "1. e4 *\n\n1. d4 *\n" });
+});
+
+test("delete asks first, then removes the file", async () => {
+  await renderBar();
+  openMenu();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+  const dialog = screen.getByRole("dialog");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  assert.equal(useStudioStore.getState().files.databases.length, 1);
+  openMenu();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+  assert.equal(useStudioStore.getState().files.databases.length, 0);
 });

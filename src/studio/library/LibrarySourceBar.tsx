@@ -1,16 +1,23 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
-import { TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { Ellipsis, TriangleAlert } from "lucide-react";
 import { tLibrary } from "@/src/i18n/library-strings";
 import { MASTERS_SOURCE_ID } from "@/src/lib/library/masters-source";
 import { getLibrarySource, listLibrarySources } from "@/src/lib/library/sources";
 import { defaultLibraryFilters, type LibrarySourceId } from "@/src/lib/library/types";
 import { useStudioStore } from "@/src/store/studio-store";
+import { downloadTextFile } from "@/src/lib/download-file";
+import { databaseExportFilename, databaseToPgn } from "@/src/lib/export-database-pgn";
+import { Button, IconButton } from "../ui/Button";
 import { Chip } from "../ui/Controls";
+import { Dialog } from "../ui/Dialog";
+import { MenuItem, MenuSurface } from "../ui/Menu";
 import { formatGameCount } from "./filter-chips";
 import { selectAll, selectOnly, toggleSource } from "./library-sources";
 import { useLibraryStore } from "./library-store";
+
+const MENU_MIN_WIDTH = 176;
 
 export type LibrarySourceBarProps = {
   sourceErrors: Partial<Record<LibrarySourceId, string>>;
@@ -43,6 +50,50 @@ function useMyGamesCount(enabled: boolean): number | null {
   return count;
 }
 
+/** Inline name editor for a PGN file card: Enter saves, Esc/blur cancels, empty is refused. */
+export function FileNameInput({
+  initial,
+  label,
+  onCommit,
+  onCancel,
+}: {
+  initial: string;
+  label: string;
+  onCommit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    ref.current?.focus();
+    ref.current?.select();
+  }, []);
+  const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (value.trim()) {
+        onCommit(value.trim());
+      }
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      onCancel();
+    }
+  };
+  return (
+    <input
+      ref={ref}
+      aria-label={label}
+      value={value}
+      maxLength={120}
+      onChange={(event) => setValue(event.target.value)}
+      onKeyDown={onKeyDown}
+      onBlur={onCancel}
+      className="h-full w-40 rounded-md bg-transparent px-2.5 text-dense font-medium text-studio-fg outline-none"
+    />
+  );
+}
+
 /** SIG-1319: one card per source, grouped; click selects one, Ctrl/⌘-click toggles. */
 export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
   const locale = useStudioStore((s) => s.settings.locale);
@@ -54,6 +105,25 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
   const ids = adapters.map((adapter) => adapter.id);
   const hasMyGames = ids.includes("my-games");
   const myGamesCount = useMyGamesCount(hasMyGames);
+  const renameFileDatabase = useStudioStore((s) => s.renameFileDatabase);
+  const deleteFileDatabase = useStudioStore((s) => s.deleteFileDatabase);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{ databaseId: string; x: number; y: number } | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menu) {
+      return;
+    }
+    const onDown = (event: PointerEvent) => {
+      const target = event.target as Element;
+      if (!menuRef.current?.contains(target) && !target.closest?.('[data-testid="library-source-menu"]')) {
+        setMenu(null);
+      }
+    };
+    window.addEventListener("pointerdown", onDown, true);
+    return () => window.removeEventListener("pointerdown", onDown, true);
+  }, [menu]);
   const selectedAvailable = ids.filter((id) => selected.includes(id));
   const allSelected = selectedAvailable.length === ids.length;
 
@@ -84,35 +154,73 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
     const isLast = isSelected && selectedAvailable.length <= 1;
     const error = sourceErrors[id];
     const detail = count(id);
+    const databaseId = id.startsWith("file:") ? id.slice("file:".length) : null;
+    const database = databaseId ? databases.find((item) => item.id === databaseId) : undefined;
+    const name = adapter.label(locale);
     return (
-      <button
+      <div
         key={id}
-        type="button"
-        data-testid="library-source-card"
-        aria-pressed={isSelected}
-        title={isLast ? tLibrary(locale, "library.sources.lastGuard") : undefined}
-        onClick={click(id)}
-        className={`flex h-9 shrink-0 flex-col items-start justify-center rounded-md border px-2.5 text-left ${
+        className={`flex h-9 max-w-60 shrink-0 items-stretch rounded-md border ${
           isSelected
             ? "border-studio-accent bg-studio-accent-soft text-studio-accent-text"
             : "border-studio-border bg-studio-hover-subtle text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
         }`}
       >
-        <span className="flex max-w-48 items-center gap-1 text-dense font-medium leading-tight">
-          <span className="truncate">{adapter.label(locale)}</span>
-          {error !== undefined ? (
-            <span
-              role="img"
-              title={tLibrary(locale, "library.sources.failed", { message: error })}
-              aria-label={tLibrary(locale, "library.sources.failed", { message: error })}
-              className="text-studio-danger"
-            >
-              <TriangleAlert size={12} />
+        {database && renamingId === database.id ? (
+          <FileNameInput
+            initial={database.name}
+            label={tLibrary(locale, "library.sources.file.renameLabel")}
+            onCommit={(next) => {
+              renameFileDatabase(database.id, next);
+              setRenamingId(null);
+            }}
+            onCancel={() => setRenamingId(null)}
+          />
+        ) : (
+          <button
+            type="button"
+            data-testid="library-source-card"
+            aria-pressed={isSelected}
+            title={isLast ? tLibrary(locale, "library.sources.lastGuard") : undefined}
+            onClick={click(id)}
+            className="flex min-w-0 flex-col items-start justify-center rounded-md px-2.5 text-left"
+          >
+            <span className="flex min-w-0 max-w-48 items-center gap-1 text-dense font-medium leading-tight">
+              <span className="truncate">{name}</span>
+              {error !== undefined ? (
+                <span
+                  role="img"
+                  title={tLibrary(locale, "library.sources.failed", { message: error })}
+                  aria-label={tLibrary(locale, "library.sources.failed", { message: error })}
+                  className="text-studio-danger"
+                >
+                  <TriangleAlert size={12} />
+                </span>
+              ) : null}
             </span>
-          ) : null}
-        </span>
-        {detail !== null ? <span className="text-caption leading-tight tabular-nums opacity-80">{detail}</span> : null}
-      </button>
+            {detail !== null ? <span className="text-caption leading-tight tabular-nums opacity-80">{detail}</span> : null}
+          </button>
+        )}
+        {database && renamingId !== database.id ? (
+          <IconButton
+            label={tLibrary(locale, "library.sources.file.menu", { name })}
+            size="sm"
+            aria-haspopup="menu"
+            aria-expanded={menu?.databaseId === database.id}
+            data-testid="library-source-menu"
+            className="my-auto mr-1 shrink-0 text-studio-muted"
+            onClick={(event) => {
+              event.stopPropagation();
+              const rect = event.currentTarget.getBoundingClientRect();
+              // Keep the menu (min-w-44 = 176px) inside the viewport near the right edge.
+              const x = Math.max(8, Math.min(rect.left, window.innerWidth - MENU_MIN_WIDTH - 8));
+              setMenu(menu?.databaseId === database.id ? null : { databaseId: database.id, x, y: rect.bottom + 4 });
+            }}
+          >
+            <Ellipsis size={14} />
+          </IconButton>
+        ) : null}
+      </div>
     );
   };
 
@@ -131,6 +239,9 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
       </div>
     );
 
+  const menuDb = menu ? databases.find((item) => item.id === menu.databaseId) : undefined;
+  const deletingDb = deletingId ? databases.find((item) => item.id === deletingId) : undefined;
+
   return (
     <div
       role="group"
@@ -143,6 +254,59 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
       </Chip>
       {group("library.sources.group.public", publicIds)}
       {group("library.sources.group.mine", mineIds)}
+      {menu && menuDb ? (
+        <div ref={menuRef} className="fixed z-[1000]" style={{ left: menu.x, top: menu.y }}>
+          <MenuSurface className="min-w-44" onClose={() => setMenu(null)} label={menuDb.name}>
+            <MenuItem
+              label={tLibrary(locale, "library.sources.file.rename")}
+              onClick={() => {
+                setMenu(null);
+                setRenamingId(menuDb.id);
+              }}
+            />
+            <MenuItem
+              label={tLibrary(locale, "library.sources.file.export")}
+              onClick={() => {
+                setMenu(null);
+                downloadTextFile(databaseExportFilename(menuDb), databaseToPgn(menuDb));
+              }}
+            />
+            <MenuItem
+              label={tLibrary(locale, "library.sources.file.delete")}
+              danger
+              onClick={() => {
+                setMenu(null);
+                setDeletingId(menuDb.id);
+              }}
+            />
+          </MenuSurface>
+        </div>
+      ) : null}
+      {deletingDb ? (
+        <Dialog
+          title={tLibrary(locale, "library.sources.file.deleteTitle", { name: deletingDb.name })}
+          onClose={() => setDeletingId(null)}
+          width="w-[24rem]"
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setDeletingId(null)}>
+                {tLibrary(locale, "library.sources.file.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  deleteFileDatabase(deletingDb.id);
+                  setDeletingId(null);
+                }}
+              >
+                {tLibrary(locale, "library.sources.file.deleteConfirm")}
+              </Button>
+            </>
+          }
+        >
+          {tLibrary(locale, "library.sources.file.deleteBody")}
+        </Dialog>
+      ) : null}
     </div>
   );
 }
