@@ -36,10 +36,13 @@ import {
   sortOpeningResults,
   type OpeningSort,
 } from "@/src/lib/my-games/stats";
+import { exerciseCountsByPhase, type ExerciseCounts } from "@/src/lib/mistake-exercise-counts";
+import { hydrateExercises } from "@/src/lib/mistake-exercises-store";
 import { localizeOpeningName } from "@/src/lib/opening-names";
 import {
   DEFAULT_OVERVIEW_FILTERS,
   filterGames,
+  isDefaultOverviewFilters,
   overviewKpis,
   type OverviewFilters,
 } from "@/src/lib/my-games/overview-filters";
@@ -183,6 +186,30 @@ export function MyStatsPanel() {
       current.refs -= 1;
     };
     /* eslint-enable react-hooks/set-state-in-effect */
+  }, [userId]);
+
+  // SIG-1307: saved exercises, hydrated once per signed-in user. Failure or
+  // loading leaves `null` (the Train actions simply don't render).
+  const [exerciseCounts, setExerciseCounts] = useState<ExerciseCounts | null>(null);
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+    let cancelled = false;
+    hydrateExercises(userId)
+      .then((map) => {
+        if (!cancelled) {
+          setExerciseCounts(exerciseCountsByPhase(map));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setExerciseCounts(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   // SIG-1306: same open flow as My Games — import into a new board, orient to
@@ -498,7 +525,12 @@ export function MyStatsPanel() {
                 {tMyGames(locale, "myGames.statsByPhase")}
               </h2>
               {filteredReady ? (
-                <MyStatsPhases locale={locale} stats={phaseStats} />
+                <MyStatsPhases
+                  locale={locale}
+                  stats={phaseStats}
+                  exerciseCounts={userId ? exerciseCounts : null}
+                  filtersActive={!isDefaultOverviewFilters(overviewFilters)}
+                />
               ) : (
                 <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
               )}

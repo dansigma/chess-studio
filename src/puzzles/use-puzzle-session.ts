@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { playMoveSound } from "@/src/chess/move-sound";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import {
@@ -22,6 +22,7 @@ import {
 import {
   exerciseKeyForPuzzle,
   mistakesQueue,
+  type MistakeFilter,
   nextDueDate,
   type MistakesQueueEntry,
 } from "./mistake-puzzle";
@@ -160,12 +161,15 @@ export function usePuzzleSession({
   mode,
   theme,
   difficulty = null,
+  mistakeFilter = null,
   moveSound,
   scoring,
 }: {
   mode: PuzzleMode;
   theme: PuzzleTheme | null;
   difficulty?: Difficulty | null;
+  /** SIG-1307: optional label/phase filter for the mistakes queue. */
+  mistakeFilter?: MistakeFilter | null;
   moveSound: boolean;
   scoring: PuzzleScoring;
 }) {
@@ -183,6 +187,13 @@ export function usePuzzleSession({
     commit: applyScore,
   } = scoring;
 
+  // Primitive deps + a memo keep the filter stable across renders.
+  const filterLabel = mistakeFilter?.label;
+  const filterPhase = mistakeFilter?.phase;
+  const filter = useMemo<MistakeFilter | null>(
+    () => (filterLabel || filterPhase ? { label: filterLabel, phase: filterPhase } : null),
+    [filterLabel, filterPhase],
+  );
   const [puzzle, setPuzzle] = useState<CompiledPuzzle | null>(null);
   const [fen, setFen] = useState("");
   const [ply, setPly] = useState(0);
@@ -368,7 +379,7 @@ export function usePuzzleSession({
           }
           exercisesRef.current = map;
           exercisesUserIdRef.current = userId;
-          const queue = mistakesQueue(map, exclude.current);
+          const queue = mistakesQueue(map, exclude.current, new Date(), filter);
           mistakesRef.current = queue;
           mistakesIndexRef.current = 0;
           hydrate(loaded);
@@ -477,7 +488,7 @@ export function usePuzzleSession({
     return () => {
       cancel = true;
     };
-  }, [mode, theme, difficulty, hydrate, resetResult]);
+  }, [mode, theme, difficulty, filter, hydrate, resetResult]);
 
   useEffect(() => {
     return () => clearAdvance();
@@ -643,7 +654,7 @@ export function usePuzzleSession({
       // gets one pass; SRS state (`recordAttempt` at commit time) decides
       // whether it returns tomorrow (failed) or later (solved) — the queue
       // itself just advances to the next unshown entry.
-      const queue = mistakesRef.current.length > 0 ? mistakesRef.current : mistakesQueue(exercisesRef.current, exclude.current);
+      const queue = mistakesRef.current.length > 0 ? mistakesRef.current : mistakesQueue(exercisesRef.current, exclude.current, new Date(), filter);
       mistakesRef.current = queue;
       const at = mistakesIndexRef.current + 1;
       if (at >= queue.length) {
@@ -703,7 +714,7 @@ export function usePuzzleSession({
     if (mode === "mistakes") {
       // SIG-1097: rebuild from the current map — failed exercises are due
       // again, solved ones are scheduled out.
-      const queue = mistakesQueue(exercisesRef.current, new Set());
+      const queue = mistakesQueue(exercisesRef.current, new Set(), new Date(), filter);
       mistakesRef.current = queue;
       mistakesIndexRef.current = 0;
       exclude.current = new Set();

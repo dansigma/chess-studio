@@ -1,8 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CourseChrome } from "@/src/courses/CourseChrome";
+import { phaseName, tierName } from "@/src/chess/review-strings";
 import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -10,6 +12,7 @@ import { PuzzleBoard } from "./PuzzleBoard";
 import { PuzzlePanel } from "./PuzzlePanel";
 import { parseDifficulty, type Difficulty } from "./difficulty";
 import { isPuzzleMode, isPuzzleTheme } from "./engine";
+import { parseMistakeFilter } from "./mistake-puzzle";
 import type { PuzzleMode, PuzzleTheme } from "./types";
 import { usePuzzleFeedback } from "./use-puzzle-feedback";
 import { usePuzzleScoring } from "./use-puzzle-scoring";
@@ -25,19 +28,39 @@ export function PuzzleTrainer() {
   // SIG-1256: a difficulty only applies to rated sessions; invalid means none.
   const difficulty: Difficulty | null = mode === "rated" ? parseDifficulty(params.get("difficulty")) : null;
 
+  // SIG-1307: optional label/phase filter, mistakes mode only; invalid ignored.
+  const labelParam = params.get("label");
+  const phaseParam = params.get("phase");
+  const mistakeFilter = useMemo(
+    () => (mode === "mistakes" ? parseMistakeFilter(labelParam, phaseParam) : {}),
+    [mode, labelParam, phaseParam],
+  );
+
   const locale = useStudioStore((state) => state.settings.locale);
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const moveSound = useStudioStore((state) => state.settings.moveSound);
 
+  const filterText = [
+    mistakeFilter.phase ? phaseName(locale, mistakeFilter.phase) : null,
+    mistakeFilter.label ? tierName(locale, mistakeFilter.label) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const scoring = usePuzzleScoring(mode, difficulty !== null);
-  const session = usePuzzleSession({ mode, theme, difficulty, moveSound, scoring });
+  const session = usePuzzleSession({ mode, theme, difficulty, mistakeFilter, moveSound, scoring });
   const feedback = usePuzzleFeedback({ mode, session, locale });
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-studio-bg">
       <CourseChrome />
+      {filterText ? (
+        <p className="px-4 pt-2 text-caption text-studio-faint" data-testid="mistakes-filter-chip">
+          {filterText}
+        </p>
+      ) : null}
       {session.loadError ? (
         <main className="px-6 py-10 text-body text-studio-warning-fg">
           {tPuzzle(locale, "puzzle.trainer.loadError")}
