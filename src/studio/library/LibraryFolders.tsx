@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { Folder } from "lucide-react";
 import { tLibrary } from "@/src/i18n/library-strings";
 import {
@@ -44,19 +44,42 @@ export async function refreshFromAccount(): Promise<void> {
   setStatus(tLibrary(settings.locale, "library.folders.refreshed"));
 }
 
-/** A `position: fixed` menu anchored under its trigger; closes on outside pointer-down. */
+/** Where a fixed menu opens: under its trigger (`y`), or above it (`top`) when there is no room below. */
+export type MenuAnchor = { x: number; y: number; top?: number };
+
+/**
+ * SIG-1337: `position: fixed` style for a menu at `anchor`. After the menu is
+ * measured, it flips above its trigger when it would run past the bottom of
+ * the window (the rail's import and Folders buttons sit at the bottom).
+ */
+export function useMenuPosition(anchor: MenuAnchor, ref: RefObject<HTMLElement | null>): CSSProperties {
+  const [top, setTop] = useState(anchor.y);
+  useLayoutEffect(() => {
+    const height = ref.current?.getBoundingClientRect().height ?? 0;
+    const roomBelow = window.innerHeight - 8 - anchor.y;
+    if (height > 0 && height > roomBelow && anchor.top !== undefined) {
+      setTop(Math.max(8, anchor.top - 4 - height));
+    } else {
+      setTop(anchor.y);
+    }
+  }, [anchor.y, anchor.top, ref]);
+  return { left: anchor.x, top };
+}
+
+/** A `position: fixed` menu anchored to its trigger; closes on outside pointer-down. */
 export function PopMenu({
   anchor,
   label,
   onClose,
   children,
 }: {
-  anchor: { x: number; y: number };
+  anchor: MenuAnchor;
   label: string;
   onClose: () => void;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const style = useMenuPosition(anchor, ref);
   useEffect(() => {
     const onDown = (event: PointerEvent) => {
       const target = event.target as Element;
@@ -68,7 +91,7 @@ export function PopMenu({
     return () => window.removeEventListener("pointerdown", onDown, true);
   }, [onClose]);
   return (
-    <div ref={ref} className="fixed z-[1000]" style={{ left: anchor.x, top: anchor.y }}>
+    <div ref={ref} className="fixed z-[1000]" style={style}>
       <MenuSurface className="min-w-48" onClose={onClose} label={label}>
         {children}
       </MenuSurface>
@@ -76,10 +99,14 @@ export function PopMenu({
   );
 }
 
-/** Anchor under a trigger button, kept inside the viewport near the right edge. */
-export function anchorBelow(element: HTMLElement): { x: number; y: number } {
+/** Anchor under a trigger button, kept inside the viewport near the right edge; may flip above it. */
+export function anchorBelow(element: HTMLElement): MenuAnchor {
   const rect = element.getBoundingClientRect();
-  return { x: Math.max(8, Math.min(rect.left, window.innerWidth - MENU_MIN_WIDTH - 8)), y: rect.bottom + 4 };
+  return {
+    x: Math.max(8, Math.min(rect.left, window.innerWidth - MENU_MIN_WIDTH - 8)),
+    y: rect.bottom + 4,
+    top: rect.top,
+  };
 }
 
 /** Folder destination picker; `isDisabled` blocks the current spot and cycle targets. */
@@ -144,7 +171,7 @@ export function FoldersMenu() {
   const setFolderId = useLibraryStore((s) => s.setFolderId);
   const selectedId = useSelectedFolderId();
   const selected = files.folders.find((folder) => folder.id === selectedId);
-  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
   const [dialog, setDialog] = useState<FolderDialog | null>(null);
   const [name, setName] = useState("");
   const t = (key: Parameters<typeof tLibrary>[1], vars?: Record<string, string | number>) => tLibrary(locale, key, vars);

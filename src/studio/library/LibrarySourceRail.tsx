@@ -2,7 +2,7 @@
 
 // SIG-1337: the Library's sources rail — public databases, My Games and the PGN
 // file tree live left of the games table; the old source bar above it is gone.
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -39,7 +39,9 @@ import {
   PopMenu,
   anchorBelow,
   folderScope,
+  useMenuPosition,
   useSelectedFolderId,
+  type MenuAnchor,
 } from "./LibraryFolders";
 import { useLibraryStore } from "./library-store";
 import { libraryToExplorerSource } from "./reference-source";
@@ -147,10 +149,10 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ databaseId: string; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<(MenuAnchor & { databaseId: string }) | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
-  const [importMenu, setImportMenu] = useState<{ x: number; y: number } | null>(null);
+  const [importMenu, setImportMenu] = useState<MenuAnchor | null>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -342,7 +344,11 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
                 const rect = event.currentTarget.getBoundingClientRect();
                 // Keep the menu (min-w-44 = 176px) inside the viewport near the right edge.
                 const x = Math.max(8, Math.min(rect.left, window.innerWidth - MENU_MIN_WIDTH - 8));
-                setMenu(menu?.databaseId === database.id ? null : { databaseId: database.id, x, y: rect.bottom + 4 });
+                setMenu(
+                  menu?.databaseId === database.id
+                    ? null
+                    : { databaseId: database.id, x, y: rect.bottom + 4, top: rect.top },
+                );
               }}
             >
               <Ellipsis size={14} />
@@ -441,7 +447,7 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
   const dialogs = (
     <>
       {menu && menuDb ? (
-        <div ref={menuRef} className="fixed z-[1000]" style={{ left: menu.x, top: menu.y }}>
+        <FileMenuPosition anchor={menu} menuRef={menuRef}>
           <MenuSurface className="min-w-44" onClose={() => setMenu(null)} label={menuDb.name}>
             <MenuItem
               label={t("library.sources.file.rename")}
@@ -473,7 +479,7 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
               }}
             />
           </MenuSurface>
-        </div>
+        </FileMenuPosition>
       ) : null}
       {importMenu ? (
         <PopMenu anchor={importMenu} label={t("library.import.button")} onClose={() => setImportMenu(null)}>
@@ -657,5 +663,23 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
       </div>
       {dialogs}
     </Panel>
+  );
+}
+
+/** The per-file menu's fixed wrapper; flips above the row when there is no room below. */
+function FileMenuPosition({
+  anchor,
+  menuRef,
+  children,
+}: {
+  anchor: MenuAnchor;
+  menuRef: RefObject<HTMLDivElement | null>;
+  children: ReactNode;
+}) {
+  const style = useMenuPosition(anchor, menuRef);
+  return (
+    <div ref={menuRef} className="fixed z-[1000]" style={style}>
+      {children}
+    </div>
   );
 }
