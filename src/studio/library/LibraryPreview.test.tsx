@@ -122,6 +122,42 @@ test("Open in Studio opens a new board and switches the workspace view", async (
   assert.equal(state.boards.at(-1)!.preview, false);
 });
 
+test("Train line is disabled with no moves and at the last move", async () => {
+  registerLibrarySource(adapter(async () => '[Event "x"]\n\n*'));
+  render(<LibraryPreview item={ITEM} />);
+  await screen.findByTestId("library-preview");
+  const button = screen.getByRole("button", { name: "Train line" }) as HTMLButtonElement;
+  assert.equal(button.disabled, true);
+  assert.ok(button.title.length > 0);
+  cleanup();
+  registerLibrarySource(adapter(async () => PGN));
+  render(<LibraryPreview item={ITEM2} />);
+  await screen.findByTestId("library-preview");
+  const enabled = screen.getByRole("button", { name: "Train line" }) as HTMLButtonElement;
+  assert.equal(enabled.disabled, false);
+  fireEvent.click(screen.getByLabelText("Last move"));
+  assert.equal(enabled.disabled, true);
+  assert.ok(enabled.title.length > 0);
+});
+
+test("Train line opens the game at the preview position and starts training from it", async () => {
+  registerLibrarySource(adapter(async () => PGN));
+  useStudioStore.setState({ training: false, trainingStart: null });
+  const before = useStudioStore.getState().boards.length;
+  render(<LibraryPreview item={ITEM} />);
+  await screen.findByTestId("library-preview");
+  fireEvent.click(screen.getByRole("button", { name: "Nf3" }));
+  fireEvent.click(screen.getByRole("button", { name: "Train line" }));
+  const state = useStudioStore.getState();
+  assert.equal(state.workspaceView, "studio");
+  assert.equal(state.boards.length, before + 1);
+  const board = state.boards.at(-1)!;
+  assert.equal(state.activeBoardId, board.id);
+  assert.equal(board.path.length, 3);
+  assert.equal(state.training, true);
+  assert.deepEqual(state.trainingStart, board.path);
+});
+
 test("a list reload with a new object for the same game does not load the PGN again", async () => {
   let calls = 0;
   registerLibrarySource(adapter(async () => {

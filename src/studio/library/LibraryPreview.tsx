@@ -128,6 +128,7 @@ function LoadedPreview({ item, loaded }: { item: LibraryGameItem; loaded: Loaded
   const orientation = useStudioStore((state) => selectActiveBoard(state).orientation);
   const openListedGame = useStudioStore((state) => state.openListedGame);
   const setWorkspaceView = useStudioStore((state) => state.setWorkspaceView);
+  const startTraining = useStudioStore((state) => state.startTraining);
   const positionFen = useLibraryStore((state) => state.filters.position?.fen ?? null);
 
   // The cursor starts on the filtered position (computed once per loaded game).
@@ -181,7 +182,7 @@ function LoadedPreview({ item, loaded }: { item: LibraryGameItem; loaded: Loaded
   const winner = item.result === "1-0" ? "white" : item.result === "0-1" ? "black" : item.result === "*" ? null : "draw";
   const opening = [item.eco, item.opening].filter(Boolean).join(" · ") || headers.Opening || headers.ECO || null;
 
-  const openInStudio = () => {
+  const openGameInStudio = () => {
     openListedGame({
       title: `${item.white} vs ${item.black}`,
       pgn,
@@ -192,6 +193,17 @@ function LoadedPreview({ item, loaded }: { item: LibraryGameItem; loaded: Loaded
     setWorkspaceView("studio");
     openBoardPanel(active.id, active.title);
   };
+  const trainLine = () => {
+    openGameInStudio();
+    startTraining();
+  };
+  const atLastMove = goForward(tree, path) === path;
+  const trainDisabledReason =
+    tree.children.length === 0
+      ? tLibrary(locale, "library.preview.trainNoMoves")
+      : atLastMove
+        ? tLibrary(locale, "library.preview.trainAtEnd")
+        : undefined;
 
   return (
     <div
@@ -281,8 +293,11 @@ function LoadedPreview({ item, loaded }: { item: LibraryGameItem; loaded: Loaded
         )}
       </div>
 
-      <div className="flex justify-end">
-        <Button variant="primary" size="sm" onClick={openInStudio}>
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="secondary" size="sm" onClick={trainLine} disabled={trainDisabledReason !== undefined} title={trainDisabledReason}>
+          {tLibrary(locale, "library.preview.train")}
+        </Button>
+        <Button variant="primary" size="sm" onClick={openGameInStudio}>
           {tLibrary(locale, "library.preview.open")}
         </Button>
       </div>
