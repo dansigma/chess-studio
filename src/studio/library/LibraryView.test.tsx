@@ -6,17 +6,30 @@ import { LibraryView, LibraryPlaceholderList } from "./LibraryView";
 import type { LibraryGamesState } from "./use-library-games";
 import { useLibraryStore } from "./library-store";
 import { clampLibrarySplit } from "./library-layout";
+import { clearLibrarySources, registerLibrarySource } from "@/src/lib/library/sources";
+import { emptyOverview } from "@/src/lib/library/overview";
+import type { LibraryGameItem } from "@/src/lib/library/types";
 
 before(() => setupDom());
 after(() => teardownDom());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  clearLibrarySources();
+});
 
 const base: LibraryGamesState = {
   items: [], total: 0, loading: false, loadingMore: false, error: null, sourceErrors: {},
   hasMore: false, loadMore: () => {}, retry: () => {},
 };
 
-test("shows the three slots and the select-a-game message", async () => {
+const ITEM: LibraryGameItem = {
+  key: "my-games:1", sourceId: "my-games", gameId: "1",
+  white: "Carlsen", whiteElo: 2850, black: "Caruana", blackElo: 2800,
+  result: "1-0", eco: "C65", opening: "Berlin Defence", plyCount: null, event: null, date: "2020",
+};
+const PGN = '[Event "Test"]\n[White "Carlsen"]\n[Black "Caruana"]\n[Result "1-0"]\n\n1. e4 e5 1-0';
+
+test("shows the three slots and the database summary in the preview panel", async () => {
   await act(async () => {
     render(<LibraryView />);
   });
@@ -24,7 +37,8 @@ test("shows the three slots and the select-a-game message", async () => {
   assert.ok(screen.getByTestId("library-table-slot"));
   assert.ok(screen.getByTestId("library-source-rail"));
   assert.equal(screen.queryByTestId("library-source-bar"), null);
-  assert.ok(screen.getByText("Select a game"));
+  assert.ok(screen.getByTestId("library-summary"));
+  assert.equal(screen.queryByTestId("library-preview"), null);
   assert.ok(screen.getByRole("separator"));
 });
 
@@ -73,4 +87,28 @@ test("split is clamped", () => {
   assert.equal(clampLibrarySplit(5), 30);
   assert.equal(clampLibrarySplit(99), 85);
   assert.equal(clampLibrarySplit(NaN), 65);
+});
+
+test("the right panel shows the summary with no selection and the preview after selecting, back on deselect", async () => {
+  registerLibrarySource({
+    id: "my-games",
+    label: () => "My Games",
+    capabilities: () => ({}) as never,
+    list: async () => ({ items: [ITEM], nextCursor: null, total: 1 }),
+    loadPgn: async () => PGN,
+    overview: async () => emptyOverview(),
+  });
+  useLibraryStore.setState({ filters: { ...useLibraryStore.getState().filters, sources: ["my-games"] } });
+  await act(async () => {
+    render(<LibraryView />);
+  });
+  assert.ok(screen.getByTestId("library-summary"));
+  const row = await screen.findByTestId("library-row");
+  fireEvent.click(row);
+  await screen.findByTestId("library-preview");
+  assert.equal(screen.queryByTestId("library-summary"), null);
+
+  fireEvent.keyDown(screen.getByRole("grid"), { key: "Escape" });
+  assert.ok(screen.getByTestId("library-summary"));
+  assert.equal(useLibraryStore.getState().selectedKey, null);
 });

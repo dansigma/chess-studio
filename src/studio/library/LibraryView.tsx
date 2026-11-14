@@ -8,7 +8,7 @@ import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { useLibraryGames, type LibraryGamesState } from "./use-library-games";
 import { LibraryFilterChips, LibraryToolbar } from "./LibraryToolbar";
 import { LibrarySourceRail } from "./LibrarySourceRail";
-import { LibraryOverviewBar } from "./LibraryOverviewBar";
+import { LibrarySummary } from "./LibrarySummary";
 import { useLibrarySources } from "./library-sources";
 import { useMyGamesIndexing, type MyGamesIndexingState } from "./use-my-games-indexing";
 import {
@@ -166,7 +166,6 @@ function LibraryGames({ toolbar, table, preview, tabs }: LibraryViewSlots & { ta
         </div>
       </div>
       {toolbar ? null : <LibraryFilterChips />}
-      <LibraryOverviewBar />
       <div className="flex min-h-0 flex-1">
         <LibrarySourceRail sourceErrors={games.sourceErrors} />
         <div aria-hidden className="w-1.5 shrink-0" />
@@ -206,7 +205,7 @@ function LibraryGames({ toolbar, table, preview, tabs }: LibraryViewSlots & { ta
             className="min-w-0 flex-1 overflow-hidden"
             data-testid="library-preview-slot"
           >
-            {preview ? preview(selected) : <LibraryPreview item={selected} />}
+            {preview ? preview(selected) : selected ? <LibraryPreview item={selected} /> : <LibrarySummary />}
           </Panel>
         </div>
       </div>

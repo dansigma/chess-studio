@@ -144,6 +144,34 @@ test("click and arrow keys move the selection", () => {
   assert.equal(screen.getAllByTestId("library-row")[0]!.getAttribute("aria-selected"), "true");
 });
 
+test("Escape and clicking the selected row again clear the selection", () => {
+  render(<LibraryTable games={games(5)} />);
+  const rows = screen.getAllByTestId("library-row");
+  fireEvent.click(rows[0]!);
+  assert.equal(useLibraryStore.getState().selectedKey, "my-games:0");
+  fireEvent.click(rows[0]!);
+  assert.equal(useLibraryStore.getState().selectedKey, null);
+
+  fireEvent.click(rows[1]!);
+  assert.equal(useLibraryStore.getState().selectedKey, "my-games:1");
+  fireEvent.keyDown(screen.getByRole("grid"), { key: "Escape" });
+  assert.equal(useLibraryStore.getState().selectedKey, null);
+});
+
+test("a double-click opens the game and keeps the row selected", async () => {
+  registerLibrarySource(adapter());
+  const items = [sourceItem(0)];
+  const boardsBefore = useStudioStore.getState().boards.length;
+  render(<LibraryTable games={games(1, { items })} />);
+  const row = screen.getAllByTestId("library-row")[0]!;
+  fireEvent.click(row, { detail: 1 });
+  fireEvent.click(row, { detail: 2 });
+  fireEvent.doubleClick(row);
+  assert.equal(useLibraryStore.getState().selectedKey, "masters:0");
+  await waitFor(() => assert.equal(useStudioStore.getState().boards.length, boardsBefore + 1));
+  assert.equal(useLibraryStore.getState().selectedKey, "masters:0");
+});
+
 test("loadMore fires near the end and shows the loading row", async () => {
   let calls = 0;
   const { rerender } = render(<LibraryTable games={games(20, { hasMore: true, loadMore: () => { calls++; } })} />);

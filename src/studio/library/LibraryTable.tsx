@@ -196,6 +196,14 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
   }, [wantsMore, loadMore]);
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      // SIG-1339: Escape clears the selection, bringing the database summary back.
+      if (selectedKey !== null) {
+        event.preventDefault();
+        selectGame(null);
+      }
+      return;
+    }
     if (event.key === "Enter") {
       const item = items[selectedIndex];
       if (item) {
@@ -342,7 +350,15 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
                       selected ? "bg-studio-selected" : "hover:bg-studio-hover-subtle"
                     }`}
                     style={{ gridTemplateColumns: template, columnGap: 8, height: LIBRARY_ROW_HEIGHT }}
-                    onClick={() => selectGame(item.key)}
+                    onClick={(event) => {
+                      // SIG-1339: clicking the selected row again clears it; a
+                      // double-click's second click must keep the selection
+                      // before opening the game.
+                      if (event.detail > 1) {
+                        return;
+                      }
+                      selectGame(item.key === selectedKey ? null : item.key);
+                    }}
                     onDoubleClick={() => void openLibraryGame(item, locale)}
                   >
                     {selected && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-studio-accent" />}
