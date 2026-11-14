@@ -1,29 +1,285 @@
 "use client";
 
-// SIG-1338: one column of the dossier's bottom half. This is the frame only —
-// a later issue replaces this file with the player's game list and preview.
-import type { PlayerGame } from "@/src/lib/player-types";
+// SIG-1342: the dossier's Games area. Lists the player's filtered games
+// newest first, optionally narrowed to the opening selected in the dossier,
+// and opens the shared Library preview under the list.
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { X } from "lucide-react";
+import { importPgn } from "@/src/chess/pgn";
+import { numberSanLine } from "@/src/chess/pgn-clean";
 import { tLibrary } from "@/src/i18n/library-strings";
-import { useStudioStore } from "@/src/store/studio-store";
+import { openingGroupKey } from "@/src/lib/prep/opening-group";
+import type { PlayerGame } from "@/src/lib/player-types";
+import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
+import { openBoardPanel } from "../../dock-api";
+import { ResultMark } from "../../ResultMark";
+import { EcoBadge } from "../../ui/EcoBadge";
+import { outcomeFor, PlayerCell } from "../../ui/PlayerCell";
 import { Panel } from "../../ui/Panel";
+import { moveSelection } from "../library-columns";
+import { GamePreview } from "../LibraryPreview";
+import { useVirtualRows } from "../use-virtual-rows";
+import { useDossierStore } from "./dossier-store";
+
+const ROW_HEIGHT = 28;
+const GRID_TEMPLATE = "minmax(0,1fr) minmax(0,1fr) 36px 3ch 34px minmax(0,0.8fr)";
+
+/** Newest first; undated games last, then by id so the order is stable. */
+export function compareDossierGames(a: PlayerGame, b: PlayerGame): number {
+  if (a.playedAt !== b.playedAt) {
+    if (a.playedAt === null) {
+      return 1;
+    }
+    if (b.playedAt === null) {
+      return -1;
+    }
+    return b.playedAt - a.playedAt;
+  }
+  return a.id.localeCompare(b.id);
+}
+
+function resultToken(winner: PlayerGame["winner"]): "1-0" | "0-1" | "1/2-1/2" | "*" {
+  if (winner === "white") {
+    return "1-0";
+  }
+  if (winner === "black") {
+    return "0-1";
+  }
+  if (winner === "draw") {
+    return "1/2-1/2";
+  }
+  return "*";
+}
+
+/** The stored PGN, or a minimal one built from the moves (Lichess often has only `moves`). */
+export function dossierGamePgn(game: PlayerGame): string {
+  if (game.pgn?.trim()) {
+    return game.pgn;
+  }
+  const movetext = numberSanLine(game.moves?.trim() ?? "");
+  return `${movetext}${movetext ? " " : ""}${resultToken(game.winner)}\n`;
+}
+
+function gameYear(game: PlayerGame): number | null {
+  if (game.year != null) {
+    return game.year;
+  }
+  return game.playedAt != null ? new Date(game.playedAt).getUTCFullYear() : null;
+}
+
+/** Display name of the opening filter: its first game's opening, then its ECO, then the key. */
+function openingFilterLabel(games: readonly PlayerGame[], key: string): string {
+  const first = games.find((game) => openingGroupKey(game) === key);
+  return first?.opening?.trim() || first?.eco?.trim() || key;
+}
 
 export function DossierGames({ games }: { games: PlayerGame[] }) {
   const locale = useStudioStore((state) => state.settings.locale);
+  const openListedGame = useStudioStore((state) => state.openListedGame);
+  const setWorkspaceView = useStudioStore((state) => state.setWorkspaceView);
+  const player = useDossierStore((state) => state.player);
+  const selectedOpening = useDossierStore((state) => state.selectedOpening);
+  const clearOpening = useDossierStore((state) => state.clearOpening);
+
+  const sorted = useMemo(() => [...games].sort(compareDossierGames), [games]);
+  const filtered = useMemo(
+    () =>
+      selectedOpening === null
+        ? sorted
+        : sorted.filter((game) => openingGroupKey(game) === selectedOpening),
+    [sorted, selectedOpening],
+  );
+  const chipLabel = selectedOpening === null ? null : openingFilterLabel(sorted, selectedOpening);
+
+  // Selection is scoped to the player: a new dossier or a filtered-out game
+  // clears it without an effect on the list.
+  const [selection, setSelection] = useState<{ playerId: string; gameId: string } | null>(null);
+  const playerId = player?.id ?? null;
+  const selectedIndex =
+    selection && playerId !== null && selection.playerId === playerId
+      ? filtered.findIndex((game) => game.id === selection.gameId)
+      : -1;
+  const selectedGame = selectedIndex >= 0 ? filtered[selectedIndex] ?? null : null;
+
+  // Drop a selection the player change or the filters left out of the list.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the selection is a cache keyed to the visible list, not a render input.
+    setSelection((current) =>
+      current && current.playerId === playerId && filtered.some((game) => game.id === current.gameId)
+        ? current
+        : null,
+    );
+  }, [playerId, filtered]);
+
+  const { attachScroll, onScroll, scrollToIndex, ...rows } = useVirtualRows({
+    count: filtered.length,
+    rowHeight: ROW_HEIGHT,
+  });
+
+  const preview = useMemo(() => {
+    if (!selectedGame) {
+      return null;
+    }
+    const pgn = dossierGamePgn(selectedGame);
+    return { pgn, game: importPgn(pgn) };
+  }, [selectedGame]);
+
+  function selectGame(game: PlayerGame) {
+    if (playerId === null) {
+      return;
+    }
+    setSelection({ playerId, gameId: game.id });
+  }
+
+  function openInStudio(game: PlayerGame) {
+    const pgn = dossierGamePgn(game);
+    const imported = importPgn(pgn);
+    openListedGame({
+      title: `${game.whiteName} vs ${game.blackName}`,
+      pgn,
+      atFen: imported.tree.startFen,
+      openInNewBoard: true,
+    });
+    const active = selectActiveBoard(useStudioStore.getState());
+    setWorkspaceView("studio");
+    openBoardPanel(active.id, active.title);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Enter") {
+      if (selectedGame) {
+        event.preventDefault();
+        openInStudio(selectedGame);
+      }
+      return;
+    }
+    const next = moveSelection(event.key, selectedIndex, filtered.length);
+    if (next === null) {
+      return;
+    }
+    event.preventDefault();
+    const game = filtered[next];
+    if (game) {
+      selectGame(game);
+      scrollToIndex(next);
+    }
+  }
+
+  const rowDomId = (id: string) => `dossier-game-row-${id.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+  const visible = filtered.slice(rows.start, rows.end);
+
   return (
     <Panel
       as="section"
       aria-label={tLibrary(locale, "library.dossier.gamesList")}
-      className="flex min-w-0 flex-col gap-2 p-2"
+      className="flex min-h-0 min-w-0 flex-col gap-2 p-2"
       data-testid="dossier-games"
     >
       <h3 className="text-caption font-semibold text-studio-muted">
         {tLibrary(locale, "library.dossier.gamesList")}
       </h3>
-      <div
-        className="min-h-24 rounded border border-dashed border-studio-border-subtle"
-        data-testid="dossier-games-empty"
-        data-games={games.length}
-      />
+      {chipLabel !== null && selectedOpening !== null ? (
+        <span
+          data-testid="dossier-opening-chip"
+          className="inline-flex h-[22px] max-w-full items-center gap-1 self-start rounded-full border border-transparent bg-studio-accent-soft pl-2 pr-1 text-caption text-studio-accent-text"
+        >
+          <span className="truncate">{chipLabel}</span>
+          <button
+            type="button"
+            aria-label={tLibrary(locale, "library.dossier.removeOpening", { name: chipLabel })}
+            onClick={clearOpening}
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-studio-hover-strong"
+          >
+            <X size={10} />
+          </button>
+        </span>
+      ) : null}
+      {filtered.length === 0 ? (
+        <p role="status" className="p-2 text-dense text-studio-muted" data-testid="dossier-games-empty">
+          {tLibrary(locale, "library.dossier.gamesEmpty")}
+        </p>
+      ) : (
+        <>
+          <div
+            ref={attachScroll}
+            onScroll={onScroll}
+            role="listbox"
+            tabIndex={0}
+            aria-label={tLibrary(locale, "library.dossier.gamesList")}
+            aria-activedescendant={selectedGame ? rowDomId(selectedGame.id) : undefined}
+            onKeyDown={onKeyDown}
+            className="min-h-0 overflow-auto text-dense text-studio-fg outline-none focus-visible:ring-1 focus-visible:ring-studio-accent"
+            style={{ maxHeight: selectedGame ? "40vh" : "60vh" }}
+            data-testid="dossier-games-scroll"
+          >
+            <div style={{ height: rows.totalHeight, position: "relative" }}>
+              <div style={{ transform: `translateY(${rows.offsetTop}px)` }}>
+                {visible.map((game, offset) => {
+                  const index = rows.start + offset;
+                  const isSelected = game.id === selectedGame?.id;
+                  const year = gameYear(game);
+                  return (
+                    <div
+                      key={game.id}
+                      id={rowDomId(game.id)}
+                      role="option"
+                      aria-selected={isSelected}
+                      aria-posinset={index + 1}
+                      aria-setsize={filtered.length}
+                      data-testid="dossier-game-row"
+                      className={`group relative grid cursor-default items-center gap-2 px-2 ${
+                        isSelected ? "bg-studio-selected" : "hover:bg-studio-hover-subtle"
+                      }`}
+                      style={{ gridTemplateColumns: GRID_TEMPLATE, height: ROW_HEIGHT }}
+                      onClick={() => selectGame(game)}
+                      onDoubleClick={() => openInStudio(game)}
+                    >
+                      {isSelected ? <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-studio-accent" /> : null}
+                      <PlayerCell
+                        name={game.whiteName}
+                        rating={game.whiteRating}
+                        outcome={outcomeFor(game.winner, "white")}
+                        emphasis={game.color === "white"}
+                      />
+                      <PlayerCell
+                        name={game.blackName}
+                        rating={game.blackRating}
+                        outcome={outcomeFor(game.winner, "black")}
+                        emphasis={game.color === "black"}
+                      />
+                      <ResultMark winner={game.winner} />
+                      <EcoBadge code={game.eco} opening={game.opening} />
+                      <span className="text-right tabular-nums text-studio-faint">{year ?? "—"}</span>
+                      <span className="truncate text-studio-muted" title={game.event ?? undefined}>
+                        {game.event ?? "—"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          {selectedGame && preview ? (
+            <div className="min-h-0 min-w-0 flex-1 border-t border-studio-border-subtle pt-2">
+              <GamePreview
+                key={selectedGame.id}
+                white={selectedGame.whiteName}
+                black={selectedGame.blackName}
+                whiteElo={selectedGame.whiteRating}
+                blackElo={selectedGame.blackRating}
+                result={resultToken(selectedGame.winner)}
+                eco={selectedGame.eco}
+                opening={selectedGame.opening}
+                event={selectedGame.event}
+                date={selectedGame.year != null ? String(selectedGame.year) : null}
+                pgn={preview.pgn}
+                game={preview.game}
+                orientation={selectedGame.color}
+              />
+            </div>
+          ) : null}
+        </>
+      )}
     </Panel>
   );
 }
