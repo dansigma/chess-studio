@@ -16,6 +16,7 @@ export function LibraryOverviewBar() {
   const eco = useLibraryStore((s) => s.filters.eco);
   const setEco = useLibraryStore((s) => s.setEco);
   const state = useLibraryOverview();
+  const sourceCount = useLibraryStore((s) => s.filters.sources.length);
   const label = tLibrary(locale, "library.overview.label");
   const shell = "flex min-w-0 shrink-0 items-center gap-3 overflow-x-auto whitespace-nowrap px-0.5 pb-1 text-caption text-studio-muted";
 
@@ -25,6 +26,10 @@ export function LibraryOverviewBar() {
         <span data-testid="library-overview-skeleton" className="h-[22px] w-72 max-w-full animate-pulse rounded-full bg-studio-border/40" />
       </div>
     );
+  }
+  if (state.kind === "unavailable" && sourceCount === 0) {
+    // SIG-1337: an empty folder selects no source; there is nothing to summarize.
+    return null;
   }
   if (state.kind === "unavailable") {
     return (

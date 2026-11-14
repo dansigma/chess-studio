@@ -7,7 +7,7 @@ import { Panel } from "../ui/Panel";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { useLibraryGames, type LibraryGamesState } from "./use-library-games";
 import { LibraryFilterChips, LibraryToolbar } from "./LibraryToolbar";
-import { LibrarySourceBar } from "./LibrarySourceBar";
+import { LibrarySourceRail } from "./LibrarySourceRail";
 import { LibraryOverviewBar } from "./LibraryOverviewBar";
 import { useLibrarySources } from "./library-sources";
 import { useMyGamesIndexing, type MyGamesIndexingState } from "./use-my-games-indexing";
@@ -166,45 +166,49 @@ function LibraryGames({ toolbar, table, preview, tabs }: LibraryViewSlots & { ta
         </div>
       </div>
       {toolbar ? null : <LibraryFilterChips />}
-      <LibrarySourceBar sourceErrors={games.sourceErrors} />
       <LibraryOverviewBar />
-      <div ref={containerRef} className="flex min-h-0 flex-1">
-        <Panel
-          as="section"
-          aria-label={tLibrary(locale, "library.table.label")}
-          className="flex min-w-0 flex-col overflow-hidden"
-          style={{ width: `${split}%` }}
-          data-testid="library-table-slot"
-        >
-          <IndexingNotice state={indexing} />
-          {table ? table(games) : <LibraryTable games={games} />}
-        </Panel>
-        <div
-          role="separator"
-          tabIndex={0}
-          aria-orientation="vertical"
-          aria-valuenow={Math.round(split)}
-          aria-valuemin={30}
-          aria-valuemax={85}
-          aria-label={tLibrary(locale, "library.resize")}
-          className="group flex w-1.5 shrink-0 cursor-col-resize touch-none select-none items-center justify-center outline-none"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-          onDoubleClick={() => applySplit(DEFAULT_LIBRARY_SPLIT, true)}
-          onKeyDown={onKeyDown}
-        >
-          <div className="h-full w-0.5 rounded-full bg-transparent transition-colors group-hover:bg-studio-border group-focus-visible:bg-studio-accent" />
+      <div className="flex min-h-0 flex-1">
+        <LibrarySourceRail sourceErrors={games.sourceErrors} />
+        <div aria-hidden className="w-1.5 shrink-0" />
+        {/* SIG-1337: the rail sits outside the resizable split, so the split keeps its own width. */}
+        <div ref={containerRef} className="flex min-h-0 min-w-0 flex-1">
+          <Panel
+            as="section"
+            aria-label={tLibrary(locale, "library.table.label")}
+            className="flex min-w-0 flex-col overflow-hidden"
+            style={{ width: `${split}%` }}
+            data-testid="library-table-slot"
+          >
+            <IndexingNotice state={indexing} />
+            {table ? table(games) : <LibraryTable games={games} />}
+          </Panel>
+          <div
+            role="separator"
+            tabIndex={0}
+            aria-orientation="vertical"
+            aria-valuenow={Math.round(split)}
+            aria-valuemin={30}
+            aria-valuemax={85}
+            aria-label={tLibrary(locale, "library.resize")}
+            className="group flex w-1.5 shrink-0 cursor-col-resize touch-none select-none items-center justify-center outline-none"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onDoubleClick={() => applySplit(DEFAULT_LIBRARY_SPLIT, true)}
+            onKeyDown={onKeyDown}
+          >
+            <div className="h-full w-0.5 rounded-full bg-transparent transition-colors group-hover:bg-studio-border group-focus-visible:bg-studio-accent" />
+          </div>
+          <Panel
+            as="section"
+            aria-label={tLibrary(locale, "library.preview.label")}
+            className="min-w-0 flex-1 overflow-hidden"
+            data-testid="library-preview-slot"
+          >
+            {preview ? preview(selected) : <LibraryPreview item={selected} />}
+          </Panel>
         </div>
-        <Panel
-          as="section"
-          aria-label={tLibrary(locale, "library.preview.label")}
-          className="min-w-0 flex-1 overflow-hidden"
-          data-testid="library-preview-slot"
-        >
-          {preview ? preview(selected) : <LibraryPreview item={selected} />}
-        </Panel>
       </div>
     </div>
   );

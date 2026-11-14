@@ -27,3 +27,23 @@ export function writeLibrarySplit(value: number, storage?: Pick<Storage, "setIte
     // Storage can be unavailable (private mode); the split just is not remembered.
   }
 }
+
+// SIG-1337: whether the Library sources rail is collapsed to a narrow strip.
+export const LIBRARY_RAIL_KEY = "chess-studio:library-rail";
+export const DEFAULT_LIBRARY_RAIL_COLLAPSED = false;
+
+export function readLibraryRailCollapsed(storage?: Pick<Storage, "getItem">): boolean {
+  try {
+    return (storage ?? window.localStorage).getItem(LIBRARY_RAIL_KEY) === "collapsed";
+  } catch {
+    return DEFAULT_LIBRARY_RAIL_COLLAPSED;
+  }
+}
+
+export function writeLibraryRailCollapsed(collapsed: boolean, storage?: Pick<Storage, "setItem">): void {
+  try {
+    (storage ?? window.localStorage).setItem(LIBRARY_RAIL_KEY, collapsed ? "collapsed" : "expanded");
+  } catch {
+    // Storage can be unavailable (private mode); the state just is not remembered.
+  }
+}

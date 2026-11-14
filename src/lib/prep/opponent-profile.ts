@@ -4,7 +4,7 @@
 // replies to 1.e4/1.d4 as Black. No throws, no I/O, deterministic.
 import { buildOpeningTree, type OpeningNode } from "@/src/lib/my-games/opening-tree";
 import type { PlayerGame } from "@/src/lib/player-types";
-import { sanMovesFromPgn } from "@/src/chess/pgn-clean";
+import { sanMovesForGame } from "./game-sans";
 
 export type MostPlayedMove = { san: string; games: number };
 
@@ -17,19 +17,6 @@ export type OpponentProfile = {
 
 const MAX_PLY = 10;
 const MOST_PLAYED_LIMIT = 3;
-
-function sansFor(game: PlayerGame): string[] {
-  // Loaders always set space-separated `moves` when moves exist (lichess builds
-  // it from NDJSON, chesscom from the cleaned PGN); fall back to parsing `pgn`.
-  const line = game.moves?.trim();
-  if (line) {
-    return line.split(/\s+/).filter(Boolean);
-  }
-  if (game.pgn?.trim()) {
-    return sanMovesFromPgn(game.pgn);
-  }
-  return [];
-}
 
 function topMoves(counts: Map<string, number>): MostPlayedMove[] {
   return [...counts.entries()]
@@ -45,7 +32,7 @@ export function buildOpponentProfile(
   now: number = Date.now(),
 ): OpponentProfile {
   const inputs = games.map((game) => ({
-    sans: sansFor(game),
+    sans: sanMovesForGame(game),
     color: game.color,
     result: game.playerResult,
     playedAt: game.playedAt,

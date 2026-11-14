@@ -129,13 +129,17 @@ test("the partial-result notice is shown inside the dossier", () => {
 test("Ritmo is hidden when no game has a time class", () => {
   state = gamesState({ games: [game("g1", { timeClass: null })] });
   open();
-  assert.equal(screen.queryByLabelText("Time control"), null);
-  assert.ok(screen.getByLabelText("Period"));
+  // Scope to the dossier filter bar: the move-by-move tree keeps its own
+  // "Time control" filter (SIG-1341).
+  const filterBar = within(screen.getByRole("group", { name: "Overview" }));
+  assert.equal(filterBar.queryByLabelText("Time control"), null);
+  assert.ok(filterBar.getByLabelText("Period"));
 
   cleanup();
   state = gamesState({ games: [game("g1", { timeClass: "rapid" })] });
   open();
-  assert.ok(screen.getByLabelText("Time control"));
+  const filterBarWithTimeClasses = within(screen.getByRole("group", { name: "Overview" }));
+  assert.ok(filterBarWithTimeClasses.getByLabelText("Time control"));
 });
 
 test("cards follow the filters, omit accuracy and sit above the two areas", () => {
@@ -159,7 +163,8 @@ test("cards follow the filters, omit accuracy and sit above the two areas", () =
   assert.equal(screen.queryByTestId("kpi-accuracy"), null);
   assert.ok(screen.getByTestId("dossier-openings"));
   assert.ok(screen.getByTestId("dossier-games"));
-  assert.equal(screen.getByTestId("dossier-openings-empty").getAttribute("data-games"), "3");
+  assert.equal(screen.getAllByTestId("dossier-opening-card").length, 1);
+  assert.match(screen.getAllByTestId("dossier-opening-card")[0]!.textContent ?? "", /Italian Game/);
   assert.equal(screen.getAllByTestId("dossier-game-row").length, 3);
   assert.ok(screen.getByTestId("dossier-openings").parentElement?.className.includes("@min-[720px]:grid-cols-2"));
 

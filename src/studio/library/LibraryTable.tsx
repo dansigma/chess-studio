@@ -173,6 +173,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
   const selectGame = useLibraryStore((s) => s.selectGame);
   const setSort = useLibraryStore((s) => s.setSort);
   const resetFilters = useLibraryStore((s) => s.resetFilters);
+  const folderId = useLibraryStore((s) => s.folderId);
   const { width } = usePanelSize(rootRef);
   const columns = visibleColumns(width);
   const template = columns.map((c) => c.width).join(" ");
@@ -239,7 +240,16 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
     return (
       <div className="flex flex-col items-start gap-2 p-4 text-dense text-studio-muted">
         {failed.length > 0 && <PartialNotice failed={failed} />}
-        <p>{tLibrary(locale, noSources ? "library.empty.noSources" : "library.empty.noMatch")}</p>
+        <p>
+          {tLibrary(
+            locale,
+            filters.sources.length === 0 && folderId !== null
+              ? "library.empty.folder"
+              : noSources
+                ? "library.empty.noSources"
+                : "library.empty.noMatch",
+          )}
+        </p>
         {!noSources && hasActiveFilters(filters) && (
           <button type="button" className="rounded-md px-2 py-1 text-studio-accent" onClick={resetFilters}>
             {tLibrary(locale, "library.empty.clearFilters")}

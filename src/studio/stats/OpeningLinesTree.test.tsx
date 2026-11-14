@@ -86,3 +86,23 @@ test("empty rows show the empty hint", () => {
   render(<OpeningLinesTree {...props({ rows: [], totalGames: 0 })} />);
   assert.ok(screen.getByText(/./, { selector: "p" }));
 });
+
+test("embedded: no heading and no colour tabs (the host owns them)", () => {
+  render(
+    <OpeningLinesTree
+      embedded
+      locale="en"
+      lineColor="white"
+      setLineColor={() => {}}
+      uiFilters={{ timeClass: "all", ratedOnly: false, preset: "all" }}
+      setUiFilters={() => {}}
+      timeClasses={[]}
+      rows={[]}
+      totalGames={0}
+      onToggle={() => {}}
+      onOpenLine={() => {}}
+    />,
+  );
+  assert.equal(screen.queryByRole("heading"), null);
+  assert.equal(screen.queryByRole("tab"), null);
+});

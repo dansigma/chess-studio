@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { LibraryView } from "./LibraryView";
-import { LibrarySourceBar } from "./LibrarySourceBar";
+import { LibrarySourceRail } from "./LibrarySourceRail";
 import { resetImportQueue, useImportQueue } from "./import-queue-store";
 import { useLibraryStore } from "./library-store";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -60,7 +60,7 @@ test("dropping files imports each without focusing Files and selects the last on
 });
 
 test("the Import PGN button opens a multiple .pgn input", async () => {
-  await act(async () => { render(<LibrarySourceBar sourceErrors={{}} />); });
+  await act(async () => { render(<LibrarySourceRail sourceErrors={{}} />); });
   assert.ok(screen.getByRole("button", { name: "+ Import PGN" }));
   const input = screen.getByTestId("library-import-input") as HTMLInputElement;
   assert.equal(input.accept, ".pgn");

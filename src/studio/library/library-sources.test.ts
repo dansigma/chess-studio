@@ -19,6 +19,14 @@ describe("reconcileLibrarySources", () => {
   it("falls back to every source when nothing chosen is left", () => {
     assert.deepEqual(reconcileLibrarySources(["file:gone"], ["my-games", "file:a"], false), ["my-games", "file:a"]);
   });
+
+  it("keeps an intentional empty selection (viewing an empty folder)", () => {
+    assert.deepEqual(reconcileLibrarySources([], ["my-games", "file:a"], false, true), []);
+    // Only an empty selection is kept as is; a stale one still falls back.
+    assert.deepEqual(reconcileLibrarySources(["file:gone"], ["my-games", "file:a"], false, true), ["my-games", "file:a"]);
+    // Without a folder in view, an empty selection still falls back.
+    assert.deepEqual(reconcileLibrarySources([], ["my-games", "file:a"], false, false), ["my-games", "file:a"]);
+  });
 });
 
 describe("registerLibraryAdapters", () => {
