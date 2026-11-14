@@ -2,7 +2,7 @@ import { after, afterEach, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { LibraryToolbar } from "./LibraryToolbar";
+import { LibraryFilterChips, LibraryToolbar } from "./LibraryToolbar";
 import { useLibraryStore } from "./library-store";
 import { useStudioStore } from "@/src/store/studio-store";
 import { DEFAULT_LIBRARY_FILTERS, type LibrarySourceAdapter, type LibrarySourceCapabilities } from "@/src/lib/library/types";
@@ -70,7 +70,12 @@ test("toolbar no longer renders the Databases popover", () => {
 
 test("chips remove one field, Clear all appears from two chips, badge counts advanced filters", () => {
   useLibraryStore.setState((s) => ({ filters: { ...s.filters, color: "white", result: "1-0" } }));
-  render(<LibraryToolbar total={0} />);
+  render(
+    <>
+      <LibraryToolbar total={0} />
+      <LibraryFilterChips />
+    </>,
+  );
   assert.equal(screen.getAllByTestId("library-chip").length, 2);
   assert.ok(screen.getByRole("button", { name: "Filters, 2 active" }));
   assert.ok(screen.getByRole("img", { name: /Masters \(Lichess\)/ })); // color unsupported by Masters
@@ -82,11 +87,46 @@ test("chips remove one field, Clear all appears from two chips, badge counts adv
 
 test("Clear all resets chips; Filters button toggles filtersOpen", () => {
   useLibraryStore.setState((s) => ({ filters: { ...s.filters, sources: ["masters"], opponent: "Nakamura" } }));
-  render(<LibraryToolbar total={0} />);
+  render(
+    <>
+      <LibraryToolbar total={0} />
+      <LibraryFilterChips />
+    </>,
+  );
   fireEvent.click(screen.getByText("Clear all"));
   const { filters } = useLibraryStore.getState();
   assert.equal(filters.opponent, "");
   assert.equal(filters.sources.length, 2);
   fireEvent.click(screen.getByRole("button", { name: "Filters" }));
   assert.equal(useLibraryStore.getState().filtersOpen, true);
+});
+
+test("chips row is absent with no active filters and appears once one is set", () => {
+  const { container } = render(
+    <>
+      <LibraryToolbar total={0} />
+      <LibraryFilterChips />
+    </>,
+  );
+  assert.equal(screen.queryByTestId("library-chips-row"), null);
+  assert.equal(screen.queryByTestId("library-chip"), null);
+  assert.ok(screen.getByTestId("library-counter"));
+  assert.equal(container.querySelector("ul"), null);
+  act(() => {
+    useLibraryStore.setState((s) => ({ filters: { ...s.filters, color: "white" } }));
+  });
+  assert.ok(screen.getByTestId("library-chips-row"));
+  assert.equal(screen.getAllByTestId("library-chip").length, 1);
+});
+
+test("toolbar keeps search, Filters button and counter on one non-wrapping row, search first", () => {
+  render(<LibraryToolbar total={5} />);
+  const search = screen.getByRole("textbox");
+  const filters = screen.getByRole("button", { name: "Filters" });
+  const counter = screen.getByTestId("library-counter");
+  const row = counter.parentElement as HTMLElement;
+  assert.ok(row.className.includes("flex-nowrap"));
+  assert.ok(row.contains(search) && row.contains(filters));
+  assert.ok(search.compareDocumentPosition(filters) & 4 /* DOCUMENT_POSITION_FOLLOWING */);
+  assert.ok(filters.compareDocumentPosition(counter) & 4 /* DOCUMENT_POSITION_FOLLOWING */);
 });
