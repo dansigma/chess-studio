@@ -93,6 +93,15 @@ test("unreviewed games leave accuracy and opening mistakes null", () => {
   assert.equal(stats?.openingMistakes, null);
 });
 
+test("accuracy comes from reviewed games only (SIG-1345 review)", () => {
+  // A game can carry `userAccuracy` without `reviewedAt`; it must not join the
+  // average while its mistakes are excluded.
+  const games = [reviewed({ id: "r1", userAccuracy: 70 }), game("plain", { userAccuracy: 95 })];
+  const stats = ownLineStats(games, ["e4", "e5"], "white");
+  assert.equal(stats?.games, 2);
+  assert.equal(stats?.avgAccuracy, 70);
+});
+
 test("reviewed games average accuracy and sum only the opening-phase tiers", () => {
   const games = [
     reviewed({ id: "r1", userAccuracy: 70 }),

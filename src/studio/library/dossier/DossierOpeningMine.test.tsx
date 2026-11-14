@@ -221,7 +221,7 @@ test("the notice shows the load error and retries into the cards", async () => {
   };
   render(
     <>
-      <DossierOpeningsNotice games={[]} opponentColor="white" />
+      <DossierOpeningsNotice />
       <DossierOpeningMine row={ROW} opponentColor="white" />
     </>,
   );

@@ -11,7 +11,10 @@ export type OwnLineStats = {
   games: number;
   /** Draws count half a point, exactly like `resultsByOpening`. */
   scorePct: number;
-  /** Mean `userAccuracy` over the matching games that carry one; null when none does. */
+  /**
+   * Mean `userAccuracy` over the matching REVIEWED games that carry one, as the
+   * issue gates it; null when no matching game was reviewed (SIG-1345 review).
+   */
   avgAccuracy: number | null;
   /**
    * Sum of the opening-phase mistake tiers over the matching reviewed games.
@@ -97,14 +100,17 @@ export function ownLineStats(
     } else if (game.playerResult === "draw") {
       draws += 1;
     }
-    const accuracy = accuracyOf(game);
-    if (accuracy !== null) {
-      accuracySum += accuracy;
-      accuracyCount += 1;
-    }
+    // Both halves of the line describe the reviewed pool: a game can carry
+    // `userAccuracy` without `reviewedAt`, and mixing pools would show an
+    // accuracy next to "no reviewed game" (SIG-1345 review).
     if (game.reviewedAt != null) {
       reviewed += 1;
       openingMistakes += openingMistakesOf(game);
+      const accuracy = accuracyOf(game);
+      if (accuracy !== null) {
+        accuracySum += accuracy;
+        accuracyCount += 1;
+      }
     }
   }
 

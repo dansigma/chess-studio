@@ -4,17 +4,12 @@
 // have no own numbers: the user is signed out, or the user's games failed to
 // load. The successful/loading states render nothing.
 import { tLibrary } from "@/src/i18n/library-strings";
-import type { PlayerGame } from "@/src/lib/player-types";
 import { useStudioStore } from "@/src/store/studio-store";
 import { useMyGamesForDossier } from "./use-my-games-for-dossier";
 
-export type DossierOpeningsNoticeProps = {
-  games: PlayerGame[];
-  opponentColor: "white" | "black";
-};
-
-export function DossierOpeningsNotice(props: DossierOpeningsNoticeProps) {
-  void props;
+// SIG-1345 review: the notice needs no games or colour — it only explains a
+// signed-out or failed load, and the cards own the per-line numbers.
+export function DossierOpeningsNotice() {
   const locale = useStudioStore((state) => state.settings.locale);
   const myGames = useMyGamesForDossier();
 
