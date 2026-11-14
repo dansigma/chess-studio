@@ -128,9 +128,11 @@ export function MyStatsKpiCards({
       <div className={card}>
         <span className={label}>{tMyGames(locale, "myGames.kpiGames")}</span>
         <span className={value} data-testid="kpi-games">{formatInteger(locale, kpis.games)}</span>
-        <span className="text-caption text-studio-faint" data-testid="kpi-reviewed">
-          {tMyGames(locale, kpis.reviewed === 1 ? "myGames.kpiReviewed.one" : "myGames.kpiReviewed.other", { count: kpis.reviewed })}
-        </span>
+        {hideAccuracy ? null : (
+          <span className="text-caption text-studio-faint" data-testid="kpi-reviewed">
+            {tMyGames(locale, kpis.reviewed === 1 ? "myGames.kpiReviewed.one" : "myGames.kpiReviewed.other", { count: kpis.reviewed })}
+          </span>
+        )}
       </div>
       {hideAccuracy ? null : (
         <div className={card}>

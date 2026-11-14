@@ -24,7 +24,6 @@ export function LibraryPlayers() {
   const locale = useStudioStore((state) => state.settings.locale);
   const togglePlayerBookmark = useStudioStore((state) => state.togglePlayerBookmark);
   const bookmarks = useStudioStore((state) => state.bookmarks);
-  const activeId = useStudioStore((state) => state.playerProfile?.id ?? null);
   const dossierPlayer = useDossierStore((state) => state.player);
   const openDossierPlayer = useDossierStore((state) => state.openPlayer);
   const { query, setQuery, searching, hits, loading } = usePlayerSearch();
@@ -93,7 +92,7 @@ export function LibraryPlayers() {
               <PlayerHitRow
                 key={player.id}
                 player={player}
-                active={activeId === player.id || activeId === bookmarkKey(player) || dossierPlayer?.id === player.id}
+                active={dossierPlayer?.id === player.id}
                 bookmarked={bookmarkedKeys.has(bookmarkKey(player))}
                 onOpen={(color) => open(player, color)}
                 onToggleBookmark={() => togglePlayerBookmark(player)}
