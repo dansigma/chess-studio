@@ -99,6 +99,25 @@ test("summarizes how many of the player's openings the repertoire covers", () =>
   assert.equal(screen.getByTestId("dossier-repertoire-gaps-summary").textContent, "1 of 2 openings covered");
 });
 
+test("the summary counts only the openings the min-games filter keeps (SIG-1344 review)", () => {
+  seed({ black: "e4 e5 Nf3 Nc6" });
+  const italian = { opening: "Italian Game", eco: "C50" };
+  render(
+    <DossierRepertoireGaps
+      opponentColor="white"
+      minGames={3}
+      games={[
+        game("e4 e5 Nf3 Nc6", italian),
+        game("e4 e5 Nf3 Nc6", italian),
+        game("e4 e5 Nf3 Nc6", italian),
+        game("e4 c5 Nf3", { opening: "Sicilian Defense", eco: "B20" }),
+      ]}
+    />,
+  );
+  // The single-game Sicilian is hidden from the cards, so it is not counted.
+  assert.equal(screen.getByTestId("dossier-repertoire-gaps-summary").textContent, "1 of 1 opening covered");
+});
+
 test("lists gaps most frequent first with the player's game counts", () => {
   seed({ black: "e4 e5 Nf3" });
   render(

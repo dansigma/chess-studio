@@ -19,6 +19,11 @@ import { prepareLine } from "./prepare-line";
 export type DossierRepertoireGapsProps = {
   games: PlayerGame[];
   opponentColor: "white" | "black";
+  /**
+   * SIG-1344 review: the cards' "min games" filter. The summary must count the
+   * same openings the cards above show, so the filter is applied here too.
+   */
+  minGames?: number;
 };
 
 /** The gap list keeps at most this many moves, most frequent first. */
@@ -61,7 +66,7 @@ function gapPrefix(group: AggregatedDeviation, games: readonly PlayerGame[]): st
   return fallback ? sanMovesForGame(fallback).slice(0, ply - 1) : [];
 }
 
-export function DossierRepertoireGaps({ games, opponentColor }: DossierRepertoireGapsProps) {
+export function DossierRepertoireGaps({ games, opponentColor, minGames = 1 }: DossierRepertoireGapsProps) {
   const locale = useStudioStore((state) => state.settings.locale);
   const whiteTree = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "white")?.tree ?? null);
   const blackTree = useStudioStore((state) => state.boards.find((b) => b.repertoireColor === "black")?.tree ?? null);
@@ -73,7 +78,10 @@ export function DossierRepertoireGaps({ games, opponentColor }: DossierRepertoir
     () => games.filter((game) => game.color === opponentColor),
     [games, opponentColor],
   );
-  const rows = useMemo(() => dossierOpenings(sideGames, opponentColor), [sideGames, opponentColor]);
+  const rows = useMemo(
+    () => dossierOpenings(sideGames, opponentColor, { minGames }),
+    [sideGames, opponentColor, minGames],
+  );
   const coverage = useMemo(
     () => rows.map((row) => lineCoverage({ path: row.line, opponentColor, repertoireTree })),
     [rows, opponentColor, repertoireTree],
