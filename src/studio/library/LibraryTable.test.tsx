@@ -159,3 +159,14 @@ test("does not load more when nothing more exists", async () => {
   await act(async () => {});
   assert.equal(calls, 0);
 });
+
+test("an empty folder says so instead of 'no sources'", () => {
+  useLibraryStore.setState({ folderId: "f-empty", filters: { ...DEFAULT_LIBRARY_FILTERS, sources: [] } });
+  render(<LibraryTable games={games(0)} />);
+  assert.ok(screen.getByText(/This folder has no PGN files yet/));
+  cleanup();
+  useLibraryStore.setState({ folderId: null });
+  render(<LibraryTable games={games(0)} />);
+  assert.ok(screen.getByText(/No sources available/));
+  useLibraryStore.setState({ filters: DEFAULT_LIBRARY_FILTERS });
+});

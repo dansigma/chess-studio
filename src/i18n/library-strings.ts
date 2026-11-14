@@ -25,6 +25,7 @@ export const LIBRARY_STRING_KEYS = [
   "library.empty.noMatch",
   "library.empty.clearFilters",
   "library.empty.noSources",
+  "library.empty.folder",
   "library.error.title",
   "library.error.retry",
   "library.partial",
@@ -256,6 +257,7 @@ const EN: Record<LibraryStringKey, string> = {
   "library.empty.noMatch": "No games match these filters.",
   "library.empty.clearFilters": "Clear filters",
   "library.empty.noSources": "No sources available. Import a PGN or link an account to fill the Library.",
+  "library.empty.folder": "This folder has no PGN files yet. Use Import PGN to add one here.",
   "library.error.title": "Could not load games: {message}",
   "library.error.retry": "Try again",
   "library.partial": "Some sources failed and are not shown: {sources}.",
@@ -487,6 +489,7 @@ const PT_BR: Record<LibraryStringKey, string> = {
   "library.empty.clearFilters": "Limpar filtros",
   "library.empty.noSources":
     "Nenhuma fonte disponível. Importe um PGN ou vincule uma conta para preencher a Biblioteca.",
+  "library.empty.folder": "Esta pasta ainda não tem arquivos PGN. Use Importar PGN para adicionar um aqui.",
   "library.error.title": "Não foi possível carregar as partidas: {message}",
   "library.error.retry": "Tentar novamente",
   "library.partial": "Algumas fontes falharam e não são exibidas: {sources}.",

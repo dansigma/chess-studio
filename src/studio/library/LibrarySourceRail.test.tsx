@@ -549,3 +549,30 @@ test("leaving a folder: clicking it again or All clears the current folder", asy
   fireEvent.click(screen.getByRole("button", { name: "All" }));
   assert.equal(useLibraryStore.getState().folderId, null);
 });
+
+test("an empty folder selects no source, stays the import target and is highlighted", async () => {
+  seed([db("d1", "Root file", null), db("d2", "Open file", "f1")]);
+  await renderRail();
+  fireEvent.click(screen.getByRole("button", { name: "Openings" }));
+  assert.deepEqual(sources(), ["file:d2"]);
+
+  // Endings (f3) holds no PGN file: the table must not keep showing Openings.
+  fireEvent.click(screen.getByRole("button", { name: "Endings" }));
+  assert.equal(useLibraryStore.getState().folderId, "f3", "imports land in the folder being viewed");
+  assert.deepEqual(sources(), [], "the table queries the empty folder, not the previous selection");
+});
+
+test("collapsed rail: failed sources keep their mark and import stays available", async () => {
+  seed(TACTICS);
+  await renderRail({ masters: "boom" });
+  fireEvent.click(screen.getByRole("button", { name: "Collapse sources" }));
+  const failed = screen.getAllByTestId("library-source-marker").filter((marker) => marker.hasAttribute("data-failed"));
+  assert.equal(failed.length, 1);
+  assert.match(failed[0]!.getAttribute("title") ?? "", /Failed to load: boom/);
+  assert.equal(screen.getAllByTestId("library-source-marker-failed").length, 1);
+
+  fireEvent.click(screen.getByRole("button", { name: "+ Import PGN" }));
+  assert.ok(screen.getByRole("menuitem", { name: "From file…" }));
+  assert.ok(screen.getByRole("menuitem", { name: "Paste PGN" }));
+  fireEvent.click(screen.getByRole("button", { name: "Expand sources" }));
+});

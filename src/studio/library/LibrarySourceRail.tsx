@@ -239,10 +239,9 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     }
     // Imports land in the folder being viewed, and its files become the sources.
     setFolderId(folderId);
-    const files = fileIdsInFolder(folderId);
-    if (files.length > 0) {
-      setSources(files);
-    }
+    // An empty folder selects no source, so the table shows that folder (empty)
+    // instead of the previous selection; imports still land in it.
+    setSources(fileIdsInFolder(folderId));
   };
 
   const sourceRow = (id: LibrarySourceId, depth = 0): ReactNode => {
@@ -397,6 +396,24 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     );
   };
 
+  const fileInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept=".pgn"
+      multiple
+      hidden
+      data-testid="library-import-input"
+      onChange={(event) => {
+        const files = Array.from(event.target.files ?? []);
+        event.target.value = "";
+        if (files.length > 0) {
+          void importFiles(files);
+        }
+      }}
+    />
+  );
+
   const importControl = (
     <>
       <Button
@@ -410,21 +427,7 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
       >
         {t("library.import.button")}
       </Button>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pgn"
-        multiple
-        hidden
-        data-testid="library-import-input"
-        onChange={(event) => {
-          const files = Array.from(event.target.files ?? []);
-          event.target.value = "";
-          if (files.length > 0) {
-            void importFiles(files);
-          }
-        }}
-      />
+      {fileInput}
     </>
   );
 
@@ -547,7 +550,9 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
         </IconButton>
         {ids.map((id) => {
           const detail = count(id);
-          const title = detail === null ? name(id) : `${name(id)} · ${detail}`;
+          const error = sourceErrors[id];
+          const base = detail === null ? name(id) : `${name(id)} · ${detail}`;
+          const title = error === undefined ? base : `${base} · ${t("library.sources.failed", { message: error })}`;
           return (
             <button
               key={id}
@@ -557,16 +562,37 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
               aria-label={title}
               title={title}
               onClick={click(id)}
-              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-caption font-semibold ${
+              data-failed={error !== undefined ? "" : undefined}
+              className={`relative flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-caption font-semibold ${
                 selected.includes(id)
                   ? "bg-studio-accent-soft text-studio-accent-text"
                   : "text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
               }`}
             >
               {name(id).trim().charAt(0).toUpperCase()}
+              {error !== undefined ? (
+                <TriangleAlert
+                  size={9}
+                  aria-hidden
+                  className="absolute -right-0.5 -top-0.5 text-studio-danger"
+                  data-testid="library-source-marker-failed"
+                />
+              ) : null}
             </button>
           );
         })}
+        <IconButton
+          label={t("library.import.button")}
+          size="sm"
+          className="mt-auto"
+          aria-haspopup="menu"
+          aria-expanded={importMenu !== null}
+          data-popmenu-trigger=""
+          onClick={(event) => setImportMenu(importMenu ? null : anchorBelow(event.currentTarget))}
+        >
+          <FileUp size={14} />
+        </IconButton>
+        {fileInput}
         {dialogs}
       </Panel>
     );
