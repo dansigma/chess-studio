@@ -10,6 +10,8 @@ const { LibraryView } = await import("./LibraryView.tsx");
 const { useLibraryStore } = await import("./library-store.ts");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
+const { DEFAULT_LIBRARY_FILTERS } = await import("@/src/lib/library/types.ts");
+const { registerLibrarySource, clearLibrarySources } = await import("@/src/lib/library/sources.ts");
 
 const HIT: PlayerHit = { id: "lichess:magnus", source: "lichess", username: "magnus", displayName: "Magnus", subtitle: "2800 blitz", title: "GM" };
 const realFetch = globalThis.fetch;
@@ -25,11 +27,12 @@ beforeEach(() => {
   }) as typeof fetch;
   act(() => {
     useStudioStore.setState({ workspaceView: "library", settings: { ...DEFAULT_SETTINGS, locale: "en" }, playerProfile: null, bookmarks: [] });
-    useLibraryStore.setState({ mode: "games" });
+    useLibraryStore.setState({ mode: "games", filters: DEFAULT_LIBRARY_FILTERS, selectedKey: null });
   });
 });
 afterEach(() => {
   cleanup();
+  clearLibrarySources();
   globalThis.fetch = realFetch;
 });
 
@@ -66,5 +69,46 @@ test("the mode switch toggles between Games and Players", async () => {
   assert.ok(screen.getByTestId("library-players"));
   assert.equal(screen.queryByTestId("library-table-slot"), null);
   fireEvent.click(screen.getByRole("tab", { name: "Games" }));
+  assert.equal(useLibraryStore.getState().mode, "games");
+});
+
+test("a player from the user's databases opens the Library's Games tab filtered by that player", async () => {
+  const local: PlayerHit = {
+    id: "studio:Sant'Anna, Eddie",
+    source: "studio",
+    username: "Sant'Anna, Eddie",
+    displayName: "Sant'Anna, Eddie",
+    subtitle: "Studio database",
+    inDatabases: true,
+  };
+  globalThis.fetch = (async () => new Response(JSON.stringify({ players: [local] }), { status: 200 })) as typeof fetch;
+  const stub = (id: string) =>
+    ({ id, label: () => id, capabilities: () => ({}) }) as unknown as Parameters<typeof registerLibrarySource>[0];
+  registerLibrarySource(stub("my-games"));
+  registerLibrarySource(stub("file:db1"));
+  registerLibrarySource(stub("file:db2"));
+  act(() => useLibraryStore.setState({ mode: "players", filters: { ...DEFAULT_LIBRARY_FILTERS, query: "old" } }));
+  render(<LibraryPlayers />);
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "sant" } });
+  fireEvent.click(await screen.findByText("Sant'Anna, Eddie", {}, { timeout: 2000 }));
+  const library = useLibraryStore.getState();
+  assert.equal(library.mode, "games");
+  assert.equal(library.filters.player, "Sant'Anna, Eddie");
+  assert.equal(library.filters.playerColor, "both");
+  assert.equal(library.filters.query, "");
+  assert.deepEqual(library.filters.sources, ["file:db1", "file:db2"]);
+  assert.equal(useStudioStore.getState().playerProfile, null);
+  assert.equal(useStudioStore.getState().workspaceView, "library");
+});
+
+test("the W/B chips on a local player set the player's side filter", async () => {
+  const local: PlayerHit = { id: "studio:Eddie", source: "studio", username: "Eddie", displayName: "Eddie", subtitle: "Studio database", inDatabases: true };
+  globalThis.fetch = (async () => new Response(JSON.stringify({ players: [local] }), { status: 200 })) as typeof fetch;
+  act(() => useLibraryStore.setState({ mode: "players" }));
+  render(<LibraryPlayers />);
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "ed" } });
+  await screen.findByText("Eddie", {}, { timeout: 2000 });
+  fireEvent.click(screen.getByTitle(/black/i));
+  assert.equal(useLibraryStore.getState().filters.playerColor, "black");
   assert.equal(useLibraryStore.getState().mode, "games");
 });
