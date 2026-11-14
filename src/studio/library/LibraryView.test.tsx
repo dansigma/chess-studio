@@ -22,6 +22,8 @@ test("shows the three slots and the select-a-game message", async () => {
   });
   assert.ok(screen.getByTestId("library-toolbar-slot"));
   assert.ok(screen.getByTestId("library-table-slot"));
+  assert.ok(screen.getByTestId("library-source-rail"));
+  assert.equal(screen.queryByTestId("library-source-bar"), null);
   assert.ok(screen.getByText("Select a game"));
   assert.ok(screen.getByRole("separator"));
 });
