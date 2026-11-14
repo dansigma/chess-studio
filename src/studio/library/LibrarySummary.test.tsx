@@ -89,6 +89,29 @@ test("results bar carries White wins, draws and Black wins counts", () => {
   assert.ok(results.querySelector('[data-perspective="color"]'));
 });
 
+test("unfinished games count in Games but not in the results (SIG-1339 review)", () => {
+  setDatabases([
+    file("dr", [
+      ["A", "B", "C20", "King's Pawn", "2020", "1-0"],
+      ["C", "D", "C20", "King's Pawn", "2020", "*"],
+    ]),
+  ]);
+  select(["file:dr"]);
+  render(<LibrarySummary />);
+  assert.match(text("library-summary-tiles"), /Games\s*2/);
+  const results = screen.getByTestId("library-summary-results");
+  assert.match(results.textContent!, /White wins\s*1/);
+  assert.match(results.textContent!, /1 unfinished game is not counted/);
+});
+
+test("no results section when every game is unfinished (SIG-1339 review)", () => {
+  setDatabases([file("dr", [["A", "B", "C20", "King's Pawn", "2020", "*"]])]);
+  select(["file:dr"]);
+  render(<LibrarySummary />);
+  assert.match(text("library-summary-tiles"), /Games\s*1/);
+  assert.equal(screen.queryByTestId("library-summary-results"), null);
+});
+
 test("clicking an ECO tag sets the filter, clicking it again clears it", () => {
   render(<LibrarySummary />);
   const button = () => within(screen.getByTestId("library-summary-openings")).getByRole("button", { name: /C65/ });

@@ -98,6 +98,10 @@ export function LibrarySummary() {
   const years = yearBuckets(overview).slice(-TOP_YEARS);
   const maxYear = years.reduce((max, bucket) => Math.max(max, bucket.count), 0);
   const results = overview.results;
+  // Unfinished games (`*`) are counted in the Games tile but have no result,
+  // so the bar and the three counts cover the finished games only (SIG-1339
+  // review). With no finished game there is no result to show at all.
+  const finishedGames = results.white + results.draws + results.black;
   const resultsLabel = [
     `${tLibrary(locale, "library.summary.whiteWins")} ${number(results.white)}`,
     `${tLibrary(locale, "library.summary.draws")} ${number(results.draws)}`,
@@ -128,23 +132,34 @@ export function LibrarySummary() {
         ))}
       </dl>
 
-      <section data-testid="library-summary-results" className="flex shrink-0 flex-col gap-1">
-        <ResultBar white={results.white} draws={results.draws} black={results.black} label={resultsLabel} />
-        <div className="grid grid-cols-3 gap-2 text-caption text-studio-muted">
-          <span>
-            {tLibrary(locale, "library.summary.whiteWins")}{" "}
-            <strong className="font-semibold tabular-nums text-studio-fg">{number(results.white)}</strong>
-          </span>
-          <span>
-            {tLibrary(locale, "library.summary.draws")}{" "}
-            <strong className="font-semibold tabular-nums text-studio-fg">{number(results.draws)}</strong>
-          </span>
-          <span>
-            {tLibrary(locale, "library.summary.blackWins")}{" "}
-            <strong className="font-semibold tabular-nums text-studio-fg">{number(results.black)}</strong>
-          </span>
-        </div>
-      </section>
+      {finishedGames > 0 ? (
+        <section data-testid="library-summary-results" className="flex shrink-0 flex-col gap-1">
+          <ResultBar white={results.white} draws={results.draws} black={results.black} label={resultsLabel} />
+          <div className="grid grid-cols-3 gap-2 text-caption text-studio-muted">
+            <span>
+              {tLibrary(locale, "library.summary.whiteWins")}{" "}
+              <strong className="font-semibold tabular-nums text-studio-fg">{number(results.white)}</strong>
+            </span>
+            <span>
+              {tLibrary(locale, "library.summary.draws")}{" "}
+              <strong className="font-semibold tabular-nums text-studio-fg">{number(results.draws)}</strong>
+            </span>
+            <span>
+              {tLibrary(locale, "library.summary.blackWins")}{" "}
+              <strong className="font-semibold tabular-nums text-studio-fg">{number(results.black)}</strong>
+            </span>
+          </div>
+          {results.other > 0 ? (
+            <p data-testid="library-summary-unfinished" className="text-caption text-studio-faint">
+              {tLibrary(
+                locale,
+                results.other === 1 ? "library.summary.unfinished.one" : "library.summary.unfinished.other",
+                { count: number(results.other) },
+              )}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
       {openings.length > 0 ? (
         <section data-testid="library-summary-openings" className="flex flex-col gap-1">
