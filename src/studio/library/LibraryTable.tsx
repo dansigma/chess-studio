@@ -1,46 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useRef, type KeyboardEvent, type RefObject } from "react";
-import { ArrowDown, ArrowUp } from "lucide-react";
-import { parsePgnCollection } from "@/src/chess/pgn-games";
+import { ArrowDown, ArrowUp, ExternalLink, GraduationCap } from "lucide-react";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tLibrary } from "@/src/i18n/library-strings";
+import { itemYear } from "@/src/lib/library/filters";
 import { getLibrarySource } from "@/src/lib/library/sources";
 import type { LibraryGameItem } from "@/src/lib/library/types";
-import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
-import { openBoardPanel } from "../dock-api";
+import { useStudioStore } from "@/src/store/studio-store";
 import { pgnResultToWinner, ResultMark } from "../ResultMark";
+import { EcoBadge } from "../ui/EcoBadge";
 import { outcomeFor, PlayerCell } from "../ui/PlayerCell";
 import { usePanelSize } from "../use-panel-size";
 import { moveSelection, nextSort, visibleColumns, type LibraryColumn } from "./library-columns";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
+import { openLibraryGame, trainLibraryGame } from "./open-library-game";
 import type { LibraryGamesState } from "./use-library-games";
 import { nearEnd, useVirtualRows } from "./use-virtual-rows";
 
+export { openLibraryGame, trainLibraryGame } from "./open-library-game";
+
 export const LIBRARY_ROW_HEIGHT = 28;
 const SKELETON_ROWS = 8;
-
-/** Loads the game's PGN through its source adapter and opens it in a new Studio board. */
-export async function openLibraryGame(item: LibraryGameItem, locale: SiteLocale): Promise<void> {
-  const store = useStudioStore;
-  try {
-    const adapter = getLibrarySource(item.sourceId);
-    if (!adapter) {
-      throw new Error(item.sourceId);
-    }
-    const pgn = await adapter.loadPgn(item.gameId, new AbortController().signal);
-    const game = parsePgnCollection(pgn, 1).games[0];
-    if (!game) {
-      throw new Error("PGN");
-    }
-    store.getState().openFileGame(game, { openInNewBoard: true });
-    const active = selectActiveBoard(store.getState());
-    openBoardPanel(active.id, active.title);
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    store.setState({ statusMessage: tLibrary(locale, "library.table.openFailed", { message }) });
-  }
-}
 
 function cellText(item: LibraryGameItem, column: LibraryColumn): string {
   switch (column.key) {
@@ -52,8 +33,12 @@ function cellText(item: LibraryGameItem, column: LibraryColumn): string {
       return item.plyCount != null ? String(Math.ceil(item.plyCount / 2)) : "—";
     case "event":
       return item.event ?? "—";
-    case "eco":
-      return item.eco ?? "—";
+    case "date": {
+      const year = itemYear(item.date);
+      return year !== null ? String(year) : "—";
+    }
+    case "opening":
+      return item.opening ?? "—";
     default:
       return "";
   }
@@ -83,6 +68,22 @@ function Cell({ item, column }: { item: LibraryGameItem; column: LibraryColumn }
       );
     case "eco":
       return (
+        <div role="gridcell" className={base}>
+          <EcoBadge code={item.eco} opening={item.opening} />
+        </div>
+      );
+    case "date":
+      return (
+        <div
+          role="gridcell"
+          className={`${base} text-right tabular-nums text-studio-muted`}
+          title={item.date ?? undefined}
+        >
+          {cellText(item, column)}
+        </div>
+      );
+    case "opening":
+      return (
         <div role="gridcell" className={`${base} text-studio-muted`} title={item.opening ?? undefined}>
           {cellText(item, column)}
         </div>
@@ -91,13 +92,69 @@ function Cell({ item, column }: { item: LibraryGameItem; column: LibraryColumn }
       return (
         <div
           role="gridcell"
-          className={`${base} tabular-nums text-studio-faint ${column.align === "right" ? "text-right" : ""}`}
+          className={`${base} tabular-nums ${
+            column.key === "whiteElo" || column.key === "blackElo" ? "text-studio-muted" : "text-studio-faint"
+          } ${column.align === "right" ? "text-right" : ""}`}
           title={column.key === "event" ? (item.event ?? undefined) : undefined}
         >
           {cellText(item, column)}
         </div>
       );
   }
+}
+
+/** SIG-1336: per-row quick actions; they never change the selection. */
+function RowActions({ item, locale, selected }: { item: LibraryGameItem; locale: SiteLocale; selected: boolean }) {
+  const visibility = selected
+    ? "pointer-events-auto opacity-100"
+    : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100";
+  const action =
+    "flex h-5 w-5 items-center justify-center rounded text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg focus-visible:outline-2 focus-visible:outline-studio-accent";
+  const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
+  return (
+    <div
+      className={`absolute inset-y-0 right-0 z-10 flex items-center gap-0.5 bg-gradient-to-l to-transparent pl-6 pr-1 ${
+        selected ? "from-studio-selected via-studio-selected/95" : "from-studio-panel via-studio-panel/95"
+      } ${visibility}`}
+    >
+      <button
+        type="button"
+        className={action}
+        aria-label={tLibrary(locale, "library.row.open")}
+        title={tLibrary(locale, "library.row.open")}
+        onClick={(event) => {
+          event.stopPropagation();
+          void openLibraryGame(item, locale);
+        }}
+        onDoubleClick={stop}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.stopPropagation();
+          }
+        }}
+      >
+        <ExternalLink size={12} aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={action}
+        aria-label={tLibrary(locale, "library.row.train")}
+        title={tLibrary(locale, "library.row.train")}
+        onClick={(event) => {
+          event.stopPropagation();
+          void trainLibraryGame(item, locale);
+        }}
+        onDoubleClick={stop}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.stopPropagation();
+          }
+        }}
+      >
+        <GraduationCap size={12} aria-hidden />
+      </button>
+    </div>
+  );
 }
 
 export function LibraryTable({ games }: { games: LibraryGamesState }) {
@@ -216,25 +273,31 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
       >
         <div role="row" className="grid shrink-0 border-b border-studio-border-subtle px-3" style={{ gridTemplateColumns: template, columnGap: 8 }}>
           {columns.map((column) => {
-            const active = filters.sort.key === column.key;
+            const active = column.sortable && filters.sort.key === column.key;
             const ascending = filters.sort.direction === "asc";
             return (
               <div
                 key={column.key}
                 role="columnheader"
-                aria-sort={active ? (ascending ? "ascending" : "descending") : "none"}
+                aria-sort={column.sortable ? (active ? (ascending ? "ascending" : "descending") : "none") : undefined}
                 className={column.align === "right" ? "text-right" : undefined}
               >
-                <button
-                  type="button"
-                  className={`inline-flex max-w-full items-center gap-0.5 py-1.5 text-caption hover:text-studio-fg ${
-                    active ? "text-studio-fg" : "text-studio-faint"
-                  }`}
-                  onClick={() => setSort(nextSort(filters.sort, column))}
-                >
-                  <span className="truncate">{tLibrary(locale, column.label)}</span>
-                  {active ? ascending ? <ArrowUp size={11} aria-hidden /> : <ArrowDown size={11} aria-hidden /> : null}
-                </button>
+                {column.sortable ? (
+                  <button
+                    type="button"
+                    className={`inline-flex max-w-full items-center gap-0.5 py-1.5 text-caption hover:text-studio-fg ${
+                      active ? "text-studio-fg" : "text-studio-faint"
+                    }`}
+                    onClick={() => setSort(nextSort(filters.sort, column))}
+                  >
+                    <span className="truncate">{tLibrary(locale, column.label)}</span>
+                    {active ? ascending ? <ArrowUp size={11} aria-hidden /> : <ArrowDown size={11} aria-hidden /> : null}
+                  </button>
+                ) : (
+                  <span className="inline-block max-w-full truncate py-1.5 text-caption text-studio-faint">
+                    {tLibrary(locale, column.label)}
+                  </span>
+                )}
               </div>
             );
           })}
@@ -265,16 +328,18 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
                     aria-rowindex={index + 2}
                     aria-selected={selected}
                     data-testid="library-row"
-                    className={`grid cursor-default items-center px-3 hover:bg-studio-hover-subtle ${
-                      selected ? "bg-studio-selected" : ""
+                    className={`group relative grid cursor-default items-center px-3 ${
+                      selected ? "bg-studio-selected" : "hover:bg-studio-hover-subtle"
                     }`}
                     style={{ gridTemplateColumns: template, columnGap: 8, height: LIBRARY_ROW_HEIGHT }}
                     onClick={() => selectGame(item.key)}
                     onDoubleClick={() => void openLibraryGame(item, locale)}
                   >
+                    {selected && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-studio-accent" />}
                     {columns.map((column) => (
                       <Cell key={column.key} item={item} column={column} />
                     ))}
+                    <RowActions item={item} locale={locale} selected={selected} />
                   </div>
                 );
               })}

@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PlayerHit } from "@/src/lib/player-types";
+import { localPlayerHits, mergePlayerHits } from "@/src/lib/players/local-files";
+import { useStudioStore } from "@/src/store/studio-store";
 
 const MIN_QUERY_LENGTH = 2;
 const DEBOUNCE_MS = 280;
@@ -16,11 +18,14 @@ export type PlayerSearchState = {
 };
 
 // SIG-1318: debounced (280 ms) player search against `/api/players/search`;
-// a new query aborts the in-flight request.
+// a new query aborts the in-flight request. SIG-1333: players from the PGN
+// files loaded in the Library are searched in memory (signed in or not) and
+// merged with the server hits, `studio` players shown once by lower-cased name.
 export function usePlayerSearch(): PlayerSearchState {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<PlayerHit[]>([]);
   const [loading, setLoading] = useState(false);
+  const databases = useStudioStore((state) => state.files.databases);
 
   const searching = query.trim().length >= MIN_QUERY_LENGTH;
 
@@ -58,5 +63,10 @@ export function usePlayerSearch(): PlayerSearchState {
     };
   }, [query]);
 
-  return { query, setQuery, searching, hits: searching ? hits : [], loading: searching && loading };
+  const merged = useMemo(
+    () => (searching ? mergePlayerHits(localPlayerHits(databases, query), hits) : []),
+    [searching, databases, query, hits],
+  );
+
+  return { query, setQuery, searching, hits: merged, loading: searching && loading };
 }

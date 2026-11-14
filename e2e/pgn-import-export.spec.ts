@@ -27,7 +27,7 @@ test("pgn import/export round-trips a short game", async ({ page, context }) => 
   // The finished import widget sits over the preview's bottom-right; close it first.
   await page.getByTestId("library-import-widget").getByRole("button", { name: "Close" }).click();
   await page.getByTestId("library-row").first().click();
-  await page.getByRole("button", { name: "Open in Studio" }).click();
+  await page.getByTestId("library-preview").getByRole("button", { name: "Open in Studio" }).click();
 
   // Switch to the notation to confirm the moves parsed into the active board.
   await page.getByRole("tab", { name: "Notation", exact: true }).click();

@@ -1,17 +1,22 @@
 import { after, afterEach, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { LibraryTable } from "./LibraryTable";
 import { useLibraryStore } from "./library-store";
-import { DEFAULT_LIBRARY_FILTERS, type LibraryGameItem } from "@/src/lib/library/types";
+import { clearLibrarySources, registerLibrarySource } from "@/src/lib/library/sources";
+import type { LibraryGameItem, LibrarySourceAdapter } from "@/src/lib/library/types";
+import { DEFAULT_LIBRARY_FILTERS } from "@/src/lib/library/types";
+import { useStudioStore } from "@/src/store/studio-store";
 import type { LibraryGamesState } from "./use-library-games";
 
 before(() => setupDom());
 after(() => teardownDom());
 afterEach(() => {
   cleanup();
+  clearLibrarySources();
   useLibraryStore.setState({ filters: DEFAULT_LIBRARY_FILTERS, selectedKey: null });
+  useStudioStore.setState({ training: false, trainingStart: null, workspaceView: "library" });
 });
 
 function item(n: number): LibraryGameItem {
@@ -39,15 +44,91 @@ test("renders only a window of 5000 rows, with dashes and move counts", () => {
   assert.ok(screen.getAllByText("—").length > 0);
 });
 
-test("header click sorts, a second click flips, aria-sort follows", () => {
+test("header click cycles first direction, opposite, then the default sort", () => {
   render(<LibraryTable games={games(5)} />);
-  const header = screen.getByRole("columnheader", { name: "White" });
-  assert.equal(header.getAttribute("aria-sort"), "none");
-  fireEvent.click(header.querySelector("button")!);
+  const header = () => screen.getByRole("columnheader", { name: "White" });
+  assert.equal(header().getAttribute("aria-sort"), "none");
+  fireEvent.click(header().querySelector("button")!);
   assert.deepEqual(useLibraryStore.getState().filters.sort, { key: "white", direction: "asc" });
-  assert.equal(screen.getByRole("columnheader", { name: "White" }).getAttribute("aria-sort"), "ascending");
-  fireEvent.click(screen.getByRole("columnheader", { name: "White" }).querySelector("button")!);
-  assert.equal(useLibraryStore.getState().filters.sort.direction, "desc");
+  assert.equal(header().getAttribute("aria-sort"), "ascending");
+  fireEvent.click(header().querySelector("button")!);
+  assert.deepEqual(useLibraryStore.getState().filters.sort, { key: "white", direction: "desc" });
+  assert.equal(header().getAttribute("aria-sort"), "descending");
+  fireEvent.click(header().querySelector("button")!);
+  assert.deepEqual(useLibraryStore.getState().filters.sort, { key: "date", direction: "desc" });
+  assert.equal(header().getAttribute("aria-sort"), "none");
+  assert.equal(screen.getByRole("columnheader", { name: "Date" }).getAttribute("aria-sort"), "descending");
+});
+
+test("Date shows the year with the full date in the tooltip", () => {
+  const row = item(1);
+  row.date = "2024-03-01";
+  render(<LibraryTable games={games(1, { items: [row] })} />);
+  assert.equal(screen.getByRole("columnheader", { name: "Date" }).getAttribute("aria-sort"), "descending");
+  assert.equal(screen.getByTitle("2024-03-01").textContent, "2024");
+});
+
+test("wide tables show Opening and the shared coloured ECO badge", () => {
+  render(<LibraryTable games={games(1)} />);
+  const opening = screen.getByRole("columnheader", { name: "Opening" });
+  assert.equal(opening.querySelector("button"), null);
+  assert.equal(opening.getAttribute("aria-sort"), null);
+  assert.ok(screen.getByText("King's Pawn"));
+  assert.equal(screen.getByText("C20").getAttribute("data-eco-family"), "C");
+});
+
+test("ratings are right-aligned muted figures and a missing one is a dash", () => {
+  render(<LibraryTable games={games(1)} />);
+  const rating = screen.getByText("2000");
+  assert.ok(rating.className.includes("text-studio-muted"));
+  assert.ok(rating.className.includes("text-right"));
+  assert.ok(rating.className.includes("tabular-nums"));
+  assert.ok(screen.getAllByText("—").length > 0);
+});
+
+const PGN = '[Event "Test"]\n[White "W"]\n[Black "B"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 1-0';
+
+function sourceItem(n: number): LibraryGameItem {
+  return { ...item(n), key: `masters:${n}`, sourceId: "masters", gameId: String(n) };
+}
+
+function adapter(): LibrarySourceAdapter {
+  return {
+    id: "masters",
+    label: () => "Masters",
+    capabilities: () => { throw new Error("unused"); },
+    list: async () => ({ items: [], nextCursor: null, total: 0 }),
+    loadPgn: async () => PGN,
+  };
+}
+
+test("row actions open and train without changing the selection", async () => {
+  registerLibrarySource(adapter());
+  const items = [sourceItem(0), sourceItem(1)];
+  const boardsBefore = useStudioStore.getState().boards.length;
+  render(<LibraryTable games={games(2, { items })} />);
+  fireEvent.click(screen.getAllByTestId("library-row")[0]!);
+  assert.equal(useLibraryStore.getState().selectedKey, "masters:0");
+
+  const open = within(screen.getAllByTestId("library-row")[1]!).getByRole("button", {
+    name: "Open in Studio",
+  });
+  await act(async () => {
+    fireEvent.click(open);
+  });
+  await waitFor(() => assert.equal(useStudioStore.getState().boards.length, boardsBefore + 1));
+  assert.equal(useLibraryStore.getState().selectedKey, "masters:0");
+
+  const train = within(screen.getAllByTestId("library-row")[1]!).getByRole("button", {
+    name: "Train line",
+  });
+  await act(async () => {
+    fireEvent.click(train);
+  });
+  await waitFor(() => assert.equal(useStudioStore.getState().training, true));
+  assert.equal(useLibraryStore.getState().selectedKey, "masters:0");
+  assert.equal(useStudioStore.getState().workspaceView, "studio");
+  assert.deepEqual(useStudioStore.getState().trainingStart, []);
 });
 
 test("click and arrow keys move the selection", () => {
