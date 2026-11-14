@@ -2,7 +2,7 @@
 
 // SIG-1337: the Library's sources rail — public databases, My Games and the PGN
 // file tree live left of the games table; the old source bar above it is gone.
-import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
   Bookmark,
   ChevronDown,
@@ -51,11 +51,21 @@ import {
   type MenuAnchor,
 } from "./LibraryFolders";
 import { useLibraryStore } from "./library-store";
+import {
+  FOLDER_EXPAND_DELAY_MS,
+  LIBRARY_DATABASE_MIME,
+  draggedDatabaseId,
+  hasDatabaseDrag,
+  hasFileDrag,
+} from "./library-drag";
 import { libraryToExplorerSource } from "./reference-source";
 import { useLibraryImport } from "./use-library-import";
 
 const MENU_MIN_WIDTH = 176;
 const NESTED_INDENT = 14;
+/** SIG-1343: the folder row a drag is over, and the accent ring that marks it. */
+type DropTarget = { folderId: string | null };
+const DROP_HIGHLIGHT = "bg-studio-accent-soft text-studio-accent-text ring-1 ring-inset ring-studio-accent";
 
 /** SIG-1340: a menu anchored at the pointer of a context-menu event, kept inside the viewport. */
 function pointerMenuAnchor(event: MouseEvent<Element>): MenuAnchor {
@@ -278,6 +288,142 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     });
   };
 
+  // SIG-1343: a PGN row or a file from the computer can be dropped on a folder.
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
+  const expandTimer = useRef<{ folderId: string; handle: ReturnType<typeof setTimeout> } | null>(null);
+
+  const cancelFolderExpand = () => {
+    if (expandTimer.current) {
+      clearTimeout(expandTimer.current.handle);
+      expandTimer.current = null;
+    }
+  };
+
+  useEffect(() => {
+    // A drag that ends anywhere (or is dropped outside the rail) leaves no highlight.
+    const clear = () => {
+      if (expandTimer.current) {
+        clearTimeout(expandTimer.current.handle);
+        expandTimer.current = null;
+      }
+      setDropTarget(null);
+    };
+    window.addEventListener("dragend", clear);
+    window.addEventListener("drop", clear);
+    return () => {
+      window.removeEventListener("dragend", clear);
+      window.removeEventListener("drop", clear);
+      if (expandTimer.current) {
+        clearTimeout(expandTimer.current.handle);
+        expandTimer.current = null;
+      }
+    };
+  }, []);
+
+  /** Open a collapsed folder after the pointer rests on it, so the drop can go one level deeper. */
+  const scheduleFolderExpand = (folderId: string) => {
+    if (expandTimer.current?.folderId === folderId) {
+      return;
+    }
+    cancelFolderExpand();
+    if (!collapsedFolders.has(folderId)) {
+      return;
+    }
+    expandTimer.current = {
+      folderId,
+      handle: setTimeout(() => {
+        expandTimer.current = null;
+        setCollapsedFolders((current) => {
+          if (!current.has(folderId)) {
+            return current;
+          }
+          const next = new Set(current);
+          next.delete(folderId);
+          return next;
+        });
+      }, FOLDER_EXPAND_DELAY_MS),
+    };
+  };
+
+  const acceptsFileDrop = (event: DragEvent<HTMLElement>) => hasFileDrag(event) || hasDatabaseDrag(event);
+
+  const moveDraggedDatabase = (folderId: string | null, event: DragEvent<HTMLElement>) => {
+    const database = databases.find((item) => item.id === draggedDatabaseId(event));
+    // Dropping a file on the folder it already lives in changes nothing.
+    if (database && database.folderId !== folderId) {
+      moveFileDatabase(database.id, folderId);
+    }
+  };
+
+  const folderDragOver = (folderId: string) => (event: DragEvent<HTMLElement>) => {
+    if (!acceptsFileDrop(event)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = hasDatabaseDrag(event) ? "move" : "copy";
+    setDropTarget((current) => (current?.folderId === folderId ? current : { folderId }));
+    scheduleFolderExpand(folderId);
+  };
+
+  const folderDragLeave = (event: DragEvent<HTMLElement>) => {
+    const next = event.relatedTarget as Node | null;
+    if (next && event.currentTarget.contains(next)) {
+      return;
+    }
+    cancelFolderExpand();
+    setDropTarget(null);
+  };
+
+  const folderDrop = (folderId: string) => (event: DragEvent<HTMLElement>) => {
+    if (!acceptsFileDrop(event)) {
+      return;
+    }
+    // The Library root must not import the same drop again.
+    event.preventDefault();
+    event.stopPropagation();
+    cancelFolderExpand();
+    setDropTarget(null);
+    if (hasDatabaseDrag(event)) {
+      moveDraggedDatabase(folderId, event);
+      return;
+    }
+    const files = Array.from(event.dataTransfer?.files ?? []);
+    if (files.length > 0) {
+      // The usual progress, limits and name-conflict questions, into this folder.
+      void importFiles(files, { folderId });
+    }
+  };
+
+  /** "My files" takes a dragged PGN row out of any folder; computer files still fall through to the root. */
+  const headingDropTarget = dropTarget !== null && dropTarget.folderId === null;
+
+  const headingDragOver = (event: DragEvent<HTMLElement>) => {
+    if (!hasDatabaseDrag(event)) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDropTarget((current) => (current?.folderId === null ? current : { folderId: null }));
+  };
+
+  const headingDragLeave = (event: DragEvent<HTMLElement>) => {
+    const next = event.relatedTarget as Node | null;
+    if (next && event.currentTarget.contains(next)) {
+      return;
+    }
+    setDropTarget(null);
+  };
+
+  const headingDrop = (event: DragEvent<HTMLElement>) => {
+    if (!hasDatabaseDrag(event)) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    setDropTarget(null);
+    moveDraggedDatabase(null, event);
+  };
+
   /** Every PGN source in a folder and its subfolders. */
   const fileIdsInFolder = (folderId: string): LibrarySourceId[] => {
     const scope = folderScope(folders, folderId);
@@ -334,9 +480,30 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     const hasActions = showReference || showRename || showMenu;
     const actionsClass =
       "pointer-events-none absolute inset-y-0 right-1 flex items-center gap-0.5 bg-inherit opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100";
+    // SIG-1343: only the PGN file rows can be dragged, and only onto a folder.
+    const dragProps =
+      database && !renaming
+        ? {
+            draggable: true,
+            onDragStart: (event: DragEvent<HTMLDivElement>) => {
+              event.dataTransfer.effectAllowed = "move";
+              try {
+                // Firefox starts no drag without data.
+                event.dataTransfer.setData(LIBRARY_DATABASE_MIME, database.id);
+              } catch {
+                // Some environments refuse; the drag then ends without moving the file.
+              }
+            },
+            onDragEnd: () => {
+              cancelFolderExpand();
+              setDropTarget(null);
+            },
+          }
+        : {};
     return (
       <div key={id} data-depth={depth} style={{ paddingLeft: `${depth * NESTED_INDENT}px` }} className="flex min-w-0">
         <div
+          {...dragProps}
           onContextMenu={
             database && !renaming
               ? (event) => {
@@ -463,20 +630,25 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
   const folderRow = (node: FolderNode, depth: number): ReactNode => {
     const expanded = !collapsedFolders.has(node.folder.id);
     const isCurrent = selectedFolderId === node.folder.id;
+    const isDropTarget = dropTarget?.folderId === node.folder.id;
     const actionsClass =
       "pointer-events-none absolute inset-y-0 right-1 flex items-center gap-0.5 bg-inherit opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100";
     return (
       <div key={`folder:${node.folder.id}`}>
         <div
           data-depth={depth}
+          data-drop-target={isDropTarget ? "" : undefined}
           style={{ paddingLeft: `${depth * NESTED_INDENT}px` }}
           onContextMenu={(event) => {
             event.preventDefault();
             setFolderMenu({ folderId: node.folder.id, ...pointerMenuAnchor(event) });
           }}
+          onDragOver={folderDragOver(node.folder.id)}
+          onDragLeave={folderDragLeave}
+          onDrop={folderDrop(node.folder.id)}
           className={`group relative flex min-w-0 items-center rounded-md ${
             isCurrent ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover hover:text-studio-fg"
-          }`}
+          } ${isDropTarget ? DROP_HIGHLIGHT : ""}`}
         >
           <IconButton
             label={expanded ? t("library.sources.folder.collapse", { name: node.folder.name }) : t("library.sources.folder.expand", { name: node.folder.name })}
@@ -779,7 +951,16 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
           {hasMyGames ? sourceRow("my-games") : null}
         </section>
         <section role="group" aria-label={t("library.sources.group.files")} className="flex flex-col gap-0.5">
-          <h3 className="px-2 pb-0.5 pt-1 text-caption font-semibold uppercase tracking-wide text-studio-faint">
+          <h3
+            data-testid="library-files-heading"
+            data-drop-target={headingDropTarget ? "" : undefined}
+            onDragOver={headingDragOver}
+            onDragLeave={headingDragLeave}
+            onDrop={headingDrop}
+            className={`rounded px-2 pb-0.5 pt-1 text-caption font-semibold uppercase tracking-wide text-studio-faint ${
+              headingDropTarget ? DROP_HIGHLIGHT : ""
+            }`}
+          >
             {t("library.sources.group.files")}
           </h3>
           {tree.rootFolders.map((node) => folderRow(node, 0))}

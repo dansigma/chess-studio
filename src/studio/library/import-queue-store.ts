@@ -58,7 +58,8 @@ export type ImportQueueDeps = Omit<PgnImportDeps, "resolveConflict"> & {
   onDrained?: (importedIds: string[]) => void;
 };
 
-type Pending = { id: string; file: File };
+/** Each queued file keeps the deps it was enqueued with, so a later batch still targets its own folder. */
+type Pending = { id: string; file: File; deps: ImportQueueDeps };
 
 let pending: Pending[] = [];
 let controllers = new Map<string, AbortController>();
@@ -118,7 +119,7 @@ function cancelEntry(id: string) {
 async function runQueue(deps: ImportQueueDeps) {
   runIds = [];
   for (let next = pending.shift(); next; next = pending.shift()) {
-    const { id, file } = next;
+    const { id, file, deps: fileDeps } = next;
     const controller = new AbortController();
     controllers.set(id, controller);
     patch(id, { state: "importing" });
@@ -126,7 +127,7 @@ async function runQueue(deps: ImportQueueDeps) {
       const outcome = await importOne(
         file,
         {
-          ...deps,
+          ...fileDeps,
           resolveConflict: (existing, fileName, { keepBothAllowed, signal }) =>
             askConflict(id, fileName, existing.name, keepBothAllowed, signal),
         },
@@ -191,7 +192,7 @@ export function enqueuePgnFiles(
   if (pgn.length === 0) {
     return { skipped, done: running ?? Promise.resolve() };
   }
-  const added = pgn.map((file) => ({ id: crypto.randomUUID(), file }));
+  const added = pgn.map((file) => ({ id: crypto.randomUUID(), file, deps }));
   pending.push(...added);
   useImportQueue.setState((state) => ({
     // A new batch replaces finished entries; active ones stay.
