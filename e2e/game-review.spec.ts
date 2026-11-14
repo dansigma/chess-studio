@@ -87,7 +87,7 @@ async function importGame(
   // These specs expect the board at the end of the game (as the old Files
   // panel opened it); "Open in Studio" opens at the preview's position.
   await page.getByRole("button", { name: "Last move", exact: true }).click();
-  await page.getByRole("button", { name: "Open in Studio" }).click();
+  await page.getByTestId("library-preview").getByRole("button", { name: "Open in Studio" }).click();
   await page.getByRole("tab", { name: "Game Review", exact: true }).click();
   await selectDepth(page, "Fast");
 }

@@ -1,13 +1,20 @@
 import type { LibrarySortKey } from "@/src/lib/library/types";
 import type { LibraryStringKey } from "@/src/i18n/library-strings";
 
+/** Display-only columns (Opening) use keys outside the sort contract. */
+export type LibraryColumnKey = LibrarySortKey | "opening";
+
 export type LibraryColumn = {
-  key: Exclude<LibrarySortKey, "date">;
+  key: LibraryColumnKey;
   label: LibraryStringKey;
   /** CSS grid track. */
   width: string;
   /** Hidden when the panel is narrower than `NARROW_PANEL_WIDTH`. */
   optional: boolean;
+  /** Hidden when the panel is narrower than `WIDE_PANEL_WIDTH` (Opening). */
+  wide?: boolean;
+  /** False for display-only columns, whose header is plain text. */
+  sortable: boolean;
   /** Direction applied when the column is first clicked. */
   firstDirection: "asc" | "desc";
   align?: "right";
@@ -15,30 +22,52 @@ export type LibraryColumn = {
 
 /** SIG-1277: below this panel width Elo and Event columns are hidden. */
 export const NARROW_PANEL_WIDTH = 520;
+/** SIG-1336: below this panel width the Opening column is hidden. */
+export const WIDE_PANEL_WIDTH = 760;
 
 export const LIBRARY_COLUMNS: LibraryColumn[] = [
-  { key: "white", label: "library.col.white", width: "minmax(0,1.6fr)", optional: false, firstDirection: "asc" },
-  { key: "whiteElo", label: "library.col.whiteElo", width: "44px", optional: true, firstDirection: "desc", align: "right" },
-  { key: "black", label: "library.col.black", width: "minmax(0,1.6fr)", optional: false, firstDirection: "asc" },
-  { key: "blackElo", label: "library.col.blackElo", width: "44px", optional: true, firstDirection: "desc", align: "right" },
-  { key: "result", label: "library.col.result", width: "44px", optional: false, firstDirection: "asc" },
-  { key: "eco", label: "library.col.eco", width: "40px", optional: false, firstDirection: "asc" },
-  { key: "plyCount", label: "library.col.plyCount", width: "48px", optional: false, firstDirection: "desc", align: "right" },
-  { key: "event", label: "library.col.event", width: "minmax(0,1.2fr)", optional: true, firstDirection: "asc" },
+  { key: "white", label: "library.col.white", width: "minmax(0,1.6fr)", optional: false, sortable: true, firstDirection: "asc" },
+  { key: "whiteElo", label: "library.col.whiteElo", width: "44px", optional: true, sortable: true, firstDirection: "desc", align: "right" },
+  { key: "black", label: "library.col.black", width: "minmax(0,1.6fr)", optional: false, sortable: true, firstDirection: "asc" },
+  { key: "blackElo", label: "library.col.blackElo", width: "44px", optional: true, sortable: true, firstDirection: "desc", align: "right" },
+  { key: "result", label: "library.col.result", width: "44px", optional: false, sortable: true, firstDirection: "asc" },
+  { key: "date", label: "library.col.date", width: "64px", optional: false, sortable: true, firstDirection: "desc", align: "right" },
+  { key: "eco", label: "library.col.eco", width: "40px", optional: false, sortable: true, firstDirection: "asc" },
+  { key: "opening", label: "library.col.opening", width: "minmax(0,1.4fr)", optional: false, wide: true, sortable: false, firstDirection: "asc" },
+  { key: "plyCount", label: "library.col.plyCount", width: "48px", optional: false, sortable: true, firstDirection: "desc", align: "right" },
+  { key: "event", label: "library.col.event", width: "minmax(0,1.2fr)", optional: true, sortable: true, firstDirection: "asc" },
 ];
 
 export function visibleColumns(panelWidth: number): LibraryColumn[] {
-  return panelWidth < NARROW_PANEL_WIDTH ? LIBRARY_COLUMNS.filter((c) => !c.optional) : LIBRARY_COLUMNS;
+  return LIBRARY_COLUMNS.filter((column) => {
+    if (column.wide && panelWidth < WIDE_PANEL_WIDTH) {
+      return false;
+    }
+    return !(column.optional && panelWidth < NARROW_PANEL_WIDTH);
+  });
 }
 
+const DEFAULT_SORT = { key: "date", direction: "desc" } as const;
+
+/**
+ * Three-state header cycle: a column's first direction, then the opposite,
+ * then back to the default sort (date, newest first).
+ */
 export function nextSort(
   current: { key: LibrarySortKey; direction: "asc" | "desc" },
   column: LibraryColumn,
 ): { key: LibrarySortKey; direction: "asc" | "desc" } {
-  if (current.key === column.key) {
-    return { key: column.key, direction: current.direction === "asc" ? "desc" : "asc" };
+  if (!column.sortable) {
+    return current;
   }
-  return { key: column.key, direction: column.firstDirection };
+  const key = column.key as LibrarySortKey;
+  if (current.key !== key) {
+    return { key, direction: column.firstDirection };
+  }
+  if (current.direction === column.firstDirection) {
+    return { key, direction: column.firstDirection === "asc" ? "desc" : "asc" };
+  }
+  return { ...DEFAULT_SORT };
 }
 
 /** Index to select after an arrow/Home/End key, or null when the key is not a move. */
