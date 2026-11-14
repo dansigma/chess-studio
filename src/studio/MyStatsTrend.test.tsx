@@ -91,3 +91,35 @@ test("clampCenter keeps a box inside the container (SIG-1308)", () => {
   // Box wider than container: pinned left, never negative.
   assert.equal(clampCenter(50, 160, 100), 80);
 });
+
+function axisLabels(): string[] {
+  return screen.getAllByTestId("trend-date-label").map((el) => el.textContent ?? "");
+}
+
+test("axis shows a single date when all games share a day (SIG-1335)", () => {
+  const day = Date.UTC(2026, 9, 27, 12);
+  const games = [g("a", day, 60), g("b", day + 3600_000, 80), g("c", day + 7200_000, 100)];
+  render(<MyStatsTrend games={games} locale="en" onOpenGame={() => {}} />);
+  assert.equal(axisLabels().length, 1);
+  assert.equal(screen.getAllByTestId("trend-dot").length, 3);
+});
+
+test("axis drops the repeated date when only two labels match (SIG-1335)", () => {
+  const day = Date.UTC(2026, 9, 27, 12);
+  const games = [g("a", day, 60), g("b", day + 3600_000, 80), g("c", Date.UTC(2026, 10, 3), 100)];
+  render(<MyStatsTrend games={games} locale="en" onOpenGame={() => {}} />);
+  const labels = axisLabels();
+  assert.equal(labels.length, 2);
+  assert.notEqual(labels[0], labels[1]);
+  // Per-game aria labels are untouched.
+  const dots = screen.getAllByTestId("trend-dot");
+  assert.equal(dots[0]!.getAttribute("aria-label"), `${labels[0]} — 60.0`);
+  assert.equal(dots[1]!.getAttribute("aria-label"), `${labels[0]} — 80.0`);
+});
+
+test("axis keeps three labels for three distinct dates (SIG-1335)", () => {
+  render(<MyStatsTrend games={GAMES} locale="en" onOpenGame={() => {}} />);
+  const labels = axisLabels();
+  assert.equal(labels.length, 3);
+  assert.equal(new Set(labels).size, 3);
+});
