@@ -1,7 +1,8 @@
 // SIG-1341: "Prepare line" from the Library player dossier. Opens the line on
 // a fresh Studio board oriented to the USER's side (the opposite of the
 // dossier player's colour), reveals the Explorer on that position and leaves
-// the Library. Same grain as `prepareAgainst` in OpponentPrepPanel.
+// the Library. Same grain as the retired Opponent prep panel's "Prepare
+// against" flow.
 // SIG-1344: an empty path is a position too — a gap on the opponent's first
 // move prepares the start position, so it must open the Studio as well.
 // SIG-1345: "Train" reuses the same import but starts training from the first

@@ -30,6 +30,8 @@ export const PREP_STRING_KEYS = [
   "prep.error.rateLimited",
   "prep.error.upstream",
   "prep.retry",
+  "prep.retired",
+  "prep.openDossier",
 ] as const;
 
 export type PrepStringKey = (typeof PREP_STRING_KEYS)[number];
@@ -58,6 +60,8 @@ const EN: Record<PrepStringKey, string> = {
   "prep.error.rateLimited": "Too many requests — wait a moment and try again.",
   "prep.error.upstream": "Could not load the opponent profile. Try again.",
   "prep.retry": "Retry",
+  "prep.retired": "Opponent prep moved into the Library. Open the player dossier to prepare against their openings.",
+  "prep.openDossier": "Open dossier in Library",
 };
 
 const PT_BR: Record<PrepStringKey, string> = {
@@ -84,6 +88,8 @@ const PT_BR: Record<PrepStringKey, string> = {
   "prep.error.rateLimited": "Pedidos demais — aguarde um momento e tente de novo.",
   "prep.error.upstream": "Não foi possível carregar o perfil do adversário. Tente de novo.",
   "prep.retry": "Tentar de novo",
+  "prep.retired": "A Preparação contra agora fica na Biblioteca. Abra o dossiê do jogador para se preparar contra as aberturas dele.",
+  "prep.openDossier": "Abrir dossiê na Biblioteca",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;
