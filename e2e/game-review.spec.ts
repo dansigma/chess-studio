@@ -70,7 +70,6 @@ async function selectDepth(page: import("@playwright/test").Page | import("@play
 async function importGame(
   page: import("@playwright/test").Page,
   pgn: string,
-  _title: string,
 ) {
   await page.goto("/studio");
   const board = page.locator("[data-board-image]");
@@ -89,7 +88,7 @@ async function importGame(
 }
 
 test("actions menu: depth radios, report items disabled until a report exists, no share row", async ({ page }) => {
-  await importGame(page, RUN_GAME, "Review Run");
+  await importGame(page, RUN_GAME);
   await expect(page.getByText(/Reviews every move with the engine/)).toBeVisible();
 
   await page.getByRole("button", { name: "Review actions", exact: true }).click();
@@ -113,7 +112,7 @@ test("actions menu: depth radios, report items disabled until a report exists, n
 });
 
 test("review run shows progress then the report and chart", async ({ page }) => {
-  await importGame(page, RUN_GAME, "Review Run");
+  await importGame(page, RUN_GAME);
 
   await page.getByRole("button", { name: "Review game", exact: true }).click();
 
@@ -134,7 +133,7 @@ test("review run shows progress then the report and chart", async ({ page }) => 
 });
 
 test("SIG-1219: tier counts jump to the move, and the badge shows on the board and in the move list", async ({ page }) => {
-  await importGame(page, BADGE_GAME, "Review Badges");
+  await importGame(page, BADGE_GAME);
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
 
@@ -164,7 +163,7 @@ test("SIG-1219: tier counts jump to the move, and the badge shows on the board a
 });
 
 test("review cancel stops the run and offers resume", async ({ page }) => {
-  await importGame(page, CANCEL_GAME, "Review Cancel");
+  await importGame(page, CANCEL_GAME);
 
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("progressbar", { name: "Review progress" })).toBeVisible();
@@ -177,7 +176,7 @@ test("review cancel stops the run and offers resume", async ({ page }) => {
 });
 
 test("key-moment navigation shows the Why? explanation inline under the active row (SIG-1208)", async ({ page }) => {
-  await importGame(page, MOMENTS_GAME, "Review Moments");
+  await importGame(page, MOMENTS_GAME);
 
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({
@@ -222,7 +221,7 @@ test("key-moment navigation shows the Why? explanation inline under the active r
 });
 
 test("a fresh review offers to train the captured mistakes (SIG-1206)", async ({ page }) => {
-  await importGame(page, TRAIN_GAME, "Review Train");
+  await importGame(page, TRAIN_GAME);
 
   const banner = page.getByTestId("train-mistakes-banner");
   await expect(banner).toHaveCount(0);
@@ -287,7 +286,7 @@ async function storedExercises(page: import("@playwright/test").Page) {
 }
 
 test("retry a mistake in place: wrong move reverts, solving records, engine is hidden, Exit restores (SIG-1209)", async ({ page }) => {
-  await importGame(page, RETRY_GAME, "Review Retry");
+  await importGame(page, RETRY_GAME);
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
 
@@ -386,7 +385,7 @@ test.fixme("reload restores the completed review from persistence", async () => 
 });
 
 test("SIG-1220: a game with clocks shows the Time section and the Evaluation | Time chart toggle; one without does not", async ({ page }) => {
-  await importGame(page, CLOCK_GAME, "Review Clocks");
+  await importGame(page, CLOCK_GAME);
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
   const time = page.locator("[data-report-section=time]");
@@ -402,7 +401,7 @@ test("SIG-1220: a game with clocks shows the Time section and the Evaluation | T
 });
 
 test("SIG-1220: a game without clocks renders no Time section and no chart toggle", async ({ page }) => {
-  await importGame(page, RUN_GAME, "Review Run");
+  await importGame(page, RUN_GAME);
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("[data-report-card]")).toBeVisible();
