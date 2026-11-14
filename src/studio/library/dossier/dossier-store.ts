@@ -1,6 +1,7 @@
 // SIG-1338: Library player dossier state. Deliberately separate from
 // `library-store` (and not persisted): the dossier survives switching Library
-// modes but nothing here belongs in the URL or localStorage.
+// modes, and the open player is mirrored in the URL by `use-workspace-view-url`
+// (SIG-1346). The other filters stay out of the address bar and localStorage.
 import { create } from "zustand";
 import { DEFAULT_OVERVIEW_FILTERS, type OverviewFilters } from "@/src/lib/my-games/overview-filters";
 import type { PlayerColorFilter, PlayerHit } from "@/src/lib/player-types";
