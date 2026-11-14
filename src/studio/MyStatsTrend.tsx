@@ -100,6 +100,15 @@ export function MyStatsTrend({
   });
 
   const dateIdx = count === 1 ? [0] : count === 2 ? [0, 1] : [0, Math.floor((count - 1) / 2), count - 1];
+  // SIG-1335: games from the same day would repeat the same text. The two
+  // ends win: the middle label goes when it repeats either end, and the last
+  // one goes when it repeats the first.
+  const allDates = dateIdx.map((i) => ({ i, text: formatDate(locale, points[i]!.game.playedAt) }));
+  const firstDate = allDates[0]!.text;
+  const lastDate = allDates[allDates.length - 1]!.text;
+  const dateLabels = allDates.filter(({ text }, k) =>
+    k === 0 ? true : k === allDates.length - 1 ? text !== firstDate : text !== firstDate && text !== lastDate,
+  );
   const tipIndex = hover ?? focused;
   const tip = tipIndex != null ? points[tipIndex] : undefined;
 
@@ -219,17 +228,19 @@ export function MyStatsTrend({
           />
         </button>
       ))}
-      {dateIdx.map((i, k) => (
+      {dateLabels.map(({ i, text }) => (
         <span
           key={i}
+          data-testid="trend-date-label"
           className="absolute whitespace-nowrap"
           style={{
             top: HEIGHT,
-            left: xAt(i),
-            transform: k === 0 && dateIdx.length > 1 ? "none" : k === dateIdx.length - 1 && dateIdx.length > 1 ? "translateX(-100%)" : "translateX(-50%)",
+            // A lone label (all dates equal) sits centred under the plot.
+            left: dateLabels.length === 1 ? PAD.left + plotW / 2 : xAt(i),
+            transform: dateLabels.length > 1 && i === 0 ? "none" : dateLabels.length > 1 && i === count - 1 ? "translateX(-100%)" : "translateX(-50%)",
           }}
         >
-          {formatDate(locale, points[i]!.game.playedAt)}
+          {text}
         </span>
       ))}
       {tip ? tooltip(tipIndex!) : null}
