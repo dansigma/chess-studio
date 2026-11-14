@@ -18,7 +18,6 @@ import { buildFolderTree } from "../files-tree";
 import { useLibraryStore } from "./library-store";
 
 const MENU_MIN_WIDTH = 192;
-const SELECT_CLASS = "h-7 max-w-44 shrink-0 rounded-md bg-studio-hover px-1.5 text-dense text-studio-fg";
 const INPUT_CLASS =
   "mt-1.5 w-full rounded-md border border-studio-border-strong bg-studio-selected px-2 py-1.5 text-body text-studio-fg outline-none focus:border-studio-accent";
 
@@ -81,33 +80,6 @@ export function PopMenu({
 export function anchorBelow(element: HTMLElement): { x: number; y: number } {
   const rect = element.getBoundingClientRect();
   return { x: Math.max(8, Math.min(rect.left, window.innerWidth - MENU_MIN_WIDTH - 8)), y: rect.bottom + 4 };
-}
-
-/** "All folders" or one folder; subfolders are indented under their parent. */
-export function FolderSelect() {
-  const locale = useStudioStore((s) => s.settings.locale);
-  const files = useStudioStore((s) => s.files);
-  const setFolderId = useLibraryStore((s) => s.setFolderId);
-  const selected = useSelectedFolderId();
-  const options = buildFolderTree(files.folders, [], "").folderOptions;
-  if (options.length === 0) {
-    return null;
-  }
-  return (
-    <select
-      aria-label={tLibrary(locale, "library.folders.label")}
-      value={selected ?? ""}
-      onChange={(event) => setFolderId(event.target.value || null)}
-      className={SELECT_CLASS}
-    >
-      <option value="">{tLibrary(locale, "library.folders.all")}</option>
-      {options.map((option) => (
-        <option key={option.id} value={option.id}>
-          {"  ".repeat(option.depth) + option.name}
-        </option>
-      ))}
-    </select>
-  );
 }
 
 /** Folder destination picker; `isDisabled` blocks the current spot and cycle targets. */
