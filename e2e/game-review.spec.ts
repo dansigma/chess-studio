@@ -84,6 +84,9 @@ async function importGame(
   // The finished import widget sits over the preview's bottom-right; close it first.
   await page.getByTestId("library-import-widget").getByRole("button", { name: "Close" }).click();
   await page.getByTestId("library-row").first().click();
+  // These specs expect the board at the end of the game (as the old Files
+  // panel opened it); "Open in Studio" opens at the preview's position.
+  await page.getByRole("button", { name: "Last move", exact: true }).click();
   await page.getByRole("button", { name: "Open in Studio" }).click();
   await page.getByRole("tab", { name: "Game Review", exact: true }).click();
   await selectDepth(page, "Fast");
