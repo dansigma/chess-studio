@@ -131,7 +131,7 @@ test("only PGN file cards have a menu", async () => {
   openMenu();
   assert.deepEqual(
     screen.getAllByRole("menuitem").map((item) => item.textContent),
-    ["Rename", "Export (.pgn)", "Delete"],
+    ["Rename", "Move to folder…", "Export (.pgn)", "Delete"],
   );
 });
 

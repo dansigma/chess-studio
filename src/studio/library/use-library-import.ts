@@ -8,6 +8,11 @@ import { registerLibraryAdapters } from "./library-sources";
 import { useLibraryStore } from "./library-store";
 import { enqueuePgnFiles } from "./import-queue-store";
 
+function selectedFolderId(): string | null {
+  const folderId = useLibraryStore.getState().folderId;
+  return folderId && useStudioStore.getState().files.folders.some((folder) => folder.id === folderId) ? folderId : null;
+}
+
 /**
  * Queues PGN files as personal databases without leaving the Library. Progress,
  * cancel and per-file failures show in the import widget; only non-.pgn files
@@ -19,8 +24,9 @@ export function useLibraryImport(): (files: File[]) => Promise<void> {
       databaseCount: () => useStudioStore.getState().files.databases.length,
       databases: () => useStudioStore.getState().files.databases,
       replaceDatabaseGames: (id, games) => useStudioStore.getState().replaceFileDatabaseGames(id, games),
+      // Into the folder being viewed, so the new card is visible straight away.
       importParsedDatabase: (name, games) =>
-        useStudioStore.getState().importParsedDatabase(name, games, null, { focusFiles: false }),
+        useStudioStore.getState().importParsedDatabase(name, games, selectedFolderId()),
       onDrained: (importedIds) => {
         const last = importedIds[importedIds.length - 1];
         if (last) {

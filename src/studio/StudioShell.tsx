@@ -6,11 +6,9 @@ import { creditRows } from "@/src/lib/legal/credits";
 import { CreditSegments } from "@/src/site/CreditSegments";
 import { ActivityBar } from "./ActivityBar";
 import { BoardsSidebar } from "./BoardsSidebar";
-import { DatabasesSidebar } from "./DatabasesSidebar";
 import { MenuBar } from "./MenuBar";
 import { MobileStudio } from "./MobileStudio";
 import { useIsMobile } from "./use-is-mobile";
-import { FilesSidebar } from "./FilesSidebar";
 import { MyGamesSidebar } from "./MyGamesSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
@@ -586,14 +584,12 @@ export function StudioShell() {
               <div ref={sidebarRef} className="flex h-full shrink-0">
                 {activity === "boards" ? (
                   <BoardsSidebar />
-                ) : activity === "files" ? (
-                  <FilesSidebar />
                 ) : activity === "bookmarks" ? (
                   <BookmarksSidebar />
                 ) : activity === "mygames" ? (
                   <MyGamesSidebar />
                 ) : (
-                  <DatabasesSidebar />
+                  <BoardsSidebar />
                 )}
               </div>
               <ResizeHandle

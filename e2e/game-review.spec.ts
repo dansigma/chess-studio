@@ -70,19 +70,20 @@ async function selectDepth(page: import("@playwright/test").Page | import("@play
 async function importGame(
   page: import("@playwright/test").Page,
   pgn: string,
-  title: string,
+  _title: string,
 ) {
   await page.goto("/studio");
   const board = page.locator("[data-board-image]");
   await expect(board.locator('[data-square="e2"]')).toBeVisible();
 
-  await page.getByRole("button", { name: "Files", exact: true }).click();
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("menuitem", { name: /Paste PGN/ }).click();
-  await page.locator("textarea").fill(pgn);
-  await page.getByRole("button", { name: "Import", exact: true }).click();
-
-  await page.getByRole("button", { name: title, exact: true }).click();
+  // SIG-1325: import through the Library (+ Import PGN > Paste PGN), then open the game in the Studio.
+  await page.getByRole("button", { name: "Library" }).first().click();
+  await page.getByRole("button", { name: "+ Import PGN" }).click();
+  await page.getByRole("menuitem", { name: "Paste PGN" }).click();
+  await page.getByRole("textbox", { name: "PGN text" }).fill(pgn);
+  await page.getByRole("dialog").getByRole("button", { name: "Import", exact: true }).click();
+  await page.getByTestId("library-row").first().click();
+  await page.getByRole("button", { name: "Open in Studio" }).click();
   await page.getByRole("tab", { name: "Game Review", exact: true }).click();
   await selectDepth(page, "Fast");
 }
