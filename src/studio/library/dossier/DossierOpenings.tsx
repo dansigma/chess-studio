@@ -315,6 +315,7 @@ export function DossierOpenings({ games }: { games: PlayerGame[] }) {
           {tLibrary(locale, "library.dossier.moveLines")}
         </h4>
         <OpeningLinesTree
+          embedded
           locale={locale}
           lineColor={opponentColor}
           setLineColor={(color) => {
