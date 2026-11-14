@@ -14,7 +14,7 @@ after(() => teardownDom());
 afterEach(() => cleanup());
 
 const row = (o: Partial<OverviewRow>): OverviewRow => ({
-  white: "A", black: "B", whiteElo: null, blackElo: null, eco: null, opening: null, ...o,
+  white: "A", black: "B", whiteElo: null, blackElo: null, eco: null, opening: null, result: "*", date: null, ...o,
 });
 const pgn = (white: string, black: string, eco: string, opening: string) =>
   `[White "${white}"]\n[Black "${black}"]\n[WhiteElo "2000"]\n[BlackElo "2200"]\n[ECO "${eco}"]\n[Opening "${opening}"]\n\n1. e4 *`;

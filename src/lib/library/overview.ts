@@ -1,5 +1,6 @@
 // SIG-1327: summary ("what is in this database?") of a set of games. Raw sets
 // and maps, so several sources merge correctly (a player in two sources counts once).
+import { itemYear } from "./filters";
 import type { LibraryGameItem } from "./types";
 
 export type LibraryOverview = {
@@ -8,12 +9,28 @@ export type LibraryOverview = {
   eloSum: number;
   eloCount: number;
   eco: Map<string, { count: number; opening: string | null }>;
+  // SIG-1332: results from White's point of view; `other` = unfinished games.
+  results: { white: number; draws: number; black: number; other: number };
+  years: Map<number, number>; // games per year; undated games are skipped
+  playerGames: Map<string, { name: string; games: number }>; // keyed like `players`
 };
 
-export type OverviewRow = Pick<LibraryGameItem, "white" | "black" | "whiteElo" | "blackElo" | "eco" | "opening">;
+export type OverviewRow = Pick<
+  LibraryGameItem,
+  "white" | "black" | "whiteElo" | "blackElo" | "eco" | "opening" | "result" | "date"
+>;
 
 export function emptyOverview(): LibraryOverview {
-  return { games: 0, players: new Set(), eloSum: 0, eloCount: 0, eco: new Map() };
+  return {
+    games: 0,
+    players: new Set(),
+    eloSum: 0,
+    eloCount: 0,
+    eco: new Map(),
+    results: { white: 0, draws: 0, black: 0, other: 0 },
+    years: new Map(),
+    playerGames: new Map(),
+  };
 }
 
 function playerKey(name: string | null | undefined): string | null {
@@ -33,7 +50,26 @@ export function addToOverview(overview: LibraryOverview, row: OverviewRow): void
     const key = playerKey(name);
     if (key) {
       overview.players.add(key);
+      const hit = overview.playerGames.get(key);
+      if (hit) {
+        hit.games += 1;
+      } else {
+        overview.playerGames.set(key, { name: name.trim(), games: 1 });
+      }
     }
+  }
+  if (row.result === "1-0") {
+    overview.results.white += 1;
+  } else if (row.result === "0-1") {
+    overview.results.black += 1;
+  } else if (row.result === "1/2-1/2") {
+    overview.results.draws += 1;
+  } else {
+    overview.results.other += 1;
+  }
+  const year = itemYear(row.date);
+  if (year !== null) {
+    overview.years.set(year, (overview.years.get(year) ?? 0) + 1);
   }
   for (const elo of [row.whiteElo, row.blackElo]) {
     if (typeof elo === "number" && Number.isFinite(elo) && elo > 0) {
@@ -71,6 +107,21 @@ export function mergeOverviews(list: LibraryOverview[]): LibraryOverview {
     for (const p of o.players) {
       out.players.add(p);
     }
+    out.results.white += o.results.white;
+    out.results.draws += o.results.draws;
+    out.results.black += o.results.black;
+    out.results.other += o.results.other;
+    for (const [year, count] of o.years) {
+      out.years.set(year, (out.years.get(year) ?? 0) + count);
+    }
+    for (const [key, entry] of o.playerGames) {
+      const hit = out.playerGames.get(key);
+      if (hit) {
+        hit.games += entry.games;
+      } else {
+        out.playerGames.set(key, { ...entry });
+      }
+    }
     for (const [code, entry] of o.eco) {
       const hit = out.eco.get(code);
       if (hit) {
@@ -93,6 +144,22 @@ export function topEco(
     .map(([code, entry]) => ({ code, ...entry }))
     .sort((a, b) => b.count - a.count || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0))
     .slice(0, n);
+}
+
+/** The `n` players with most games; ties by display name ascending (then key). */
+export function topPlayers(overview: LibraryOverview, n: number): { name: string; games: number }[] {
+  return [...overview.playerGames]
+    .sort(
+      ([ka, a], [kb, b]) =>
+        b.games - a.games || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0) || (ka < kb ? -1 : ka > kb ? 1 : 0),
+    )
+    .slice(0, n)
+    .map(([, { name, games }]) => ({ name, games }));
+}
+
+/** Games per year, ascending by year. */
+export function yearBuckets(overview: LibraryOverview): { year: number; count: number }[] {
+  return [...overview.years].map(([year, count]) => ({ year, count })).sort((a, b) => a.year - b.year);
 }
 
 /** Average of all known individual ratings, rounded; null when none is known. */
