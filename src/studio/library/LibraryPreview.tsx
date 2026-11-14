@@ -182,7 +182,8 @@ export function GamePreview({
   startFen,
 }: GamePreviewProps) {
   const { tree, headers } = game;
-  const boardId = useId();
+  // React ids contain ":", which breaks the board's `url(#id-…)` SVG references.
+  const boardId = useId().replace(/[^A-Za-z0-9_-]/g, "");
   const locale = useStudioStore((state) => state.settings.locale);
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
