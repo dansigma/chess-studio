@@ -6,7 +6,7 @@ import { tLibrary } from "@/src/i18n/library-strings";
 import { Panel } from "../ui/Panel";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { useLibraryGames, type LibraryGamesState } from "./use-library-games";
-import { LibraryToolbar } from "./LibraryToolbar";
+import { LibraryFilterChips, LibraryToolbar } from "./LibraryToolbar";
 import { LibrarySourceBar } from "./LibrarySourceBar";
 import { LibraryOverviewBar } from "./LibraryOverviewBar";
 import { useLibrarySources } from "./library-sources";
@@ -38,6 +38,22 @@ export function LibraryView(slots: LibraryViewSlots = {}) {
   const mode = useLibraryStore((s) => s.mode);
   const setMode = useLibraryStore((s) => s.setMode);
   const drop = useLibraryDrop(mode === "games");
+  const tabs = (
+    <div role="tablist" aria-label={tLibrary(locale, "library.mode.label")} className="flex shrink-0 gap-1">
+      {(["games", "players"] as const).map((item) => (
+        <button
+          key={item}
+          type="button"
+          role="tab"
+          aria-selected={mode === item}
+          onClick={() => setMode(item)}
+          className={`rounded px-2.5 py-1 text-dense ${mode === item ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"}`}
+        >
+          {tLibrary(locale, item === "games" ? "library.mode.games" : "library.mode.players")}
+        </button>
+      ))}
+    </div>
+  );
   return (
     <div
       className="relative flex h-full min-h-0 w-full flex-col gap-1.5 bg-studio-bg p-1.5"
@@ -53,27 +69,22 @@ export function LibraryView(slots: LibraryViewSlots = {}) {
           {tLibrary(locale, "library.import.drop")}
         </div>
       ) : null}
-      <div role="tablist" aria-label={tLibrary(locale, "library.mode.label")} className="flex shrink-0 gap-1">
-        {(["games", "players"] as const).map((item) => (
-          <button
-            key={item}
-            type="button"
-            role="tab"
-            aria-selected={mode === item}
-            onClick={() => setMode(item)}
-            className={`rounded px-2.5 py-1 text-dense ${mode === item ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"}`}
-          >
-            {tLibrary(locale, item === "games" ? "library.mode.games" : "library.mode.players")}
-          </button>
-        ))}
-      </div>
-      {mode === "players" ? <LibraryPlayers /> : <LibraryGames {...slots} />}
+      {mode === "players" ? (
+        <>
+          <div className="flex shrink-0 items-center gap-2" data-testid="library-header">
+            {tabs}
+          </div>
+          <LibraryPlayers />
+        </>
+      ) : (
+        <LibraryGames {...slots} tabs={tabs} />
+      )}
       <LibraryImportWidget />
     </div>
   );
 }
 
-function LibraryGames({ toolbar, table, preview }: LibraryViewSlots) {
+function LibraryGames({ toolbar, table, preview, tabs }: LibraryViewSlots & { tabs: ReactNode }) {
   useLibrarySources();
   const locale = useStudioStore((state) => state.settings.locale);
   const selectedKey = useLibraryStore((s) => s.selectedKey);
@@ -143,9 +154,18 @@ function LibraryGames({ toolbar, table, preview }: LibraryViewSlots) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-      <div aria-label={tLibrary(locale, "library.toolbar.label")} role="search" data-testid="library-toolbar-slot">
-        {toolbar ?? <LibraryToolbar total={games.total} />}
+      <div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-2" data-testid="library-header">
+        {tabs}
+        <div
+          aria-label={tLibrary(locale, "library.toolbar.label")}
+          role="search"
+          data-testid="library-toolbar-slot"
+          className="flex min-w-0 flex-1"
+        >
+          {toolbar ?? <LibraryToolbar total={games.total} />}
+        </div>
       </div>
+      {toolbar ? null : <LibraryFilterChips />}
       <LibrarySourceBar sourceErrors={games.sourceErrors} />
       <LibraryOverviewBar />
       <div ref={containerRef} className="flex min-h-0 flex-1">

@@ -24,28 +24,85 @@ export type LibraryToolbarProps = {
   total: number | null;
 };
 
-/** SIG-1278: quick search, counter, filter chips and Filters button. */
-export function LibraryToolbar({ total }: LibraryToolbarProps) {
+function useAvailableSources(): ChipSource[] {
   const locale = useStudioStore((state) => state.settings.locale);
   // Re-render when personal databases change; the registry itself is not reactive.
   useStudioStore((state) => state.files.databases);
-  const filters = useLibraryStore((s) => s.filters);
-  const filtersOpen = useLibraryStore((s) => s.filtersOpen);
-  const setFilter = useLibraryStore((s) => s.setFilter);
-  const setSources = useLibraryStore((s) => s.setSources);
-  const resetFilters = useLibraryStore((s) => s.resetFilters);
-  const setFiltersOpen = useLibraryStore((s) => s.setFiltersOpen);
-
-  const available: ChipSource[] = listLibrarySources().map((adapter) => ({
+  return listLibrarySources().map((adapter) => ({
     id: adapter.id,
     label: adapter.label(locale),
     capabilities: adapter.capabilities(),
   }));
+}
+
+/**
+ * SIG-1278 / SIG-1331: the header-row controls (quick search, Filtros button, counter).
+ * Rendered next to the Partidas/Jogadores tabs on a single non-wrapping row; the search
+ * field is the only part that shrinks.
+ */
+export function LibraryToolbar({ total }: LibraryToolbarProps) {
+  const locale = useStudioStore((state) => state.settings.locale);
+  const filters = useLibraryStore((s) => s.filters);
+  const filtersOpen = useLibraryStore((s) => s.filtersOpen);
+  const setFiltersOpen = useLibraryStore((s) => s.setFiltersOpen);
+
+  const available = useAvailableSources();
   const selectedCount = available.filter((source) => filters.sources.includes(source.id)).length;
   const filtersButtonRef = useRef<HTMLButtonElement>(null);
   const selectedSources = available.filter((source) => filters.sources.includes(source.id));
-  const chips = buildFilterChips(filters, available, locale);
   const advancedCount = countAdvancedFilters(filters);
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 px-0.5">
+      <DebouncedSearch />
+      <div className="relative shrink-0">
+        <button
+          ref={filtersButtonRef}
+          type="button"
+          aria-pressed={filtersOpen}
+          aria-haspopup="dialog"
+          aria-expanded={filtersOpen}
+          aria-label={
+            advancedCount > 0
+              ? tLibrary(locale, "library.filters.buttonActive", { count: advancedCount })
+              : tLibrary(locale, "library.filters.button")
+          }
+          onClick={() => setFiltersOpen(!filtersOpen)}
+          className={`inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-dense ${
+            filtersOpen || advancedCount > 0
+              ? "bg-studio-accent-soft text-studio-accent-text"
+              : "text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
+          }`}
+        >
+          <SlidersHorizontal size={14} aria-hidden="true" />
+          {tLibrary(locale, "library.filters.button")}
+          {advancedCount > 0 ? <Badge tone="accent">{advancedCount}</Badge> : null}
+        </button>
+        {filtersOpen ? (
+          <LibraryFiltersPopover selectedSources={selectedSources} triggerRef={filtersButtonRef} />
+        ) : null}
+      </div>
+      <span className="shrink-0 whitespace-nowrap text-caption tabular-nums text-studio-muted" data-testid="library-counter">
+        {tLibrary(locale, "library.sources.selected", { x: selectedCount, y: available.length })}
+        {total !== null ? ` · ${tLibrary(locale, "library.total", { count: formatGameCount(total, locale) })}` : ""}
+      </span>
+    </div>
+  );
+}
+
+/** SIG-1331: active filter chips on their own row below the header; absent with no active filter. */
+export function LibraryFilterChips() {
+  const locale = useStudioStore((state) => state.settings.locale);
+  const filters = useLibraryStore((s) => s.filters);
+  const setFilter = useLibraryStore((s) => s.setFilter);
+  const setSources = useLibraryStore((s) => s.setSources);
+  const resetFilters = useLibraryStore((s) => s.resetFilters);
+
+  const available = useAvailableSources();
+  const chips = buildFilterChips(filters, available, locale);
+  if (chips.length === 0) {
+    return null;
+  }
 
   const removeChip = (chip: FilterChip) => {
     const patch = chipRemovalPatch(filters, chip);
@@ -59,60 +116,28 @@ export function LibraryToolbar({ total }: LibraryToolbarProps) {
   };
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 px-0.5">
-      <DebouncedSearch />
-      <span className="text-caption tabular-nums text-studio-muted" data-testid="library-counter">
-        {tLibrary(locale, "library.sources.selected", { x: selectedCount, y: available.length })}
-        {total !== null ? ` · ${tLibrary(locale, "library.total", { count: formatGameCount(total, locale) })}` : ""}
-      </span>
-      <div className="relative ml-auto shrink-0">
-      <button
-        ref={filtersButtonRef}
-        type="button"
-        aria-pressed={filtersOpen}
-        aria-haspopup="dialog"
-        aria-expanded={filtersOpen}
-        aria-label={
-          advancedCount > 0
-            ? tLibrary(locale, "library.filters.buttonActive", { count: advancedCount })
-            : tLibrary(locale, "library.filters.button")
-        }
-        onClick={() => setFiltersOpen(!filtersOpen)}
-        className={`inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-dense ${
-          filtersOpen || advancedCount > 0
-            ? "bg-studio-accent-soft text-studio-accent-text"
-            : "text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
-        }`}
-      >
-        <SlidersHorizontal size={14} aria-hidden="true" />
-        {tLibrary(locale, "library.filters.button")}
-        {advancedCount > 0 ? <Badge tone="accent">{advancedCount}</Badge> : null}
-      </button>
-        {filtersOpen ? (
-          <LibraryFiltersPopover selectedSources={selectedSources} triggerRef={filtersButtonRef} />
-        ) : null}
-      </div>
-      {chips.length > 0 ? (
-        <ul className="flex w-full min-w-0 flex-wrap items-center gap-1" aria-label={tLibrary(locale, "library.filters.button")}>
-          {chips.map((chip) => (
-            <li key={chip.id} className="max-w-full">
-              <ToolbarChip chip={chip} onRemove={() => removeChip(chip)} />
-            </li>
-          ))}
-          {chips.length >= 2 ? (
-            <li>
-              <button
-                type="button"
-                onClick={clearAll}
-                className="h-[22px] rounded-full px-2 text-caption text-studio-accent-text hover:bg-studio-hover-strong"
-              >
-                {tLibrary(locale, "library.chip.clearAll")}
-              </button>
-            </li>
-          ) : null}
-        </ul>
+    <ul
+      className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-1 px-0.5"
+      aria-label={tLibrary(locale, "library.filters.button")}
+      data-testid="library-chips-row"
+    >
+      {chips.map((chip) => (
+        <li key={chip.id} className="max-w-full">
+          <ToolbarChip chip={chip} onRemove={() => removeChip(chip)} />
+        </li>
+      ))}
+      {chips.length >= 2 ? (
+        <li>
+          <button
+            type="button"
+            onClick={clearAll}
+            className="h-[22px] rounded-full px-2 text-caption text-studio-accent-text hover:bg-studio-hover-strong"
+          >
+            {tLibrary(locale, "library.chip.clearAll")}
+          </button>
+        </li>
       ) : null}
-    </div>
+    </ul>
   );
 }
 
@@ -216,7 +241,7 @@ function DebouncedSearch() {
 
   return (
     <div
-      className="min-w-[10rem] flex-1 basis-48"
+      className="min-w-[5rem] flex-1 basis-48"
       onKeyDown={(event) => {
         if (event.key === "Escape" && (text !== "" || query !== "")) {
           event.stopPropagation();
