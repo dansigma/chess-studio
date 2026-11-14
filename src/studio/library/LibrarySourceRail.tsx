@@ -232,6 +232,11 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
   };
 
   const selectFolder = (folderId: string) => {
+    // Clicking the current folder again leaves it: imports go back to no folder.
+    if (selectedFolderId === folderId) {
+      setFolderId(null);
+      return;
+    }
     // Imports land in the folder being viewed, and its files become the sources.
     setFolderId(folderId);
     const files = fileIdsInFolder(folderId);
@@ -589,7 +594,14 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1 py-1">
         <div className="px-0.5 pb-1">
-          <Chip active={allSelected} onClick={() => setSources(selectAll(ids))}>
+          <Chip
+            active={allSelected}
+            onClick={() => {
+              // "All" also leaves the current folder, as "All folders" did in the old dropdown.
+              setFolderId(null);
+              setSources(selectAll(ids));
+            }}
+          >
             {t("library.sources.selectAll")}
           </Chip>
         </div>

@@ -535,3 +535,17 @@ test("pt-BR strings", async () => {
   assert.ok(screen.getByRole("button", { name: "+ Importar PGN" }));
   assert.ok(screen.getByRole("button", { name: "Recolher bases" }));
 });
+
+test("leaving a folder: clicking it again or All clears the current folder", async () => {
+  seed(FILES);
+  await renderRail();
+  fireEvent.click(screen.getByRole("button", { name: "Openings" }));
+  assert.equal(useLibraryStore.getState().folderId, "f1");
+  fireEvent.click(screen.getByRole("button", { name: "Openings" }));
+  assert.equal(useLibraryStore.getState().folderId, null);
+
+  fireEvent.click(screen.getByRole("button", { name: "Endings" }));
+  assert.equal(useLibraryStore.getState().folderId, "f3");
+  fireEvent.click(screen.getByRole("button", { name: "All" }));
+  assert.equal(useLibraryStore.getState().folderId, null);
+});
