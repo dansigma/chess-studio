@@ -117,6 +117,11 @@ const card = (name: RegExp) => screen.getByRole("button", { name });
 const cardNames = () => screen.queryAllByTestId("library-source-card").map((el) => el.textContent ?? "");
 const folders = () => useStudioStore.getState().files.folders;
 const openFolders = () => fireEvent.click(screen.getByRole("button", { name: "Folders" }));
+/** The row that holds a source's selecting button and its hover actions. */
+const rowOf = (name: RegExp) => card(name).parentElement as HTMLElement;
+const folderRowOf = (name: string) => screen.getByRole("button", { name }).parentElement as HTMLElement;
+const openMenu = () => fireEvent.click(screen.getByTestId("library-source-menu"));
+const openRowMenu = (name: RegExp) => fireEvent.click(within(rowOf(name)).getByTestId("library-source-menu"));
 
 test("renders the three sections with counts and the Masters limit label", async () => {
   seed(TACTICS);
@@ -163,7 +168,6 @@ test("shows a failure marker on the row and no count when My Games fails", async
 });
 
 const downloads: { name: string; text: string }[] = [];
-const openMenu = () => fireEvent.click(screen.getByRole("button", { name: /File actions: Tactics/ }));
 const withDownloadSpy = async (run: () => void) => {
   const g = globalThis as unknown as { URL: typeof URL };
   const blobs = new Map<string, Blob>();
@@ -192,7 +196,7 @@ const withDownloadSpy = async (run: () => void) => {
   }
 };
 
-test("only PGN file rows have a menu", async () => {
+test("only PGN file rows have a “…” menu", async () => {
   seed(TACTICS);
   await renderRail();
   assert.equal(screen.getAllByTestId("library-source-menu").length, 1);
@@ -238,7 +242,7 @@ test("rename: Enter saves, empty is refused, Esc cancels", async () => {
 test("export downloads every game joined by a blank line", async () => {
   seed([{ id: "db1", name: 'Tac/tics:"1"', folderId: null, games: [{ pgn: "1. e4 *\n" }, { pgn: "1. d4 *" }] }]);
   await renderRail();
-  fireEvent.click(screen.getByRole("button", { name: /File actions/ }));
+  openMenu();
   await withDownloadSpy(() => fireEvent.click(screen.getByRole("menuitem", { name: "Export (.pgn)" })));
   assert.deepEqual(downloads.pop(), { name: "Tactics1.pgn", text: "1. e4 *\n\n1. d4 *\n" });
 });
@@ -257,38 +261,170 @@ test("delete asks first, then removes the file", async () => {
   assert.equal(useStudioStore.getState().files.databases.length, 0);
 });
 
-const stars = () => screen.queryAllByTestId("library-source-reference");
+const refBadges = () => screen.queryAllByTestId("library-source-ref-badge");
+const referenceActions = () => screen.queryAllByTestId("library-source-reference");
 
-test("stars: Masters and file rows have one, My Games none; only the reference is filled", async () => {
+test("REF badge: only the reference row shows it, and it follows databaseSource", async () => {
   seed(TACTICS);
   useStudioStore.setState({ databaseSource: "masters" });
   await renderRail();
-  assert.equal(stars().length, 2);
-  assert.deepEqual(stars().map((el) => el.getAttribute("aria-pressed")), ["true", "false"]);
-  assert.equal(stars()[0].getAttribute("aria-label"), "Explorer reference database");
-  assert.equal(stars()[1].getAttribute("aria-label"), "Use as Explorer reference database");
+  assert.equal(refBadges().length, 1);
+  assert.equal(refBadges()[0]!.textContent, "REF");
+  assert.equal(refBadges()[0]!.getAttribute("title"), "Studio reference database");
+  assert.equal(
+    within(screen.getByRole("group", { name: "Public databases" })).getAllByTestId("library-source-ref-badge").length,
+    1,
+  );
+
+  useStudioStore.setState({ databaseSource: "file:db1" });
+  await act(async () => { await Promise.resolve(); });
+  assert.equal(refBadges().length, 1);
+  assert.equal(
+    within(screen.getByRole("group", { name: "My files" })).getAllByTestId("library-source-ref-badge").length,
+    1,
+  );
+  assert.equal(
+    within(screen.getByRole("group", { name: "Public databases" })).queryAllByTestId("library-source-ref-badge").length,
+    0,
+  );
 });
 
-test("stars: clicking an empty star sets the source without selecting the row; filled is a no-op", async () => {
+test("reference action: on Masters and files, never on the current reference or My Games", async () => {
+  seed(TACTICS);
+  useStudioStore.setState({ databaseSource: "masters" });
+  await renderRail();
+  // Masters already is the reference; only the file row offers the action.
+  assert.equal(referenceActions().length, 1);
+  assert.equal(referenceActions()[0]!.getAttribute("aria-label"), "Use as Explorer reference database");
+  assert.equal(
+    within(screen.getByRole("group", { name: "My games" })).queryAllByTestId("library-source-reference").length,
+    0,
+  );
+  assert.equal(
+    within(screen.getByRole("group", { name: "My files" })).queryAllByTestId("library-source-reference").length,
+    1,
+  );
+});
+
+test("reference action: sets the reference without selecting the row", async () => {
   seed(TACTICS);
   useStudioStore.setState({ databaseSource: "masters" });
   await renderRail();
   const before = sources();
-  fireEvent.click(stars()[1]);
+  fireEvent.click(referenceActions()[0]!);
   assert.equal(useStudioStore.getState().databaseSource, "file:db1");
   assert.deepEqual(sources(), before);
-  fireEvent.click(stars()[1]);
-  assert.equal(useStudioStore.getState().databaseSource, "file:db1");
-  assert.equal(stars()[1].getAttribute("aria-pressed"), "true");
-  assert.equal(stars()[0].getAttribute("aria-pressed"), "false");
+  // The chosen file no longer offers the action; Masters does.
+  assert.equal(refBadges().length, 1);
+  assert.equal(refBadges()[0]!.closest('[data-testid="library-source-card"]')?.textContent?.includes("Tactics"), true);
+  assert.equal(referenceActions().length, 1);
+  assert.equal(referenceActions()[0]!.getAttribute("aria-label"), "Use as Explorer reference database");
 });
 
-test("stars: a lichess reference fills none and Masters' tooltip names it", async () => {
+test("reference action: an outside reference shows no badge and Masters' tooltip names it", async () => {
   seed(TACTICS);
   useStudioStore.setState({ databaseSource: "lichess" });
   await renderRail();
-  assert.deepEqual(stars().map((el) => el.getAttribute("aria-pressed")), ["false", "false"]);
-  assert.match(stars()[0].getAttribute("aria-label") ?? "", /Explorer reference: Online Database/);
+  assert.equal(refBadges().length, 0);
+  const masters = within(screen.getByRole("group", { name: "Public databases" })).getByTestId(
+    "library-source-reference",
+  );
+  assert.match(masters.getAttribute("aria-label") ?? "", /Explorer reference: Online Database/);
+  assert.match(masters.getAttribute("aria-label") ?? "", /Use as Explorer reference database/);
+});
+
+test("each row shows an icon for its kind; the selected row's icon takes the accent", async () => {
+  seed(FILES);
+  await renderRail();
+  const icon = (name: RegExp) => within(rowOf(name)).getByTestId("library-source-icon");
+  assert.equal(within(screen.getByRole("group", { name: "Public databases" })).getByTestId("library-source-icon").getAttribute("data-kind"), "public");
+  assert.equal(within(screen.getByRole("group", { name: "My games" })).getByTestId("library-source-icon").getAttribute("data-kind"), "mine");
+  assert.equal(icon(/^Root file/).getAttribute("data-kind"), "file");
+
+  const folderIcon = () =>
+    within(screen.getByRole("button", { name: "Openings" })).getByTestId("library-source-icon");
+  assert.equal(folderIcon().getAttribute("data-kind"), "folder");
+  assert.match(folderIcon().getAttribute("class") ?? "", /lucide-folder-open/);
+  fireEvent.click(screen.getByRole("button", { name: "Collapse Openings" }));
+  assert.match(folderIcon().getAttribute("class") ?? "", /lucide-folder(?!-open)/);
+
+  fireEvent.click(card(/^Root file/));
+  assert.match(icon(/^Root file/).getAttribute("class") ?? "", /text-studio-accent-text/);
+  assert.doesNotMatch(icon(/^End file/).getAttribute("class") ?? "", /text-studio-accent-text/);
+});
+
+test("quick actions: reference, rename and “…” for files; rename for folders; none for My Games", async () => {
+  seed(FILES);
+  useStudioStore.setState({ databaseSource: "masters" });
+  await renderRail();
+  const fileRow = rowOf(/^Root file/);
+  assert.ok(within(fileRow).getByTestId("library-source-reference"));
+  assert.ok(within(fileRow).getByTestId("library-source-rename"));
+  assert.ok(within(fileRow).getByTestId("library-source-menu"));
+  // The actions only show on hover or keyboard focus; the count gives them its place.
+  const actions = within(fileRow).getByTestId("library-source-reference").parentElement!;
+  assert.match(actions.className, /opacity-0/);
+  assert.match(actions.className, /pointer-events-none/);
+  assert.match(actions.className, /group-hover:opacity-100/);
+  assert.match(actions.className, /group-hover:pointer-events-auto/);
+  assert.match(actions.className, /group-focus-within:opacity-100/);
+  assert.match(within(fileRow).getByText("0 games").className, /group-hover:opacity-0/);
+
+  const folderRow = folderRowOf("Openings");
+  assert.ok(within(folderRow).getByTestId("library-folder-rename"));
+  assert.equal(within(folderRow).queryByTestId("library-source-reference"), null);
+  assert.equal(within(folderRow).queryByTestId("library-source-menu"), null);
+
+  assert.equal(
+    within(screen.getByRole("group", { name: "My games" })).queryAllByTestId("library-source-reference").length,
+    0,
+  );
+
+  // Rename from the row starts the inline editor without selecting the row.
+  const before = sources();
+  fireEvent.click(within(fileRow).getByTestId("library-source-rename"));
+  assert.ok(screen.getByRole("textbox", { name: "File name" }));
+  assert.deepEqual(sources(), before);
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "File name" }), { key: "Escape" });
+  assert.equal(screen.queryByRole("textbox"), null);
+});
+
+test("right-clicking a file opens its “…” menu at the pointer", async () => {
+  seed(TACTICS);
+  await renderRail();
+  fireEvent.contextMenu(card(/^Tactics/), { clientX: 40, clientY: 60 });
+  assert.deepEqual(
+    screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ["Rename", "Move to folder…", "Export (.pgn)", "Delete"],
+  );
+});
+
+test("right-clicking a folder opens that folder's actions", async () => {
+  seed(FILES);
+  await renderRail();
+  const before = sources();
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Endings" }), { clientX: 30, clientY: 40 });
+  assert.deepEqual(
+    screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ["New subfolder…", "Rename folder…", "Move folder…", "Delete folder…"],
+  );
+  assert.equal(useLibraryStore.getState().folderId, null, "right-click does not select the folder");
+  assert.deepEqual(sources(), before);
+
+  fireEvent.click(screen.getByRole("menuitem", { name: "Rename folder…" }));
+  const input = screen.getByRole("textbox", { name: "Folder name" }) as HTMLInputElement;
+  assert.equal(input.value, "Endings");
+  fireEvent.change(input, { target: { value: "Finales" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  assert.equal(folders().find((folder) => folder.id === "f3")?.name, "Finales");
+  assert.equal(screen.queryByRole("dialog"), null);
+
+  // A new subfolder lands in the right-clicked folder, not the selected one.
+  fireEvent.contextMenu(screen.getByRole("button", { name: "Openings" }), { clientX: 30, clientY: 40 });
+  fireEvent.click(screen.getByRole("menuitem", { name: "New subfolder…" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Folder name" }), { target: { value: "Rooks" } });
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+  assert.equal(folders().find((folder) => folder.name === "Rooks")?.parentId, "f1");
 });
 
 test("the folder tree nests each file under its folder and folders collapse", async () => {
@@ -406,14 +542,14 @@ test("moving a folder: cycle targets are disabled and the store refuses them", a
 test("Move to folder… on a file row moves it, and No folder takes it out", async () => {
   seed(FILES);
   await renderRail();
-  fireEvent.click(screen.getByRole("button", { name: "File actions: Root file" }));
+  openRowMenu(/^Root file/);
   fireEvent.click(screen.getByRole("menuitem", { name: "Move to folder…" }));
   const dialog = within(screen.getByRole("dialog"));
   assert.equal(dialog.getByRole("button", { name: "No folder" }).hasAttribute("disabled"), true);
   fireEvent.click(dialog.getByRole("button", { name: "Endings" }));
   assert.equal(useStudioStore.getState().files.databases.find((database) => database.id === "d1")?.folderId, "f3");
   assert.equal(screen.queryByRole("dialog"), null);
-  fireEvent.click(screen.getByRole("button", { name: "File actions: Root file" }));
+  openRowMenu(/^Root file/);
   fireEvent.click(screen.getByRole("menuitem", { name: "Move to folder…" }));
   fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "No folder" }));
   assert.equal(useStudioStore.getState().files.databases.find((database) => database.id === "d1")?.folderId, null);
@@ -521,6 +657,31 @@ test("collapsing and expanding the rail persists in localStorage", async () => {
   cleanup();
   await renderRail();
   assert.ok(screen.getByText("Sources"));
+});
+
+test("collapsed rail markers show the kind icon; the selected one takes the accent", async () => {
+  seed(TACTICS);
+  await renderRail();
+  fireEvent.click(screen.getByRole("button", { name: "Collapse sources" }));
+  const marker = (title: string) =>
+    screen.getAllByTestId("library-source-marker").find((el) => el.getAttribute("title") === title)!;
+  const masters = marker("Masters (Lichess) · Top 15 per position");
+  const games = marker("My Games · 1,234 games");
+  const file = marker("Tactics · 3 games");
+  assert.equal(within(masters).getByTestId("library-source-icon").getAttribute("data-kind"), "public");
+  assert.equal(within(games).getByTestId("library-source-icon").getAttribute("data-kind"), "mine");
+  assert.equal(within(file).getByTestId("library-source-icon").getAttribute("data-kind"), "file");
+  assert.equal(file.textContent?.trim(), "", "no first letter any more");
+
+  fireEvent.click(file);
+  assert.match(
+    within(marker("Tactics · 3 games")).getByTestId("library-source-icon").getAttribute("class") ?? "",
+    /text-studio-accent-text/,
+  );
+  assert.doesNotMatch(
+    within(marker("My Games · 1,234 games")).getByTestId("library-source-icon").getAttribute("class") ?? "",
+    /text-studio-accent-text/,
+  );
 });
 
 test("pt-BR strings", async () => {
