@@ -350,7 +350,7 @@ export function DossierOpenings({ games }: { games: PlayerGame[] }) {
           openLineLabel={tLibrary(locale, "library.dossier.prepareLine")}
         />
       </section>
-      <DossierRepertoireGaps games={games} opponentColor={opponentColor} />
+      <DossierRepertoireGaps games={games} opponentColor={opponentColor} minGames={minGames} />
     </Panel>
   );
 }

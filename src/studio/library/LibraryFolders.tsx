@@ -158,45 +158,161 @@ export function FolderMoveDialog({
 
 type FolderDialog = "new" | "newSub" | "rename" | "move" | "delete";
 
-/** The Folders menu: create, rename, move and delete the selected folder; refresh from the account. */
-export function FoldersMenu() {
+/** SIG-1340: the name dialog behind New folder, New subfolder and Rename, fresh per opening. */
+function FolderNameDialog({
+  folder,
+  dialog,
+  onClose,
+}: {
+  /** Rename target, or the parent for a new subfolder. */
+  folder: FileFolder | null;
+  dialog: "new" | "newSub" | "rename";
+  onClose: () => void;
+}) {
   const locale = useStudioStore((s) => s.settings.locale);
-  const files = useStudioStore((s) => s.files);
-  const user = useStudioStore((s) => s.user);
   const createFileFolder = useStudioStore((s) => s.createFileFolder);
   const renameFileFolder = useStudioStore((s) => s.renameFileFolder);
-  const moveFileFolder = useStudioStore((s) => s.moveFileFolder);
-  const deleteFileFolder = useStudioStore((s) => s.deleteFileFolder);
-  const setStatus = useStudioStore((s) => s.setStatus);
-  const setFolderId = useLibraryStore((s) => s.setFolderId);
-  const selectedId = useSelectedFolderId();
-  const selected = files.folders.find((folder) => folder.id === selectedId);
-  const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
-  const [dialog, setDialog] = useState<FolderDialog | null>(null);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(
+    dialog === "rename" ? (folder?.name ?? "") : tLibrary(locale, "library.folders.defaultName"),
+  );
   const t = (key: Parameters<typeof tLibrary>[1], vars?: Record<string, string | number>) => tLibrary(locale, key, vars);
-
-  const open = (next: FolderDialog) => {
-    setAnchor(null);
-    setName(next === "rename" ? (selected?.name ?? "") : next === "delete" || next === "move" ? "" : t("library.folders.defaultName"));
-    setDialog(next);
-  };
-  const close = () => setDialog(null);
 
   const submitName = () => {
     const trimmed = name.trim();
     if (!trimmed) {
       return;
     }
-    if (dialog === "rename" && selected) {
-      renameFileFolder(selected.id, trimmed);
+    if (dialog === "rename" && folder) {
+      renameFileFolder(folder.id, trimmed);
     } else if (dialog === "new") {
       createFileFolder(trimmed, null);
-    } else if (dialog === "newSub" && selected) {
-      createFileFolder(trimmed, selected.id);
+    } else if (dialog === "newSub" && folder) {
+      createFileFolder(trimmed, folder.id);
     }
-    close();
+    onClose();
   };
+
+  return (
+    <Dialog
+      title={
+        dialog === "rename"
+          ? t("library.folders.renameTitle")
+          : dialog === "newSub" && folder
+            ? t("library.folders.newSubTitle", { name: folder.name })
+            : t("library.folders.newTitle")
+      }
+      onClose={onClose}
+      width="w-[24rem]"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            {t("library.sources.file.cancel")}
+          </Button>
+          <Button variant="primary" disabled={!name.trim()} onClick={submitName}>
+            {dialog === "rename" ? t("library.folders.save") : t("library.folders.create")}
+          </Button>
+        </>
+      }
+    >
+      <label className="block text-caption text-studio-muted">
+        {t("library.folders.nameLabel")}
+        <input
+          autoFocus
+          value={name}
+          maxLength={120}
+          className={INPUT_CLASS}
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              submitName();
+            }
+          }}
+        />
+      </label>
+    </Dialog>
+  );
+}
+
+/** SIG-1340: the rename dialog for one folder, opened from the rail's quick action. */
+export function FolderRenameDialog({ folder, onClose }: { folder: FileFolder; onClose: () => void }) {
+  return <FolderNameDialog folder={folder} dialog="rename" onClose={onClose} />;
+}
+
+function FolderDeleteDialog({ folder, onClose }: { folder: FileFolder; onClose: () => void }) {
+  const locale = useStudioStore((s) => s.settings.locale);
+  const deleteFileFolder = useStudioStore((s) => s.deleteFileFolder);
+  const setFolderId = useLibraryStore((s) => s.setFolderId);
+  const t = (key: Parameters<typeof tLibrary>[1], vars?: Record<string, string | number>) => tLibrary(locale, key, vars);
+  return (
+    <Dialog
+      title={t("library.folders.deleteTitle", { name: folder.name })}
+      onClose={onClose}
+      width="w-[24rem]"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            {t("library.sources.file.cancel")}
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              deleteFileFolder(folder.id);
+              setFolderId(null);
+              onClose();
+            }}
+          >
+            {t("library.sources.file.deleteConfirm")}
+          </Button>
+        </>
+      }
+    >
+      {t("library.folders.deleteBody")}
+    </Dialog>
+  );
+}
+
+function FolderMoveFolderDialog({ folder, onClose }: { folder: FileFolder; onClose: () => void }) {
+  const locale = useStudioStore((s) => s.settings.locale);
+  const files = useStudioStore((s) => s.files);
+  const moveFileFolder = useStudioStore((s) => s.moveFileFolder);
+  const setStatus = useStudioStore((s) => s.setStatus);
+  const t = (key: Parameters<typeof tLibrary>[1], vars?: Record<string, string | number>) => tLibrary(locale, key, vars);
+  return (
+    <FolderMoveDialog
+      title={t("library.folders.moveTitle", { name: folder.name })}
+      noneLabel={t("library.folders.topLevel")}
+      noneDisabled={folder.parentId === null}
+      isDisabled={(id) =>
+        id === folder.id || id === folder.parentId || isDescendantFolder(files.folders, id, folder.id)
+      }
+      onClose={onClose}
+      onPick={(target) => {
+        if (!moveFileFolder(folder.id, target)) {
+          setStatus(FOLDER_CYCLE_MESSAGE);
+        }
+        onClose();
+      }}
+    />
+  );
+}
+
+/** The Folders menu: create, rename, move and delete the selected folder; refresh from the account. */
+export function FoldersMenu() {
+  const locale = useStudioStore((s) => s.settings.locale);
+  const files = useStudioStore((s) => s.files);
+  const user = useStudioStore((s) => s.user);
+  const selectedId = useSelectedFolderId();
+  const selected = files.folders.find((folder) => folder.id === selectedId);
+  const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
+  const [dialog, setDialog] = useState<FolderDialog | null>(null);
+  const t = (key: Parameters<typeof tLibrary>[1], vars?: Record<string, string | number>) => tLibrary(locale, key, vars);
+
+  const open = (next: FolderDialog) => {
+    setAnchor(null);
+    setDialog(next);
+  };
+  const close = () => setDialog(null);
 
   return (
     <>
@@ -233,89 +349,52 @@ export function FoldersMenu() {
         </PopMenu>
       ) : null}
       {dialog === "new" || dialog === "newSub" || dialog === "rename" ? (
-        <Dialog
-          title={
-            dialog === "rename"
-              ? t("library.folders.renameTitle")
-              : dialog === "newSub" && selected
-                ? t("library.folders.newSubTitle", { name: selected.name })
-                : t("library.folders.newTitle")
-          }
-          onClose={close}
-          width="w-[24rem]"
-          footer={
-            <>
-              <Button variant="ghost" onClick={close}>
-                {t("library.sources.file.cancel")}
-              </Button>
-              <Button variant="primary" disabled={!name.trim()} onClick={submitName}>
-                {dialog === "rename" ? t("library.folders.save") : t("library.folders.create")}
-              </Button>
-            </>
-          }
-        >
-          <label className="block text-caption text-studio-muted">
-            {t("library.folders.nameLabel")}
-            <input
-              autoFocus
-              value={name}
-              maxLength={120}
-              className={INPUT_CLASS}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  submitName();
-                }
-              }}
-            />
-          </label>
-        </Dialog>
+        <FolderNameDialog folder={selected ?? null} dialog={dialog} onClose={close} />
       ) : null}
-      {dialog === "delete" && selected ? (
-        <Dialog
-          title={t("library.folders.deleteTitle", { name: selected.name })}
-          onClose={close}
-          width="w-[24rem]"
-          footer={
-            <>
-              <Button variant="ghost" onClick={close}>
-                {t("library.sources.file.cancel")}
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  deleteFileFolder(selected.id);
-                  setFolderId(null);
-                  close();
-                }}
-              >
-                {t("library.sources.file.deleteConfirm")}
-              </Button>
-            </>
-          }
-        >
-          {t("library.folders.deleteBody")}
-        </Dialog>
-      ) : null}
-      {dialog === "move" && selected ? (
-        <FolderMoveDialog
-          title={t("library.folders.moveTitle", { name: selected.name })}
-          noneLabel={t("library.folders.topLevel")}
-          noneDisabled={selected.parentId === null}
-          isDisabled={(id) =>
-            id === selected.id || id === selected.parentId || isDescendantFolder(files.folders, id, selected.id)
-          }
-          onClose={close}
-          onPick={(target) => {
-            if (!moveFileFolder(selected.id, target)) {
-              setStatus(FOLDER_CYCLE_MESSAGE);
-            }
-            close();
-          }}
-        />
-      ) : null}
+      {dialog === "delete" && selected ? <FolderDeleteDialog folder={selected} onClose={close} /> : null}
+      {dialog === "move" && selected ? <FolderMoveFolderDialog folder={selected} onClose={close} /> : null}
     </>
+  );
+}
+
+/**
+ * SIG-1340: a folder's actions at a pointer (right-click). Same items as the
+ * Folders menu, but applied to that folder instead of the selected one.
+ */
+export function FolderActionsMenu({
+  folder,
+  anchor,
+  onClose,
+}: {
+  folder: FileFolder;
+  anchor: MenuAnchor;
+  onClose: () => void;
+}) {
+  const locale = useStudioStore((s) => s.settings.locale);
+  const [dialog, setDialog] = useState<FolderDialog | null>(null);
+  const t = (key: Parameters<typeof tLibrary>[1]) => tLibrary(locale, key);
+
+  // A dialog replaces the menu; closing it closes the whole context menu.
+  const closeDialog = () => {
+    setDialog(null);
+    onClose();
+  };
+  if (dialog === "newSub" || dialog === "rename") {
+    return <FolderNameDialog folder={folder} dialog={dialog} onClose={closeDialog} />;
+  }
+  if (dialog === "move") {
+    return <FolderMoveFolderDialog folder={folder} onClose={closeDialog} />;
+  }
+  if (dialog === "delete") {
+    return <FolderDeleteDialog folder={folder} onClose={closeDialog} />;
+  }
+  return (
+    <PopMenu anchor={anchor} label={t("library.folders.menu")} onClose={onClose}>
+      <MenuItem label={t("library.folders.newSub")} onClick={() => setDialog("newSub")} />
+      <MenuItem label={t("library.folders.rename")} onClick={() => setDialog("rename")} />
+      <MenuItem label={t("library.folders.move")} onClick={() => setDialog("move")} />
+      <MenuItem label={t("library.folders.delete")} danger onClick={() => setDialog("delete")} />
+    </PopMenu>
   );
 }
 

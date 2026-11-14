@@ -2,6 +2,8 @@
 // a fresh Studio board oriented to the USER's side (the opposite of the
 // dossier player's colour), reveals the Explorer on that position and leaves
 // the Library. Same grain as `prepareAgainst` in OpponentPrepPanel.
+// SIG-1344: an empty path is a position too — a gap on the opponent's first
+// move prepares the start position, so it must open the Studio as well.
 // SIG-1345: "Train" reuses the same import but starts training from the first
 // move instead of revealing the Explorer.
 import { prepareAgainstLine } from "@/src/lib/prep/prep-rows";
@@ -10,12 +12,9 @@ import { openBoardPanel, openExplorerPanel } from "../../dock-api";
 
 /**
  * Imports the line on a fresh board oriented to the USER's side and reveals
- * the Studio. Returns false when the line has no moves.
+ * the Studio. An empty line opens the start position.
  */
-function openLine(path: string[], opponentColor: "white" | "black", explore: boolean): boolean {
-  if (path.length === 0) {
-    return false;
-  }
+function openLine(path: string[], opponentColor: "white" | "black", explore: boolean): void {
   const { game, orientation } = prepareAgainstLine(path, opponentColor);
   const state = useStudioStore.getState();
   state.importPlayerGame(game, { openInNewBoard: true });
@@ -36,7 +35,6 @@ function openLine(path: string[], opponentColor: "white" | "black", explore: boo
     openExplorerPanel();
   }
   useStudioStore.getState().setWorkspaceView("studio");
-  return true;
 }
 
 export function prepareLine(path: string[], opponentColor: "white" | "black"): void {
@@ -45,8 +43,6 @@ export function prepareLine(path: string[], opponentColor: "white" | "black"): v
 
 /** SIG-1345: "Train" opens the line from the first move and starts training. */
 export function trainLine(path: string[], opponentColor: "white" | "black"): void {
-  if (!openLine(path, opponentColor, false)) {
-    return;
-  }
+  openLine(path, opponentColor, false);
   useStudioStore.getState().startTraining();
 }
