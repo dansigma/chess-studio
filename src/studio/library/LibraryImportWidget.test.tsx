@@ -2,7 +2,7 @@ import { after, afterEach, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { LibraryImportWidget } from "./LibraryImportWidget";
+import { AUTO_DISMISS_MS, LibraryImportWidget, isCleanlyFinished } from "./LibraryImportWidget";
 import { resetImportQueue, useImportQueue, type ImportEntry } from "./import-queue-store";
 import { useStudioStore } from "@/src/store/studio-store";
 
@@ -65,4 +65,37 @@ test("pt-BR strings and number formatting", async () => {
   const text = screen.getByTestId("library-import-widget").textContent ?? "";
   assert.match(text, /5\.000 importadas, 1\.240 acima do limite de 5\.000 por base/);
   assert.match(text, /Limite de 50 bases atingido\. Exclua uma base para importar outra\./);
+});
+
+test("isCleanlyFinished: only when every file finished with nothing to report", () => {
+  assert.equal(isCleanlyFinished([]), false);
+  assert.equal(isCleanlyFinished([entry({ name: "a", state: "done", imported: 3 })]), true);
+  assert.equal(isCleanlyFinished([entry({ name: "a", state: "done" }), entry({ name: "b", state: "cancelled" })]), true);
+  assert.equal(isCleanlyFinished([entry({ name: "a", state: "importing" })]), false);
+  assert.equal(isCleanlyFinished([entry({ name: "a", state: "failed", error: "read" })]), false);
+  assert.equal(isCleanlyFinished([entry({ name: "a", state: "done", overLimit: 10 })]), false);
+  assert.equal(isCleanlyFinished([entry({ name: "a", state: "done", unreadable: 2 })]), false);
+});
+
+test("a cleanly finished import closes itself; one with something to report stays", async () => {
+  const realSet = window.setTimeout;
+  const timers: { fn: () => void; ms: number }[] = [];
+  window.setTimeout = ((fn: () => void, ms: number) => {
+    timers.push({ fn, ms });
+    return timers.length;
+  }) as typeof window.setTimeout;
+  try {
+    await show([entry({ name: "ok", state: "done", imported: 1 })]);
+    const auto = timers.find((t) => t.ms === AUTO_DISMISS_MS);
+    assert.ok(auto, "auto-dismiss scheduled");
+    act(() => auto!.fn());
+    assert.equal(screen.queryByTestId("library-import-widget"), null);
+    cleanup();
+    timers.length = 0;
+    await show([entry({ name: "big", state: "done", imported: 5000, overLimit: 12 })]);
+    assert.equal(timers.some((t) => t.ms === AUTO_DISMISS_MS), false);
+    assert.ok(screen.getByTestId("library-import-widget"));
+  } finally {
+    window.setTimeout = realSet;
+  }
 });

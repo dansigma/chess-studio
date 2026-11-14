@@ -24,6 +24,8 @@ test("pgn import/export round-trips a short game", async ({ page, context }) => 
   await page.getByRole("menuitem", { name: "Paste PGN" }).click();
   await page.getByRole("textbox", { name: "PGN text" }).fill(SHORT_GAME);
   await page.getByRole("dialog").getByRole("button", { name: "Import", exact: true }).click();
+  // The finished import widget sits over the preview's bottom-right; close it first.
+  await page.getByTestId("library-import-widget").getByRole("button", { name: "Close" }).click();
   await page.getByTestId("library-row").first().click();
   await page.getByRole("button", { name: "Open in Studio" }).click();
 
