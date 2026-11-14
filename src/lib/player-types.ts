@@ -13,6 +13,12 @@ export type PlayerHit = {
   displayName: string;
   subtitle: string;
   title?: string;
+  /**
+   * Studio hits only: the player has games in the user's own databases
+   * (imported PGNs), so the Library can list them. Sample-book-only players
+   * leave it unset.
+   */
+  inDatabases?: boolean;
 };
 
 export type PlayerGame = {

@@ -2,7 +2,7 @@ import { sanLineFromPgn } from "@/src/chess/pgn-clean";
 import { bookGamesForPlayer, searchBookPlayers } from "@/src/lib/opening-book";
 import type { PlayerGame, PlayerHit } from "@/src/lib/player-types";
 import { createServerSupabase } from "@/src/lib/supabase/server";
-import { playerResult, safeQuery } from "./shared";
+import { ilikeNamePattern, playerResult, safeQuery } from "./shared";
 
 export async function searchStudioDatabase(query: string): Promise<PlayerHit[]> {
   const hits = searchBookPlayers(query);
@@ -10,34 +10,40 @@ export async function searchStudioDatabase(query: string): Promise<PlayerHit[]> 
   if (!supabase) {
     return hits;
   }
-  const needle = safeQuery(query);
-  if (needle.length < 2) {
+  if (safeQuery(query).length < 2) {
     return hits;
   }
+  const pattern = ilikeNamePattern(query.trim());
   const { data } = await supabase
     .from("games")
     .select("white, black")
     .eq("pending", false)
-    .or(`white.ilike.%${needle}%,black.ilike.%${needle}%`)
+    .or(`white.ilike.${pattern},black.ilike.${pattern}`)
     .limit(80);
-  const known = new Set(hits.map((hit) => hit.username.toLowerCase()));
+  const known = new Map(hits.map((hit) => [hit.username.toLowerCase(), hit]));
+  const target = query.trim().toLowerCase();
   for (const row of data ?? []) {
     for (const name of [row.white, row.black]) {
-      if (typeof name !== "string" || !name.toLowerCase().includes(needle.toLowerCase())) {
+      if (typeof name !== "string" || !name.toLowerCase().includes(target)) {
         continue;
       }
       const key = name.toLowerCase();
-      if (known.has(key)) {
+      const existing = known.get(key);
+      if (existing) {
+        // A sample-book player who also has games in the user's databases.
+        existing.inDatabases = true;
         continue;
       }
-      known.add(key);
-      hits.push({
+      const hit: PlayerHit = {
         id: `studio:${name}`,
         source: "studio",
         username: name,
         displayName: name,
         subtitle: "Studio database",
-      });
+        inDatabases: true,
+      };
+      known.set(key, hit);
+      hits.push(hit);
     }
   }
   return hits;
@@ -49,12 +55,12 @@ export async function studioGames(username: string): Promise<PlayerGame[]> {
   if (!supabase) {
     return book;
   }
-  const needle = safeQuery(username);
+  const pattern = ilikeNamePattern(username.trim());
   const { data } = await supabase
     .from("games")
     .select("id, white, black, white_elo, black_elo, event, date, eco, opening, result, pgn")
     .eq("pending", false)
-    .or(`white.ilike.%${needle}%,black.ilike.%${needle}%`)
+    .or(`white.ilike.${pattern},black.ilike.${pattern}`)
     .limit(200);
   const seen = new Set(book.map((game) => game.id));
   for (const row of data ?? []) {
@@ -86,7 +92,7 @@ export async function studioGames(username: string): Promise<PlayerGame[]> {
     };
     const white = row.white.toLowerCase();
     const black = row.black.toLowerCase();
-    const target = username.toLowerCase();
+    const target = username.trim().toLowerCase();
     if (white !== target && black !== target && !white.includes(target) && !black.includes(target)) {
       continue;
     }

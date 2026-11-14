@@ -3,16 +3,21 @@
 import { bookmarkKey } from "@/src/lib/player-bookmarks";
 import type { PlayerColorFilter, PlayerHit } from "@/src/lib/player-types";
 import { tLibrary } from "@/src/i18n/library-strings";
+import { listLibrarySources } from "@/src/lib/library/sources";
 import { useStudioStore } from "@/src/store/studio-store";
 import { PlayerHitRow } from "../PlayerHitRow";
 import { SearchInput } from "../ui/Controls";
 import { Panel } from "../ui/Panel";
+import { useLibraryStore } from "./library-store";
 import { usePlayerSearch } from "./use-player-search";
 
 const NOTE = "px-3 py-2 text-dense leading-5 text-studio-faint";
 
-// SIG-1318: the Library's Players mode (was the Search side panel). Opening a
-// player fills the Studio's explorer/games panels and switches to the Studio.
+// SIG-1318: the Library's Players mode (was the Search side panel). Opening an
+// online player (Lichess, Chess.com, sample book) fills the Studio's
+// explorer/games panels and switches to the Studio. A player found in the
+// user's own databases instead opens the Library's Games tab filtered by that
+// player, so the games can be previewed before opening them in the Studio.
 export function LibraryPlayers() {
   const locale = useStudioStore((state) => state.settings.locale);
   const openPlayerView = useStudioStore((state) => state.openPlayerView);
@@ -25,8 +30,27 @@ export function LibraryPlayers() {
   const bookmarkedKeys = new Set(bookmarks.map((item) => bookmarkKey(item)));
 
   function open(player: PlayerHit, color: PlayerColorFilter = "all") {
+    if (player.source === "studio" && player.inDatabases) {
+      showInLibrary(player, color);
+      return;
+    }
     openPlayerView(player, color);
     setWorkspaceView("studio");
+  }
+
+  function showInLibrary(player: PlayerHit, color: PlayerColorFilter) {
+    const library = useLibraryStore.getState();
+    const available = listLibrarySources().map((source) => source.id);
+    // The player's games live in the imported PGN databases (`file:*`).
+    const files = available.filter((id) => id.startsWith("file:"));
+    library.resetFilters();
+    if (files.length > 0) {
+      library.setSources(files);
+    }
+    library.setPlayer(player.username);
+    library.setPlayerColor(color === "all" ? "both" : color);
+    library.selectGame(null);
+    library.setMode("games");
   }
 
   return (

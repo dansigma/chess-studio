@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isSource, mapWithConcurrency, playerResult, safeQuery } from "./shared.ts";
+import { ilikeNamePattern, isSource, mapWithConcurrency, playerResult, safeQuery } from "./shared.ts";
 
 test("playerResult maps win/loss/draw for a given color", () => {
   assert.equal(playerResult("white", "white"), "win");
@@ -90,4 +90,13 @@ test("mapWithConcurrency propagates rejections", async () => {
       return x;
     }),
   );
+});
+
+test("ilikeNamePattern keeps PGN 'Last, First' names matchable inside .or()", () => {
+  // The comma must not reach `.or()`, and must not become a plain space
+  // either ("Sant'Anna  Eddie" never matches "Sant'Anna, Eddie").
+  assert.equal(ilikeNamePattern("Sant'Anna, Eddie"), "%Sant'Anna% Eddie%");
+  assert.equal(ilikeNamePattern("magnus"), "%magnus%");
+  assert.equal(ilikeNamePattern('a(b)"c*d_e%f'), "%a%b%c%d%e%f%");
+  assert.equal(ilikeNamePattern(",x,"), "%x%");
 });

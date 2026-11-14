@@ -57,7 +57,7 @@ export function PlayerGamesPanel() {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
         }
-        setPlayerGames([], error instanceof Error ? error.message : "Could not load games");
+        setPlayerGames([], tPanels(useStudioStore.getState().settings.locale, "players.loadError"));
       });
     return () => controller.abort();
   }, [

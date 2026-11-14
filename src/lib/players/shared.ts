@@ -30,6 +30,22 @@ export function safeQuery(value: string): string {
   return value.replace(/[%_,()"]/g, " ").trim().slice(0, 48);
 }
 
+/**
+ * ILIKE pattern for a player name inside a PostgREST `.or()` filter. The
+ * characters `.or()` cannot carry (`,` `(` `)` `"`) and the ILIKE wildcards
+ * become `%`, so PGN names like "Sant'Anna, Eddie" still match their rows
+ * (`safeQuery` turns the comma into a space, which never matches ", ").
+ * Callers must re-check matches in memory: `%` widens the pattern.
+ */
+export function ilikeNamePattern(value: string): string {
+  const body = value
+    .replace(/[\\%_,()"*]/g, "%")
+    .replace(/%+/g, "%")
+    .trim()
+    .slice(0, 48);
+  return `%${body}%`.replace(/%+/g, "%");
+}
+
 export function playerResult(
   winner: PlayerGame["winner"],
   color: "white" | "black",
