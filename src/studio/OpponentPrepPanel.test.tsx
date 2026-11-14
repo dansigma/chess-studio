@@ -1,11 +1,13 @@
-// SIG-1101: a "Prepare against" click must apply source/username even when the
-// Opponent prep panel is already mounted; the first-render prefill alone drops
-// the request. Mirrors the QA repro: panel open -> Prepare against -> input.
-import { after, before, test } from "node:test";
+// SIG-1347: a saved layout that still contains the retired Opponent prep panel
+// must load without error and point the user to the Library player dossier.
+import { after, beforeEach, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
-import { act, cleanup, render, screen } from "@testing-library/react";
-import { OpponentPrepPanel, openOpponentPrepPanel } from "./OpponentPrepPanel";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { OpponentPrepPanel } from "./OpponentPrepPanel";
+import { useLibraryStore } from "./library/library-store";
+import { useStudioStore } from "@/src/store/studio-store";
+import { DEFAULT_SETTINGS } from "@/src/store/slices/settings.ts";
 
 before(() => {
   setupDom();
@@ -15,30 +17,34 @@ after(() => {
   teardownDom();
 });
 
-test("mounted panel: a new Prepare against request updates source and username", async () => {
-  render(<OpponentPrepPanel />);
-  const input = screen.getByPlaceholderText("Opponent username") as HTMLInputElement;
-  const source = screen.getByLabelText("Source") as HTMLSelectElement;
-  assert.equal(input.value, "");
-  assert.equal(source.value, "lichess");
-
-  await act(async () => {
-    openOpponentPrepPanel({ source: "chesscom", username: "drnykterstein" });
+beforeEach(() => {
+  useStudioStore.setState({
+    workspaceView: "studio",
+    settings: { ...DEFAULT_SETTINGS, locale: "en" },
   });
+  useLibraryStore.setState({ mode: "games" });
+});
 
-  assert.equal(input.value, "drnykterstein");
-  assert.equal(source.value, "chesscom");
+test("shows the redirect message and a button to the Library dossier (en)", () => {
+  render(<OpponentPrepPanel />);
+
+  assert.match(screen.getByText(/moved into the Library/).textContent ?? "", /player dossier/);
+
+  fireEvent.click(screen.getByRole("button", { name: "Open dossier in Library" }));
+
+  assert.equal(useLibraryStore.getState().mode, "players");
+  assert.equal(useStudioStore.getState().workspaceView, "library");
 
   cleanup();
 });
 
-test("closed panel: the pending request is applied on first mount", () => {
-  openOpponentPrepPanel({ source: "lichess", username: "pre-mount" });
+test("uses the pt-BR redirect button label from a saved layout", () => {
+  useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } });
 
   render(<OpponentPrepPanel />);
 
-  const input = screen.getByPlaceholderText("Opponent username") as HTMLInputElement;
-  assert.equal(input.value, "pre-mount");
+  assert.ok(screen.getByRole("button", { name: "Abrir dossiê na Biblioteca" }));
+  assert.match(screen.getByText(/A Preparação contra agora fica na Biblioteca/).textContent ?? "", /dossiê/);
 
   cleanup();
 });

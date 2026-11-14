@@ -358,3 +358,33 @@ test("a mismatched component or a stale version is rejected", () => {
   );
   assert.equal(sanitizeDockLayout(null), null);
 });
+
+test("a saved layout keeps the retired opponentPrep panel so it can redirect", () => {
+  const opponentPrep = { id: "opponentPrep", contentComponent: "opponentPrep", title: "Opponent prep" };
+  const snapshot = sanitizeDockLayout({
+    version: DOCK_LAYOUT_VERSION,
+    dock: {
+      grid: {
+        root: {
+          type: "branch",
+          data: [
+            { type: "leaf", data: { id: "g-main", views: ["board:b1", "opponentPrep"], activeView: "opponentPrep" } },
+          ],
+        },
+        width: 100,
+        height: 100,
+        orientation: "HORIZONTAL",
+      },
+      panels: { "board:b1": board, opponentPrep },
+      activeGroup: "g-main",
+    },
+  });
+
+  assert.ok(snapshot);
+  const root = snapshot.dock.grid as {
+    root: { data: Array<{ data: { views: string[]; activeView: string } }> };
+  };
+  assert.deepEqual(root.root.data[0]?.data.views, ["board:b1", "opponentPrep"]);
+  assert.equal(root.root.data[0]?.data.activeView, "opponentPrep");
+  assert.deepEqual(Object.keys(snapshot.dock.panels).sort(), ["board:b1", "opponentPrep"]);
+});

@@ -7,7 +7,7 @@ import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { tPrep } from "@/src/i18n/prep-strings";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
-import { openOpponentPrepPanel } from "./OpponentPrepPanel";
+import { openPlayerDossier } from "./library/dossier/open-player-dossier";
 import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
 import { PlayerCell, outcomeFor } from "./ui/PlayerCell";
@@ -120,7 +120,7 @@ export function PlayerGamesPanel() {
           {playerSource === "lichess" || playerSource === "chesscom" ? (
             <button
               type="button"
-              onClick={() => openOpponentPrepPanel({ source: playerSource, username: playerUsername ?? "" })}
+              onClick={() => openPlayerDossier(player)}
               className="shrink-0 font-medium text-studio-accent-text hover:underline"
             >
               {tPrep(prepLocale, "prep.prepareAgainst")}
