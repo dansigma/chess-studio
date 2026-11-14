@@ -123,3 +123,13 @@ test("axis keeps three labels for three distinct dates (SIG-1335)", () => {
   assert.equal(labels.length, 3);
   assert.equal(new Set(labels).size, 3);
 });
+
+test("a date shared by the middle and last games stays at the right end (SIG-1335)", () => {
+  const day = Date.UTC(2026, 10, 3, 12);
+  const games = [g("a", Date.UTC(2026, 9, 27), 60), g("b", day, 80), g("c", day + 3600_000, 100)];
+  render(<MyStatsTrend games={games} locale="en" onOpenGame={() => {}} />);
+  const spans = screen.getAllByTestId("trend-date-label");
+  assert.equal(spans.length, 2);
+  assert.equal(spans[0]!.style.transform, "none");
+  assert.equal(spans[1]!.style.transform, "translateX(-100%)");
+});

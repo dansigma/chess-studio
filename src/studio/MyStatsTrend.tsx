@@ -100,12 +100,15 @@ export function MyStatsTrend({
   });
 
   const dateIdx = count === 1 ? [0] : count === 2 ? [0, 1] : [0, Math.floor((count - 1) / 2), count - 1];
-  // SIG-1335: games from the same day would repeat the same text; keep only
-  // the first label of each distinct text.
-  const seenDates = new Set<string>();
-  const dateLabels = dateIdx
-    .map((i) => ({ i, text: formatDate(locale, points[i]!.game.playedAt) }))
-    .filter(({ text }) => !seenDates.has(text) && seenDates.add(text) != null);
+  // SIG-1335: games from the same day would repeat the same text. The two
+  // ends win: the middle label goes when it repeats either end, and the last
+  // one goes when it repeats the first.
+  const allDates = dateIdx.map((i) => ({ i, text: formatDate(locale, points[i]!.game.playedAt) }));
+  const firstDate = allDates[0]!.text;
+  const lastDate = allDates[allDates.length - 1]!.text;
+  const dateLabels = allDates.filter(({ text }, k) =>
+    k === 0 ? true : k === allDates.length - 1 ? text !== firstDate : text !== firstDate && text !== lastDate,
+  );
   const tipIndex = hover ?? focused;
   const tip = tipIndex != null ? points[tipIndex] : undefined;
 
