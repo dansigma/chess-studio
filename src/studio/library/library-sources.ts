@@ -15,14 +15,20 @@ import { useLibraryStore } from "./library-store";
  * - First run: select every available source.
  * - Later runs: keep the user's choice, drop sources that no longer exist.
  *   If nothing is left, fall back to every available source.
+ * - SIG-1337: an empty selection made on purpose (viewing an empty folder,
+ *   `keepEmpty`) stays empty, so the table keeps showing that folder.
  */
 export function reconcileLibrarySources(
   current: LibrarySourceId[],
   available: LibrarySourceId[],
   firstRun: boolean,
+  keepEmpty = false,
 ): LibrarySourceId[] {
   if (firstRun) {
     return available;
+  }
+  if (keepEmpty && current.length === 0) {
+    return current;
   }
   const kept = current.filter((id) => available.includes(id));
   return kept.length > 0 ? kept : available;
@@ -54,8 +60,11 @@ export function useLibrarySources(): void {
 
   useEffect(() => {
     const available = registerLibraryAdapters(databases);
-    const { filters, setSources } = useLibraryStore.getState();
-    const next = reconcileLibrarySources(filters.sources, available, firstRun.current);
+    const { filters, setSources, folderId } = useLibraryStore.getState();
+    // Viewing a folder that still exists: its empty selection is intentional.
+    const viewingFolder =
+      folderId !== null && useStudioStore.getState().files.folders.some((folder) => folder.id === folderId);
+    const next = reconcileLibrarySources(filters.sources, available, firstRun.current, viewingFolder);
     firstRun.current = false;
     if (!sameIds(next, filters.sources)) {
       setSources(next);

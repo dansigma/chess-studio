@@ -562,6 +562,31 @@ test("an empty folder selects no source, stays the import target and is highligh
   assert.deepEqual(sources(), [], "the table queries the empty folder, not the previous selection");
 });
 
+test("the empty folder survives a database change (rename, import elsewhere, refresh)", async () => {
+  const { useLibrarySources } = await import("./library-sources");
+  function WithSources() {
+    useLibrarySources();
+    return <LibrarySourceRail sourceErrors={{}} />;
+  }
+  seed([db("d1", "Root file", null), db("d2", "Open file", "f1")]);
+  render(<WithSources />);
+  await act(async () => { await Promise.resolve(); });
+  fireEvent.click(screen.getByRole("button", { name: "Endings" }));
+  assert.deepEqual(sources(), []);
+
+  await act(async () => {
+    useStudioStore.getState().renameFileDatabase("d1", "Renamed file");
+  });
+  assert.equal(useStudioStore.getState().files.databases.find((item) => item.id === "d1")?.name, "Renamed file");
+  assert.deepEqual(sources(), [], "the reconcile effect keeps the empty folder's selection");
+  assert.equal(useLibraryStore.getState().folderId, "f3");
+
+  // Leaving the folder restores the normal fallback.
+  fireEvent.click(screen.getByRole("button", { name: "All" }));
+  assert.equal(useLibraryStore.getState().folderId, null);
+  assert.ok(sources().length > 0);
+});
+
 test("collapsed rail: failed sources keep their mark and import stays available", async () => {
   seed(TACTICS);
   await renderRail({ masters: "boom" });
