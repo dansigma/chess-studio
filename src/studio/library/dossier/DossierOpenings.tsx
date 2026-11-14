@@ -231,7 +231,7 @@ export function DossierOpenings({ games }: { games: PlayerGame[] }) {
       <h3 className="text-caption font-semibold text-studio-muted">
         {tLibrary(locale, "library.dossier.openings")}
       </h3>
-      <DossierOpeningsNotice games={games} opponentColor={opponentColor} />
+      <DossierOpeningsNotice />
       <section aria-labelledby="dossier-main-openings" className="flex min-w-0 flex-col gap-1">
         <h4 id="dossier-main-openings" className="text-caption font-semibold text-studio-muted">
           {tLibrary(locale, "library.dossier.mainOpenings")}
