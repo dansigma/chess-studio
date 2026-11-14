@@ -7,9 +7,8 @@ import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel, openExplorerPanel } from "../../dock-api";
 
 export function prepareLine(path: string[], opponentColor: "white" | "black"): void {
-  if (path.length === 0) {
-    return;
-  }
+  // SIG-1344: an empty path is a position too — a gap on the opponent's first
+  // move prepares the start position, so it must open the Studio as well.
   const { game, orientation } = prepareAgainstLine(path, opponentColor);
   const state = useStudioStore.getState();
   state.importPlayerGame(game, { openInNewBoard: true });
