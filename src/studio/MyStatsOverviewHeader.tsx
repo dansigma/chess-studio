@@ -31,11 +31,14 @@ export function MyStatsFilterBar({
   filters,
   onChange,
   timeClasses,
+  hideTimeClass = false,
 }: {
   locale: SiteLocale;
   filters: OverviewFilters;
   onChange: (filters: OverviewFilters) => void;
   timeClasses: readonly string[];
+  /** SIG-1338: the dossier hides "Ritmo" when no game has a time class. */
+  hideTimeClass?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5" role="group" aria-label={tMyGames(locale, "myGames.statsOverview")}>
@@ -54,22 +57,24 @@ export function MyStatsFilterBar({
           ))}
         </select>
       </label>
-      <label className="flex items-center gap-1 text-caption text-studio-muted">
-        {tMyGames(locale, "myGames.openingsTimeClass")}
-        <select
-          aria-label={tMyGames(locale, "myGames.openingsTimeClass")}
-          value={filters.timeClass}
-          onChange={(event) => onChange({ ...filters, timeClass: event.target.value })}
-          className={SELECT_CLASS}
-        >
-          <option value="all">{tMyGames(locale, "myGames.openingsAll")}</option>
-          {timeClasses.map((timeClass) => (
-            <option key={timeClass} value={timeClass}>
-              {timeClass}
-            </option>
-          ))}
-        </select>
-      </label>
+      {hideTimeClass ? null : (
+        <label className="flex items-center gap-1 text-caption text-studio-muted">
+          {tMyGames(locale, "myGames.openingsTimeClass")}
+          <select
+            aria-label={tMyGames(locale, "myGames.openingsTimeClass")}
+            value={filters.timeClass}
+            onChange={(event) => onChange({ ...filters, timeClass: event.target.value })}
+            className={SELECT_CLASS}
+          >
+            <option value="all">{tMyGames(locale, "myGames.openingsAll")}</option>
+            {timeClasses.map((timeClass) => (
+              <option key={timeClass} value={timeClass}>
+                {timeClass}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <div role="group" aria-label={tMyGames(locale, "myGames.filterColor")} className="flex items-center gap-1 text-caption text-studio-muted">
         <span>{tMyGames(locale, "myGames.filterColor")}</span>
         {COLORS.map((color) => (
@@ -90,7 +95,16 @@ export function MyStatsFilterBar({
 
 const ARROWS = { up: "↑", down: "↓", flat: "=" } as const;
 
-export function MyStatsKpiCards({ locale, kpis }: { locale: SiteLocale; kpis: OverviewKpis }) {
+export function MyStatsKpiCards({
+  locale,
+  kpis,
+  hideAccuracy = false,
+}: {
+  locale: SiteLocale;
+  kpis: OverviewKpis;
+  /** SIG-1338: the player dossier only shows games and score. */
+  hideAccuracy?: boolean;
+}) {
   const trendTitle = tMyGames(
     locale,
     kpis.insufficientForTrend
@@ -107,7 +121,10 @@ export function MyStatsKpiCards({ locale, kpis }: { locale: SiteLocale; kpis: Ov
   const label = "text-caption text-studio-muted";
   const value = "text-lg font-semibold tabular-nums text-studio-fg";
   return (
-    <div className="grid grid-cols-1 gap-2 @sm:grid-cols-3" data-testid="mystats-kpis">
+    <div
+      className={`grid grid-cols-1 gap-2 ${hideAccuracy ? "@sm:grid-cols-2" : "@sm:grid-cols-3"}`}
+      data-testid="mystats-kpis"
+    >
       <div className={card}>
         <span className={label}>{tMyGames(locale, "myGames.kpiGames")}</span>
         <span className={value} data-testid="kpi-games">{formatInteger(locale, kpis.games)}</span>
@@ -115,23 +132,25 @@ export function MyStatsKpiCards({ locale, kpis }: { locale: SiteLocale; kpis: Ov
           {tMyGames(locale, kpis.reviewed === 1 ? "myGames.kpiReviewed.one" : "myGames.kpiReviewed.other", { count: kpis.reviewed })}
         </span>
       </div>
-      <div className={card}>
-        <span className={label}>{tMyGames(locale, "myGames.kpiAccuracy")}</span>
-        <span className={value}>
-          <span data-testid="kpi-accuracy">{kpis.avgAccuracy === null ? "–" : formatDecimal1(locale, kpis.avgAccuracy)}</span>
-          {kpis.avgAccuracy === null ? null : (
-            <span
-              className={`ml-1 text-dense ${arrowClass}`}
-              title={trendTitle}
-              aria-label={trendTitle}
-              data-testid="kpi-trend"
-              data-direction={kpis.direction}
-            >
-              {ARROWS[kpis.direction]}
-            </span>
-          )}
-        </span>
-      </div>
+      {hideAccuracy ? null : (
+        <div className={card}>
+          <span className={label}>{tMyGames(locale, "myGames.kpiAccuracy")}</span>
+          <span className={value}>
+            <span data-testid="kpi-accuracy">{kpis.avgAccuracy === null ? "–" : formatDecimal1(locale, kpis.avgAccuracy)}</span>
+            {kpis.avgAccuracy === null ? null : (
+              <span
+                className={`ml-1 text-dense ${arrowClass}`}
+                title={trendTitle}
+                aria-label={trendTitle}
+                data-testid="kpi-trend"
+                data-direction={kpis.direction}
+              >
+                {ARROWS[kpis.direction]}
+              </span>
+            )}
+          </span>
+        </div>
+      )}
       <div className={card}>
         <span className={label}>{tMyGames(locale, "myGames.kpiScore")}</span>
         <span className={value} data-testid="kpi-score">

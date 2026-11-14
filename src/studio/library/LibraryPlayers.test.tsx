@@ -1,19 +1,30 @@
 // SIG-1318: Library Players mode (search, open player, mode switch).
+// SIG-1338: selecting a player opens the preparation dossier in place.
 import { after, afterEach, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { PlayerHit } from "@/src/lib/player-types";
 
 const { LibraryPlayers } = await import("./LibraryPlayers.tsx");
 const { LibraryView } = await import("./LibraryView.tsx");
 const { useLibraryStore } = await import("./library-store.ts");
+const { useDossierStore } = await import("./dossier/dossier-store.ts");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
 const { DEFAULT_LIBRARY_FILTERS } = await import("@/src/lib/library/types.ts");
-const { registerLibrarySource, clearLibrarySources } = await import("@/src/lib/library/sources.ts");
+const { clearLibrarySources } = await import("@/src/lib/library/sources.ts");
 
 const HIT: PlayerHit = { id: "lichess:magnus", source: "lichess", username: "magnus", displayName: "Magnus", subtitle: "2800 blitz", title: "GM" };
+const CHESSCOM: PlayerHit = { id: "chesscom:hikaru", source: "chesscom", username: "hikaru", displayName: "Hikaru", subtitle: "Chess.com" };
+const LOCAL: PlayerHit = {
+  id: "studio:Sant'Anna, Eddie",
+  source: "studio",
+  username: "Sant'Anna, Eddie",
+  displayName: "Sant'Anna, Eddie",
+  subtitle: "Studio database",
+  inDatabases: true,
+};
 const realFetch = globalThis.fetch;
 const urls: string[] = [];
 
@@ -28,6 +39,7 @@ beforeEach(() => {
   act(() => {
     useStudioStore.setState({ workspaceView: "library", settings: { ...DEFAULT_SETTINGS, locale: "en" }, playerProfile: null, bookmarks: [] });
     useLibraryStore.setState({ mode: "games", filters: DEFAULT_LIBRARY_FILTERS, selectedKey: null });
+    useDossierStore.getState().closePlayer();
   });
 });
 afterEach(() => {
@@ -36,7 +48,12 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-test("debounces, fetches once and lists results; opening a player switches to the Studio", async () => {
+async function searchFor(value: string, text: string | RegExp = "Magnus") {
+  fireEvent.change(screen.getByRole("textbox"), { target: { value } });
+  return screen.findByText(text, {}, { timeout: 2000 });
+}
+
+test("debounces, fetches once and lists results; opening a player opens the dossier in place", async () => {
   render(<LibraryPlayers />);
   assert.ok(screen.getByText(/Type at least two letters/));
   const input = screen.getByRole("textbox");
@@ -47,8 +64,13 @@ test("debounces, fetches once and lists results; opening a player switches to th
   assert.deepEqual(urls, ["/api/players/search?q=mag"]);
   assert.ok(screen.getByText(/exact username/));
   fireEvent.click(screen.getByText("Magnus"));
-  assert.equal(useStudioStore.getState().playerProfile?.id, HIT.id);
-  assert.equal(useStudioStore.getState().workspaceView, "studio");
+  assert.equal(useDossierStore.getState().player?.id, HIT.id);
+  // The Studio is not touched: the dossier lives in the Players tab.
+  assert.equal(useStudioStore.getState().playerProfile, null);
+  assert.equal(useStudioStore.getState().workspaceView, "library");
+  const dossier = screen.getByTestId("library-player-dossier");
+  assert.ok(within(dossier).getByRole("heading", { name: "Magnus" }));
+  assert.match(within(dossier).getByTestId("dossier-player-meta").textContent ?? "", /Lichess/);
 });
 
 test("shows the empty state when nothing matches", async () => {
@@ -56,6 +78,7 @@ test("shows the empty state when nothing matches", async () => {
   render(<LibraryPlayers />);
   fireEvent.change(screen.getByRole("textbox"), { target: { value: "zzz" } });
   assert.ok(await screen.findByText("No players found.", {}, { timeout: 2000 }));
+  assert.ok(screen.getByTestId("library-player-dossier-hint"));
 });
 
 test("the mode switch toggles between Games and Players", async () => {
@@ -72,43 +95,98 @@ test("the mode switch toggles between Games and Players", async () => {
   assert.equal(useLibraryStore.getState().mode, "games");
 });
 
-test("a player from the user's databases opens the Library's Games tab filtered by that player", async () => {
-  const local: PlayerHit = {
-    id: "studio:Sant'Anna, Eddie",
-    source: "studio",
-    username: "Sant'Anna, Eddie",
-    displayName: "Sant'Anna, Eddie",
-    subtitle: "Studio database",
-    inDatabases: true,
-  };
-  globalThis.fetch = (async () => new Response(JSON.stringify({ players: [local] }), { status: 200 })) as typeof fetch;
-  const stub = (id: string) =>
-    ({ id, label: () => id, capabilities: () => ({}) }) as unknown as Parameters<typeof registerLibrarySource>[0];
-  registerLibrarySource(stub("my-games"));
-  registerLibrarySource(stub("file:db1"));
-  registerLibrarySource(stub("file:db2"));
+test("a player from the user's databases opens the dossier without touching Library filters", async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ players: [LOCAL] }), { status: 200 })) as typeof fetch;
   act(() => useLibraryStore.setState({ mode: "players", filters: { ...DEFAULT_LIBRARY_FILTERS, query: "old" } }));
   render(<LibraryPlayers />);
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "sant" } });
-  fireEvent.click(await screen.findByText("Sant'Anna, Eddie", {}, { timeout: 2000 }));
+  fireEvent.click(await searchFor("sant", "Sant'Anna, Eddie"));
   const library = useLibraryStore.getState();
-  assert.equal(library.mode, "games");
-  assert.equal(library.filters.player, "Sant'Anna, Eddie");
-  assert.equal(library.filters.playerColor, "both");
-  assert.equal(library.filters.query, "");
-  assert.deepEqual(library.filters.sources, ["file:db1", "file:db2"]);
+  assert.equal(library.mode, "players");
+  assert.equal(library.filters.player, "");
+  assert.equal(library.filters.query, "old");
   assert.equal(useStudioStore.getState().playerProfile, null);
   assert.equal(useStudioStore.getState().workspaceView, "library");
+  assert.equal(useDossierStore.getState().player?.id, LOCAL.id);
+  const dossier = screen.getByTestId("library-player-dossier");
+  assert.match(within(dossier).getByTestId("dossier-player-meta").textContent ?? "", /Local database/);
 });
 
-test("the W/B chips on a local player set the player's side filter", async () => {
-  const local: PlayerHit = { id: "studio:Eddie", source: "studio", username: "Eddie", displayName: "Eddie", subtitle: "Studio database", inDatabases: true };
-  globalThis.fetch = (async () => new Response(JSON.stringify({ players: [local] }), { status: 200 })) as typeof fetch;
+test("the dossier header names the origin for Lichess, Chess.com and the local database", async () => {
+  globalThis.fetch = (async () => new Response(JSON.stringify({ players: [HIT, CHESSCOM, LOCAL] }), { status: 200 })) as typeof fetch;
+  render(<LibraryPlayers />);
+  await searchFor("ma");
+  const list = () => screen.getByTestId("library-players-list");
+  const dossier = () => screen.getByTestId("library-player-dossier");
+
+  fireEvent.click(within(list()).getByText("Magnus"));
+  assert.match(within(dossier()).getByTestId("dossier-player-meta").textContent ?? "", /Lichess/);
+
+  fireEvent.click(within(list()).getByText("Hikaru"));
+  assert.match(within(dossier()).getByTestId("dossier-player-meta").textContent ?? "", /Chess\.com/);
+
+  fireEvent.click(within(list()).getByText("Sant'Anna, Eddie"));
+  assert.match(within(dossier()).getByTestId("dossier-player-meta").textContent ?? "", /Local database/);
+});
+
+test("the W/B chips open the dossier with that colour preselected", async () => {
   act(() => useLibraryStore.setState({ mode: "players" }));
   render(<LibraryPlayers />);
-  fireEvent.change(screen.getByRole("textbox"), { target: { value: "ed" } });
-  await screen.findByText("Eddie", {}, { timeout: 2000 });
+  await searchFor("ma");
+
+  fireEvent.click(screen.getByTitle(/white/i));
+  assert.equal(useDossierStore.getState().filters.color, "white");
+  const dossier = screen.getByTestId("library-player-dossier");
+  assert.equal(within(dossier).getByRole("button", { name: "White" }).getAttribute("aria-pressed"), "true");
+
   fireEvent.click(screen.getByTitle(/black/i));
-  assert.equal(useLibraryStore.getState().filters.playerColor, "black");
-  assert.equal(useLibraryStore.getState().mode, "games");
+  assert.equal(useDossierStore.getState().filters.color, "black");
+  assert.equal(within(dossier).getByRole("button", { name: "Black" }).getAttribute("aria-pressed"), "true");
+});
+
+test("Open in Studio runs the old online-player flow with the filters' colour", async () => {
+  render(<LibraryPlayers />);
+  await searchFor("ma");
+  fireEvent.click(screen.getByTitle(/white/i));
+  fireEvent.click(screen.getByRole("button", { name: "Open in Studio" }));
+  assert.equal(useStudioStore.getState().playerProfile?.id, HIT.id);
+  assert.equal(useStudioStore.getState().playerColorFilter, "white");
+  assert.equal(useStudioStore.getState().workspaceView, "studio");
+});
+
+test("the search column collapses to a strip while a player is selected and reopens", async () => {
+  render(<LibraryPlayers />);
+  await searchFor("ma");
+  assert.ok(screen.getByRole("textbox"));
+  fireEvent.click(screen.getByText("Magnus"));
+  assert.ok(screen.getByRole("textbox"));
+
+  fireEvent.click(screen.getByRole("button", { name: "Hide player search" }));
+  assert.equal(screen.queryByRole("textbox"), null);
+  assert.ok(screen.getByTestId("library-players-strip"));
+  assert.ok(screen.getByTestId("library-player-dossier"));
+
+  fireEvent.click(screen.getByRole("button", { name: "Show player search" }));
+  assert.ok(screen.getByRole("textbox"));
+  assert.ok(screen.getByTestId("library-players-list"));
+});
+
+test("the selected player is highlighted in the list and closing the dossier clears it", async () => {
+  render(<LibraryPlayers />);
+  await searchFor("ma");
+  const rowText = screen.getByText("Magnus");
+  const row = rowText.closest("div.relative");
+  fireEvent.click(rowText);
+  assert.ok(row?.className.includes("bg-studio-accent-soft"));
+
+  fireEvent.click(screen.getByRole("button", { name: "Close dossier" }));
+  assert.equal(useDossierStore.getState().player, null);
+  assert.ok(screen.getByTestId("library-player-dossier-hint"));
+});
+
+test("bookmarks still toggle without opening the dossier", async () => {
+  render(<LibraryPlayers />);
+  await searchFor("ma");
+  fireEvent.click(screen.getByTitle("Bookmark player"));
+  assert.equal(useStudioStore.getState().bookmarks.length, 1);
+  assert.equal(useDossierStore.getState().player, null);
 });
