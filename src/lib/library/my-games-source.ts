@@ -27,7 +27,7 @@ type Row = Pick<
 const COLUMNS =
   "id, source, played_at, color, result, time_class, white, black, white_elo, black_elo, eco, opening, ply_count";
 
-const OVERVIEW_COLUMNS = "white, black, white_elo, black_elo, eco, opening";
+const OVERVIEW_COLUMNS = "white, black, white_elo, black_elo, eco, opening, color, result, played_at";
 export const OVERVIEW_PAGE_SIZE = 1000;
 
 const CAPABILITIES: LibrarySourceCapabilities = {
@@ -248,7 +248,7 @@ export function createMyGamesSource(
         }
         const rows = (data ?? []) as unknown as Pick<
           Row,
-          "white" | "black" | "white_elo" | "black_elo" | "eco" | "opening"
+          "white" | "black" | "white_elo" | "black_elo" | "eco" | "opening" | "color" | "result" | "played_at"
         >[];
         for (const row of rows) {
           addToOverview(overview, {
@@ -258,6 +258,8 @@ export function createMyGamesSource(
             blackElo: row.black_elo,
             eco: row.eco,
             opening: row.opening,
+            result: playerResult(row),
+            date: row.played_at ? row.played_at.slice(0, 10) : null,
           });
         }
         if (rows.length < OVERVIEW_PAGE_SIZE) {
