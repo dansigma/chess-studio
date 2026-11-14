@@ -11,7 +11,7 @@ function openingPrefix(moves: string | undefined): string {
     return "";
   }
   const plies = moves.trim().split(/\s+/).filter(Boolean).slice(0, 2);
-  return plies.join(" ");
+  return plies.join(" ").toLowerCase();
 }
 
 export function openingGroupKey(game: PlayerGame): string {

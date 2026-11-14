@@ -45,6 +45,8 @@ describe("openingGroupKey", () => {
   it("falls back to the first two plies when opening and ECO are blank", () => {
     assert.equal(openingGroupKey(game({ opening: " ", eco: "", moves: "e4 e5 Nf3 Nc6" })), "e4 e5");
     assert.equal(openingGroupKey(game({ opening: null, eco: null, moves: "  d4   d5 " })), "d4 d5");
+    // Case-insensitive, like the name branch.
+    assert.equal(openingGroupKey(game({ opening: null, eco: null, moves: "E4 e5" })), "e4 e5");
   });
 
   it("returns an empty key when nothing identifies the opening", () => {

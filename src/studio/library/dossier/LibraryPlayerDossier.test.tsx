@@ -184,3 +184,28 @@ test("playerYearRange takes the first and last dated year", () => {
   assert.deepEqual(playerYearRange([game("c", { year: null, playedAt: Date.UTC(2021, 5, 1) })]), [2021, 2021]);
   assert.deepEqual(playerYearRange([game("d", { year: null, playedAt: null })]), null);
 });
+
+test("a local player keeps a path to the Games tab; online players have none", async () => {
+  const { useLibraryStore } = await import("../library-store.ts");
+  state = gamesState({ games: [game("g1")] });
+  open();
+  assert.equal(screen.queryByRole("button", { name: "View in Games tab" }), null);
+  cleanup();
+
+  const local: PlayerHit = {
+    id: "studio:Local Player",
+    source: "studio",
+    username: "Local Player",
+    displayName: "Local Player",
+    subtitle: "Studio database",
+    inDatabases: true,
+  };
+  useLibraryStore.setState({ mode: "players" });
+  useDossierStore.getState().openPlayer(local, "black");
+  render(<LibraryPlayerDossier />);
+  fireEvent.click(screen.getByRole("button", { name: "View in Games tab" }));
+  const library = useLibraryStore.getState();
+  assert.equal(library.mode, "games");
+  assert.equal(library.filters.player, "Local Player");
+  assert.equal(library.filters.playerColor, "black");
+});
