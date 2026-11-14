@@ -38,7 +38,10 @@ test("the Opponent prep panel is no longer offered in the Open panel menu", asyn
   await page.getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("menuitem", { name: "Open panel" }).hover();
   await expect(page.getByRole("menuitem", { name: "Opponent prep" })).toHaveCount(0);
-  await expect(page.getByRole("menuitem", { name: "Notation" })).toBeVisible();
+  // Two menu surfaces can be mounted at once (desktop menu bar and the mobile
+  // sheet), so "Notation" may resolve to more than one element; the check is
+  // that the panel list is visible in the open menu.
+  await expect(page.getByRole("menuitem", { name: "Notation" }).filter({ visible: true }).first()).toBeVisible();
 });
 
 test("Prepare against opens the player's dossier in the Library's Players mode", async ({ page }) => {
