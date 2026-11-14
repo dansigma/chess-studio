@@ -43,6 +43,11 @@ export type OpeningLinesTreeProps = {
   /** Overrides the open-line button label (default: `myGames.openingsOpenLine`). */
   openLineLabel?: string;
   renderRowExtra?: (row: OpeningRow) => OpeningLineExtra | null | undefined;
+  /**
+   * SIG-1341: inside a host that already has its own heading and White/Black
+   * tabs (the Library dossier): no heading, no tabs; `lineColor` comes from the host.
+   */
+  embedded?: boolean;
 };
 
 function TrendMarkers({
@@ -87,13 +92,24 @@ export function OpeningLinesTree({
   onOpenLine,
   openLineLabel,
   renderRowExtra,
+  embedded = false,
 }: OpeningLinesTreeProps) {
   return (
-    <section aria-labelledby="mystats-openings-tree" className="flex flex-col gap-2">
-      <h2 id="mystats-openings-tree" className="mb-1 text-caption font-semibold text-studio-muted">
-        {tMyGames(locale, "myGames.statsOpenings")}
-      </h2>
-      <div role="tablist" aria-label={tMyGames(locale, "myGames.statsOpenings")} className="flex gap-1">
+    <section
+      aria-labelledby={embedded ? undefined : "mystats-openings-tree"}
+      className="flex flex-col gap-2"
+    >
+      {embedded ? null : (
+        <h2 id="mystats-openings-tree" className="mb-1 text-caption font-semibold text-studio-muted">
+          {tMyGames(locale, "myGames.statsOpenings")}
+        </h2>
+      )}
+      <div
+        role="tablist"
+        aria-label={tMyGames(locale, "myGames.statsOpenings")}
+        className="flex gap-1"
+        hidden={embedded}
+      >
         {(["white", "black"] as const).map((color) => (
           <button
             key={color}
