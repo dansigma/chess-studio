@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Chessboard } from "react-chessboard";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
@@ -83,6 +91,7 @@ function useLibraryGamePgn(item: LibraryGameItem | null) {
 export function LibraryPreview({ item }: { item: LibraryGameItem | null }) {
   const locale = useStudioStore((state) => state.settings.locale);
   const { requestId, loading, error, loaded, retry } = useLibraryGamePgn(item);
+  const positionFen = useLibraryStore((state) => state.filters.position?.fen ?? null);
 
   if (!item) {
     return (
@@ -114,25 +123,79 @@ export function LibraryPreview({ item }: { item: LibraryGameItem | null }) {
       </div>
     );
   }
-  return <LoadedPreview key={requestId} item={item} loaded={loaded} />;
+  return (
+    <GamePreview
+      key={requestId}
+      white={item.white}
+      black={item.black}
+      whiteElo={item.whiteElo}
+      blackElo={item.blackElo}
+      result={item.result}
+      eco={item.eco}
+      opening={item.opening}
+      event={item.event}
+      date={item.date}
+      pgn={loaded.pgn}
+      game={loaded.game}
+      startFen={positionFen}
+    />
+  );
 }
 
-function LoadedPreview({ item, loaded }: { item: LibraryGameItem; loaded: Loaded }) {
-  const { game, pgn } = loaded;
+export type GamePreviewProps = {
+  white: string;
+  black: string;
+  whiteElo: number | null;
+  blackElo: number | null;
+  /** PGN result token ("1-0", "0-1", "1/2-1/2" or "*"). */
+  result: string;
+  eco: string | null;
+  opening: string | null;
+  event: string | null;
+  date: string | null;
+  pgn: string;
+  game: ImportedGame;
+  /** Side at the bottom; defaults to the Studio's active board orientation. */
+  orientation?: "white" | "black";
+  /** Position the cursor starts on (the Library's filtered position). */
+  startFen?: string | null;
+};
+
+/**
+ * SIG-1342: the Library game preview with plain props, shared by the Library's
+ * Partidas tab and the player dossier. The dossier passes `orientation` so its
+ * board follows the player's colour, independent of the active Studio board.
+ */
+export function GamePreview({
+  white,
+  black,
+  whiteElo,
+  blackElo,
+  result,
+  eco,
+  opening,
+  event,
+  date,
+  pgn,
+  game,
+  orientation,
+  startFen,
+}: GamePreviewProps) {
   const { tree, headers } = game;
+  const boardId = useId();
   const locale = useStudioStore((state) => state.settings.locale);
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
-  const orientation = useStudioStore((state) => selectActiveBoard(state).orientation);
+  const activeOrientation = useStudioStore((state) => selectActiveBoard(state).orientation);
+  const boardOrientation = orientation ?? activeOrientation;
   const openListedGame = useStudioStore((state) => state.openListedGame);
   const setWorkspaceView = useStudioStore((state) => state.setWorkspaceView);
   const startTraining = useStudioStore((state) => state.startTraining);
-  const positionFen = useLibraryStore((state) => state.filters.position?.fen ?? null);
 
   // The cursor starts on the filtered position (computed once per loaded game).
-  const [path, setPath] = useState<Path>(() => startPathForPosition(tree, positionFen));
+  const [path, setPath] = useState<Path>(() => startPathForPosition(tree, startFen));
   const notationRef = useRef<HTMLDivElement | null>(null);
 
   const fen = getFenAt(tree, path);
@@ -176,15 +239,15 @@ function LoadedPreview({ item, loaded }: { item: LibraryGameItem; loaded: Loaded
   }, [node]);
 
   const extras = previewHeaderExtras(headers);
-  const event = item.event ?? extras.event;
-  const date = item.date ?? extras.date;
+  const displayEvent = event ?? extras.event;
+  const displayDate = date ?? extras.date;
   const moveCount = mainLineMoveCount(tree);
-  const winner = item.result === "1-0" ? "white" : item.result === "0-1" ? "black" : item.result === "*" ? null : "draw";
-  const opening = [item.eco, item.opening].filter(Boolean).join(" · ") || headers.Opening || headers.ECO || null;
+  const winner = result === "1-0" ? "white" : result === "0-1" ? "black" : result === "*" ? null : "draw";
+  const displayOpening = [eco, opening].filter(Boolean).join(" · ") || headers.Opening || headers.ECO || null;
 
   const openGameInStudio = () => {
     openListedGame({
-      title: `${item.white} vs ${item.black}`,
+      title: `${white} vs ${black}`,
       pgn,
       atFen: fen,
       openInNewBoard: true,
@@ -211,19 +274,20 @@ function LoadedPreview({ item, loaded }: { item: LibraryGameItem; loaded: Loaded
       tabIndex={0}
       onKeyDown={onKeyDown}
       data-testid="library-preview"
+      data-orientation={boardOrientation}
     >
       <header className="flex flex-col gap-1" data-testid="library-preview-header">
         <div className="text-caption text-studio-muted">
-          {opening ?? tLibrary(locale, "library.preview.unknownOpening")}
+          {displayOpening ?? tLibrary(locale, "library.preview.unknownOpening")}
         </div>
         <div className="flex min-w-0 flex-col gap-0.5 text-body">
-          <PlayerCell name={item.white} rating={item.whiteElo} outcome={outcomeFor(winner, "white")} />
-          <PlayerCell name={item.black} rating={item.blackElo} outcome={outcomeFor(winner, "black")} />
+          <PlayerCell name={white} rating={whiteElo} outcome={outcomeFor(winner, "white")} />
+          <PlayerCell name={black} rating={blackElo} outcome={outcomeFor(winner, "black")} />
         </div>
         <div className="flex flex-wrap gap-x-3 text-caption tabular-nums text-studio-faint">
-          <span data-testid="library-preview-result">{item.result}</span>
-          {date ? <span>{date}</span> : null}
-          {event ? <span className="truncate">{event}</span> : null}
+          <span data-testid="library-preview-result">{result}</span>
+          {displayDate ? <span>{displayDate}</span> : null}
+          {displayEvent ? <span className="truncate">{displayEvent}</span> : null}
           {moveCount > 0 ? <span>{tLibrary(locale, "library.preview.moves", { count: moveCount })}</span> : null}
         </div>
       </header>
@@ -231,9 +295,9 @@ function LoadedPreview({ item, loaded }: { item: LibraryGameItem; loaded: Loaded
       <div className="mx-auto aspect-square w-full max-w-sm" role="img" aria-label={tLibrary(locale, "library.preview.board")}>
         <Chessboard
           options={{
-            id: `library-preview-${item.key}`,
+            id: `library-preview-${boardId}`,
             position: fen,
-            boardOrientation: orientation,
+            boardOrientation,
             showNotation: showCoordinates,
             animationDurationInMs: 0,
             showAnimations: false,

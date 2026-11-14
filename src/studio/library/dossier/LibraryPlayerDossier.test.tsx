@@ -160,12 +160,13 @@ test("cards follow the filters, omit accuracy and sit above the two areas", () =
   assert.ok(screen.getByTestId("dossier-openings"));
   assert.ok(screen.getByTestId("dossier-games"));
   assert.equal(screen.getByTestId("dossier-openings-empty").getAttribute("data-games"), "3");
+  assert.equal(screen.getAllByTestId("dossier-game-row").length, 3);
   assert.ok(screen.getByTestId("dossier-openings").parentElement?.className.includes("@min-[720px]:grid-cols-2"));
 
   fireEvent.click(screen.getByRole("button", { name: "White" }));
   assert.equal(screen.getByTestId("kpi-games").textContent, "2");
   assert.equal(screen.getByTestId("kpi-score").textContent, "100%");
-  assert.equal(screen.getByTestId("dossier-games-empty").getAttribute("data-games"), "2");
+  assert.equal(screen.getAllByTestId("dossier-game-row").length, 2);
 });
 
 test("Open in Studio runs the online-player flow with the filters' colour", () => {
