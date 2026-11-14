@@ -127,6 +127,9 @@ test("opponent prep: Prepare against updates a panel that is already open", asyn
   await page.getByRole("tab", { name: "Players" }).click();
   await search.fill("oldname");
   await page.getByRole("button", { name: /oldname/ }).first().click();
+  // SIG-1338: clicking a player opens the dossier in place; "Open in Studio"
+  // keeps the old online-player flow.
+  await page.getByRole("button", { name: "Open in Studio" }).click();
   await expect(page.getByRole("button", { name: "Prepare against", exact: true })).toBeVisible();
 
   // Back in the Library (it remembers Players mode), find the second player;
@@ -135,6 +138,7 @@ test("opponent prep: Prepare against updates a panel that is already open", asyn
   await page.getByRole("button", { name: "Library" }).first().click();
   await search.fill("DrNyk");
   await page.getByRole("button", { name: /DrNykterstein/ }).first().click();
+  await page.getByRole("button", { name: "Open in Studio" }).click();
   await page.getByRole("button", { name: "Prepare against", exact: true }).click();
 
   await expect(page.getByPlaceholder("Opponent username")).toHaveValue("DrNykterstein");
