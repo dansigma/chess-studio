@@ -8,6 +8,8 @@ import { describe, it } from "node:test";
 
 const sidebar = readFileSync(new URL("../../studio/MyGamesSidebar.tsx", import.meta.url), "utf8");
 const panel = readFileSync(new URL("../../studio/MyStatsPanel.tsx", import.meta.url), "utf8");
+// SIG-1329: the results-by-opening section lives in its own component.
+const openingResults = readFileSync(new URL("../../studio/stats/OpeningResultsTable.tsx", import.meta.url), "utf8");
 const dock = readFileSync(new URL("../../studio/StudioDock.tsx", import.meta.url), "utf8");
 const api = readFileSync(new URL("../../studio/dock-api.ts", import.meta.url), "utf8");
 const layout = readFileSync(new URL("../../studio/dock-layout.ts", import.meta.url), "utf8");
@@ -20,13 +22,14 @@ describe("My Stats panel contract (SIG-1091)", () => {
 
   it("renders the three stats sections from the stats module", () => {
     assert.ok(panel.includes("myGames.statsTrend"), "panel must render the accuracy trend heading");
-    assert.ok(panel.includes("myGames.statsByOpening"), "panel must render the results-by-opening heading");
+    assert.ok(panel.includes("OpeningResultsTable"), "panel must render the results-by-opening section component");
+    assert.ok(openingResults.includes("myGames.statsByOpening"), "results-by-opening component must render its heading");
     assert.ok(panel.includes("myGames.statsByPhase"), "panel must render the mistakes-by-phase heading");
     assert.ok(panel.includes("MyStatsTrend"), "panel must render the accuracy trend chart (accuracySeries lives in MyStatsTrend)");
     assert.ok(panel.includes("resultsByOpening"), "panel must aggregate with resultsByOpening");
     assert.ok(panel.includes("mistakesPerGame"), "panel must aggregate with mistakesPerGame");
     assert.ok(panel.includes("myGames.statsEmpty"), "panel must show the <3-reviewed empty state");
-    assert.ok(panel.includes('role="tab"'), "opening table must offer white/black tabs");
+    assert.ok(openingResults.includes('role="tab"'), "opening table must offer white/black tabs");
   });
 
   it("registers the myStats panel in the dock, sanitize set, and locale titles", () => {
