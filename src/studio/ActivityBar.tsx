@@ -2,8 +2,6 @@
 
 import {
   Bookmark,
-  Database,
-  Folder,
   GraduationCap,
   History,
   LayoutDashboard,
@@ -25,8 +23,6 @@ import { ChessboardIcon } from "./ui/ChessboardIcon";
 
 const items: { id: ActivityView; icon: typeof Search; titleKey: StudioChromeStringKey }[] = [
   { id: "boards", icon: ChessboardIcon, titleKey: "chrome.activity.boards" },
-  { id: "databases", icon: Database, titleKey: "chrome.activity.databases" },
-  { id: "files", icon: Folder, titleKey: "chrome.activity.files" },
   { id: "bookmarks", icon: Bookmark, titleKey: "chrome.activity.bookmarks" },
   { id: "mygames", icon: History, titleKey: "chrome.activity.mygames" },
 ];

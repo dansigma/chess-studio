@@ -70,25 +70,30 @@ async function selectDepth(page: import("@playwright/test").Page | import("@play
 async function importGame(
   page: import("@playwright/test").Page,
   pgn: string,
-  title: string,
 ) {
   await page.goto("/studio");
   const board = page.locator("[data-board-image]");
   await expect(board.locator('[data-square="e2"]')).toBeVisible();
 
-  await page.getByRole("button", { name: "Files", exact: true }).click();
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("menuitem", { name: /Paste PGN/ }).click();
-  await page.locator("textarea").fill(pgn);
-  await page.getByRole("button", { name: "Import", exact: true }).click();
-
-  await page.getByRole("button", { name: title, exact: true }).click();
+  // SIG-1325: import through the Library (+ Import PGN > Paste PGN), then open the game in the Studio.
+  await page.getByRole("button", { name: "Library" }).first().click();
+  await page.getByRole("button", { name: "+ Import PGN" }).click();
+  await page.getByRole("menuitem", { name: "Paste PGN" }).click();
+  await page.getByRole("textbox", { name: "PGN text" }).fill(pgn);
+  await page.getByRole("dialog").getByRole("button", { name: "Import", exact: true }).click();
+  // The finished import widget sits over the preview's bottom-right; close it first.
+  await page.getByTestId("library-import-widget").getByRole("button", { name: "Close" }).click();
+  await page.getByTestId("library-row").first().click();
+  // These specs expect the board at the end of the game (as the old Files
+  // panel opened it); "Open in Studio" opens at the preview's position.
+  await page.getByRole("button", { name: "Last move", exact: true }).click();
+  await page.getByRole("button", { name: "Open in Studio" }).click();
   await page.getByRole("tab", { name: "Game Review", exact: true }).click();
   await selectDepth(page, "Fast");
 }
 
 test("actions menu: depth radios, report items disabled until a report exists, no share row", async ({ page }) => {
-  await importGame(page, RUN_GAME, "Review Run");
+  await importGame(page, RUN_GAME);
   await expect(page.getByText(/Reviews every move with the engine/)).toBeVisible();
 
   await page.getByRole("button", { name: "Review actions", exact: true }).click();
@@ -112,7 +117,7 @@ test("actions menu: depth radios, report items disabled until a report exists, n
 });
 
 test("review run shows progress then the report and chart", async ({ page }) => {
-  await importGame(page, RUN_GAME, "Review Run");
+  await importGame(page, RUN_GAME);
 
   await page.getByRole("button", { name: "Review game", exact: true }).click();
 
@@ -133,7 +138,7 @@ test("review run shows progress then the report and chart", async ({ page }) => 
 });
 
 test("SIG-1219: tier counts jump to the move, and the badge shows on the board and in the move list", async ({ page }) => {
-  await importGame(page, BADGE_GAME, "Review Badges");
+  await importGame(page, BADGE_GAME);
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
 
@@ -163,7 +168,7 @@ test("SIG-1219: tier counts jump to the move, and the badge shows on the board a
 });
 
 test("review cancel stops the run and offers resume", async ({ page }) => {
-  await importGame(page, CANCEL_GAME, "Review Cancel");
+  await importGame(page, CANCEL_GAME);
 
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("progressbar", { name: "Review progress" })).toBeVisible();
@@ -176,7 +181,7 @@ test("review cancel stops the run and offers resume", async ({ page }) => {
 });
 
 test("key-moment navigation shows the Why? explanation inline under the active row (SIG-1208)", async ({ page }) => {
-  await importGame(page, MOMENTS_GAME, "Review Moments");
+  await importGame(page, MOMENTS_GAME);
 
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({
@@ -221,7 +226,7 @@ test("key-moment navigation shows the Why? explanation inline under the active r
 });
 
 test("a fresh review offers to train the captured mistakes (SIG-1206)", async ({ page }) => {
-  await importGame(page, TRAIN_GAME, "Review Train");
+  await importGame(page, TRAIN_GAME);
 
   const banner = page.getByTestId("train-mistakes-banner");
   await expect(banner).toHaveCount(0);
@@ -286,7 +291,7 @@ async function storedExercises(page: import("@playwright/test").Page) {
 }
 
 test("retry a mistake in place: wrong move reverts, solving records, engine is hidden, Exit restores (SIG-1209)", async ({ page }) => {
-  await importGame(page, RETRY_GAME, "Review Retry");
+  await importGame(page, RETRY_GAME);
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
 
@@ -385,7 +390,7 @@ test.fixme("reload restores the completed review from persistence", async () => 
 });
 
 test("SIG-1220: a game with clocks shows the Time section and the Evaluation | Time chart toggle; one without does not", async ({ page }) => {
-  await importGame(page, CLOCK_GAME, "Review Clocks");
+  await importGame(page, CLOCK_GAME);
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
   const time = page.locator("[data-report-section=time]");
@@ -401,7 +406,7 @@ test("SIG-1220: a game with clocks shows the Time section and the Evaluation | T
 });
 
 test("SIG-1220: a game without clocks renders no Time section and no chart toggle", async ({ page }) => {
-  await importGame(page, RUN_GAME, "Review Run");
+  await importGame(page, RUN_GAME);
   await page.getByRole("button", { name: "Review game", exact: true }).click();
   await expect(page.getByRole("button", { name: "Review again", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.locator("[data-report-card]")).toBeVisible();

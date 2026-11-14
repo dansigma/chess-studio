@@ -122,7 +122,7 @@ function seedSignedInUser(user: { id: string; email: string | null }): SignedInS
     user,
     boards: [residueBoard()],
     activeBoardId: "board-a1",
-    activity: "files",
+    activity: "bookmarks",
     databaseSource: "file:db-a1",
     explorer: {
       source: "file:db-a1",

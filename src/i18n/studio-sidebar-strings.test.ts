@@ -17,20 +17,5 @@ test("every studio sidebar string key renders non-empty in both locales", () => 
 });
 
 test("studio sidebar interpolated strings render whole sentences with vars", () => {
-  assert.equal(tSidebar("en", "sidebar.databases.sources.other", { count: 3 }), "3 sources");
-  assert.equal(
-    tSidebar("pt-br", "sidebar.databases.sources.other", { count: 3 }),
-    "3 fontes",
-  );
-  assert.equal(tSidebar("en", "sidebar.databases.sources.one", { count: 1 }), "1 source");
-  assert.equal(tSidebar("pt-br", "sidebar.databases.sources.one", { count: 1 }), "1 fonte");
-  assert.equal(
-    tSidebar("en", "sidebar.files.moveFolder", { name: "Openings" }),
-    'Move folder "Openings"',
-  );
-  assert.equal(
-    tSidebar("pt-br", "sidebar.files.moveFolder", { name: "Aberturas" }),
-    'Mover pasta "Aberturas"',
-  );
   assert.equal(tSidebar("pt-br", "sidebar.boards.keepName", { title: "Xadrez" }), "Manter Xadrez");
 });

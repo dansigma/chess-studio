@@ -80,7 +80,7 @@ describe("workspace view change closes the side panel (SIG-1317)", () => {
   it("going back to studio from library also collapses", () => {
     open();
     useStudioStore.getState().setWorkspaceView("library");
-    useStudioStore.getState().setActivity("files");
+    useStudioStore.getState().setActivity("bookmarks");
     assert.equal(collapsed(), false);
     useStudioStore.getState().setWorkspaceView("studio");
     assert.equal(collapsed(), true);

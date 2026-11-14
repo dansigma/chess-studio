@@ -36,7 +36,7 @@ import type { ParsedFileGame } from "@/src/chess/pgn-games";
 export type BoardOrientation = "white" | "black";
 // SIG-1273: center work area. Separate from ActivityView (sidebars only).
 export type WorkspaceView = "studio" | "library" | "live";
-export type ActivityView = "boards" | "databases" | "files" | "bookmarks" | "mygames";
+export type ActivityView = "boards" | "bookmarks" | "mygames";
 
 // SIG-1187: pending Forward continuation choice — the board and cursor position
 // the chooser was opened from. Nullable so "no chooser open" needs no sentinel.
@@ -348,14 +348,12 @@ export type StudioState = {
     name: string,
     pgn: string,
     folderId?: string | null,
-    options?: { focusFiles?: boolean },
   ) => string;
   /** Adds a database from already parsed games (the Library import queue). Returns its id. */
   importParsedDatabase: (
     name: string,
     games: ParsedFileGame[],
     folderId?: string | null,
-    options?: { focusFiles?: boolean },
   ) => string;
   /** Replaces a database's games, keeping its id (Library import: Replace / Merge). False if the id is unknown. */
   replaceFileDatabaseGames: (id: string, games: ParsedFileGame[]) => boolean;

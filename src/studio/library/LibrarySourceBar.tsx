@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { Ellipsis, Star, TriangleAlert } from "lucide-react";
+import { ClipboardPaste, Ellipsis, FileUp, Star, TriangleAlert } from "lucide-react";
 import { tLibrary } from "@/src/i18n/library-strings";
 import { explorerSourceTitle } from "@/src/lib/explorer-types";
 import { MASTERS_SOURCE_ID } from "@/src/lib/library/masters-source";
@@ -16,6 +16,16 @@ import { Dialog } from "../ui/Dialog";
 import { MenuItem, MenuSurface } from "../ui/Menu";
 import { formatGameCount } from "./filter-chips";
 import { selectAll, selectOnly, toggleSource } from "./library-sources";
+import {
+  FolderMoveDialog,
+  FolderSelect,
+  FoldersMenu,
+  PastePgnDialog,
+  PopMenu,
+  anchorBelow,
+  folderScope,
+  useSelectedFolderId,
+} from "./LibraryFolders";
 import { useLibraryStore } from "./library-store";
 import { libraryToExplorerSource } from "./reference-source";
 import { useLibraryImport } from "./use-library-import";
@@ -117,6 +127,12 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ databaseId: string; x: number; y: number } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const [importMenu, setImportMenu] = useState<{ x: number; y: number } | null>(null);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const folders = useStudioStore((s) => s.files.folders);
+  const moveFileDatabase = useStudioStore((s) => s.moveFileDatabase);
+  const selectedFolderId = useSelectedFolderId();
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menu) {
@@ -260,13 +276,32 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
   };
 
   const publicIds = ids.filter((id) => id === MASTERS_SOURCE_ID);
-  const mineIds = ids.filter((id) => id !== MASTERS_SOURCE_ID);
+  // SIG-1325: the folder selector limits the PGN file cards (My Games always stays).
+  const scope = folderScope(folders, selectedFolderId);
+  const mineIds = ids.filter((id) => {
+    if (id === MASTERS_SOURCE_ID) {
+      return false;
+    }
+    if (!scope || !id.startsWith("file:")) {
+      return true;
+    }
+    const database = databases.find((item) => `file:${item.id}` === id);
+    return database?.folderId ? scope.has(database.folderId) : false;
+  });
   // My Games first, then the PGN files in registration order.
   mineIds.sort((a, b) => Number(b === "my-games") - Number(a === "my-games"));
 
   const importControl = (
     <>
-      <Button variant="ghost" size="sm" className="shrink-0" onClick={() => fileInputRef.current?.click()}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="shrink-0"
+        aria-haspopup="menu"
+        aria-expanded={importMenu !== null}
+        data-popmenu-trigger=""
+        onClick={(event) => setImportMenu(importMenu ? null : anchorBelow(event.currentTarget))}
+      >
         {tLibrary(locale, "library.import.button")}
       </Button>
       <input
@@ -293,6 +328,12 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
         <span className="text-caption font-semibold uppercase tracking-wide text-studio-faint">
           {tLibrary(locale, key)}
         </span>
+        {key === "library.sources.group.mine" ? (
+          <>
+            <FolderSelect />
+            <FoldersMenu />
+          </>
+        ) : null}
         {groupIds.map(card)}
         {key === "library.sources.group.mine" ? importControl : null}
       </div>
@@ -300,6 +341,7 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
 
   const menuDb = menu ? databases.find((item) => item.id === menu.databaseId) : undefined;
   const deletingDb = deletingId ? databases.find((item) => item.id === deletingId) : undefined;
+  const movingDb = movingId ? databases.find((item) => item.id === movingId) : undefined;
 
   return (
     <div
@@ -324,6 +366,13 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
               }}
             />
             <MenuItem
+              label={tLibrary(locale, "library.sources.file.move")}
+              onClick={() => {
+                setMenu(null);
+                setMovingId(menuDb.id);
+              }}
+            />
+            <MenuItem
               label={tLibrary(locale, "library.sources.file.export")}
               onClick={() => {
                 setMenu(null);
@@ -340,6 +389,40 @@ export function LibrarySourceBar({ sourceErrors }: LibrarySourceBarProps) {
             />
           </MenuSurface>
         </div>
+      ) : null}
+      {importMenu ? (
+        <PopMenu anchor={importMenu} label={tLibrary(locale, "library.import.button")} onClose={() => setImportMenu(null)}>
+          <MenuItem
+            label={tLibrary(locale, "library.import.fromFile")}
+            leading={<FileUp size={14} className="text-studio-faint" />}
+            onClick={() => {
+              setImportMenu(null);
+              fileInputRef.current?.click();
+            }}
+          />
+          <MenuItem
+            label={tLibrary(locale, "library.import.paste")}
+            leading={<ClipboardPaste size={14} className="text-studio-faint" />}
+            onClick={() => {
+              setImportMenu(null);
+              setPasteOpen(true);
+            }}
+          />
+        </PopMenu>
+      ) : null}
+      {pasteOpen ? <PastePgnDialog onImport={(file) => void importFiles([file])} onClose={() => setPasteOpen(false)} /> : null}
+      {movingDb ? (
+        <FolderMoveDialog
+          title={tLibrary(locale, "library.folders.moveFileTitle", { name: movingDb.name })}
+          noneLabel={tLibrary(locale, "library.folders.none")}
+          noneDisabled={movingDb.folderId === null}
+          isDisabled={(id) => id === movingDb.folderId}
+          onClose={() => setMovingId(null)}
+          onPick={(folderId) => {
+            moveFileDatabase(movingDb.id, folderId);
+            setMovingId(null);
+          }}
+        />
       ) : null}
       {deletingDb ? (
         <Dialog

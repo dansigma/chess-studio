@@ -98,9 +98,7 @@ function addImportedDatabase(
   set: FilesSet,
   get: FilesGet,
   database: FileDatabase,
-  options?: { focusFiles?: boolean },
 ): string {
-  const focusFiles = options?.focusFiles !== false;
   set((state) => {
     const files = {
       ...state.files,
@@ -115,12 +113,6 @@ function addImportedDatabase(
       files,
       activeFileDatabaseId: database.id,
       activeFileGameId: null,
-      ...(focusFiles
-        ? {
-            activity: "files" as const,
-            settings: { ...state.settings, sidebarCollapsed: false },
-          }
-        : {}),
       statusMessage: stored ? imported : `${imported} · ${STORAGE_FULL_MESSAGE}`,
     };
   });
@@ -151,7 +143,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     set((state) => {
       const files = { ...state.files, folders: [...state.files.folders, folder] };
       saveLocalFiles(files);
-      return { files, activity: "files", settings: { ...state.settings, sidebarCollapsed: false } };
+      return { files };
     });
     const user = get().user;
     if (user) {
@@ -271,19 +263,13 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       });
     }
   },
-  importFileDatabase: (name, pgn, folderId = null, options) =>
-    addImportedDatabase(
-      set,
-      get,
-      libraryFromPgn(name.trim() || "Database", pgn, folderId),
-      options,
-    ),
-  importParsedDatabase: (name, games, folderId = null, options) =>
+  importFileDatabase: (name, pgn, folderId = null) =>
+    addImportedDatabase(set, get, libraryFromPgn(name.trim() || "Database", pgn, folderId)),
+  importParsedDatabase: (name, games, folderId = null) =>
     addImportedDatabase(
       set,
       get,
       { id: crypto.randomUUID(), remoteId: null, name: name.trim() || "Database", folderId, games },
-      options,
     ),
   replaceFileDatabaseGames: (id, games) => {
     const target = get().files.databases.find((item) => item.id === id);
@@ -313,7 +299,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
   },
   showFileDatabase: (id) => set({ activeFileDatabaseId: id }),
   openPgnSource: (name, pgn) => {
-    get().importFileDatabase(name, pgn, null, { focusFiles: false });
+    get().importFileDatabase(name, pgn);
     get().importPgnText(pgn, name);
     if (get().statusMessage === "Could not open that PGN.") {
       return;

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { X } from "lucide-react";
 import { tLibrary } from "@/src/i18n/library-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -9,6 +10,24 @@ import { Button, IconButton } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { Panel } from "../ui/Panel";
 import { useImportQueue, type ImportEntry } from "./import-queue-store";
+
+/** A clean finished import closes itself after this delay (ms). */
+export const AUTO_DISMISS_MS = 4000;
+
+/**
+ * True when every file finished and none needs the user's attention (no
+ * failure, no over-limit or unreadable games). The widget sits over the bottom
+ * of the preview, so it must not linger on top of "Open in Studio".
+ */
+export function isCleanlyFinished(entries: readonly ImportEntry[]): boolean {
+  return (
+    entries.length > 0 &&
+    entries.every(
+      (entry) =>
+        (entry.state === "done" || entry.state === "cancelled") && !entry.overLimit && !entry.unreadable,
+    )
+  );
+}
 
 const STATE_KEYS = {
   waiting: "library.import.widget.waiting",
@@ -126,6 +145,14 @@ export function LibraryImportWidget() {
   const entries = useImportQueue((s) => s.entries);
   const cancel = useImportQueue((s) => s.cancel);
   const dismiss = useImportQueue((s) => s.dismiss);
+  const clean = isCleanlyFinished(entries);
+  useEffect(() => {
+    if (!clean) {
+      return;
+    }
+    const timer = window.setTimeout(dismiss, AUTO_DISMISS_MS);
+    return () => window.clearTimeout(timer);
+  }, [clean, entries, dismiss]);
   if (entries.length === 0) {
     return null;
   }

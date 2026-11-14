@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * SIG-932: PGN round-trip — paste a short game via Files > Add, open the
+ * SIG-932: PGN round-trip — paste a short game via Library > + Import PGN > Paste PGN, open the
  * imported game onto the board, then copy the board PGN from the File menu.
  */
 const SHORT_GAME = `[Event "Smoke"]
@@ -11,7 +11,6 @@ const SHORT_GAME = `[Event "Smoke"]
 [Result "1-0"]
 
 1. e4 e5 2. Nf3 1-0`;
-const GAME_TITLE = "Smoke";
 
 test("pgn import/export round-trips a short game", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -19,18 +18,18 @@ test("pgn import/export round-trips a short game", async ({ page, context }) => 
   const board = page.locator('[data-board-image]');
   await expect(board.locator('[data-square="e2"]')).toBeVisible();
 
-  // Sidebar defaults to Boards — switch to Files, then Add > Paste PGN…
-  await page.getByRole("button", { name: "Files", exact: true }).click();
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await page.getByRole("menuitem", { name: /Paste PGN/ }).click();
-  await page.locator("textarea").fill(SHORT_GAME);
-  await page.getByRole("button", { name: "Import", exact: true }).click();
+  // SIG-1325: import through the Library (+ Import PGN > Paste PGN), then open the game in the Studio.
+  await page.getByRole("button", { name: "Library" }).first().click();
+  await page.getByRole("button", { name: "+ Import PGN" }).click();
+  await page.getByRole("menuitem", { name: "Paste PGN" }).click();
+  await page.getByRole("textbox", { name: "PGN text" }).fill(SHORT_GAME);
+  await page.getByRole("dialog").getByRole("button", { name: "Import", exact: true }).click();
+  // The finished import widget sits over the preview's bottom-right; close it first.
+  await page.getByTestId("library-import-widget").getByRole("button", { name: "Close" }).click();
+  await page.getByTestId("library-row").first().click();
+  await page.getByRole("button", { name: "Open in Studio" }).click();
 
-  // The imported database lists the game in the Games panel; open it so the
-  // moves land on the board (import alone only files the game away).
-  await page.getByRole("button", { name: GAME_TITLE, exact: true }).click();
-  // Opening the game selects the Games tab in the side dock — switch to the
-  // notation to confirm the moves parsed into the active board.
+  // Switch to the notation to confirm the moves parsed into the active board.
   await page.getByRole("tab", { name: "Notation", exact: true }).click();
   await expect(page.getByRole("button", { name: "Nf3", exact: true })).toBeVisible();
 

@@ -70,7 +70,7 @@ test("Live label is Ao Vivo in pt-br", () => {
 });
 
 // SIG-1298: labels follow settings.sidebarCollapsed.
-const NAV_ITEMS = ["Studio", "Courses", "Puzzles", "Open boards", "Databases", "Files", "Bookmarks", "My Games", "Library", "Live"];
+const NAV_ITEMS = ["Studio", "Courses", "Puzzles", "Open boards", "Bookmarks", "My Games", "Library", "Live"];
 
 function labelsFor(name: string) {
   return Array.from(document.querySelectorAll("[data-activity-label]")).filter((el) => el.textContent === name);
@@ -114,7 +114,7 @@ test("inactive link and button share the label colour; active item uses text-stu
   render(<ActivityBar />);
   const labelWrapper = (el: Element) => el.closest("a, button")!;
   const courses = labelWrapper(screen.getByRole("link", { name: "Courses" }));
-  const files = labelWrapper(screen.getByRole("button", { name: "Files" }));
+  const files = labelWrapper(screen.getByRole("button", { name: "Bookmarks" }));
   const colour = (el: Element) => el.className.split(/\s+/).filter((c) => c.startsWith("text-studio-"));
   assert.deepEqual(colour(courses), ["text-studio-muted"]);
   assert.deepEqual(colour(files), ["text-studio-muted"]);
@@ -130,4 +130,11 @@ test("the activity bar no longer has a Search item (SIG-1318)", () => {
   render(<ActivityBar />);
   assert.equal(screen.queryByRole("button", { name: "Search" }), null);
   assert.ok(screen.getByRole("button", { name: "Open boards" }));
+});
+
+test("the activity bar has neither the Databases nor the Files item (SIG-1325)", () => {
+  render(<ActivityBar />);
+  for (const name of ["Databases", "Files"]) {
+    assert.equal(screen.queryByRole("button", { name }), null);
+  }
 });

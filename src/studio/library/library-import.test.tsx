@@ -40,7 +40,7 @@ test("overlay shows only for file drags and hides on leave and drop", async () =
 
 test("dropping files imports each without focusing Files and selects the last one", async () => {
   const before = useStudioStore.getState().files.databases.length;
-  useStudioStore.setState({ activity: "explorer" } as never);
+  useStudioStore.setState({ activity: "boards" });
   await act(async () => { render(<LibraryView />); });
   const root = screen.getByTestId("library-view");
   await act(async () => {
@@ -50,7 +50,7 @@ test("dropping files imports each without focusing Files and selects the last on
   const dbs = useStudioStore.getState().files.databases;
   assert.equal(dbs.length, before + 2);
   assert.deepEqual(dbs.slice(-2).map((d) => d.name), ["First", "Second"]);
-  assert.notEqual(useStudioStore.getState().activity, "files");
+  assert.equal(useStudioStore.getState().activity, "boards");
   assert.deepEqual(useLibraryStore.getState().filters.sources, [`file:${dbs[dbs.length - 1].id}`]);
   assert.deepEqual(useImportQueue.getState().entries.map((e) => e.state), ["done", "done"]);
   const status = useStudioStore.getState().statusMessage ?? "";

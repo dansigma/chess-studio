@@ -14,6 +14,9 @@ export type LibraryState = {
   filtersOpen: boolean;
   /** SIG-1318: Games (default) or Players; mirrored in `?mode=players`. */
   mode: LibraryMode;
+  /** SIG-1325: folder limiting the PGN file cards in the source bar; null = all folders. Not persisted. */
+  folderId: string | null;
+  setFolderId: (folderId: string | null) => void;
   setMode: (mode: LibraryMode) => void;
   setFilter: <K extends keyof LibraryFilterState>(key: K, value: LibraryFilterState[K]) => void;
   setSources: (sources: LibraryFilterState["sources"]) => void;
@@ -39,6 +42,8 @@ export const useLibraryStore = create<LibraryState>((set) => ({
   selectedKey: null,
   filtersOpen: false,
   mode: "games",
+  folderId: null,
+  setFolderId: (folderId) => set({ folderId }),
   setMode: (mode) => set({ mode }),
   setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),
   setSources: (sources) => set((s) => ({ filters: { ...s.filters, sources } })),
