@@ -32,6 +32,8 @@ import { LessonHeader } from "./lesson/LessonHeader";
 import { StudyLayout } from "./lesson/StudyLayout";
 import { StudyTransport } from "./lesson/StudyTransport";
 import { ShortcutsDialog } from "./lesson/ShortcutsDialog";
+import { LessonMoveList, LessonMoveStrip } from "./lesson/LessonMoveList";
+import { clampViewStep } from "./lesson/move-list.ts";
 import {
   chapterSegments,
   lastReachedStep,
@@ -58,7 +60,10 @@ export function LessonView({
         : course,
     [content, course],
   );
+  // `step` is saved progress (the frontier); `view` is the frame on the board.
+  // Browsing back only moves `view` and never saves.
   const [step, setStep] = useState(0);
+  const [view, setView] = useState(0);
   const [notice, setNotice] = useState("");
   const [hint, setHint] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -96,6 +101,7 @@ export function LessonView({
     setLessonKey(currentLessonKey);
     const saved = loaded ? savedProgress[variationId] : undefined;
     setStep(saved?.step ?? 0);
+    setView(saved?.step ?? 0);
     setReached(saved?.step ?? 0);
     setFlipped(false);
     setShowShortcuts(false);
@@ -114,9 +120,16 @@ export function LessonView({
     );
   }, [loaded]);
 
-  const frame = frames[Math.min(step, Math.max(frames.length - 1, 0))];
-  const waiting = Boolean(frame?.move?.student);
-  const done = frames.length > 0 && step >= frames.length - 1;
+  const lastStep = Math.max(frames.length - 1, 0);
+  const learnedNow = Boolean(loaded && savedProgress[variationId]?.learned);
+  const reachedStep = lastReachedStep(
+    Math.max(reached, step),
+    learnedNow,
+    frames.length,
+  );
+  const frame = frames[Math.min(view, lastStep)];
+  const waiting = Boolean(frame?.move?.student) && view === step;
+  const done = frames.length > 0 && view >= lastStep;
   const studentSide = loaded?.course.color === "white" ? "w" : "b";
 
   // SIG-1052: first open per signed-in user and course, only when the lesson
@@ -143,6 +156,7 @@ export function LessonView({
       next = afterFirstLearn(next, new Date());
     }
     setStep(next.step);
+    setView(next.step);
     setReached((value) => Math.max(value, next.step));
     setNotice("");
     setHint(false);
@@ -158,13 +172,21 @@ export function LessonView({
     );
   }
 
+  // Navigation only: never persists, never reveals frames past the reached one.
   function go(nextStep: number) {
-    persist(nextStep);
+    setView(clampViewStep(nextStep, reachedStep));
+    setNotice("");
+    setHint(false);
+    setSelected(null);
   }
 
   function playExpected() {
+    if (view < reachedStep) {
+      go(view + 1);
+      return;
+    }
     if (frame?.move && !frame.move.student) {
-      go(step + 1);
+      persist(step + 1);
     }
   }
 
@@ -182,16 +204,11 @@ export function LessonView({
     return true;
   }
 
-  const learnedNow = Boolean(loaded && savedProgress[variationId]?.learned);
-  const endStep = lastReachedStep(
-    Math.max(reached, step),
-    learnedNow,
-    frames.length,
-  );
+  const endStep = reachedStep;
   const actions = useRef({
     go,
     playExpected,
-    step,
+    step: view,
     waiting,
     done,
     endStep,
@@ -202,7 +219,7 @@ export function LessonView({
     actions.current = {
       go,
       playExpected,
-      step,
+      step: view,
       waiting,
       done,
       endStep,
@@ -313,7 +330,7 @@ export function LessonView({
     );
   }
 
-  const previous = step > 0 ? frames[step - 1]?.move : null;
+  const previous = view > 0 ? frames[view - 1]?.move : null;
   const squareStyles: Record<
     string,
     { backgroundColor?: string; backgroundImage?: string; boxShadow?: string }
@@ -422,11 +439,11 @@ export function LessonView({
           <>
             <StudyTransport
               locale={locale}
-              atStart={step === 0}
+              atStart={view === 0}
               canForward={!waiting && !done}
-              canEnd={endStep > step}
+              canEnd={endStep > view}
               onStart={() => go(0)}
-              onBack={() => go(step - 1)}
+              onBack={() => go(view - 1)}
               onForward={playExpected}
               onEnd={() => go(endStep)}
               onFlip={() => setFlipped((value) => !value)}
@@ -434,24 +451,30 @@ export function LessonView({
             />
             <span className="ml-auto px-2 text-caption tabular-nums text-studio-muted">
               {tCourse(locale, "course.lesson.stepCounter", {
-                current: formatInteger(locale, step + 1),
+                current: formatInteger(locale, view + 1),
                 total: formatInteger(locale, frames.length),
               })}
             </span>
           </>
         }
       >
+        <LessonMoveList
+          locale={locale}
+          frames={frames}
+          reachedStep={reachedStep}
+          viewStep={view}
+          onSelect={go}
+        />
+        <LessonMoveStrip
+          locale={locale}
+          frames={frames}
+          reachedStep={reachedStep}
+          viewStep={view}
+          onSelect={go}
+        />
         <div className="space-y-3 p-4 text-body leading-relaxed text-studio-fg">
-          {frame.san ? (
-            <p className="text-caption text-studio-muted">
-              {tCourse(locale, "course.lesson.previousMove", {
-                san: frame.san,
-              })}
-            </p>
-          ) : null}
-          <p>{frame.comment || tCourse(locale, "course.lesson.followLine")}</p>
           {waiting && !hint ? (
-            <p className="font-medium text-studio-accent-text">
+            <p className="font-medium text-studio-accent-text lg:hidden">
               {tCourse(locale, "course.lesson.yourTurn")}
             </p>
           ) : null}
