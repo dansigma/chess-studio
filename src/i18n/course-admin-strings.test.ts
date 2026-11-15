@@ -36,3 +36,12 @@ test("course admin interpolated strings render whole sentences with vars", () =>
     "Substituir o curso publicado “Caro” por este rascunho do navegador?",
   );
 });
+
+test("SIG-1366 chapter and line labels use the issue's pt-BR wording", () => {
+  assert.equal(tCourseAdmin("pt-br", "course.admin.chapter.lines.other", { count: 3 }), "3 linhas");
+  assert.equal(tCourseAdmin("pt-br", "course.admin.chapter.lines.one"), "1 linha");
+  assert.equal(tCourseAdmin("pt-br", "course.admin.line.moves.other", { count: 5 }), "5 lances");
+  assert.equal(tCourseAdmin("pt-br", "course.admin.line.moves.one"), "1 lance");
+  assert.equal(tCourseAdmin("pt-br", "course.admin.chapter.description"), "Descrição do capítulo");
+  assert.equal(tCourseAdmin("pt-br", "course.admin.duplicate"), "Duplicar");
+});

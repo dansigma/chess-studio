@@ -16,15 +16,26 @@ const FILE = `[Event "Jobava London"]
 
 describe("chapter pgn upload", () => {
   it("turns each commented game into a line of the chapter", () => {
-    const lines = variationsFromChapterPgn(FILE);
+    const { lines, warnings } = variationsFromChapterPgn(FILE);
     assert.equal(lines.length, 2);
     assert.equal(lines[0]?.title, "1...d5");
     assert.equal(lines[1]?.title, "2...Nf6");
     assert.match(lines[0]?.pgn ?? "", /Nc3/);
+    assert.deepEqual(warnings, []);
     assert.equal(chapterTitleFromPgn(FILE), "Jobava London");
   });
 
   it("ignores a file with no moves", () => {
-    assert.deepEqual(variationsFromChapterPgn("[Event \"Empty\"]\n\n*"), []);
+    assert.deepEqual(variationsFromChapterPgn("[Event \"Empty\"]\n\n*"), { lines: [], warnings: [] });
+  });
+
+  it("reports the first problem of an imported line that skipped moves", () => {
+    const { lines, warnings } = variationsFromChapterPgn(
+      '[Event "Bad"]\n[Chapter "Main"]\n\n1. e4 e5 2. e5 *\n',
+    );
+    assert.equal(lines.length, 1);
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0]?.title, "Main");
+    assert.deepEqual(warnings[0]?.warning, { kind: "illegalMove", move: "e5" });
   });
 });

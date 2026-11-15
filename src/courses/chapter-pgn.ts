@@ -1,5 +1,6 @@
 import { importPgn } from "@/src/chess/pgn";
 import { parsePgnCollection } from "@/src/chess/pgn-games";
+import { linePgnWarnings, type LinePgnWarning } from "./line-check";
 import type { CourseVariation } from "./types";
 
 const GENERIC = new Set(["", "?", "white", "black", "unknown"]);
@@ -39,21 +40,36 @@ export function variationTitleFromHeaders(headers: Record<string, string>, index
   return `Line ${index + 1}`;
 }
 
-export function variationsFromChapterPgn(text: string): CourseVariation[] {
+/** SIG-1366: one imported line whose PGN skipped moves, with its first problem. */
+export type ChapterPgnWarning = { title: string; warning: LinePgnWarning };
+
+export type ChapterPgnVariations = {
+  lines: CourseVariation[];
+  warnings: ChapterPgnWarning[];
+};
+
+export function variationsFromChapterPgn(text: string): ChapterPgnVariations {
   const { games } = parsePgnCollection(text, 40);
   const lines: CourseVariation[] = [];
+  const warnings: ChapterPgnWarning[] = [];
   for (const game of games) {
     const imported = importPgn(game.pgn);
     if (imported.tree.children.length === 0) {
       continue;
     }
+    const title = variationTitleFromHeaders(imported.headers, lines.length);
     lines.push({
       id: game.id,
-      title: variationTitleFromHeaders(imported.headers, lines.length),
+      title,
       pgn: game.pgn.trim(),
     });
+    // SIG-1366: an import that skipped moves must say so instead of looking clean.
+    const first = linePgnWarnings(imported.warnings)[0];
+    if (first) {
+      warnings.push({ title, warning: first });
+    }
   }
-  return lines;
+  return { lines, warnings };
 }
 
 function sharedHeader(values: string[], gameCount: number): string {
