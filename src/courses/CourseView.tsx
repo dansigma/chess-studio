@@ -71,12 +71,11 @@ export function CourseView({ course }: { course: Course }) {
     <div className="min-h-full bg-studio-bg">
       <CourseChrome admin={admin} isAdmin={isAdmin} />
       <main className="mx-auto max-w-5xl px-6 py-8">
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-8">
-          <CourseOverview course={course} locale={locale} />
-          <div className="mt-6 lg:order-last lg:mt-0">
-            <CourseInfoCard course={course} progress={progress} ready={ready} locale={locale} />
-          </div>
-        </div>
+        <CourseOverview
+          course={course}
+          locale={locale}
+          aside={<CourseInfoCard course={course} progress={progress} ready={ready} locale={locale} />}
+        />
         {variationIds.length > 0 ? <div className="mt-5">
           <div className="mb-1 flex justify-between gap-3 text-caption text-studio-muted">
             <span>{tCourse(locale, "course.course.progressHeading")}</span>
