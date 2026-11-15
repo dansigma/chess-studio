@@ -12,6 +12,7 @@ import {
 import { resetRevalidateCalls, revalidateCalls } from "@/src/test-utils/stubs/next-cache.ts";
 import type { Course } from "./types.ts";
 import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields.ts";
+import { validateTierAndPrice } from "./author-actions.ts";
 
 const serverState: { server?: unknown } = {};
 const serviceState: { service?: unknown } = {};
@@ -172,33 +173,36 @@ test("student and signed-out callers are denied before any write", async () => {
   assert.equal(service.calls.upsert.length, 0);
 });
 
-test("coach draft save rejects tier/price mismatches and persists valid paid", async () => {
-  withCourseRow(null);
-  assert.deepEqual(await saveCourseDraft(course({ accessTier: "free", priceCents: 1990 })), {
-    ok: false,
-    error: { key: "course.admin.error.invalidPrice" },
-  });
-
-  withCourseRow(null);
-  assert.deepEqual(await saveCourseDraft(course({ accessTier: "paid", priceCents: null })), {
-    ok: false,
-    error: { key: "course.admin.error.invalidPrice" },
-  });
-
-  const { service } = withCourseRow(null);
-  const paid = await saveCourseDraft(course({ accessTier: "paid", priceCents: 1990 }));
-  assert.equal(paid.ok, true);
-  const upsert = service.calls.upsert.find((call) => call.table === "courses");
-  assert.equal((upsert!.row as { access_tier: string }).access_tier, "paid");
-  assert.equal((upsert!.row as { price_cents: number }).price_cents, 1990);
+test("coach draft save stores any tier as free with a null price (free launch)", async () => {
+  for (const input of [
+    course({ accessTier: "free", priceCents: 1990 }),
+    course({ accessTier: "paid", priceCents: null }),
+    course({ accessTier: "paid", priceCents: 1990 }),
+    course({ accessTier: "premium", priceCents: null }),
+  ]) {
+    const { service } = withCourseRow(null);
+    const saved = await saveCourseDraft(input);
+    assert.equal(saved.ok, true);
+    const upsert = service.calls.upsert.find((call) => call.table === "courses");
+    assert.equal((upsert!.row as { access_tier: string }).access_tier, "free");
+    assert.equal((upsert!.row as { price_cents: number | null }).price_cents, null);
+  }
 });
 
-test("admin publish rejects tier/price mismatches", async () => {
-  withCourseRow(null, ADMIN, "admin");
-  assert.deepEqual(await publishCourse(course({ accessTier: "paid", priceCents: null })), {
-    ok: false,
-    error: { key: "course.admin.error.invalidPrice" },
-  });
+test("admin publish stores a paid course as free with a null price (free launch)", async () => {
+  const { service } = withCourseRow(null, ADMIN, "admin");
+  const result = await publishCourse(course({ accessTier: "paid", priceCents: 1990 }));
+  assert.equal(result.ok, true);
+  const upsert = service.calls.upsert.find((call) => call.table === "courses");
+  assert.equal((upsert!.row as { access_tier: string }).access_tier, "free");
+  assert.equal((upsert!.row as { price_cents: number | null }).price_cents, null);
+});
+
+test("validateTierAndPrice still enforces the tier/price invariant", () => {
+  assert.deepEqual(validateTierAndPrice("free", 1990), { ok: false, error: "course.admin.error.invalidPrice" });
+  assert.deepEqual(validateTierAndPrice("paid", null), { ok: false, error: "course.admin.error.invalidPrice" });
+  assert.equal(validateTierAndPrice("paid", 1990).ok, true);
+  assert.equal(validateTierAndPrice("premium", null).ok, true);
 });
 
 test("admin approves in_review and revalidates the public pages", async () => {
