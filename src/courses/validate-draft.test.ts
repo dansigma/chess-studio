@@ -73,8 +73,16 @@ test("catalog field errors point at Informações", () => {
 });
 
 test("a too long description points at the summary on Descrição", () => {
-  const result = failure(validDraft({ summary: `<p>${"a".repeat(8001)}</p>` }));
+  const result = failure(validDraft({ summary: `<p>${"a".repeat(20001)}</p>` }));
   assert.equal(result.error.key, "course.admin.error.descriptionTooLong");
+  assert.deepEqual([result.tab, result.field], ["description", "summary"]);
+});
+
+test("a description may hold 12 diagrams; a 13th points at the summary on Descrição", () => {
+  const figure = '<figure data-fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"></figure>';
+  assert.equal(validateCourseDraft(validDraft({ summary: figure.repeat(12) })).ok, true);
+  const result = failure(validDraft({ summary: figure.repeat(13) }));
+  assert.equal(result.error.key, "course.admin.error.tooManyDiagrams");
   assert.deepEqual([result.tab, result.field], ["description", "summary"]);
 });
 
