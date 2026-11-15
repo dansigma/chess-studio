@@ -8,6 +8,8 @@ import {
   autoAdvance,
   guideArrows,
   guideComment,
+  hintArrows,
+  hintSquares,
   lessonOpenStep,
   lessonSessionReducer,
   lessonSummary,
@@ -97,6 +99,7 @@ describe("lesson session", () => {
     assert.deepEqual(lessonSummary(state, frames), {
       moves: 2,
       mistakes: 1,
+      hints: 0,
       comment: "Last comment",
     });
     state = { ...state, phase: "playing" };
@@ -117,6 +120,7 @@ describe("lesson session", () => {
       viewStep: 0,
       mistakes: 0,
       hintsUsed: 0,
+      hintLevel: 0,
       phase: "playing",
     });
   });
@@ -157,7 +161,7 @@ describe("lesson session", () => {
     assert.deepEqual(guideArrows(finished, frame(true)), []);
   });
 
-  it("auto-plays opponent frames only at the frontier in Aprender", () => {
+  it("auto-plays opponent frames at the frontier in both modes", () => {
     const frontier = run([{ type: "open", mode: "learn", step: 1, lastStep: 3 }]);
     assert.equal(autoAdvance(frontier, frame(false)), true);
     assert.equal(autoAdvance(frontier, frame(true)), false);
@@ -174,7 +178,83 @@ describe("lesson session", () => {
       mode: "train",
       lastStep: 3,
     });
-    assert.equal(autoAdvance(training, frame(false)), false);
+    assert.equal(autoAdvance(training, frame(false)), true);
+    assert.equal(autoAdvance(training, frame(true)), false);
+  });
+
+  it("Treinar hint ladder lights the piece, then the arrow, and counts", () => {
+    let state = run([{ type: "start", mode: "train", lastStep: 3 }]);
+    const target = frame(true);
+    assert.deepEqual(hintSquares(state, target), []);
+    assert.deepEqual(hintArrows(state, target), []);
+
+    state = lessonSessionReducer(state, { type: "hint" });
+    assert.equal(state.hintLevel, 1);
+    assert.equal(state.hintsUsed, 1);
+    assert.deepEqual(hintSquares(state, target), ["e2"]);
+    assert.deepEqual(hintArrows(state, target), []);
+
+    state = lessonSessionReducer(state, { type: "hint" });
+    assert.equal(state.hintLevel, 2);
+    assert.equal(state.hintsUsed, 2);
+    assert.deepEqual(hintSquares(state, target), ["e2"]);
+    assert.deepEqual(
+      hintArrows(state, target).map((arrow) => [
+        arrow.startSquare,
+        arrow.endSquare,
+        arrow.color,
+      ]),
+      [["e2", "e4", MARK_HEX.B]],
+    );
+
+    // A third press has nothing left to reveal and is not counted.
+    state = lessonSessionReducer(state, { type: "hint" });
+    assert.equal(state.hintLevel, 2);
+    assert.equal(state.hintsUsed, 2);
+
+    // The ladder resets on the student's next move.
+    state = lessonSessionReducer(state, { type: "advance", lastStep: 3 });
+    assert.equal(state.hintLevel, 0);
+    assert.deepEqual(hintSquares(state, target), []);
+  });
+
+  it("Treinar has no hints in Aprender, away from the frontier or on the summary", () => {
+    const learning = run([{ type: "start", mode: "learn", lastStep: 3 }]);
+    assert.deepEqual(
+      lessonSessionReducer(learning, { type: "hint" }),
+      learning,
+    );
+
+    const training = run([{ type: "start", mode: "train", lastStep: 1 }]);
+    const browsing = lessonSessionReducer(training, {
+      type: "view",
+      step: 0,
+      lastStep: 1,
+    });
+    assert.deepEqual(hintSquares(browsing, frame(true)), []);
+    assert.deepEqual(hintArrows(browsing, frame(true)), []);
+
+    const summary = run([
+      { type: "start", mode: "train", lastStep: 0 },
+    ]);
+    assert.equal(summary.phase, "summary");
+    assert.deepEqual(hintSquares(summary, frame(true)), []);
+  });
+
+  it("counts wrong Treinar moves without moving and keeps the hint", () => {
+    let state = run([
+      { type: "start", mode: "train", lastStep: 3 },
+      { type: "hint" },
+    ]);
+    state = lessonSessionReducer(state, { type: "wrong" });
+    state = lessonSessionReducer(state, { type: "wrong" });
+    assert.equal(state.mistakes, 2);
+    assert.equal(state.reachedStep, 0);
+    assert.equal(state.viewStep, 0);
+    assert.equal(state.phase, "playing");
+    // Same target move: the highlight the student already paid for stays.
+    assert.equal(state.hintLevel, 1);
+    assert.equal(state.hintsUsed, 1);
   });
 
   it("shows the author's comment of the move about to be played", () => {

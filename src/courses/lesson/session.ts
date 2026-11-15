@@ -6,6 +6,9 @@ import type { LessonFrame } from "../lesson.ts";
 export type LessonMode = "learn" | "train";
 export type LessonPhase = "playing" | "summary";
 
+/** Treinar hint ladder: 0 none, 1 the piece to move, 2 the full arrow. */
+export type LessonHintLevel = 0 | 1 | 2;
+
 export type LessonSession = {
   mode: LessonMode;
   /** Furthest frame reached in this pass; navigation never goes past it. */
@@ -14,6 +17,8 @@ export type LessonSession = {
   viewStep: number;
   mistakes: number;
   hintsUsed: number;
+  /** Current rung of the Treinar hint ladder. */
+  hintLevel: LessonHintLevel;
   phase: LessonPhase;
 };
 
@@ -23,6 +28,7 @@ export const INITIAL_LESSON_SESSION: LessonSession = {
   viewStep: 0,
   mistakes: 0,
   hintsUsed: 0,
+  hintLevel: 0,
   phase: "playing",
 };
 
@@ -35,7 +41,10 @@ export type LessonSessionAction =
   | { type: "view"; step: number; lastStep: number }
   /** One frame forward: a correct student move or an auto-played opponent move. */
   | { type: "advance"; lastStep: number }
-  | { type: "wrong" };
+  /** A student attempt outside the line: counts a mistake, stays put. */
+  | { type: "wrong" }
+  /** Treinar only: next rung of the hint ladder, counted. */
+  | { type: "hint" };
 
 function clampStep(step: number, lastStep: number): number {
   return Math.max(0, Math.min(step, Math.max(lastStep, 0)));
@@ -79,6 +88,7 @@ export function lessonSessionReducer(
         viewStep: step,
         mistakes: 0,
         hintsUsed: 0,
+        hintLevel: 0,
         phase: phaseAt(step, last),
       };
     }
@@ -90,21 +100,47 @@ export function lessonSessionReducer(
         viewStep: 0,
         mistakes: 0,
         hintsUsed: 0,
+        hintLevel: 0,
         phase: phaseAt(0, last),
       };
     }
     case "view": {
       const last = Math.max(action.lastStep, 0);
       const step = clampStep(action.step, Math.min(state.reachedStep, last));
-      return { ...state, viewStep: step, phase: phaseAt(step, last) };
+      // Browsing away from the frontier invalidates the hint for that frame.
+      return {
+        ...state,
+        viewStep: step,
+        hintLevel: 0,
+        phase: phaseAt(step, last),
+      };
     }
     case "advance": {
       const last = Math.max(action.lastStep, 0);
       const step = clampStep(state.reachedStep + 1, last);
-      return { ...state, reachedStep: step, viewStep: step, phase: phaseAt(step, last) };
+      // The next student move starts with no help.
+      return {
+        ...state,
+        reachedStep: step,
+        viewStep: step,
+        hintLevel: 0,
+        phase: phaseAt(step, last),
+      };
     }
     case "wrong":
+      // The target move did not change, so the ladder (and its highlight) stays.
       return { ...state, mistakes: state.mistakes + 1 };
+    case "hint": {
+      if (
+        state.mode !== "train" ||
+        state.phase !== "playing" ||
+        state.hintLevel >= 2
+      ) {
+        return state;
+      }
+      const hintLevel = (state.hintLevel + 1) as LessonHintLevel;
+      return { ...state, hintLevel, hintsUsed: state.hintsUsed + 1 };
+    }
   }
 }
 
@@ -120,13 +156,12 @@ export function lessonWaiting(
   );
 }
 
-/** In Aprender, an opponent frame at the frontier plays itself after a pause. */
+/** An opponent frame at the frontier plays itself after a pause in both modes. */
 export function autoAdvance(
   state: LessonSession,
   frame: LessonFrame | undefined,
 ): boolean {
   return (
-    state.mode === "learn" &&
     state.phase === "playing" &&
     state.viewStep === state.reachedStep &&
     Boolean(frame?.move) &&
@@ -162,10 +197,56 @@ export function guideComment(frames: LessonFrame[], step: number): string {
   return frames[step + 1]?.comment ?? "";
 }
 
+/**
+ * Squares lit by the first hint: the piece the student has to move. Empty
+ * outside Treinar, before the first hint or away from the frontier.
+ */
+export function hintSquares(
+  state: LessonSession,
+  frame: LessonFrame | undefined,
+): string[] {
+  if (
+    state.mode !== "train" ||
+    state.hintLevel < 1 ||
+    !lessonWaiting(state, frame) ||
+    !frame?.move
+  ) {
+    return [];
+  }
+  return [frame.move.from];
+}
+
+/**
+ * The arrow of the second hint, from the piece to its destination. Empty
+ * outside Treinar or before the ladder's second rung.
+ */
+export function hintArrows(
+  state: LessonSession,
+  frame: LessonFrame | undefined,
+): LessonGuideArrow[] {
+  if (
+    state.mode !== "train" ||
+    state.hintLevel < 2 ||
+    !lessonWaiting(state, frame) ||
+    !frame?.move
+  ) {
+    return [];
+  }
+  return [
+    {
+      startSquare: frame.move.from,
+      endSquare: frame.move.to,
+      color: MARK_HEX.B,
+    },
+  ];
+}
+
 export type LessonSummary = {
   /** Moves in the line, all played once the summary is up. */
   moves: number;
   mistakes: number;
+  /** Hints taken in this Treinar pass. */
+  hints: number;
   /** The last author comment: the strategic plan. */
   comment: string;
 };
@@ -180,6 +261,7 @@ export function lessonSummary(
   return {
     moves: Math.max(frames.length - 1, 0),
     mistakes: state.mistakes,
+    hints: state.hintsUsed,
     comment: frames[frames.length - 1]?.comment ?? "",
   };
 }
