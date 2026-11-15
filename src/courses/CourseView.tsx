@@ -6,14 +6,13 @@ import { useRouter } from "next/navigation";
 import { importPgn } from "@/src/chess/pgn";
 import { writeCourseStudyImport } from "@/src/chess/share-board";
 import { tCourse } from "@/src/i18n/course-strings";
-import { formatInteger } from "@/src/i18n/format";
 import { lessonFrames } from "./lesson";
 import { CourseChrome } from "./CourseChrome";
-import { ProgressBar } from "@/src/site/ui/ProgressBar";
 import { CourseOverview } from "./ui/CourseOverview";
+import { CourseProgressHeader } from "./ui/CourseProgressHeader";
 import { CourseInfoCard } from "./ui/CourseInfoCard";
 import { CourseSyllabus } from "./ui/CourseSyllabus";
-import { coursePercent, courseVariationIds } from "./store";
+import { courseVariationIds } from "./store";
 import { checkCourseAccess, recordEnrollment } from "./enrollment";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import type { Course } from "./types";
@@ -61,42 +60,19 @@ export function CourseView({ course }: { course: Course }) {
     return counts;
   }, [course]);
 
-  const percent = coursePercent(course, progress);
   const variationIds = courseVariationIds(course);
-  const learnedCount = variationIds.filter((id) => progress[id]?.learned).length;
-  const startedCount = variationIds.filter((id) => (progress[id]?.step ?? 0) > 0 && !progress[id]?.learned).length;
 
   return (
     <div className="min-h-full bg-studio-bg">
       <CourseChrome admin={admin} isAdmin={isAdmin} />
       <main className="mx-auto max-w-5xl px-6 py-8">
+        <CourseProgressHeader course={course} progress={progress} ready={ready} locale={locale} />
         <CourseOverview
           course={course}
           locale={locale}
           aside={<CourseInfoCard course={course} progress={progress} ready={ready} locale={locale} />}
         />
         {variationIds.length > 0 ? <div className="mt-5">
-          <div className="mb-1 flex justify-between gap-3 text-caption text-studio-muted">
-            <span>{tCourse(locale, "course.course.progressHeading")}</span>
-            <span>
-              {tCourse(locale, "course.course.learnedSummary", {
-                learned: formatInteger(locale, learnedCount),
-                total: formatInteger(locale, variationIds.length),
-              })}
-              {startedCount > 0
-                ? ` · ${
-                    startedCount === 1
-                      ? tCourse(locale, "course.course.inProgress.one", {
-                          count: formatInteger(locale, startedCount),
-                        })
-                      : tCourse(locale, "course.course.inProgress.other", {
-                          count: formatInteger(locale, startedCount),
-                        })
-                  }`
-                : ""}
-            </span>
-          </div>
-          <ProgressBar value={percent} label={tCourse(locale, "course.course.progressAria")} />
           {source === "account" ? (
             <p className="mt-2 text-caption text-studio-muted">{tCourse(locale, "course.course.savedAccount")}</p>
           ) : signedIn ? (
