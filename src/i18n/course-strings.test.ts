@@ -35,6 +35,32 @@ test("tier labels render for every access tier in both locales", () => {
   assert.equal(tCourse("pt-br", "course.tier.price", { price: "19,90" }), "R$ 19,90");
 });
 
+test("Aprender mode and summary labels match the redesign", () => {
+  assert.equal(tCourse("en", "course.lesson.mode.learn"), "Learn");
+  assert.equal(tCourse("pt-br", "course.lesson.mode.learn"), "Aprender");
+  assert.equal(tCourse("en", "course.lesson.mode.train"), "Train");
+  assert.equal(tCourse("pt-br", "course.lesson.mode.train"), "Treinar");
+  assert.equal(
+    tCourse("en", "course.lesson.summary.moves", { count: "7" }),
+    "Moves played: 7",
+  );
+  assert.equal(
+    tCourse("pt-br", "course.lesson.summary.moves", { count: "7" }),
+    "Lances jogados: 7",
+  );
+  assert.equal(
+    tCourse("pt-br", "course.lesson.summary.mistakes", { count: "2" }),
+    "Erros: 2",
+  );
+  assert.equal(tCourse("pt-br", "course.lesson.summary.heading"), "Linha concluída");
+  assert.equal(tCourse("pt-br", "course.lesson.summary.plan"), "Plano estratégico");
+  assert.equal(tCourse("pt-br", "course.lesson.summary.restart"), "Refazer");
+  assert.equal(
+    tCourse("pt-br", "course.lesson.summary.review"),
+    "Continuar para Revisão",
+  );
+});
+
 test("course outcome strings render whole sentences with vars", () => {
   assert.equal(tCourse("en", "course.lesson.stepCounter", { current: 2, total: 5 }), "2 / 5");
   assert.equal(tCourse("pt-br", "course.lesson.stepCounter", { current: 2, total: 5 }), "2 / 5");

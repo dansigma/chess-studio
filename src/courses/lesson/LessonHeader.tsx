@@ -7,12 +7,14 @@ import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { lineProgressLabel } from "../lesson.ts";
 import type { VariationProgress } from "../types";
+import type { LessonMode } from "./session.ts";
 import type { ChapterSegment } from "./model";
 
 /**
- * Course and chapter (linking back), line title, "Variant X of Y" and one
- * clickable segment per line of the chapter. ProgressBar's segments are not
- * interactive, so these are links with the same look.
+ * Course and chapter (linking back), line title, the Aprender/Treinar label,
+ * "Variant X of Y" and one clickable segment per line of the chapter.
+ * ProgressBar's segments are not interactive, so these are links with the
+ * same look.
  */
 export function LessonHeader({
   locale,
@@ -20,6 +22,7 @@ export function LessonHeader({
   courseTitle,
   chapterTitle,
   lineTitle,
+  mode,
   segments,
   progress,
   actions,
@@ -29,6 +32,7 @@ export function LessonHeader({
   courseTitle: string;
   chapterTitle: string;
   lineTitle: string;
+  mode: LessonMode;
   segments: ChapterSegment[];
   progress: Record<string, VariationProgress | undefined>;
   actions?: ReactNode;
@@ -49,9 +53,22 @@ export function LessonHeader({
               {chapterTitle}
             </Link>
           </p>
-          <h1 className="text-body font-semibold text-studio-fg">
-            {lineTitle}
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-body font-semibold text-studio-fg">
+              {lineTitle}
+            </h1>
+            <span
+              data-lesson-mode
+              className="rounded-full bg-studio-hover px-2 py-0.5 text-caption font-medium text-studio-accent-text"
+            >
+              {tCourse(
+                locale,
+                mode === "train"
+                  ? "course.lesson.mode.train"
+                  : "course.lesson.mode.learn",
+              )}
+            </span>
+          </div>
           {current ? (
             <p className="text-caption tabular-nums text-studio-muted">
               {tCourse(locale, "course.lesson.variantOf", {
