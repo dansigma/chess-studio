@@ -157,6 +157,31 @@ test("modifier-click toggles and keeps at least one; All restores", async () => 
   assert.equal(sources().length, 3);
 });
 
+test("the game count sits on a subline under the name", async () => {
+  seed(TACTICS);
+  await renderRail();
+  const count = within(rowOf(/^Tactics/)).getByTestId("library-source-count");
+  assert.equal(count.textContent, "3 games");
+  // Name and count are separate lines, so a long name never truncates against the count.
+  assert.equal(count.previousElementSibling?.textContent, "Tactics");
+});
+
+test("the hover checkbox adds or removes a source and keeps the last one", async () => {
+  seed(TACTICS);
+  await renderRail();
+  fireEvent.click(card(/^Tactics/));
+  const box = (name: RegExp) => within(rowOf(name)).getByTestId("library-source-checkbox") as HTMLInputElement;
+  assert.equal(box(/^Tactics/).checked, true);
+  assert.equal(box(/^Tactics/).disabled, true); // the last selected source stays
+  fireEvent.click(box(/^Masters/));
+  assert.deepEqual(sources(), ["file:db1", "masters"]);
+  assert.equal(box(/^Masters/).checked, true);
+  assert.equal(box(/^Tactics/).disabled, false);
+  assert.ok(box(/^Masters/).getAttribute("aria-label")?.includes("Masters"));
+  fireEvent.click(box(/^Tactics/));
+  assert.deepEqual(sources(), ["masters"]);
+});
+
 test("shows a failure marker on the row and no count when My Games fails", async () => {
   seed(TACTICS);
   clearLibrarySources();

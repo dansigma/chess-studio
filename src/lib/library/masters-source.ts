@@ -156,7 +156,8 @@ export function createMastersSource(options: MastersSourceOptions = {}): Library
     capabilities: () => ({ ...CAPABILITIES }),
     async list(filters, cursor, limit, signal) {
       // The explorer returns one page of at most 15 games; nothing follows.
-      if (cursor) {
+      // `queryLibrary` asks for the first page with cursor "0", not null.
+      if (cursor && cursor !== "0") {
         return { items: [], nextCursor: null, total: null };
       }
       const fen = filters.position?.fen ?? START_FEN;

@@ -68,7 +68,7 @@ test("Date shows the year with the full date in the tooltip", () => {
   assert.equal(screen.getByTitle("2024-03-01").textContent, "2024");
 });
 
-test("wide tables show Opening and the shared coloured ECO badge", () => {
+test("wide tables show Opening and the shared neutral ECO badge", () => {
   render(<LibraryTable games={games(1)} />);
   const opening = screen.getByRole("columnheader", { name: "Opening" });
   assert.equal(opening.querySelector("button"), null);
@@ -197,4 +197,32 @@ test("an empty folder says so instead of 'no sources'", () => {
   render(<LibraryTable games={games(0)} />);
   assert.ok(screen.getByText(/No sources available/));
   useLibraryStore.setState({ filters: DEFAULT_LIBRARY_FILTERS });
+});
+
+test("a Source column appears only when more than one source is selected", () => {
+  registerLibrarySource({
+    id: "my-games", label: () => "My Games", capabilities: () => ({ sort: "full" }) as never,
+    list: async () => ({ items: [], nextCursor: null, total: 0 }), loadPgn: async () => "",
+  });
+  const { rerender } = render(<LibraryTable games={games(1)} />);
+  assert.equal(screen.queryByRole("columnheader", { name: "Source" }), null);
+  act(() => useLibraryStore.setState({ filters: { ...DEFAULT_LIBRARY_FILTERS, sources: ["my-games", "file:x"] } }));
+  rerender(<LibraryTable games={games(1)} />);
+  assert.ok(screen.getByRole("columnheader", { name: "Source" }));
+  const cell = screen.getByTestId("library-row-source");
+  assert.equal(cell.textContent, "My Games");
+  assert.equal(cell.querySelector("span")?.getAttribute("title"), "My Games");
+});
+
+test("Masters with other sources and a text search (no position) shows the position-only note", () => {
+  const filters = { ...DEFAULT_LIBRARY_FILTERS, sources: ["masters", "file:x"] as LibraryGameItem["sourceId"][] };
+  useLibraryStore.setState({ filters: { ...filters, query: "carlsen" } });
+  const { rerender } = render(<LibraryTable games={games(1)} />);
+  assert.match(screen.getByTestId("library-masters-text-note").textContent ?? "", /board position only/);
+  act(() => useLibraryStore.setState({ filters: { ...filters, query: "carlsen", position: { fen: "x" } } }));
+  rerender(<LibraryTable games={games(1)} />);
+  assert.equal(screen.queryByTestId("library-masters-text-note"), null);
+  act(() => useLibraryStore.setState({ filters: { ...filters, sources: ["masters"], query: "carlsen" } }));
+  rerender(<LibraryTable games={games(1)} />);
+  assert.equal(screen.queryByTestId("library-masters-text-note"), null);
 });

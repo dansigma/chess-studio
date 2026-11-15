@@ -1,15 +1,17 @@
 "use client";
 
 // SIG-1339: with no game selected, the right panel summarizes the selected
-// sources as a whole (the filters are ignored), replacing the old one-line bar.
+// sources as a whole, replacing the old one-line bar. With a search or filters
+// active it summarizes the filtered set instead ("Filter summary").
 import { tLibrary } from "@/src/i18n/library-strings";
 import { averageElo, topEco, topPlayers, yearBuckets } from "@/src/lib/library/overview";
 import { useStudioStore } from "@/src/store/studio-store";
 import { EcoBadge } from "../ui/EcoBadge";
 import { ResultBar } from "../ui/ResultBar";
 import { formatGameCount } from "./filter-chips";
-import { useLibraryStore } from "./library-store";
-import { useLibraryOverview } from "./use-library-overview";
+import { hasActiveFilters, useLibraryStore } from "./library-store";
+import { useFilteredOverview } from "./use-filtered-overview";
+import { useLibraryOverview, type LibraryOverviewState } from "./use-library-overview";
 
 const TOP_OPENINGS = 10;
 const TOP_PLAYERS = 8;
@@ -43,9 +45,18 @@ export function LibrarySummary() {
   const setPlayer = useLibraryStore((s) => s.setPlayer);
   const setYearRange = useLibraryStore((s) => s.setYearRange);
   const sourceCount = useLibraryStore((s) => s.filters.sources.length);
-  const state = useLibraryOverview();
+  const filtered = hasActiveFilters(filters);
+  const baseState = useLibraryOverview();
+  const filteredState = useFilteredOverview(filters, filtered);
+  const state: LibraryOverviewState & { capped?: boolean } = !filtered
+    ? baseState
+    : filteredState.kind === "ready"
+      ? { kind: "ready", overview: filteredState.overview, myGamesFailed: false, capped: filteredState.capped }
+      : filteredState.kind === "failed"
+        ? { kind: "failed" }
+        : { kind: "loading" };
 
-  const title = tLibrary(locale, "library.summary.title");
+  const title = tLibrary(locale, filtered ? "library.summary.filteredTitle" : "library.summary.title");
   const number = (n: number) => formatGameCount(n, locale);
   const header = (line: string) => (
     <header className="flex shrink-0 flex-col gap-0.5">
@@ -116,8 +127,20 @@ export function LibrarySummary() {
   };
 
   return (
-    <div role="group" aria-label={title} data-testid="library-summary" className={SHELL}>
-      {header(tLibrary(locale, "library.summary.scope"))}
+    <div
+      role="group"
+      aria-label={title}
+      data-testid="library-summary"
+      data-scope={filtered ? "filter" : "base"}
+      className={SHELL}
+    >
+      {header(
+        filtered
+          ? state.capped
+            ? tLibrary(locale, "library.summary.filteredCapped", { count: number(overview.games) })
+            : tLibrary(locale, "library.summary.filteredScope")
+          : tLibrary(locale, "library.summary.scope"),
+      )}
 
       <dl data-testid="library-summary-tiles" className="grid shrink-0 grid-cols-3 gap-2">
         {[

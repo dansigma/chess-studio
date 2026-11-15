@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, ExternalLink, GraduationCap } from "lucide-react";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tLibrary } from "@/src/i18n/library-strings";
 import { itemYear } from "@/src/lib/library/filters";
+import { MASTERS_SOURCE_ID } from "@/src/lib/library/masters-source";
 import { getLibrarySource } from "@/src/lib/library/sources";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -44,7 +45,12 @@ function cellText(item: LibraryGameItem, column: LibraryColumn): string {
   }
 }
 
-function Cell({ item, column }: { item: LibraryGameItem; column: LibraryColumn }) {
+/** Display name of the source a row came from (database name, "My games", "Masters"). */
+function sourceLabel(item: LibraryGameItem, locale: SiteLocale): string {
+  return getLibrarySource(item.sourceId)?.label(locale) ?? item.sourceId;
+}
+
+function Cell({ item, column, locale }: { item: LibraryGameItem; column: LibraryColumn; locale: SiteLocale }) {
   const winner = pgnResultToWinner(item.result);
   const base = "min-w-0 truncate";
   switch (column.key) {
@@ -88,6 +94,19 @@ function Cell({ item, column }: { item: LibraryGameItem; column: LibraryColumn }
           {cellText(item, column)}
         </div>
       );
+    case "source": {
+      const label = sourceLabel(item, locale);
+      return (
+        <div role="gridcell" className="flex min-w-0 items-center" data-testid="library-row-source">
+          <span
+            className="min-w-0 truncate rounded border border-studio-border px-1 text-caption leading-4 text-studio-faint"
+            title={label}
+          >
+            {label}
+          </span>
+        </div>
+      );
+    }
     default:
       return (
         <div
@@ -175,7 +194,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
   const resetFilters = useLibraryStore((s) => s.resetFilters);
   const folderId = useLibraryStore((s) => s.folderId);
   const { width } = usePanelSize(rootRef);
-  const columns = visibleColumns(width);
+  const columns = visibleColumns(width, filters.sources.length > 1);
   const template = columns.map((c) => c.width).join(" ");
   const { items, loading, loadingMore, error, sourceErrors, hasMore, loadMore } = games;
   const failed = Object.keys(sourceErrors);
@@ -183,6 +202,13 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
   const { attachScroll, ...rows } = useVirtualRows({ count: items.length, rowHeight: LIBRARY_ROW_HEIGHT });
   const selectedIndex = useMemo(() => items.findIndex((item) => item.key === selectedKey), [items, selectedKey]);
 
+  // Masters only searches by board position: with other sources and a text
+  // search but no position, its rows are not what the text matched.
+  const mastersTextNote =
+    filters.sources.length > 1 &&
+    filters.sources.includes(MASTERS_SOURCE_ID) &&
+    filters.position === null &&
+    filters.query.trim() !== "";
   const partialSources = filters.sources.filter(
     (id) => getLibrarySource(id)?.capabilities().sort === "partial",
   );
@@ -320,6 +346,13 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
             );
           })}
         </div>
+        {mastersTextNote && (
+          <div role="note" data-testid="library-masters-text-note" className="shrink-0 px-3 py-1 text-caption text-studio-faint">
+            {tLibrary(locale, "library.masters.textSearchNote", {
+              name: getLibrarySource(MASTERS_SOURCE_ID)?.label(locale) ?? "Masters",
+            })}
+          </div>
+        )}
         {partialSources.length > 0 && (
           <div role="note" className="shrink-0 px-3 py-1 text-caption text-studio-faint">
             {tLibrary(locale, "library.sort.partial", {
@@ -363,7 +396,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
                   >
                     {selected && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-studio-accent" />}
                     {columns.map((column) => (
-                      <Cell key={column.key} item={item} column={column} />
+                      <Cell key={column.key} item={item} column={column} locale={locale} />
                     ))}
                     <RowActions item={item} locale={locale} selected={selected} />
                   </div>

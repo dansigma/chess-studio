@@ -8,6 +8,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { overviewFromItems, type LibraryOverview, type OverviewRow } from "@/src/lib/library/overview";
 import { DEFAULT_LIBRARY_FILTERS, type LibrarySourceAdapter } from "@/src/lib/library/types";
 import { clearLibrarySources, registerLibrarySource } from "@/src/lib/library/sources";
+import { syncFileSources } from "@/src/lib/library/file-source";
 
 before(() => setupDom());
 after(() => teardownDom());
@@ -36,8 +37,11 @@ function myGames(overview: Promise<LibraryOverview>): LibrarySourceAdapter {
   };
 }
 
-const setDatabases = (databases: unknown[]) =>
+const setDatabases = (databases: unknown[]) => {
+  // The filter summary queries the adapters, so they follow the store like in the app.
+  syncFileSources(databases as never);
   useStudioStore.setState((s) => ({ files: { ...s.files, databases: databases as never } }));
+};
 const select = (sources: string[]) =>
   useLibraryStore.setState({ filters: { ...DEFAULT_LIBRARY_FILTERS, sources: sources as never } });
 const flush = () => act(async () => { await new Promise((r) => setTimeout(r, 0)); });
@@ -112,19 +116,21 @@ test("no results section when every game is unfinished (SIG-1339 review)", () =>
   assert.equal(screen.queryByTestId("library-summary-results"), null);
 });
 
-test("clicking an ECO tag sets the filter, clicking it again clears it", () => {
+test("clicking an ECO tag sets the filter, clicking it again clears it", async () => {
   render(<LibrarySummary />);
   const button = () => within(screen.getByTestId("library-summary-openings")).getByRole("button", { name: /C65/ });
   fireEvent.click(button());
   assert.equal(useLibraryStore.getState().filters.eco, "C65");
+  await flush();
   assert.equal(button().getAttribute("aria-pressed"), "true");
   fireEvent.click(button());
   assert.equal(useLibraryStore.getState().filters.eco, "");
 });
 
-test("clicking a player sets and clears the player filter, matching case-insensitively", () => {
+test("clicking a player sets and clears the player filter, matching case-insensitively", async () => {
   useLibraryStore.setState((s) => ({ filters: { ...s.filters, player: "magnus" } }));
   render(<LibrarySummary />);
+  await flush();
   const player = (name: RegExp) =>
     within(screen.getByTestId("library-summary-players")).getByRole("button", { name });
   assert.equal(player(/Magnus/).getAttribute("aria-pressed"), "true");
@@ -133,10 +139,11 @@ test("clicking a player sets and clears the player filter, matching case-insensi
   assert.equal(player(/Magnus/).getAttribute("aria-pressed"), "false");
   fireEvent.click(player(/Magnus/));
   assert.equal(useLibraryStore.getState().filters.player, "Magnus");
+  await flush();
   assert.equal(player(/Magnus/).getAttribute("aria-pressed"), "true");
 });
 
-test("clicking a year sets a single-year filter and clears it", () => {
+test("clicking a year sets a single-year filter and clears it", async () => {
   setDatabases([
     file("dy", [
       ["A", "B", "C20", "King's Pawn", "2019"],
@@ -150,6 +157,7 @@ test("clicking a year sets a single-year filter and clears it", () => {
   fireEvent.click(year());
   assert.equal(useLibraryStore.getState().filters.yearFrom, 2020);
   assert.equal(useLibraryStore.getState().filters.yearTo, 2020);
+  await flush();
   assert.equal(year().getAttribute("aria-pressed"), "true");
   fireEvent.click(year());
   assert.equal(useLibraryStore.getState().filters.yearFrom, null);
@@ -168,12 +176,32 @@ test("years are shown oldest to newest, at most the last 15 with games", () => {
   assert.match(years[14].textContent!, /2016/);
 });
 
-test("ignores the current filters and updates when databases change", () => {
-  useLibraryStore.setState((s) => ({ filters: { ...s.filters, query: "nothing", eco: "A" } }));
+test("without filters it summarizes the whole base and follows database changes", () => {
   render(<LibrarySummary />);
+  assert.match(text("library-summary"), /Database summary/);
+  assert.equal(screen.getByTestId("library-summary").getAttribute("data-scope"), "base");
   assert.match(text("library-summary"), /Games\s*4/);
   act(() => setDatabases([file("d1", [["Q", "R", "D00", "QGD"]])]));
   assert.match(text("library-summary"), /Games\s*1/);
+});
+
+test("with a search or filters it summarizes the filtered set, and goes back without them", async () => {
+  useLibraryStore.setState((s) => ({ filters: { ...s.filters, query: "magnus", eco: "C65" } }));
+  render(<LibrarySummary />);
+  await flush();
+  const summary = screen.getByTestId("library-summary");
+  assert.equal(summary.getAttribute("data-scope"), "filter");
+  assert.match(text("library-summary"), /Filter summary/);
+  assert.match(text("library-summary"), /Games matching the current search and filters/);
+  assert.match(text("library-summary"), /Games\s*2/);
+  act(() => useLibraryStore.getState().resetFilters());
+  assert.match(text("library-summary"), /Database summary/);
+  assert.match(text("library-summary"), /Games\s*4/);
+  act(() => useStudioStore.setState((s) => ({ settings: { ...s.settings, locale: "pt-br" } })));
+  act(() => useLibraryStore.setState((s) => ({ filters: { ...s.filters, eco: "A00" } })));
+  await flush();
+  assert.match(text("library-summary"), /Resumo do filtro/);
+  assert.match(text("library-summary"), /Partidas\s*1/);
 });
 
 test("Masters is excluded; Masters alone shows the unavailable message", () => {
