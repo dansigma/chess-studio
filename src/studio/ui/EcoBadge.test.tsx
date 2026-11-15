@@ -22,12 +22,24 @@ test("ecoFamily returns null for blank, '?', unknown and missing codes", () => {
   for (const v of ["", "  ", "?", "Z99", "99", null, undefined]) assert.equal(ecoFamily(v), null);
 });
 
-test("badge shows a family colour class and the upper-cased code", () => {
+test("badge is a neutral pill for every family (no per-family colour)", () => {
+  for (const f of ["A", "B", "C", "D", "E"] as const) {
+    const { container, unmount } = render(<EcoBadge code={`${f}45`} />);
+    const el = container.querySelector("span")!;
+    assert.equal(el.textContent, `${f}45`);
+    assert.match(el.className, /text-studio-muted/);
+    assert.match(el.className, /font-mono/);
+    assert.match(el.className, /tabular-nums/);
+    assert.doesNotMatch(el.className, /text-studio-eco-/);
+    unmount();
+  }
+});
+
+test("badge accepts lower-case and padded codes", () => {
   const { container } = render(<EcoBadge code="b12" />);
   const el = container.querySelector("span")!;
   assert.equal(el.textContent, "B12");
-  assert.match(el.className, /text-studio-eco-b/);
-  assert.match(el.className, /tabular-nums/);
+  assert.match(el.className, /text-studio-muted/);
 });
 
 test("invalid code renders a neutral dash", () => {

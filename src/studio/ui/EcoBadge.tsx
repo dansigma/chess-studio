@@ -1,5 +1,6 @@
-// SIG-1330: ECO code (A00-E99) coloured by opening family, shared by the
-// Library table, database summary and player dossier.
+// SIG-1330: ECO code (A00-E99) shared by the Library table, database summary
+// and player dossier. The badge is deliberately neutral (theme greys) so the
+// accent blue stays reserved for interactive state.
 
 export type EcoFamily = "A" | "B" | "C" | "D" | "E";
 
@@ -9,14 +10,6 @@ export function ecoFamily(code: string | null | undefined): EcoFamily | null {
   return first && "ABCDE".includes(first) ? (first as EcoFamily) : null;
 }
 
-const FAMILY_CLASS: Record<EcoFamily, string> = {
-  A: "text-studio-eco-a",
-  B: "text-studio-eco-b",
-  C: "text-studio-eco-c",
-  D: "text-studio-eco-d",
-  E: "text-studio-eco-e",
-};
-
 export function EcoBadge({
   code,
   opening,
@@ -25,10 +18,11 @@ export function EcoBadge({
   opening?: string | null;
 }) {
   const family = ecoFamily(code);
-  const base = "inline-block w-[3ch] text-center font-mono tabular-nums";
+  const base =
+    "inline-block rounded border border-studio-border bg-studio-hover-subtle px-1 text-center font-mono text-caption tabular-nums";
   return (
     <span
-      className={`${base} ${family ? FAMILY_CLASS[family] : "text-studio-faint"}`}
+      className={`${base} ${family ? "text-studio-muted" : "text-studio-faint"}`}
       title={opening || undefined}
       data-eco-family={family ?? "none"}
     >
