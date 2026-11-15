@@ -454,13 +454,20 @@ export async function saveCourseDraft(input: Course): Promise<{ ok: true; course
     return { ok: false, error: { key: "course.admin.error.not_owner" } };
   }
   const from = rowStatus(existingRow);
-  // A new course is born as a draft; an existing one must already be one.
+  // SIG-1369: an admin save keeps the current status (draft stays draft,
+  // published stays published, archived stays archived). Coaches and new
+  // courses always land on `draft`, and canTransition still rejects a coach
+  // save on anything but draft/rejected.
+  const target: CourseStatus = gate.role === "admin" && existingRow ? from : "draft";
+  // A new course is born as a draft; an existing one must allow the target.
   if (existingRow) {
     const transition = canTransition({
       role: gate.role,
       isOwner: rowOwner(existingRow, gate.userId, gate.superAdmin),
       from,
-      to: "draft",
+      to: target,
+      // Keeping `rejected` writes no new note; the existing one stays.
+      hasNote: target === "rejected",
     });
     if (!transition.ok) {
       return { ok: false, error: transitionError(transition.reason) };
@@ -483,8 +490,10 @@ export async function saveCourseDraft(input: Course): Promise<{ ok: true; course
     chapters: chaptersJson,
     created_by: existingRow ? existingRow.created_by : gate.userId,
     updated_at: now,
-    published_at: null,
-    status: "draft",
+    // Omitted for a kept status: a published row keeps its published_at (the
+    // courses_sync_published_at trigger fills/clears it on status changes).
+    ...(target === "draft" ? { published_at: null } : {}),
+    status: target,
     access_tier: checked.course.accessTier,
     price_cents: priceCents,
     author_display_name: checked.course.authorName?.trim() || null,
@@ -497,8 +506,20 @@ export async function saveCourseDraft(input: Course): Promise<{ ok: true; course
   if (error) {
     return { ok: false, error: { key: databaseError(error) } };
   }
-  // A plain draft save never changes public visibility: no revalidation.
-  return { ok: true, course: { ...checked.course, status: "draft" as const, priceCents, publishedAt: null } };
+  // Content edits on a published course go live: revalidate like a republish.
+  // A save that keeps a non-public status never changes public visibility.
+  if (target === "published") {
+    revalidateCourse(checked.course.slug, existingRow?.slug ?? undefined);
+  }
+  return {
+    ok: true,
+    course: {
+      ...checked.course,
+      status: target,
+      priceCents,
+      publishedAt: target === "draft" ? null : (checked.course.publishedAt ?? null),
+    },
+  };
 }
 
 /** SIG-1113: coach-or-admin submission for review (`draft|rejected → in_review`). */
