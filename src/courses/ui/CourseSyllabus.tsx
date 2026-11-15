@@ -5,7 +5,7 @@ import { Check, ChevronDown, Circle, CircleDot, ListTree, Video } from "lucide-r
 import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
-import { lineProgressLabel } from "../lesson";
+import { lineProgressLabel } from "../lesson.ts";
 import type { Course, CourseChapter, CourseVariation, VariationProgress } from "../types";
 import { ChapterStudioMenu } from "./ChapterStudioMenu";
 

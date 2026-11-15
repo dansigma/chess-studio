@@ -4,15 +4,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Chess, type Square } from "chess.js";
-import { ChevronLeft, ChevronRight, ChevronsLeft, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { importPgn } from "@/src/chess/pgn";
 import { MARK_HEX } from "@/src/chess/marks";
 import { shareBoardUrl, writeCourseStudyImport } from "@/src/chess/share-board";
 import { useStudioStore } from "@/src/store/studio-store";
-import { Button, IconButton } from "@/src/studio/ui/Button";
+import { Button } from "@/src/studio/ui/Button";
+import { Skeleton } from "@/src/site/ui/Skeleton";
 import { afterFirstLearn } from "./review";
-import { lessonFrames, progressAfterStep, studentMoveMatches } from "./lesson";
-import { PROGRESS_BROWSER_ONLY, findVariation, loadProgress, saveVariationProgress } from "./store";
+import { lessonFrames, progressAfterStep, studentMoveMatches } from "./lesson.ts";
+import {
+  PROGRESS_BROWSER_ONLY,
+  findVariation,
+  loadProgress,
+  saveVariationProgress,
+} from "./store";
 import { recordEnrollment } from "./enrollment";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { tCourse } from "@/src/i18n/course-strings";
@@ -21,15 +27,30 @@ import { useCourseData } from "./use-courses";
 import { useCourseContent } from "./use-course-content";
 import { LockedLesson } from "./LockedLesson";
 import { CourseChrome } from "./CourseChrome";
-import { ProgressBar } from "@/src/site/ui/ProgressBar";
 import { StudyBoard } from "./ui/StudyBoard";
+import { LessonHeader } from "./lesson/LessonHeader";
+import { StudyLayout } from "./lesson/StudyLayout";
+import { StudyTransport } from "./lesson/StudyTransport";
+import { ShortcutsDialog } from "./lesson/ShortcutsDialog";
+import {
+  chapterSegments,
+  lastReachedStep,
+  lessonShortcut,
+} from "./lesson/model";
 import type { Course, CourseChapter, CourseVariation } from "./types";
 
-export function LessonView({ course, variationId }: { course: Course; variationId: string }) {
+export function LessonView({
+  course,
+  variationId,
+}: {
+  course: Course;
+  variationId: string;
+}) {
   const router = useRouter();
   // SIG-1119: the gated lesson payload. Seed/local courses ship full content
   // (contentLoaded undefined) and skip the fetch; outline rows load it here.
-  const content = useCourseContent(course);
+  const [attempt, setAttempt] = useState(0);
+  const content = useCourseContent(course, attempt);
   const effectiveCourse = useMemo<Course>(
     () =>
       content.status === "ready" && course.contentLoaded === false
@@ -41,9 +62,20 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   const [notice, setNotice] = useState("");
   const [hint, setHint] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [flipped, setFlipped] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  // Furthest step reached in this lesson: where "end" jumps to.
+  const [reached, setReached] = useState(0);
   const [lessonKey, setLessonKey] = useState<string | null>(null);
   const locale = useStudioStore((state) => state.settings.locale);
-  const { progress: savedProgress, admin, isAdmin, ready: progressReady, signedIn, userId } = useCourseData();
+  const {
+    progress: savedProgress,
+    admin,
+    isAdmin,
+    ready: progressReady,
+    signedIn,
+    userId,
+  } = useCourseData();
 
   const loaded: {
     course: Course;
@@ -51,13 +83,22 @@ export function LessonView({ course, variationId }: { course: Course; variationI
     variation: CourseVariation;
   } | null = useMemo(() => {
     const found = findVariation(effectiveCourse, variationId);
-    return found ? { course: effectiveCourse, chapter: found.chapter, variation: found.variation } : null;
+    return found
+      ? {
+          course: effectiveCourse,
+          chapter: found.chapter,
+          variation: found.variation,
+        }
+      : null;
   }, [effectiveCourse, variationId]);
   const currentLessonKey = `${course.slug}/${variationId}`;
   if (lessonKey !== currentLessonKey && progressReady) {
     setLessonKey(currentLessonKey);
     const saved = loaded ? savedProgress[variationId] : undefined;
     setStep(saved?.step ?? 0);
+    setReached(saved?.step ?? 0);
+    setFlipped(false);
+    setShowShortcuts(false);
     setHint(false);
     setNotice("");
     setSelected(null);
@@ -67,7 +108,10 @@ export function LessonView({ course, variationId }: { course: Course; variationI
     if (!loaded) {
       return [];
     }
-    return lessonFrames(importPgn(loaded.variation.pgn).tree, loaded.course.color);
+    return lessonFrames(
+      importPgn(loaded.variation.pgn).tree,
+      loaded.course.color,
+    );
   }, [loaded]);
 
   const frame = frames[Math.min(step, Math.max(frames.length - 1, 0))];
@@ -79,7 +123,8 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   // content is actually readable. Seed/local courses ship full content
   // (contentLoaded undefined) and record normally; gated rows record once the
   // fetch resolves to ready. Locked/loading/error lessons record nothing.
-  const contentReadable = course.contentLoaded !== false || content.status === "ready";
+  const contentReadable =
+    course.contentLoaded !== false || content.status === "ready";
   useEffect(() => {
     if (!signedIn || !userId || course.builtin || !contentReadable) {
       return;
@@ -98,16 +143,19 @@ export function LessonView({ course, variationId }: { course: Course; variationI
       next = afterFirstLearn(next, new Date());
     }
     setStep(next.step);
+    setReached((value) => Math.max(value, next.step));
     setNotice("");
     setHint(false);
     setSelected(null);
-    void saveVariationProgress(variationId, next, effectiveCourse).then((error) => {
-      if (error === PROGRESS_BROWSER_ONLY) {
-        setNotice(tCourse(locale, "course.lesson.browserOnlyFallback"));
-      } else if (error) {
-        setNotice(error);
-      }
-    });
+    void saveVariationProgress(variationId, next, effectiveCourse).then(
+      (error) => {
+        if (error === PROGRESS_BROWSER_ONLY) {
+          setNotice(tCourse(locale, "course.lesson.browserOnlyFallback"));
+        } else if (error) {
+          setNotice(error);
+        }
+      },
+    );
   }
 
   function go(nextStep: number) {
@@ -134,9 +182,33 @@ export function LessonView({ course, variationId }: { course: Course; variationI
     return true;
   }
 
-  const actions = useRef({ go, playExpected, step, waiting, done, ready: Boolean(frame) });
+  const learnedNow = Boolean(loaded && savedProgress[variationId]?.learned);
+  const endStep = lastReachedStep(
+    Math.max(reached, step),
+    learnedNow,
+    frames.length,
+  );
+  const actions = useRef({
+    go,
+    playExpected,
+    step,
+    waiting,
+    done,
+    endStep,
+    ready: Boolean(frame),
+    dialogOpen: false,
+  });
   useEffect(() => {
-    actions.current = { go, playExpected, step, waiting, done, ready: Boolean(frame) };
+    actions.current = {
+      go,
+      playExpected,
+      step,
+      waiting,
+      done,
+      endStep,
+      ready: Boolean(frame),
+      dialogOpen: showShortcuts,
+    };
   });
 
   useEffect(() => {
@@ -145,29 +217,27 @@ export function LessonView({ course, variationId }: { course: Course; variationI
       if (!current.ready) {
         return;
       }
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
-      ) {
+      const action = lessonShortcut(event, { dialogOpen: current.dialogOpen });
+      if (!action) {
         return;
       }
-      if (event.metaKey || event.ctrlKey || event.altKey) {
-        return;
-      }
-      if (event.key === "Home") {
-        event.preventDefault();
+      event.preventDefault();
+      if (action === "start") {
         current.go(0);
-        return;
-      }
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
+      } else if (action === "back") {
         current.go(current.step - 1);
-        return;
-      }
-      if (event.key === "ArrowRight" && !current.waiting && !current.done) {
-        event.preventDefault();
-        current.playExpected();
+      } else if (action === "forward") {
+        if (!current.waiting && !current.done) {
+          current.playExpected();
+        }
+      } else if (action === "end") {
+        if (current.endStep > current.step) {
+          current.go(current.endStep);
+        }
+      } else if (action === "flip") {
+        setFlipped((value) => !value);
+      } else {
+        setShowShortcuts(true);
       }
     }
     window.addEventListener("keydown", onKey);
@@ -180,7 +250,9 @@ export function LessonView({ course, variationId }: { course: Course; variationI
     }
     try {
       const chess = new Chess(frame.fen);
-      return chess.moves({ square: selected as Square, verbose: true }).map((move) => move.to);
+      return chess
+        .moves({ square: selected as Square, verbose: true })
+        .map((move) => move.to);
     } catch {
       return [] as string[];
     }
@@ -190,7 +262,9 @@ export function LessonView({ course, variationId }: { course: Course; variationI
     return (
       <div className="min-h-full bg-studio-bg">
         <CourseChrome admin={admin} isAdmin={isAdmin} />
-        <main className="px-6 py-10 text-studio-muted">{tCourse(locale, "course.lesson.notFound")}</main>
+        <main className="px-6 py-10 text-studio-muted">
+          {tCourse(locale, "course.lesson.notFound")}
+        </main>
       </div>
     );
   }
@@ -206,16 +280,48 @@ export function LessonView({ course, variationId }: { course: Course; variationI
         </div>
       );
     }
-    return <div className="min-h-full bg-studio-bg" />;
+    return (
+      <div className="min-h-full bg-studio-bg">
+        <CourseChrome admin={admin} isAdmin={isAdmin} />
+        {content.status === "error" ? (
+          <main className="mx-auto max-w-5xl px-4 py-10" role="alert">
+            <p className="text-body text-studio-fg">
+              {tCourse(locale, "course.lesson.loadError")}
+            </p>
+            <Button
+              className="mt-3"
+              variant="secondary"
+              onClick={() => setAttempt((value) => value + 1)}
+            >
+              {tCourse(locale, "course.error.retry")}
+            </Button>
+          </main>
+        ) : (
+          <LessonSkeleton
+            label={tCourse(locale, "course.lesson.loadingAria")}
+          />
+        )}
+      </div>
+    );
   }
   if (!frame) {
-    return <div className="min-h-full bg-studio-bg" />;
+    return (
+      <div className="min-h-full bg-studio-bg">
+        <CourseChrome admin={admin} isAdmin={isAdmin} />
+        <LessonSkeleton label={tCourse(locale, "course.lesson.loadingAria")} />
+      </div>
+    );
   }
 
   const previous = step > 0 ? frames[step - 1]?.move : null;
-  const squareStyles: Record<string, { backgroundColor?: string; backgroundImage?: string; boxShadow?: string }> = {};
+  const squareStyles: Record<
+    string,
+    { backgroundColor?: string; backgroundImage?: string; boxShadow?: string }
+  > = {};
   if (previous) {
-    squareStyles[previous.from] = { backgroundColor: "rgba(186, 202, 68, 0.72)" };
+    squareStyles[previous.from] = {
+      backgroundColor: "rgba(186, 202, 68, 0.72)",
+    };
     squareStyles[previous.to] = { backgroundColor: "rgba(186, 202, 68, 0.72)" };
   }
   if (selected) {
@@ -227,28 +333,36 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   for (const square of dests) {
     squareStyles[square] = {
       ...(squareStyles[square] ?? {}),
-      backgroundImage: "radial-gradient(circle, rgba(0,0,0,0.28) 22%, transparent 23%)",
+      backgroundImage:
+        "radial-gradient(circle, rgba(0,0,0,0.28) 22%, transparent 23%)",
     };
   }
   const showAnswer = waiting && hint && frame.move;
   const arrows = showAnswer
-    ? [{ startSquare: frame.move!.from, endSquare: frame.move!.to, color: MARK_HEX.B }]
+    ? [
+        {
+          startSquare: frame.move!.from,
+          endSquare: frame.move!.to,
+          color: MARK_HEX.B,
+        },
+      ]
     : [];
-  const linePercent = frames.length <= 1 ? 100 : Math.round((step / (frames.length - 1)) * 100);
+  const orientation =
+    (loaded.course.color === "white") !== flipped ? "white" : "black";
+  const segments = chapterSegments(loaded.chapter, savedProgress, variationId);
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-studio-bg">
       <CourseChrome admin={admin} isAdmin={isAdmin} />
-      <div className="shrink-0 border-b border-studio-border bg-studio-chrome px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <Link href={`/courses/${loaded.course.slug}`} className="text-caption text-studio-muted hover:text-studio-fg">
-              {loaded.course.title}
-            </Link>
-            <h1 className="text-body font-semibold text-studio-fg">
-              {loaded.chapter.title} · {loaded.variation.title}
-            </h1>
-          </div>
+      <LessonHeader
+        locale={locale}
+        courseSlug={loaded.course.slug}
+        courseTitle={loaded.course.title}
+        chapterTitle={loaded.chapter.title}
+        lineTitle={loaded.variation.title}
+        segments={segments}
+        progress={savedProgress}
+        actions={
           <Button
             variant="secondary"
             size="sm"
@@ -270,104 +384,141 @@ export function LessonView({ course, variationId }: { course: Course; variationI
             <ExternalLink size={14} aria-hidden />
             {tCourse(locale, "course.lesson.openInStudio")}
           </Button>
-        </div>
-        <ProgressBar
-          className="mt-2 h-1 bg-studio-track"
-          fillClassName="bg-studio-accent"
-          value={linePercent}
-          label={tCourse(locale, "course.lesson.progressAria")}
-        />
-      </div>
-      <div className="mx-auto grid min-h-0 w-full max-w-5xl flex-1 grid-rows-[minmax(0,1fr)_auto] gap-3 px-4 py-3 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:grid-rows-1 lg:gap-6 lg:py-6">
-        <div className="flex h-full min-h-0 w-full items-center justify-center [container-type:size]">
-          <div className="size-[min(100cqw,100cqh,520px)] overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong">
-            <StudyBoard
-              id={`lesson-${variationId}`}
-              fen={frame.fen}
-              orientation={loaded.course.color}
-              arrows={arrows}
-              squareStyles={squareStyles}
-              interactive={waiting}
-              canDragPiece={({ piece }) => (piece.pieceType.startsWith("w") ? "w" : "b") === studentSide}
-              onMove={tryStudentMove}
-              onSquareClick={({ square, piece }) => {
-                if (selected && dests.includes(square)) {
-                  tryStudentMove(selected, square);
+        }
+      />
+      <StudyLayout
+        locale={locale}
+        videoUrl={loaded.chapter.videoUrl}
+        videoTitle={loaded.chapter.title}
+        board={
+          <StudyBoard
+            id={`lesson-${variationId}`}
+            fen={frame.fen}
+            orientation={orientation}
+            arrows={arrows}
+            squareStyles={squareStyles}
+            interactive={waiting}
+            canDragPiece={({ piece }) =>
+              (piece.pieceType.startsWith("w") ? "w" : "b") === studentSide
+            }
+            onMove={tryStudentMove}
+            onSquareClick={({ square, piece }) => {
+              if (selected && dests.includes(square)) {
+                tryStudentMove(selected, square);
+                return;
+              }
+              if (piece) {
+                const color = piece.pieceType.startsWith("w") ? "w" : "b";
+                if (color === studentSide) {
+                  setSelected(square);
                   return;
                 }
-                if (piece) {
-                  const color = piece.pieceType.startsWith("w") ? "w" : "b";
-                  if (color === studentSide) {
-                    setSelected(square);
-                    return;
-                  }
-                }
-                setSelected(null);
-              }}
+              }
+              setSelected(null);
+            }}
+          />
+        }
+        controls={
+          <>
+            <StudyTransport
+              locale={locale}
+              atStart={step === 0}
+              canForward={!waiting && !done}
+              canEnd={endStep > step}
+              onStart={() => go(0)}
+              onBack={() => go(step - 1)}
+              onForward={playExpected}
+              onEnd={() => go(endStep)}
+              onFlip={() => setFlipped((value) => !value)}
+              onHelp={() => setShowShortcuts(true)}
             />
-          </div>
-        </div>
-        <section className="flex max-h-[min(42dvh,280px)] min-h-36 flex-col overflow-hidden rounded-xl border border-studio-border bg-studio-chrome lg:max-h-[calc(100dvh-8rem)] lg:min-h-0 lg:self-start">
-          <div className="flex shrink-0 items-center gap-0.5 border-b border-studio-border px-1.5 py-1">
-            <IconButton label={tCourse(locale, "course.lesson.transport.start")} shortcut="Home" disabled={step === 0} onClick={() => go(0)}>
-              <ChevronsLeft size={15} />
-            </IconButton>
-            <IconButton label={tCourse(locale, "course.lesson.transport.back")} shortcut="←" disabled={step === 0} onClick={() => go(step - 1)}>
-              <ChevronLeft size={15} />
-            </IconButton>
-            <IconButton label={tCourse(locale, "course.lesson.transport.forward")} shortcut="→" disabled={waiting || done} onClick={playExpected}>
-              <ChevronRight size={15} />
-            </IconButton>
             <span className="ml-auto px-2 text-caption tabular-nums text-studio-muted">
               {tCourse(locale, "course.lesson.stepCounter", {
                 current: formatInteger(locale, step + 1),
                 total: formatInteger(locale, frames.length),
               })}
             </span>
-          </div>
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 text-body leading-relaxed text-studio-fg">
-            {frame.san ? (
-              <p className="text-caption text-studio-muted">
-                {tCourse(locale, "course.lesson.previousMove", { san: frame.san })}
-              </p>
-            ) : null}
-            <p>{frame.comment || tCourse(locale, "course.lesson.followLine")}</p>
-            {waiting && !hint ? (
-              <p className="font-medium text-studio-accent-text">{tCourse(locale, "course.lesson.yourTurn")}</p>
-            ) : null}
-            {showAnswer ? (
-              <p className="font-medium text-studio-accent-text">
-                {tCourse(locale, "course.lesson.yourMove", { san: frame.move?.san ?? "" })}
-              </p>
-            ) : null}
-            {notice ? (
-              <p role="alert" className="rounded-lg bg-studio-warning-bg px-3 py-2 text-studio-warning-fg">
-                {notice}
-              </p>
-            ) : null}
-            {done ? (
-              <p className="rounded-lg bg-studio-hover px-3 py-2 text-studio-success">
-                {tCourse(locale, "course.lesson.complete")}
-              </p>
-            ) : null}
-          </div>
-          <div className="shrink-0 border-t border-studio-border p-3">
-            {waiting ? (
-              <p className="text-caption text-studio-muted">
-                {hint ? tCourse(locale, "course.lesson.hintShown") : tCourse(locale, "course.lesson.hintHidden")}
-              </p>
-            ) : done ? (
-              <Link href={`/courses/${loaded.course.slug}`} className="text-body font-medium text-studio-accent-text">
-                {tCourse(locale, "course.lesson.backToCourse")}
-              </Link>
-            ) : (
-              <Button variant="primary" onClick={playExpected}>
-                {tCourse(locale, "course.lesson.next")}
-              </Button>
-            )}
-          </div>
-        </section>
-      </div>
+          </>
+        }
+      >
+        <div className="space-y-3 p-4 text-body leading-relaxed text-studio-fg">
+          {frame.san ? (
+            <p className="text-caption text-studio-muted">
+              {tCourse(locale, "course.lesson.previousMove", {
+                san: frame.san,
+              })}
+            </p>
+          ) : null}
+          <p>{frame.comment || tCourse(locale, "course.lesson.followLine")}</p>
+          {waiting && !hint ? (
+            <p className="font-medium text-studio-accent-text">
+              {tCourse(locale, "course.lesson.yourTurn")}
+            </p>
+          ) : null}
+          {showAnswer ? (
+            <p className="font-medium text-studio-accent-text">
+              {tCourse(locale, "course.lesson.yourMove", {
+                san: frame.move?.san ?? "",
+              })}
+            </p>
+          ) : null}
+          {notice ? (
+            <p
+              role="alert"
+              className="rounded-lg bg-studio-warning-bg px-3 py-2 text-studio-warning-fg"
+            >
+              {notice}
+            </p>
+          ) : null}
+          {done ? (
+            <p className="rounded-lg bg-studio-hover px-3 py-2 text-studio-success">
+              {tCourse(locale, "course.lesson.complete")}
+            </p>
+          ) : null}
+        </div>
+        <div className="border-t border-studio-border p-3">
+          {waiting ? (
+            <p className="text-caption text-studio-muted">
+              {hint
+                ? tCourse(locale, "course.lesson.hintShown")
+                : tCourse(locale, "course.lesson.hintHidden")}
+            </p>
+          ) : done ? (
+            <Link
+              href={`/courses/${loaded.course.slug}`}
+              className="text-body font-medium text-studio-accent-text"
+            >
+              {tCourse(locale, "course.lesson.backToCourse")}
+            </Link>
+          ) : (
+            <Button variant="primary" onClick={playExpected}>
+              {tCourse(locale, "course.lesson.next")}
+            </Button>
+          )}
+        </div>
+      </StudyLayout>
+      {showShortcuts ? (
+        <ShortcutsDialog
+          locale={locale}
+          onClose={() => setShowShortcuts(false)}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function LessonSkeleton({ label }: { label: string }) {
+  return (
+    <main
+      role="status"
+      aria-label={label}
+      className="mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)]"
+    >
+      <Skeleton className="aspect-square w-full" />
+      <div className="space-y-3">
+        <Skeleton className="w-2/3" />
+        <Skeleton lines={4} />
+      </div>
+    </main>
   );
 }

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { importPgn } from "@/src/chess/pgn";
 import { writeCourseStudyImport } from "@/src/chess/share-board";
 import { tCourse } from "@/src/i18n/course-strings";
-import { lessonFrames } from "./lesson";
+import { lessonFrames } from "./lesson.ts";
 import { CourseChrome } from "./CourseChrome";
 import { CourseOverview } from "./ui/CourseOverview";
 import { CourseProgressHeader } from "./ui/CourseProgressHeader";
