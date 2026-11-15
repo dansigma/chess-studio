@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
-import { courseSummaryText, sanitizeCourseHtml } from "./description.ts";
+import {
+  countDescriptionDiagrams,
+  courseSummaryText,
+  sanitizeCourseHtml,
+  splitDescriptionBlocks,
+} from "./description.ts";
 import { hasPlayableContent, normalizeChapters } from "./draft.ts";
 
 describe("course description", () => {
@@ -97,6 +102,140 @@ describe("course description", () => {
   it("treats an empty editor as no description", () => {
     assert.equal(sanitizeCourseHtml("<div><br></div>"), "");
     assert.equal(sanitizeCourseHtml("  A solid defense.  "), "A solid defense.");
+  });
+});
+
+const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+describe("course description headings, links and diagrams (SIG-1368)", () => {
+  it("keeps h2 and h3 without attributes", () => {
+    assert.equal(
+      sanitizeCourseHtml('<h2 onclick="x" id="a">Plan</h2><h3>Idea</h3><h1>Big</h1>'),
+      "<h2>Plan</h2><h3>Idea</h3>Big",
+    );
+  });
+
+  it("keeps https links, forces rel and target and drops author attributes", () => {
+    assert.equal(
+      sanitizeCourseHtml(
+        '<a href="https://lichess.org/x?a=1&b=2" target="_self" rel="opener" onclick="x" style="a:b">go</a>',
+      ),
+      '<a href="https://lichess.org/x?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">go</a>',
+    );
+    assert.equal(
+      sanitizeCourseHtml('<A HREF="HTTPS://Example.com/">go</A>'),
+      '<a href="HTTPS://Example.com/" target="_blank" rel="noopener noreferrer">go</a>',
+    );
+  });
+
+  it("removes links that are not plain https and keeps their text", () => {
+    const bad = [
+      "javascript:alert(1)",
+      "JaVaScRiPt:alert(1)",
+      " javascript:alert(1)",
+      "java\tscript:alert(1)",
+      "&#106;avascript:alert(1)",
+      "&#x6A;avascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "//evil.com/x",
+      "http://example.com/",
+      "mailto:a@b.c",
+      "vbscript:x",
+      "/relative",
+      "https://a.com/ x",
+      "",
+    ];
+    for (const href of bad) {
+      const out = sanitizeCourseHtml(`<a href="${href}">text</a>`);
+      assert.equal(out, "text", `href ${JSON.stringify(href)} gave ${out}`);
+    }
+    // a quote ends the value; the injected handler is just another dropped attribute
+    assert.equal(
+      sanitizeCourseHtml('<a href="https://a.com/" onmouseover="alert(1)">text</a>'),
+      '<a href="https://a.com/" target="_blank" rel="noopener noreferrer">text</a>',
+    );
+    assert.equal(sanitizeCourseHtml("<a>text</a>"), "text");
+    assert.equal(sanitizeCourseHtml("<a href=javascript:alert(1)>text</a>"), "text");
+    assert.equal(sanitizeCourseHtml("<a href='javascript:alert(1)'>text</a>"), "text");
+  });
+
+  it("never lets a rejected link steal the closing tag of a good one", () => {
+    assert.equal(
+      sanitizeCourseHtml('<a href="https://a.com/">one<a href="javascript:x">two</a>three</a>'),
+      '<a href="https://a.com/" target="_blank" rel="noopener noreferrer">onetwothree</a>',
+    );
+  });
+
+  it("keeps a valid diagram and normalizes its attributes", () => {
+    assert.equal(
+      sanitizeCourseHtml(
+        `<figure data-fen="${START}" data-orientation="black" data-caption="Start &amp; end" class="x" onclick="y"></figure>`,
+      ),
+      `<figure data-fen="${START}" data-orientation="black" data-caption="Start &amp; end"></figure>`,
+    );
+    assert.equal(
+      sanitizeCourseHtml(`<figure data-fen="${START}" data-orientation="sideways"></figure>`),
+      `<figure data-fen="${START}" data-orientation="white"></figure>`,
+    );
+    // a description that is only a diagram is not empty
+    assert.notEqual(sanitizeCourseHtml(`<figure data-fen="${START}"></figure>`), "");
+  });
+
+  it("drops diagrams with an invalid or missing FEN", () => {
+    const fens = ["", "nonsense", "8/8/8/8/8/8/8/8 w - - 0 1", `${START}"><script>alert(1)</script>`, "x".repeat(500)];
+    for (const fen of fens) {
+      const out = sanitizeCourseHtml(`<p>t</p><figure data-fen="${fen.replace(/"/g, "&quot;")}"></figure>`);
+      assert.equal(out, "<p>t</p>", JSON.stringify(fen));
+    }
+    assert.equal(sanitizeCourseHtml("<p>t</p><figure></figure>"), "<p>t</p>");
+  });
+
+  it("escapes and caps captions", () => {
+    const out = sanitizeCourseHtml(
+      `<figure data-fen="${START}" data-caption="&lt;script&gt;alert(1)&lt;/script&gt; &quot;x&quot;"></figure>`,
+    );
+    assert.ok(!out.includes("<script"));
+    assert.equal(splitDescriptionBlocks(out)[0]?.type, "diagram");
+    const long = sanitizeCourseHtml(`<figure data-fen="${START}" data-caption="${"a".repeat(900)}"></figure>`);
+    const block = splitDescriptionBlocks(long)[0];
+    assert.ok(block?.type === "diagram" && block.caption.length === 200);
+  });
+
+  it("cannot nest content or other figures inside a figure", () => {
+    const out = sanitizeCourseHtml(
+      `<figure data-fen="${START}"><script>alert(1)</script><figure data-fen="bad"><img src=x onerror=alert(1)></figure>hello</figure>`,
+    );
+    assert.equal(out, `<figure data-fen="${START}" data-orientation="white"></figure>hello`);
+    assert.equal(
+      sanitizeCourseHtml(`<figcaption onclick="x">cap</figcaption><figure data-fen='${START}' data-fen='bad'/>`),
+      `cap<figure data-fen="${START}" data-orientation="white"></figure>`,
+    );
+  });
+
+  it("does not let text pretend to be a figure", () => {
+    const out = sanitizeCourseHtml(
+      `&lt;figure data-fen="${START}"&gt;&lt;/figure&gt; <p title="<figure data-fen='${START}'>">x</p>`,
+    );
+    assert.equal(countDescriptionDiagrams(out), 0);
+  });
+
+  it("splits html and diagram blocks in order", () => {
+    const html = `<p>Intro</p><figure data-fen="${START}" data-orientation="black" data-caption="Hi"></figure><h2>Next</h2><figure data-fen="${START}"></figure>`;
+    assert.deepEqual(splitDescriptionBlocks(html), [
+      { type: "html", html: "<p>Intro</p>" },
+      { type: "diagram", fen: START, orientation: "black", caption: "Hi" },
+      { type: "html", html: "<h2>Next</h2>" },
+      { type: "diagram", fen: START, orientation: "white", caption: "" },
+    ]);
+    assert.deepEqual(splitDescriptionBlocks(""), []);
+    assert.equal(countDescriptionDiagrams(html), 2);
+  });
+
+  it("keeps summary text plain: diagrams add nothing, headings separate", () => {
+    const text = courseSummaryText(
+      `<h2>Plan</h2><p>See <a href="https://a.com/">this</a></p><figure data-fen="${START}" data-caption="Secret"></figure><h3>End</h3>`,
+    );
+    assert.equal(text, "Plan See this End");
   });
 });
 

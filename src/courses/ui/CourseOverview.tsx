@@ -41,7 +41,7 @@ export function CourseOverview({ course, locale, aside }: { course: Course; loca
       <div className="mt-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:mt-0">{aside}</div>
       <CourseSummary
         html={course.summary}
-        className="mt-5 min-w-0 lg:col-start-1 lg:row-start-2 space-y-3 text-body leading-relaxed text-studio-muted [&_em]:italic [&_li+li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_strong]:text-studio-fg [&_u]:underline [&_ul]:list-disc [&_ul]:pl-5"
+        className="mt-5 min-w-0 lg:col-start-1 lg:row-start-2 space-y-3 text-body leading-relaxed text-studio-muted [&_a]:text-studio-accent [&_a]:underline [&_em]:italic [&_h2]:text-title [&_h2]:font-semibold [&_h2]:text-studio-fg [&_h3]:font-semibold [&_h3]:text-studio-fg [&_li+li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_strong]:text-studio-fg [&_u]:underline [&_ul]:list-disc [&_ul]:pl-5"
       />
     </div>
   );

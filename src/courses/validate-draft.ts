@@ -2,12 +2,16 @@ import type { CourseAdminErrorKey, CourseAdminMessage } from "@/src/i18n/course-
 import { validateTierAndPrice } from "./author-actions";
 import { isCourseColor, isCourseId, isCourseTheme, parseChapters, slugify } from "./catalog";
 import { validateCatalogFields } from "./catalog-fields";
-import { sanitizeCourseHtml } from "./description";
+import { countDescriptionDiagrams, sanitizeCourseHtml } from "./description";
 import { hasPlayableContent, normalizeChapters } from "./draft";
 import { COURSES_FREE_LAUNCH } from "./free-launch";
 import { courseCoverUrl, courseVideo } from "./media";
 import type { CourseDraft } from "./admin-draft";
 import type { CourseAccessTier } from "./types";
+
+/** SIG-1368: the sanitized description length cap (each diagram carries a FEN) and the diagram cap. */
+export const MAX_DESCRIPTION_LENGTH = 20000;
+export const MAX_DESCRIPTION_DIAGRAMS = 12;
 
 /** SIG-1363: the editor tabs, in display order. */
 export const COURSE_ADMIN_TABS = ["info", "description", "media", "chapters", "preview"] as const;
@@ -48,6 +52,7 @@ const LOCATIONS: Partial<Record<CourseAdminErrorKey, FieldLocation>> = {
   "course.admin.error.eloOrder": { tab: "info", field: "elo" },
   "course.admin.error.invalidDuration": { tab: "info", field: "duration" },
   "course.admin.error.descriptionTooLong": { tab: "description", field: "summary" },
+  "course.admin.error.tooManyDiagrams": { tab: "description", field: "summary" },
   "course.admin.error.coverHost": { tab: "media", field: "coverUrl" },
   "course.admin.error.videoLink": { tab: "media", field: "videoUrl" },
   "course.admin.error.tooManyChapters": { tab: "chapters", field: "chapters" },
@@ -112,8 +117,12 @@ export function validateCourseDraft(draft: CourseDraft): DraftValidation {
   if ((draft.authorName?.trim() ?? "").length > 120) {
     return fail({ key: "course.admin.error.authorNameTooLong" });
   }
-  if (sanitizeCourseHtml(draft.summary).length > 8000) {
+  const summary = sanitizeCourseHtml(draft.summary);
+  if (summary.length > MAX_DESCRIPTION_LENGTH) {
     return fail({ key: "course.admin.error.descriptionTooLong" });
+  }
+  if (countDescriptionDiagrams(summary) > MAX_DESCRIPTION_DIAGRAMS) {
+    return fail({ key: "course.admin.error.tooManyDiagrams" });
   }
   const coverInput = draft.coverUrl?.trim() ?? "";
   if (coverInput && !courseCoverUrl(coverInput)) {

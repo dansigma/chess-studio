@@ -9,6 +9,7 @@ import { FieldAnchor, FieldError, fieldControlProps, fieldDomId } from "./FieldE
 import type { LocatedError } from "./validate-draft";
 import { useStudioStore } from "@/src/store/studio-store";
 import { COURSE_THEMES } from "./types";
+import { CourseSummary } from "./CourseSummary";
 
 const DescriptionField = dynamic(() => import("./DescriptionField").then((m) => m.DescriptionField), {
   ssr: false,
@@ -139,12 +140,9 @@ export function CourseDescriptionField({ draft, setDraft, readOnly = false, erro
     >
       {tCourseAdmin(locale, "course.admin.field.description")}
       {readOnly ? (
-        <div
+        <CourseSummary
+          html={draft.summary}
           className="mt-1 min-h-36 rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-fg"
-          // The summary is sanitized HTML (sanitizeCourseHtml, applied in
-          // checkedCourse); render it read-only rather than mounting the
-          // TipTap editor.
-          dangerouslySetInnerHTML={{ __html: draft.summary }}
         />
       ) : (
         <DescriptionField
