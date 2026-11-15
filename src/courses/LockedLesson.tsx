@@ -3,44 +3,22 @@
 import Link from "next/link";
 import { useStudioStore } from "@/src/store/studio-store";
 import { tCourseAccess } from "@/src/i18n/course-access-strings";
-import { lockedCta } from "./locked-cta";
+import { tCourse } from "@/src/i18n/course-strings";
 import type { Course } from "./types";
 
 // SIG-1119: shown when the database refused course_content for this course
-// (locked means the query succeeded with no row). Renders the course
-// outline and the next step for the visitor.
-export function LockedLesson({
-  course,
-  lessonPath,
-  signedIn,
-}: {
-  course: Course;
-  lessonPath: string;
-  signedIn: boolean;
-}) {
+// (locked means the query succeeded with no row). The site is free, so this
+// is a neutral message plus a link back to the course, never a paywall.
+export function LockedLesson({ course }: { course: Course }) {
   const locale = useStudioStore((state) => state.settings.locale);
-  const cta = lockedCta({
-    tier: course.accessTier,
-    signedIn,
-    courseHref: `/courses/${course.slug}#buy`,
-    lessonPath,
-    priceCents: course.priceCents,
-    locale,
-  });
-  const lockedCopy =
-    course.accessTier === "paid"
-      ? tCourseAccess(locale, "course.access.lockedPaid")
-      : course.accessTier === "premium"
-        ? tCourseAccess(locale, "course.access.lockedPremium")
-        : tCourseAccess(locale, "course.access.lockedSignIn");
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
-      <p className="text-body text-studio-muted">{lockedCopy}</p>
+      <p className="text-body text-studio-muted">{tCourseAccess(locale, "course.access.unavailable")}</p>
       <Link
-        href={cta.href}
+        href={`/courses/${course.slug}`}
         className="mt-4 inline-flex items-center rounded-lg bg-studio-accent px-4 py-2 text-body font-semibold text-studio-on-accent"
       >
-        {cta.label}
+        {tCourse(locale, "course.lesson.backToCourse")}
       </Link>
       <div className="mt-8 space-y-6">
         {course.chapters

@@ -201,7 +201,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
       return (
         <div className="min-h-full bg-studio-bg">
           <CourseChrome admin={admin} isAdmin={isAdmin} />
-          <LockedLesson course={course} lessonPath={`/courses/${course.slug}/${variationId}`} signedIn={signedIn} />
+          <LockedLesson course={course} />
         </div>
       );
     }
