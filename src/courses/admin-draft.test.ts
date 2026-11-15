@@ -29,6 +29,18 @@ describe("importChapterPgn", () => {
     assert.ok(result && "lines" in result);
     assert.equal(result.lines.length, 2);
     assert.equal(result.suggested, "Jobava London");
+    assert.deepEqual(result.warnings, []);
+  });
+
+  it("passes the import warnings through", () => {
+    const result = importChapterPgn(
+      '[Event "Bad"]\n[Chapter "Main"]\n\n1. e4 e5 2. e5 *\n',
+      [chapter("c1", 0, "")],
+      "c1",
+    );
+    assert.ok(result && "lines" in result);
+    assert.equal(result.warnings.length, 1);
+    assert.deepEqual(result.warnings[0], { title: "Main", warning: { kind: "illegalMove", move: "e5" } });
   });
 
   it("rejects a file larger than one million characters", () => {
@@ -60,6 +72,7 @@ describe("appendChapterPgn", () => {
   const update: ChapterPgnUpdate = {
     lines: [{ id: "v1", title: "1...d5", pgn: "1. d4 d5" }],
     suggested: "Jobava London",
+    warnings: [],
   };
 
   it("appends the lines and adopts the suggested title when the chapter is untitled", () => {

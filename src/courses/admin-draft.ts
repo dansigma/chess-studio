@@ -1,5 +1,5 @@
 import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields";
-import { chapterTitleFromPgn, variationsFromChapterPgn } from "./chapter-pgn";
+import { chapterTitleFromPgn, variationsFromChapterPgn, type ChapterPgnWarning } from "./chapter-pgn";
 import type { CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import type { Course, CourseChapter, CourseTheme, CourseVariation } from "./types";
 
@@ -27,7 +27,12 @@ export function emptyCourse(): CourseDraft {
 const MAX_PGN_CHARS = 1_000_000;
 const MAX_CHAPTER_LINES = 40;
 
-export type ChapterPgnUpdate = { lines: CourseVariation[]; suggested: string };
+export type ChapterPgnUpdate = {
+  lines: CourseVariation[];
+  suggested: string;
+  /** SIG-1366: imported lines whose PGN skipped moves, so the editor can warn. */
+  warnings: ChapterPgnWarning[];
+};
 
 /**
  * Validates an uploaded PGN for one chapter: size, playable lines, and the
@@ -42,7 +47,7 @@ export function importChapterPgn(
   if (text.length > MAX_PGN_CHARS) {
     return { error: { key: "course.admin.error.pgnTooLarge" } };
   }
-  const lines = variationsFromChapterPgn(text);
+  const { lines, warnings } = variationsFromChapterPgn(text);
   if (lines.length === 0) {
     return { error: { key: "course.admin.error.pgnNoLines" } };
   }
@@ -53,7 +58,7 @@ export function importChapterPgn(
   if (chapter.variations.length + lines.length > MAX_CHAPTER_LINES) {
     return { error: { key: "course.admin.error.tooManyLines" } };
   }
-  return { lines, suggested: chapterTitleFromPgn(text) };
+  return { lines, suggested: chapterTitleFromPgn(text), warnings };
 }
 
 /** Appends an import's lines to a chapter, adopting the suggested title when the chapter has none. */
