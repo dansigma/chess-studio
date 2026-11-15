@@ -40,6 +40,14 @@ describe("course lessons", () => {
   it("marks a line learned only by stepping onto the last frame", () => {
     assert.deepEqual(progressAfterStep(undefined, 6, 7, 8), { step: 7, learned: true });
     assert.deepEqual(progressAfterStep(undefined, 0, 7, 8), { step: 7, learned: false });
+    const scheduled = {
+      step: 7,
+      learned: true,
+      reviewLevel: 1,
+      reviewDueAt: "2026-01-01T04:00:00.000Z",
+      lastReviewedAt: "2026-01-01T00:00:00.000Z",
+    };
+    assert.deepEqual(progressAfterStep(scheduled, 7, 2, 8), { ...scheduled, step: 2 });
     assert.deepEqual(progressAfterStep({ step: 7, learned: true }, 7, 4, 8), { step: 4, learned: true });
     assert.deepEqual(progressAfterStep(undefined, 2, 1, 8), { step: 1, learned: false });
   });

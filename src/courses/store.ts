@@ -344,7 +344,7 @@ export async function hydrateProgress(userId: string | null): Promise<Record<str
   }
   const { data, error } = await supabase
     .from("course_progress")
-    .select("variation_id, step, learned")
+    .select("variation_id, step, learned, review_level, review_due_at, last_reviewed_at")
     .eq("user_id", userId);
   if (error) {
     progressCache = local;
@@ -352,7 +352,13 @@ export async function hydrateProgress(userId: string | null): Promise<Record<str
   }
   const remote: Record<string, VariationProgress> = {};
   for (const row of data ?? []) {
-    remote[row.variation_id] = { step: row.step, learned: row.learned };
+    remote[row.variation_id] = {
+      step: row.step,
+      learned: row.learned,
+      reviewLevel: row.review_level,
+      reviewDueAt: row.review_due_at,
+      lastReviewedAt: row.last_reviewed_at,
+    };
   }
   const { merged, toUpload } = mergeProgress(local, remote);
   const ids = Object.keys(toUpload);
@@ -364,6 +370,7 @@ export async function hydrateProgress(userId: string | null): Promise<Record<str
         variation_id: variationId,
         step: toUpload[variationId].step,
         learned: toUpload[variationId].learned,
+        ...reviewColumns(toUpload[variationId]),
         updated_at: new Date().toISOString(),
       })),
     );
@@ -388,6 +395,28 @@ function persistLocalProgress(): void {
  */
 export const PROGRESS_BROWSER_ONLY = "browser-only" as const;
 
+/** Review columns to upsert; undefined fields are omitted so they never clobber stored values. */
+export function reviewColumns(progress: VariationProgress) {
+  return {
+    ...(progress.reviewLevel !== undefined ? { review_level: progress.reviewLevel } : {}),
+    ...(progress.reviewDueAt !== undefined ? { review_due_at: progress.reviewDueAt } : {}),
+    ...(progress.lastReviewedAt !== undefined ? { last_reviewed_at: progress.lastReviewedAt } : {}),
+  };
+}
+
+/** The course_progress upsert row; course_id only for DB courses (built-ins have no row to reference). */
+export function progressRow(userId: string, variationId: string, progress: VariationProgress, course?: Course) {
+  return {
+    user_id: userId,
+    variation_id: variationId,
+    step: progress.step,
+    learned: progress.learned,
+    ...reviewColumns(progress),
+    ...(course ? { course_id: course.builtin ? null : course.id } : {}),
+    updated_at: new Date().toISOString(),
+  };
+}
+
 export async function saveVariationProgress(
   variationId: string,
   progress: VariationProgress,
@@ -403,13 +432,9 @@ export async function saveVariationProgress(
     persistLocalProgress();
     return PROGRESS_BROWSER_ONLY;
   }
-  const { error } = await supabase.from("course_progress").upsert({
-    user_id: accountUserId,
-    variation_id: variationId,
-    step: progress.step,
-    learned: progress.learned,
-    updated_at: new Date().toISOString(),
-  });
+  const { error } = await supabase
+    .from("course_progress")
+    .upsert(progressRow(accountUserId, variationId, progress, course));
   if (error) {
     persistLocalProgress();
     return PROGRESS_BROWSER_ONLY;

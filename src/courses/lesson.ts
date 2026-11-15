@@ -121,5 +121,7 @@ export function progressAfterStep(
   const clamped = Math.max(0, Math.min(nextStep, last));
   const already = current?.learned ?? false;
   const learned = already || (clamped === step + 1 && frameCount > 0 && clamped === last);
-  return { step: clamped, learned };
+  // Keep the review schedule (SIG-1351): stepping through a learned line must
+  // not drop it.
+  return { ...current, step: clamped, learned };
 }

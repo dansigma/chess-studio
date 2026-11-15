@@ -2,7 +2,7 @@ import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields.ts";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { CUSTOM_COURSES_KEY, readRawCache, writeRawCache } from "../lib/local-cache.ts";
-import { readLocalCustomCourses, removeLocalCustomDraft, toLocalDraftCourse } from "./store.ts";
+import { progressRow, readLocalCustomCourses, removeLocalCustomDraft, toLocalDraftCourse } from "./store.ts";
 import type { Course } from "./types.ts";
 
 // SIG-882: removeLocalCustomDraft reports whether browser storage reflects
@@ -284,5 +284,34 @@ describe("readLocalCustomCourses validation", () => {
     assert.equal(toLocalDraftCourse(null), null);
     assert.equal(toLocalDraftCourse([]), null);
     assert.equal(toLocalDraftCourse("text"), null);
+  });
+});
+
+describe("progressRow", () => {
+  const progress = {
+    step: 2,
+    learned: true,
+    reviewLevel: 1,
+    reviewDueAt: "2026-01-01T04:00:00.000Z",
+    lastReviewedAt: "2026-01-01T00:00:00.000Z",
+  };
+
+  it("carries course_id and the review fields for a DB course", () => {
+    const row = progressRow("u1", "v1", progress, makeDraft(DRAFT_A));
+    assert.equal(row.course_id, DRAFT_A);
+    assert.equal(row.review_level, 1);
+    assert.equal(row.review_due_at, "2026-01-01T04:00:00.000Z");
+    assert.equal(row.last_reviewed_at, "2026-01-01T00:00:00.000Z");
+  });
+
+  it("sends a null course_id for a built-in course", () => {
+    const row = progressRow("u1", "v1", progress, { ...makeDraft("seed"), builtin: true });
+    assert.equal(row.course_id, null);
+  });
+
+  it("omits course_id and absent review fields so stored values are not clobbered", () => {
+    const row = progressRow("u1", "v1", { step: 0, learned: false });
+    assert.ok(!("course_id" in row));
+    assert.ok(!("review_level" in row));
   });
 });

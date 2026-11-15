@@ -10,6 +10,7 @@ import { MARK_HEX } from "@/src/chess/marks";
 import { shareBoardUrl, writeCourseStudyImport } from "@/src/chess/share-board";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button, IconButton } from "@/src/studio/ui/Button";
+import { afterFirstLearn } from "./review";
 import { lessonFrames, progressAfterStep, studentMoveMatches } from "./lesson";
 import { PROGRESS_BROWSER_ONLY, findVariation, loadProgress, saveVariationProgress } from "./store";
 import { recordEnrollment } from "./enrollment";
@@ -91,7 +92,11 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   }, [signedIn, userId, course.builtin, course.id, contentReadable]);
 
   function persist(nextStep: number) {
-    const next = progressAfterStep(loadProgress()[variationId], step, nextStep, frames.length);
+    const current = loadProgress()[variationId];
+    let next = progressAfterStep(current, step, nextStep, frames.length);
+    if (next.learned && !current?.learned) {
+      next = afterFirstLearn(next, new Date());
+    }
     setStep(next.step);
     setNotice("");
     setHint(false);
