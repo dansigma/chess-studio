@@ -152,13 +152,14 @@ export function useAdminSession() {
     setCourses(next);
   }
 
-  async function importLocalDraft(course: Course) {
+  /** Imports a browser-local draft; resolves to the saved course, or null when it was not imported. */
+  async function importLocalDraft(course: Course): Promise<Course | null> {
     const conflict = findPublishedConflict(course.id, courses);
     if (
       conflict &&
       !window.confirm(tCourseAdmin(locale, "course.admin.confirm.replaceDraft", { title: conflict.title }))
     ) {
-      return;
+      return null;
     }
     setImportingId(course.id);
     try {
@@ -172,7 +173,7 @@ export function useAdminSession() {
       const result = role === "coach" ? await saveCourseDraft(payload) : await publishCourse(payload);
       if (!result.ok) {
         setError(result.error);
-        return;
+        return null;
       }
       setCourses((current) => [result.course, ...current.filter((item) => item.id !== result.course.id)]);
       setLocalDrafts((current) => current.filter((item) => item.id !== course.id));
@@ -182,6 +183,7 @@ export function useAdminSession() {
         setError(null);
       }
       router.refresh();
+      return result.course;
     } finally {
       setImportingId(null);
     }

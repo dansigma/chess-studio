@@ -288,7 +288,15 @@ export function AdminView() {
           localDrafts={localDrafts}
           courses={courses}
           importingId={importingId}
-          onImport={(course) => void importLocalDraft(course)}
+          onImport={(course) =>
+            // SIG-1363: an imported draft opens in the editor through the same
+            // guarded load as any other course, so draft, baseline and list agree.
+            void importLocalDraft(course).then((saved) => {
+              if (saved) {
+                guardUnsaved(() => loadDraft(saved));
+              }
+            })
+          }
           onDiscard={discardLocalDrafts}
         />
         <aside>
