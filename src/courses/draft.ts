@@ -54,7 +54,7 @@ export function normalizeChapters(
     }
     const videoUrl = chapter.videoUrl?.trim() ?? "";
     if (videoUrl && !courseVideo(videoUrl)) {
-      return { error: { key: "course.admin.error.chapterVideoLink" } };
+      return { error: { key: "course.admin.error.chapterVideoLink", vars: { chapterId: chapter.id } } };
     }
     const description = chapter.description?.trim() ?? "";
     if (description.length > 2000) {

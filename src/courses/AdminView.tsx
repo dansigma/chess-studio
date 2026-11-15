@@ -388,7 +388,9 @@ export function AdminView() {
                     chapter={chapter}
                     index={chapterIndex}
                     total={draft.chapters.length}
+                    error={fieldError}
                     onTitle={(title) => updateChapter(chapter.id, { title })}
+                    onVideo={(videoUrl) => updateChapter(chapter.id, { videoUrl })}
                     onMove={(direction) => moveChapter(chapterIndex, direction)}
                     onRemove={() => {
                       const hasLines = chapter.variations.some(

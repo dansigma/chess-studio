@@ -6,12 +6,16 @@ import { tCourseAdmin } from "@/src/i18n/course-admin-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { IconButton, Button } from "@/src/studio/ui/Button";
 import type { CourseChapter } from "./types";
+import { MediaLinkField } from "./ui/MediaLinkField";
+import type { LocatedError } from "./validate-draft";
 
 export function ChapterDraft({
   chapter,
   index,
   total,
+  error,
   onTitle,
+  onVideo,
   onMove,
   onRemove,
   onUpload,
@@ -24,7 +28,10 @@ export function ChapterDraft({
   chapter: CourseChapter;
   index: number;
   total: number;
+  /** SIG-1365: the save-time error, shown on this chapter's video field when it points there. */
+  error: LocatedError | null;
   onTitle: (title: string) => void;
+  onVideo: (videoUrl: string) => void;
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
   onUpload: (file: File) => void;
@@ -69,6 +76,18 @@ export function ChapterDraft({
             <Trash2 size={14} />
           </IconButton>
         </div>
+      </div>
+      <div className="mt-3">
+        <MediaLinkField
+          kind="video"
+          field={`chapterVideo:${chapter.id}`}
+          label={tCourseAdmin(locale, "course.admin.field.chapterVideo")}
+          value={chapter.videoUrl ?? ""}
+          error={error}
+          onChange={onVideo}
+          onRemove={() => onVideo("")}
+          placeholder={tCourseAdmin(locale, "course.admin.field.videoPlaceholder")}
+        />
       </div>
       <div className="mt-3 space-y-3">
         {chapter.variations.map((variation, variationIndex) => (

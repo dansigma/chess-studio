@@ -31,7 +31,9 @@ export type CourseField =
   | "summary"
   | "coverUrl"
   | "videoUrl"
-  | "chapters";
+  | "chapters"
+  /** SIG-1365: the video link input of one chapter. */
+  | `chapterVideo:${string}`;
 
 export type FieldLocation = { tab: CourseAdminTab; field: CourseField };
 
@@ -67,8 +69,17 @@ const LOCATIONS: Partial<Record<CourseAdminErrorKey, FieldLocation>> = {
 
 /** Maps an error message (client or server) to its tab and field, or null when it is not about one field. */
 export function locateError(error: CourseAdminMessage): LocatedError | null {
-  const location = LOCATIONS[error.key];
+  const location = locationOf(error);
   return location ? { error, ...location } : null;
+}
+
+/** The chapter video error carries the failing chapter id so the editor can focus its own input. */
+function locationOf(error: CourseAdminMessage): FieldLocation | undefined {
+  const chapterId = error.vars?.chapterId;
+  if (error.key === "course.admin.error.chapterVideoLink" && typeof chapterId === "string" && chapterId) {
+    return { tab: "chapters", field: `chapterVideo:${chapterId}` };
+  }
+  return LOCATIONS[error.key];
 }
 
 export type DraftValidation =
@@ -76,7 +87,7 @@ export type DraftValidation =
   | { ok: false; error: CourseAdminMessage; tab?: CourseAdminTab; field?: CourseField };
 
 function fail(error: CourseAdminMessage): DraftValidation {
-  return { ok: false, error, ...LOCATIONS[error.key] };
+  return { ok: false, error, ...locationOf(error) };
 }
 
 /**
