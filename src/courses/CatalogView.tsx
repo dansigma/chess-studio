@@ -2,20 +2,37 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { courseThemeLabel, isCourseTheme } from "./catalog";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { CatalogFilters } from "./ui/CatalogFilters";
+import {
+  EMPTY_CATALOG_QUERY,
+  filterCatalog,
+  parseCatalogQuery,
+  serializeCatalogQuery,
+  type CatalogQuery,
+} from "./catalog-filter";
 import { tCourse } from "@/src/i18n/course-strings";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "./CourseChrome";
 import { useStudioStore } from "@/src/store/studio-store";
-import { COURSE_THEMES, type CatalogCourse, type CourseTheme } from "./types";
+import type { CatalogCourse } from "./types";
 import { CourseCard } from "./ui/CourseCard";
 import { useCourseData } from "./use-courses";
 
 export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
   const locale = useStudioStore((state) => state.settings.locale);
   const { progress, admin, isAdmin, ready, signedIn, source } = useCourseData();
-  const [theme, setTheme] = useState<CourseTheme | "">("");
-  const visible = theme ? courses.filter((course) => course.theme === theme) : courses;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Local state keeps typing responsive; the address is kept in sync (SIG-1356).
+  const [query, setQuery] = useState<CatalogQuery>(() => parseCatalogQuery(searchParams));
+  const visible = filterCatalog(courses, query);
+  const updateQuery = (next: CatalogQuery) => {
+    setQuery(next);
+    const qs = serializeCatalogQuery(next);
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
 
   return (
     <div className="min-h-full bg-studio-bg">
@@ -28,25 +45,8 @@ export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
               {tCourse(locale, "course.catalog.intro")}
             </p>
           </div>
-          <label className="text-caption text-studio-muted">
-            {tCourse(locale, "course.catalog.filterTheme")}
-            <select
-              value={theme}
-              onChange={(event) => {
-                const next = event.target.value;
-                setTheme(next === "" || isCourseTheme(next) ? next : "");
-              }}
-              className="mt-1 block rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-fg"
-            >
-              <option value="">{tCourse(locale, "course.catalog.filterAll")}</option>
-              {COURSE_THEMES.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {courseThemeLabel(item.id, locale)}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
+        <CatalogFilters locale={locale} query={query} onChange={updateQuery} />
         {ready && !signedIn ? (
           <p className="mt-3 text-caption text-studio-muted">
             <Link href="/login" className="text-studio-accent-text">
@@ -62,7 +62,16 @@ export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
           {courses.length === 0 ? (
             <p className="text-body text-studio-muted">{tCourse(locale, "course.catalog.empty")}</p>
           ) : visible.length === 0 ? (
-            <p className="text-body text-studio-muted">{tCourse(locale, "course.catalog.emptyTheme")}</p>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <p className="text-body text-studio-muted">{tCourse(locale, "course.catalog.noResults")}</p>
+              <button
+                type="button"
+                onClick={() => updateQuery(EMPTY_CATALOG_QUERY)}
+                className="mt-3 rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-fg hover:border-studio-border-strong"
+              >
+                {tCourse(locale, "course.catalog.clearFilters")}
+              </button>
+            </div>
           ) : null}
           {visible.map((course) => (
             <CourseCard key={course.id} course={course} locale={locale} progress={progress} ready={ready} />
