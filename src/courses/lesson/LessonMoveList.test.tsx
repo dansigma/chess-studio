@@ -23,6 +23,23 @@ const frames: LessonFrame[] = [
   { fen: W2, comment: "", san: "Nf3", move: null },
 ];
 
+test("Treinar hides every author comment and keeps only the moves", () => {
+  const { getByText, queryByText } = render(
+    <LessonMoveList
+      locale="pt-br"
+      frames={frames}
+      reachedStep={2}
+      viewStep={2}
+      showComments={false}
+      onSelect={() => {}}
+    />,
+  );
+  getByText("e4");
+  getByText("e5");
+  assert.equal(queryByText("Start"), null);
+  assert.equal(queryByText("Center"), null);
+});
+
 test("lists reached moves with comments, hides the rest, marks Sua vez", () => {
   const selected: number[] = [];
   const { container, queryByText, getByText } = render(

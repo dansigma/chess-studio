@@ -33,6 +33,9 @@ test("lessonShortcut maps keys and ignores inputs and modifiers", () => {
   assert.equal(lessonShortcut({ key: "End" }), "end");
   assert.equal(lessonShortcut({ key: "F" }), "flip");
   assert.equal(lessonShortcut({ key: "?" }), "help");
+  // SIG-1374: Space / Enter press the summary's primary button.
+  assert.equal(lessonShortcut({ key: " " }), "primary");
+  assert.equal(lessonShortcut({ key: "Enter" }), "primary");
   assert.equal(lessonShortcut({ key: "x" }), null);
   assert.equal(lessonShortcut({ key: "f", ctrlKey: true }), null);
   assert.equal(lessonShortcut({ key: "ArrowLeft", metaKey: true }), null);
@@ -42,6 +45,14 @@ test("lessonShortcut maps keys and ignores inputs and modifiers", () => {
   );
   assert.equal(
     lessonShortcut({ key: "f", target: { tagName: "TEXTAREA" } as never }),
+    null,
+  );
+  assert.equal(
+    lessonShortcut({ key: "Enter", target: { tagName: "BUTTON" } as never }),
+    null,
+  );
+  assert.equal(
+    lessonShortcut({ key: " ", target: { tagName: "A" } as never }),
     null,
   );
   assert.equal(

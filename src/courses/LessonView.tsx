@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { Chess, type Square } from "chess.js";
 import { ExternalLink } from "lucide-react";
 import { importPgn } from "@/src/chess/pgn";
-import { MARK_HEX } from "@/src/chess/marks";
+import { MARK_FILL } from "@/src/chess/marks";
 import { shareBoardUrl, writeCourseStudyImport } from "@/src/chess/share-board";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
 import { Skeleton } from "@/src/site/ui/Skeleton";
-import { afterFirstLearn } from "./review";
+import { afterFirstLearn, afterTrain } from "./review";
+import { nextLineHref } from "./next-line";
 import {
   lessonFrames,
   planMarks,
@@ -45,6 +46,8 @@ import {
   autoAdvance,
   guideArrows,
   guideComment,
+  hintArrows,
+  hintSquares,
   lessonOpenStep,
   lessonSessionReducer,
   lessonSummary,
@@ -77,11 +80,13 @@ export function LessonView({
   // (Treinar). Browsing back only moves the view and never saves progress.
   const [session, setSession] = useState<LessonSession>(INITIAL_LESSON_SESSION);
   const [notice, setNotice] = useState("");
-  const [hint, setHint] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [lessonKey, setLessonKey] = useState<string | null>(null);
+  // SIG-1374: lines learned in Aprender during this page visit keep the
+  // first-completion review path even after the progress hook goes stale.
+  const learnedInSession = useRef<Set<string>>(new Set());
   const locale = useStudioStore((state) => state.settings.locale);
   const {
     progress: savedProgress,
@@ -131,7 +136,6 @@ export function LessonView({
     );
     setFlipped(false);
     setShowShortcuts(false);
-    setHint(false);
     setNotice("");
     setSelected(null);
   }
@@ -139,9 +143,13 @@ export function LessonView({
   const frame = frames[Math.min(session.viewStep, lastStep)];
   const waiting = lessonWaiting(session, frame);
   const finished = session.phase === "summary";
-  const summary =
-    session.mode === "learn" ? lessonSummary(session, frames) : null;
+  const summary = lessonSummary(session, frames);
   const studentSide = loaded?.course.color === "white" ? "w" : "b";
+  // SIG-1374: Treinar continues along the course order; the course page is
+  // both the after-the-last-line target and the "Curso concluído" label.
+  const nextHref = loaded ? nextLineHref(loaded.course, variationId) : "";
+  const courseHref = loaded ? `/courses/${loaded.course.slug}` : "";
+  const atCourseEnd = nextHref === courseHref;
 
   // SIG-1052: first open per signed-in user and course, only when the lesson
   // content is actually readable. Seed/local courses ship full content
@@ -170,12 +178,25 @@ export function LessonView({
     );
     if (next.learned && !current?.learned) {
       next = afterFirstLearn(next, new Date());
+      learnedInSession.current.add(currentLessonKey);
+    }
+    // SIG-1374: the last Treinar move also writes the review rung in the same
+    // upsert, so the schedule can never race the step save. A clean first pass
+    // enters at level 1; a mistake keeps it at level 0, due in 4 h.
+    if (session.mode === "train" && nextStep >= lastStep) {
+      next = afterTrain(
+        next,
+        {
+          mistakes: session.mistakes,
+          learnedThisSession: learnedInSession.current.has(currentLessonKey),
+        },
+        new Date(),
+      );
     }
     setSession((state) =>
       lessonSessionReducer(state, { type: "advance", lastStep }),
     );
     setNotice("");
-    setHint(false);
     setSelected(null);
     void saveVariationProgress(variationId, next, effectiveCourse).then(
       (error) => {
@@ -194,7 +215,6 @@ export function LessonView({
       lessonSessionReducer(state, { type: "view", step: nextStep, lastStep }),
     );
     setNotice("");
-    setHint(false);
     setSelected(null);
   }
 
@@ -216,23 +236,33 @@ export function LessonView({
       setSession((state) =>
         lessonSessionReducer(state, { type: "wrong" }),
       );
-      setNotice(tCourse(locale, "course.lesson.notInLine"));
-      setHint(true);
+      setNotice(
+        tCourse(
+          locale,
+          session.mode === "train"
+            ? "course.lesson.tryAgain"
+            : "course.lesson.notInLine",
+        ),
+      );
       setSelected(null);
+      // The board rejects the move and keeps the student on the same frame.
       return false;
     }
     persist(session.reachedStep + 1);
     return true;
   }
 
-  // Refazer starts Aprender again; Continuar para Revisão starts Treinar.
-  // The address keeps the mode, so a reload resumes it.
+  function revealHint() {
+    setSession((state) => lessonSessionReducer(state, { type: "hint" }));
+  }
+
+  // Refazer starts the same mode again; Continuar para Revisão starts
+  // Treinar. The address keeps the mode, so a reload resumes it.
   function startMode(mode: LessonMode) {
     setSession((state) =>
       lessonSessionReducer(state, { type: "start", mode, lastStep }),
     );
     setNotice("");
-    setHint(false);
     setSelected(null);
     syncModeUrl(mode);
   }
@@ -241,9 +271,12 @@ export function LessonView({
   const actions = useRef({
     go,
     playExpected,
+    startTrain: () => startMode("train"),
     step: session.viewStep,
     waiting,
     done: finished,
+    mode: session.mode,
+    nextHref,
     endStep,
     ready: Boolean(frame),
     dialogOpen: false,
@@ -252,9 +285,12 @@ export function LessonView({
     actions.current = {
       go,
       playExpected,
+      startTrain: () => startMode("train"),
       step: session.viewStep,
       waiting,
       done: finished,
+      mode: session.mode,
+      nextHref,
       endStep,
       ready: Boolean(frame),
       dialogOpen: showShortcuts,
@@ -269,6 +305,11 @@ export function LessonView({
       }
       const action = lessonShortcut(event, { dialogOpen: current.dialogOpen });
       if (!action) {
+        return;
+      }
+      // Space / Enter only act as the summary's primary button; while playing
+      // they keep their normal browser behaviour.
+      if (action === "primary" && !current.done) {
         return;
       }
       event.preventDefault();
@@ -286,15 +327,22 @@ export function LessonView({
         }
       } else if (action === "flip") {
         setFlipped((value) => !value);
+      } else if (action === "primary") {
+        if (current.mode === "train") {
+          router.push(current.nextHref);
+        } else {
+          current.startTrain();
+        }
       } else {
         setShowShortcuts(true);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [router]);
 
-  // SIG-1373: in Aprender the opponent answers by itself after a short pause.
+  // SIG-1373: the opponent answers by itself after a short pause. SIG-1374
+  // keeps that rule in Treinar, where only the student's own moves wait.
   // Reduced motion means no pause animation: advance right away.
   const shouldAutoAdvance =
     lessonKey === currentLessonKey &&
@@ -388,11 +436,19 @@ export function LessonView({
     string,
     { backgroundColor?: string; backgroundImage?: string; boxShadow?: string }
   > = {};
-  if (previous) {
+  // Treinar hides every guide while playing; only the hint ladder may light
+  // a square, and the plan comes back on the summary.
+  if (previous && session.mode === "learn") {
     squareStyles[previous.from] = {
       backgroundColor: "rgba(186, 202, 68, 0.72)",
     };
     squareStyles[previous.to] = { backgroundColor: "rgba(186, 202, 68, 0.72)" };
+  }
+  for (const square of hintSquares(session, frame)) {
+    squareStyles[square] = {
+      ...(squareStyles[square] ?? {}),
+      backgroundColor: MARK_FILL.B,
+    };
   }
   if (selected) {
     squareStyles[selected] = {
@@ -407,22 +463,8 @@ export function LessonView({
         "radial-gradient(circle, rgba(0,0,0,0.28) 22%, transparent 23%)",
     };
   }
-  // Treinar keeps the old hint arrow until Courses 26/27 adds its hint ladder.
-  const showAnswer = Boolean(
-    session.mode === "train" && waiting && hint && frame.move,
-  );
-  const arrows = [
-    ...guideArrows(session, frame),
-    ...(showAnswer && frame.move
-      ? [
-          {
-            startSquare: frame.move.from,
-            endSquare: frame.move.to,
-            color: MARK_HEX.B,
-          },
-        ]
-      : []),
-  ];
+  // Aprender's blue guide arrow and Treinar's second hint never overlap.
+  const arrows = [...guideArrows(session, frame), ...hintArrows(session, frame)];
   const orientation =
     (loaded.course.color === "white") !== flipped ? "white" : "black";
   const segments = chapterSegments(loaded.chapter, savedProgress, variationId);
@@ -473,7 +515,13 @@ export function LessonView({
             fen={frame.fen}
             orientation={orientation}
             arrows={arrows}
-            marks={finished ? planMarks(frames) : frame.marks}
+            marks={
+              finished
+                ? planMarks(frames)
+                : session.mode === "learn"
+                  ? frame.marks
+                  : undefined
+            }
             squareStyles={squareStyles}
             interactive={waiting}
             canDragPiece={({ piece }) =>
@@ -525,6 +573,7 @@ export function LessonView({
           reachedStep={session.reachedStep}
           viewStep={session.viewStep}
           onSelect={go}
+          showComments={session.mode === "learn"}
         />
         <LessonMoveStrip
           locale={locale}
@@ -532,6 +581,7 @@ export function LessonView({
           reachedStep={session.reachedStep}
           viewStep={session.viewStep}
           onSelect={go}
+          showComments={session.mode === "learn"}
         />
         <div className="space-y-3 p-4 text-body leading-relaxed text-studio-fg">
           {waiting && session.mode === "learn" ? (
@@ -540,16 +590,9 @@ export function LessonView({
                 tCourse(locale, "course.lesson.hintShown")}
             </p>
           ) : null}
-          {waiting && session.mode !== "learn" && !hint ? (
+          {waiting && session.mode === "train" && session.hintLevel === 0 ? (
             <p className="font-medium text-studio-accent-text lg:hidden">
               {tCourse(locale, "course.lesson.yourTurn")}
-            </p>
-          ) : null}
-          {showAnswer ? (
-            <p className="font-medium text-studio-accent-text">
-              {tCourse(locale, "course.lesson.yourMove", {
-                san: frame.move?.san ?? "",
-              })}
             </p>
           ) : null}
           {notice ? (
@@ -565,6 +608,9 @@ export function LessonView({
               locale={locale}
               moves={summary.moves}
               mistakes={summary.mistakes}
+              hints={
+                session.mode === "train" ? summary.hints : undefined
+              }
               comment={summary.comment}
             />
           ) : null}
@@ -577,19 +623,58 @@ export function LessonView({
         <div className="border-t border-studio-border p-3">
           {summary ? (
             <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={() => startMode("learn")}>
+              <Button
+                variant="secondary"
+                onClick={() => startMode(session.mode)}
+              >
                 {tCourse(locale, "course.lesson.summary.restart")}
               </Button>
-              <Button variant="primary" onClick={() => startMode("train")}>
-                {tCourse(locale, "course.lesson.summary.review")}
-              </Button>
+              {session.mode === "train" ? (
+                <Link
+                  href={nextHref}
+                  data-lesson-next
+                  data-course-end={atCourseEnd ? "true" : undefined}
+                  className="inline-flex h-8 items-center justify-center rounded-lg bg-studio-accent px-3.5 text-body font-medium text-studio-accent-fg hover:bg-studio-accent-strong"
+                >
+                  {tCourse(
+                    locale,
+                    atCourseEnd
+                      ? "course.lesson.summary.courseDone"
+                      : "course.lesson.summary.next",
+                  )}
+                </Link>
+              ) : (
+                <Button variant="primary" onClick={() => startMode("train")}>
+                  {tCourse(locale, "course.lesson.summary.review")}
+                </Button>
+              )}
             </div>
           ) : waiting ? (
-            <p className="text-caption text-studio-muted">
-              {session.mode === "learn" || hint
-                ? tCourse(locale, "course.lesson.hintShown")
-                : tCourse(locale, "course.lesson.hintHidden")}
-            </p>
+            session.mode === "train" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  data-lesson-hint
+                  data-hint-level={session.hintLevel}
+                  disabled={session.hintLevel >= 2}
+                  onClick={revealHint}
+                >
+                  {tCourse(locale, "course.lesson.hint")}
+                </Button>
+                <span className="text-caption text-studio-muted">
+                  {tCourse(
+                    locale,
+                    session.hintLevel === 0
+                      ? "course.lesson.hintHidden"
+                      : "course.lesson.hintShown",
+                  )}
+                </span>
+              </div>
+            ) : (
+              <p className="text-caption text-studio-muted">
+                {tCourse(locale, "course.lesson.hintShown")}
+              </p>
+            )
           ) : finished ? (
             <Link
               href={`/courses/${loaded.course.slug}`}
