@@ -11,6 +11,7 @@ import {
 } from "@/src/test-utils/route-test.ts";
 import { resetRevalidateCalls, revalidateCalls } from "@/src/test-utils/stubs/next-cache.ts";
 import type { Course } from "./types.ts";
+import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields.ts";
 
 const serverState: { server?: unknown } = {};
 const serviceState: { service?: unknown } = {};
@@ -58,6 +59,7 @@ function course(overrides: Partial<Course> = {}): Course {
     status: "draft",
     accessTier: "free",
     priceCents: null,
+    ...DEFAULT_CATALOG_FIELDS,
     ...overrides,
   };
 }
@@ -314,4 +316,38 @@ test("admin archives anything and always revalidates", async () => {
     revalidateCalls.map((call) => call.path).sort(),
     ["/courses", "/courses/london-system"],
   );
+});
+
+test("draft save and publish both write the catalog fields (SIG-1349)", async () => {
+  const fields = { level: "advanced", language: "en", eloMin: 1200, eloMax: 1800, durationMinutes: 90 } as const;
+  const expected = { level: "advanced", language: "en", elo_min: 1200, elo_max: 1800, duration_minutes: 90 };
+  const pick = (row: Record<string, unknown>) => ({
+    level: row.level,
+    language: row.language,
+    elo_min: row.elo_min,
+    elo_max: row.elo_max,
+    duration_minutes: row.duration_minutes,
+  });
+  const draft = withCourseRow(null);
+  assert.equal((await saveCourseDraft(course(fields))).ok, true);
+  const draftRow = draft.service.calls.upsert.find((call) => call.table === "courses")!.row as Record<string, unknown>;
+  assert.deepEqual(pick(draftRow), expected);
+
+  const published = withCourseRow(null, ADMIN, "admin");
+  assert.equal((await publishCourse(course(fields))).ok, true);
+  const pubRow = published.service.calls.upsert.find((call) => call.table === "courses")!.row as Record<string, unknown>;
+  assert.deepEqual(pick(pubRow), expected);
+});
+
+test("saving rejects an inconsistent Elo pair before any write (SIG-1349)", async () => {
+  const { service } = withCourseRow(null);
+  assert.deepEqual(await saveCourseDraft(course({ eloMin: 1800, eloMax: 1200 })), {
+    ok: false,
+    error: { key: "course.admin.error.eloOrder" },
+  });
+  assert.deepEqual(await saveCourseDraft(course({ eloMin: 1200, eloMax: null })), {
+    ok: false,
+    error: { key: "course.admin.error.eloIncomplete" },
+  });
+  assert.equal(service.calls.upsert.length, 0);
 });

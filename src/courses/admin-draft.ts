@@ -1,3 +1,4 @@
+import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields";
 import { chapterTitleFromPgn, variationsFromChapterPgn } from "./chapter-pgn";
 import type { CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import type { Course, CourseChapter, CourseTheme, CourseVariation } from "./types";
@@ -19,6 +20,7 @@ export function emptyCourse(): CourseDraft {
     status: "draft",
     accessTier: "free",
     priceCents: null,
+    ...DEFAULT_CATALOG_FIELDS,
   };
 }
 

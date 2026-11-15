@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { validateCatalogFields } from "./catalog-fields";
 import { userCanPublishCourses } from "@/src/lib/auth/course-permissions";
 import { canAuthorCourses, getRole, isAdmin, type Role } from "@/src/lib/auth/roles";
 import type { Json } from "@/src/lib/supabase/database.types";
@@ -201,6 +202,10 @@ function checkedCourse(input: Course): { course: Course; chapters: CourseChapter
   if (!tierPrice.ok) {
     return { error: { key: tierPrice.error } };
   }
+  const catalogError = validateCatalogFields(input);
+  if (catalogError) {
+    return { error: catalogError };
+  }
   const authorName = input.authorName?.trim() ?? "";
   if (authorName.length > 120) {
     return { error: { key: "course.admin.error.authorNameTooLong" } };
@@ -338,6 +343,11 @@ export async function publishCourse(input: Course): Promise<{ ok: true; course: 
     access_tier: checked.course.accessTier,
     price_cents: checked.course.priceCents,
     author_display_name: checked.course.authorName?.trim() || null,
+    level: checked.course.level,
+    elo_min: checked.course.eloMin ?? null,
+    elo_max: checked.course.eloMax ?? null,
+    language: checked.course.language,
+    duration_minutes: checked.course.durationMinutes ?? null,
   });
   if (error) {
     return { ok: false, error: { key: databaseError(error) } };
@@ -509,6 +519,11 @@ export async function saveCourseDraft(input: Course): Promise<{ ok: true; course
     access_tier: checked.course.accessTier,
     price_cents: priceCents,
     author_display_name: checked.course.authorName?.trim() || null,
+    level: checked.course.level,
+    elo_min: checked.course.eloMin ?? null,
+    elo_max: checked.course.eloMax ?? null,
+    language: checked.course.language,
+    duration_minutes: checked.course.durationMinutes ?? null,
   });
   if (error) {
     return { ok: false, error: { key: databaseError(error) } };

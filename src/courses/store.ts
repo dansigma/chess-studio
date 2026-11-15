@@ -1,3 +1,4 @@
+import { readCourseLanguage, readCourseLevel, readNullableInt } from "./catalog-fields";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import {
   COURSE_PROGRESS_KEY,
@@ -95,7 +96,19 @@ export function toLocalDraftCourse(value: unknown): Course | null {
     status: "draft",
     accessTier: "free",
     priceCents: null,
+    // SIG-1349: fail-open, like the database read (beginner / pt-br / empty).
+    level: readCourseLevel(row.level),
+    eloMin: null,
+    eloMax: null,
+    language: readCourseLanguage(row.language),
+    durationMinutes: readNullableInt(row.durationMinutes),
   };
+  const eloMin = readNullableInt(row.eloMin);
+  const eloMax = readNullableInt(row.eloMax);
+  if (eloMin !== null && eloMax !== null) {
+    course.eloMin = eloMin;
+    course.eloMax = eloMax;
+  }
   if (typeof row.coverUrl === "string") {
     course.coverUrl = row.coverUrl;
   }

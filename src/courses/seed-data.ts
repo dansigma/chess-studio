@@ -1,3 +1,4 @@
+import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields";
 import type { Course } from "./types";
 
 const ADVANCE = `[Result "*"]
@@ -39,6 +40,7 @@ export const SEED_COURSES: Course[] = [
     status: "published",
     accessTier: "free",
     priceCents: null,
+    ...DEFAULT_CATALOG_FIELDS,
     chapters: [
       {
         id: "advance",

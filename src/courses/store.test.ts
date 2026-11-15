@@ -1,3 +1,4 @@
+import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields.ts";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { CUSTOM_COURSES_KEY, readRawCache, writeRawCache } from "../lib/local-cache.ts";
@@ -45,6 +46,7 @@ function makeDraft(id: string): Course {
     status: "draft",
     accessTier: "free",
     priceCents: null,
+    ...DEFAULT_CATALOG_FIELDS,
   };
 }
 
@@ -260,6 +262,22 @@ describe("readLocalCustomCourses validation", () => {
     assert.equal(garbageCourse?.status, "draft");
     assert.equal(garbageCourse?.accessTier, "free");
     assert.equal(garbageCourse?.priceCents, null);
+  });
+
+  it("toLocalDraftCourse keeps catalog fields and reads bad ones fail-open (SIG-1349)", () => {
+    const base = { id: DRAFT_A, theme: "openings", color: "white", chapters: [] };
+    const kept = toLocalDraftCourse({ ...base, level: "advanced", language: "en", eloMin: 1200, eloMax: 1800, durationMinutes: 90 });
+    assert.equal(kept?.level, "advanced");
+    assert.equal(kept?.language, "en");
+    assert.equal(kept?.eloMin, 1200);
+    assert.equal(kept?.eloMax, 1800);
+    assert.equal(kept?.durationMinutes, 90);
+    const garbage = toLocalDraftCourse({ ...base, level: "expert", language: "fr", eloMin: 1200, durationMinutes: "x" });
+    assert.equal(garbage?.level, "beginner");
+    assert.equal(garbage?.language, "pt-br");
+    assert.equal(garbage?.eloMin, null);
+    assert.equal(garbage?.eloMax, null);
+    assert.equal(garbage?.durationMinutes, null);
   });
 
   it("toLocalDraftCourse returns null for non-objects", () => {

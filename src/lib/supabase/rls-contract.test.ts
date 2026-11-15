@@ -764,6 +764,17 @@ describe("sig-1120 courses hide chapters migration", () => {
     }
   });
 
+  it("sig-1349 grants the catalog fit columns, still without chapters", () => {
+    const sig1349 = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261115000000_course_catalog_fields.sql"),
+      "utf8",
+    );
+    const grant = sig1349.match(/grant select \(([^)]+)\)\s+on public\.courses to anon, authenticated/);
+    assert.ok(grant, "missing column-level grant");
+    const cols = grant![1].split(",").map((col) => col.trim());
+    assert.deepEqual(cols, ["level", "elo_min", "elo_max", "language", "duration_minutes"]);
+  });
+
   it("leaves the row policies and write closure untouched", () => {
     assert.ok(!/for (insert|update|delete)/.test(sig1120), "no write clauses in the grant migration");
   });
