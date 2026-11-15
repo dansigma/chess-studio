@@ -1,5 +1,6 @@
 "use client";
 
+import type { MouseEvent } from "react";
 import { Chessboard } from "react-chessboard";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
 import type { BoardMarks } from "@/src/chess/marks";
@@ -28,6 +29,9 @@ export function StudyBoard({
   canDragPiece,
   onMove,
   onSquareClick,
+  onSquareMouseDown,
+  onSquareMouseUp,
+  onMouseOverSquare,
 }: {
   id: string;
   fen: string;
@@ -42,6 +46,10 @@ export function StudyBoard({
   /** Return true to accept the move. */
   onMove?: (from: string, to: string) => boolean;
   onSquareClick?: (args: { square: string; piece: PieceInfo | null }) => void;
+  /** SIG-1367: right-button drawing on the line editor's board. */
+  onSquareMouseDown?: (square: string, event: MouseEvent) => void;
+  onSquareMouseUp?: (square: string, event: MouseEvent) => void;
+  onMouseOverSquare?: (square: string) => void;
 }) {
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
@@ -79,6 +87,9 @@ export function StudyBoard({
             onSquareClick?.({ square, piece });
           }
         },
+        onSquareMouseDown: ({ square }, event) => onSquareMouseDown?.(square, event),
+        onSquareMouseUp: ({ square }, event) => onSquareMouseUp?.(square, event),
+        onMouseOverSquare: ({ square }) => onMouseOverSquare?.(square),
       }}
     />
   );
