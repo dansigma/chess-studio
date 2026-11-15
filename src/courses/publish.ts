@@ -1,21 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { validateCatalogFields } from "./catalog-fields";
 import { userCanPublishCourses } from "@/src/lib/auth/course-permissions";
 import { canAuthorCourses, getRole, isAdmin, type Role } from "@/src/lib/auth/roles";
 import type { Json } from "@/src/lib/supabase/database.types";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 import type { CourseAdminErrorKey, CourseAdminMessage } from "@/src/i18n/course-admin-strings";
-import { courseOwnershipError, courseSlugError, isCourseColor, isCourseId, isCourseTheme, parseChapters, slugify } from "./catalog";
+import { courseOwnershipError, courseSlugError, isCourseId, parseChapters, slugify } from "./catalog";
 import { sanitizeCourseHtml } from "./description";
-import { hasPlayableContent, normalizeChapters } from "./draft";
-import { courseCoverUrl, courseVideo } from "./media";
+import { normalizeChapters } from "./draft";
+import { courseCoverUrl } from "./media";
 import { SEED_COURSES } from "./seed";
 import { canTransition, type TransitionReason } from "./status";
-import { validateTierAndPrice } from "./author-actions";
 import { COURSES_FREE_LAUNCH } from "./free-launch";
+import { validateCourseDraft } from "./validate-draft";
 import type { Course, CourseAccessTier, CourseChapter, CourseStatus } from "./types";
 
 function serviceClient() {
@@ -181,66 +180,30 @@ export async function currentUserRole(): Promise<Role | null> {
 }
 
 function checkedCourse(input: Course): { course: Course; chapters: CourseChapter[] } | { error: CourseAdminMessage } {
+  // SIG-1363: every rule lives in validateCourseDraft (shared with the editor).
+  const validation = validateCourseDraft(input);
+  if (!validation.ok) {
+    return { error: validation.error };
+  }
   const title = input.title.trim();
-  if (!title || title.length > 120) {
-    return { error: { key: "course.admin.error.needsTitle" } };
-  }
-  if (!isCourseId(input.id)) {
-    return { error: { key: "course.admin.error.invalidId" } };
-  }
-  if (!isCourseColor(input.color)) {
-    return { error: { key: "course.admin.error.chooseColor" } };
-  }
-  if (!isCourseTheme(input.theme)) {
-    return { error: { key: "course.admin.error.chooseTheme" } };
-  }
-  // SIG-1114: tier/price invariant (paid needs positive-int cents, other
-  // tiers must carry none) — checked before the write so both draft saves
-  // and admin publishes fail with invalidPrice instead of publishFailed.
+  // SIG-1353: free launch, always stored as free whatever the form sends. The
+  // tier/price invariant itself is enforced by validateCourseDraft.
   let tier: CourseAccessTier = input.accessTier === "paid" || input.accessTier === "premium" ? input.accessTier : "free";
   let rawPrice = typeof input.priceCents === "number" ? input.priceCents : null;
   if (COURSES_FREE_LAUNCH) {
-    // SIG-1353: free launch, always stored as free whatever the form sends.
     tier = "free";
     rawPrice = null;
   }
-  const tierPrice = validateTierAndPrice(tier, rawPrice);
-  if (!tierPrice.ok) {
-    return { error: { key: tierPrice.error } };
-  }
-  const catalogError = validateCatalogFields(input);
-  if (catalogError) {
-    return { error: catalogError };
-  }
   const authorName = input.authorName?.trim() ?? "";
-  if (authorName.length > 120) {
-    return { error: { key: "course.admin.error.authorNameTooLong" } };
-  }
   const summary = sanitizeCourseHtml(input.summary);
-  if (summary.length > 8000) {
-    return { error: { key: "course.admin.error.descriptionTooLong" } };
-  }
-  const coverInput = input.coverUrl?.trim() ?? "";
-  const coverUrl = courseCoverUrl(coverInput);
-  if (coverInput && !coverUrl) {
-    return { error: { key: "course.admin.error.coverHost" } };
-  }
+  const coverUrl = courseCoverUrl(input.coverUrl?.trim() ?? "");
   const videoInput = input.videoUrl?.trim() ?? "";
-  if (videoInput && !courseVideo(videoInput)) {
-    return { error: { key: "course.admin.error.videoLink" } };
-  }
   const slug = (slugify(input.slug.trim()) || slugify(title)).slice(0, 60);
-  if (!slug) {
-    return { error: { key: "course.admin.error.needsAddress" } };
-  }
   const normalized = normalizeChapters(parseChapters(input.chapters));
   if ("error" in normalized) {
     return normalized;
   }
   const chapters = normalized.chapters;
-  if (!hasPlayableContent(chapters)) {
-    return { error: { key: "course.admin.error.needsPlayableLine" } };
-  }
   return {
     course: {
       ...input,
