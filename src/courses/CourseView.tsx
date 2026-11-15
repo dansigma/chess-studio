@@ -3,17 +3,16 @@
 import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Circle, CircleDot } from "lucide-react";
 import { importPgn } from "@/src/chess/pgn";
 import { writeCourseStudyImport } from "@/src/chess/share-board";
 import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
-import { lessonFrames, lineProgressLabel } from "./lesson";
+import { lessonFrames } from "./lesson";
 import { CourseChrome } from "./CourseChrome";
 import { ProgressBar } from "@/src/site/ui/ProgressBar";
 import { CourseOverview } from "./ui/CourseOverview";
 import { CourseInfoCard } from "./ui/CourseInfoCard";
-import { ChapterStudioMenu } from "./ui/ChapterStudioMenu";
+import { CourseSyllabus } from "./ui/CourseSyllabus";
 import { coursePercent, courseVariationIds } from "./store";
 import { checkCourseAccess, recordEnrollment } from "./enrollment";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
@@ -112,63 +111,19 @@ export function CourseView({ course }: { course: Course }) {
           )}
         </div> : null}
 
-        <div className="mt-8 space-y-6">
-          {course.chapters.filter((chapter) => chapter.variations.length > 0).map((chapter, chapterIndex) => (
-            <section key={chapter.id} className="overflow-hidden rounded-xl border border-studio-border">
-              <header className="flex items-center justify-between gap-3 bg-studio-chrome px-4 py-3">
-                <div className="min-w-0">
-                  <div className="text-caption uppercase tracking-wide text-studio-muted">
-                    {tCourse(locale, "course.course.chapterHeading", { n: formatInteger(locale, chapterIndex + 1) })}
-                  </div>
-                  <h2 className="text-body font-semibold text-studio-fg">{chapter.title}</h2>
-                </div>
-                <ChapterStudioMenu
-                  variations={chapter.variations}
-                  locale={locale}
-                  onOpen={(variation) => {
-                    const written = writeCourseStudyImport({
-                      title: `${course.title} — ${variation.title}`,
-                      pgn: variation.pgn,
-                    });
-                    router.push(written ? "/studio" : `/courses/${course.slug}/${variation.id}`);
-                  }}
-                />
-              </header>
-              <ul>
-                {chapter.variations.map((variation) => {
-                  const saved = progress[variation.id];
-                  const label = lineProgressLabel(saved, frameCounts[variation.id] ?? null, locale);
-                  const learned = Boolean(saved?.learned);
-                  const started = !learned && (saved?.step ?? 0) > 0;
-                  return (
-                    <li key={variation.id} className="border-t border-studio-border">
-                      <div className="flex items-center gap-2 px-4 py-3 hover:bg-studio-hover">
-                        <Link
-                          href={`/courses/${course.slug}/${variation.id}`}
-                          className="flex min-w-0 flex-1 items-center gap-3"
-                        >
-                          {learned ? (
-                            <Check size={16} className="shrink-0 text-studio-success" aria-hidden />
-                          ) : started ? (
-                            <CircleDot size={16} className="shrink-0 text-studio-accent-text" aria-hidden />
-                          ) : (
-                            <Circle size={16} className="shrink-0 text-studio-faint" aria-hidden />
-                          )}
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-body text-studio-fg">{variation.title}</span>
-                            <span className={`block text-caption ${learned ? "text-studio-success" : "text-studio-muted"}`}>
-                              {label}
-                            </span>
-                          </span>
-                        </Link>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
-        </div>
+        <CourseSyllabus
+          course={course}
+          locale={locale}
+          progress={progress}
+          frameCounts={frameCounts}
+          onOpenInStudio={(variation) => {
+            const written = writeCourseStudyImport({
+              title: `${course.title} — ${variation.title}`,
+              pgn: variation.pgn,
+            });
+            router.push(written ? "/studio" : `/courses/${course.slug}/${variation.id}`);
+          }}
+        />
       </main>
     </div>
   );
