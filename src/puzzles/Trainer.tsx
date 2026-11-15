@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CourseChrome } from "@/src/courses/CourseChrome";
+import { SiteHeader as CourseChrome } from "@/src/site/SiteHeader";
 import { phaseName, tierName } from "@/src/chess/review-strings";
 import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { tPuzzle } from "@/src/i18n/puzzle-strings";

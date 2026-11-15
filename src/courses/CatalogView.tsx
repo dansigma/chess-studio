@@ -7,6 +7,7 @@ import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "./CourseChrome";
+import { ProgressBar } from "@/src/site/ui/ProgressBar";
 import { courseSummaryText } from "./description";
 import { courseImageUrl } from "./media";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -109,16 +110,11 @@ export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
                             }),
                     })}
                   </div>
-                  <div
-                    className="mt-3 h-1.5 overflow-hidden rounded-full bg-studio-hover"
-                    role="progressbar"
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-valuenow={percent}
-                    aria-label={tCourse(locale, "course.catalog.progressAria", { title: course.title })}
-                  >
-                    <div className="h-full rounded-full bg-studio-accent" style={{ width: `${percent}%` }} />
-                  </div>
+                  <ProgressBar
+                    className="mt-3 h-1.5 bg-studio-hover"
+                    value={percent}
+                    label={tCourse(locale, "course.catalog.progressAria", { title: course.title })}
+                  />
                   <div className="mt-1 text-caption text-studio-muted">
                     {tCourse(locale, "course.catalog.percentComplete", {
                       percent: formatInteger(locale, percent),
