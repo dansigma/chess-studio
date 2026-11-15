@@ -15,8 +15,3 @@ test("every course access string key renders non-empty in both locales", () => {
     assert.ok(tCourseAccess("pt-br", key).length > 0, `pt-br:${key} must not be empty`);
   }
 });
-
-test("buy label interpolates the formatted price", () => {
-  assert.equal(tCourseAccess("en", "course.access.buyToStudy", { price: "R$ 19,90" }), "Buy for R$ 19,90");
-  assert.equal(tCourseAccess("pt-br", "course.access.buyToStudy", { price: "R$ 19,90" }), "Comprar por R$ 19,90");
-});

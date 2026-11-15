@@ -14,7 +14,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { approveCourse, rejectCourse } from "@/src/courses/publish";
-import { tierLabel } from "@/src/courses/tier-label";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Dialog } from "@/src/studio/ui/Dialog";
 import type { ReviewQueueRowData } from "@/app/admin/courses/actions";
@@ -76,7 +75,6 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
               <tr>
                 <th>{tAdminUsers(locale, "admin.review.table.title")}</th>
                 <th>{tAdminUsers(locale, "admin.review.table.author")}</th>
-                <th>{tAdminUsers(locale, "admin.review.table.tier")}</th>
                 <th>{tAdminUsers(locale, "admin.review.table.submitted")}</th>
                 <th>
                   <span className="sr-only">{tAdminUsers(locale, "admin.review.table.actions")}</span>
@@ -90,7 +88,6 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
                   <tr key={row.id}>
                     <td>{row.title}</td>
                     <td>{row.authorName ?? "—"}</td>
-                    <td>{tierLabel(row.tier, row.priceCents, locale)}</td>
                     <td>{row.submittedAt}</td>
                     <td>
                       <Link href={`/admin/courses/${row.id}/preview`}>
@@ -121,7 +118,7 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
                 <li key={row.id} data-review-card={row.id}>
                   <p>{row.title}</p>
                   <p>
-                    {row.authorName ?? "—"} · {tierLabel(row.tier, row.priceCents, locale)} · {row.submittedAt}
+                    {row.authorName ?? "—"} · {row.submittedAt}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Link href={`/admin/courses/${row.id}/preview`}>{tAdminUsers(locale, "admin.review.preview")}</Link>
