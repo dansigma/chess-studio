@@ -133,7 +133,15 @@ export function parseChapters(value: unknown): CourseChapter[] {
       }
       variations.push({ id: variation.id, title: variation.title, pgn: variation.pgn });
     }
-    chapters.push({ id: chapter.id, title: chapter.title, variations });
+    const videoUrl = typeof chapter.videoUrl === "string" && chapter.videoUrl ? chapter.videoUrl : undefined;
+    const description = typeof chapter.description === "string" && chapter.description ? chapter.description : undefined;
+    chapters.push({
+      id: chapter.id,
+      title: chapter.title,
+      variations,
+      ...(videoUrl ? { videoUrl, hasVideo: true } : {}),
+      ...(description ? { description } : {}),
+    });
   }
   return chapters;
 }
@@ -255,7 +263,12 @@ export function outlineChapters(value: unknown): CourseChapter[] {
       }
       variations.push({ id: variation.id, title: variation.title, pgn: typeof variation.pgn === "string" ? variation.pgn : "" });
     }
-    chapters.push({ id: chapter.id, title: chapter.title, variations });
+    chapters.push({
+      id: chapter.id,
+      title: chapter.title,
+      variations,
+      ...(typeof chapter.hasVideo === "boolean" ? { hasVideo: chapter.hasVideo } : {}),
+    });
   }
   return chapters;
 }

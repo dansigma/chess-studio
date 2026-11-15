@@ -1,5 +1,6 @@
 import { importPgn } from "@/src/chess/pgn";
 import type { CourseAdminMessage } from "@/src/i18n/course-admin-strings";
+import { courseVideo } from "./media";
 import type { CourseChapter, CourseVariation } from "./types";
 
 /** True when at least one chapter holds at least one playable line. */
@@ -51,7 +52,21 @@ export function normalizeChapters(
     if (variations.length > 40) {
       return { error: { key: "course.admin.error.tooManyLines" } };
     }
-    next.push({ id: chapter.id, title, variations });
+    const videoUrl = chapter.videoUrl?.trim() ?? "";
+    if (videoUrl && !courseVideo(videoUrl)) {
+      return { error: { key: "course.admin.error.chapterVideoLink" } };
+    }
+    const description = chapter.description?.trim() ?? "";
+    if (description.length > 2000) {
+      return { error: { key: "course.admin.error.chapterDescriptionTooLong" } };
+    }
+    next.push({
+      id: chapter.id,
+      title,
+      variations,
+      ...(videoUrl ? { videoUrl, hasVideo: true } : {}),
+      ...(description ? { description } : {}),
+    });
   }
   return { chapters: next };
 }

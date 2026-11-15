@@ -27,6 +27,12 @@ export type CourseChapter = {
   id: string;
   title: string;
   variations: CourseVariation[];
+  /** SIG-1350: optional video lesson link (same rules as the course video). */
+  videoUrl?: string;
+  /** SIG-1350: optional description, at most 2000 characters. */
+  description?: string;
+  /** SIG-1350: public outline flag; the outline never carries the link. */
+  hasVideo?: boolean;
 };
 
 export type Course = {
