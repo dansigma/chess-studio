@@ -55,6 +55,11 @@ export function continueRail(
     });
   }
   // Array.prototype.sort is stable.
-  items.sort((a, b) => time(b.lastStudiedAt) - time(a.lastStudiedAt));
+  items.sort((a, b) => {
+    const ta = time(a.lastStudiedAt);
+    const tb = time(b.lastStudiedAt);
+    // Never subtract two -Infinity values (NaN would make the order undefined).
+    return ta === tb ? 0 : tb > ta ? 1 : -1;
+  });
   return items.slice(0, CONTINUE_RAIL_LIMIT);
 }
