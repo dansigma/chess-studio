@@ -287,7 +287,7 @@ export type StudioState = {
     // SIG-1247: side at the bottom of the opened board; omitted keeps the default.
     orientation?: BoardOrientation;
   }) => void;
-  importPlayerGame: (game: PlayerGame, options?: { openInNewBoard?: boolean }) => void;
+  importPlayerGame: (game: PlayerGame, options?: { openInNewBoard?: boolean; title?: string }) => void;
   exportActivePgn: () => string;
   pruneAfter: () => void;
   promoteVariation: () => void;

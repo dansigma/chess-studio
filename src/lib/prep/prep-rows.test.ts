@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { importSans } from "@/src/chess/pgn.ts";
-import { prepareAgainstLine } from "./prep-rows.ts";
+import { preparationLineTitle, prepareAgainstLine } from "./prep-rows.ts";
 
 describe("prepareAgainstLine", () => {
   it("orients to the user's side (opposite of the tree color)", () => {
@@ -28,5 +28,23 @@ describe("prepareAgainstLine", () => {
       count += 1;
     }
     assert.equal(count, 3);
+  });
+
+  it("uses placeholder players and names the line instead", () => {
+    const { game } = prepareAgainstLine(["e4", "e5"], "white", "Preparation line · 1. e4 e5");
+    assert.equal(game.whiteName, "?");
+    assert.equal(game.blackName, "?");
+    assert.equal(game.opening, "Preparation line · 1. e4 e5");
+  });
+});
+
+describe("preparationLineTitle", () => {
+  it("numbers the moves and localizes the label", () => {
+    assert.equal(preparationLineTitle("en", ["e4", "e5"]), "Preparation line · 1. e4 e5");
+    assert.equal(preparationLineTitle("pt-br", ["e4", "e5"]), "Linha de preparação · 1. e4 e5");
+  });
+
+  it("uses only the label for the start position", () => {
+    assert.equal(preparationLineTitle("en", []), "Preparation line");
   });
 });

@@ -59,6 +59,7 @@ import {
   type OpeningUiFilters,
 } from "@/src/lib/my-games/opening-rows";
 import type { PlayerGame } from "@/src/lib/player-types";
+import { preparationLineTitle } from "@/src/lib/prep/prep-rows";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/src/lib/supabase/database.types";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
@@ -367,7 +368,8 @@ export function MyStatsPanel() {
                   });
                 }}
                 onOpenLine={(path) => {
-                  importPlayerGame(syntheticLineGame(path, lineColor), { openInNewBoard: true });
+                  const title = preparationLineTitle(locale, path);
+                  importPlayerGame(syntheticLineGame(path, lineColor, title), { openInNewBoard: true, title });
                   // SIG-1099: a fresh import is always white-oriented
                   // (`emptyBoard`); flip when the line color is black, then
                   // reveal the board panel (same grain as PlayerGamesPanel).

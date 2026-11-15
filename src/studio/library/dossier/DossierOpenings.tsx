@@ -291,7 +291,10 @@ export function DossierOpenings({ games }: { games: PlayerGame[] }) {
           </div>
         </div>
         {rows.length === 0 ? (
-          <p className="text-dense text-studio-faint" data-testid="dossier-openings-empty">
+          <p
+            className="rounded border border-studio-border-subtle p-2 text-dense text-studio-faint"
+            data-testid="dossier-openings-empty"
+          >
             {tLibrary(locale, "library.dossier.openingsEmpty")}
           </p>
         ) : (

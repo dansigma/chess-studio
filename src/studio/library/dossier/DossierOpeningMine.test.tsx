@@ -23,7 +23,8 @@ mock.module("@/src/lib/supabase/client", {
 
 const openBoardPanel = mock.fn();
 const openExplorerPanel = mock.fn();
-mock.module("../../dock-api", { namedExports: { openBoardPanel, openExplorerPanel } });
+const openStudioPanel = mock.fn();
+mock.module("../../dock-api", { namedExports: { openBoardPanel, openExplorerPanel, openStudioPanel } });
 
 const { DossierOpeningMine } = await import("./DossierOpeningMine.tsx");
 const { DossierOpeningsNotice } = await import("./DossierOpeningsNotice.tsx");
@@ -108,6 +109,7 @@ beforeEach(() => {
   loadCappedMyGames.mock.resetCalls();
   openBoardPanel.mock.resetCalls();
   openExplorerPanel.mock.resetCalls();
+  openStudioPanel.mock.resetCalls();
   const state = useStudioStore.getState();
   const active = selectActiveBoard(state);
   useStudioStore.setState({
@@ -265,4 +267,7 @@ test("Train opens the line on the user's side and starts training from the first
   assert.equal(state.workspaceView, "studio");
   assert.equal(openBoardPanel.mock.callCount(), 1);
   assert.equal(openExplorerPanel.mock.callCount(), 0);
+  // The training UI is in the Repertoire panel; it must come to the front.
+  assert.equal(openStudioPanel.mock.callCount(), 1);
+  assert.deepEqual(openStudioPanel.mock.calls[0]!.arguments, ["repertoire"]);
 });

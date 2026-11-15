@@ -4,11 +4,11 @@ import type { ReactNode } from "react";
 import { useStudioStore } from "@/src/store/studio-store";
 import { BOARD_THEME_IDS, BOARD_THEMES, type BoardTheme } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
-import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
+import { MOVE_NOTATION_IDS } from "@/src/chess/move-notation";
 import { SITE_LOCALES, SITE_LOCALE_LABELS } from "@/src/i18n/locale";
 import { NOTATION_DENSITY_IDS } from "./notation-density";
 import { ENGINE_BUILDS, ENGINE_BUILD_INFO } from "@/src/engine/stockfish-client";
-import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "./color-scheme";
+import { COLOR_SCHEME_IDS } from "./color-scheme";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 import { clearReviewCache } from "./review/review-cache";
@@ -107,7 +107,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <Row label={tStudioChrome(locale, "chrome.settings.colorScheme")}>
             <Select
               value={settings.colorScheme}
-              options={COLOR_SCHEME_IDS.map((id) => ({ id, label: COLOR_SCHEMES[id].label }))}
+              options={COLOR_SCHEME_IDS.map((id) => ({
+                id,
+                label: tStudioChrome(locale, `chrome.settings.colorScheme.${id}`),
+              }))}
               onChange={setColorScheme}
             />
           </Row>
@@ -158,7 +161,10 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           <Row label={tStudioChrome(locale, "chrome.settings.moveNotation")}>
             <Select
               value={settings.moveNotation}
-              options={MOVE_NOTATION_IDS.map((id) => ({ id, label: MOVE_NOTATIONS[id].label }))}
+              options={MOVE_NOTATION_IDS.map((id) => ({
+                id,
+                label: tStudioChrome(locale, `chrome.settings.moveNotation.${id}`),
+              }))}
               onChange={setMoveNotation}
             />
           </Row>

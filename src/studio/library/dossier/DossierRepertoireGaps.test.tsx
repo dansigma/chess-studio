@@ -10,7 +10,7 @@ import type { BoardSession } from "@/src/store/slices/types";
 
 const openBoardPanel = mock.fn();
 const openExplorerPanel = mock.fn();
-mock.module("../../dock-api", { namedExports: { openBoardPanel, openExplorerPanel } });
+mock.module("../../dock-api", { namedExports: { openBoardPanel, openExplorerPanel, openStudioPanel: mock.fn() } });
 
 const { DossierRepertoireGaps } = await import("./DossierRepertoireGaps.tsx");
 const { importSans } = await import("@/src/chess/pgn.ts");
@@ -225,7 +225,7 @@ test("Prepare line opens the position before the gap move, oriented to the user"
   const [imported, options] = importPlayerGame.mock.calls[0]!.arguments as [PlayerGame, unknown];
   assert.equal(imported.moves, "e4 e5");
   assert.equal(imported.color, "black");
-  assert.deepEqual(options, { openInNewBoard: true });
+  assert.deepEqual(options, { openInNewBoard: true, title: "Preparation line · 1. e4 e5" });
   assert.equal(flip.mock.callCount(), 1);
   assert.equal(openBoardPanel.mock.callCount(), 1);
   assert.equal(openExplorerPanel.mock.callCount(), 1);

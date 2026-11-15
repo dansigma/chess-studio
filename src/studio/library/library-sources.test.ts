@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { reconcileLibrarySources, selectAll, selectOnly, toggleSource } from "./library-sources";
+import { fileSourcesInFolder, reconcileLibrarySources, selectAll, selectOnly, toggleSource } from "./library-sources";
 import type { LibrarySourceId } from "@/src/lib/library/types";
 
 describe("reconcileLibrarySources", () => {
@@ -26,6 +26,39 @@ describe("reconcileLibrarySources", () => {
     assert.deepEqual(reconcileLibrarySources(["file:gone"], ["my-games", "file:a"], false, true), ["my-games", "file:a"]);
     // Without a folder in view, an empty selection still falls back.
     assert.deepEqual(reconcileLibrarySources([], ["my-games", "file:a"], false, false), ["my-games", "file:a"]);
+  });
+
+  it("selects the viewed folder's files once the folder stops being empty (SIG-1343)", () => {
+    assert.deepEqual(
+      reconcileLibrarySources([], ["my-games", "masters", "file:a"], false, true, ["file:a"]),
+      ["file:a"],
+    );
+    // A non-empty selection is still the user's choice.
+    assert.deepEqual(
+      reconcileLibrarySources(["my-games"], ["my-games", "file:a"], false, true, ["file:a"]),
+      ["my-games"],
+    );
+  });
+});
+
+describe("fileSourcesInFolder", () => {
+  const folders = [
+    { id: "f1", name: "Prep", parentId: null },
+    { id: "f2", name: "Nested", parentId: "f1" },
+    { id: "f3", name: "Other", parentId: null },
+  ];
+  const database = (id: string, folderId: string | null) =>
+    ({ id, remoteId: null, name: id, folderId, games: [] }) as never;
+
+  it("returns file sources from the folder and its subfolders, in `available` order", () => {
+    const available: LibrarySourceId[] = ["my-games", "masters", "file:a", "file:b", "file:c", "file:d"];
+    const databases = [database("a", "f2"), database("b", null), database("c", "f3"), database("d", "f1")];
+    assert.deepEqual(fileSourcesInFolder("f1", available, databases, folders), ["file:a", "file:d"]);
+  });
+
+  it("is empty for a folder with no files", () => {
+    const available: LibrarySourceId[] = ["my-games", "file:a"];
+    assert.deepEqual(fileSourcesInFolder("f3", available, [database("a", null)], folders), []);
   });
 });
 

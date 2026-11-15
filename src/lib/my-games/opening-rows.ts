@@ -113,22 +113,23 @@ export function openingRows(
 
 /**
  * Builds the synthetic game "Open line" imports: moves-only `PlayerGame`
- * (the `importSans` shape `openListedGame` prefers). Placeholder
- * names/titles — a line is not a played game.
+ * (the `importSans` shape `openListedGame` prefers). A line is not a played
+ * game, so both players are the PGN unknown placeholder ("?"); `label` goes
+ * into `opening` so the notation header can name the line instead.
  */
-export function syntheticLineGame(path: string[], color: "white" | "black"): PlayerGame {
+export function syntheticLineGame(path: string[], color: "white" | "black", label?: string): PlayerGame {
   return {
     id: `opening-line:${path.join(" ")}`,
     winner: null,
-    whiteName: "Opening line",
+    whiteName: "?",
     whiteRating: null,
-    blackName: "Opening line",
+    blackName: "?",
     blackRating: null,
     year: null,
     month: null,
     event: null,
     eco: null,
-    opening: null,
+    opening: label ?? null,
     moves: path.join(" "),
     color,
     playerResult: null,

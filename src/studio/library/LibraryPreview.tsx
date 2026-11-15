@@ -22,6 +22,7 @@ import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "../dock-api";
 import { Line, NotationReadOnlyContext } from "../NotationMoves";
 import { pathKey } from "../notation-format";
+import { resultCaptionForWinner } from "../ResultMark";
 import { Button } from "../ui/Button";
 import { PlayerCell, outcomeFor } from "../ui/PlayerCell";
 import {
@@ -244,6 +245,9 @@ export function GamePreview({
   const displayDate = date ?? extras.date;
   const moveCount = mainLineMoveCount(tree);
   const winner = result === "1-0" ? "white" : result === "0-1" ? "black" : result === "*" ? null : "draw";
+  // One display form for the result everywhere: the list's ResultMark uses
+  // the caption mark (½-½), so the preview must not show the raw PGN token.
+  const resultMark = winner === null ? "*" : (resultCaptionForWinner(winner, locale)?.mark ?? result);
   const displayOpening = [eco, opening].filter(Boolean).join(" · ") || headers.Opening || headers.ECO || null;
 
   const openGameInStudio = () => {
@@ -286,10 +290,16 @@ export function GamePreview({
           <PlayerCell name={black} rating={blackElo} outcome={outcomeFor(winner, "black")} />
         </div>
         <div className="flex flex-wrap gap-x-3 text-caption tabular-nums text-studio-faint">
-          <span data-testid="library-preview-result">{result}</span>
+          <span data-testid="library-preview-result">{resultMark}</span>
           {displayDate ? <span>{displayDate}</span> : null}
           {displayEvent ? <span className="truncate">{displayEvent}</span> : null}
-          {moveCount > 0 ? <span>{tLibrary(locale, "library.preview.moves", { count: moveCount })}</span> : null}
+          {moveCount > 0 ? (
+            <span>
+              {tLibrary(locale, moveCount === 1 ? "library.preview.moves.one" : "library.preview.moves.other", {
+                count: moveCount,
+              })}
+            </span>
+          ) : null}
         </div>
       </header>
 

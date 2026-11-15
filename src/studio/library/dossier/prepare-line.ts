@@ -7,18 +7,22 @@
 // move prepares the start position, so it must open the Studio as well.
 // SIG-1345: "Train" reuses the same import but starts training from the first
 // move instead of revealing the Explorer.
-import { prepareAgainstLine } from "@/src/lib/prep/prep-rows";
+import { preparationLineTitle, prepareAgainstLine } from "@/src/lib/prep/prep-rows";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
-import { openBoardPanel, openExplorerPanel } from "../../dock-api";
+import { openBoardPanel, openExplorerPanel, openStudioPanel } from "../../dock-api";
 
 /**
  * Imports the line on a fresh board oriented to the USER's side and reveals
  * the Studio. An empty line opens the start position.
  */
 function openLine(path: string[], opponentColor: "white" | "black", explore: boolean): void {
-  const { game, orientation } = prepareAgainstLine(path, opponentColor);
   const state = useStudioStore.getState();
-  state.importPlayerGame(game, { openInNewBoard: true });
+  const title = preparationLineTitle(state.settings.locale, path);
+  const { game, orientation } = prepareAgainstLine(path, opponentColor, title);
+  // The synthetic game carries "?" for both players and the line title in
+  // `Opening`, so the notation header names the line instead of showing
+  // "Opening line contra Opening line"; the tab uses the same title.
+  state.importPlayerGame(game, { openInNewBoard: true, title });
   // A fresh import is white-oriented (`emptyBoard`); flip when the user's
   // side is black, then reveal the board panel (and the Explorer).
   if (orientation === "black" && selectActiveBoard(useStudioStore.getState()).orientation !== "black") {
@@ -46,4 +50,7 @@ export function prepareLine(path: string[], opponentColor: "white" | "black"): v
 export function trainLine(path: string[], opponentColor: "white" | "black"): void {
   openLine(path, opponentColor, false);
   useStudioStore.getState().startTraining();
+  // The training UI lives in the Repertoire panel; bring it forward so the
+  // user lands on the first move instead of only seeing the flipped board.
+  openStudioPanel("repertoire");
 }

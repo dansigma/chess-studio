@@ -10,6 +10,15 @@ test("every key resolves in en and pt-br", () => {
 });
 
 test("interpolates variables", () => {
-  assert.equal(tLibrary("en", "library.total", { count: 3 }), "3 games");
-  assert.equal(tLibrary("pt-br", "library.total", { count: 3 }), "3 partidas");
+  assert.equal(tLibrary("en", "library.total.other", { count: 3 }), "3 games");
+  assert.equal(tLibrary("pt-br", "library.total.other", { count: 3 }), "3 partidas");
+});
+
+test("counts have a singular form in both locales", () => {
+  assert.equal(tLibrary("en", "library.total.one", { count: 1 }), "1 game");
+  assert.equal(tLibrary("pt-br", "library.total.one", { count: 1 }), "1 partida");
+  assert.equal(tLibrary("en", "library.sources.games.one", { count: 1 }), "1 game");
+  assert.equal(tLibrary("pt-br", "library.sources.games.one", { count: 1 }), "1 partida");
+  assert.equal(tLibrary("en", "library.dossier.games.one", { count: 1 }), "1 game");
+  assert.equal(tLibrary("pt-br", "library.dossier.games.one", { count: 1 }), "1 partida");
 });
