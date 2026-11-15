@@ -8,7 +8,8 @@ import type { PlayerGame } from "@/src/lib/player-types";
 
 const openBoardPanel = mock.fn();
 const openExplorerPanel = mock.fn();
-mock.module("../../dock-api", { namedExports: { openBoardPanel, openExplorerPanel } });
+const openStudioPanel = mock.fn();
+mock.module("../../dock-api", { namedExports: { openBoardPanel, openExplorerPanel, openStudioPanel } });
 
 const { DossierOpenings } = await import("./DossierOpenings.tsx");
 const { useDossierStore } = await import("./dossier-store.ts");
@@ -139,7 +140,15 @@ test("Prepare line opens the line for the user's side and switches to the Studio
   const [imported, options] = importPlayerGame.mock.calls[0]!.arguments as [PlayerGame, unknown];
   assert.equal(imported.color, "black");
   assert.equal(imported.moves, "e4 e5 Nf3");
-  assert.deepEqual(options, { openInNewBoard: true });
+  // SIG-1345: synthetic lines name the tab/header after the line, not after
+  // the "Opening line" placeholder players.
+  assert.equal(imported.whiteName, "?");
+  assert.equal(imported.blackName, "?");
+  assert.equal(imported.opening, "Preparation line · 1. e4 e5 2. Nf3");
+  assert.deepEqual(options, {
+    openInNewBoard: true,
+    title: "Preparation line · 1. e4 e5 2. Nf3",
+  });
   assert.equal(flip.mock.callCount(), 1);
   assert.equal(openBoardPanel.mock.callCount(), 1);
   assert.equal(openExplorerPanel.mock.callCount(), 1);

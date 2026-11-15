@@ -261,7 +261,11 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
       const db = databases.find((database) => `file:${database.id}` === id);
       total = db ? db.games.length : null;
     }
-    return total === null ? null : t("library.sources.games", { count: formatGameCount(total, locale) });
+    return total === null
+      ? null
+      : t(total === 1 ? "library.sources.games.one" : "library.sources.games.other", {
+          count: formatGameCount(total, locale),
+        });
   };
 
   const name = (id: LibrarySourceId): string => adapters.find((item) => item.id === id)?.label(locale) ?? id;
@@ -482,6 +486,8 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     const showRename = !renaming && database !== undefined;
     const showMenu = !renaming && database !== undefined;
     const hasActions = showReference || showRename || showMenu;
+    const sourceActionsClass =
+      "hidden shrink-0 items-center gap-0.5 pr-1 group-focus-within:flex group-hover:flex";
     const refBadge = isReference ? (
       <span title={t("library.sources.reference.title")} data-testid="library-source-ref-badge">
         <Badge tone="accent">{t("library.sources.reference.badge")}</Badge>
@@ -497,8 +503,6 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
         <TriangleAlert size={12} />
       </span>
     ) : null;
-    const actionsClass =
-      "pointer-events-none absolute inset-y-0 right-1 flex items-center gap-0.5 bg-inherit opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100";
     // SIG-1343: only the PGN file rows can be dragged, and only onto a folder.
     const dragProps =
       database && !renaming
@@ -562,7 +566,9 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
                 <>
                   <span className="flex min-w-0 items-center gap-1.5">
                     <SourceKindIcon kind={sourceKind(id)} selected={isSelected} />
-                    <span className="truncate text-dense font-medium leading-tight">{label}</span>
+                    <span className="truncate text-dense font-medium leading-tight" title={label}>
+                      {label}
+                    </span>
                     {refBadge}
                     {errorMark}
                   </span>
@@ -572,25 +578,23 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
                 <>
                   <SourceKindIcon kind={sourceKind(id)} selected={isSelected} />
                   <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <span className="truncate text-dense font-medium leading-tight">{label}</span>
+                    <span className="truncate text-dense font-medium leading-tight" title={label}>
+                      {label}
+                    </span>
                     {refBadge}
                   </span>
                   {errorMark}
                 </>
               )}
               {inlineDetail !== null ? (
-                <span
-                  className={`shrink-0 text-caption leading-tight tabular-nums opacity-80 ${
-                    hasActions ? "group-focus-within:opacity-0 group-hover:opacity-0" : ""
-                  }`}
-                >
+                <span className="shrink-0 text-caption leading-tight tabular-nums opacity-80" title={detail ?? undefined}>
                   {inlineDetail}
                 </span>
               ) : null}
             </button>
           )}
           {hasActions ? (
-            <div className={actionsClass}>
+            <div className={sourceActionsClass}>
               {showReference && explorerSource !== null ? (
                 <IconButton
                   label={referenceLabel}

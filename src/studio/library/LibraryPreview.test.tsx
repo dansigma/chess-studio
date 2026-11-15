@@ -68,6 +68,13 @@ test("loads the PGN, shows header from the PGN for Masters, and navigates moves"
   assert.ok(screen.getByText("develops"));
 });
 
+test("shows the same result mark as the list (½-½, not the raw PGN token)", async () => {
+  registerLibrarySource(adapter(async () => PGN.replace("1-0", "1/2-1/2")));
+  render(<LibraryPreview item={{ ...ITEM, result: "1/2-1/2" }} />);
+  await screen.findByTestId("library-preview");
+  assert.equal(screen.getByTestId("library-preview-result").textContent, "½-½");
+});
+
 test("opens on the ply matching the position filter", async () => {
   const afterNf3 = "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2";
   useLibraryStore.setState({ filters: { ...useLibraryStore.getState().filters, position: { fen: afterNf3 } } });

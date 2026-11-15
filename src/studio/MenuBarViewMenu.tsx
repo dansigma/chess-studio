@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { BOARD_THEME_IDS, BOARD_THEMES } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
-import { MOVE_NOTATION_IDS, MOVE_NOTATIONS } from "@/src/chess/move-notation";
-import { COLOR_SCHEME_IDS, COLOR_SCHEMES } from "@/src/studio/color-scheme";
+import { MOVE_NOTATION_IDS } from "@/src/chess/move-notation";
+import { COLOR_SCHEME_IDS } from "@/src/studio/color-scheme";
 import { OPEN_PANEL_ITEMS, openBoardPanel, openExplorerPanel, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 import { LayoutsSubmenu } from "./LayoutsMenu";
@@ -173,7 +173,10 @@ export function ViewMenuItems({
           {COLOR_SCHEME_IDS.map((id) => (
             <Item
               key={id}
-              label={`${tStudioChrome(locale, "chrome.view.colorScheme")}: ${COLOR_SCHEMES[id].label}`}
+              label={`${tStudioChrome(locale, "chrome.view.colorScheme")}: ${tStudioChrome(
+                locale,
+                `chrome.settings.colorScheme.${id}`,
+              )}`}
               checked={colorScheme === id}
               onClick={run(() => setColorScheme(id))}
             />
@@ -182,7 +185,10 @@ export function ViewMenuItems({
           {MOVE_NOTATION_IDS.map((id) => (
             <Item
               key={id}
-              label={`${tStudioChrome(locale, "chrome.view.moveNotation")}: ${MOVE_NOTATIONS[id].label}`}
+              label={`${tStudioChrome(locale, "chrome.view.moveNotation")}: ${tStudioChrome(
+                locale,
+                `chrome.settings.moveNotation.${id}`,
+              )}`}
               checked={moveNotation === id}
               onClick={run(() => setMoveNotation(id))}
             />
@@ -210,7 +216,7 @@ export function ViewMenuItems({
             {COLOR_SCHEME_IDS.map((id) => (
               <Item
                 key={id}
-                label={COLOR_SCHEMES[id].label}
+                label={tStudioChrome(locale, `chrome.settings.colorScheme.${id}`)}
                 checked={colorScheme === id}
                 onClick={run(() => setColorScheme(id))}
               />
@@ -220,7 +226,7 @@ export function ViewMenuItems({
             {MOVE_NOTATION_IDS.map((id) => (
               <Item
                 key={id}
-                label={MOVE_NOTATIONS[id].label}
+                label={tStudioChrome(locale, `chrome.settings.moveNotation.${id}`)}
                 checked={moveNotation === id}
                 onClick={run(() => setMoveNotation(id))}
               />

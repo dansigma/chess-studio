@@ -64,7 +64,11 @@ export function LibraryToolbar({ total }: LibraryToolbarProps) {
           aria-expanded={filtersOpen}
           aria-label={
             advancedCount > 0
-              ? tLibrary(locale, "library.filters.buttonActive", { count: advancedCount })
+              ? tLibrary(
+                  locale,
+                  advancedCount === 1 ? "library.filters.buttonActive.one" : "library.filters.buttonActive.other",
+                  { count: advancedCount },
+                )
               : tLibrary(locale, "library.filters.button")
           }
           onClick={() => setFiltersOpen(!filtersOpen)}
@@ -84,7 +88,13 @@ export function LibraryToolbar({ total }: LibraryToolbarProps) {
       </div>
       <span className="shrink-0 whitespace-nowrap text-caption tabular-nums text-studio-muted" data-testid="library-counter">
         {tLibrary(locale, "library.sources.selected", { x: selectedCount, y: available.length })}
-        {total !== null ? ` · ${tLibrary(locale, "library.total", { count: formatGameCount(total, locale) })}` : ""}
+        {total !== null
+          ? ` · ${tLibrary(
+              locale,
+              total === 1 ? "library.total.one" : "library.total.other",
+              { count: formatGameCount(total, locale) },
+            )}`
+          : ""}
       </span>
     </div>
   );

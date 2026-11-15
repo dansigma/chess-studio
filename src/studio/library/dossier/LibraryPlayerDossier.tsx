@@ -100,7 +100,11 @@ export function LibraryPlayerDossier() {
                 </h2>
                 <p className="text-caption text-studio-faint" data-testid="dossier-player-meta">
                   {tLibrary(locale, ORIGIN_KEYS[player.source])} ·{" "}
-                  {tLibrary(locale, "library.dossier.games", { count: formatInteger(locale, games.games.length) })}
+                  {tLibrary(
+                    locale,
+                    games.games.length === 1 ? "library.dossier.games.one" : "library.dossier.games.other",
+                    { count: formatInteger(locale, games.games.length) },
+                  )}
                   {period ? ` · ${period[0]}–${period[1]}` : ""}
                 </p>
               </div>

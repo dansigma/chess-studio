@@ -235,7 +235,9 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
       headers.Date = `${game.year}.${game.month ? String(game.month).padStart(2, "0") : "??"}.??`;
     }
     get().openListedGame({
-      title: `${game.whiteName} vs ${game.blackName}`,
+      // SIG-1345: a synthetic line names its tab after the line, not after the
+      // placeholder players ("Opening line vs Opening line").
+      title: options?.title ?? `${game.whiteName} vs ${game.blackName}`,
       pgn: game.pgn,
       moves: game.moves,
       headers,

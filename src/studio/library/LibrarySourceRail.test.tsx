@@ -361,14 +361,14 @@ test("quick actions: reference, rename and “…” for files; rename for folde
   assert.ok(within(fileRow).getByTestId("library-source-reference"));
   assert.ok(within(fileRow).getByTestId("library-source-rename"));
   assert.ok(within(fileRow).getByTestId("library-source-menu"));
-  // The actions only show on hover or keyboard focus; the count gives them its place.
+  // The actions join the row on hover or keyboard focus; the count keeps its
+  // place instead of fading out under them.
   const actions = within(fileRow).getByTestId("library-source-reference").parentElement!;
-  assert.match(actions.className, /opacity-0/);
-  assert.match(actions.className, /pointer-events-none/);
-  assert.match(actions.className, /group-hover:opacity-100/);
-  assert.match(actions.className, /group-hover:pointer-events-auto/);
-  assert.match(actions.className, /group-focus-within:opacity-100/);
-  assert.match(within(fileRow).getByText("0 games").className, /group-hover:opacity-0/);
+  assert.match(actions.className, /hidden/);
+  assert.match(actions.className, /group-hover:flex/);
+  assert.match(actions.className, /group-focus-within:flex/);
+  assert.doesNotMatch(actions.className, /pointer-events-none/);
+  assert.doesNotMatch(within(fileRow).getByText("0 games").className, /group-hover:opacity-0/);
 
   const folderRow = folderRowOf("Openings");
   assert.ok(within(folderRow).getByTestId("library-folder-rename"));

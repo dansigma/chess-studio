@@ -431,8 +431,8 @@ export const OPEN_PANEL_ITEMS: Array<{ id: StudioPanelId; label: string }> = [
   { id: "review", label: "Game Review" },
   { id: "insights", label: "Insights" },
   { id: "explorer", label: "Opening Explorer" },
-  { id: "games", label: "Games" },
-  { id: "fileGames", label: "Games" },
+  { id: "games", label: "Database games" },
+  { id: "fileGames", label: "Opened PGN" },
   { id: "positionSearch", label: "Position Search" },
   { id: "myStats", label: "My Stats" },
 ];
