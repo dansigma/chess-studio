@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 import { CatalogView } from "@/src/courses/CatalogView";
 import { COURSE_SELECT_FIELDS, MISSING_SCHEMA_NOTICE, isMissingSchemaError, isPublishedCourse, mergeCourseLists, toCatalogCourses, toCourse } from "@/src/courses/catalog";
@@ -67,10 +66,7 @@ export default async function CoursesPage() {
           {notice}
         </p>
       ) : null}
-      {/* useSearchParams in CatalogView needs a Suspense boundary on a static page. */}
-      <Suspense fallback={null}>
-        <CatalogView courses={toCatalogCourses(courses)} />
-      </Suspense>
+      <CatalogView courses={toCatalogCourses(courses)} />
     </>
   );
 }

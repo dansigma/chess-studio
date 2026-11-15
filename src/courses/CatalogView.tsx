@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { CatalogFilters } from "./ui/CatalogFilters";
 import {
   EMPTY_CATALOG_QUERY,
@@ -24,9 +24,15 @@ export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
   const { progress, admin, isAdmin, ready, signedIn, source } = useCourseData();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  // Local state keeps typing responsive; the address is kept in sync (SIG-1356).
-  const [query, setQuery] = useState<CatalogQuery>(() => parseCatalogQuery(searchParams));
+  // SIG-1356: the filters live in the address. They are read on mount (not
+  // with useSearchParams) so the static page still prerenders the full grid
+  // instead of an empty Suspense fallback. Local state keeps typing responsive.
+  const [query, setQuery] = useState<CatalogQuery>(EMPTY_CATALOG_QUERY);
+  useEffect(() => {
+    const fromUrl = parseCatalogQuery(new URLSearchParams(window.location.search));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from the address after hydration
+    setQuery(fromUrl);
+  }, []);
   const visible = filterCatalog(courses, query);
   const updateQuery = (next: CatalogQuery) => {
     setQuery(next);
