@@ -125,12 +125,14 @@ function SourceKindIcon({
   kind,
   selected,
   expanded = true,
+  className: extra = "",
 }: {
   kind: SourceKind;
   selected: boolean;
   expanded?: boolean;
+  className?: string;
 }) {
-  const className = `shrink-0 ${selected ? "text-studio-accent-text" : "text-studio-faint"}`;
+  const className = `shrink-0 ${selected ? "text-studio-accent-text" : "text-studio-faint"} ${extra}`.trim();
   const common = {
     size: 14,
     className,
@@ -464,11 +466,9 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     const isSelected = selected.includes(id);
     const isLast = isSelected && selectedAvailable.length <= 1;
     const error = sourceErrors[id];
-    const detail = count(id);
-    // The Masters' "Top 15 per position" note becomes a subline under the
-    // title, so the label never collapses beside the REF badge.
-    const subline = id === MASTERS_SOURCE_ID ? detail : null;
-    const inlineDetail = subline === null ? detail : null;
+    // The count (or Masters' "Top 15 per position") sits on a subline under
+    // the name, so long names never truncate against it.
+    const subline = count(id);
     const databaseId = id.startsWith("file:") ? id.slice("file:".length) : null;
     const database = databaseId ? databases.find((item) => item.id === databaseId) : undefined;
     const label = adapter.label(locale);
@@ -486,6 +486,16 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     const showRename = !renaming && database !== undefined;
     const showMenu = !renaming && database !== undefined;
     const hasActions = showReference || showRename || showMenu;
+    // Multi-select is visible: a checkbox takes the kind icon's place on hover,
+    // and stays while several sources are selected (Ctrl/⌘-click still works).
+    const multi = selectedAvailable.length > 1;
+    const checkboxShown = multi && isSelected;
+    const checkboxClass = checkboxShown
+      ? "opacity-100"
+      : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100";
+    const iconHiddenClass = checkboxShown
+      ? "invisible"
+      : "group-focus-within:invisible group-hover:invisible";
     const sourceActionsClass =
       "hidden shrink-0 items-center gap-0.5 pr-1 group-focus-within:flex group-hover:flex";
     const refBadge = isReference ? (
@@ -562,37 +572,37 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
                 subline !== null ? "flex flex-col justify-center gap-0.5 py-1" : "flex h-7 items-center gap-1.5"
               }`}
             >
+              <span className="flex min-w-0 items-center gap-1.5">
+                <SourceKindIcon kind={sourceKind(id)} selected={isSelected} className={iconHiddenClass} />
+                <span className="min-w-0 flex-1 truncate text-dense font-medium leading-tight" title={label}>
+                  {label}
+                </span>
+                {refBadge}
+                {errorMark}
+              </span>
               {subline !== null ? (
-                <>
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <SourceKindIcon kind={sourceKind(id)} selected={isSelected} />
-                    <span className="truncate text-dense font-medium leading-tight" title={label}>
-                      {label}
-                    </span>
-                    {refBadge}
-                    {errorMark}
-                  </span>
-                  <span className="truncate pl-5 text-caption leading-tight text-studio-faint">{subline}</span>
-                </>
-              ) : (
-                <>
-                  <SourceKindIcon kind={sourceKind(id)} selected={isSelected} />
-                  <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                    <span className="truncate text-dense font-medium leading-tight" title={label}>
-                      {label}
-                    </span>
-                    {refBadge}
-                  </span>
-                  {errorMark}
-                </>
-              )}
-              {inlineDetail !== null ? (
-                <span className="shrink-0 text-caption leading-tight tabular-nums opacity-80" title={detail ?? undefined}>
-                  {inlineDetail}
+                <span
+                  data-testid="library-source-count"
+                  className="truncate pl-5 text-caption leading-tight tabular-nums text-studio-faint"
+                >
+                  {subline}
                 </span>
               ) : null}
             </button>
           )}
+          {!renaming ? (
+            <input
+              type="checkbox"
+              data-testid="library-source-checkbox"
+              aria-label={t("library.sources.multiSelect", { name: label })}
+              title={isLast ? t("library.sources.lastGuard") : t("library.sources.multiSelect", { name: label })}
+              checked={isSelected}
+              disabled={isLast}
+              onChange={() => setSources(toggleSource(selected, id, ids))}
+              onClick={(event) => event.stopPropagation()}
+              className={`absolute left-2 ${subline !== null ? "top-[5px]" : "top-[7px]"} h-3.5 w-3.5 cursor-pointer accent-studio-accent transition-opacity disabled:cursor-default ${checkboxClass}`}
+            />
+          ) : null}
           {hasActions ? (
             <div className={sourceActionsClass}>
               {showReference && explorerSource !== null ? (

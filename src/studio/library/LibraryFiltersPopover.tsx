@@ -170,47 +170,68 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
         )}
       </Field>
 
-      <Field label={t("library.filtersPopover.elo")} support={support("elo")}>
-        {(disabled, describedBy) => (
-          <div className="flex gap-2">
-            <DebouncedText
-              value={filters.eloMin === null ? "" : String(filters.eloMin)}
-              disabled={disabled}
-              describedBy={describedBy}
-              placeholder={t("library.filtersPopover.eloMin")}
-              delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
-              sanitize={digitsOnly}
-              inputMode="numeric"
-              onCommit={(value) => setEloRange(toNumber(value), useLibraryStore.getState().filters.eloMax)}
-            />
-            <DebouncedText
-              value={filters.eloMax === null ? "" : String(filters.eloMax)}
-              disabled={disabled}
-              describedBy={describedBy}
-              placeholder={t("library.filtersPopover.eloMax")}
-              delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
-              sanitize={digitsOnly}
-              inputMode="numeric"
-              onCommit={(value) => setEloRange(useLibraryStore.getState().filters.eloMin, toNumber(value))}
-            />
-          </div>
-        )}
-      </Field>
-
-      <Field label={t("library.filtersPopover.eco")} support={support("eco")}>
+      <Field
+        label={t("library.filtersPopover.opponent")}
+        hint={t("library.filtersPopover.opponentHint")}
+        support={support("opponent")}
+      >
         {(disabled, describedBy) => (
           <DebouncedText
-            value={filters.eco}
+            value={filters.opponent}
             disabled={disabled}
             describedBy={describedBy}
-            placeholder={t("library.filtersPopover.ecoPlaceholder")}
-            ariaLabel={t("library.filtersPopover.eco")}
-            delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
-            sanitize={(text) => text.replace(/[^a-zA-Z0-9]/g, "").slice(0, 3)}
-            onCommit={(value) => setFilter("eco", value)}
+            placeholder={t("library.filtersPopover.opponentPlaceholder")}
+            onCommit={(value) => setFilter("opponent", value)}
           />
         )}
       </Field>
+
+      {/* Rating range and ECO code share one row to keep the popover short. */}
+      <div className="grid grid-cols-2 items-start gap-2" data-testid="library-filters-elo-eco">
+        <Field label={t("library.filtersPopover.elo")} support={support("elo")}>
+          {(disabled, describedBy) => (
+            <div className="flex gap-2">
+              <DebouncedText
+                value={filters.eloMin === null ? "" : String(filters.eloMin)}
+                disabled={disabled}
+                describedBy={describedBy}
+                placeholder={t("library.filtersPopover.eloMinShort")}
+                ariaLabel={t("library.filtersPopover.eloMin")}
+                delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
+                sanitize={digitsOnly}
+                inputMode="numeric"
+                onCommit={(value) => setEloRange(toNumber(value), useLibraryStore.getState().filters.eloMax)}
+              />
+              <DebouncedText
+                value={filters.eloMax === null ? "" : String(filters.eloMax)}
+                disabled={disabled}
+                describedBy={describedBy}
+                placeholder={t("library.filtersPopover.eloMaxShort")}
+                ariaLabel={t("library.filtersPopover.eloMax")}
+                delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
+                sanitize={digitsOnly}
+                inputMode="numeric"
+                onCommit={(value) => setEloRange(useLibraryStore.getState().filters.eloMin, toNumber(value))}
+              />
+            </div>
+          )}
+        </Field>
+
+        <Field label={t("library.filtersPopover.eco")} support={support("eco")}>
+          {(disabled, describedBy) => (
+            <DebouncedText
+              value={filters.eco}
+              disabled={disabled}
+              describedBy={describedBy}
+              placeholder={t("library.filtersPopover.ecoPlaceholder")}
+              ariaLabel={t("library.filtersPopover.eco")}
+              delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
+              sanitize={(text) => text.replace(/[^a-zA-Z0-9]/g, "").slice(0, 3)}
+              onCommit={(value) => setFilter("eco", value)}
+            />
+          )}
+        </Field>
+      </div>
 
       <Field label={t("library.filtersPopover.period")} support={support("period")}>
         {(disabled, describedBy) => (
@@ -236,18 +257,6 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
               onCommit={(value) => setYearRange(useLibraryStore.getState().filters.yearFrom, toNumber(value))}
             />
           </div>
-        )}
-      </Field>
-
-      <Field label={t("library.filtersPopover.opponent")} support={support("opponent")}>
-        {(disabled, describedBy) => (
-          <DebouncedText
-            value={filters.opponent}
-            disabled={disabled}
-            describedBy={describedBy}
-            placeholder={t("library.filtersPopover.opponentPlaceholder")}
-            onCommit={(value) => setFilter("opponent", value)}
-          />
         )}
       </Field>
 
@@ -319,10 +328,13 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
 
 function Field({
   label,
+  hint,
   support,
   children,
 }: {
   label: string;
+  /** Short explanation under the control, always shown. */
+  hint?: string;
   support: ReturnType<typeof getFieldSupport>;
   children: (disabled: boolean, describedBy: string | undefined, labelId: string) => ReactNode;
 }) {
@@ -331,6 +343,9 @@ function Field({
   const labelId = `${id}-label`;
   const noteId = `${id}-note`;
   const notes: string[] = [];
+  if (hint) {
+    notes.push(hint);
+  }
   if (support.partial.length > 0) {
     notes.push(tLibrary(locale, "library.filtersPopover.notePartial", { sources: support.partial.join(", ") }));
   }
@@ -340,7 +355,7 @@ function Field({
   const unsupported = tLibrary(locale, "library.filtersPopover.unsupported");
   const body = children(support.disabled, notes.length > 0 ? noteId : undefined, labelId);
   return (
-    <div className="flex flex-col gap-1" data-field-disabled={support.disabled || undefined}>
+    <div className="flex min-w-0 flex-col gap-1" data-field-disabled={support.disabled || undefined}>
       <span id={labelId} className="text-caption font-medium text-studio-muted">
         {label}
       </span>
@@ -475,7 +490,7 @@ function DebouncedText({
     }
   };
   return (
-    <div className="relative w-full">
+    <div className="relative w-full min-w-0">
       <input
         type="text"
         inputMode={inputMode}

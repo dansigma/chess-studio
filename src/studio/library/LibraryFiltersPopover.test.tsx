@@ -149,8 +149,8 @@ test("player is debounced by 200 ms and has its own color", async () => {
 });
 
 test("Elo, ECO and period fields ignore non-numeric input and write the store", async () => {
-  fireEvent.change(screen.getByPlaceholderText("Minimum Elo"), { target: { value: "25a00" } });
-  fireEvent.change(screen.getByPlaceholderText("Maximum Elo"), { target: { value: "2800" } });
+  fireEvent.change(screen.getByLabelText("Minimum Elo"), { target: { value: "25a00" } });
+  fireEvent.change(screen.getByLabelText("Maximum Elo"), { target: { value: "2800" } });
   fireEvent.change(screen.getByPlaceholderText("C65, C6 or B"), { target: { value: "c6" } });
   fireEvent.change(screen.getByPlaceholderText("From year"), { target: { value: "2020" } });
   await wait(300);
@@ -160,7 +160,7 @@ test("Elo, ECO and period fields ignore non-numeric input and write the store", 
   assert.equal(f.eco, "c6");
   assert.equal(f.yearFrom, 2020);
   assert.equal(f.yearTo, null);
-  fireEvent.change(screen.getByPlaceholderText("Minimum Elo"), { target: { value: "" } });
+  fireEvent.change(screen.getByLabelText("Minimum Elo"), { target: { value: "" } });
   await wait(300);
   assert.equal(filters().eloMin, null);
 });

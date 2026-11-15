@@ -1,8 +1,8 @@
 import type { LibrarySortKey } from "@/src/lib/library/types";
 import type { LibraryStringKey } from "@/src/i18n/library-strings";
 
-/** Display-only columns (Opening) use keys outside the sort contract. */
-export type LibraryColumnKey = LibrarySortKey | "opening";
+/** Display-only columns (Opening, Source) use keys outside the sort contract. */
+export type LibraryColumnKey = LibrarySortKey | "opening" | "source";
 
 export type LibraryColumn = {
   key: LibraryColumnKey;
@@ -13,6 +13,8 @@ export type LibraryColumn = {
   optional: boolean;
   /** Hidden when the panel is narrower than `WIDE_PANEL_WIDTH` (Opening). */
   wide?: boolean;
+  /** Shown only when more than one source is selected (Source). */
+  multiSource?: boolean;
   /** False for display-only columns, whose header is plain text. */
   sortable: boolean;
   /** Direction applied when the column is first clicked. */
@@ -36,10 +38,14 @@ export const LIBRARY_COLUMNS: LibraryColumn[] = [
   { key: "opening", label: "library.col.opening", width: "minmax(0,1.4fr)", optional: false, wide: true, sortable: false, firstDirection: "asc" },
   { key: "plyCount", label: "library.col.plyCount", width: "48px", optional: false, sortable: true, firstDirection: "desc", align: "right" },
   { key: "event", label: "library.col.event", width: "minmax(0,1.2fr)", optional: true, sortable: true, firstDirection: "asc" },
+  { key: "source", label: "library.col.source", width: "80px", optional: false, multiSource: true, sortable: false, firstDirection: "asc" },
 ];
 
-export function visibleColumns(panelWidth: number): LibraryColumn[] {
+export function visibleColumns(panelWidth: number, multiSource = false): LibraryColumn[] {
   return LIBRARY_COLUMNS.filter((column) => {
+    if (column.multiSource && !multiSource) {
+      return false;
+    }
     if (column.wide && panelWidth < WIDE_PANEL_WIDTH) {
       return false;
     }

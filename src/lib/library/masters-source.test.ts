@@ -116,3 +116,14 @@ test("label follows the locale", () => {
   assert.equal(source.label("en"), "Masters (Lichess)");
   assert.equal(source.label("pt-br"), "Masters (Lichess)");
 });
+
+test("cursor \"0\" (first page from queryLibrary) loads the start position; later cursors are empty", async () => {
+  const urls: string[] = [];
+  const source = createMastersSource({ fetchImpl: async (url) => (urls.push(String(url)), json(RECORDED)) });
+  const first = await source.list(filters(), "0", 50, signal);
+  assert.equal(first.items.length, 3);
+  assert.match(urls[0], /fen=rnbqkbnr/);
+  const next = await source.list(filters(), "3", 50, signal);
+  assert.equal(next.items.length, 0);
+  assert.equal(urls.length, 1);
+});
