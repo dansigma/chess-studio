@@ -461,6 +461,10 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     const isLast = isSelected && selectedAvailable.length <= 1;
     const error = sourceErrors[id];
     const detail = count(id);
+    // The Masters' "Top 15 per position" note becomes a subline under the
+    // title, so the label never collapses beside the REF badge.
+    const subline = id === MASTERS_SOURCE_ID ? detail : null;
+    const inlineDetail = subline === null ? detail : null;
     const databaseId = id.startsWith("file:") ? id.slice("file:".length) : null;
     const database = databaseId ? databases.find((item) => item.id === databaseId) : undefined;
     const label = adapter.label(locale);
@@ -478,6 +482,21 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     const showRename = !renaming && database !== undefined;
     const showMenu = !renaming && database !== undefined;
     const hasActions = showReference || showRename || showMenu;
+    const refBadge = isReference ? (
+      <span title={t("library.sources.reference.title")} data-testid="library-source-ref-badge">
+        <Badge tone="accent">{t("library.sources.reference.badge")}</Badge>
+      </span>
+    ) : null;
+    const errorMark = error !== undefined ? (
+      <span
+        role="img"
+        title={t("library.sources.failed", { message: error })}
+        aria-label={t("library.sources.failed", { message: error })}
+        className="shrink-0 text-studio-danger"
+      >
+        <TriangleAlert size={12} />
+      </span>
+    ) : null;
     const actionsClass =
       "pointer-events-none absolute inset-y-0 right-1 flex items-center gap-0.5 bg-inherit opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100";
     // SIG-1343: only the PGN file rows can be dragged, and only onto a folder.
@@ -535,34 +554,37 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
               aria-pressed={isSelected}
               title={isLast ? t("library.sources.lastGuard") : undefined}
               onClick={click(id)}
-              className="flex h-7 min-w-0 flex-1 items-center gap-1.5 px-2 text-left"
+              className={`min-w-0 flex-1 px-2 text-left ${
+                subline !== null ? "flex flex-col justify-center gap-0.5 py-1" : "flex h-7 items-center gap-1.5"
+              }`}
             >
-              <SourceKindIcon kind={sourceKind(id)} selected={isSelected} />
-              <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                <span className="truncate text-dense font-medium leading-tight">{label}</span>
-                {isReference ? (
-                  <span title={t("library.sources.reference.title")} data-testid="library-source-ref-badge">
-                    <Badge tone="accent">{t("library.sources.reference.badge")}</Badge>
+              {subline !== null ? (
+                <>
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <SourceKindIcon kind={sourceKind(id)} selected={isSelected} />
+                    <span className="truncate text-dense font-medium leading-tight">{label}</span>
+                    {refBadge}
+                    {errorMark}
                   </span>
-                ) : null}
-              </span>
-              {error !== undefined ? (
-                <span
-                  role="img"
-                  title={t("library.sources.failed", { message: error })}
-                  aria-label={t("library.sources.failed", { message: error })}
-                  className="shrink-0 text-studio-danger"
-                >
-                  <TriangleAlert size={12} />
-                </span>
-              ) : null}
-              {detail !== null ? (
+                  <span className="truncate pl-5 text-caption leading-tight text-studio-faint">{subline}</span>
+                </>
+              ) : (
+                <>
+                  <SourceKindIcon kind={sourceKind(id)} selected={isSelected} />
+                  <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                    <span className="truncate text-dense font-medium leading-tight">{label}</span>
+                    {refBadge}
+                  </span>
+                  {errorMark}
+                </>
+              )}
+              {inlineDetail !== null ? (
                 <span
                   className={`shrink-0 text-caption leading-tight tabular-nums opacity-80 ${
                     hasActions ? "group-focus-within:opacity-0 group-hover:opacity-0" : ""
                   }`}
                 >
-                  {detail}
+                  {inlineDetail}
                 </span>
               ) : null}
             </button>

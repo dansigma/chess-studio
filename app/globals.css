@@ -80,18 +80,6 @@
   --studio-tier-blunder-fg: #0d0e10;
   --studio-tier-forced: #71717a;
   --studio-tier-forced-fg: #ffffff;
-  /* SIG-1330: ECO family text colours (A-E). Text only, no fill. Contrast of
-     each on --studio-panel / --studio-selected / hover-on-selected (worst case):
-       a  #fc9090  7.73:1  6.17:1  4.79:1
-       b  #fba04f  8.30:1  6.63:1  5.15:1
-       c  #4ade80  9.77:1  7.80:1  6.06:1
-       d  #74b4fb  7.83:1  6.26:1  4.86:1
-       e  #cf9bfc  7.90:1  6.31:1  4.90:1 */
-  --studio-eco-a: #fc9090;
-  --studio-eco-b: #fba04f;
-  --studio-eco-c: #4ade80;
-  --studio-eco-d: #74b4fb;
-  --studio-eco-e: #cf9bfc;
   --background: var(--studio-chrome);
   --foreground: var(--studio-fg);
   color-scheme: dark;
@@ -165,17 +153,6 @@ html[data-color-scheme="light"] {
   --studio-tier-blunder-fg: #ffffff;
   --studio-tier-forced: #63636b;
   --studio-tier-forced-fg: #ffffff;
-  /* SIG-1330: light theme ECO colours; same three backgrounds as above:
-       a  #b91c1c  6.47:1  5.47:1  4.90:1
-       b  #9a4a07  6.26:1  5.29:1  4.73:1
-       c  #146c34  6.51:1  5.51:1  4.93:1
-       d  #1d4ed8  6.70:1  5.67:1  5.07:1
-       e  #7e22ce  6.98:1  5.90:1  5.28:1 */
-  --studio-eco-a: #b91c1c;
-  --studio-eco-b: #9a4a07;
-  --studio-eco-c: #146c34;
-  --studio-eco-d: #1d4ed8;
-  --studio-eco-e: #7e22ce;
   color-scheme: light;
 }
 
@@ -238,11 +215,6 @@ html[data-color-scheme="light"] {
   --color-studio-tier-blunder-fg: var(--studio-tier-blunder-fg);
   --color-studio-tier-forced: var(--studio-tier-forced);
   --color-studio-tier-forced-fg: var(--studio-tier-forced-fg);
-  --color-studio-eco-a: var(--studio-eco-a);
-  --color-studio-eco-b: var(--studio-eco-b);
-  --color-studio-eco-c: var(--studio-eco-c);
-  --color-studio-eco-d: var(--studio-eco-d);
-  --color-studio-eco-e: var(--studio-eco-e);
   --text-caption: 11px;
   --text-caption--line-height: 1.4;
   --text-dense: 12px;
