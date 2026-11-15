@@ -1,18 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { tCourseAdmin } from "@/src/i18n/course-admin-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
+import { Dialog } from "@/src/studio/ui/Dialog";
 import { ChapterDraft } from "./ChapterDraft";
 import { CourseChrome } from "./CourseChrome";
-import { CourseFields } from "./CourseFields";
+import { AdminTabPanel, AdminTabs } from "./AdminTabs";
+import { CourseDescriptionField, CourseInfoFields, CourseMediaFields } from "./CourseFields";
+import { CourseView } from "./CourseView";
+import { FieldError, fieldDomId, fieldErrorDomId } from "./FieldError";
+import { isDraftDirty } from "./dirty";
+import { COURSE_ADMIN_TABS, locateError, validateCourseDraft, type CourseAdminTab, type LocatedError } from "./validate-draft";
 import { LocalDraftsSection } from "./LocalDraftsSection";
-import { emptyCourse } from "./admin-draft";
-import { centsToPrice, priceToCents, validateTierAndPrice, visibleActions } from "./author-actions";
+import { emptyCourse, type CourseDraft } from "./admin-draft";
+import { visibleActions } from "./author-actions";
 import { isCourseTheme, slugify } from "./catalog";
-import { hasPlayableContent, normalizeChapters } from "./draft";
+import { normalizeChapters } from "./draft";
 import {
   publishCourse,
   removePublishedCourse,
@@ -22,6 +28,7 @@ import {
 } from "./publish";
 import { useAdminDraft } from "./use-admin-draft";
 import { useAdminSession } from "./use-admin-session";
+import type { CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import type { Course, CourseStatus } from "./types";
 
 const STATUS_BADGE_KEY = {
@@ -31,6 +38,14 @@ const STATUS_BADGE_KEY = {
   rejected: "course.admin.statusBadge.rejected",
   archived: "course.admin.statusBadge.archived",
 } as const satisfies Record<CourseStatus, Parameters<typeof tCourseAdmin>[1]>;
+
+const TAB_LABEL_KEY = {
+  info: "course.admin.tab.info",
+  description: "course.admin.tab.description",
+  media: "course.admin.tab.media",
+  chapters: "course.admin.tab.chapters",
+  preview: "course.admin.tab.preview",
+} as const satisfies Record<CourseAdminTab, Parameters<typeof tCourseAdmin>[1]>;
 
 const STATUS_NOTICE_KEY = {
   draft: "course.admin.status.draft",
@@ -60,11 +75,84 @@ export function AdminView() {
     useAdminDraft(setError);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  // Raw reais text for the paid price field. Keyed by draft id so switching
-  // courses resets the input; undefined = derive from priceCents lazily.
-  const [priceTexts, setPriceTexts] = useState<Record<string, string>>({});
-  const priceText =
-    priceTexts[draft.id] ?? (draft.priceCents != null ? centsToPrice(draft.priceCents, locale) : "");
+  const [tab, setTab] = useState<CourseAdminTab>("info");
+  // SIG-1363: the error that belongs to one field, shown next to it with its
+  // tab marked. Errors without a field use the general slot below the tabs.
+  const [fieldError, setFieldError] = useState<LocatedError | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ field: LocatedError["field"]; n: number } | null>(null);
+  // Last saved (or freshly opened) copy of the draft: the dirty baseline.
+  const [snapshot, setSnapshot] = useState<CourseDraft>(draft);
+  const [pendingDiscard, setPendingDiscard] = useState<{ run: () => void } | null>(null);
+  const dirty = isDraftDirty(draft, snapshot);
+
+  useEffect(() => {
+    if (!dirty) {
+      return;
+    }
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
+
+  useEffect(() => {
+    if (!focusRequest) {
+      return;
+    }
+    (document.getElementById(fieldDomId(focusRequest.field)) ?? document.getElementById(fieldErrorDomId(focusRequest.field)))?.focus();
+  }, [focusRequest]);
+
+  /** Shows an error next to its field (switching tab and focusing it), or in the general slot. */
+  function reportError(message: CourseAdminMessage) {
+    const located = locateError(message);
+    if (!located) {
+      setFieldError(null);
+      setError(message);
+      return;
+    }
+    setError(null);
+    setFieldError(located);
+    setTab(located.tab);
+    setFocusRequest((current) => ({ field: located.field, n: (current?.n ?? 0) + 1 }));
+  }
+
+  function loadDraft(next: CourseDraft) {
+    setDraft(next);
+    setSnapshot(next);
+    setError(null);
+    setFieldError(null);
+    setTab("info");
+  }
+
+  /** Runs `action` now, or after the author agrees to discard unsaved changes. */
+  function guardUnsaved(action: () => void) {
+    if (dirty) {
+      setPendingDiscard({ run: action });
+      return;
+    }
+    action();
+  }
+
+  const previewCourse = useMemo<Course | null>(() => {
+    if (!isCourseTheme(draft.theme)) {
+      return null;
+    }
+    const { theme, ...rest } = draft;
+    const title = draft.title.trim();
+    return {
+      ...rest,
+      theme,
+      title,
+      slug: draft.slug.trim() || slugify(title),
+      accessTier: "free",
+      priceCents: null,
+      // builtin: the preview must not record an enrollment for an unsaved course.
+      builtin: true,
+      contentLoaded: true,
+    };
+  }, [draft]);
 
   const actions = visibleActions({ role, status: draft.status });
   // Admins keep the exact current behavior; coaches are read-only in_review.
@@ -77,44 +165,19 @@ export function AdminView() {
   const draftListed = courses.some((course) => course.id === draft.id);
 
   function validatedPayload(): { ok: true; payload: Course } | { ok: false } {
-    const title = draft.title.trim();
-    if (!title) {
-      setError({ key: "course.admin.error.needsTitle" });
+    setFieldError(null);
+    const check = validateCourseDraft(draft);
+    if (!check.ok) {
+      reportError(check.error);
       return { ok: false };
     }
-    if (!isCourseTheme(draft.theme)) {
-      setError({ key: "course.admin.error.chooseTheme" });
+    const title = draft.title.trim();
+    const normalized = normalizeChapters(draft.chapters);
+    if (!isCourseTheme(draft.theme) || "error" in normalized) {
       return { ok: false };
     }
     const theme = draft.theme;
-    const normalized = normalizeChapters(draft.chapters);
-    if ("error" in normalized) {
-      setError(normalized.error);
-      return { ok: false };
-    }
-    if (!hasPlayableContent(normalized.chapters)) {
-      setError({ key: "course.admin.error.needsPlayableLine" });
-      return { ok: false };
-    }
-    // Prefer the raw text the author typed (it may differ from the synced
-    // priceCents when the text is currently invalid).
-    const tier = draft.accessTier;
-    const raw = tier === "paid" ? (priceText ?? (draft.priceCents != null ? centsToPrice(draft.priceCents, locale) : "")) : "";
-    const priceCents = tier === "paid" ? priceToCents(raw) : null;
-    if (tier === "paid" && priceCents === null) {
-      setError({ key: "course.admin.error.invalidPrice" });
-      return { ok: false };
-    }
-    const tierCheck = validateTierAndPrice(tier, priceCents);
-    if (!tierCheck.ok) {
-      setError({ key: tierCheck.error });
-      return { ok: false };
-    }
     const authorName = draft.authorName?.trim() ? draft.authorName.trim() : undefined;
-    if (authorName && authorName.length > 120) {
-      setError({ key: "course.admin.error.authorNameTooLong" });
-      return { ok: false };
-    }
     // Narrow the draft's ""|theme union now that isCourseTheme passed.
     const { theme: _unset, ...rest } = draft;
     void _unset;
@@ -125,8 +188,9 @@ export function AdminView() {
       summary: draft.summary,
       theme,
       chapters: normalized.chapters,
-      accessTier: tier,
-      priceCents,
+      // SIG-1363: the site is free; the editor has no tier or price inputs.
+      accessTier: "free",
+      priceCents: null,
       authorName,
     };
     return { ok: true, payload };
@@ -142,15 +206,12 @@ export function AdminView() {
       // Admins keep the exact current behavior (publish); coaches save a draft.
       const result = isAdmin ? await publishCourse(validated.payload) : await saveCourseDraft(validated.payload);
       if (!result.ok) {
-        setError(result.error);
+        reportError(result.error);
         return;
       }
       setCourses((current) => [result.course, ...current.filter((course) => course.id !== result.course.id)]);
       setDraft(result.course);
-      setPriceTexts((current) => ({
-        ...current,
-        [result.course.id]: result.course.priceCents != null ? centsToPrice(result.course.priceCents, locale) : "",
-      }));
+      setSnapshot(result.course);
       setError(null);
       router.refresh();
     } finally {
@@ -170,21 +231,21 @@ export function AdminView() {
     try {
       const saved = isAdmin ? await publishCourse(validated.payload) : await saveCourseDraft(validated.payload);
       if (!saved.ok) {
-        setError(saved.error);
+        reportError(saved.error);
         return;
       }
+      // Saved: the editor now matches the database even if the submit fails.
+      setDraft(saved.course);
+      setSnapshot(saved.course);
       const result = await submitCourseForReview(saved.course.id);
       if (!result.ok) {
-        setError(result.error);
+        reportError(result.error);
         return;
       }
       const next: Course = { ...saved.course, status: "in_review" as const };
       setCourses((current) => [next, ...current.filter((course) => course.id !== next.id)]);
       setDraft(next);
-      setPriceTexts((current) => ({
-        ...current,
-        [next.id]: next.priceCents != null ? centsToPrice(next.priceCents, locale) : "",
-      }));
+      setSnapshot(next);
       setError(null);
       router.refresh();
     } finally {
@@ -227,12 +288,7 @@ export function AdminView() {
         />
         <aside>
           <Button
-            onClick={() => {
-              const next = emptyCourse();
-              setDraft(next);
-              setPriceTexts((current) => ({ ...current, [next.id]: "" }));
-              setError(null);
-            }}
+            onClick={() => guardUnsaved(() => loadDraft(emptyCourse()))}
           >
             {tCourseAdmin(locale, "course.admin.newCourse")}
           </Button>
@@ -242,17 +298,7 @@ export function AdminView() {
                 <button
                   type="button"
                   className="w-full truncate rounded-md px-2 py-1.5 text-left text-body text-studio-fg hover:bg-studio-hover"
-                  onClick={() => {
-                    setDraft(course);
-                    // Seed the raw price text from the opened course so a
-                    // paid course shows its own price, never another draft's
-                    // leftover text.
-                    setPriceTexts((current) => ({
-                      ...current,
-                      [course.id]:
-                        course.priceCents != null ? centsToPrice(course.priceCents, locale) : "",
-                    }));
-                  }}
+                  onClick={() => guardUnsaved(() => loadDraft(course))}
                 >
                   <span className="block truncate">{course.title}</span>
                   <span className="mt-0.5 inline-block rounded-full border border-studio-border px-2 py-px text-caption text-studio-muted">
@@ -274,13 +320,10 @@ export function AdminView() {
             void saveDraft();
           }}
         >
-          <CourseFields
-            draft={draft}
-            setDraft={setDraft}
-            readOnly={readOnly}
-            priceText={priceText}
-            setPriceText={(text) => setPriceTexts((current) => ({ ...current, [draft.id]: text }))}
-          />
+          <h1 className="text-xl font-semibold text-studio-fg">
+            {draft.title.trim() || tCourseAdmin(locale, "course.admin.createHeading")}
+          </h1>
+          <p className="text-caption text-studio-muted">/courses/{draft.slug.trim() || slugify(draft.title) || "…"}</p>
 
           {draft.status === "in_review" ? (
             <p className="rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-muted">
@@ -299,57 +342,102 @@ export function AdminView() {
             </section>
           ) : null}
 
-          {!readOnly &&
-            draft.chapters.map((chapter, chapterIndex) => (
-              <ChapterDraft
-                key={chapter.id}
-                chapter={chapter}
-                index={chapterIndex}
-                total={draft.chapters.length}
-                onTitle={(title) => updateChapter(chapter.id, { title })}
-                onMove={(direction) => moveChapter(chapterIndex, direction)}
-                onRemove={() => {
-                  const hasLines = chapter.variations.some(
-                    (variation) => variation.pgn.trim() || variation.title.trim(),
-                  );
-                  if (hasLines && !window.confirm(tCourseAdmin(locale, "course.admin.confirm.removeChapter"))) {
-                    return;
-                  }
-                  setDraft((current) => ({
-                    ...current,
-                    chapters: current.chapters.filter((item) => item.id !== chapter.id),
-                  }));
-                }}
-                onUpload={(file) => void addChapterPgn(chapter.id, file)}
-                onAddLine={() =>
-                  updateChapter(chapter.id, {
-                    variations: [...chapter.variations, { id: crypto.randomUUID(), title: "", pgn: "" }],
-                  })
-                }
-                onVariationTitle={(variationId, title) => updateVariation(chapter.id, variationId, { title })}
-                onVariationPgn={(variationId, pgn) => updateVariation(chapter.id, variationId, { pgn })}
-                onMoveVariation={(variationIndex, direction) => moveVariation(chapter.id, variationIndex, direction)}
-                onRemoveVariation={(variationId) =>
-                  updateChapter(chapter.id, {
-                    variations: chapter.variations.filter((variation) => variation.id !== variationId),
-                  })
-                }
-              />
-            ))}
+          <AdminTabs
+            tabs={COURSE_ADMIN_TABS.map((id) => ({
+              id,
+              label: tCourseAdmin(locale, TAB_LABEL_KEY[id]),
+              hasError: fieldError?.tab === id,
+            }))}
+            active={tab}
+            onChange={setTab}
+            label={tCourseAdmin(locale, "course.admin.tabs.label")}
+            errorLabel={tCourseAdmin(locale, "course.admin.tab.hasError")}
+          />
+          <AdminTabPanel id={tab}>
+            {tab === "info" ? (
+              <CourseInfoFields draft={draft} setDraft={setDraft} readOnly={readOnly} error={fieldError} />
+            ) : null}
+            {tab === "description" ? (
+              <CourseDescriptionField draft={draft} setDraft={setDraft} readOnly={readOnly} error={fieldError} />
+            ) : null}
+            {tab === "media" ? (
+              <CourseMediaFields draft={draft} setDraft={setDraft} readOnly={readOnly} error={fieldError} />
+            ) : null}
+            {tab === "chapters" ? (
+              <>
+                <FieldError field="chapters" error={fieldError} locale={locale} />
+              {!readOnly &&
+                draft.chapters.map((chapter, chapterIndex) => (
+                  <ChapterDraft
+                    key={chapter.id}
+                    chapter={chapter}
+                    index={chapterIndex}
+                    total={draft.chapters.length}
+                    onTitle={(title) => updateChapter(chapter.id, { title })}
+                    onMove={(direction) => moveChapter(chapterIndex, direction)}
+                    onRemove={() => {
+                      const hasLines = chapter.variations.some(
+                        (variation) => variation.pgn.trim() || variation.title.trim(),
+                      );
+                      if (hasLines && !window.confirm(tCourseAdmin(locale, "course.admin.confirm.removeChapter"))) {
+                        return;
+                      }
+                      setDraft((current) => ({
+                        ...current,
+                        chapters: current.chapters.filter((item) => item.id !== chapter.id),
+                      }));
+                    }}
+                    onUpload={(file) => void addChapterPgn(chapter.id, file)}
+                    onAddLine={() =>
+                      updateChapter(chapter.id, {
+                        variations: [...chapter.variations, { id: crypto.randomUUID(), title: "", pgn: "" }],
+                      })
+                    }
+                    onVariationTitle={(variationId, title) => updateVariation(chapter.id, variationId, { title })}
+                    onVariationPgn={(variationId, pgn) => updateVariation(chapter.id, variationId, { pgn })}
+                    onMoveVariation={(variationIndex, direction) => moveVariation(chapter.id, variationIndex, direction)}
+                    onRemoveVariation={(variationId) =>
+                      updateChapter(chapter.id, {
+                        variations: chapter.variations.filter((variation) => variation.id !== variationId),
+                      })
+                    }
+                  />
+                ))}
 
-          {!readOnly ? (
-            <Button
-              variant="secondary"
-              onClick={() =>
-                setDraft({
-                  ...draft,
-                  chapters: [...draft.chapters, { id: crypto.randomUUID(), title: "", variations: [] }],
-                })
-              }
-            >
-              {tCourseAdmin(locale, "course.admin.addChapter")}
-            </Button>
-          ) : null}
+              {!readOnly ? (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    setDraft({
+                      ...draft,
+                      chapters: [...draft.chapters, { id: crypto.randomUUID(), title: "", variations: [] }],
+                    })
+                  }
+                >
+                  {tCourseAdmin(locale, "course.admin.addChapter")}
+                </Button>
+              ) : null}
+
+              </>
+            ) : null}
+            {tab === "preview" ? (
+              previewCourse ? (
+                <div
+                  className="max-h-[70vh] overflow-auto rounded-xl border border-studio-border"
+                  // The preview shows unsaved lessons that have no page yet: keep links inert.
+                  onClickCapture={(event) => {
+                    if ((event.target as HTMLElement).closest("a")) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  <CourseView course={previewCourse} />
+                </div>
+              ) : (
+                <p className="text-body text-studio-muted">{tCourseAdmin(locale, "course.admin.preview.needsTheme")}</p>
+              )
+            ) : null}
+          </AdminTabPanel>
 
           <p className="text-caption text-studio-muted">{tCourseAdmin(locale, "course.admin.saveHint")}</p>
           {error ? (
@@ -393,7 +481,7 @@ export function AdminView() {
                   void unpublishCourse(draft.id).then((result) => {
                     setSaving(false);
                     if (!result.ok) {
-                      setError(result.error);
+                      reportError(result.error);
                       return;
                     }
                     setCourses((current) =>
@@ -402,6 +490,7 @@ export function AdminView() {
                       ),
                     );
                     setDraft((current) => ({ ...current, status: "draft" as const, publishedAt: null }));
+                    setSnapshot((current) => ({ ...current, status: "draft" as const, publishedAt: null }));
                     setError(null);
                     router.refresh();
                   });
@@ -420,14 +509,11 @@ export function AdminView() {
                   }
                   void removePublishedCourse(draft.id).then((result) => {
                     if (!result.ok) {
-                      setError(result.error);
+                      reportError(result.error);
                       return;
                     }
                     refresh(courses.filter((course) => course.id !== draft.id));
-                    const next = emptyCourse();
-                    setDraft(next);
-                    setPriceTexts((current) => ({ ...current, [next.id]: "" }));
-                    setError(null);
+                    loadDraft(emptyCourse());
                   });
                 }}
               >
@@ -437,6 +523,31 @@ export function AdminView() {
           </div>
         </form>
       </main>
+      {pendingDiscard ? (
+        <Dialog
+          title={tCourseAdmin(locale, "course.admin.discard.title")}
+          onClose={() => setPendingDiscard(null)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setPendingDiscard(null)}>
+                {tCourseAdmin(locale, "course.admin.discard.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  const { run } = pendingDiscard;
+                  setPendingDiscard(null);
+                  run();
+                }}
+              >
+                {tCourseAdmin(locale, "course.admin.discard.confirm")}
+              </Button>
+            </>
+          }
+        >
+          {tCourseAdmin(locale, "course.admin.discard.body")}
+        </Dialog>
+      ) : null}
     </div>
   );
 }
