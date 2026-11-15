@@ -57,7 +57,7 @@ function view(locale: "en" | "pt-br" = "pt-br") {
 
 test("grid renders one card per chapter with lines, numbered in order", () => {
   const c = view();
-  const links = [...c.querySelectorAll("li a")];
+  const links = [...c.querySelectorAll("li a[data-chapter-open]")];
   assert.deepEqual(
     links.map((link) => link.getAttribute("href")),
     ["/courses/caro?capitulo=1", "/courses/caro?capitulo=2", "/courses/caro?capitulo=3", "/courses/caro?capitulo=4"],
@@ -70,9 +70,18 @@ test("grid renders one card per chapter with lines, numbered in order", () => {
   assert.ok(!text.includes("Sem linhas"));
 });
 
+test("a chapter with reviews due links its Revisar (N) to that chapter's session", () => {
+  const c = view();
+  const review = [...c.querySelectorAll("li a[data-chapter-review]")];
+  assert.deepEqual(
+    review.map((link) => [link.textContent, link.getAttribute("href")]),
+    [["Revisar (1)", "/courses/caro/revisar?capitulo=2"]],
+  );
+});
+
 test("chapter card shows the line count, learned/total bar and the chapter status", () => {
   const c = view();
-  const [first, second, third, fourth] = [...c.querySelectorAll("li a")];
+  const [first, second, third, fourth] = [...c.querySelectorAll("li")];
   const firstText = first.textContent ?? "";
   assert.match(firstText, /2 linhas/);
   assert.match(firstText, /1\/2/);
@@ -94,7 +103,7 @@ test("video icon only on chapters with a video lesson", () => {
   const c = view();
   const icons = [...c.querySelectorAll("[data-testid='chapter-video-icon']")];
   assert.equal(icons.length, 2);
-  const links = [...c.querySelectorAll("li a")];
+  const links = [...c.querySelectorAll("li a[data-chapter-open]")];
   assert.ok(links[0].contains(icons[0]));
   assert.ok(links[2].contains(icons[1]));
 });

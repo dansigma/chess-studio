@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { continueRail } from "../continue-rail";
 import { courseImageUrl } from "../media";
+import { reviewHref } from "../review-queue";
 import type { CatalogCourse, VariationProgress } from "../types";
 import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
@@ -77,10 +78,9 @@ export function ContinueRail({
               </Link>
               {item.dueCount > 0 ? (
                 <div className="px-3 pb-3">
-                  {/* Courses 27/27 swaps this target for the review session. A sibling of the
-                      item link, never nested inside it. */}
+                  {/* SIG-1375: a sibling of the item link, never nested inside it. */}
                   <Link
-                    href={courseHref}
+                    href={reviewHref(course.slug)}
                     aria-label={tCourse(locale, "course.rail.reviewAria", {
                       count: formatInteger(locale, item.dueCount),
                       title: course.title,

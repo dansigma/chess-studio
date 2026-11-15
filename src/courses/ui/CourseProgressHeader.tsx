@@ -7,15 +7,15 @@ import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { ProgressBar } from "@/src/site/ui/ProgressBar";
 import { courseProgressSummary } from "../progress-summary";
+import { reviewHref } from "../review-queue";
 import type { Course, VariationProgress } from "../types";
 
 const BUTTON = "inline-flex h-8 items-center justify-center rounded-lg px-3.5 text-body font-medium";
 
 /**
  * SIG-1361: shown above the presentation once the student has progress. `ready`
- * is false until progress has loaded, so nothing flashes. Until the review
- * session exists (27/27) Revisar links to the first due line and Revisar curso
- * to the first line of the course.
+ * is false until progress has loaded, so nothing flashes. Revisar (N) — and
+ * Revisar curso once every line is learned — open the review session (27/27).
  */
 export function CourseProgressHeader({
   course,
@@ -39,6 +39,7 @@ export function CourseProgressHeader({
   }
   const lineHref = (id: string | null) => (id ? `/courses/${course.slug}/${id}` : `/courses/${course.slug}`);
   const continueHref = summary.complete ? lineHref(summary.firstLineId) : lineHref(summary.nextLineId);
+  const reviewTarget = reviewHref(course.slug);
   return (
     <section
       aria-label={tCourse(locale, "course.course.progressHeading")}
@@ -58,14 +59,14 @@ export function CourseProgressHeader({
       <ProgressBar value={summary.percent} label={tCourse(locale, "course.course.progressAria")} />
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Link
-          href={continueHref}
+          href={summary.complete ? reviewTarget : continueHref}
           className={`${BUTTON} bg-studio-accent text-studio-accent-fg hover:bg-studio-accent-strong`}
         >
           {tCourse(locale, summary.complete ? "course.progress.header.reviewCourse" : "course.progress.header.continue")}
         </Link>
         {summary.due > 0 ? (
           <Link
-            href={lineHref(summary.firstDueLineId)}
+            href={reviewTarget}
             className={`${BUTTON} bg-studio-hover-strong text-studio-fg hover:bg-studio-selected`}
           >
             {tCourse(locale, "course.progress.header.review", { count: formatInteger(locale, summary.due) })}

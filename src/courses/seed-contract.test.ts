@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { importPgn } from "../chess/pgn.ts";
+import { REVIEW_SEGMENT } from "./review-queue.ts";
 
 // The seed data lives boundary-free in `seed-data.ts` (`seed.ts` keeps only
 // the `server-only` marker + re-export). This contract test reads the data
@@ -44,5 +45,13 @@ describe("seed contract", () => {
     for (const id of ["advance-c3", "advance-c4", "advance-nf3", "classical-main"]) {
       assert.ok(seedSource.includes(`id: "${id}"`), `seed no longer ships line ${id}`);
     }
+  });
+
+  it("keeps the review session route free of a line with the same id", () => {
+    assert.equal(REVIEW_SEGMENT, "revisar");
+    assert.ok(
+      !seedSource.includes(`id: "${REVIEW_SEGMENT}"`),
+      "a seed line id would be shadowed by /courses/[slug]/revisar",
+    );
   });
 });

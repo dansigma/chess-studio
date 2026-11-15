@@ -89,6 +89,49 @@ test("Treinar labels match the redesign", () => {
   );
 });
 
+test("review session labels match the redesign", () => {
+  assert.equal(
+    tCourse("pt-br", "course.review.heading", { current: 2, total: 5 }),
+    "Revisão · 2 de 5",
+  );
+  assert.equal(
+    tCourse("en", "course.review.heading", { current: 2, total: 5 }),
+    "Review · 2 of 5",
+  );
+  assert.equal(tCourse("pt-br", "course.review.result.clean"), "Sem erros");
+  assert.equal(tCourse("en", "course.review.result.clean"), "No mistakes");
+  assert.equal(
+    tCourse("pt-br", "course.review.result.mistakes.other", { count: "3" }),
+    "3 erros",
+  );
+  assert.equal(
+    tCourse("en", "course.review.result.mistakes.other", { count: "3" }),
+    "3 mistakes",
+  );
+  assert.equal(tCourse("pt-br", "course.review.continue"), "Continuar");
+  assert.equal(tCourse("en", "course.review.continue"), "Continue");
+  assert.equal(
+    tCourse("pt-br", "course.review.summary.heading"),
+    "Revisão concluída",
+  );
+  assert.equal(
+    tCourse("pt-br", "course.review.summary.nextDue", { when: "em 3 dias" }),
+    "Próxima revisão: em 3 dias",
+  );
+  assert.equal(
+    tCourse("en", "course.review.summary.nextDue", { when: "in 3 days" }),
+    "Next review: in 3 days",
+  );
+  assert.equal(
+    tCourse("pt-br", "course.progress.header.noneDue"),
+    "Nenhuma revisão pendente",
+  );
+  assert.equal(
+    tCourse("pt-br", "course.lesson.backToCourse"),
+    "Voltar ao curso",
+  );
+});
+
 test("course outcome strings render whole sentences with vars", () => {
   assert.equal(tCourse("en", "course.lesson.stepCounter", { current: 2, total: 5 }), "2 / 5");
   assert.equal(tCourse("pt-br", "course.lesson.stepCounter", { current: 2, total: 5 }), "2 / 5");

@@ -49,7 +49,7 @@ test("signed in with progress: heading, next line, review chip as sibling links"
     const open = screen.getByRole("link", { name: "Continuar Caro-Kann" });
     assert.equal(open.getAttribute("href"), "/courses/caro-kann/b");
     const review = screen.getByRole("link", { name: /Revisar 1 linhas/ });
-    assert.equal(review.getAttribute("href"), "/courses/caro-kann");
+    assert.equal(review.getAttribute("href"), "/courses/caro-kann/revisar");
     assert.ok(screen.getByText("Revisar (1)"));
     assert.ok(!open.contains(review));
   } finally {
