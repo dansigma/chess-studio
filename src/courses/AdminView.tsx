@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { formatInteger } from "@/src/i18n/format";
 import { tCourseAdmin } from "@/src/i18n/course-admin-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
@@ -13,6 +14,7 @@ import { CourseDescriptionField, CourseInfoFields, CourseMediaFields } from "./C
 import { CourseView } from "./CourseView";
 import { FieldAnchor, focusField } from "./FieldError";
 import { isDraftDirty } from "./dirty";
+import { linePgnWarningText } from "./line-check";
 import { COURSE_ADMIN_TABS, locateError, validateCourseDraft, type CourseAdminTab, type LocatedError } from "./validate-draft";
 import { LocalDraftsSection } from "./LocalDraftsSection";
 import { emptyCourse, type CourseDraft } from "./admin-draft";
@@ -71,8 +73,21 @@ export function AdminView() {
     discardLocalDrafts,
     refresh,
   } = useAdminSession();
-  const { draft, setDraft, updateChapter, updateVariation, moveChapter, moveVariation, addChapterPgn } =
-    useAdminDraft(setError);
+  const {
+    draft,
+    setDraft,
+    updateChapter,
+    updateVariation,
+    moveChapter,
+    moveChapterTo,
+    moveVariation,
+    moveVariationTo,
+    duplicateChapter,
+    duplicateVariation,
+    importWarnings,
+    clearImportWarnings,
+    addChapterPgn,
+  } = useAdminDraft(setError);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab] = useState<CourseAdminTab>("info");
@@ -131,6 +146,7 @@ export function AdminView() {
     commitBaseline(next);
     setError(null);
     setFieldError(null);
+    clearImportWarnings();
     setTab("info");
   }
 
@@ -410,6 +426,24 @@ export function AdminView() {
             {tab === "chapters" ? (
               <>
                 <FieldAnchor field="chapters" error={fieldError} locale={locale} />
+                {importWarnings.length > 0 ? (
+                  <p
+                    role="status"
+                    className="rounded-lg border border-studio-warning-fg/40 bg-studio-chrome px-3 py-2 text-caption text-studio-warning-fg"
+                  >
+                    {tCourseAdmin(
+                      locale,
+                      importWarnings.length === 1
+                        ? "course.admin.line.importWarnings.one"
+                        : "course.admin.line.importWarnings.other",
+                      {
+                        count: formatInteger(locale, importWarnings.length),
+                        title: importWarnings[0]?.title ?? "",
+                        problem: importWarnings[0] ? linePgnWarningText(locale, importWarnings[0].warning) : "",
+                      },
+                    )}
+                  </p>
+                ) : null}
               {!readOnly &&
                 draft.chapters.map((chapter, chapterIndex) => (
                   <ChapterDraft
@@ -419,8 +453,11 @@ export function AdminView() {
                     total={draft.chapters.length}
                     error={fieldError}
                     onTitle={(title) => updateChapter(chapter.id, { title })}
+                    onDescription={(description) => updateChapter(chapter.id, { description })}
                     onVideo={(videoUrl) => updateChapter(chapter.id, { videoUrl })}
                     onMove={(direction) => moveChapter(chapterIndex, direction)}
+                    onReorder={(from, to) => moveChapterTo(from, to)}
+                    onDuplicate={() => duplicateChapter(chapter.id)}
                     onRemove={() => {
                       const hasLines = chapter.variations.some(
                         (variation) => variation.pgn.trim() || variation.title.trim(),
@@ -442,11 +479,16 @@ export function AdminView() {
                     onVariationTitle={(variationId, title) => updateVariation(chapter.id, variationId, { title })}
                     onVariationPgn={(variationId, pgn) => updateVariation(chapter.id, variationId, { pgn })}
                     onMoveVariation={(variationIndex, direction) => moveVariation(chapter.id, variationIndex, direction)}
-                    onRemoveVariation={(variationId) =>
+                    onReorderVariation={(from, to) => moveVariationTo(chapter.id, from, to)}
+                    onDuplicateVariation={(variationId) => duplicateVariation(chapter.id, variationId)}
+                    onRemoveVariation={(variationId) => {
+                      if (!window.confirm(tCourseAdmin(locale, "course.admin.confirm.removeLine"))) {
+                        return;
+                      }
                       updateChapter(chapter.id, {
                         variations: chapter.variations.filter((variation) => variation.id !== variationId),
-                      })
-                    }
+                      });
+                    }}
                   />
                 ))}
 
