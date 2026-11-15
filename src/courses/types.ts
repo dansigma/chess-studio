@@ -110,6 +110,7 @@ export type CatalogCourse = {
   /** SIG-1115: badge input; paid requires a non-null price. */
   accessTier: CourseAccessTier;
   priceCents: number | null;
+  authorName?: string;
   /** SIG-1349 catalog fit fields (mirror Course). */
   level: CourseLevel;
   eloMin: number | null;
