@@ -13,8 +13,10 @@ import { TierBadge } from "./TierBadge";
 import { formatInteger } from "@/src/i18n/format";
 import { lessonFrames, lineProgressLabel } from "./lesson";
 import { CourseSummary } from "./CourseSummary";
-import { courseImageUrl, courseVideo } from "./media";
+import { courseImageUrl } from "./media";
 import { CourseChrome } from "./CourseChrome";
+import { ProgressBar } from "@/src/site/ui/ProgressBar";
+import { VideoEmbed } from "./ui/VideoEmbed";
 import { coursePercent, courseVariationIds } from "./store";
 import { checkCourseAccess, recordEnrollment } from "./enrollment";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
@@ -62,7 +64,6 @@ export function CourseView({ course }: { course: Course }) {
 
   const percent = coursePercent(course, progress);
   const cover = courseImageUrl(course.coverUrl);
-  const video = courseVideo(course.videoUrl);
   const variationIds = courseVariationIds(course);
   const learnedCount = variationIds.filter((id) => progress[id]?.learned).length;
   const startedCount = variationIds.filter((id) => (progress[id]?.step ?? 0) > 0 && !progress[id]?.learned).length;
@@ -93,23 +94,7 @@ export function CourseView({ course }: { course: Course }) {
           html={course.summary}
           className="mt-4 space-y-3 text-body leading-relaxed text-studio-muted [&_em]:italic [&_li+li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_strong]:text-studio-fg [&_u]:underline [&_ul]:list-disc [&_ul]:pl-5"
         />
-        {video ? (
-          <div className="mt-5 overflow-hidden rounded-xl border border-studio-border bg-studio-chrome">
-            {video.kind === "file" ? (
-              <video src={video.src} controls className="aspect-video w-full bg-black" />
-            ) : (
-              <iframe
-                src={video.src}
-                title={course.title}
-                className="aspect-video w-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                sandbox="allow-scripts allow-same-origin allow-presentation"
-                referrerPolicy="strict-origin-when-cross-origin"
-              />
-            )}
-          </div>
-        ) : null}
+        <VideoEmbed url={course.videoUrl} title={course.title} />
         {variationIds.length > 0 ? <div className="mt-5">
           <div className="mb-1 flex justify-between gap-3 text-caption text-studio-muted">
             <span>{tCourse(locale, "course.course.progressHeading")}</span>
@@ -131,16 +116,7 @@ export function CourseView({ course }: { course: Course }) {
                 : ""}
             </span>
           </div>
-          <div
-            className="h-2 overflow-hidden rounded-full bg-studio-track"
-            role="progressbar"
-            aria-valuenow={percent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={tCourse(locale, "course.course.progressAria")}
-          >
-            <div className="h-full rounded-full bg-studio-accent" style={{ width: `${percent}%` }} />
-          </div>
+          <ProgressBar value={percent} label={tCourse(locale, "course.course.progressAria")} />
           {source === "account" ? (
             <p className="mt-2 text-caption text-studio-muted">{tCourse(locale, "course.course.savedAccount")}</p>
           ) : signedIn ? (

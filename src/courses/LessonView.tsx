@@ -4,12 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Chess, type Square } from "chess.js";
-import { Chessboard } from "react-chessboard";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ExternalLink } from "lucide-react";
 import { importPgn } from "@/src/chess/pgn";
-import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
 import { MARK_HEX } from "@/src/chess/marks";
-import { piecesForSet } from "@/src/chess/piece-sets";
 import { shareBoardUrl, writeCourseStudyImport } from "@/src/chess/share-board";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button, IconButton } from "@/src/studio/ui/Button";
@@ -23,6 +20,8 @@ import { useCourseData } from "./use-courses";
 import { useCourseContent } from "./use-course-content";
 import { LockedLesson } from "./LockedLesson";
 import { CourseChrome } from "./CourseChrome";
+import { ProgressBar } from "@/src/site/ui/ProgressBar";
+import { StudyBoard } from "./ui/StudyBoard";
 import type { Course, CourseChapter, CourseVariation } from "./types";
 
 export function LessonView({ course, variationId }: { course: Course; variationId: string }) {
@@ -42,10 +41,7 @@ export function LessonView({ course, variationId }: { course: Course; variationI
   const [hint, setHint] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [lessonKey, setLessonKey] = useState<string | null>(null);
-  const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const locale = useStudioStore((state) => state.settings.locale);
-  const pieceSet = useStudioStore((state) => state.settings.pieceSet);
-  const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const { progress: savedProgress, admin, isAdmin, ready: progressReady, signedIn, userId } = useCourseData();
 
   const loaded: {
@@ -211,8 +207,6 @@ export function LessonView({ course, variationId }: { course: Course; variationI
     return <div className="min-h-full bg-studio-bg" />;
   }
 
-  const theme = boardSquareStyles(boardTheme);
-  const pieces = piecesForSet(pieceSet);
   const previous = step > 0 ? frames[step - 1]?.move : null;
   const squareStyles: Record<string, { backgroundColor?: string; backgroundImage?: string; boxShadow?: string }> = {};
   if (previous) {
@@ -272,69 +266,38 @@ export function LessonView({ course, variationId }: { course: Course; variationI
             {tCourse(locale, "course.lesson.openInStudio")}
           </Button>
         </div>
-        <div
-          className="mt-2 h-1 overflow-hidden rounded-full bg-studio-track"
-          role="progressbar"
-          aria-valuenow={linePercent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-label={tCourse(locale, "course.lesson.progressAria")}
-        >
-          <div className="h-full bg-studio-accent" style={{ width: `${linePercent}%` }} />
-        </div>
+        <ProgressBar
+          className="mt-2 h-1 bg-studio-track"
+          fillClassName="bg-studio-accent"
+          value={linePercent}
+          label={tCourse(locale, "course.lesson.progressAria")}
+        />
       </div>
       <div className="mx-auto grid min-h-0 w-full max-w-5xl flex-1 grid-rows-[minmax(0,1fr)_auto] gap-3 px-4 py-3 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:grid-rows-1 lg:gap-6 lg:py-6">
         <div className="flex h-full min-h-0 w-full items-center justify-center [container-type:size]">
           <div className="size-[min(100cqw,100cqh,520px)] overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong">
-            <Chessboard
-              key={`${variationId}-${pieceSet}`}
-              options={{
-                id: `lesson-${variationId}`,
-                position: frame.fen,
-                boardOrientation: loaded.course.color,
-                showNotation: showCoordinates,
-                ...boardCoordinateOptions(boardTheme),
-                animationDurationInMs: 0,
-                showAnimations: false,
-                allowDrawingArrows: false,
-                clearArrowsOnClick: false,
-                clearArrowsOnPositionChange: false,
-                arrows,
-                lightSquareStyle: theme.light,
-                darkSquareStyle: theme.dark,
-                squareStyles,
-                pieces,
-                boardStyle: { width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" },
-                canDragPiece: ({ piece }) => {
-                  if (!waiting) {
-                    return false;
-                  }
+            <StudyBoard
+              id={`lesson-${variationId}`}
+              fen={frame.fen}
+              orientation={loaded.course.color}
+              arrows={arrows}
+              squareStyles={squareStyles}
+              interactive={waiting}
+              canDragPiece={({ piece }) => (piece.pieceType.startsWith("w") ? "w" : "b") === studentSide}
+              onMove={tryStudentMove}
+              onSquareClick={({ square, piece }) => {
+                if (selected && dests.includes(square)) {
+                  tryStudentMove(selected, square);
+                  return;
+                }
+                if (piece) {
                   const color = piece.pieceType.startsWith("w") ? "w" : "b";
-                  return color === studentSide;
-                },
-                onPieceDrop: ({ sourceSquare, targetSquare }) => {
-                  if (!targetSquare) {
-                    return false;
-                  }
-                  return tryStudentMove(sourceSquare, targetSquare);
-                },
-                onSquareClick: ({ square, piece }) => {
-                  if (!waiting) {
+                  if (color === studentSide) {
+                    setSelected(square);
                     return;
                   }
-                  if (selected && dests.includes(square)) {
-                    tryStudentMove(selected, square);
-                    return;
-                  }
-                  if (piece) {
-                    const color = piece.pieceType.startsWith("w") ? "w" : "b";
-                    if (color === studentSide) {
-                      setSelected(square);
-                      return;
-                    }
-                  }
-                  setSelected(null);
-                },
+                }
+                setSelected(null);
               }}
             />
           </div>

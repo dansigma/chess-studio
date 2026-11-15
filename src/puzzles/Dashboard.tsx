@@ -6,7 +6,8 @@ import { Chessboard } from "react-chessboard";
 import { useRouter } from "next/navigation";
 import { CalendarDays, ChartNoAxesColumn, Check, Flame, History, Play, RotateCcw, Shapes, Target, X, Zap, type LucideIcon } from "lucide-react";
 import { SiteFooter } from "@/src/site/SiteFooter";
-import { CourseChrome } from "@/src/courses/CourseChrome";
+import { SiteHeader as CourseChrome } from "@/src/site/SiteHeader";
+import { Skeleton } from "@/src/site/ui/Skeleton";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { formatDuration, formatInteger } from "@/src/i18n/format";
 import { tPuzzle, type PuzzleStringKey } from "@/src/i18n/puzzle-strings";
@@ -497,17 +498,6 @@ export function PuzzleDashboard() {
       </main>
       <SiteFooter />
     </div>
-  );
-}
-
-/** SIG-1258: loading placeholder. One line tall (`1lh` of the parent's text size), so data arriving does not move the layout. */
-function Skeleton({ className = "", lines = 1 }: { className?: string; lines?: number }) {
-  return (
-    <span
-      aria-hidden
-      style={{ height: `${lines}lh` }}
-      className={`block animate-pulse rounded bg-studio-hover-strong ${className}`}
-    />
   );
 }
 
