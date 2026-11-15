@@ -195,7 +195,11 @@ export function DossierGames({ games }: { games: PlayerGame[] }) {
         </span>
       ) : null}
       {filtered.length === 0 ? (
-        <p role="status" className="p-2 text-dense text-studio-muted" data-testid="dossier-games-empty">
+        <p
+          role="status"
+          className="rounded border border-studio-border-subtle p-2 text-dense text-studio-muted"
+          data-testid="dossier-games-empty"
+        >
           {tLibrary(locale, "library.dossier.gamesEmpty")}
         </p>
       ) : (
