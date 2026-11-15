@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useStudioStore } from "@/src/store/studio-store";
 import { tCourseAccess } from "@/src/i18n/course-access-strings";
 import { tCourse } from "@/src/i18n/course-strings";
+import { formatInteger } from "@/src/i18n/format";
 import type { Course } from "./types";
 
 // SIG-1119: shown when the database refused course_content for this course
@@ -27,7 +28,7 @@ export function LockedLesson({ course }: { course: Course }) {
             <section key={chapter.id} className="overflow-hidden rounded-xl border border-studio-border">
               <header className="bg-studio-chrome px-4 py-3">
                 <div className="text-caption uppercase tracking-wide text-studio-muted">
-                  {`Chapter ${chapterIndex + 1}`}
+                  {tCourse(locale, "course.course.chapterHeading", { n: formatInteger(locale, chapterIndex + 1) })}
                 </div>
                 <h2 className="text-body font-semibold text-studio-fg">{chapter.title}</h2>
               </header>

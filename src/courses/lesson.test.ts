@@ -30,6 +30,9 @@ describe("course lessons", () => {
     assert.equal(lineProgressLabel({ step: 0, learned: false }, 8, "en"), "Not started");
     assert.equal(lineProgressLabel({ step: 2, learned: false }, 8, "en"), "Continue · 3 / 8");
     assert.equal(lineProgressLabel({ step: 4, learned: true }, 8, "en"), "Learned");
+    assert.equal(lineProgressLabel({ step: 2, learned: false }, null, "en"), "In progress");
+    assert.equal(lineProgressLabel({ step: 2, learned: false }, null, "pt-br"), "Em andamento");
+    assert.equal(lineProgressLabel(undefined, null, "pt-br"), "Não iniciada");
     assert.equal(lineProgressLabel({ step: 4, learned: true }, 8, "pt-br"), "Aprendida");
     assert.equal(lineProgressLabel({ step: 2, learned: false }, 8, "pt-br"), "Continuar · 3 / 8");
   });
