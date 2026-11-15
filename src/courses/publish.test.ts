@@ -355,3 +355,44 @@ test("saving rejects an inconsistent Elo pair before any write (SIG-1349)", asyn
   });
   assert.equal(service.calls.upsert.length, 0);
 });
+
+test("admin draft save keeps the current status and never publishes (SIG-1369)", async () => {
+  for (const status of ["draft", "in_review", "rejected", "archived"] as const) {
+    const { service } = withCourseRow({ status }, ADMIN, "admin");
+    const result = await saveCourseDraft(course({ status: "published" }));
+    assert.equal(result.ok, true, `${status}: ${JSON.stringify(result)}`);
+    const upsert = service.calls.upsert.find((call) => call.table === "courses");
+    assert.equal((upsert!.row as { status: string }).status, status);
+    assert.equal(result.ok && result.course.status, status);
+    assert.equal(revalidateCalls.length, 0, status);
+  }
+});
+
+test("admin save of a published course keeps it published, keeps published_at and revalidates", async () => {
+  const { service } = withCourseRow({ status: "published" }, ADMIN, "admin");
+  const result = await saveCourseDraft(course());
+  assert.equal(result.ok, true);
+  const row = service.calls.upsert.find((call) => call.table === "courses")!.row as Record<string, unknown>;
+  assert.equal(row.status, "published");
+  assert.ok(!("published_at" in row), "published_at must not be overwritten");
+  assert.ok(revalidateCalls.length > 0);
+});
+
+test("admin save of a new course creates a draft", async () => {
+  const { service } = withCourseRow(null, ADMIN, "admin");
+  assert.equal((await saveCourseDraft(course({ status: "published" }))).ok, true);
+  const row = service.calls.upsert.find((call) => call.table === "courses")!.row as Record<string, unknown>;
+  assert.equal(row.status, "draft");
+  assert.equal(row.published_at, null);
+});
+
+test("coach cannot save over a published, archived or in_review course", async () => {
+  for (const status of ["published", "archived", "in_review"]) {
+    const { service } = withCourseRow({ status });
+    assert.deepEqual(await saveCourseDraft(course()), {
+      ok: false,
+      error: { key: "course.admin.error.invalid_status_change" },
+    });
+    assert.equal(service.calls.upsert.length, 0, status);
+  }
+});

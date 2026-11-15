@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { tCourseAdmin, type CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { findPublishedConflict, isCourseId, isCourseTheme } from "./catalog";
-import { currentUserCanAuthor, currentUserRole, publishCourse, saveCourseDraft } from "./publish";
+import { currentUserCanAuthor, currentUserRole, saveCourseDraft } from "./publish";
 import {
   clearLocalCustomCourses,
   fetchAuthorCourses,
@@ -163,14 +163,15 @@ export function useAdminSession() {
     }
     setImportingId(course.id);
     try {
-      // SIG-1114: coaches import through the draft gate (publishCourse is
-      // admin-only and would reject them); admins keep the publish path.
+      // SIG-1114 / SIG-1369: everyone imports through the draft gate. For an
+      // admin it keeps the status of an existing course and creates a new one
+      // as a draft, so importing never publishes; Publicar stays explicit.
       const payload = {
         ...course,
         id: isCourseId(course.id) ? course.id : crypto.randomUUID(),
         theme: isCourseTheme(course.theme) ? course.theme : "openings",
       };
-      const result = role === "coach" ? await saveCourseDraft(payload) : await publishCourse(payload);
+      const result = await saveCourseDraft(payload);
       if (!result.ok) {
         setError(result.error);
         return null;

@@ -34,7 +34,7 @@ const NONE: AuthorActions = {
  *   input): editable statuses (`draft`|`rejected`) get Save draft + Submit for
  *   review + Delete; `in_review` is read-only; `published`/`archived` show
  *   nothing.
- * - Admin: full publish workflow (save + publish everywhere, unpublish only
+ * - Admin: full publish workflow (save everywhere, publish unless already published, unpublish only
  *   from `published`, delete everywhere, never submit-for-review).
  * - Anyone else: nothing.
  */
@@ -49,7 +49,8 @@ export function visibleActions({ role, status }: AuthorActionsInput): AuthorActi
     return {
       saveDraft: true,
       submitForReview: false,
-      publish: true,
+      // SIG-1369: save keeps the status; Publish is for non-published courses.
+      publish: status !== "published",
       unpublish: status === "published",
       delete: true,
     };

@@ -27,7 +27,7 @@ describe("visibleActions matrix", () => {
         return {
           saveDraft: true,
           submitForReview: false,
-          publish: true,
+          publish: status !== "published",
           unpublish: status === "published",
           delete: true,
         };
@@ -49,10 +49,11 @@ describe("visibleActions matrix", () => {
     }
   });
 
-  it("lets an admin publish everywhere and unpublish only from published", () => {
+  it("lets an admin publish unless already published and unpublish only from published", () => {
     for (const status of STATUSES) {
       const actions = visibleActions({ role: "admin", status });
-      assert.equal(actions.publish, true, status);
+      assert.equal(actions.saveDraft, true, status);
+      assert.equal(actions.publish, status !== "published", status);
       assert.equal(actions.unpublish, status === "published", status);
       assert.equal(actions.submitForReview, false, status);
     }

@@ -165,7 +165,10 @@ export function AdminView() {
   const actions = visibleActions({ role, status: draft.status });
   // Admins keep the exact current behavior; coaches are read-only in_review.
   const isAdmin = role !== "coach";
-  const readOnly = !isAdmin && draft.status === "in_review";
+  // SIG-1369: a coach also cannot edit published or archived courses.
+  const coachLocked = draft.status === "published" || draft.status === "archived";
+  const readOnly = !isAdmin && (draft.status === "in_review" || coachLocked);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const reviewNote =
     draft.status === "rejected" && typeof draft.reviewNote === "string" && draft.reviewNote.trim()
       ? draft.reviewNote.trim()
@@ -211,8 +214,29 @@ export function AdminView() {
     }
     setSaving(true);
     try {
-      // Admins keep the exact current behavior (publish); coaches save a draft.
-      const result = isAdmin ? await publishCourse(validated.payload) : await saveCourseDraft(validated.payload);
+      // SIG-1369: saving never publishes; admins keep the current status.
+      const result = await saveCourseDraft(validated.payload);
+      if (!result.ok) {
+        reportError(result.error);
+        return;
+      }
+      setCourses((current) => [result.course, ...current.filter((course) => course.id !== result.course.id)]);
+      commitBaseline(result.course);
+      setError(null);
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function publishNow() {
+    const validated = validatedPayload();
+    if (!validated.ok) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await publishCourse(validated.payload);
       if (!result.ok) {
         reportError(result.error);
         return;
@@ -345,6 +369,11 @@ export function AdminView() {
               {tCourseAdmin(locale, "course.admin.inReviewNotice")}
             </p>
           ) : null}
+          {coachLocked && !isAdmin ? (
+            <p className="rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-muted">
+              {tCourseAdmin(locale, "course.admin.readOnlyPublished")}
+            </p>
+          ) : null}
           {reviewNote ? (
             <section
               aria-label={tCourseAdmin(locale, "course.admin.reviewNote.heading")}
@@ -465,9 +494,26 @@ export function AdminView() {
           ) : null}
           <div className="flex gap-2">
             {isAdmin ? (
-              <Button type="submit" variant="primary" disabled={saving}>
-                {saving ? tCourseAdmin(locale, "course.admin.saving") : tCourseAdmin(locale, "course.admin.saveCourse")}
-              </Button>
+              <>
+                <Button type="submit" variant="primary" disabled={saving}>
+                  {saving
+                    ? tCourseAdmin(locale, "course.admin.saving")
+                    : tCourseAdmin(locale, "course.admin.saveDraft")}
+                </Button>
+                {actions.publish ? (
+                  <Button
+                    variant="secondary"
+                    disabled={saving}
+                    onClick={() => {
+                      if (validatedPayload().ok) {
+                        setConfirmPublish(true);
+                      }
+                    }}
+                  >
+                    {tCourseAdmin(locale, "course.admin.publish")}
+                  </Button>
+                ) : null}
+              </>
             ) : (
               <>
                 {actions.saveDraft ? (
@@ -540,6 +586,30 @@ export function AdminView() {
           </div>
         </form>
       </main>
+      {confirmPublish ? (
+        <Dialog
+          title={tCourseAdmin(locale, "course.admin.publishConfirm.title")}
+          onClose={() => setConfirmPublish(false)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setConfirmPublish(false)}>
+                {tCourseAdmin(locale, "course.admin.publishConfirm.cancel")}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setConfirmPublish(false);
+                  void publishNow();
+                }}
+              >
+                {tCourseAdmin(locale, "course.admin.publish")}
+              </Button>
+            </>
+          }
+        >
+          {tCourseAdmin(locale, "course.admin.publishConfirm.body")}
+        </Dialog>
+      ) : null}
       {pendingDiscard ? (
         <Dialog
           title={tCourseAdmin(locale, "course.admin.discard.title")}
