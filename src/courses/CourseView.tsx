@@ -1,21 +1,27 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { importPgn } from "@/src/chess/pgn";
 import { writeCourseStudyImport } from "@/src/chess/share-board";
 import { tCourse } from "@/src/i18n/course-strings";
+import type { SiteLocale } from "@/src/i18n/locale";
 import { lessonFrames } from "./lesson.ts";
 import { CourseChrome } from "./CourseChrome";
 import { CourseOverview } from "./ui/CourseOverview";
 import { CourseProgressHeader } from "./ui/CourseProgressHeader";
 import { CourseInfoCard } from "./ui/CourseInfoCard";
 import { CourseSyllabus } from "./ui/CourseSyllabus";
+import { ChapterDetail } from "./ui/ChapterDetail";
+import { ChapterGrid } from "./ui/ChapterGrid";
+import { CHAPTER_PARAM, chapterIndex } from "./chapter-param";
+import { hasCourseProgress } from "./progress-summary";
 import { courseVariationIds } from "./store";
 import { checkCourseAccess, recordEnrollment } from "./enrollment";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import type { Course } from "./types";
+import type { Course, VariationProgress } from "./types";
+import { useCourseContent } from "./use-course-content";
 import { useCourseData } from "./use-courses";
 import { useStudioStore } from "@/src/store/studio-store";
 
@@ -61,6 +67,10 @@ export function CourseView({ course }: { course: Course }) {
   }, [course]);
 
   const variationIds = courseVariationIds(course);
+  // SIG-1362: students with progress study from the chapter grid; everyone
+  // else keeps the syllabus. Progress is client-only, so the switch happens
+  // once `ready` — never during the prerender.
+  const studentGrid = ready && hasCourseProgress(course, progress);
 
   return (
     <div className="min-h-full bg-studio-bg">
@@ -87,20 +97,65 @@ export function CourseView({ course }: { course: Course }) {
           )}
         </div> : null}
 
-        <CourseSyllabus
-          course={course}
-          locale={locale}
-          progress={progress}
-          frameCounts={frameCounts}
-          onOpenInStudio={(variation) => {
-            const written = writeCourseStudyImport({
-              title: `${course.title} — ${variation.title}`,
-              pgn: variation.pgn,
-            });
-            router.push(written ? "/studio" : `/courses/${course.slug}/${variation.id}`);
-          }}
-        />
+        {studentGrid ? (
+          // useSearchParams inside opts this subtree out of the prerender; the
+          // page itself keeps its ISR HTML and the URL keeps the open chapter.
+          <Suspense fallback={null}>
+            <CourseChapters course={course} progress={progress} locale={locale} />
+          </Suspense>
+        ) : (
+          <CourseSyllabus
+            course={course}
+            locale={locale}
+            progress={progress}
+            frameCounts={frameCounts}
+            onOpenInStudio={(variation) => {
+              const written = writeCourseStudyImport({
+                title: `${course.title} — ${variation.title}`,
+                pgn: variation.pgn,
+              });
+              router.push(written ? "/studio" : `/courses/${course.slug}/${variation.id}`);
+            }}
+          />
+        )}
       </main>
     </div>
+  );
+}
+
+/**
+ * SIG-1362: the enrolled student's chapter area. Reads `?capitulo=N` from the
+ * address and shows the chapter detail or, without a valid chapter, the grid.
+ * The gated course content fills in chapter video links and descriptions for
+ * outline-only courses.
+ */
+function CourseChapters({
+  course,
+  progress,
+  locale,
+}: {
+  course: Course;
+  progress: Record<string, VariationProgress>;
+  locale: SiteLocale;
+}) {
+  const searchParams = useSearchParams();
+  const content = useCourseContent(course);
+  const chapters = useMemo(() => {
+    const source =
+      course.contentLoaded === false && content.status === "ready" ? content.chapters : course.chapters;
+    return source.filter((chapter) => chapter.variations.length > 0);
+  }, [course, content]);
+  const index = chapterIndex(searchParams.get(CHAPTER_PARAM), chapters.length);
+  if (index === null) {
+    return <ChapterGrid course={course} chapters={chapters} progress={progress} locale={locale} />;
+  }
+  return (
+    <ChapterDetail
+      course={course}
+      chapter={chapters[index]}
+      number={index + 1}
+      progress={progress}
+      locale={locale}
+    />
   );
 }
