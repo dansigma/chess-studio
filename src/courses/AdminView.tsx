@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { tCourseAdmin } from "@/src/i18n/course-admin-strings";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -11,7 +11,7 @@ import { CourseChrome } from "./CourseChrome";
 import { AdminTabPanel, AdminTabs } from "./AdminTabs";
 import { CourseDescriptionField, CourseInfoFields, CourseMediaFields } from "./CourseFields";
 import { CourseView } from "./CourseView";
-import { FieldError, fieldDomId, fieldErrorDomId } from "./FieldError";
+import { FieldAnchor, focusField } from "./FieldError";
 import { isDraftDirty } from "./dirty";
 import { COURSE_ADMIN_TABS, locateError, validateCourseDraft, type CourseAdminTab, type LocatedError } from "./validate-draft";
 import { LocalDraftsSection } from "./LocalDraftsSection";
@@ -79,7 +79,8 @@ export function AdminView() {
   // SIG-1363: the error that belongs to one field, shown next to it with its
   // tab marked. Errors without a field use the general slot below the tabs.
   const [fieldError, setFieldError] = useState<LocatedError | null>(null);
-  const [focusRequest, setFocusRequest] = useState<{ field: LocatedError["field"]; n: number } | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{ field: LocatedError["field"]; tab: CourseAdminTab; n: number } | null>(null);
+  const handledFocus = useRef(0);
   // Last saved (or freshly opened) copy of the draft: the dirty baseline.
   const [snapshot, setSnapshot] = useState<CourseDraft>(draft);
   const [pendingDiscard, setPendingDiscard] = useState<{ run: () => void } | null>(null);
@@ -97,12 +98,14 @@ export function AdminView() {
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
 
+  // Focus only after the target tab's panel has committed, once per request.
   useEffect(() => {
-    if (!focusRequest) {
+    if (!focusRequest || focusRequest.n === handledFocus.current || focusRequest.tab !== tab) {
       return;
     }
-    (document.getElementById(fieldDomId(focusRequest.field)) ?? document.getElementById(fieldErrorDomId(focusRequest.field)))?.focus();
-  }, [focusRequest]);
+    handledFocus.current = focusRequest.n;
+    focusField(focusRequest.field);
+  }, [tab, focusRequest]);
 
   /** Shows an error next to its field (switching tab and focusing it), or in the general slot. */
   function reportError(message: CourseAdminMessage) {
@@ -115,12 +118,17 @@ export function AdminView() {
     setError(null);
     setFieldError(located);
     setTab(located.tab);
-    setFocusRequest((current) => ({ field: located.field, n: (current?.n ?? 0) + 1 }));
+    setFocusRequest((current) => ({ field: located.field, tab: located.tab, n: (current?.n ?? 0) + 1 }));
+  }
+
+  /** Every committed replacement of the draft (load, new, save, submit, unpublish) goes through here. */
+  function commitBaseline(next: CourseDraft) {
+    setDraft(next);
+    setSnapshot(next);
   }
 
   function loadDraft(next: CourseDraft) {
-    setDraft(next);
-    setSnapshot(next);
+    commitBaseline(next);
     setError(null);
     setFieldError(null);
     setTab("info");
@@ -210,8 +218,7 @@ export function AdminView() {
         return;
       }
       setCourses((current) => [result.course, ...current.filter((course) => course.id !== result.course.id)]);
-      setDraft(result.course);
-      setSnapshot(result.course);
+      commitBaseline(result.course);
       setError(null);
       router.refresh();
     } finally {
@@ -235,8 +242,7 @@ export function AdminView() {
         return;
       }
       // Saved: the editor now matches the database even if the submit fails.
-      setDraft(saved.course);
-      setSnapshot(saved.course);
+      commitBaseline(saved.course);
       const result = await submitCourseForReview(saved.course.id);
       if (!result.ok) {
         reportError(result.error);
@@ -244,8 +250,7 @@ export function AdminView() {
       }
       const next: Course = { ...saved.course, status: "in_review" as const };
       setCourses((current) => [next, ...current.filter((course) => course.id !== next.id)]);
-      setDraft(next);
-      setSnapshot(next);
+      commitBaseline(next);
       setError(null);
       router.refresh();
     } finally {
@@ -365,7 +370,7 @@ export function AdminView() {
             ) : null}
             {tab === "chapters" ? (
               <>
-                <FieldError field="chapters" error={fieldError} locale={locale} />
+                <FieldAnchor field="chapters" error={fieldError} locale={locale} />
               {!readOnly &&
                 draft.chapters.map((chapter, chapterIndex) => (
                   <ChapterDraft

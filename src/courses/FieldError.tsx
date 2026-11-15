@@ -33,3 +33,36 @@ export function FieldError({ field, error, locale }: { field: CourseField; error
     </p>
   );
 }
+
+/** Every field has a focus anchor with this id in every render mode (SIG-1363). */
+export function focusTargetId(field: CourseField): string {
+  return fieldDomId(field);
+}
+
+/**
+ * A focusable region for a field with no input of its own (catalog fields
+ * without inputs yet, the chapter list): it carries the field id and the error.
+ */
+export function FieldAnchor({ field, error, locale }: { field: CourseField; error: LocatedError | null; locale: AdminLocale }) {
+  return (
+    <div id={focusTargetId(field)} tabIndex={-1} className="outline-none">
+      <FieldError field={field} error={error} locale={locale} />
+    </div>
+  );
+}
+
+/** Focuses a field's anchor (the rich-text editor for the summary); false when the node is not rendered. */
+export function focusField(field: CourseField): boolean {
+  const anchor = document.getElementById(focusTargetId(field));
+  if (!anchor) {
+    return false;
+  }
+  const inner = field === "summary" ? anchor.querySelector<HTMLElement>('[role="textbox"]') : null;
+  const target = inner ?? anchor;
+  target.focus();
+  if (document.activeElement !== target) {
+    // A disabled input (read-only mode) cannot take focus: use the error region.
+    (document.getElementById(fieldErrorDomId(field)) ?? anchor).focus();
+  }
+  return true;
+}

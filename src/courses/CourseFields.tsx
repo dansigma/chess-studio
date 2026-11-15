@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { tCourseAdmin } from "@/src/i18n/course-admin-strings";
 import { courseThemeLabel, isCourseColor, isCourseTheme, slugify } from "./catalog";
 import type { CourseDraft } from "./admin-draft";
-import { FieldError, fieldControlProps, fieldDomId } from "./FieldError";
+import { FieldAnchor, FieldError, fieldControlProps, fieldDomId } from "./FieldError";
 import type { LocatedError } from "./validate-draft";
 import { useStudioStore } from "@/src/store/studio-store";
 import { COURSE_THEMES } from "./types";
@@ -117,10 +117,10 @@ export function CourseInfoFields({ draft, setDraft, readOnly = false, error }: F
         <FieldError field="authorName" error={error} locale={locale} />
       </label>
       {/* Catalog fields have no inputs yet (later issues add them here); their errors still show on this tab. */}
-      <FieldError field="level" error={error} locale={locale} />
-      <FieldError field="language" error={error} locale={locale} />
-      <FieldError field="elo" error={error} locale={locale} />
-      <FieldError field="duration" error={error} locale={locale} />
+      <FieldAnchor field="level" error={error} locale={locale} />
+      <FieldAnchor field="language" error={error} locale={locale} />
+      <FieldAnchor field="elo" error={error} locale={locale} />
+      <FieldAnchor field="duration" error={error} locale={locale} />
     </>
   );
 }
