@@ -12,7 +12,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
 import { Skeleton } from "@/src/site/ui/Skeleton";
 import { afterFirstLearn } from "./review";
-import { lessonFrames, progressAfterStep, studentMoveMatches } from "./lesson";
+import { lessonFrames, progressAfterStep, studentMoveMatches } from "./lesson.ts";
 import {
   PROGRESS_BROWSER_ONLY,
   findVariation,
