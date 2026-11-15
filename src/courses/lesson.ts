@@ -93,7 +93,7 @@ export function studentMoveMatches(frame: LessonFrame, from: string, to: string)
 
 export function lineProgressLabel(
   progress: VariationProgress | undefined,
-  frameCount: number,
+  frameCount: number | null,
   locale: SiteLocale,
 ): string {
   if (progress?.learned) {
@@ -103,11 +103,11 @@ export function lineProgressLabel(
   if (step <= 0) {
     return tCourse(locale, "course.line.notStarted");
   }
-  if (frameCount > 0) {
+  if (frameCount !== null && frameCount > 0) {
     const place = Math.min(step + 1, frameCount);
     return tCourse(locale, "course.line.continue", { place, total: frameCount });
   }
-  return tCourse(locale, "course.line.continueBare");
+  return tCourse(locale, "course.line.inProgress");
 }
 
 /** Learned sticks once earned, and only a one-step advance onto the last frame earns it. */

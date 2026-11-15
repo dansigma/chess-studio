@@ -49,10 +49,13 @@ export function CourseView({ course }: { course: Course }) {
   }, [signedIn, userId, course.builtin, course.id]);
 
   const frameCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
+    const counts: Record<string, number | null> = {};
     for (const chapter of course.chapters) {
       for (const variation of chapter.variations) {
-        counts[variation.id] = lessonFrames(importPgn(variation.pgn).tree, course.color).length;
+        // An outline variation (pgn: "") has no moves loaded yet: the count is unknown.
+        counts[variation.id] = variation.pgn.trim()
+          ? lessonFrames(importPgn(variation.pgn).tree, course.color).length
+          : null;
       }
     }
     return counts;
@@ -162,7 +165,7 @@ export function CourseView({ course }: { course: Course }) {
               <ul>
                 {chapter.variations.map((variation) => {
                   const saved = progress[variation.id];
-                  const label = lineProgressLabel(saved, frameCounts[variation.id] ?? 0, locale);
+                  const label = lineProgressLabel(saved, frameCounts[variation.id] ?? null, locale);
                   const learned = Boolean(saved?.learned);
                   const started = !learned && (saved?.step ?? 0) > 0;
                   return (
