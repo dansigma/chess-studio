@@ -68,12 +68,19 @@ describe("mergeProgress review fields", () => {
     lastReviewedAt: "2026-01-08T00:00:00.000Z",
   };
 
-  it("takes max level, latest review and the due date from that side", () => {
-    const { merged, toUpload } = mergeProgress({ v1: early }, { v1: late });
-    assert.equal(merged.v1.reviewLevel, 2);
+  it("takes level and due date as a pair from the latest review (a later mistake wins)", () => {
+    const { merged, toUpload } = mergeProgress({ v1: late }, { v1: early });
+    assert.equal(merged.v1.reviewLevel, 1);
     assert.equal(merged.v1.lastReviewedAt, late.lastReviewedAt);
     assert.equal(merged.v1.reviewDueAt, late.reviewDueAt);
     assert.ok(toUpload.v1);
+  });
+
+  it("keeps the higher level and its own due date on a review-time tie", () => {
+    const tied = { ...late, lastReviewedAt: early.lastReviewedAt };
+    const { merged } = mergeProgress({ v1: tied }, { v1: early });
+    assert.equal(merged.v1.reviewLevel, 2);
+    assert.equal(merged.v1.reviewDueAt, early.reviewDueAt);
   });
 
   it("does not upload when remote already equals the merge", () => {

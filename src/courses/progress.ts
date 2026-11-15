@@ -40,9 +40,11 @@ function hasReview(p: VariationProgress | undefined): boolean {
 }
 
 /**
- * Review fields: level = max, last_reviewed = latest, due comes from the side
- * with the latest last_reviewed (ties and missing dates keep the later due).
- * Returns nothing when neither side has review data.
+ * Review fields: the schedule (level + due) comes as a pair from the side
+ * with the latest last_reviewed, so a level is never matched with another
+ * level's due time and a later mistake (level reset) wins over an older,
+ * higher level. Ties keep the higher level. Returns nothing when neither
+ * side has review data.
  */
 function mergeReview(
   a: VariationProgress | undefined,
@@ -51,17 +53,21 @@ function mergeReview(
   if (!hasReview(a) && !hasReview(b)) {
     return {};
   }
-  const reviewLevel = Math.max(a?.reviewLevel ?? 0, b?.reviewLevel ?? 0);
   const lastA = time(a?.lastReviewedAt);
   const lastB = time(b?.lastReviewedAt);
   let source: VariationProgress | undefined;
   if (lastA !== lastB) {
     source = lastA > lastB ? a : b;
+  } else if ((a?.reviewLevel ?? 0) !== (b?.reviewLevel ?? 0)) {
+    source = (a?.reviewLevel ?? 0) > (b?.reviewLevel ?? 0) ? a : b;
   } else {
     source = time(a?.reviewDueAt) >= time(b?.reviewDueAt) ? a : b;
   }
-  const lastReviewedAt = (lastA >= lastB ? a?.lastReviewedAt : b?.lastReviewedAt) ?? null;
-  return { reviewLevel, reviewDueAt: source?.reviewDueAt ?? null, lastReviewedAt };
+  return {
+    reviewLevel: source?.reviewLevel ?? 0,
+    reviewDueAt: source?.reviewDueAt ?? null,
+    lastReviewedAt: source?.lastReviewedAt ?? null,
+  };
 }
 
 function reviewDiffers(entry: VariationProgress, remote: VariationProgress): boolean {
