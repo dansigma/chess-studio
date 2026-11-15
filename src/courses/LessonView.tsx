@@ -196,6 +196,7 @@ export function LessonView({
     done,
     endStep,
     ready: Boolean(frame),
+    dialogOpen: false,
   });
   useEffect(() => {
     actions.current = {
@@ -206,6 +207,7 @@ export function LessonView({
       done,
       endStep,
       ready: Boolean(frame),
+      dialogOpen: showShortcuts,
     };
   });
 
@@ -215,7 +217,7 @@ export function LessonView({
       if (!current.ready) {
         return;
       }
-      const action = lessonShortcut(event);
+      const action = lessonShortcut(event, { dialogOpen: current.dialogOpen });
       if (!action) {
         return;
       }
@@ -428,6 +430,7 @@ export function LessonView({
               onForward={playExpected}
               onEnd={() => go(endStep)}
               onFlip={() => setFlipped((value) => !value)}
+              onHelp={() => setShowShortcuts(true)}
             />
             <span className="ml-auto px-2 text-caption tabular-nums text-studio-muted">
               {tCourse(locale, "course.lesson.stepCounter", {

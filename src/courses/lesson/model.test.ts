@@ -52,3 +52,10 @@ test("lessonShortcut maps keys and ignores inputs and modifiers", () => {
     null,
   );
 });
+
+test("lessonShortcut is inert while the shortcuts dialog is open", () => {
+  for (const key of ["Home", "ArrowLeft", "ArrowRight", "End", "f", "?"]) {
+    assert.notEqual(lessonShortcut({ key }), null);
+    assert.equal(lessonShortcut({ key }, { dialogOpen: true }), null);
+  }
+});

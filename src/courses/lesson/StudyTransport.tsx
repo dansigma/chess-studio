@@ -6,6 +6,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   FlipVertical2,
+  Keyboard,
 } from "lucide-react";
 import { tCourse } from "@/src/i18n/course-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -21,6 +22,7 @@ export function StudyTransport({
   onForward,
   onEnd,
   onFlip,
+  onHelp,
 }: {
   locale: SiteLocale;
   atStart: boolean;
@@ -31,6 +33,7 @@ export function StudyTransport({
   onForward: () => void;
   onEnd: () => void;
   onFlip: () => void;
+  onHelp: () => void;
 }) {
   return (
     <div className="flex shrink-0 items-center gap-0.5">
@@ -73,6 +76,9 @@ export function StudyTransport({
         onClick={onFlip}
       >
         <FlipVertical2 size={15} />
+      </IconButton>
+      <IconButton label={tCourse(locale, "course.lesson.shortcuts.open")} shortcut="?" onClick={onHelp}>
+        <Keyboard size={15} />
       </IconButton>
     </div>
   );

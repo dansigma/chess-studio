@@ -48,7 +48,11 @@ type KeyLike = {
 };
 
 /** Maps a key event to a lesson action; null for text fields, modifier combos and other keys. */
-export function lessonShortcut(event: KeyLike): LessonShortcut | null {
+export function lessonShortcut(event: KeyLike, options: { dialogOpen?: boolean } = {}): LessonShortcut | null {
+  // While the shortcuts dialog is open every lesson key is inert (Escape is the dialog's own).
+  if (options.dialogOpen) {
+    return null;
+  }
   const target = event.target as
     { tagName?: string; isContentEditable?: boolean } | null | undefined;
   if (
