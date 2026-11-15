@@ -73,6 +73,17 @@ test("in progress: percent, progress bar and Continuar to the next line", () => 
   }
 });
 
+test("a line opened but not learned yet counts as started", () => {
+  try {
+    render(<CourseCard course={course()} locale="pt-br" progress={{ a: { step: 2, learned: false } }} ready />);
+    assert.equal(screen.getByRole("progressbar").getAttribute("aria-valuenow"), "0");
+    const link = screen.getByRole("link", { name: "Continuar Caro-Kann" });
+    assert.equal(link.getAttribute("href"), "/courses/caro-kann/a");
+  } finally {
+    cleanup();
+  }
+});
+
 test("all learned links to the course page", () => {
   try {
     render(

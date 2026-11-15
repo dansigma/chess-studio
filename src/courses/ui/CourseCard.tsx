@@ -30,7 +30,9 @@ export function CourseCard({
 }) {
   const cover = courseImageUrl(course.coverUrl);
   const percent = catalogCoursePercent(course, progress as Record<string, VariationProgress>);
-  const started = ready && percent > 0;
+  // Started = any line opened past its first move or learned, not only a learned one.
+  const started =
+    ready && course.variationIds.some((id) => Boolean(progress[id]?.learned) || (progress[id]?.step ?? 0) > 0);
   const next = ready ? nextLineId(course.variationIds, progress) : null;
   const href = next ? `/courses/${course.slug}/${next}` : `/courses/${course.slug}`;
   const courseHref = `/courses/${course.slug}`;
