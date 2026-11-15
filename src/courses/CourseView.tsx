@@ -3,18 +3,17 @@
 import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, Circle, CircleDot, ExternalLink } from "lucide-react";
+import { Check, Circle, CircleDot } from "lucide-react";
 import { importPgn } from "@/src/chess/pgn";
 import { writeCourseStudyImport } from "@/src/chess/share-board";
-import { courseThemeLabel } from "./catalog";
 import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
 import { lessonFrames, lineProgressLabel } from "./lesson";
-import { CourseSummary } from "./CourseSummary";
-import { courseImageUrl } from "./media";
 import { CourseChrome } from "./CourseChrome";
 import { ProgressBar } from "@/src/site/ui/ProgressBar";
-import { VideoEmbed } from "./ui/VideoEmbed";
+import { CourseOverview } from "./ui/CourseOverview";
+import { CourseInfoCard } from "./ui/CourseInfoCard";
+import { ChapterStudioMenu } from "./ui/ChapterStudioMenu";
 import { coursePercent, courseVariationIds } from "./store";
 import { checkCourseAccess, recordEnrollment } from "./enrollment";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
@@ -25,7 +24,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 export function CourseView({ course }: { course: Course }) {
   const router = useRouter();
   const locale = useStudioStore((state) => state.settings.locale);
-  const { progress, admin, isAdmin, signedIn, userId, source } = useCourseData();
+  const { progress, admin, isAdmin, ready, signedIn, userId, source } = useCourseData();
 
   // SIG-1052: first open per signed-in user and course. Fires once per
   // session via the module guard inside recordEnrollment; anonymous visitors
@@ -64,7 +63,6 @@ export function CourseView({ course }: { course: Course }) {
   }, [course]);
 
   const percent = coursePercent(course, progress);
-  const cover = courseImageUrl(course.coverUrl);
   const variationIds = courseVariationIds(course);
   const learnedCount = variationIds.filter((id) => progress[id]?.learned).length;
   const startedCount = variationIds.filter((id) => (progress[id]?.step ?? 0) > 0 && !progress[id]?.learned).length;
@@ -72,27 +70,13 @@ export function CourseView({ course }: { course: Course }) {
   return (
     <div className="min-h-full bg-studio-bg">
       <CourseChrome admin={admin} isAdmin={isAdmin} />
-      <main className="mx-auto max-w-3xl px-6 py-8">
-        <div className="flex items-start gap-4">
-          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-studio-border bg-studio-hover">
-            {cover ? (
-              // eslint-disable-next-line @next/next/no-img-element -- cover is an arbitrary user-supplied https URL; next/image would need a per-host remotePatterns allowlist
-              <img src={cover} alt="" className="h-full w-full object-cover" />
-            ) : null}
-          </div>
-          <div className="min-w-0">
-            <p className="text-caption uppercase tracking-wide text-studio-faint">
-              {courseThemeLabel(course.theme, locale)} ·{" "}
-              {tCourse(locale, course.color === "black" ? "course.course.pieces.black" : "course.course.pieces.white")}
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold text-studio-fg">{course.title}</h1>
+      <main className="mx-auto max-w-5xl px-6 py-8">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-8">
+          <CourseOverview course={course} locale={locale} />
+          <div className="mt-6 lg:order-last lg:mt-0">
+            <CourseInfoCard course={course} progress={progress} ready={ready} locale={locale} />
           </div>
         </div>
-        <CourseSummary
-          html={course.summary}
-          className="mt-4 space-y-3 text-body leading-relaxed text-studio-muted [&_em]:italic [&_li+li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_strong]:font-semibold [&_strong]:text-studio-fg [&_u]:underline [&_ul]:list-disc [&_ul]:pl-5"
-        />
-        <VideoEmbed url={course.videoUrl} title={course.title} />
         {variationIds.length > 0 ? <div className="mt-5">
           <div className="mb-1 flex justify-between gap-3 text-caption text-studio-muted">
             <span>{tCourse(locale, "course.course.progressHeading")}</span>
@@ -132,11 +116,24 @@ export function CourseView({ course }: { course: Course }) {
         <div className="mt-8 space-y-6">
           {course.chapters.filter((chapter) => chapter.variations.length > 0).map((chapter, chapterIndex) => (
             <section key={chapter.id} className="overflow-hidden rounded-xl border border-studio-border">
-              <header className="bg-studio-chrome px-4 py-3">
-                <div className="text-caption uppercase tracking-wide text-studio-muted">
-                  {tCourse(locale, "course.course.chapterHeading", { n: formatInteger(locale, chapterIndex + 1) })}
+              <header className="flex items-center justify-between gap-3 bg-studio-chrome px-4 py-3">
+                <div className="min-w-0">
+                  <div className="text-caption uppercase tracking-wide text-studio-muted">
+                    {tCourse(locale, "course.course.chapterHeading", { n: formatInteger(locale, chapterIndex + 1) })}
+                  </div>
+                  <h2 className="text-body font-semibold text-studio-fg">{chapter.title}</h2>
                 </div>
-                <h2 className="text-body font-semibold text-studio-fg">{chapter.title}</h2>
+                <ChapterStudioMenu
+                  variations={chapter.variations}
+                  locale={locale}
+                  onOpen={(variation) => {
+                    const written = writeCourseStudyImport({
+                      title: `${course.title} — ${variation.title}`,
+                      pgn: variation.pgn,
+                    });
+                    router.push(written ? "/studio" : `/courses/${course.slug}/${variation.id}`);
+                  }}
+                />
               </header>
               <ul>
                 {chapter.variations.map((variation) => {
@@ -165,27 +162,6 @@ export function CourseView({ course }: { course: Course }) {
                             </span>
                           </span>
                         </Link>
-                        <button
-                          type="button"
-                          title={tCourse(locale, "course.course.openInStudio")}
-                          aria-label={tCourse(locale, "course.course.openInStudioAria", {
-                            title: variation.title,
-                          })}
-                          className="flex shrink-0 items-center justify-center rounded-md p-1.5 text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
-                          onClick={() => {
-                            const written = writeCourseStudyImport({
-                              title: `${course.title} — ${variation.title}`,
-                              pgn: variation.pgn,
-                            });
-                            if (written) {
-                              router.push("/studio");
-                            } else {
-                              router.push(`/courses/${course.slug}/${variation.id}`);
-                            }
-                          }}
-                        >
-                          <ExternalLink size={15} aria-hidden />
-                        </button>
                       </div>
                     </li>
                   );
