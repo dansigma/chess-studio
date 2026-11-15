@@ -92,4 +92,16 @@ describe("mergeProgress review fields", () => {
     const { merged } = mergeProgress({ v1: { step: 1, learned: true } }, { v1: late });
     assert.equal(merged.v1.reviewDueAt, late.reviewDueAt);
   });
+
+  it("keeps the latest updatedAt from either side", () => {
+    const { merged } = mergeProgress(
+      { v1: { step: 1, learned: false, updatedAt: "2026-11-02T00:00:00Z" }, v2: { step: 1, learned: false } },
+      {
+        v1: { step: 1, learned: false, updatedAt: "2026-11-01T00:00:00Z" },
+        v2: { step: 1, learned: false, updatedAt: "2026-11-03T00:00:00Z" },
+      },
+    );
+    assert.equal(merged.v1.updatedAt, "2026-11-02T00:00:00Z");
+    assert.equal(merged.v2.updatedAt, "2026-11-03T00:00:00Z");
+  });
 });

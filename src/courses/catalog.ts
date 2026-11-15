@@ -49,6 +49,9 @@ export function toCatalogCourse(course: Course): CatalogCourse {
     chapterCount: chapters.length,
     moveCount: variationIds.length,
     variationIds,
+    variationTitles: Object.fromEntries(
+      chapters.flatMap((chapter) => chapter.variations.map((variation) => [variation.id, variation.title] as const)),
+    ),
   };
 }
 

@@ -17,6 +17,10 @@ export function mergeProgress(
     const step = Math.max(localEntry?.step ?? 0, remoteEntry?.step ?? 0);
     const learned = Boolean(localEntry?.learned) || Boolean(remoteEntry?.learned);
     const entry: VariationProgress = { step, learned, ...mergeReview(localEntry, remoteEntry) };
+    const updatedAt = latestTime(localEntry?.updatedAt, remoteEntry?.updatedAt);
+    if (updatedAt) {
+      entry.updatedAt = updatedAt;
+    }
     merged[id] = entry;
     if (
       !remoteEntry ||
@@ -33,6 +37,13 @@ export function mergeProgress(
 function time(value: string | null | undefined): number {
   const parsed = value ? Date.parse(value) : Number.NaN;
   return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY;
+}
+
+function latestTime(a: string | null | undefined, b: string | null | undefined): string | null {
+  if (!a && !b) {
+    return null;
+  }
+  return time(a) >= time(b) ? (a ?? null) : (b ?? null);
 }
 
 function hasReview(p: VariationProgress | undefined): boolean {

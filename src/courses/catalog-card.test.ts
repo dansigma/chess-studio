@@ -52,6 +52,8 @@ describe("catalog card DTO", () => {
     assert.equal(card.chapterCount, 2);
     assert.equal(card.moveCount, 3);
     assert.deepEqual(card.variationIds, ["line-a", "line-b", "line-c"]);
+    assert.deepEqual(card.variationTitles, { "line-a": "A", "line-b": "B", "line-c": "C" });
+    assert.ok(!JSON.stringify(card).includes("e4"), "no PGN reaches the card");
   });
 
   it("carries a paid tier and price through the card", () => {

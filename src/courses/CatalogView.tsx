@@ -16,6 +16,7 @@ import { SiteFooter } from "@/src/site/SiteFooter";
 import { CourseChrome } from "./CourseChrome";
 import { useStudioStore } from "@/src/store/studio-store";
 import type { CatalogCourse } from "./types";
+import { ContinueRail } from "./ui/ContinueRail";
 import { CourseCard } from "./ui/CourseCard";
 import { useCourseData } from "./use-courses";
 
@@ -52,6 +53,7 @@ export function CatalogView({ courses }: { courses: CatalogCourse[] }) {
             </p>
           </div>
         </div>
+        <ContinueRail courses={courses} progress={progress} locale={locale} ready={ready} signedIn={signedIn} />
         <CatalogFilters locale={locale} query={query} onChange={updateQuery} />
         {ready && !signedIn ? (
           <p className="mt-3 text-caption text-studio-muted">

@@ -344,7 +344,7 @@ export async function hydrateProgress(userId: string | null): Promise<Record<str
   }
   const { data, error } = await supabase
     .from("course_progress")
-    .select("variation_id, step, learned, review_level, review_due_at, last_reviewed_at")
+    .select("variation_id, step, learned, review_level, review_due_at, last_reviewed_at, updated_at")
     .eq("user_id", userId);
   if (error) {
     progressCache = local;
@@ -358,6 +358,7 @@ export async function hydrateProgress(userId: string | null): Promise<Record<str
       reviewLevel: row.review_level,
       reviewDueAt: row.review_due_at,
       lastReviewedAt: row.last_reviewed_at,
+      updatedAt: row.updated_at,
     };
   }
   const { merged, toUpload } = mergeProgress(local, remote);
@@ -422,6 +423,8 @@ export async function saveVariationProgress(
   progress: VariationProgress,
   course?: Course,
 ): Promise<string | null> {
+  // Stamp the save time so browser-only progress also orders the catalog rail.
+  progress = { ...progress, updatedAt: new Date().toISOString() };
   progressCache = { ...progressCache, [variationId]: progress };
   if (!accountUserId) {
     persistLocalProgress();
