@@ -156,3 +156,23 @@ test("an illegal PGN shows its first problem after the field loses focus", () =>
   fireEvent.blur(pgn);
   assert.match(view.getByRole("alert").textContent ?? "", /Illegal move “e5” skipped/);
 });
+
+test("drawing on the line board writes the marks into the PGN text box", () => {
+  const { view } = setup();
+  const pgn = view.getByDisplayValue("1. e4 e5") as HTMLTextAreaElement;
+  const line = pgn.parentElement as HTMLElement;
+  const start = line.querySelector('[data-square="e2"]');
+  const end = line.querySelector('[data-square="e4"]');
+  assert.ok(start);
+  assert.ok(end);
+  fireEvent.mouseDown(start, { button: 2 });
+  fireEvent.mouseUp(end, { button: 2 });
+  assert.match(pgn.value, /\[%cal Ge2e4\]/);
+});
+
+test("collapsing a line unmounts its board", () => {
+  const { view } = setup();
+  assert.equal(view.getAllByText("Strategic plan").length, 2);
+  fireEvent.click(view.getAllByRole("button", { name: "Collapse line" })[0] as HTMLElement);
+  assert.equal(view.getAllByText("Strategic plan").length, 1);
+});
