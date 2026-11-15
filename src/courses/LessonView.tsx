@@ -413,6 +413,7 @@ export function LessonView({
             fen={frame.fen}
             orientation={orientation}
             arrows={arrows}
+            marks={frame.marks}
             squareStyles={squareStyles}
             interactive={waiting}
             canDragPiece={({ piece }) =>

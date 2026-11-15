@@ -1,4 +1,5 @@
 import { Chess, type Square } from "chess.js";
+import { stripMarkTokens, type BoardMarks } from "@/src/chess/marks";
 import type { GameTree, TreeNode } from "@/src/chess/tree";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tCourse } from "@/src/i18n/course-strings";
@@ -17,6 +18,8 @@ export type LessonFrame = {
   comment: string;
   san: string | null;
   move: LessonMove | null;
+  /** The author's arrows and highlighted squares for this position. */
+  marks?: BoardMarks;
 };
 
 function sideToMove(fen: string): "w" | "b" {
@@ -28,7 +31,8 @@ export function lessonFrames(tree: GameTree, student: CourseColor): LessonFrame[
   const frames: LessonFrame[] = [];
   let node: TreeNode | undefined = tree.children[0];
   let fen = tree.startFen;
-  let comment = tree.startComment ?? "";
+  let comment = stripMarkTokens(tree.startComment ?? "");
+  let marks: BoardMarks | undefined = tree.startMarks;
   let san: string | null = null;
 
   while (true) {
@@ -41,17 +45,23 @@ export function lessonFrames(tree: GameTree, student: CourseColor): LessonFrame[
           student: sideToMove(fen) === studentSide,
         }
       : null;
-    frames.push({ fen, comment, san, move });
+    frames.push(marks ? { fen, comment, san, move, marks } : { fen, comment, san, move });
     if (!node) {
       break;
     }
     fen = node.fen;
-    comment = node.comment || node.commentBefore || "";
+    comment = stripMarkTokens(node.comment || node.commentBefore || "");
+    marks = node.marks;
     san = node.san;
     node = node.children[0];
   }
 
   return frames;
+}
+
+/** The marks of the last move: the line's strategic plan. */
+export function planMarks(frames: LessonFrame[]): BoardMarks | undefined {
+  return frames[frames.length - 1]?.marks;
 }
 
 export function moveMatches(frame: LessonFrame, uci: string): boolean {

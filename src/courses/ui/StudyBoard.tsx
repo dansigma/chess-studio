@@ -2,6 +2,8 @@
 
 import { Chessboard } from "react-chessboard";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
+import type { BoardMarks } from "@/src/chess/marks";
+import { mergeStudyArrows, mergeStudySquareStyles } from "./study-marks.ts";
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { useStudioStore } from "@/src/store/studio-store";
 
@@ -20,6 +22,7 @@ export function StudyBoard({
   fen,
   orientation,
   arrows = [],
+  marks,
   squareStyles = {},
   interactive = false,
   canDragPiece,
@@ -30,6 +33,8 @@ export function StudyBoard({
   fen: string;
   orientation: "white" | "black";
   arrows?: StudyBoardArrow[];
+  /** The author's marks; arrows given above are drawn on top, square styles given below win. */
+  marks?: BoardMarks;
   squareStyles?: StudyBoardSquareStyles;
   /** When false the board is display-only: no dragging, moves or square clicks. */
   interactive?: boolean;
@@ -56,10 +61,10 @@ export function StudyBoard({
         allowDrawingArrows: false,
         clearArrowsOnClick: false,
         clearArrowsOnPositionChange: false,
-        arrows,
+        arrows: mergeStudyArrows(marks, arrows),
         lightSquareStyle: theme.light,
         darkSquareStyle: theme.dark,
-        squareStyles,
+        squareStyles: mergeStudySquareStyles(marks, squareStyles),
         pieces: piecesForSet(pieceSet),
         boardStyle: { width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" },
         canDragPiece: ({ piece }) => (interactive ? (canDragPiece ? canDragPiece({ piece }) : true) : false),
