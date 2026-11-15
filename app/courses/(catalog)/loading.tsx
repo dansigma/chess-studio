@@ -10,8 +10,8 @@ export default function CoursesLoading() {
             </p>
           </div>
         </div>
-        <div className="mt-8 grid animate-pulse gap-4 sm:grid-cols-2">
-          {[0, 1, 2, 3].map((index) => (
+        <div className="mt-8 grid animate-pulse grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[0, 1, 2, 3, 4, 5].map((index) => (
             <div
               key={index}
               className="overflow-hidden rounded-xl border border-studio-border bg-studio-chrome"
@@ -22,6 +22,7 @@ export default function CoursesLoading() {
                 <div className="h-5 w-3/4 rounded bg-studio-hover" />
                 <div className="h-4 w-full rounded bg-studio-hover" />
                 <div className="h-4 w-2/3 rounded bg-studio-hover" />
+                <div className="h-9 w-full rounded-lg bg-studio-hover" />
               </div>
             </div>
           ))}

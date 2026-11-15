@@ -40,6 +40,7 @@ export function toCatalogCourse(course: Course): CatalogCourse {
     color: course.color,
     accessTier: course.accessTier,
     priceCents: course.priceCents,
+    authorName: course.authorName,
     level: course.level,
     eloMin: course.eloMin,
     eloMax: course.eloMax,

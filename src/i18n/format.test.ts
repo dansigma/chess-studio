@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatDateTime, formatDecimal1, formatDuration, formatGameCount, formatInteger } from "./format.ts";
+import { formatCourseDuration, formatDateTime,formatDecimal1, formatDuration, formatGameCount, formatInteger } from "./format.ts";
 
 test("formatDecimal1 renders one decimal with the locale separator", () => {
   assert.equal(formatDecimal1("en", 86), "86.0");
@@ -49,4 +49,10 @@ test("formatDateTime renders day, month and time per locale and timezone", () =>
   assert.match(pt, /nov/iu);
   assert.match(pt, /15:30/u);
   assert.match(formatDateTime("en", ms, "America/Sao_Paulo"), /12:30\s?PM/u);
+});
+
+test("formatCourseDuration: hours and minutes, either part alone", () => {
+  assert.equal(formatCourseDuration("en", 200), "≈ 3 h 20 min");
+  assert.equal(formatCourseDuration("pt-br", 45), "≈ 45 min");
+  assert.equal(formatCourseDuration("en", 120), "≈ 2 h");
 });

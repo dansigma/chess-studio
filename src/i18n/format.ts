@@ -48,6 +48,18 @@ export function formatDuration(locale: SiteLocale, ms: number): string {
   return `${formatInteger(locale, Math.floor(seconds / 60))}m ${formatInteger(locale, seconds % 60)}s`;
 }
 
+/** SIG-1357: a course length in minutes: "≈ 3 h 20 min", "≈ 45 min", "≈ 2 h". */
+export function formatCourseDuration(locale: SiteLocale, minutes: number): string {
+  const total = Math.max(0, Math.round(Number.isFinite(minutes) ? minutes : 0));
+  const hours = Math.floor(total / 60);
+  const rest = total % 60;
+  const parts = [
+    ...(hours > 0 ? [`${formatInteger(locale, hours)} h`] : []),
+    ...(rest > 0 || hours === 0 ? [`${formatInteger(locale, rest)} min`] : []),
+  ];
+  return `≈ ${parts.join(" ")}`;
+}
+
 /** SIG-1234: an XP multiplier, up to two decimals: 1.4 -> "1.4" (en) / "1,4" (pt-br), 2 -> "2". */
 export function formatMultiplier(locale: SiteLocale, value: number): string {
   return new Intl.NumberFormat(TAG[locale], { maximumFractionDigits: 2 }).format(value);
