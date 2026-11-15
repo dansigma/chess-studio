@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { importPgn } from "../chess/pgn.ts";
 import { SEED_COURSES } from "./seed-data.ts";
-import { lessonFrames, lineProgressLabel, moveMatches, progressAfterStep, studentMoveMatches } from "./lesson.ts";
+import { lessonFrames, planMarks, lineProgressLabel, moveMatches, progressAfterStep, studentMoveMatches } from "./lesson.ts";
 
 // The shipped Caro-Kann line is the lesson fixture: a malformed seed PGN
 // fails this suite instead of passing silently.
@@ -63,5 +63,25 @@ describe("course lessons", () => {
     assert.equal(studentMoveMatches(promote, "a7", "b8"), true);
     assert.equal(moveMatches(promote, "a7b8q"), false);
     assert.equal(studentMoveMatches(promote, "e2", "e4"), false);
+  });
+
+  it("carries the author's marks per frame and exposes the plan marks", () => {
+    const pgn = '[Event "x"]\n\n{ Start [%cal Gd2d4] } 1. e4 { Centre [%csl Re4] [%cal Ge2e4,Yg1f3] } e5 { Reply } 2. Nf3 { Plan [%cal Bf3e5] }';
+    const frames = lessonFrames(importPgn(pgn).tree, "white");
+    assert.deepEqual(frames[0]?.marks?.arrows.map((a) => a.from + a.to), ["d2d4"]);
+    assert.deepEqual(frames[1]?.marks?.squares, [{ color: "R", square: "e4" }]);
+    assert.equal(frames[2]?.marks, undefined);
+    assert.deepEqual(planMarks(frames)?.arrows.map((a) => a.from + a.to), ["f3e5"]);
+    for (const frame of frames) {
+      assert.equal(/\[%/.test(frame.comment), false);
+    }
+    assert.equal(frames[1]?.comment, "Centre");
+  });
+
+  it("leaves a line without marks unchanged", () => {
+    const frames = lessonFrames(importPgn(SEED_PGN).tree, "black");
+    assert.equal(frames.every((frame) => frame.marks === undefined), true);
+    assert.equal(planMarks(frames), undefined);
+    assert.equal(planMarks([]), undefined);
   });
 });
