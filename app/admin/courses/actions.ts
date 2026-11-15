@@ -121,7 +121,7 @@ export async function getReviewCourseAction(id: string): Promise<ReviewQueueActi
   // reviewGate above) so the admin can preview another author's draft.
   const { data, error } = await gate.admin
     .from("courses")
-    .select("id, slug, title, summary, color, theme, outline, chapters, cover_url, video_url, published_at, status, access_tier, price_cents, currency, author_display_name, review_note")
+    .select("id, slug, title, summary, color, theme, outline, chapters, cover_url, video_url, published_at, status, access_tier, price_cents, currency, author_display_name, review_note, level, elo_min, elo_max, language, duration_minutes")
     .eq("id", id)
     .maybeSingle();
   if (error || !data || typeof data !== "object") {

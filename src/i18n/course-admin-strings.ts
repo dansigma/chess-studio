@@ -112,6 +112,12 @@ export const COURSE_ADMIN_STRING_KEYS = [
   "course.admin.error.note_required",
   "course.admin.error.invalidPrice",
   "course.admin.error.authorNameTooLong",
+  "course.admin.error.invalidLevel",
+  "course.admin.error.invalidLanguage",
+  "course.admin.error.eloIncomplete",
+  "course.admin.error.eloOutOfRange",
+  "course.admin.error.eloOrder",
+  "course.admin.error.invalidDuration",
 ] as const;
 
 export type CourseAdminStringKey = (typeof COURSE_ADMIN_STRING_KEYS)[number];
@@ -227,6 +233,12 @@ const EN: Record<CourseAdminStringKey, string> = {
   "course.admin.error.note_required": "A review note of 3 to 500 characters is required.",
   "course.admin.error.invalidPrice": "Invalid price: paid courses need a reais price; other tiers must have no price.",
   "course.admin.error.authorNameTooLong": "The author name is too long.",
+  "course.admin.error.invalidLevel": "Choose a level: beginner, intermediate or advanced.",
+  "course.admin.error.invalidLanguage": "Choose a language: Portuguese or English.",
+  "course.admin.error.eloIncomplete": "Set both the minimum and the maximum Elo, or leave both empty.",
+  "course.admin.error.eloOutOfRange": "Elo must be a whole number from 0 to 3500.",
+  "course.admin.error.eloOrder": "The minimum Elo cannot be higher than the maximum.",
+  "course.admin.error.invalidDuration": "Duration must be a whole number of minutes from 1 to 20000.",
 };
 
 const PT_BR: Record<CourseAdminStringKey, string> = {
@@ -334,6 +346,12 @@ const PT_BR: Record<CourseAdminStringKey, string> = {
   "course.admin.error.note_required": "É necessária uma nota de revisão de 3 a 500 caracteres.",
   "course.admin.error.invalidPrice": "Preço inválido: cursos pagos precisam de preço em reais; os demais não podem ter preço.",
   "course.admin.error.authorNameTooLong": "O nome do autor é longo demais.",
+  "course.admin.error.invalidLevel": "Escolha um nível: iniciante, intermediário ou avançado.",
+  "course.admin.error.invalidLanguage": "Escolha um idioma: português ou inglês.",
+  "course.admin.error.eloIncomplete": "Informe o Elo mínimo e o máximo, ou deixe os dois vazios.",
+  "course.admin.error.eloOutOfRange": "O Elo deve ser um número inteiro de 0 a 3500.",
+  "course.admin.error.eloOrder": "O Elo mínimo não pode ser maior que o máximo.",
+  "course.admin.error.invalidDuration": "A duração deve ser um número inteiro de minutos, de 1 a 20000.",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

@@ -1,5 +1,6 @@
 "use client";
 
+import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { tCourseAdmin, type CourseAdminMessage } from "@/src/i18n/course-admin-strings";
@@ -55,6 +56,7 @@ export function useAdminSession() {
             status: "published",
             accessTier: "free",
             priceCents: null,
+            ...DEFAULT_CATALOG_FIELDS,
           },
         ]);
         setLocalDrafts([
@@ -72,6 +74,7 @@ export function useAdminSession() {
             status: "draft",
             accessTier: "free",
             priceCents: null,
+            ...DEFAULT_CATALOG_FIELDS,
           },
           {
             id: "22222222-2222-4222-8222-222222222222",
@@ -84,6 +87,7 @@ export function useAdminSession() {
             status: "draft",
             accessTier: "free",
             priceCents: null,
+            ...DEFAULT_CATALOG_FIELDS,
           },
         ]);
         return;

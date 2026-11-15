@@ -1,3 +1,4 @@
+import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import {
   COURSE_PROGRESS_KEY,
@@ -95,6 +96,7 @@ export function toLocalDraftCourse(value: unknown): Course | null {
     status: "draft",
     accessTier: "free",
     priceCents: null,
+    ...DEFAULT_CATALOG_FIELDS,
   };
   if (typeof row.coverUrl === "string") {
     course.coverUrl = row.coverUrl;

@@ -1,3 +1,4 @@
+import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields.ts";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { courseOwnershipError, courseSlugError, courseThemeLabel, findPublishedConflict, isCourseAccessTier, isCourseStatus, isCourseTheme, isPublishedCourse, mergeCourseLists, outlineChapters, parseChapters, toCourse, toPreviewCourse } from "./catalog.ts";
@@ -18,6 +19,7 @@ describe("course catalog", () => {
         status: "published",
         accessTier: "free",
         priceCents: null,
+        ...DEFAULT_CATALOG_FIELDS,
       },
     ];
     const merged = mergeCourseLists(published, SEED_COURSES);

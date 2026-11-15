@@ -7,7 +7,8 @@
 -- (or a missing grant on a public column) fails the script loudly.
 --
 -- Requires the gate + revocation migrations:
--- 20261021290000_course_content_gate.sql, 20261021300000_courses_hide_chapters.sql.
+-- 20261021290000_course_content_gate.sql, 20261021300000_courses_hide_chapters.sql,
+-- 20261115000000_course_catalog_fields.sql.
 
 begin;
 
@@ -39,7 +40,9 @@ declare
     'id', 'slug', 'title', 'summary', 'color', 'theme', 'cover_url',
     'video_url', 'published_at', 'status', 'review_note', 'access_tier',
     'price_cents', 'currency', 'author_display_name', 'outline',
-    'created_by', 'updated_at'
+    'created_by', 'updated_at',
+    -- SIG-1349: catalog fit columns.
+    'level', 'elo_min', 'elo_max', 'language', 'duration_minutes'
   ];
   col text;
   row_count integer;
@@ -101,6 +104,17 @@ begin
     raise exception 'course_content backfill missing';
   end if;
   raise notice 'grant check ok: course_content backfilled';
+
+  -- SIG-1349: the fixture omits the new columns, so defaults must apply.
+  perform pg_temp.as_role('anon', null);
+  if not exists (
+    select 1 from public.courses
+    where slug = 'grant-check' and level = 'beginner' and language = 'pt-br'
+      and elo_min is null and elo_max is null and duration_minutes is null
+  ) then
+    raise exception 'catalog field defaults are wrong';
+  end if;
+  raise notice 'grant check ok: catalog field defaults';
 end;
 $$;
 

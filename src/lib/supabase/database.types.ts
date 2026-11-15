@@ -300,6 +300,12 @@ export type Database = {
           price_cents: number | null;
           currency: string;
           author_display_name: string | null;
+          // SIG-1349: catalog fit fields.
+          level: "beginner" | "intermediate" | "advanced";
+          elo_min: number | null;
+          elo_max: number | null;
+          language: "pt-br" | "en";
+          duration_minutes: number | null;
           // SIG-1052: content-free outline (chapter/variation titles, no
           // PGN). Full lesson content requires course_content access.
           outline: Json;
@@ -324,6 +330,11 @@ export type Database = {
           price_cents?: number | null;
           currency?: string;
           author_display_name?: string | null;
+          level?: "beginner" | "intermediate" | "advanced";
+          elo_min?: number | null;
+          elo_max?: number | null;
+          language?: "pt-br" | "en";
+          duration_minutes?: number | null;
         };
         Update: {
           slug?: string;
@@ -343,6 +354,11 @@ export type Database = {
           price_cents?: number | null;
           currency?: string;
           author_display_name?: string | null;
+          level?: "beginner" | "intermediate" | "advanced";
+          elo_min?: number | null;
+          elo_max?: number | null;
+          language?: "pt-br" | "en";
+          duration_minutes?: number | null;
         };
         Relationships: [];
       };

@@ -1,3 +1,4 @@
+import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields.ts";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { catalogCoursePercent, toCatalogCourse } from "./catalog.ts";
@@ -16,6 +17,7 @@ function course(overrides: Partial<Course> = {}): Course {
     status: "published",
     accessTier: "free",
     priceCents: null,
+    ...DEFAULT_CATALOG_FIELDS,
     chapters: [
       {
         id: "advance",

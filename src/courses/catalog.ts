@@ -3,6 +3,7 @@ import type { SiteLocale } from "@/src/i18n/locale";
 import type { CourseAdminMessage } from "@/src/i18n/course-admin-strings";
 import { tCourse } from "@/src/i18n/course-strings";
 import { courseImageUrl } from "./media";
+import { readCourseLanguage, readCourseLevel, readNullableInt } from "./catalog-fields";
 import { COURSE_THEMES, type CatalogCourse, type Course, type CourseAccessTier, type CourseChapter, type CourseColor, type CourseStatus, type CourseTheme, type CourseVariation, type VariationProgress } from "./types";
 
 export function slugify(title: string): string {
@@ -39,6 +40,11 @@ export function toCatalogCourse(course: Course): CatalogCourse {
     color: course.color,
     accessTier: course.accessTier,
     priceCents: course.priceCents,
+    level: course.level,
+    eloMin: course.eloMin,
+    eloMax: course.eloMax,
+    language: course.language,
+    durationMinutes: course.durationMinutes,
     chapterCount: chapters.length,
     moveCount: variationIds.length,
     variationIds,
@@ -160,7 +166,7 @@ export function courseThemeLabel(theme: CourseTheme, locale: SiteLocale): string
  * SIG-1119: the outline (chapter/variation titles, no PGN) is the public
  * read; lesson content comes from course_content via useCourseContent. */
 export const COURSE_SELECT_FIELDS =
-  "id, slug, title, summary, color, theme, outline, cover_url, video_url, published_at, status, access_tier, price_cents, currency, author_display_name, review_note" as const;
+  "id, slug, title, summary, color, theme, outline, cover_url, video_url, published_at, status, access_tier, price_cents, currency, author_display_name, review_note, level, elo_min, elo_max, language, duration_minutes" as const;
 
 export type CourseRow = {
   id: string;
@@ -181,7 +187,28 @@ export type CourseRow = {
   currency?: string | null;
   author_display_name?: string | null;
   review_note?: string | null;
+  /** SIG-1349: absent/unknown values read fail-open (beginner / pt-br / null). */
+  level?: string | null;
+  elo_min?: number | null;
+  elo_max?: number | null;
+  language?: string | null;
+  duration_minutes?: number | null;
 };
+
+/** Fail-open catalog fields shared by toCourse and toPreviewCourse. An
+ * incomplete Elo pair reads as empty. */
+function catalogFieldsFromRow(row: Pick<CourseRow, "level" | "elo_min" | "elo_max" | "language" | "duration_minutes">) {
+  const eloMin = readNullableInt(row.elo_min);
+  const eloMax = readNullableInt(row.elo_max);
+  const hasElo = eloMin !== null && eloMax !== null;
+  return {
+    level: readCourseLevel(row.level),
+    eloMin: hasElo ? eloMin : null,
+    eloMax: hasElo ? eloMax : null,
+    language: readCourseLanguage(row.language),
+    durationMinutes: readNullableInt(row.duration_minutes),
+  };
+}
 
 /**
  * True when the row is visible to anon. SIG-1050: status is the source of
@@ -266,6 +293,7 @@ export function toCourse(row: CourseRow): Course | null {
     status,
     accessTier,
     priceCents: row.price_cents ?? null,
+    ...catalogFieldsFromRow(row),
     authorName: row.author_display_name ?? undefined,
     reviewNote: row.review_note ?? null,
     publishedAt: row.published_at,
@@ -315,6 +343,7 @@ export function toPreviewCourse(row: PreviewCourseRow): Course | null {
     status,
     accessTier,
     priceCents: row.price_cents ?? null,
+    ...catalogFieldsFromRow(row),
     authorName: row.author_display_name ?? undefined,
     reviewNote: row.review_note ?? null,
     publishedAt: row.published_at,

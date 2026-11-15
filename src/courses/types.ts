@@ -11,6 +11,10 @@ export const COURSE_THEMES: readonly { id: CourseTheme; label: string }[] = [
 
 export type CourseStatus = "draft" | "in_review" | "published" | "rejected" | "archived";
 
+export type CourseLevel = "beginner" | "intermediate" | "advanced";
+
+export type CourseLanguage = "pt-br" | "en";
+
 export type CourseAccessTier = "free" | "premium" | "paid";
 
 export type CourseVariation = {
@@ -53,6 +57,13 @@ export type Course = {
   priceCents: number | null;
   /** SIG-1050 coach display name (nullable). */
   authorName?: string;
+  /** SIG-1349 catalog fit fields. */
+  level: CourseLevel;
+  /** Elo range: both set or both null; min <= max. */
+  eloMin: number | null;
+  eloMax: number | null;
+  language: CourseLanguage;
+  durationMinutes: number | null;
   /** SIG-1050 reviewer note (nullable). */
   reviewNote?: string | null;
   /**
@@ -87,6 +98,12 @@ export type CatalogCourse = {
   /** SIG-1115: badge input; paid requires a non-null price. */
   accessTier: CourseAccessTier;
   priceCents: number | null;
+  /** SIG-1349 catalog fit fields (mirror Course). */
+  level: CourseLevel;
+  eloMin: number | null;
+  eloMax: number | null;
+  language: CourseLanguage;
+  durationMinutes: number | null;
   /** Chapters that contain at least one line. */
   chapterCount: number;
   /** Total lines (variations) across chapters with lines. */

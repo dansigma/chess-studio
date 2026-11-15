@@ -1,3 +1,4 @@
+import { DEFAULT_CATALOG_FIELDS } from "./catalog-fields.ts";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { CUSTOM_COURSES_KEY, readRawCache, writeRawCache } from "../lib/local-cache.ts";
@@ -45,6 +46,7 @@ function makeDraft(id: string): Course {
     status: "draft",
     accessTier: "free",
     priceCents: null,
+    ...DEFAULT_CATALOG_FIELDS,
   };
 }
 
