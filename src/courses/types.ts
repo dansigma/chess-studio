@@ -84,6 +84,12 @@ export type Course = {
 export type VariationProgress = {
   step: number;
   learned: boolean;
+  /** Review ladder rung, 0 (never reviewed) to 7. Absent on legacy rows. */
+  reviewLevel?: number;
+  /** ISO time the line is next due for review. */
+  reviewDueAt?: string | null;
+  /** ISO time of the last completed review. */
+  lastReviewedAt?: string | null;
 };
 
 /**

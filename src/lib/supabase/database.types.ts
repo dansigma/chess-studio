@@ -514,6 +514,10 @@ export type Database = {
           variation_id: string;
           step: number;
           learned: boolean;
+          course_id: string | null;
+          review_level: number;
+          review_due_at: string | null;
+          last_reviewed_at: string | null;
           updated_at: string;
         };
         Insert: {
@@ -521,11 +525,19 @@ export type Database = {
           variation_id: string;
           step?: number;
           learned?: boolean;
+          course_id?: string | null;
+          review_level?: number;
+          review_due_at?: string | null;
+          last_reviewed_at?: string | null;
           updated_at?: string;
         };
         Update: {
           step?: number;
           learned?: boolean;
+          course_id?: string | null;
+          review_level?: number;
+          review_due_at?: string | null;
+          last_reviewed_at?: string | null;
           updated_at?: string;
         };
         Relationships: [];

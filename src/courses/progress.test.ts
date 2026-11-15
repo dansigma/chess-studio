@@ -51,3 +51,38 @@ describe("mergeProgress", () => {
     assert.deepEqual(toUpload, {});
   });
 });
+
+describe("mergeProgress review fields", () => {
+  const early = {
+    step: 1,
+    learned: true,
+    reviewLevel: 2,
+    reviewDueAt: "2026-01-03T00:00:00.000Z",
+    lastReviewedAt: "2026-01-02T00:00:00.000Z",
+  };
+  const late = {
+    step: 1,
+    learned: true,
+    reviewLevel: 1,
+    reviewDueAt: "2026-01-09T00:00:00.000Z",
+    lastReviewedAt: "2026-01-08T00:00:00.000Z",
+  };
+
+  it("takes max level, latest review and the due date from that side", () => {
+    const { merged, toUpload } = mergeProgress({ v1: early }, { v1: late });
+    assert.equal(merged.v1.reviewLevel, 2);
+    assert.equal(merged.v1.lastReviewedAt, late.lastReviewedAt);
+    assert.equal(merged.v1.reviewDueAt, late.reviewDueAt);
+    assert.ok(toUpload.v1);
+  });
+
+  it("does not upload when remote already equals the merge", () => {
+    const { toUpload } = mergeProgress({ v1: { step: 1, learned: true } }, { v1: early });
+    assert.deepEqual(toUpload, {});
+  });
+
+  it("keeps a review date when the other side has none", () => {
+    const { merged } = mergeProgress({ v1: { step: 1, learned: true } }, { v1: late });
+    assert.equal(merged.v1.reviewDueAt, late.reviewDueAt);
+  });
+});
