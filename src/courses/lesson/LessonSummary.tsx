@@ -6,17 +6,21 @@ import type { SiteLocale } from "@/src/i18n/locale";
 
 /**
  * SIG-1373: the end of Aprender — moves played, mistakes, and the author's
- * strategic plan (the last comment of the line).
+ * strategic plan (the last comment of the line). SIG-1374 adds the hints
+ * taken in Treinar.
  */
 export function LessonSummaryPanel({
   locale,
   moves,
   mistakes,
+  hints,
   comment,
 }: {
   locale: SiteLocale;
   moves: number;
   mistakes: number;
+  /** Omitted in Aprender, which has no hint ladder. */
+  hints?: number;
   comment: string;
 }) {
   return (
@@ -34,6 +38,13 @@ export function LessonSummaryPanel({
           count: formatInteger(locale, mistakes),
         })}
       </p>
+      {hints !== undefined ? (
+        <p className="tabular-nums text-studio-fg">
+          {tCourse(locale, "course.lesson.summary.hints", {
+            count: formatInteger(locale, hints),
+          })}
+        </p>
+      ) : null}
       <div className="rounded-lg border border-studio-border px-3 py-2">
         <h2 className="text-caption font-semibold uppercase tracking-wide text-studio-muted">
           {tCourse(locale, "course.lesson.summary.plan")}

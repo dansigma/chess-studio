@@ -37,7 +37,7 @@ export function lastReachedStep(
 }
 
 export type LessonShortcut =
-  "start" | "back" | "forward" | "end" | "flip" | "help";
+  "start" | "back" | "forward" | "end" | "flip" | "help" | "primary";
 
 type KeyLike = {
   key: string;
@@ -63,6 +63,11 @@ export function lessonShortcut(event: KeyLike, options: { dialogOpen?: boolean }
   ) {
     return null;
   }
+  // Enter / Space belong to a focused button or link: let it activate itself.
+  const interactive =
+    target?.tagName === "BUTTON" ||
+    target?.tagName === "A" ||
+    target?.tagName === "SELECT";
   if (event.metaKey || event.ctrlKey || event.altKey) {
     return null;
   }
@@ -80,6 +85,11 @@ export function lessonShortcut(event: KeyLike, options: { dialogOpen?: boolean }
       return "flip";
     case "?":
       return "help";
+    // Space / Enter activate the primary summary button (25/27's flow plus
+    // SIG-1374's Próxima variante); the lesson ignores it outside the summary.
+    case " ":
+    case "Enter":
+      return interactive ? null : "primary";
     default:
       return null;
   }

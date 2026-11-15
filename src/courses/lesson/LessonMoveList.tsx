@@ -36,18 +36,21 @@ export function LessonMoveList({
   reachedStep,
   viewStep,
   onSelect,
+  showComments = true,
 }: {
   locale: SiteLocale;
   frames: LessonFrame[];
   reachedStep: number;
   viewStep: number;
   onSelect: (step: number) => void;
+  /** Treinar hides every author comment; only the moves remain. */
+  showComments?: boolean;
 }) {
   const model = moveListModel(frames, reachedStep, viewStep);
   const currentRef = useKeepInView(viewStep);
   return (
     <div data-lesson-move-list="" className="hidden px-4 py-3 lg:block">
-      {model.opening ? (
+      {showComments && model.opening ? (
         <p className="mb-2 text-body leading-relaxed text-studio-comment">
           {model.opening}
         </p>
@@ -70,7 +73,7 @@ export function LessonMoveList({
             >
               {entry.san}
             </button>
-            {entry.comment ? (
+            {showComments && entry.comment ? (
               <p className="my-1 basis-full text-body leading-relaxed text-studio-comment">
                 {entry.comment}
               </p>
@@ -99,12 +102,15 @@ export function LessonMoveStrip({
   reachedStep,
   viewStep,
   onSelect,
+  showComments = true,
 }: {
   locale: SiteLocale;
   frames: LessonFrame[];
   reachedStep: number;
   viewStep: number;
   onSelect: (step: number) => void;
+  /** Treinar hides every author comment; only the moves remain. */
+  showComments?: boolean;
 }) {
   const model = moveListModel(frames, reachedStep, viewStep);
   const currentRef = useKeepInView(viewStep);
@@ -133,9 +139,11 @@ export function LessonMoveStrip({
           </span>
         ) : null}
       </div>
-      <p className="px-4 pt-3 text-body leading-relaxed text-studio-comment">
-        {comment || tCourse(locale, "course.lesson.followLine")}
-      </p>
+      {showComments ? (
+        <p className="px-4 pt-3 text-body leading-relaxed text-studio-comment">
+          {comment || tCourse(locale, "course.lesson.followLine")}
+        </p>
+      ) : null}
     </div>
   );
 }

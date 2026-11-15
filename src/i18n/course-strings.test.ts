@@ -61,6 +61,34 @@ test("Aprender mode and summary labels match the redesign", () => {
   );
 });
 
+test("Treinar labels match the redesign", () => {
+  assert.equal(tCourse("pt-br", "course.lesson.hint"), "Dica");
+  assert.equal(tCourse("pt-br", "course.lesson.tryAgain"), "Tente outra vez");
+  assert.equal(
+    tCourse("pt-br", "course.lesson.summary.hints", { count: "2" }),
+    "Dicas: 2",
+  );
+  assert.equal(
+    tCourse("pt-br", "course.lesson.summary.next"),
+    "Próxima variante",
+  );
+  assert.equal(
+    tCourse("pt-br", "course.lesson.summary.courseDone"),
+    "Curso concluído",
+  );
+  assert.equal(tCourse("en", "course.lesson.hint"), "Hint");
+  assert.equal(tCourse("en", "course.lesson.tryAgain"), "Try again");
+  assert.equal(
+    tCourse("en", "course.lesson.summary.hints", { count: "2" }),
+    "Hints: 2",
+  );
+  assert.equal(tCourse("en", "course.lesson.summary.next"), "Next variant");
+  assert.equal(
+    tCourse("en", "course.lesson.summary.courseDone"),
+    "Course complete",
+  );
+});
+
 test("course outcome strings render whole sentences with vars", () => {
   assert.equal(tCourse("en", "course.lesson.stepCounter", { current: 2, total: 5 }), "2 / 5");
   assert.equal(tCourse("pt-br", "course.lesson.stepCounter", { current: 2, total: 5 }), "2 / 5");

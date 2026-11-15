@@ -52,3 +52,22 @@ export function afterReview(
     lastReviewedAt: now.toISOString(),
   };
 }
+
+/**
+ * Finishing Treinar. A new line, or one just learned in this session, enters
+ * the ladder at level 1 and stays at level 0 (due in 4 h) when the run had a
+ * mistake. A line already on the ladder is reviewed normally: clean climbs a
+ * rung, a mistake drops back to the first.
+ */
+export function afterTrain(
+  progress: VariationProgress | undefined,
+  result: { mistakes: number; learnedThisSession?: boolean },
+  now: Date,
+): VariationProgress {
+  const current = progress ?? { step: 0, learned: false };
+  if (result.learnedThisSession || studyStatus(current, now) === "new") {
+    const first = afterFirstLearn(current, now);
+    return result.mistakes === 0 ? first : { ...first, reviewLevel: 0 };
+  }
+  return afterReview(current, { correct: result.mistakes === 0 }, now);
+}
