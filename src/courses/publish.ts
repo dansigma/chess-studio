@@ -15,6 +15,7 @@ import { courseCoverUrl, courseVideo } from "./media";
 import { SEED_COURSES } from "./seed";
 import { canTransition, type TransitionReason } from "./status";
 import { validateTierAndPrice } from "./author-actions";
+import { COURSES_FREE_LAUNCH } from "./free-launch";
 import type { Course, CourseAccessTier, CourseChapter, CourseStatus } from "./types";
 
 function serviceClient() {
@@ -196,8 +197,13 @@ function checkedCourse(input: Course): { course: Course; chapters: CourseChapter
   // SIG-1114: tier/price invariant (paid needs positive-int cents, other
   // tiers must carry none) — checked before the write so both draft saves
   // and admin publishes fail with invalidPrice instead of publishFailed.
-  const tier: CourseAccessTier = input.accessTier === "paid" || input.accessTier === "premium" ? input.accessTier : "free";
-  const rawPrice = typeof input.priceCents === "number" ? input.priceCents : null;
+  let tier: CourseAccessTier = input.accessTier === "paid" || input.accessTier === "premium" ? input.accessTier : "free";
+  let rawPrice = typeof input.priceCents === "number" ? input.priceCents : null;
+  if (COURSES_FREE_LAUNCH) {
+    // SIG-1353: free launch, always stored as free whatever the form sends.
+    tier = "free";
+    rawPrice = null;
+  }
   const tierPrice = validateTierAndPrice(tier, rawPrice);
   if (!tierPrice.ok) {
     return { error: { key: tierPrice.error } };
