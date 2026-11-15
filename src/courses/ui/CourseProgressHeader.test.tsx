@@ -74,7 +74,7 @@ test("partial progress with due lines: Continuar and Revisar (N)", () => {
     links.map((l) => [l.textContent, l.getAttribute("href")]),
     [
       ["Continuar", "/courses/caro/c"],
-      ["Revisar (2)", "/courses/caro/a"],
+      ["Revisar (2)", "/courses/caro/revisar"],
     ],
   );
   assert.ok(!text.includes("Nenhuma revisão pendente"));
@@ -91,6 +91,6 @@ test("complete course: Revisar curso and Curso concluído", () => {
   assert.ok((c.textContent ?? "").includes("Curso concluído"));
   const link = c.querySelector("a");
   assert.equal(link?.textContent, "Revisar curso");
-  assert.equal(link?.getAttribute("href"), "/courses/caro/a");
+  assert.equal(link?.getAttribute("href"), "/courses/caro/revisar");
   assert.ok(!(c.textContent ?? "").includes("Continuar"));
 });
