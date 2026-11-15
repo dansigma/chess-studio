@@ -19,6 +19,7 @@ const STUBS = {
   "next/navigation": "src/test-utils/stubs/next-navigation.ts",
   "next/cache": "src/test-utils/stubs/next-cache.ts",
   "next/link": "src/test-utils/stubs/next-link.ts",
+  "next/dynamic": "src/test-utils/stubs/next-dynamic.ts",
   "server-only": "src/test-utils/stubs/server-only.ts",
   "cloudflare:workers": "src/test-utils/stubs/cloudflare-workers.ts",
 };
