@@ -10,6 +10,7 @@ import { IconButton, Button } from "@/src/studio/ui/Button";
 import { MAX_CHAPTER_DESCRIPTION_LENGTH } from "./draft";
 import { linePgnCheck, linePgnWarningText, type LinePgnWarning } from "./line-check";
 import type { CourseChapter, CourseVariation } from "./types";
+import { LineMarksEditor } from "./ui/LineMarksEditor";
 import { MediaLinkField } from "./ui/MediaLinkField";
 import type { LocatedError } from "./validate-draft";
 
@@ -464,6 +465,12 @@ function LineDraft({
           />
           <p className="mt-1 text-caption text-studio-muted">{movesLabel(locale, check.moves)}</p>
           <LineWarning locale={locale} warning={firstWarning} />
+          <LineMarksEditor
+            id={variation.id}
+            pgn={variation.pgn}
+            locale={locale}
+            onPgn={onPgn}
+          />
         </>
       )}
     </div>

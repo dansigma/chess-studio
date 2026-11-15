@@ -45,3 +45,10 @@ test("SIG-1366 chapter and line labels use the issue's pt-BR wording", () => {
   assert.equal(tCourseAdmin("pt-br", "course.admin.chapter.description"), "Descrição do capítulo");
   assert.equal(tCourseAdmin("pt-br", "course.admin.duplicate"), "Duplicar");
 });
+
+test("SIG-1367 line board labels use the issue's pt-BR wording", () => {
+  assert.equal(tCourseAdmin("pt-br", "course.admin.line.board.plan"), "Plano estratégico");
+  assert.equal(tCourseAdmin("pt-br", "course.admin.line.board.clear"), "Limpar marcações");
+  assert.equal(tCourseAdmin("en", "course.admin.line.board.plan"), "Strategic plan");
+  assert.equal(tCourseAdmin("en", "course.admin.line.board.clear"), "Clear marks");
+});
