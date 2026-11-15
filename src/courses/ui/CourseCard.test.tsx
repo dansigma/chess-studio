@@ -33,6 +33,7 @@ function course(overrides: Partial<CatalogCourse> = {}): CatalogCourse {
     chapterCount: 2,
     moveCount: 3,
     variationIds: ["a", "b", "c"],
+    variationTitles: { a: "A", b: "B", c: "C" },
     ...overrides,
   };
 }

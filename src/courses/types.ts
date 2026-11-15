@@ -90,6 +90,8 @@ export type VariationProgress = {
   reviewDueAt?: string | null;
   /** ISO time of the last completed review. */
   lastReviewedAt?: string | null;
+  /** ISO time the line progress last changed (row updated_at); orders the catalog rail. */
+  updatedAt?: string | null;
 };
 
 /**
@@ -123,4 +125,6 @@ export type CatalogCourse = {
   moveCount: number;
   /** Variation ids, so the client derives progress without chapters. */
   variationIds: string[];
+  /** Line titles by variation id (titles only, never PGN). */
+  variationTitles: Record<string, string>;
 };

@@ -27,6 +27,7 @@ function c(id: string, o: Partial<CatalogCourse>): CatalogCourse {
     chapterCount: 1,
     moveCount: 1,
     variationIds: [],
+    variationTitles: {},
     ...o,
   };
 }
