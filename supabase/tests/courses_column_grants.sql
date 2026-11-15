@@ -17,7 +17,7 @@ begin;
 insert into public.courses (id, slug, title, summary, color, theme, chapters, access_tier, status)
 values (
   '30000000-0000-0000-0000-000000000001', 'grant-check', 'Grants', '', 'white', 'openings',
-  '[{"id":"ch1","title":"Chapter","variations":[{"id":"v1","title":"Line","pgn":"1. e4 e5"}]}]',
+  '[{"id":"ch1","title":"Chapter","videoUrl":"https://example.com/lesson.mp4","description":"Secret chapter notes","variations":[{"id":"v1","title":"Line","pgn":"1. e4 e5"}]}]',
   'free', 'published'
 );
 
@@ -97,6 +97,23 @@ begin
     raise exception 'outline leaks move text';
   end if;
   raise notice 'grant check ok: outline has no move text';
+
+  -- SIG-1350: outline flags video chapters but never carries the link or
+  -- the description.
+  if not exists (
+    select 1 from public.courses
+    where slug = 'grant-check' and outline -> 0 -> 'hasVideo' = 'true'::jsonb
+  ) then
+    raise exception 'outline missing hasVideo';
+  end if;
+  if exists (
+    select 1 from public.courses
+    where slug = 'grant-check'
+      and (outline::text like '%lesson.mp4%' or outline::text like '%Secret chapter notes%' or outline::text like '%videoUrl%')
+  ) then
+    raise exception 'outline leaks chapter video link or description';
+  end if;
+  raise notice 'grant check ok: outline exposes hasVideo only';
 
   -- course_content still gates full chapters: anon sees the free row
   -- through can_access_course.
