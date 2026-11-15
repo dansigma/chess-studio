@@ -131,3 +131,18 @@ test("locateError maps server errors to their tab and field", () => {
   assert.equal(locateError({ key: "course.admin.error.publishFailed" }), null);
   assert.equal(locateError({ key: "course.admin.error.not_owner" }), null);
 });
+
+test("a bad chapter video points at that chapter's own input", () => {
+  const line = { id: "v1", title: "Main", pgn: "1. e4 e5" };
+  const result = failure(
+    validDraft({
+      chapters: [
+        { id: "c1", title: "A", variations: [line], videoUrl: "https://youtu.be/dQw4w9WgXcQ" },
+        { id: "c2", title: "B", variations: [line], videoUrl: "https://example.com/page" },
+      ],
+    }),
+  );
+  assert.equal(result.error.key, "course.admin.error.chapterVideoLink");
+  assert.deepEqual([result.tab, result.field], ["chapters", "chapterVideo:c2"]);
+  assert.equal(locateError(result.error)?.field, "chapterVideo:c2");
+});

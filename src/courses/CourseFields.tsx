@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { tCourseAdmin } from "@/src/i18n/course-admin-strings";
 import { courseThemeLabel, isCourseColor, isCourseTheme, slugify } from "./catalog";
 import type { CourseDraft } from "./admin-draft";
+import { MediaLinkField } from "./ui/MediaLinkField";
 import { FieldError, fieldControlProps, fieldDomId } from "./FieldError";
 import type { LocatedError } from "./validate-draft";
 import { locateError } from "./validate-draft";
@@ -297,30 +298,26 @@ export function CourseMediaFields({ draft, setDraft, readOnly = false, error }: 
   const locale = useStudioStore((state) => state.settings.locale);
   return (
     <>
-      <label className="block text-caption text-studio-muted">
-        {tCourseAdmin(locale, "course.admin.field.cover")}
-        <input
-          {...fieldControlProps("coverUrl", error)}
-          value={draft.coverUrl ?? ""}
-          disabled={readOnly}
-          onChange={(event) => setDraft({ ...draft, coverUrl: event.target.value })}
-          placeholder="https://"
-          className="mt-1 w-full rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-fg"
-        />
-        <FieldError field="coverUrl" error={error} locale={locale} />
-      </label>
-      <label className="block text-caption text-studio-muted">
-        {tCourseAdmin(locale, "course.admin.field.video")}
-        <input
-          {...fieldControlProps("videoUrl", error)}
-          value={draft.videoUrl ?? ""}
-          disabled={readOnly}
-          onChange={(event) => setDraft({ ...draft, videoUrl: event.target.value })}
-          placeholder={tCourseAdmin(locale, "course.admin.field.videoPlaceholder")}
-          className="mt-1 w-full rounded-lg border border-studio-border bg-studio-chrome px-3 py-2 text-body text-studio-fg"
-        />
-        <FieldError field="videoUrl" error={error} locale={locale} />
-      </label>
+      <MediaLinkField
+        kind="cover"
+        field="coverUrl"
+        label={tCourseAdmin(locale, "course.admin.field.cover")}
+        value={draft.coverUrl ?? ""}
+        disabled={readOnly}
+        error={error}
+        onChange={(coverUrl) => setDraft({ ...draft, coverUrl })}
+        placeholder="https://"
+      />
+      <MediaLinkField
+        kind="video"
+        field="videoUrl"
+        label={tCourseAdmin(locale, "course.admin.field.video")}
+        value={draft.videoUrl ?? ""}
+        disabled={readOnly}
+        error={error}
+        onChange={(videoUrl) => setDraft({ ...draft, videoUrl })}
+        placeholder={tCourseAdmin(locale, "course.admin.field.videoPlaceholder")}
+      />
     </>
   );
 }
