@@ -36,7 +36,8 @@ export function contentState(
   }
 }
 
-export function useCourseContent(course: Course): ContentState {
+/** `attempt` bumps to refetch after an error (the lesson's retry button). */
+export function useCourseContent(course: Course, attempt = 0): ContentState {
   const needsFetch = course.contentLoaded === false;
   const courseId = course.id;
   const courseChapters = course.chapters;
@@ -45,9 +46,10 @@ export function useCourseContent(course: Course): ContentState {
   const [state, setState] = useState<ContentState>(() =>
     needsFetch ? { status: "loading", chapters: [] } : { status: "ready", chapters: courseChapters },
   );
-  const [key, setKey] = useState(courseId);
-  if (key !== courseId) {
-    setKey(courseId);
+  const fetchKey = `${courseId}#${attempt}`;
+  const [key, setKey] = useState(fetchKey);
+  if (key !== fetchKey) {
+    setKey(fetchKey);
     setState(needsFetch ? { status: "loading", chapters: [] } : { status: "ready", chapters: courseChapters });
   }
 
@@ -95,7 +97,7 @@ export function useCourseContent(course: Course): ContentState {
     return () => {
       cancel = true;
     };
-  }, [needsFetch, courseId, courseChapters]);
+  }, [needsFetch, courseId, courseChapters, attempt]);
 
   return state;
 }
