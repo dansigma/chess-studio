@@ -42,12 +42,13 @@ export function Chip({
 }) {
   return (
     // SIG-1377: the 22px pill keeps its rendered size; the invisible ::before
-    // grows the pointer target to 24px without moving neighbouring chips.
+    // grows the pointer target to 24px without moving neighbouring chips. It is
+    // -2px, not -1px: an absolute child starts inside the 1px border.
     <button
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`relative inline-flex h-[22px] items-center gap-1.5 rounded-full border px-2 text-caption before:absolute before:-inset-px before:content-[''] ${
+      className={`relative inline-flex h-[22px] items-center gap-1.5 rounded-full border px-2 text-caption before:absolute before:-inset-0.5 before:content-[''] ${
         active
           ? "border-transparent bg-studio-accent-soft text-studio-accent-text"
           : "border-studio-border bg-studio-hover-subtle text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
