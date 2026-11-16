@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { FidePlayerSuggestion } from "@/src/lib/fide-players";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { useStudioStore } from "@/src/store/studio-store";
 
 type Status = "idle" | "searching" | "done";
 
@@ -36,6 +38,7 @@ export function PlayerCombobox({
 }) {
   const query = value.trim();
   const searching = query.length >= 2;
+  const locale = useStudioStore((state) => state.settings.locale);
 
   const [suggestions, setSuggestions] = useState<FidePlayerSuggestion[]>([]);
   const [status, setStatus] = useState<Status>("idle");
@@ -220,12 +223,12 @@ export function PlayerCombobox({
         >
           {showSearching ? (
             <li role="status" className="px-2 py-1.5 text-body text-studio-faint">
-              Searching…
+              {tStudioChrome(locale, "chrome.players.searching")}
             </li>
           ) : null}
           {!showSearching && showEmpty ? (
             <li role="status" className="px-2 py-1.5 text-body text-studio-faint">
-              No players found.
+              {tStudioChrome(locale, "chrome.players.none")}
             </li>
           ) : null}
           {!showSearching

@@ -68,6 +68,7 @@ export function LibraryPlayers() {
               onChange={setQuery}
               placeholder={tLibrary(locale, "library.players.placeholder")}
               label={tLibrary(locale, "library.players.label")}
+              clearLabel={tLibrary(locale, "library.players.clear")}
               autoFocus
               className="min-w-0 flex-1"
             />

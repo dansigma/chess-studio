@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type PointerEvent, type KeyboardEvent } from "react";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { useStudioStore } from "@/src/store/studio-store";
 import {
   DEFAULT_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
@@ -22,6 +24,7 @@ export function ResizeHandle({
   onResizeEnd,
 }: ResizeHandleProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const locale = useStudioStore((state) => state.settings.locale);
   const dragRef = useRef<{ sidebarLeft: number; pointerId: number } | null>(null);
 
   const cleanupDrag = () => {
@@ -128,7 +131,7 @@ export function ResizeHandle({
       aria-valuenow={sidebarWidth}
       aria-valuemin={MIN_SIDEBAR_WIDTH}
       aria-valuemax={maxVal}
-      aria-label="Resize sidebar"
+      aria-label={tStudioChrome(locale, "chrome.layout.resizeSidebar")}
       className="group relative flex w-1.5 shrink-0 cursor-col-resize select-none items-center justify-center outline-none focus-visible:outline-none"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

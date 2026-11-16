@@ -114,18 +114,18 @@ export function Stepper({
 export function SearchInput({
   value,
   onChange,
-  placeholder = "Search",
+  placeholder,
   className = "",
   id,
   autoFocus,
   inputRef,
   onKeyDown,
   label,
-  clearLabel = "Clear search",
+  clearLabel,
 }: {
   value: string;
   onChange: (value: string) => void;
-  placeholder?: string;
+  placeholder: string;
   className?: string;
   id?: string;
   autoFocus?: boolean;
@@ -133,7 +133,7 @@ export function SearchInput({
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
   /** Accessible name of the field (defaults to the placeholder). */
   label?: string;
-  clearLabel?: string;
+  clearLabel: string;
 }) {
   return (
     <label

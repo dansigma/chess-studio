@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { canMakeMainline, canPromote, getNodeAt, plyColor, type GameTree, type Path } from "@/src/chess/tree";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { NotationContextMenu, notationMenuEnablement, type NotationMenuState } from "./NotationContextMenu";
@@ -146,7 +147,7 @@ export function MobileMoveStrip() {
     >
       <button
         type="button"
-        aria-label="Previous move"
+        aria-label={tStudioChrome(locale, "chrome.moves.previous")}
         onClick={back}
         disabled={board.path.length === 0}
         className="shrink-0 rounded-md p-1.5 text-studio-fg hover:bg-studio-hover-strong disabled:opacity-40"
@@ -175,7 +176,7 @@ export function MobileMoveStrip() {
       </div>
       <button
         type="button"
-        aria-label="Next move"
+        aria-label={tStudioChrome(locale, "chrome.moves.next")}
         onClick={forward}
         disabled={currentIndex >= moves.length - 1}
         className="shrink-0 rounded-md p-1.5 text-studio-fg hover:bg-studio-hover-strong disabled:opacity-40"
