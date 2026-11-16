@@ -71,6 +71,20 @@ export type RetrySession =
       queue: RetryTarget[];
     });
 
+/**
+ * SIG-1384: the one-level undo behind the Desfazer toast for a destructive cut
+ * (`Delete` / `Ctrl+Delete`). `tree`/`path` are the board state just before the
+ * cut; `cutTree` is the tree the cut produced, so any later edit (every tree
+ * write is immutable) or board switch can invalidate the pending undo instead
+ * of letting it clobber newer work.
+ */
+export type CutUndo = {
+  boardId: string;
+  tree: GameTree;
+  path: Path;
+  cutTree: GameTree;
+};
+
 export type BoardSession = {
   id: string;
   remoteId: string | null;
@@ -181,6 +195,9 @@ export type StudioState = {
   explorerError: string | null;
   explorerRetry: number;
   statusMessage: string | null;
+  // SIG-1384: pending "Desfazer" for the last destructive cut; null when the
+  // 5s window closed, the user dismissed it, or any newer edit landed.
+  pendingCutUndo: CutUndo | null;
   aboutOpen: boolean;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
   layoutNonce: number;
@@ -293,6 +310,10 @@ export type StudioState = {
   promoteVariation: () => void;
   makeMainline: () => void;
   deleteVariation: () => void;
+  /** SIG-1384: restore the tree + selection snapshotted by the last cut. */
+  undoCut: () => void;
+  /** SIG-1384: drop the pending cut undo (toast timeout, Escape, newer edit). */
+  dismissCutUndo: () => void;
   setMoveComment: (comment: string) => void;
   setMoveCommentBefore: (comment: string) => void;
   insertNullMove: () => boolean;

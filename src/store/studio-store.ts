@@ -219,6 +219,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       explorerError: null,
       explorerRetry: 0,
       statusMessage: null,
+      // SIG-1384: signing out drops any pending cut undo with the session.
+      pendingCutUndo: null,
       aboutOpen: false,
       notationEditor: null,
       enginePreview: null,
@@ -266,6 +268,21 @@ useStudioStore.subscribe((state) => {
   const board = state.boards.find((item) => item.id === retry.boardId);
   if (!board || state.activeBoardId !== board.id || !pathsEqual(board.path, retry.parentPath)) {
     state.exitRetry({ restorePath: false });
+  }
+});
+
+// SIG-1384: the Desfazer toast only lives while the active board still holds
+// the tree the cut produced. Every tree write is immutable, so any newer edit,
+// board switch or board close drops the snapshot instead of letting undo
+// clobber it. (Navigation alone keeps the same tree and the toast alive.)
+useStudioStore.subscribe((state) => {
+  const pending = state.pendingCutUndo;
+  if (!pending) {
+    return;
+  }
+  const board = state.boards.find((item) => item.id === pending.boardId);
+  if (!board || state.activeBoardId !== pending.boardId || board.tree !== pending.cutTree) {
+    state.dismissCutUndo();
   }
 });
 

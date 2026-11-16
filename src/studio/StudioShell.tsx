@@ -46,6 +46,7 @@ import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
 import { applyStudioEntryImport, entryImportReady } from "@/src/studio/entry-import";
 import { StatusBar, StatusToast } from "./StatusBar";
+import { CutUndoToast } from "./CutUndoToast";
 import { VariationChoiceDialog } from "./VariationChoiceDialog";
 import { Dialog } from "./ui/Dialog";
 import { LayoutDialogs } from "./LayoutDialogs";
@@ -616,6 +617,8 @@ export function StudioShell() {
       {/* SIG-1197: the status bar stays on mobile; desktop shows messages as a
           toast and the sync state in the menubar (+24px for the dock). */}
       {isMobile ? <StatusBar message={status} /> : <StatusToast message={status} />}
+      {/* SIG-1384: the cut undo toast is independent of status messages. */}
+      <CutUndoToast />
 
       <input
         ref={fileRef}

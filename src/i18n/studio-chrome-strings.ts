@@ -196,6 +196,8 @@ export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.shell.liveGameFailed",
   "chrome.shell.saveFailed",
   "chrome.shell.loadFailed",
+  "chrome.toast.cut",
+  "chrome.toast.undo",
 ] as const;
 
 export type StudioChromeStringKey = (typeof STUDIO_CHROME_STRING_KEYS)[number];
@@ -387,6 +389,8 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.shell.liveGameFailed": "Could not load that broadcast game from Lichess.",
   "chrome.shell.saveFailed": "Could not save board.",
   "chrome.shell.loadFailed": "Could not load saved boards.",
+  "chrome.toast.cut": "Moves removed",
+  "chrome.toast.undo": "Undo",
 };
 
 const PT_BR: Record<StudioChromeStringKey, string> = {
@@ -576,6 +580,8 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.shell.liveGameFailed": "Não foi possível carregar essa partida da transmissão do Lichess.",
   "chrome.shell.saveFailed": "Não foi possível salvar o tabuleiro.",
   "chrome.shell.loadFailed": "Não foi possível carregar os tabuleiros salvos.",
+  "chrome.toast.cut": "Lances removidos",
+  "chrome.toast.undo": "Desfazer",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

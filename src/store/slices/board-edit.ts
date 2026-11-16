@@ -3,6 +3,7 @@ import type { StateCreator } from "zustand";
 import {
   START_FEN,
   cloneTree,
+  continuationsAt,
   createEmptyTree,
   deleteAfter,
   deleteVariation,
@@ -17,6 +18,7 @@ import {
   setNodeCommentBefore,
   setNodeMarks,
   setNodeNags,
+  type GameTree,
 } from "@/src/chess/tree";
 import {
   exportPgn,
@@ -37,7 +39,7 @@ import {
 import { isLegalSetupFen } from "@/src/chess/setup-fen";
 import { applyNullMoveFen, NULL_MOVE_SAN, NULL_MOVE_UCI } from "@/src/chess/null-move";
 import { emptyBoard, withActive, analysisFen } from "./board-helpers";
-import type { BoardSession, StudioState } from "./types";
+import type { BoardSession, CutUndo, StudioState } from "./types";
 
 // SIG-944: board-editing/import/setup actions used to live inline in
 // studio-store.ts. They all rewrite the active board's tree/path/headers, so
@@ -61,6 +63,9 @@ export type BoardEditSlice = Pick<
   | "promoteVariation"
   | "makeMainline"
   | "deleteVariation"
+  | "undoCut"
+  | "dismissCutUndo"
+  | "pendingCutUndo"
   | "setMoveComment"
   | "setMoveCommentBefore"
   | "insertNullMove"
@@ -79,8 +84,20 @@ export type BoardEditSlice = Pick<
   | "setBoardRepertoire"
 >;
 
+function cutUndoFor(board: BoardSession, cutTree: GameTree): CutUndo {
+  return {
+    boardId: board.id,
+    // cloneTree keeps the snapshot detached from later edits, exactly like the
+    // review-annotate undo in this slice.
+    tree: cloneTree(board.tree),
+    path: [...board.path],
+    cutTree,
+  };
+}
+
 export const initialBoardEditState = {
   setupMode: false,
+  pendingCutUndo: null,
 };
 
 export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSlice> = (
@@ -249,13 +266,23 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
     return exportPgn(board.tree, board.headers);
   },
   pruneAfter: () => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        tree: deleteAfter(board.tree, board.path),
-        dirty: true,
-      })),
-    }));
+    set((state) => {
+      const board = state.active();
+      // Nothing follows the current move: nothing is cut, so no undo entry.
+      if (continuationsAt(board.tree, board.path).length === 0) {
+        return {};
+      }
+      const tree = deleteAfter(board.tree, board.path);
+      return {
+        boards: withActive(state.boards, state.activeBoardId, (active) => ({
+          ...active,
+          tree,
+          dirty: true,
+        })),
+        // SIG-1384: keep the pre-cut line (and selection) for the Desfazer toast.
+        pendingCutUndo: cutUndoFor(board, tree),
+      };
+    });
   },
   promoteVariation: () => {
     set((state) => ({
@@ -274,12 +301,53 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
     }));
   },
   deleteVariation: () => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        const next = deleteVariation(board.tree, board.path);
-        return { ...board, tree: next.tree, path: next.path, dirty: true };
-      }),
-    }));
+    set((state) => {
+      const board = state.active();
+      // A root cut of an empty tree (or an invalid path) changes nothing.
+      if (board.path.length === 0 && board.tree.children.length === 0) {
+        return {};
+      }
+      const next = deleteVariation(board.tree, board.path);
+      if (next.tree === board.tree) {
+        return {};
+      }
+      return {
+        boards: withActive(state.boards, state.activeBoardId, (active) => ({
+          ...active,
+          tree: next.tree,
+          path: next.path,
+          dirty: true,
+        })),
+        // SIG-1384: same undo entry as pruneAfter, so both cut paths behave alike.
+        pendingCutUndo: cutUndoFor(board, next.tree),
+      };
+    });
+  },
+  undoCut: () => {
+    set((state) => {
+      const pending = state.pendingCutUndo;
+      if (!pending) {
+        return {};
+      }
+      const board = state.boards.find((item) => item.id === pending.boardId);
+      // A newer edit already moved the tree on: restoring would clobber it.
+      if (!board || board.tree !== pending.cutTree) {
+        return { pendingCutUndo: null };
+      }
+      return {
+        pendingCutUndo: null,
+        boards: state.boards.map((item) =>
+          item.id === pending.boardId
+            ? { ...item, tree: pending.tree, path: [...pending.path], dirty: true }
+            : item,
+        ),
+      };
+    });
+  },
+  dismissCutUndo: () => {
+    if (get().pendingCutUndo !== null) {
+      set({ pendingCutUndo: null });
+    }
   },
   setMoveComment: (comment) => {
     set((state) => ({
