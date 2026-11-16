@@ -66,14 +66,14 @@ export function PanelScore({
           {Array.from({ length: strikeLimit }, (_, index) => (
             <X
               key={index}
-              className={`size-4 ${index < strikes ? "text-red-400" : "text-studio-muted opacity-35"}`}
+              className={`size-4 ${index < strikes ? "text-studio-danger" : "text-studio-muted opacity-35"}`}
               aria-hidden
             />
           ))}
         </p>
       ) : (
         <p className="flex items-center gap-1 text-title font-semibold tabular-nums text-studio-fg">
-          <Flame className="size-5 text-orange-400" aria-hidden />
+          <Flame className="size-5 text-studio-tier-mistake" aria-hidden />
           {streak}
         </p>
       )}

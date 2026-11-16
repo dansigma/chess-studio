@@ -56,7 +56,7 @@ function PlayerAvatar({ name, side }: { name: string; side: "w" | "b" }) {
       aria-hidden
       data-avatar={side}
       className={`grid size-6 shrink-0 place-items-center rounded-full text-caption font-semibold leading-none ring-1 ring-studio-border-strong ${
-        side === "w" ? "bg-[#f4f4f5] text-[#18181b]" : "bg-[#2a2b30] text-[#f4f4f5]"
+        side === "w" ? "bg-studio-piece-white text-studio-piece-white-fg" : "bg-studio-piece-black text-studio-piece-black-fg"
       }`}
     >
       {accountInitials(name, "")}
