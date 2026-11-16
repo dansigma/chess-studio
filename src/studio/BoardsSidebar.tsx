@@ -105,9 +105,24 @@ export function BoardsSidebar() {
                   <Pin size={13} />
                 </button>
               ) : null}
+              {/* SIG-1380: on touch there is no hover, so the X is always shown
+                  and the unsaved dot moves out of the box to its own slot
+                  instead of hiding under the X. Hover devices keep the dot
+                  inside the box, hidden while the X is up. */}
+              {signedIn && isSyncPending(board) ? (
+                <span
+                  className="mr-1 hidden text-studio-warning-fg [@media(hover:none)]:flex"
+                  title={tSidebar(locale, "sidebar.boards.unsaved")}
+                >
+                  ●
+                </span>
+              ) : null}
               <span className="relative flex h-6 w-6 items-center justify-center">
                 {signedIn && isSyncPending(board) ? (
-                  <span className="text-studio-warning-fg group-hover:hidden" title={tSidebar(locale, "sidebar.boards.unsaved")}>
+                  <span
+                    className="text-studio-warning-fg group-hover:hidden [@media(hover:none)]:hidden"
+                    title={tSidebar(locale, "sidebar.boards.unsaved")}
+                  >
                     ●
                   </span>
                 ) : null}
@@ -115,7 +130,7 @@ export function BoardsSidebar() {
                   type="button"
                   title={tSidebar(locale, "sidebar.boards.close")}
                   aria-label={tSidebar(locale, "sidebar.boards.close")}
-                  className="absolute inset-0 hidden items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg group-focus-within:flex group-hover:flex focus-visible:flex"
+                  className="absolute inset-0 hidden items-center justify-center rounded-md text-studio-faint hover:bg-studio-hover-strong hover:text-studio-fg group-focus-within:flex group-hover:flex focus-visible:flex [@media(hover:none)]:flex"
                   onClick={() => handleCloseBoard(board.id)}
                 >
                   <X size={13} />
