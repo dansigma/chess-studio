@@ -566,6 +566,84 @@ export function LessonView({
             </span>
           </>
         }
+        footer={
+          summary ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                className="max-sm:h-11"
+                onClick={() => startMode(session.mode)}
+              >
+                {tCourse(locale, "course.lesson.summary.restart")}
+              </Button>
+              {session.mode === "train" ? (
+                <Link
+                  href={nextHref}
+                  data-lesson-next
+                  data-course-end={atCourseEnd ? "true" : undefined}
+                  className="inline-flex h-8 items-center justify-center rounded-lg bg-studio-accent px-3.5 text-body font-medium text-studio-accent-fg hover:bg-studio-accent-strong max-sm:h-11"
+                >
+                  {tCourse(
+                    locale,
+                    atCourseEnd
+                      ? "course.lesson.summary.courseDone"
+                      : "course.lesson.summary.next",
+                  )}
+                </Link>
+              ) : (
+                <Button
+                  variant="primary"
+                  className="max-sm:h-11"
+                  onClick={() => startMode("train")}
+                >
+                  {tCourse(locale, "course.lesson.summary.review")}
+                </Button>
+              )}
+            </div>
+          ) : waiting ? (
+            session.mode === "train" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  className="max-sm:h-11"
+                  data-lesson-hint
+                  data-hint-level={session.hintLevel}
+                  disabled={session.hintLevel >= 2}
+                  onClick={revealHint}
+                >
+                  {tCourse(locale, "course.lesson.hint")}
+                </Button>
+                <span className="text-caption text-studio-muted">
+                  {tCourse(
+                    locale,
+                    session.hintLevel === 0
+                      ? "course.lesson.hintHidden"
+                      : "course.lesson.hintShown",
+                  )}
+                </span>
+              </div>
+            ) : (
+              <p className="text-caption text-studio-muted">
+                {tCourse(locale, "course.lesson.hintShown")}
+              </p>
+            )
+          ) : finished ? (
+            <Link
+              href={`/courses/${loaded.course.slug}`}
+              className="inline-flex items-center text-body font-medium text-studio-accent-text max-sm:min-h-11"
+            >
+              {tCourse(locale, "course.lesson.backToCourse")}
+            </Link>
+          ) : (
+            <Button
+              variant="primary"
+              className="max-sm:h-11"
+              onClick={playExpected}
+            >
+              {tCourse(locale, "course.lesson.next")}
+            </Button>
+          )
+        }
       >
         <LessonMoveList
           locale={locale}
@@ -619,74 +697,6 @@ export function LessonView({
               {tCourse(locale, "course.lesson.complete")}
             </p>
           ) : null}
-        </div>
-        <div className="border-t border-studio-border p-3">
-          {summary ? (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => startMode(session.mode)}
-              >
-                {tCourse(locale, "course.lesson.summary.restart")}
-              </Button>
-              {session.mode === "train" ? (
-                <Link
-                  href={nextHref}
-                  data-lesson-next
-                  data-course-end={atCourseEnd ? "true" : undefined}
-                  className="inline-flex h-8 items-center justify-center rounded-lg bg-studio-accent px-3.5 text-body font-medium text-studio-accent-fg hover:bg-studio-accent-strong"
-                >
-                  {tCourse(
-                    locale,
-                    atCourseEnd
-                      ? "course.lesson.summary.courseDone"
-                      : "course.lesson.summary.next",
-                  )}
-                </Link>
-              ) : (
-                <Button variant="primary" onClick={() => startMode("train")}>
-                  {tCourse(locale, "course.lesson.summary.review")}
-                </Button>
-              )}
-            </div>
-          ) : waiting ? (
-            session.mode === "train" ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="secondary"
-                  data-lesson-hint
-                  data-hint-level={session.hintLevel}
-                  disabled={session.hintLevel >= 2}
-                  onClick={revealHint}
-                >
-                  {tCourse(locale, "course.lesson.hint")}
-                </Button>
-                <span className="text-caption text-studio-muted">
-                  {tCourse(
-                    locale,
-                    session.hintLevel === 0
-                      ? "course.lesson.hintHidden"
-                      : "course.lesson.hintShown",
-                  )}
-                </span>
-              </div>
-            ) : (
-              <p className="text-caption text-studio-muted">
-                {tCourse(locale, "course.lesson.hintShown")}
-              </p>
-            )
-          ) : finished ? (
-            <Link
-              href={`/courses/${loaded.course.slug}`}
-              className="text-body font-medium text-studio-accent-text"
-            >
-              {tCourse(locale, "course.lesson.backToCourse")}
-            </Link>
-          ) : (
-            <Button variant="primary" onClick={playExpected}>
-              {tCourse(locale, "course.lesson.next")}
-            </Button>
-          )}
         </div>
       </StudyLayout>
       {showShortcuts ? (
