@@ -25,6 +25,11 @@
   --studio-hover-strong: rgb(255 255 255 / 0.12);
   --studio-accent: #3b82f6;
   --studio-accent-strong: #2563eb;
+  /* SIG-1376: 11-13px white text on --studio-accent is 3.68:1. The solid fill
+     #2563eb gives 5.17:1 and its #1d4ed8 hover 6.70:1. --studio-accent stays
+     for soft backgrounds, selected rows and board marks. */
+  --studio-accent-solid: #2563eb;
+  --studio-accent-hover: #1d4ed8;
   --studio-accent-soft: rgb(59 130 246 / 0.18);
   --studio-accent-text: #93c5fd;
   --studio-accent-fg: #ffffff;
@@ -105,6 +110,10 @@ html[data-color-scheme="light"] {
   --studio-hover-strong: rgb(0 0 0 / 0.08);
   --studio-accent: #2563eb;
   --studio-accent-strong: #1d4ed8;
+  /* SIG-1376: light theme keeps today's primary button and badge colours;
+     white on #2563eb is 5.17:1 and on the #1d4ed8 hover 6.70:1. */
+  --studio-accent-solid: #2563eb;
+  --studio-accent-hover: #1d4ed8;
   --studio-accent-soft: rgb(37 99 235 / 0.12);
   --studio-accent-text: #1d4ed8;
   --studio-accent-fg: #ffffff;
@@ -178,6 +187,8 @@ html[data-color-scheme="light"] {
   --color-studio-hover-strong: var(--studio-hover-strong);
   --color-studio-accent: var(--studio-accent);
   --color-studio-accent-strong: var(--studio-accent-strong);
+  --color-studio-accent-solid: var(--studio-accent-solid);
+  --color-studio-accent-hover: var(--studio-accent-hover);
   --color-studio-accent-soft: var(--studio-accent-soft);
   --color-studio-accent-text: var(--studio-accent-text);
   --color-studio-accent-fg: var(--studio-accent-fg);

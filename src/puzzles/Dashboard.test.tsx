@@ -112,7 +112,7 @@ test("error: message and secondary 'Try again', no skeletons, no zeros; retry re
   const dd = [...container.querySelectorAll("dd")].map((d) => d.textContent);
   assert.deepEqual(dd, Array(7).fill("—"));
   const retry = screen.getByRole("button", { name: "Try again" });
-  assert.ok(!retry.className.includes("bg-studio-accent "));
+  assert.ok(!retry.className.includes("bg-studio-accent-solid"));
 
   ctl.fail = false;
   let release!: () => void;
