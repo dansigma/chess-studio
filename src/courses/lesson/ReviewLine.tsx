@@ -255,6 +255,48 @@ export function ReviewLine({
             </span>
           </>
         }
+        footer={
+          finished ? (
+            <Button
+              variant="primary"
+              className="max-sm:h-11"
+              onClick={onContinue}
+            >
+              {tCourse(locale, "course.review.continue")}
+            </Button>
+          ) : waiting ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                className="max-sm:h-11"
+                disabled={session.hintLevel >= 2}
+                onClick={() =>
+                  setSession((state) =>
+                    lessonSessionReducer(state, { type: "hint" }),
+                  )
+                }
+              >
+                {tCourse(locale, "course.lesson.hint")}
+              </Button>
+              <span className="text-caption text-studio-muted">
+                {tCourse(
+                  locale,
+                  session.hintLevel === 0
+                    ? "course.lesson.hintHidden"
+                    : "course.lesson.hintShown",
+                )}
+              </span>
+            </div>
+          ) : (
+            <Button
+              variant="primary"
+              className="max-sm:h-11"
+              onClick={playExpected}
+            >
+              {tCourse(locale, "course.lesson.next")}
+            </Button>
+          )
+        }
       >
         <LessonMoveList
           locale={locale}
@@ -302,39 +344,6 @@ export function ReviewLine({
               </p>
             </div>
           ) : null}
-        </div>
-        <div className="border-t border-studio-border p-3">
-          {finished ? (
-            <Button variant="primary" onClick={onContinue}>
-              {tCourse(locale, "course.review.continue")}
-            </Button>
-          ) : waiting ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="secondary"
-                disabled={session.hintLevel >= 2}
-                onClick={() =>
-                  setSession((state) =>
-                    lessonSessionReducer(state, { type: "hint" }),
-                  )
-                }
-              >
-                {tCourse(locale, "course.lesson.hint")}
-              </Button>
-              <span className="text-caption text-studio-muted">
-                {tCourse(
-                  locale,
-                  session.hintLevel === 0
-                    ? "course.lesson.hintHidden"
-                    : "course.lesson.hintShown",
-                )}
-              </span>
-            </div>
-          ) : (
-            <Button variant="primary" onClick={playExpected}>
-              {tCourse(locale, "course.lesson.next")}
-            </Button>
-          )}
         </div>
       </StudyLayout>
       {showShortcuts ? (
