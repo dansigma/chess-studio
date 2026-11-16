@@ -630,7 +630,7 @@ export function LessonView({
           ) : finished ? (
             <Link
               href={`/courses/${loaded.course.slug}`}
-              className="text-body font-medium text-studio-accent-text"
+              className="inline-flex items-center text-body font-medium text-studio-accent-text max-sm:min-h-11"
             >
               {tCourse(locale, "course.lesson.backToCourse")}
             </Link>
