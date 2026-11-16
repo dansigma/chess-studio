@@ -21,6 +21,7 @@ function resetBoard(): string {
     setupMode: false,
     training: false,
     statusMessage: null,
+    pendingCutUndo: null,
   });
   return board.id;
 }
@@ -148,6 +149,88 @@ describe("SIG-944 board-edit slice", () => {
     assert.equal(board.path.length, 1);
     assert.equal(getNodeAt(board.tree, [0])?.children.length, 0);
     assert.equal(board.dirty, true);
+  });
+
+  // SIG-1384: both destructive cuts snapshot the pre-cut tree + selection so
+  // the Desfazer toast can put the exact subtree (comments, NAGs included) back.
+  it("SIG-1384 pruneAfter snapshots an undo that restores the cut line and selection", () => {
+    resetBoard();
+    const store = () => useStudioStore.getState();
+    store().openListedGame({ title: "Cut", moves: "e4 e5 Nf3 Nc6", openInNewBoard: true });
+    store().goPath([0, 0]);
+    store().setMoveComment("cut comment");
+    store().toggleMoveNag(1);
+    store().goPath([0]);
+
+    const beforeTree = structuredClone(store().active().tree);
+    store().pruneAfter();
+
+    assert.equal(getNodeAt(store().active().tree, [0])?.children.length, 0);
+    assert.ok(store().pendingCutUndo, "the cut offers an undo");
+    assert.equal(store().active().dirty, true);
+
+    store().undoCut();
+
+    const restored = store().active();
+    assert.deepEqual(restored.tree, beforeTree, "the exact cut subtree comes back");
+    assert.deepEqual(restored.path, [0], "the selection is the pre-cut one");
+    assert.equal(getNodeAt(restored.tree, [0, 0])?.comment, "cut comment");
+    assert.deepEqual(getNodeAt(restored.tree, [0, 0])?.nags, [1]);
+    assert.equal(restored.dirty, true, "restoring marks the board for autosave");
+    assert.equal(store().pendingCutUndo, null, "the snapshot is consumed");
+  });
+
+  it("SIG-1384 deleteVariation undo restores the removed variation and selection", () => {
+    resetBoard();
+    const store = () => useStudioStore.getState();
+    store().openListedGame({
+      title: "Variation",
+      pgn: "1. e4 e5 (1... c5) 2. Nf3 *",
+      openInNewBoard: true,
+    });
+    store().goPath([0, 1]);
+    store().toggleMoveNag(2);
+    const beforeTree = structuredClone(store().active().tree);
+
+    store().deleteVariation();
+    assert.equal(store().active().tree.children[0].children.length, 1, "the sideline is gone");
+    assert.ok(store().pendingCutUndo);
+
+    store().undoCut();
+
+    const restored = store().active();
+    assert.deepEqual(restored.tree, beforeTree);
+    assert.deepEqual(restored.path, [0, 1], "the variation stays selected");
+    assert.deepEqual(getNodeAt(restored.tree, [0, 1])?.nags, [2]);
+  });
+
+  it("SIG-1384 a cut with nothing after it offers no undo", () => {
+    resetBoard();
+    const store = () => useStudioStore.getState();
+    store().openListedGame({ title: "Leaf", moves: "e4 e5", openInNewBoard: true });
+    store().goPath([0, 0]);
+
+    store().pruneAfter();
+
+    assert.equal(store().pendingCutUndo, null);
+  });
+
+  it("SIG-1384 a newer edit (or board switch) drops the pending cut undo", () => {
+    resetBoard();
+    const store = () => useStudioStore.getState();
+    store().openListedGame({ title: "Later", moves: "e4 e5 Nf3", openInNewBoard: true });
+    store().goPath([0]);
+
+    store().pruneAfter();
+    store().back();
+    assert.ok(store().pendingCutUndo, "navigation alone keeps the toast");
+
+    store().setMoveComment("after the cut");
+    assert.equal(store().pendingCutUndo, null, "an edit invalidates the snapshot");
+
+    const tree = store().active().tree;
+    store().undoCut();
+    assert.equal(store().active().tree, tree, "undo never clobbers newer work");
   });
 
   it("setMoveComment writes comments on the current and previous move", () => {

@@ -73,7 +73,7 @@ export function NotationToolbar({
       <IconButton label={tPanels(locale, "notation.toolbar.flip")} shortcut="F · Ctrl+F" onClick={onFlip}>
         <ArrowUpDown size={14} />
       </IconButton>
-      <div className="mx-1 h-4 w-px bg-studio-border-strong" />
+      <div role="separator" aria-orientation="vertical" className="mx-1 h-4 w-px bg-studio-border-strong" />
       <IconButton label={tPanels(locale, "notation.toolbar.editAnnotations")} shortcut="Ctrl+A" active={commentOpen} onClick={onToggleComment}>
         <MessageSquare size={14} />
       </IconButton>
@@ -93,12 +93,21 @@ export function NotationToolbar({
       >
         <ChevronsUp size={14} />
       </IconButton>
-      <IconButton label={tPanels(locale, "notation.toolbar.deleteAfter")} shortcut="Del" onClick={onDeleteAfter}>
+      {/* SIG-1384: the destructive buttons sit past their own separator so a
+          misclick on the navigation cluster cannot cut a variation. */}
+      <div role="separator" aria-orientation="vertical" className="mx-1 h-4 w-px bg-studio-border-strong" />
+      <IconButton
+        label={tPanels(locale, "notation.toolbar.deleteAfter")}
+        shortcut="Del"
+        aria-keyshortcuts="Delete"
+        onClick={onDeleteAfter}
+      >
         <Scissors size={14} />
       </IconButton>
       <IconButton
         label={tPanels(locale, "notation.toolbar.deleteVariation")}
         shortcut="Ctrl+Del"
+        aria-keyshortcuts="Control+Delete"
         disabled={path.length === 0}
         onClick={onDeleteVariation}
       >
