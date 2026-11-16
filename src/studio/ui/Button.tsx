@@ -5,7 +5,7 @@ type ButtonSize = "sm" | "md";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    "bg-studio-accent text-studio-accent-fg hover:bg-studio-accent-strong disabled:bg-studio-hover-strong disabled:text-studio-disabled disabled:hover:bg-studio-hover-strong",
+    "bg-studio-accent-solid text-studio-accent-fg hover:bg-studio-accent-hover disabled:bg-studio-hover-strong disabled:text-studio-disabled disabled:hover:bg-studio-hover-strong",
   secondary:
     "bg-studio-hover-strong text-studio-fg hover:bg-studio-selected disabled:text-studio-disabled disabled:hover:bg-studio-hover-strong",
   ghost:

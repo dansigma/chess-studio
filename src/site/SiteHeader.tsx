@@ -79,7 +79,7 @@ export function SiteHeader({
               {tCourse(locale, "course.chrome.reviewCourses")}
               {reviewCount > 0 ? (
                 <span
-                  className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-studio-accent px-1 text-caption text-white"
+                  className="ml-1 inline-flex min-w-5 items-center justify-center rounded-full bg-studio-accent-solid px-1 text-caption text-studio-accent-fg"
                   aria-label={tCourse(locale, "course.chrome.reviewCountAria", { count: reviewCount })}
                 >
                   {reviewCount}
