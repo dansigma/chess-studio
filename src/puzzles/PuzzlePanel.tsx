@@ -105,7 +105,7 @@ export function PuzzlePanel({
         {mode === "rush" ? (
           <span
             className={`text-title font-semibold tabular-nums ${
-              secondsLeft <= 30 ? "text-red-400" : "text-studio-fg"
+              secondsLeft <= 30 ? "text-studio-danger" : "text-studio-fg"
             }`}
           >
             {clock(secondsLeft)}

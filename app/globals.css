@@ -6,6 +6,12 @@
   --studio-chrome: #15161a;
   --studio-panel: #1b1c20;
   --studio-elevated: #22242a;
+  /* Fixed piece colours (the side a player had), intentionally not redefined in
+     the light theme, so the avatars read the same in both. Not result tokens. */
+  --studio-piece-white: #f4f4f5;
+  --studio-piece-white-fg: #18181b;
+  --studio-piece-black: #2a2b30;
+  --studio-piece-black-fg: #f4f4f5;
   --studio-selected: #2b2e35;
   --studio-tab: #353942;
   --studio-fg: #f4f4f5;
@@ -163,6 +169,10 @@ html[data-color-scheme="light"] {
   --color-studio-chrome: var(--studio-chrome);
   --color-studio-panel: var(--studio-panel);
   --color-studio-elevated: var(--studio-elevated);
+  --color-studio-piece-white: var(--studio-piece-white);
+  --color-studio-piece-white-fg: var(--studio-piece-white-fg);
+  --color-studio-piece-black: var(--studio-piece-black);
+  --color-studio-piece-black-fg: var(--studio-piece-black-fg);
   --color-studio-selected: var(--studio-selected);
   --color-studio-tab: var(--studio-tab);
   --color-studio-fg: var(--studio-fg);
