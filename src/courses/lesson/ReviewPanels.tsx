@@ -4,11 +4,60 @@ import Link from "next/link";
 import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
+import type { NextStudyLine } from "../next-line";
 import { reviewDueLabel } from "../review-queue";
 import { reviewResultText, type ReviewLineResult } from "./review-session";
 
 const PRIMARY_LINK =
   "inline-flex h-8 items-center justify-center rounded-lg bg-studio-accent px-3.5 text-body font-medium text-studio-accent-fg hover:bg-studio-accent-strong";
+const SECONDARY_LINK =
+  "inline-flex h-8 items-center justify-center rounded-lg bg-studio-hover-strong px-3.5 text-body font-medium text-studio-fg hover:bg-studio-selected";
+
+/**
+ * SIG-1386: where a review leads. With a line left to learn, Continuar
+ * estudando opens it and Voltar ao curso stays as the secondary action; once
+ * every line is learned, the course is complete and Voltar ao curso is the
+ * only (primary) action.
+ */
+function ReviewNextActions({
+  locale,
+  courseSlug,
+  nextLine,
+}: {
+  locale: SiteLocale;
+  courseSlug: string;
+  nextLine: NextStudyLine | null;
+}) {
+  const courseHref = `/courses/${courseSlug}`;
+  return (
+    <div data-review-next className="mt-5">
+      <p className="text-body text-studio-muted">
+        {nextLine
+          ? tCourse(locale, "course.review.next.line", {
+              chapter: nextLine.chapterTitle,
+              line: nextLine.title,
+            })
+          : tCourse(locale, "course.review.next.courseDone")}
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {nextLine ? (
+          <>
+            <Link href={`${courseHref}/${nextLine.id}`} className={PRIMARY_LINK}>
+              {tCourse(locale, "course.review.next.continue")}
+            </Link>
+            <Link href={courseHref} className={SECONDARY_LINK}>
+              {tCourse(locale, "course.lesson.backToCourse")}
+            </Link>
+          </>
+        ) : (
+          <Link href={courseHref} className={PRIMARY_LINK}>
+            {tCourse(locale, "course.lesson.backToCourse")}
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /**
  * SIG-1375: "Revisão · X de N" plus one segment per line of the session.
@@ -102,11 +151,14 @@ export function ReviewHeader({
 export function ReviewSummary({
   locale,
   courseSlug,
+  nextLine,
   results,
   now = new Date(),
 }: {
   locale: SiteLocale;
   courseSlug: string;
+  /** SIG-1386: the line to study next; null once every line is learned. */
+  nextLine: NextStudyLine | null;
   results: readonly ReviewLineResult[];
   now?: Date;
 }) {
@@ -153,21 +205,28 @@ export function ReviewSummary({
             </li>
           ))}
         </ul>
-        <Link href={`/courses/${courseSlug}`} className={`mt-5 ${PRIMARY_LINK}`}>
-          {tCourse(locale, "course.lesson.backToCourse")}
-        </Link>
+        <ReviewNextActions
+          locale={locale}
+          courseSlug={courseSlug}
+          nextLine={nextLine}
+        />
       </div>
     </main>
   );
 }
 
-/** SIG-1375: nothing is due, so the session only links back to the course. */
+/**
+ * SIG-1375: nothing is due. SIG-1386: the next line to study is offered
+ * instead of only a link back to the course.
+ */
 export function ReviewEmptyState({
   locale,
   courseSlug,
+  nextLine,
 }: {
   locale: SiteLocale;
   courseSlug: string;
+  nextLine: NextStudyLine | null;
 }) {
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-10">
@@ -177,9 +236,11 @@ export function ReviewEmptyState({
       <p data-review-empty className="mt-2 text-body text-studio-muted">
         {tCourse(locale, "course.progress.header.noneDue")}
       </p>
-      <Link href={`/courses/${courseSlug}`} className={`mt-5 ${PRIMARY_LINK}`}>
-        {tCourse(locale, "course.lesson.backToCourse")}
-      </Link>
+      <ReviewNextActions
+        locale={locale}
+        courseSlug={courseSlug}
+        nextLine={nextLine}
+      />
     </main>
   );
 }

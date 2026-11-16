@@ -48,3 +48,49 @@ export function nextLineHref(
   }
   return courseHref;
 }
+
+/** What `nextStudyLine` needs from a course: chapters and lines with titles. */
+export type CourseStudyOrder = {
+  chapters: readonly {
+    id: string;
+    title: string;
+    variations: readonly { id: string; title: string }[];
+  }[];
+};
+
+export type NextStudyLine = {
+  id: string;
+  title: string;
+  chapterTitle: string;
+};
+
+/**
+ * SIG-1386: the line to study after a review session. With `chapterId` (a
+ * session opened with `?capitulo=N`), the first line of that chapter that is
+ * not learned yet; once the chapter is learned, or without a chapter, the
+ * first such line of the whole course. Null when every line is learned.
+ */
+export function nextStudyLine(
+  course: CourseStudyOrder,
+  progress: Readonly<Record<string, VariationProgress | undefined>>,
+  chapterId?: string,
+): NextStudyLine | null {
+  const scopes =
+    chapterId === undefined
+      ? [course.chapters]
+      : [course.chapters.filter((chapter) => chapter.id === chapterId), course.chapters];
+  for (const chapters of scopes) {
+    for (const chapter of chapters) {
+      for (const variation of chapter.variations) {
+        if (!progress[variation.id]?.learned) {
+          return {
+            id: variation.id,
+            title: variation.title,
+            chapterTitle: chapter.title,
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
