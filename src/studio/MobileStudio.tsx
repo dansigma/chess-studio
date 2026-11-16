@@ -8,6 +8,7 @@ import { ExplorerPanel } from "./ExplorerPanel";
 import { MobileMoveStrip } from "./MobileMoveStrip";
 import { NotationPanel } from "./NotationPanel";
 import { ReviewPanel } from "./ReviewPanel";
+import { SiteNavLinks } from "./SiteNavLinks";
 import { BottomSheet } from "./BottomSheet";
 import { FileMenuItems } from "./MenuBarFileMenu";
 import { EditMenuItems } from "./MenuBarEditMenu";
@@ -142,6 +143,9 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
       )}
       {menuOpen ? (
         <BottomSheet title={tMobile(locale, "mobile.menu.title")} onClose={closeMenu}>
+          {/* SIG-1202: site navigation sits above the menu sections so Courses
+              and Puzzles are reachable in two taps from anywhere in /studio. */}
+          <SiteNavLinks onNavigate={closeMenu} />
           <div role="menu" aria-label={tMobile(locale, "mobile.menu.title")}>
             <div className="px-1.5 pb-1 pt-2 text-caption font-semibold uppercase tracking-wider text-studio-faint">
               {tStudioChrome(locale, "chrome.menu.file")}
