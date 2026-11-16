@@ -268,6 +268,7 @@ function DebouncedSearch() {
         value={text}
         onChange={change}
         placeholder={tLibrary(locale, "library.search.placeholder")}
+        clearLabel={tLibrary(locale, "library.search.clear")}
       />
     </div>
   );

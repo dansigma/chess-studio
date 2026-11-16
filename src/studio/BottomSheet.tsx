@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { useStudioStore } from "@/src/store/studio-store";
 import { IconButton } from "./ui/Button";
 import { useDialogFocus } from "./ui/use-dialog-focus";
 
@@ -19,6 +21,7 @@ export function BottomSheet({
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const locale = useStudioStore((state) => state.settings.locale);
   useDialogFocus(sheetRef);
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export function BottomSheet({
       >
         <div className="flex items-center justify-between gap-3 px-4 pb-1 pt-3.5">
           <h2 id={titleId} className="text-title font-semibold text-studio-fg">{title}</h2>
-          <IconButton label="Close" shortcut="Esc" onClick={onClose}>
+          <IconButton label={tStudioChrome(locale, "chrome.dialog.close")} shortcut="Esc" onClick={onClose}>
             <X size={14} />
           </IconButton>
         </div>
