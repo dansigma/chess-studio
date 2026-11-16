@@ -440,6 +440,8 @@ body {
   width: 20px;
   height: 20px;
   padding: 3px;
+  /* SIG-1377: anchor for the invisible hit-area pseudo-element below. */
+  position: relative;
   border-radius: 6px;
   color: var(--studio-faint);
   display: flex;
@@ -449,6 +451,16 @@ body {
   visibility: visible;
   pointer-events: none;
   transition: background-color 150ms ease, color 150ms ease, opacity 120ms ease;
+}
+
+/* SIG-1377: WCAG 2.2 SC 2.5.8 needs 24x24, but a wider box would change tab
+   sizing. The 20px box stays and this transparent overlay adds 2px per side,
+   giving a 24x24 target. It inherits the base pointer-events: none, so it only
+   takes clicks once the close action is revealed. */
+.dockview-theme-vs .dv-tab .dv-default-tab .dv-default-tab-action::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
 }
 
 /* SIG-955: compact tab close, visible only on tab hover/focus. The base

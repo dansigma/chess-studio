@@ -106,6 +106,10 @@ const JUMP_BUTTON =
 /** Same box for buttons and plain numbers, so table rows keep one height. */
 const COUNT_BOX = "inline-flex min-h-6 min-w-8 items-center justify-center px-1.5";
 const COUNT_BOX_DENSE = "inline-flex min-h-5 min-w-5 items-center justify-center px-1";
+/** SIG-1377: the 20px dense box stays small on screen; the invisible ::before
+ *  grows only the pointer target to 24px (the neighbouring badge and label are
+ *  not interactive, so nothing loses clicks). */
+const DENSE_HIT_AREA = "relative before:absolute before:-inset-0.5 before:content-['']";
 
 /** Labels with a non-zero count for one side, in REVIEW_LABELS order. */
 export function classificationChips(side: SideReport): Array<{ label: TierLabel; count: number }> {
@@ -144,7 +148,7 @@ function TierCount({
       data-tier-count={label}
       aria-label={tierJumpLabel(locale, { tier: tierName(locale, label), player: side.name, count })}
       onClick={() => onSelectTier(piece, label)}
-      className={`${box} ${JUMP_BUTTON} ${className}`}
+      className={`${box} ${dense ? DENSE_HIT_AREA : ""} ${JUMP_BUTTON} ${className}`}
     >
       {count}
     </button>

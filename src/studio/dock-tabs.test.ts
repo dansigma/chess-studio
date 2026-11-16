@@ -168,3 +168,18 @@ describe("studio tab close hover-only (SIG-955)", () => {
     );
   });
 });
+
+describe("studio tab close hit target (SIG-1377)", () => {
+  it("adds a 24x24 pointer target around the 20px close box", () => {
+    assert.ok(
+      globalsCss.includes(".dv-default-tab-action::before"),
+      "close button needs a pseudo-element hit area",
+    );
+    assert.match(
+      globalsCss,
+      /\.dv-default-tab-action::before\s*\{[^}]*inset: -2px;/,
+      "2px per side turns the 20px box into a 24x24 target",
+    );
+    assert.ok(globalsCss.includes("width: 20px;"), "the visible box stays 20px wide");
+  });
+});
