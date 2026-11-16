@@ -41,11 +41,14 @@ export function Chip({
   children: ReactNode;
 }) {
   return (
+    // SIG-1377: the 22px pill keeps its rendered size; the invisible ::before
+    // grows the pointer target to 24px without moving neighbouring chips. It is
+    // -2px, not -1px: an absolute child starts inside the 1px border.
     <button
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex h-[22px] items-center gap-1.5 rounded-full border px-2 text-caption ${
+      className={`relative inline-flex h-[22px] items-center gap-1.5 rounded-full border px-2 text-caption before:absolute before:-inset-0.5 before:content-[''] ${
         active
           ? "border-transparent bg-studio-accent-soft text-studio-accent-text"
           : "border-studio-border bg-studio-hover-subtle text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
@@ -152,11 +155,13 @@ export function SearchInput({
         className="min-w-0 flex-1 bg-transparent text-dense text-studio-fg outline-none placeholder:text-studio-faint"
       />
       {value ? (
+        // SIG-1377: 24px hit target; the 10px glyph and the 30px field height
+        // are unchanged (the label's fixed height absorbs the extra 6px).
         <button
           type="button"
           aria-label={clearLabel}
           onClick={() => onChange("")}
-          className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-studio-hover-strong text-studio-muted hover:text-studio-fg"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-studio-hover-strong text-studio-muted hover:text-studio-fg"
         >
           <X size={10} />
         </button>
