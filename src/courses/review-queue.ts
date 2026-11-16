@@ -71,6 +71,23 @@ export function dueQueue(
   return queue.sort((a, b) => dueTime(a.dueAt) - dueTime(b.dueAt));
 }
 
+/**
+ * SIG-1389: the lines a session can actually play — due now and with a PGN to
+ * put on the board. An outline whose content never arrived must not turn into
+ * an empty result in the summary. Shared by the queue frozen when the session
+ * opens and the end-of-session check with the saved progress.
+ */
+export function playableDueQueue(
+  course: Pick<Course, "chapters">,
+  progress: Readonly<Record<string, VariationProgress | undefined>>,
+  now: Date,
+  chapterId?: string,
+): DueLine[] {
+  return dueQueue(course, progress, now, chapterId).filter(
+    (line) => line.variation.pgn.trim() !== "",
+  );
+}
+
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 

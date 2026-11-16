@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   REVIEW_SEGMENT,
   dueQueue,
+  playableDueQueue,
   reviewDueLabel,
   reviewHref,
 } from "./review-queue.ts";
@@ -86,6 +87,44 @@ describe("dueQueue", () => {
     assert.equal(queue[0].variation.title, "A");
     assert.equal(queue[0].chapterTitle, "Chapter one");
     assert.equal(queue[0].dueAt, "2026-01-01T00:00:00Z");
+  });
+});
+
+describe("playableDueQueue", () => {
+  const playable = {
+    chapters: [
+      {
+        id: "ch1",
+        title: "Chapter one",
+        variations: [
+          { id: "a", title: "A", pgn: "1. e4 e5 *" },
+          { id: "b", title: "B", pgn: "   " },
+        ],
+      },
+      {
+        id: "ch2",
+        title: "Chapter two",
+        variations: [{ id: "c", title: "C", pgn: "1. d4 d5 *" }],
+      },
+    ],
+  } as unknown as Course;
+
+  it("keeps only due lines with a PGN to play", () => {
+    const progress = { a: learned(), b: learned(), c: learned() };
+    assert.deepEqual(
+      playableDueQueue(playable, progress, NOW).map((line) => line.variation.id),
+      ["a", "c"],
+    );
+  });
+
+  it("keeps the chapter scope", () => {
+    const progress = { a: learned(), c: learned() };
+    assert.deepEqual(
+      playableDueQueue(playable, progress, NOW, "ch2").map(
+        (line) => line.variation.id,
+      ),
+      ["c"],
+    );
   });
 });
 

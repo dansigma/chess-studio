@@ -11,7 +11,7 @@ import { CourseChrome } from "../CourseChrome";
 import { LockedLesson } from "../LockedLesson";
 import { nextStudyLine, type NextStudyLine } from "../next-line";
 import { afterReview } from "../review";
-import { dueQueue, type DueLine } from "../review-queue";
+import { playableDueQueue, type DueLine } from "../review-queue";
 import {
   PROGRESS_BROWSER_ONLY,
   loadProgress,
@@ -34,6 +34,9 @@ import {
  * limits the session to that chapter. Each finished line is saved right away,
  * so leaving midway keeps the reviews already done; the queue itself is frozen
  * when the session opens, because saving a line makes it not due anymore.
+ * SIG-1389: lines that become due while the session runs are not in that
+ * frozen queue, so the summary reads the saved progress again and offers
+ * "Revisar de novo" (same scope) while anything is still due.
  */
 export function ReviewSession({
   course,
@@ -84,11 +87,7 @@ export function ReviewSession({
     setQueuedFor(queueKey);
     // A due line without PGN cannot be played (an outline whose content never
     // arrived); it must not turn into an empty result in the summary.
-    setQueue(
-      dueQueue(effectiveCourse, progress, new Date(), chapterId).filter(
-        (line) => line.variation.pgn.trim() !== "",
-      ),
-    );
+    setQueue(playableDueQueue(effectiveCourse, progress, new Date(), chapterId));
     setNextLine(nextStudyLine(effectiveCourse, progress, chapterId));
     setReview(INITIAL_REVIEW_SESSION);
     setNotice("");
@@ -146,6 +145,14 @@ export function ReviewSession({
   const total = queue.length;
   const current = queue[Math.min(review.index, total - 1)];
   const summary = review.phase === "summary";
+  // SIG-1389: the queue is frozen when the session opens, so look at the saved
+  // progress again at the end. `saveVariationProgress` updates the module cache
+  // synchronously, before it awaits the account write, so this also sees lines
+  // whose review ended moments ago (a missed line comes due again in hours and
+  // is not offered yet).
+  const againDue = summary
+    ? playableDueQueue(effectiveCourse, loadProgress(), new Date(), chapterId)
+    : [];
 
   function finishLine(line: DueLine, mistakes: number) {
     const saved = loadProgress()[line.variation.id] ?? {
@@ -186,6 +193,19 @@ export function ReviewSession({
     );
   }
 
+  // SIG-1389: another round with the same scope (whole course or the chapter
+  // in the URL). The route does not change, so the session resets in place
+  // from the progress saved by the round that just ended, not from the
+  // `progress` snapshot taken when the page hydrated.
+  function restartSession() {
+    const saved = loadProgress();
+    const now = new Date();
+    setQueue(playableDueQueue(effectiveCourse, saved, now, chapterId));
+    setNextLine(nextStudyLine(effectiveCourse, saved, chapterId));
+    setReview(INITIAL_REVIEW_SESSION);
+    setNotice("");
+  }
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-studio-bg">
       <CourseChrome admin={admin} isAdmin={isAdmin} />
@@ -213,6 +233,9 @@ export function ReviewSession({
           courseSlug={course.slug}
           nextLine={nextLine}
           results={review.results}
+          onReviewAgain={
+            againDue.length > 0 ? restartSession : undefined
+          }
         />
       ) : (
         <ReviewLine
