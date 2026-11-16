@@ -13,6 +13,8 @@ const { ReviewEmptyState, ReviewHeader, ReviewSummary } = await import(
   "./ReviewPanels.tsx"
 );
 
+const NEXT = { id: "c1", title: "Panov", chapterTitle: "Capítulo três" };
+
 const NOW = new Date("2026-01-10T12:00:00Z");
 const DAY = 86_400_000;
 
@@ -64,6 +66,7 @@ test("summary lists every reviewed line with its result and next due date", () =
     <ReviewSummary
       locale="pt-br"
       courseSlug="caro"
+      nextLine={NEXT}
       results={results}
       now={NOW}
     />,
@@ -77,14 +80,60 @@ test("summary lists every reviewed line with its result and next due date", () =
       "ClássicaCapítulo dois2 errosPróxima revisão: em 4 horas",
     ],
   );
-  const back = screen.getByRole("link", { name: "Voltar ao curso" });
-  assert.equal(back.getAttribute("href"), "/courses/caro");
+  assertContinues();
 });
 
-test("empty state says Nenhuma revisão pendente and links back to the course", () => {
-  render(<ReviewEmptyState locale="pt-br" courseSlug="caro" />);
-  screen.getByText("Revisão");
-  screen.getByText("Nenhuma revisão pendente");
+/** SIG-1386: Continuar estudando first, Voltar ao curso second. */
+function assertContinues() {
+  screen.getByText("Próxima linha: Capítulo três · Panov");
+  const links = screen.getAllByRole("link").filter((link) =>
+    link.closest("[data-review-next]"),
+  );
+  assert.deepEqual(
+    links.map((link) => [link.textContent, link.getAttribute("href")]),
+    [
+      ["Continuar estudando", "/courses/caro/c1"],
+      ["Voltar ao curso", "/courses/caro"],
+    ],
+  );
+}
+
+/** SIG-1386: a fully learned course only links back, as complete. */
+function assertCourseDone() {
+  screen.getByText("Curso concluído: você já aprendeu todas as linhas.");
+  assert.equal(screen.queryByRole("link", { name: "Continuar estudando" }), null);
   const back = screen.getByRole("link", { name: "Voltar ao curso" });
   assert.equal(back.getAttribute("href"), "/courses/caro");
+}
+
+test("summary of a fully learned course falls back to Voltar ao curso", () => {
+  render(
+    <ReviewSummary
+      locale="pt-br"
+      courseSlug="caro"
+      nextLine={null}
+      results={results}
+      now={NOW}
+    />,
+  );
+  assertCourseDone();
+});
+
+test("empty state says Nenhuma revisão pendente and offers the next line", () => {
+  render(<ReviewEmptyState locale="pt-br" courseSlug="caro" nextLine={NEXT} />);
+  screen.getByText("Revisão");
+  screen.getByText("Nenhuma revisão pendente");
+  assertContinues();
+});
+
+test("empty state of a fully learned course falls back to Voltar ao curso", () => {
+  render(<ReviewEmptyState locale="pt-br" courseSlug="caro" nextLine={null} />);
+  assertCourseDone();
+});
+
+test("the next actions read in English too", () => {
+  render(<ReviewEmptyState locale="en" courseSlug="caro" nextLine={NEXT} />);
+  screen.getByText("Next line: Capítulo três · Panov");
+  screen.getByRole("link", { name: "Continue studying" });
+  screen.getByRole("link", { name: "Back to course" });
 });

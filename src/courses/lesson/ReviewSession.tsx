@@ -9,6 +9,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { chapterIndex } from "../chapter-param";
 import { CourseChrome } from "../CourseChrome";
 import { LockedLesson } from "../LockedLesson";
+import { nextStudyLine, type NextStudyLine } from "../next-line";
 import { afterReview } from "../review";
 import { dueQueue, type DueLine } from "../review-queue";
 import {
@@ -73,6 +74,9 @@ export function ReviewSession({
     course.contentLoaded !== false || content.status === "ready";
   const [queue, setQueue] = useState<DueLine[] | null>(null);
   const [queuedFor, setQueuedFor] = useState<string | null>(null);
+  // SIG-1386: frozen with the queue. Reviews only touch learned lines, so
+  // the session never changes which line is next.
+  const [nextLine, setNextLine] = useState<NextStudyLine | null>(null);
   const [review, setReview] = useState(INITIAL_REVIEW_SESSION);
   const [notice, setNotice] = useState("");
   const queueKey = `${course.slug}#${chapterId ?? ""}`;
@@ -85,6 +89,7 @@ export function ReviewSession({
         (line) => line.variation.pgn.trim() !== "",
       ),
     );
+    setNextLine(nextStudyLine(effectiveCourse, progress, chapterId));
     setReview(INITIAL_REVIEW_SESSION);
     setNotice("");
   }
@@ -129,7 +134,11 @@ export function ReviewSession({
     return (
       <div className="min-h-full bg-studio-bg">
         <CourseChrome admin={admin} isAdmin={isAdmin} />
-        <ReviewEmptyState locale={locale} courseSlug={course.slug} />
+        <ReviewEmptyState
+          locale={locale}
+          courseSlug={course.slug}
+          nextLine={nextLine}
+        />
       </div>
     );
   }
@@ -202,6 +211,7 @@ export function ReviewSession({
         <ReviewSummary
           locale={locale}
           courseSlug={course.slug}
+          nextLine={nextLine}
           results={review.results}
         />
       ) : (
