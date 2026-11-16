@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, test } from "node:test";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReviewLineResult } from "./review-session.ts";
 
 before(() => setupDom());
@@ -117,6 +117,70 @@ test("summary of a fully learned course falls back to Voltar ao curso", () => {
     />,
   );
   assertCourseDone();
+});
+
+test("summary offers Revisar de novo while lines are still due", () => {
+  let restarted = 0;
+  render(
+    <ReviewSummary
+      locale="pt-br"
+      courseSlug="caro"
+      nextLine={NEXT}
+      results={results}
+      onReviewAgain={() => {
+        restarted += 1;
+      }}
+      now={NOW}
+    />,
+  );
+  assertContinues();
+  fireEvent.click(screen.getByRole("button", { name: "Revisar de novo" }));
+  assert.equal(restarted, 1);
+});
+
+test("summary hides Revisar de novo when nothing is due", () => {
+  render(
+    <ReviewSummary
+      locale="pt-br"
+      courseSlug="caro"
+      nextLine={NEXT}
+      results={results}
+      now={NOW}
+    />,
+  );
+  assert.equal(
+    screen.queryByRole("button", { name: "Revisar de novo" }),
+    null,
+  );
+});
+
+test("summary of a learned course keeps Voltar ao curso and offers another round", () => {
+  render(
+    <ReviewSummary
+      locale="pt-br"
+      courseSlug="caro"
+      nextLine={null}
+      results={results}
+      onReviewAgain={() => {}}
+      now={NOW}
+    />,
+  );
+  assertCourseDone();
+  screen.getByRole("button", { name: "Revisar de novo" });
+});
+
+test("the review again action reads in English too", () => {
+  render(
+    <ReviewSummary
+      locale="en"
+      courseSlug="caro"
+      nextLine={NEXT}
+      results={results}
+      onReviewAgain={() => {}}
+      now={NOW}
+    />,
+  );
+  screen.getByRole("button", { name: "Review again" });
 });
 
 test("empty state says Nenhuma revisão pendente and offers the next line", () => {

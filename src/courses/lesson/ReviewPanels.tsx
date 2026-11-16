@@ -4,6 +4,7 @@ import Link from "next/link";
 import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
+import { Button } from "@/src/studio/ui/Button";
 import type { NextStudyLine } from "../next-line";
 import { reviewDueLabel } from "../review-queue";
 import { reviewResultText, type ReviewLineResult } from "./review-session";
@@ -17,16 +18,19 @@ const SECONDARY_LINK =
  * SIG-1386: where a review leads. With a line left to learn, Continuar
  * estudando opens it and Voltar ao curso stays as the secondary action; once
  * every line is learned, the course is complete and Voltar ao curso is the
- * only (primary) action.
+ * only (primary) action. SIG-1389: `onReviewAgain` adds "Revisar de novo", a
+ * secondary action that starts another round, when lines are still due.
  */
 function ReviewNextActions({
   locale,
   courseSlug,
   nextLine,
+  onReviewAgain,
 }: {
   locale: SiteLocale;
   courseSlug: string;
   nextLine: NextStudyLine | null;
+  onReviewAgain?: () => void;
 }) {
   const courseHref = `/courses/${courseSlug}`;
   return (
@@ -45,14 +49,26 @@ function ReviewNextActions({
             <Link href={`${courseHref}/${nextLine.id}`} className={PRIMARY_LINK}>
               {tCourse(locale, "course.review.next.continue")}
             </Link>
+            {onReviewAgain ? (
+              <Button variant="secondary" onClick={onReviewAgain}>
+                {tCourse(locale, "course.review.again")}
+              </Button>
+            ) : null}
             <Link href={courseHref} className={SECONDARY_LINK}>
               {tCourse(locale, "course.lesson.backToCourse")}
             </Link>
           </>
         ) : (
-          <Link href={courseHref} className={PRIMARY_LINK}>
-            {tCourse(locale, "course.lesson.backToCourse")}
-          </Link>
+          <>
+            <Link href={courseHref} className={PRIMARY_LINK}>
+              {tCourse(locale, "course.lesson.backToCourse")}
+            </Link>
+            {onReviewAgain ? (
+              <Button variant="secondary" onClick={onReviewAgain}>
+                {tCourse(locale, "course.review.again")}
+              </Button>
+            ) : null}
+          </>
         )}
       </div>
     </div>
@@ -147,12 +163,15 @@ export function ReviewHeader({
 /**
  * SIG-1375: the end of the session. One row per reviewed line with the result
  * ("Sem erros" / "N erros") and when the line is due again ("em 3 dias").
+ * SIG-1389: `onReviewAgain` is passed only while lines are still due, so the
+ * summary offers another round without ever showing it when nothing is due.
  */
 export function ReviewSummary({
   locale,
   courseSlug,
   nextLine,
   results,
+  onReviewAgain,
   now = new Date(),
 }: {
   locale: SiteLocale;
@@ -160,6 +179,8 @@ export function ReviewSummary({
   /** SIG-1386: the line to study next; null once every line is learned. */
   nextLine: NextStudyLine | null;
   results: readonly ReviewLineResult[];
+  /** SIG-1389: starts another round with the same scope. */
+  onReviewAgain?: () => void;
   now?: Date;
 }) {
   return (
@@ -209,6 +230,7 @@ export function ReviewSummary({
           locale={locale}
           courseSlug={courseSlug}
           nextLine={nextLine}
+          onReviewAgain={onReviewAgain}
         />
       </div>
     </main>
