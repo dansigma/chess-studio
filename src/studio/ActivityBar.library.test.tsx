@@ -2,13 +2,14 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, mock, test } from "node:test";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 
 mock.module("next/navigation", {
   namedExports: { useRouter: () => ({ push() {} }), usePathname: () => "/studio" },
 });
 
 const { ActivityBar } = await import("./ActivityBar.tsx");
+const { SITE_NAME, siteSections } = await import("@/src/site/sections.ts");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
 
@@ -69,8 +70,9 @@ test("Live label is Ao Vivo in pt-br", () => {
   assert.ok(screen.getByRole("button", { name: "Ao Vivo" }));
 });
 
-// SIG-1298: labels follow settings.sidebarCollapsed.
-const NAV_ITEMS = ["Studio", "Courses", "Puzzles", "Open boards", "Bookmarks", "My Games", "Library", "Live"];
+// SIG-1298: labels follow settings.sidebarCollapsed. SIG-1381: the site links
+// follow the site header order (siteSections), not a studio-local order.
+const NAV_ITEMS = ["Courses", "Puzzles", "Studio", "Open boards", "Bookmarks", "My Games", "Library", "Live"];
 
 function labelsFor(name: string) {
   return Array.from(document.querySelectorAll("[data-activity-label]")).filter((el) => el.textContent === name);
@@ -137,4 +139,25 @@ test("the activity bar has neither the Databases nor the Files item (SIG-1325)",
   for (const name of ["Databases", "Files"]) {
     assert.equal(screen.queryByRole("button", { name }), null);
   }
+});
+
+// SIG-1381: siteSections() is the only source of the site link order.
+test("site links follow siteSections() order without re-sorting", () => {
+  render(<ActivityBar />);
+  const labels = screen.getAllByRole("link").map((link) => link.getAttribute("aria-label"));
+  assert.deepEqual(labels, siteSections("en").map((section) => section.label));
+  assert.deepEqual(labels, ["Courses", "Puzzles", "Studio"]);
+});
+
+// SIG-1381: the workspace toggles are one group with an accessible name, and
+// the site links keep their existing site-name group.
+test("workspace toggles are a labelled group next to the site-name group", () => {
+  render(<ActivityBar />);
+  const workspace = screen.getByRole("group", { name: "Workspace" });
+  for (const name of ["Open boards", "Bookmarks", "My Games", "Library", "Live"]) {
+    assert.ok(within(workspace).getByRole("button", { name }), name);
+  }
+  assert.ok(screen.getByRole("group", { name: SITE_NAME }));
+  act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } }));
+  assert.ok(screen.getByRole("group", { name: "Espaço de trabalho" }));
 });
