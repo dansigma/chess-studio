@@ -28,13 +28,13 @@ const items: { id: ActivityView; icon: typeof Search; titleKey: StudioChromeStri
 ];
 
 // SIG-1201: site navigation icons, mapped by href so labels/hrefs come from
-// siteSections(locale).
+// siteSections(locale). SIG-1381: siteSections is also the only source of
+// order, so the activity bar never re-sorts the site links.
 const SITE_ICONS: Record<string, typeof Search> = {
   "/studio": LayoutDashboard,
   "/courses": GraduationCap,
   "/puzzles": Puzzle,
 };
-const SITE_ORDER = ["/studio", "/courses", "/puzzles"];
 
 // SIG-1300: one text colour rule for icon + label, shared by links and buttons.
 const INACTIVE_TEXT = "text-studio-muted hover:text-studio-fg transition-colors";
@@ -156,9 +156,7 @@ export function ActivityBar() {
   const toggleSidebar = useStudioStore((state) => state.toggleSidebar);
   const pathname = usePathname();
   const expanded = !sidebarCollapsed;
-  const sections = siteSections(locale)
-    .filter((section) => SITE_ICONS[section.href])
-    .sort((a, b) => SITE_ORDER.indexOf(a.href) - SITE_ORDER.indexOf(b.href));
+  const sections = siteSections(locale).filter((section) => SITE_ICONS[section.href]);
 
   return (
     <nav
@@ -185,43 +183,49 @@ export function ActivityBar() {
         })}
       </div>
       <div aria-hidden="true" className="mx-3 my-1 h-px w-6 shrink-0 self-start bg-studio-border" />
-      {items.map((item) => {
-        const Icon = item.icon;
-        const active = item.id === activity && !sidebarCollapsed;
-        return (
-          <ActivityButton
-            key={item.id}
-            label={tStudioChrome(locale, item.titleKey)}
-            active={active}
-            expanded={expanded}
-            onClick={() => {
-              if (active) {
-                toggleSidebar();
-                return;
-              }
-              setActivity(item.id);
-            }}
-          >
-            <Icon size={18} />
-          </ActivityButton>
-        );
-      })}
-      <ActivityButton
-        label={tStudioChrome(locale, "chrome.activity.library")}
-        expanded={expanded}
-        active={workspaceView === "library"}
-        onClick={toggleLibrary}
+      <div
+        role="group"
+        aria-label={tStudioChrome(locale, "chrome.activity.workspace")}
+        className="flex flex-col items-stretch gap-0.5"
       >
-        <Library size={18} />
-      </ActivityButton>
-      <ActivityButton
-        label={tStudioChrome(locale, "chrome.activity.live")}
-        expanded={expanded}
-        active={workspaceView === "live"}
-        onClick={toggleLive}
-      >
-        <Radio size={18} />
-      </ActivityButton>
+        {items.map((item) => {
+          const Icon = item.icon;
+          const active = item.id === activity && !sidebarCollapsed;
+          return (
+            <ActivityButton
+              key={item.id}
+              label={tStudioChrome(locale, item.titleKey)}
+              active={active}
+              expanded={expanded}
+              onClick={() => {
+                if (active) {
+                  toggleSidebar();
+                  return;
+                }
+                setActivity(item.id);
+              }}
+            >
+              <Icon size={18} />
+            </ActivityButton>
+          );
+        })}
+        <ActivityButton
+          label={tStudioChrome(locale, "chrome.activity.library")}
+          expanded={expanded}
+          active={workspaceView === "library"}
+          onClick={toggleLibrary}
+        >
+          <Library size={18} />
+        </ActivityButton>
+        <ActivityButton
+          label={tStudioChrome(locale, "chrome.activity.live")}
+          expanded={expanded}
+          active={workspaceView === "live"}
+          onClick={toggleLive}
+        >
+          <Radio size={18} />
+        </ActivityButton>
+      </div>
       <div className="mt-auto">
         <ActivityButton
           label={tStudioChrome(locale, sidebarCollapsed ? "chrome.activity.expand" : "chrome.activity.collapse")}
