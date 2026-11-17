@@ -64,6 +64,15 @@ function seeded(preset: (typeof DOCK_PRESET_IDS)[number]): { api: DockviewApi; s
   return { api, snapshot };
 }
 
+test("essential seed: board over engine with notation right, no extra panels", () => {
+  const { snapshot } = seeded("essential");
+  assert.deepEqual(Object.keys(snapshot.dock.panels).sort(), ["board:b1", "engine", "notation"]);
+  assert.deepEqual(shape((snapshot.dock.grid as { root: unknown }).root), [
+    ["board:b1*", "engine*"],
+    "notation*",
+  ] as unknown);
+});
+
 test("default seed: board over analysis tabs, reading tabs over explorer + games", () => {
   const { snapshot } = seeded("full");
   const root = (snapshot.dock.grid as { root: unknown }).root;

@@ -329,7 +329,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
   const panelSubscriptions = useRef<Array<{ dispose: () => void }>>([]);
 
   // SIG-907: seed needs the session id for the `board:<boardId>` panel id.
-  function seedFor(api: DockviewApi, preset: DockPresetId = "full"): void {
+  function seedFor(api: DockviewApi, preset: DockPresetId = "essential"): void {
     const state = useStudioStore.getState();
     const active = selectActiveBoard(state);
     DOCK_PRESET_SEEDS[preset](api, boardTitle(state.settings.locale, active.title), active.id);
@@ -575,11 +575,15 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
     registerStudioDock(api);
     setDockLayoutListener((snapshot) => {
       runWithoutSave(() => {
-        if (!placeSnapshot(api, snapshot)) {
+        if (placeSnapshot(api, snapshot)) {
+          // SIG-1382: a restored layout gets the one-time ensure pass; a
+          // fresh seed must not re-add panels the Essential preset left out.
+          ensureMissingPanels(api);
+        } else {
           seedFor(api);
+          markPanelsEnsured();
         }
         placePlayers(api);
-        ensureMissingPanels(api);
         ensureActiveBoardPanel();
       });
     });
@@ -605,11 +609,20 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
         markPanelsEnsured();
         return;
       }
+      let seeded = false;
       if (!saved || !placeSnapshot(api, saved)) {
         seedFor(api);
+        seeded = true;
       }
       placePlayers(api);
-      ensureMissingPanels(api);
+      // SIG-1382: a first-run seed already matches the current preset —
+      // mark panels ensured so the legacy ensure pass doesn't re-add
+      // Repertoire/Review/Insights/My Stats as inactive tabs.
+      if (seeded) {
+        markPanelsEnsured();
+      } else {
+        ensureMissingPanels(api);
+      }
       ensureActiveBoardPanel();
     });
     if (pendingLayout) {

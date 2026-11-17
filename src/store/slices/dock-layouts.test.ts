@@ -124,6 +124,6 @@ describe("SIG-1316 saved layouts", () => {
     store().applyPresetLayout("study");
     store().resetView();
     assert.equal(takePendingDockLayout(), null, "reset clears any pending preset so the default seeds");
-    assert.equal(store().currentLayoutKey, "preset:full");
+    assert.equal(store().currentLayoutKey, "preset:essential");
   });
 });

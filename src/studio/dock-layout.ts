@@ -55,8 +55,8 @@ export type DockLayoutSnapshot = {
 };
 
 // SIG-1316: built-in layout presets. Each one is a seed function in dock-api
-// (`DOCK_PRESET_SEEDS`), not stored JSON; "full" is the default layout.
-export const DOCK_PRESET_IDS = ["full", "study", "minimal"] as const;
+// (`DOCK_PRESET_SEEDS`), not stored JSON; "essential" is the default layout.
+export const DOCK_PRESET_IDS = ["essential", "full", "study", "minimal"] as const;
 export type DockPresetId = (typeof DOCK_PRESET_IDS)[number];
 
 export function isDockPresetId(value: unknown): value is DockPresetId {

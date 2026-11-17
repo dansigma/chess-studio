@@ -80,10 +80,10 @@ export const createDockSlice: StateCreator<StudioState, [], [], DockSlice> = (se
         currentDockLayoutEpoch(),
         get().user?.id ?? null,
       ).catch(() => undefined);
-      writeCurrentLayoutKey(presetLayoutKey("full"));
+      writeCurrentLayoutKey(presetLayoutKey("essential"));
       set((state) => ({
         layoutNonce: state.layoutNonce + 1,
-        currentLayoutKey: presetLayoutKey("full"),
+        currentLayoutKey: presetLayoutKey("essential"),
       }));
     },
     applyPresetLayout: (id) => {
@@ -107,7 +107,7 @@ export const createDockSlice: StateCreator<StudioState, [], [], DockSlice> = (se
       );
       bumpDockLayoutEpoch();
       queuePendingDockLayout(
-        remapped ? { kind: "snapshot", snapshot: remapped } : { kind: "preset", id: "full" },
+        remapped ? { kind: "snapshot", snapshot: remapped } : { kind: "preset", id: "essential" },
       );
       writeCurrentLayoutKey(savedLayoutKey(id));
       set((state) => ({
