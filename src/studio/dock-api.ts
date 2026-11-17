@@ -257,7 +257,16 @@ function addStaticPanel(
   });
 }
 
-// SIG-1316: the default layout ("Full analysis"). Left column: board over an
+// SIG-1382: the default "Essential" layout — board over Engine with Notation
+// to the right. Nothing else is added; every other panel stays reachable via
+// View → Open panel.
+export function seedEssentialLayout(api: DockviewApi, boardTitle: string, boardId: string): void {
+  const board = addBoardPanel(api, boardTitle, boardId);
+  addStaticPanel(api, "notation", board, { direction: "right", initialWidth: 460 });
+  addStaticPanel(api, "engine", board, { direction: "below", initialHeight: 220 });
+}
+
+// SIG-1316: the "Full analysis" layout. Left column: board over an
 // analysis group (Engine · Eval Graph · Insights). Right column: a reading
 // group (Notation · Repertoire · Game Review · My Stats) over Opening
 // Explorer and Games side by side. The splits are added columns-first so each
@@ -301,6 +310,7 @@ export const DOCK_PRESET_SEEDS: Record<
   DockPresetId,
   (api: DockviewApi, boardTitle: string, boardId: string) => void
 > = {
+  essential: seedEssentialLayout,
   full: seedDefaultLayout,
   study: seedStudyLayout,
   minimal: seedMinimalLayout,

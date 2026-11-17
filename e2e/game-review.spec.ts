@@ -88,7 +88,12 @@ async function importGame(
   // panel opened it); "Open in Studio" opens at the preview's position.
   await page.getByRole("button", { name: "Last move", exact: true }).click();
   await page.getByTestId("library-preview").getByRole("button", { name: "Open in Studio" }).click();
-  await page.getByRole("tab", { name: "Game Review", exact: true }).click();
+  // SIG-1382: the first-run Essential layout has no Game Review tab; open it
+  // through View → Open panel (it joins the Notation group as a tab).
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Open panel" }).hover();
+  await page.getByRole("menuitem", { name: "Game Review", exact: true }).filter({ visible: true }).first().click();
+  await expect(page.getByRole("tab", { name: "Game Review", exact: true })).toHaveAttribute("aria-selected", "true");
   await selectDepth(page, "Fast");
 }
 
