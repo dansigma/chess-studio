@@ -28,7 +28,7 @@ describe("My Stats panel contract (SIG-1091)", () => {
     assert.ok(panel.includes("MyStatsTrend"), "panel must render the accuracy trend chart (accuracySeries lives in MyStatsTrend)");
     assert.ok(panel.includes("resultsByOpening"), "panel must aggregate with resultsByOpening");
     assert.ok(panel.includes("mistakesPerGame"), "panel must aggregate with mistakesPerGame");
-    assert.ok(panel.includes("myGames.statsEmpty"), "panel must show the <3-reviewed empty state");
+    assert.ok(panel.includes("MyStatsReviewGate"), "panel must show the <3-reviewed gate with progress + review action");
     assert.ok(openingResults.includes('role="tab"'), "opening table must offer white/black tabs");
   });
 

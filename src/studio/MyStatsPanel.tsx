@@ -66,6 +66,7 @@ import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
 import { MyStatsPhases } from "./MyStatsPhases";
+import { MyStatsReviewGate } from "./MyStatsReviewGate";
 import { MyStatsTrend } from "./MyStatsTrend";
 
 type LoadState = "signedOut" | "loading" | "ready" | "unavailable";
@@ -321,9 +322,7 @@ export function MyStatsPanel() {
             {tMyGames(locale, "myGames.error.unavailable")}
           </p>
         ) : view === "empty" ? (
-          <p role="status" className="text-dense text-studio-muted">
-            {tMyGames(locale, "myGames.statsEmpty")}
-          </p>
+          <MyStatsReviewGate locale={locale} reviewed={totalReviewed} />
         ) : (
           <>
             <div role="tablist" aria-label={tMyGames(locale, "myGames.statsTitle")} className="mb-2 flex gap-1">
@@ -409,7 +408,7 @@ export function MyStatsPanel() {
               {filteredReady ? (
                 <MyStatsTrend games={filteredGames} locale={locale} onOpenGame={onOpenGame} />
               ) : (
-                <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
+                <MyStatsReviewGate locale={locale} reviewed={reviewedCount} />
               )}
             </section>
             <OpeningResultsTable
@@ -435,7 +434,7 @@ export function MyStatsPanel() {
                   filtersActive={!isDefaultOverviewFilters(overviewFilters)}
                 />
               ) : (
-                <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
+                <MyStatsReviewGate locale={locale} reviewed={reviewedCount} />
               )}
             </section>
             {whiteRepTree === null && blackRepTree === null ? null : (
@@ -444,7 +443,11 @@ export function MyStatsPanel() {
                   {tRepertoire(locale, "repertoire.deviation.statsTitle")}
                 </h2>
                 {deviationGroups.length === 0 ? (
-                  <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
+                  filteredReady ? (
+                    <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsDeviationsEmpty")}</p>
+                  ) : (
+                    <MyStatsReviewGate locale={locale} reviewed={reviewedCount} />
+                  )
                 ) : (
                   <ul className="flex flex-col gap-1.5">
                     {deviationGroups.map((group) => {
