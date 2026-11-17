@@ -401,16 +401,19 @@ export function MyStatsPanel() {
             ) : (
             <>
             <MyStatsKpiCards locale={locale} kpis={kpis} />
-            <section aria-labelledby="mystats-trend">
-              <h2 id="mystats-trend" className="mb-1 text-caption font-semibold text-studio-muted">
-                {tMyGames(locale, "myGames.statsTrend")}
-              </h2>
-              {filteredReady ? (
+            {/* SIG-1385: with filters leaving fewer than 3 reviewed games, the
+                gate shows once here; the trend and phase sections wait for it. */}
+            {filteredReady ? null : (
+              <MyStatsReviewGate locale={locale} reviewed={reviewedCount} />
+            )}
+            {filteredReady ? (
+              <section aria-labelledby="mystats-trend">
+                <h2 id="mystats-trend" className="mb-1 text-caption font-semibold text-studio-muted">
+                  {tMyGames(locale, "myGames.statsTrend")}
+                </h2>
                 <MyStatsTrend games={filteredGames} locale={locale} onOpenGame={onOpenGame} />
-              ) : (
-                <MyStatsReviewGate locale={locale} reviewed={reviewedCount} />
-              )}
-            </section>
+              </section>
+            ) : null}
             <OpeningResultsTable
               locale={locale}
               rows={openings}
@@ -422,32 +425,26 @@ export function MyStatsPanel() {
               minGames={minGames}
               onMinGamesChange={setMinGames}
             />
-            <section aria-labelledby="mystats-phases">
-              <h2 id="mystats-phases" className="mb-1 text-caption font-semibold text-studio-muted">
-                {tMyGames(locale, "myGames.statsByPhase")}
-              </h2>
-              {filteredReady ? (
+            {filteredReady ? (
+              <section aria-labelledby="mystats-phases">
+                <h2 id="mystats-phases" className="mb-1 text-caption font-semibold text-studio-muted">
+                  {tMyGames(locale, "myGames.statsByPhase")}
+                </h2>
                 <MyStatsPhases
                   locale={locale}
                   stats={phaseStats}
                   exerciseCounts={userId ? exerciseCounts : null}
                   filtersActive={!isDefaultOverviewFilters(overviewFilters)}
                 />
-              ) : (
-                <MyStatsReviewGate locale={locale} reviewed={reviewedCount} />
-              )}
-            </section>
+              </section>
+            ) : null}
             {whiteRepTree === null && blackRepTree === null ? null : (
               <section aria-labelledby="mystats-deviations">
                 <h2 id="mystats-deviations" className="mb-1 text-caption font-semibold text-studio-muted">
                   {tRepertoire(locale, "repertoire.deviation.statsTitle")}
                 </h2>
                 {deviationGroups.length === 0 ? (
-                  filteredReady ? (
-                    <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsDeviationsEmpty")}</p>
-                  ) : (
-                    <MyStatsReviewGate locale={locale} reviewed={reviewedCount} />
-                  )
+                  <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsDeviationsEmpty")}</p>
                 ) : (
                   <ul className="flex flex-col gap-1.5">
                     {deviationGroups.map((group) => {

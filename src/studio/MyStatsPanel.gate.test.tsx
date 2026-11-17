@@ -86,3 +86,22 @@ test("pt-br gate reads 'N de 3 partidas revisadas' with 'Revisar partida'", asyn
   await waitFor(() => assert.ok(screen.getByText("1 de 3 partidas revisadas")));
   assert.ok(screen.getByRole("button", { name: "Revisar partida" }));
 });
+
+test("filters that leave fewer than 3 reviewed games show the gate once", async () => {
+  loaded = [
+    g("w1", true),
+    g("w2", true),
+    g("w3", true),
+    { ...g("b1", true), color: "black" },
+  ];
+  useStudioStore.setState({
+    user: { id: "u1" } as never,
+    settings: { ...DEFAULT_SETTINGS, locale: "en" },
+  });
+  render(<MyStatsPanel />);
+  await waitFor(() => assert.ok(screen.getByTestId("kpi-games")));
+  assert.equal(screen.queryByTestId("mystats-review-gate"), null);
+  fireEvent.click(screen.getByRole("button", { name: "Black", pressed: false }));
+  await waitFor(() => assert.equal(screen.getAllByTestId("mystats-review-gate").length, 1));
+  assert.ok(screen.getByText("1 of 3 games reviewed"));
+});
