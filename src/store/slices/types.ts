@@ -199,6 +199,9 @@ export type StudioState = {
   // 5s window closed, the user dismissed it, or any newer edit landed.
   pendingCutUndo: CutUndo | null;
   aboutOpen: boolean;
+  // SIG-1383: Help → "Shortcuts and gestures" reference dialog (desktop
+  // MenuBar and mobile sheet share the flag; StudioShell renders it).
+  shortcutsOpen: boolean;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
   layoutNonce: number;
   // SIG-1316: user-saved dock layouts, the last applied layout key
@@ -353,6 +356,7 @@ export type StudioState = {
   retryExplorer: () => void;
   setStatus: (message: string | null) => void;
   setAboutOpen: (open: boolean) => void;
+  setShortcutsOpen: (open: boolean) => void;
   setNotationEditor: (editor: "comment" | "commentBefore" | "headers" | null) => void;
   openPlayerView: (player: PlayerHit, color?: PlayerColorFilter) => void;
   setPlayerGames: (games: PlayerGame[], notice?: string | null) => void;

@@ -48,6 +48,7 @@ import { applyStudioEntryImport, entryImportReady } from "@/src/studio/entry-imp
 import { StatusBar, StatusToast } from "./StatusBar";
 import { CutUndoToast } from "./CutUndoToast";
 import { VariationChoiceDialog } from "./VariationChoiceDialog";
+import { ShortcutsDialog } from "./ShortcutsDialog";
 import { Dialog } from "./ui/Dialog";
 import { LayoutDialogs } from "./LayoutDialogs";
 import { Button } from "./ui/Button";
@@ -149,6 +150,8 @@ export function StudioShell() {
   );
   const aboutOpen = useStudioStore((state) => state.aboutOpen);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
+  const shortcutsOpen = useStudioStore((state) => state.shortcutsOpen);
+  const setShortcutsOpen = useStudioStore((state) => state.setShortcutsOpen);
   // SIG-1187: single Forward-choicer mount outside the mobile split so the
   // chooser covers desktop and mobile entry points.
   const variationChoice = useStudioStore((state) => state.variationChoice);
@@ -675,6 +678,7 @@ export function StudioShell() {
           </p>
         </Dialog>
       ) : null}
+      {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
       {variationChoice ? <VariationChoiceDialog /> : null}
       <LayoutDialogs />
     </div>

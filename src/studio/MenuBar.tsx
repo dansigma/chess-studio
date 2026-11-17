@@ -51,6 +51,7 @@ export function MenuBar({
   const dirtyCount = useStudioStore(selectDirtyCount);
   const user = useStudioStore((state) => state.user);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
+  const setShortcutsOpen = useStudioStore((state) => state.setShortcutsOpen);
   const locale = useStudioStore((state) => state.settings.locale);
 
   function close() {
@@ -121,7 +122,13 @@ export function MenuBar({
         />
       );
     }
-    return <Item label={tStudioChrome(locale, "chrome.menu.aboutSite", { site: SITE_NAME })} onClick={run(() => setAboutOpen(true))} />;
+    // SIG-1383: Help lists the shortcuts/gestures reference above About.
+    return (
+      <>
+        <Item label={tStudioChrome(locale, "chrome.shortcuts.open")} onClick={run(() => setShortcutsOpen(true))} />
+        <Item label={tStudioChrome(locale, "chrome.menu.aboutSite", { site: SITE_NAME })} onClick={run(() => setAboutOpen(true))} />
+      </>
+    );
   }
 
   return (

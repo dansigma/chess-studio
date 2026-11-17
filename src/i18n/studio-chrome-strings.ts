@@ -199,6 +199,18 @@ export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.shell.loadFailed",
   "chrome.toast.cut",
   "chrome.toast.undo",
+  "chrome.shortcuts.open",
+  "chrome.shortcuts.title",
+  "chrome.shortcuts.group.navigation",
+  "chrome.shortcuts.group.editing",
+  "chrome.shortcuts.group.board",
+  "chrome.shortcuts.group.panels",
+  "chrome.shortcuts.gesture.swipeLeft",
+  "chrome.shortcuts.gesture.swipeRight",
+  "chrome.shortcuts.gesture.boardMenu",
+  "chrome.shortcuts.gesture.moveMenu",
+  "chrome.shortcuts.action.boardMenu",
+  "chrome.shortcuts.action.moveMenu",
 ] as const;
 
 export type StudioChromeStringKey = (typeof STUDIO_CHROME_STRING_KEYS)[number];
@@ -393,6 +405,18 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.shell.loadFailed": "Could not load saved boards.",
   "chrome.toast.cut": "Moves removed",
   "chrome.toast.undo": "Undo",
+  "chrome.shortcuts.open": "Shortcuts and gestures",
+  "chrome.shortcuts.title": "Keyboard shortcuts and gestures",
+  "chrome.shortcuts.group.navigation": "Navigation",
+  "chrome.shortcuts.group.editing": "Editing",
+  "chrome.shortcuts.group.board": "Board",
+  "chrome.shortcuts.group.panels": "Panels",
+  "chrome.shortcuts.gesture.swipeLeft": "Swipe left on the board",
+  "chrome.shortcuts.gesture.swipeRight": "Swipe right on the board",
+  "chrome.shortcuts.gesture.boardMenu": "Right-click or long-press on the board",
+  "chrome.shortcuts.gesture.moveMenu": "Right-click or long-press on a move",
+  "chrome.shortcuts.action.boardMenu": "Board menu",
+  "chrome.shortcuts.action.moveMenu": "Move menu",
 };
 
 const PT_BR: Record<StudioChromeStringKey, string> = {
@@ -585,6 +609,18 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.shell.loadFailed": "Não foi possível carregar os tabuleiros salvos.",
   "chrome.toast.cut": "Lances removidos",
   "chrome.toast.undo": "Desfazer",
+  "chrome.shortcuts.open": "Atalhos e gestos",
+  "chrome.shortcuts.title": "Atalhos de teclado e gestos",
+  "chrome.shortcuts.group.navigation": "Navegação",
+  "chrome.shortcuts.group.editing": "Edição",
+  "chrome.shortcuts.group.board": "Tabuleiro",
+  "chrome.shortcuts.group.panels": "Painéis",
+  "chrome.shortcuts.gesture.swipeLeft": "Deslize para a esquerda no tabuleiro",
+  "chrome.shortcuts.gesture.swipeRight": "Deslize para a direita no tabuleiro",
+  "chrome.shortcuts.gesture.boardMenu": "Botão direito ou toque longo no tabuleiro",
+  "chrome.shortcuts.gesture.moveMenu": "Botão direito ou toque longo em um lance",
+  "chrome.shortcuts.action.boardMenu": "Menu do tabuleiro",
+  "chrome.shortcuts.action.moveMenu": "Menu do lance",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

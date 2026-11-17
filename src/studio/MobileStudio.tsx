@@ -21,7 +21,7 @@ import { LiveView } from "./live/LiveView";
 import { LibraryView } from "./library/LibraryView";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
-import { MenuDivider as Divider } from "./ui/Menu";
+import { MenuDivider as Divider, MenuItem as Item } from "./ui/Menu";
 
 // SIG-1043: single-column studio layout below 768 px. Rendered inside the
 // shell's h-screen column between MenuBar and StatusBar, so this root fills
@@ -42,6 +42,7 @@ export type MobileStudioTab = (typeof TABS)[number];
 export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
   const workspaceView = useStudioStore((state) => state.workspaceView);
+  const setShortcutsOpen = useStudioStore((state) => state.setShortcutsOpen);
   const [activeTab, setActiveTab] = useState<MobileStudioTab>("moves");
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewSub, setViewSub] = useState<"theme" | "pieces" | "notation" | "panel" | "scheme" | "layouts" | null>(null);
@@ -171,6 +172,16 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
               run={run}
               flat
               showPanels={false}
+            />
+            {/* SIG-1383: same Help entry as the desktop menubar — the dialog
+                itself is rendered once by StudioShell off `shortcutsOpen`. */}
+            <Divider />
+            <div className="px-1.5 pb-1 pt-2 text-caption font-semibold uppercase tracking-wider text-studio-faint">
+              {tStudioChrome(locale, "chrome.menu.help")}
+            </div>
+            <Item
+              label={tStudioChrome(locale, "chrome.shortcuts.open")}
+              onClick={run(() => setShortcutsOpen(true))}
             />
           </div>
         </BottomSheet>
