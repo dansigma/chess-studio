@@ -15,10 +15,11 @@ test("studio panels render Portuguese with the pt-br locale stored", async ({
   });
   await page.goto("/studio");
 
-  // Dock tab titles are translated (assert three, zero EN counterparts).
+  // Dock tab titles are translated (zero EN counterparts). SIG-1382: the
+  // first-run Essential layout is Board, Notation and Engine only.
   await expect(page.getByRole("tab", { name: "Notação" }).first()).toBeVisible();
   await expect(page.getByRole("tab", { name: "Engine" }).first()).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Repertório" }).first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Repertório" })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: "Notation", exact: true })).toHaveCount(0);
   // The default board tab is localized too (SIG-1200); "Engine" has no EN counterpart to assert absent.
   await expect(page.getByRole("tab", { name: "Tabuleiro" }).first()).toBeVisible();
