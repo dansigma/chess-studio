@@ -367,3 +367,46 @@ test("mobile studio: menu sheet, swipe, long-press menu, review, no h-scroll", a
   await expect(area.getByText("Key moments", { exact: true }).first()).toBeVisible();
   await expectNoOverflow();
 });
+
+/**
+ * SIG-1202: the hamburger sheet tops out with the same site navigation as
+ * the desktop activity bar — Studio, Courses and Puzzles links with the
+ * current section marked, so Courses and Puzzles are two taps away.
+ */
+test("mobile studio: menu sheet site links reach Courses and Puzzles", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/studio");
+
+  const studio = page.locator("[data-mobile-studio]");
+  await expect(studio).toBeVisible();
+
+  const sheet = page.locator("[data-mobile-menu-sheet]");
+  const nav = sheet.getByRole("navigation", { name: "Xadrez Digital" });
+
+  // On /studio the Studio link is the current page; the sheet closes on tap.
+  await studio.getByRole("button", { name: "Open menu", exact: true }).click();
+  await expect(sheet).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Studio", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(nav.getByRole("link", { name: "Courses", exact: true })).not.toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await nav.getByRole("link", { name: "Courses", exact: true }).click();
+  await expect(page).toHaveURL(/\/courses/);
+  await expect(sheet).toHaveCount(0);
+
+  // Back in the studio, Puzzles is likewise two taps away.
+  await page.goto("/studio");
+  await expect(studio).toBeVisible();
+  await studio.getByRole("button", { name: "Open menu", exact: true }).click();
+  await expect(sheet).toBeVisible();
+  await sheet
+    .getByRole("navigation", { name: "Xadrez Digital" })
+    .getByRole("link", { name: "Puzzles", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/puzzles/);
+  await expect(sheet).toHaveCount(0);
+});

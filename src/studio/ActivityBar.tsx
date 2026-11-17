@@ -2,12 +2,9 @@
 
 import {
   Bookmark,
-  GraduationCap,
   History,
-  LayoutDashboard,
   Library,
   Radio,
-  Puzzle,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -15,7 +12,8 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { SITE_NAME, siteSections } from "@/src/site/sections";
+import { SITE_NAME } from "@/src/site/sections";
+import { isActivePath, SITE_NAV_ICONS, siteNavSections } from "@/src/site/nav";
 import { useStudioStore, type ActivityView } from "@/src/store/studio-store";
 import { tStudioChrome, type StudioChromeStringKey } from "@/src/i18n/studio-chrome-strings";
 import { Tooltip } from "./ui/Controls";
@@ -27,21 +25,8 @@ const items: { id: ActivityView; icon: typeof Search; titleKey: StudioChromeStri
   { id: "mygames", icon: History, titleKey: "chrome.activity.mygames" },
 ];
 
-// SIG-1201: site navigation icons, mapped by href so labels/hrefs come from
-// siteSections(locale). SIG-1381: siteSections is also the only source of
-// order, so the activity bar never re-sorts the site links.
-const SITE_ICONS: Record<string, typeof Search> = {
-  "/studio": LayoutDashboard,
-  "/courses": GraduationCap,
-  "/puzzles": Puzzle,
-};
-
 // SIG-1300: one text colour rule for icon + label, shared by links and buttons.
 const INACTIVE_TEXT = "text-studio-muted hover:text-studio-fg transition-colors";
-
-function isActivePath(pathname: string | null, href: string): boolean {
-  return pathname === href || (pathname?.startsWith(`${href}/`) ?? false);
-}
 
 // SIG-1298: label beside the icon while the side panel is open. Always
 // rendered so it can fade; each item clips it while collapsed (not the nav,
@@ -156,7 +141,7 @@ export function ActivityBar() {
   const toggleSidebar = useStudioStore((state) => state.toggleSidebar);
   const pathname = usePathname();
   const expanded = !sidebarCollapsed;
-  const sections = siteSections(locale).filter((section) => SITE_ICONS[section.href]);
+  const sections = siteNavSections(locale);
 
   return (
     <nav
@@ -167,7 +152,7 @@ export function ActivityBar() {
     >
       <div role="group" aria-label={SITE_NAME} className="flex flex-col items-stretch gap-0.5">
         {sections.map((section) => {
-          const Icon = SITE_ICONS[section.href];
+          const Icon = SITE_NAV_ICONS[section.href];
           return (
             <ActivityLink
               key={section.href}
