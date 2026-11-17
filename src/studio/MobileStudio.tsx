@@ -8,11 +8,7 @@ import { ExplorerPanel } from "./ExplorerPanel";
 import { MobileMoveStrip } from "./MobileMoveStrip";
 import { NotationPanel } from "./NotationPanel";
 import { ReviewPanel } from "./ReviewPanel";
-import { SiteNavLinks } from "./SiteNavLinks";
-import { BottomSheet } from "./BottomSheet";
-import { FileMenuItems } from "./MenuBarFileMenu";
-import { EditMenuItems } from "./MenuBarEditMenu";
-import { ViewMenuItems } from "./MenuBarViewMenu";
+import { MobileMenuSheet } from "./MobileMenuSheet";
 import { SettingsDialog } from "./SettingsDialog";
 import { tMobile } from "@/src/i18n/mobile-strings.ts";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
@@ -21,7 +17,6 @@ import { LiveView } from "./live/LiveView";
 import { LibraryView } from "./library/LibraryView";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
-import { MenuDivider as Divider, MenuItem as Item } from "./ui/Menu";
 
 // SIG-1043: single-column studio layout below 768 px. Rendered inside the
 // shell's h-screen column between MenuBar and StatusBar, so this root fills
@@ -42,24 +37,14 @@ export type MobileStudioTab = (typeof TABS)[number];
 export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
   const workspaceView = useStudioStore((state) => state.workspaceView);
-  const setShortcutsOpen = useStudioStore((state) => state.setShortcutsOpen);
   const [activeTab, setActiveTab] = useState<MobileStudioTab>("moves");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [viewSub, setViewSub] = useState<"theme" | "pieces" | "notation" | "panel" | "scheme" | "layouts" | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   function closeMenu() {
     setMenuOpen(false);
-    setViewSub(null);
-  }
-
-  function run(action: () => void) {
-    return () => {
-      action();
-      closeMenu();
-    };
   }
 
   function handleShare(url: string, copied: boolean) {
@@ -143,48 +128,12 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
         </>
       )}
       {menuOpen ? (
-        <BottomSheet title={tMobile(locale, "mobile.menu.title")} onClose={closeMenu}>
-          {/* SIG-1202: site navigation sits above the menu sections so Courses
-              and Puzzles are reachable in two taps from anywhere in /studio. */}
-          <SiteNavLinks onNavigate={closeMenu} />
-          <div role="menu" aria-label={tMobile(locale, "mobile.menu.title")}>
-            <div className="px-1.5 pb-1 pt-2 text-caption font-semibold uppercase tracking-wider text-studio-faint">
-              {tStudioChrome(locale, "chrome.menu.file")}
-            </div>
-            <FileMenuItems onOpenPgn={onOpenPgn} onShare={handleShare} close={closeMenu} run={run} />
-            <Divider />
-            <div className="px-1.5 pb-1 pt-2 text-caption font-semibold uppercase tracking-wider text-studio-faint">
-              {tStudioChrome(locale, "chrome.menu.edit")}
-            </div>
-            <EditMenuItems run={run} />
-            <Divider />
-            <div className="px-1.5 pb-1 pt-2 text-caption font-semibold uppercase tracking-wider text-studio-faint">
-              {tStudioChrome(locale, "chrome.menu.view")}
-            </div>
-            <ViewMenuItems
-              viewSub={viewSub}
-              setViewSub={setViewSub}
-              leaveSubmenu={() => setViewSub(null)}
-              onOpenSettings={() => {
-                closeMenu();
-                setSettingsOpen(true);
-              }}
-              run={run}
-              flat
-              showPanels={false}
-            />
-            {/* SIG-1383: same Help entry as the desktop menubar — the dialog
-                itself is rendered once by StudioShell off `shortcutsOpen`. */}
-            <Divider />
-            <div className="px-1.5 pb-1 pt-2 text-caption font-semibold uppercase tracking-wider text-studio-faint">
-              {tStudioChrome(locale, "chrome.menu.help")}
-            </div>
-            <Item
-              label={tStudioChrome(locale, "chrome.shortcuts.open")}
-              onClick={run(() => setShortcutsOpen(true))}
-            />
-          </div>
-        </BottomSheet>
+        <MobileMenuSheet
+          onOpenPgn={onOpenPgn}
+          onShare={handleShare}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onClose={closeMenu}
+        />
       ) : null}
       {shareUrl ? (
         <Dialog
