@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { FidePlayerSuggestion } from "@/src/lib/fide-players";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -49,6 +50,8 @@ export function PlayerCombobox({
   const inputId = id ?? `${baseId}-input`;
   const listboxId = `${baseId}-listbox`;
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   const requestRef = useRef(0);
   const pickedRef = useRef<string | null>(null);
 
@@ -129,13 +132,14 @@ export function PlayerCombobox({
       return;
     }
     function onPointerDown(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!wrapperRef.current?.contains(target) && !listRef.current?.contains(target)) {
         closeList();
       }
     }
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
-  }, [open ]);
+  }, [open]);
 
   function pick(suggestion: FidePlayerSuggestion) {
     pickedRef.current = suggestion.name.trim();
@@ -151,6 +155,30 @@ export function PlayerCombobox({
   const showEmpty = status === "done" && suggestions.length === 0 && searching;
   const listOpen = open && (showSearching || showEmpty || suggestions.length > 0);
 
+  useLayoutEffect(() => {
+    if (!listOpen) {
+      return;
+    }
+    function updatePosition() {
+      const input = inputRef.current;
+      const list = listRef.current;
+      if (!input || !list) {
+        return;
+      }
+      const rect = input.getBoundingClientRect();
+      list.style.top = `${rect.bottom + 4}px`;
+      list.style.left = `${rect.left}px`;
+      list.style.width = `${rect.width}px`;
+    }
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [listOpen, status, suggestions.length]);
+
   return (
     <div
       ref={wrapperRef}
@@ -158,6 +186,7 @@ export function PlayerCombobox({
       {...(listOpen ? { "data-escape-defer": "true" } : {})}
     >
       <input
+        ref={inputRef}
         id={inputId}
         role="combobox"
         aria-expanded={listOpen}
@@ -174,7 +203,8 @@ export function PlayerCombobox({
           onChange(event.target.value);
         }}
         onBlur={(event) => {
-          if (!event.currentTarget.parentElement?.contains(event.relatedTarget as Node)) {
+          const related = event.relatedTarget as Node | null;
+          if (!wrapperRef.current?.contains(related) && !listRef.current?.contains(related)) {
             closeList();
           }
         }}
@@ -215,51 +245,55 @@ export function PlayerCombobox({
         placeholder={placeholder}
         autoComplete="off"
       />
-      {listOpen ? (
-        <ul
-          id={listboxId}
-          role="listbox"
-          className="absolute z-[1200] mt-1 max-h-56 w-full overflow-auto rounded-md border border-studio-border-strong bg-studio-elevated py-1 shadow-xl"
-        >
-          {showSearching ? (
-            <li role="status" className="px-2 py-1.5 text-body text-studio-faint">
-              {tStudioChrome(locale, "chrome.players.searching")}
-            </li>
-          ) : null}
-          {!showSearching && showEmpty ? (
-            <li role="status" className="px-2 py-1.5 text-body text-studio-faint">
-              {tStudioChrome(locale, "chrome.players.none")}
-            </li>
-          ) : null}
-          {!showSearching
-            ? suggestions.map((suggestion, index) => {
-                const subtitle = subtitleFor(suggestion);
-                return (
-                  <li
-                    key={suggestion.id}
-                    id={`${baseId}-option-${index}`}
-                    role="option"
-                    aria-selected={index === activeIndex}
-                    tabIndex={-1}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      pick(suggestion);
-                    }}
-                    onMouseEnter={() => setActiveIndex(index)}
-                    className={`cursor-pointer px-2 py-1.5 ${
-                      index === activeIndex ? "bg-studio-selected" : ""
-                    }`}
-                  >
-                    <span className="block text-body text-studio-fg">{suggestion.name}</span>
-                    {subtitle ? (
-                      <span className="block text-caption text-studio-faint">{subtitle}</span>
-                    ) : null}
-                  </li>
-                );
-              })
-            : null}
-        </ul>
-      ) : null}
+      {listOpen && typeof document !== "undefined"
+        ? createPortal(
+            <ul
+              ref={listRef}
+              id={listboxId}
+              role="listbox"
+              className="fixed z-[1200] max-h-56 overflow-auto rounded-md border border-studio-border-strong bg-studio-elevated py-1 shadow-xl"
+            >
+              {showSearching ? (
+                <li role="status" className="px-2 py-1.5 text-body text-studio-faint">
+                  {tStudioChrome(locale, "chrome.players.searching")}
+                </li>
+              ) : null}
+              {!showSearching && showEmpty ? (
+                <li role="status" className="px-2 py-1.5 text-body text-studio-faint">
+                  {tStudioChrome(locale, "chrome.players.none")}
+                </li>
+              ) : null}
+              {!showSearching
+                ? suggestions.map((suggestion, index) => {
+                    const subtitle = subtitleFor(suggestion);
+                    return (
+                      <li
+                        key={suggestion.id}
+                        id={`${baseId}-option-${index}`}
+                        role="option"
+                        aria-selected={index === activeIndex}
+                        tabIndex={-1}
+                        onMouseDown={(event) => {
+                          event.preventDefault();
+                          pick(suggestion);
+                        }}
+                        onMouseEnter={() => setActiveIndex(index)}
+                        className={`cursor-pointer px-2 py-1.5 ${
+                          index === activeIndex ? "bg-studio-selected" : ""
+                        }`}
+                      >
+                        <span className="block text-body text-studio-fg">{suggestion.name}</span>
+                        {subtitle ? (
+                          <span className="block text-caption text-studio-faint">{subtitle}</span>
+                        ) : null}
+                      </li>
+                    );
+                  })
+                : null}
+            </ul>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

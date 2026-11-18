@@ -206,7 +206,7 @@ export function Tooltip({
       {children}
       {disabled ? null : <span
         role="tooltip"
-        className={`pointer-events-none absolute z-[1100] hidden items-center gap-2 whitespace-nowrap rounded-md border border-studio-border-strong bg-studio-elevated px-2 py-1 text-dense text-studio-fg shadow-lg group-hover/tip:flex ${
+        className={`pointer-events-none absolute z-[1100] hidden items-center gap-2 whitespace-nowrap rounded-md border border-studio-border-strong bg-studio-elevated px-2 py-1 text-dense text-studio-fg shadow-lg group-hover/tip:flex group-focus-within/tip:flex ${
           side === "right"
             ? "left-full top-1/2 ml-1 -translate-y-1/2"
             : "left-1/2 top-full mt-1 -translate-x-1/2"
