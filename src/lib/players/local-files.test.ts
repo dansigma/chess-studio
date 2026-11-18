@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { FileDatabase, FileGame } from "@/src/lib/user-files";
 import type { PlayerHit } from "@/src/lib/player-types";
-import { localPlayerGames, localPlayerHits, mergePlayerHits, timeClassFromHeaders } from "./local-files";
+import { frequentLocalPlayers, localPlayerGames, localPlayerHits, mergePlayerHits, timeClassFromHeaders } from "./local-files";
 
 const TIME_CASES: Array<[string, { timeControl?: string | null; event?: string | null }, string | null]> = [
   ["60+0 is bullet", { timeControl: "60+0" }, "bullet"],
@@ -166,4 +166,18 @@ test("mergePlayerHits shows a studio player found both ways once, keeping online
   assert.equal(merged[1].inDatabases, true);
   assert.equal(merged[0].inDatabases, undefined);
   assert.equal(mergePlayerHits([], server), server);
+});
+
+test("frequentLocalPlayers ranks names by games across databases without parsing PGNs", () => {
+  const databases = [
+    db("a", [game("Carlsen, Magnus", "Nakamura, Hikaru"), game("carlsen, magnus", "Caruana")]),
+    db("b", [game("Caruana", "?"), game("Carlsen, Magnus", "Ding")]),
+  ];
+  const { top, names } = frequentLocalPlayers(databases, 2);
+  assert.deepEqual(
+    top.map((hit) => hit.username),
+    ["Carlsen, Magnus", "Caruana"],
+  );
+  assert.equal(top[0]!.inDatabases, true);
+  assert.deepEqual([...names].sort(), ["carlsen, magnus", "caruana", "ding", "nakamura, hikaru"]);
 });

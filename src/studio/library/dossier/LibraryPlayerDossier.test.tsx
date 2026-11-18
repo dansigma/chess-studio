@@ -54,6 +54,7 @@ function gamesState(overrides: Partial<PlayerGamesState> = {}): PlayerGamesState
     truncated: false,
     partial: false,
     notice: null,
+    fromLoadedFiles: false,
     retry: () => {
       retryCalls += 1;
     },
@@ -211,6 +212,7 @@ test("a local player keeps a path to the Games tab; online players have none", a
     subtitle: "Studio database",
     inDatabases: true,
   };
+  state = gamesState({ games: [game("g1")], fromLoadedFiles: true });
   useLibraryStore.setState({ mode: "players" });
   useDossierStore.getState().openPlayer(local, "black");
   render(<LibraryPlayerDossier />);
@@ -222,4 +224,21 @@ test("a local player keeps a path to the Games tab; online players have none", a
   assert.equal(library.mode, "games");
   assert.equal(library.filters.player, "Local Player");
   assert.equal(library.filters.playerColor, "black");
+});
+
+test("a studio player whose games come from the server keeps Open in Studio", () => {
+  // Server Studio hits and players restored from the URL carry `inDatabases`
+  // too; the handoff follows where the games were loaded from instead.
+  state = gamesState({ games: [game("g1")], fromLoadedFiles: false });
+  useDossierStore.getState().openPlayer({
+    id: "studio:Sample Player",
+    source: "studio",
+    username: "Sample Player",
+    displayName: "Sample Player",
+    subtitle: "",
+    inDatabases: true,
+  });
+  render(<LibraryPlayerDossier />);
+  assert.ok(screen.getByRole("button", { name: "Open in Studio" }));
+  assert.equal(screen.queryByRole("button", { name: "View in Games tab" }), null);
 });

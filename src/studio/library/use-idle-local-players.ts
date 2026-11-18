@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { fileDatabaseOverview } from "@/src/lib/library/file-source";
-import { mergeOverviews, topPlayers } from "@/src/lib/library/overview";
-import { localPlayerHit } from "@/src/lib/players/local-files";
+import { frequentLocalPlayers } from "@/src/lib/players/local-files";
 import type { PlayerHit } from "@/src/lib/player-types";
 import { useStudioStore } from "@/src/store/studio-store";
 
@@ -32,10 +30,8 @@ export function useIdleLocalPlayers(enabled: boolean): IdleLocalPlayers {
     if (!enabled || databases.length === 0) {
       return EMPTY;
     }
-    const overview = mergeOverviews(databases.map((database) => fileDatabaseOverview(database)));
-    return {
-      top: topPlayers(overview, IDLE_LOCAL_PLAYERS).map(({ name }) => localPlayerHit(name)),
-      names: overview.players,
-    };
+    // Counts the stored White/Black names only: building the Library overview
+    // here would parse every PGN during render on a cold Players tab.
+    return frequentLocalPlayers(databases, IDLE_LOCAL_PLAYERS);
   }, [enabled, databases]);
 }

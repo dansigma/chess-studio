@@ -17,6 +17,12 @@ export type PlayerGamesState = {
   /** Some upstream months were skipped or cut short. */
   partial: boolean;
   notice: string | null;
+  /**
+   * The games come from the PGN files loaded in this browser. Only these
+   * players can be listed in the Library's Games tab, and only the others can
+   * be opened by the Studio's player panels (they load through the API).
+   */
+  fromLoadedFiles: boolean;
   retry: () => void;
 };
 
@@ -122,14 +128,15 @@ export function usePlayerGames(player: PlayerHit | null): PlayerGamesState {
       truncated: false,
       partial: false,
       notice: null,
+      fromLoadedFiles: true,
       retry,
     };
   }
   if (key === null) {
-    return { games: NO_GAMES, loading: false, error: null, noGames: false, truncated: false, partial: false, notice: null, retry };
+    return { games: NO_GAMES, loading: false, error: null, noGames: false, truncated: false, partial: false, notice: null, fromLoadedFiles: false, retry };
   }
   if (remote?.key !== key) {
-    return { games: NO_GAMES, loading: true, error: null, noGames: false, truncated: false, partial: false, notice: null, retry };
+    return { games: NO_GAMES, loading: true, error: null, noGames: false, truncated: false, partial: false, notice: null, fromLoadedFiles: false, retry };
   }
   return {
     games: remote.games,
@@ -139,6 +146,7 @@ export function usePlayerGames(player: PlayerHit | null): PlayerGamesState {
     truncated: remote.truncated,
     partial: remote.partial,
     notice: remote.notice,
+    fromLoadedFiles: false,
     retry,
   };
 }
