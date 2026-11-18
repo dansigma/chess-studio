@@ -7,6 +7,7 @@ import { Chess, type Square } from "chess.js";
 import { ExternalLink } from "lucide-react";
 import { importPgn } from "@/src/chess/pgn";
 import { MARK_FILL } from "@/src/chess/marks";
+import { playMoveSound } from "@/src/chess/move-sound";
 import { shareBoardUrl, writeCourseStudyImport } from "@/src/chess/share-board";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
@@ -88,6 +89,7 @@ export function LessonView({
   // first-completion review path even after the progress hook goes stale.
   const learnedInSession = useRef<Set<string>>(new Set());
   const locale = useStudioStore((state) => state.settings.locale);
+  const moveSound = useStudioStore((state) => state.settings.moveSound);
   const {
     progress: savedProgress,
     admin,
@@ -196,6 +198,9 @@ export function LessonView({
     setSession((state) =>
       lessonSessionReducer(state, { type: "advance", lastStep }),
     );
+    if (moveSound && session.reachedStep < lastStep) {
+      playMoveSound();
+    }
     setNotice("");
     setSelected(null);
     void saveVariationProgress(variationId, next, effectiveCourse).then(
@@ -211,6 +216,9 @@ export function LessonView({
 
   // Navigation only: never persists, never reveals frames past the reached one.
   function go(nextStep: number) {
+    if (moveSound && nextStep > session.viewStep && session.viewStep < Math.min(session.reachedStep, lastStep)) {
+      playMoveSound();
+    }
     setSession((state) =>
       lessonSessionReducer(state, { type: "view", step: nextStep, lastStep }),
     );

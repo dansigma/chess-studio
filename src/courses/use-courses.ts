@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import { currentUserCanPublish, currentUserIsAdmin } from "./publish";
+import { canAuthorCourses, isAdmin as isAdminRole } from "@/src/lib/auth/roles";
+import { currentUserRole } from "./publish";
 import { hydrateProgress, progressSource } from "./store";
 import type { VariationProgress } from "./types";
 
@@ -29,10 +30,9 @@ export function useCourseData() {
     void (async () => {
       const supabase = createBrowserSupabase();
       const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-      const [nextProgress, canPublish, adminFlag] = await Promise.all([
+      const [nextProgress, role] = await Promise.all([
         hydrateProgress(user?.id ?? null),
-        user ? currentUserCanPublish() : Promise.resolve(false),
-        user ? currentUserIsAdmin() : Promise.resolve(false),
+        user ? currentUserRole() : Promise.resolve(null),
       ]);
       if (cancel) {
         return;
@@ -40,8 +40,8 @@ export function useCourseData() {
       setProgress(nextProgress);
       setSignedIn(Boolean(user));
       setUserId(user?.id ?? null);
-      setAdmin(canPublish);
-      setIsAdmin(adminFlag);
+      setAdmin(canAuthorCourses(role));
+      setIsAdmin(isAdminRole(role));
       setSource(progressSource());
       setReady(true);
     })();
