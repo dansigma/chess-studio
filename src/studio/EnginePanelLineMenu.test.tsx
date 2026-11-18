@@ -33,6 +33,24 @@ mock.module("@/src/engine/shared-engine", {
   },
 });
 
+function emitSnapshot(overrides: Partial<EngineInfo> = {}): void {
+  const info: EngineInfo = {
+    depth: 20,
+    running: true,
+    ready: true,
+    failed: false,
+    lines: [],
+    nps: 1000,
+    nodes: 1000,
+    threaded: false,
+    fen: currentFen,
+    ...overrides,
+  };
+  for (const listener of [...listeners]) {
+    listener(info);
+  }
+}
+
 function emitLines(pvs: string[][]): void {
   const sans: Record<string, string> = {
     e2e4: "e4",
@@ -41,11 +59,7 @@ function emitLines(pvs: string[][]): void {
     d2d4: "d4",
     d7d5: "d5",
   };
-  const info: EngineInfo = {
-    depth: 20,
-    running: true,
-    ready: true,
-    failed: false,
+  emitSnapshot({
     lines: pvs.map((pvUci, index) => ({
       multipv: index + 1,
       depth: 20,
@@ -55,14 +69,7 @@ function emitLines(pvs: string[][]): void {
       pvSan: pvUci.map((uci) => sans[uci] ?? "e4"),
       bound: null,
     })),
-    nps: 1000,
-    nodes: 1000,
-    threaded: false,
-    fen: currentFen,
-  };
-  for (const listener of [...listeners]) {
-    listener(info);
-  }
+  });
 }
 
 const { EnginePanel } = await import("./EnginePanel.tsx");
@@ -218,5 +225,42 @@ test("SIG-1293: leaving the studio view stops the search; returning resumes it",
     assert.ok(currentFen, "resumed on the active FEN");
   } finally {
     useStudioStore.setState({ workspaceView: "studio" });
+  }
+});
+
+test("SIG-1399: idle EnginePanel renders static placeholder bars with no animate-pulse, and pulses only while loading or running", async () => {
+  seedBoard();
+  useStudioStore.setState({ workspaceView: "studio" });
+  try {
+    const { container } = render(<EnginePanel />);
+    assert.equal(container.querySelectorAll(".animate-pulse").length, 0, "no animate-pulse on mount when idle");
+    assert.ok(screen.getByText(tPanels("en", "engine.status.paused")), "paused status text kept");
+
+    // Picking an engine build while idle sets paused=false without started=true; must stay calm.
+    fireEvent.click(screen.getByRole("button", { name: /Stockfish/ }));
+    const radios = screen.getAllByRole("menuitemradio");
+    fireEvent.click(radios[0]!);
+    assert.equal(container.querySelectorAll(".animate-pulse").length, 0, "no animate-pulse after picking build while not started");
+
+    // Start engine: while not ready yet, skeleton lines pulse.
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: tPanels("en", "engine.start") }));
+    });
+    assert.ok(container.querySelectorAll(".animate-pulse").length > 0, "animate-pulse present after Start while loading");
+
+    // Emit 1 line while running (multiPv=2 => 1 placeholder line remains pulsing).
+    await act(async () => {
+      emitLines([["e2e4", "e7e5"]]);
+    });
+    assert.ok(container.querySelectorAll(".animate-pulse").length > 0, "animate-pulse present while running");
+
+    // When engine fails, animation stops.
+    await act(async () => {
+      emitSnapshot({ ready: false, running: false, failed: true, lines: [] });
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    assert.equal(container.querySelectorAll(".animate-pulse").length, 0, "no animate-pulse when failed");
+  } finally {
+    cleanup();
   }
 });
