@@ -542,7 +542,9 @@ export function ReviewPanel() {
   }, [selectedMomentIndex, currentIndex, filteredMoments.length, chartMoments]);
 
   // `[` / `]` walk the filtered moments. Guard editable targets so typing
-  // in notation inputs never navigates.
+  // in notation inputs never navigates. SIG-1413: the listener outlives the
+  // Studio dock, so also require the Studio view and no modal dialog (same
+  // guards as handleStudioShellKey).
   useEffect(() => {
     if (!report) {
       return;
@@ -552,6 +554,12 @@ export function ReviewPanel() {
         return;
       }
       if (event.key !== "[" && event.key !== "]") {
+        return;
+      }
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
+        return;
+      }
+      if (useStudioStore.getState().workspaceView !== "studio") {
         return;
       }
       const target = event.target as HTMLElement | null;
