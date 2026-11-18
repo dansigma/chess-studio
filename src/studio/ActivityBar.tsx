@@ -140,7 +140,8 @@ export function ActivityBar() {
   const toggleLive = useStudioStore((state) => state.toggleLive);
   const toggleSidebar = useStudioStore((state) => state.toggleSidebar);
   const pathname = usePathname();
-  const expanded = !sidebarCollapsed;
+  // SIG-1398: keep the activity rail compact (w-12) even when a sidebar is open.
+  const expanded = false;
   const sections = siteNavSections(locale);
 
   return (

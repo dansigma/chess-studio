@@ -70,45 +70,48 @@ test("Live label is Ao Vivo in pt-br", () => {
   assert.ok(screen.getByRole("button", { name: "Ao Vivo" }));
 });
 
-// SIG-1298: labels follow settings.sidebarCollapsed. SIG-1381: the site links
-// follow the site header order (siteSections), not a studio-local order.
+// SIG-1398: the rail stays compact (w-12, hidden labels, tooltips) regardless
+// of sidebarCollapsed. SIG-1381: the site links follow the site header order
+// (siteSections), not a studio-local order.
 const NAV_ITEMS = ["Courses", "Puzzles", "Studio", "Open boards", "Bookmarks", "My Games", "Library", "Live"];
 
-function labelsFor(name: string) {
-  return Array.from(document.querySelectorAll("[data-activity-label]")).filter((el) => el.textContent === name);
-}
-
-test("collapsed: labels are hidden and tooltips are present", () => {
-  act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", sidebarCollapsed: true } }));
-  render(<ActivityBar />);
+function assertCompactRail() {
+  const nav = screen.getByRole("navigation");
+  const classes = nav.className.split(/\s+/);
+  assert.ok(classes.includes("w-12"), "rail stays at w-12");
+  assert.ok(!classes.includes("w-48"), "rail never widens to w-48");
+  assert.equal(nav.getAttribute("data-expanded"), "false");
   const labels = Array.from(document.querySelectorAll("[data-activity-label]"));
   assert.ok(labels.length >= NAV_ITEMS.length);
   assert.ok(labels.every((el) => el.getAttribute("data-activity-label") === "hidden" && el.className.includes("opacity-0")));
   assert.ok(document.querySelectorAll('[role="tooltip"]').length >= NAV_ITEMS.length);
+}
+
+test("collapsed: rail is compact with hidden labels and tooltips present", () => {
+  act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", sidebarCollapsed: true } }));
+  render(<ActivityBar />);
+  assertCompactRail();
   assert.ok(screen.getByRole("button", { name: "Expand sidebar" }));
 });
 
-test("expanded: every item shows a visible label and no tooltip", () => {
+test("open sidebar: rail stays compact with hidden labels and tooltips present", () => {
   act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", sidebarCollapsed: false } }));
   render(<ActivityBar />);
-  for (const name of NAV_ITEMS) {
-    const found = labelsFor(name);
-    assert.equal(found.length, 1, `label for ${name}`);
-    assert.equal(found[0].getAttribute("data-activity-label"), "visible");
-  }
-  assert.equal(labelsFor("Collapse sidebar").length, 1);
-  assert.equal(document.querySelectorAll('[role="tooltip"]').length, 0);
+  assertCompactRail();
+  assert.ok(screen.getByRole("button", { name: "Collapse sidebar" }));
   assert.ok(screen.getByRole("button", { name: "Library" }).getAttribute("aria-label"));
 });
 
-test("toggle switches between icon-only and labelled", () => {
+test("toggle collapses and expands the sidebar while keeping the rail compact", () => {
   act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", sidebarCollapsed: false } }));
   render(<ActivityBar />);
+  assertCompactRail();
   fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
   assert.equal(useStudioStore.getState().settings.sidebarCollapsed, true);
-  assert.equal(labelsFor("Library")[0].getAttribute("data-activity-label"), "hidden");
+  assertCompactRail();
   fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
-  assert.equal(labelsFor("Library")[0].getAttribute("data-activity-label"), "visible");
+  assert.equal(useStudioStore.getState().settings.sidebarCollapsed, false);
+  assertCompactRail();
 });
 
 // SIG-1300: icon and label share one text colour rule across links and buttons.
