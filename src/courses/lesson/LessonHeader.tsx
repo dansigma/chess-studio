@@ -19,6 +19,7 @@ import type { ChapterSegment } from "./model";
 export function LessonHeader({
   locale,
   courseSlug,
+  courseHref,
   courseTitle,
   chapterTitle,
   lineTitle,
@@ -29,6 +30,7 @@ export function LessonHeader({
 }: {
   locale: SiteLocale;
   courseSlug: string;
+  courseHref?: string;
   courseTitle: string;
   chapterTitle: string;
   lineTitle: string;
@@ -39,7 +41,7 @@ export function LessonHeader({
 }) {
   const total = segments.length;
   const current = segments.find((segment) => segment.current);
-  const back = `/courses/${courseSlug}`;
+  const back = courseHref ?? `/courses/${courseSlug}`;
   return (
     <header className="shrink-0 border-b border-studio-border bg-studio-chrome px-4 py-3">
       <div className="flex items-start justify-between gap-3">

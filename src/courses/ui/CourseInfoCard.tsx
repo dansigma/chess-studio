@@ -42,11 +42,13 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
  */
 export function CourseInfoCard({
   course,
+  courseHref,
   progress,
   ready,
   locale,
 }: {
   course: Course;
+  courseHref?: string;
   progress: Readonly<Record<string, VariationProgress | undefined>>;
   ready: boolean;
   locale: SiteLocale;
@@ -55,7 +57,8 @@ export function CourseInfoCard({
   const ids = chapters.flatMap((chapter) => chapter.variations.map((variation) => variation.id));
   const hasProgress = ready && ids.some((id) => progress[id]?.learned || (progress[id]?.step ?? 0) > 0);
   const targetId = (hasProgress ? nextLineId(ids, progress) : null) ?? ids[0] ?? null;
-  const href = targetId ? `/courses/${course.slug}/${targetId}` : `/courses/${course.slug}`;
+  const base = courseHref ?? `/courses/${course.slug}`;
+  const href = targetId ? `${base}/${targetId}` : base;
   const levelLabel = tCourse(locale, `course.info.level.${course.level}`);
   const levelIndex = LEVELS.indexOf(course.level);
   const lineCount =

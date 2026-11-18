@@ -21,6 +21,15 @@ test("anonymous visit to an admin preview URL ends on /login or /courses", async
   await expect(page.getByRole("heading", { name: /London System/ })).toHaveCount(0);
 });
 
+/** SIG-1396: an anonymous visit to a preview variation URL never renders the lesson. */
+test("anonymous visit to an admin preview variation URL ends on /login or /courses", async ({ page }) => {
+  await page.goto("/admin/courses/11111111-1111-4111-8111-111111111111/preview/var-1");
+  const pathname = () => new URL(page.url()).pathname;
+  await expect.poll(pathname).not.toContain("/admin/courses/");
+  await expect.poll(pathname).toMatch(/^\/(login|courses)$/);
+  await expect(page.locator("[data-admin-preview-banner]")).toHaveCount(0);
+});
+
 /**
  * SIG-1175: at 390px the queue never overflows horizontally. Anonymous
  * visitors redirect before the queue renders, so the assertion targets the

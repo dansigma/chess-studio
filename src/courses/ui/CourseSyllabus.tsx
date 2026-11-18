@@ -40,17 +40,20 @@ function linesLabel(locale: SiteLocale, count: number): string {
  */
 export function CourseSyllabus({
   course,
+  courseHref,
   locale,
   progress,
   frameCounts,
   onOpenInStudio,
 }: {
   course: Course;
+  courseHref?: string;
   locale: SiteLocale;
   progress: Record<string, VariationProgress>;
   frameCounts: Record<string, number | null>;
   onOpenInStudio: (variation: CourseVariation) => void;
 }) {
+  const base = courseHref ?? `/courses/${course.slug}`;
   const chapters = visibleChapters(course.chapters);
   if (chapters.length === 0) {
     return null;
@@ -125,7 +128,7 @@ export function CourseSyllabus({
                   return (
                     <li key={variation.id} className="border-t border-studio-border">
                       <Link
-                        href={`/courses/${course.slug}/${variation.id}`}
+                        href={`${base}/${variation.id}`}
                         className="flex items-center gap-3 px-4 py-3 hover:bg-studio-hover"
                       >
                         {learned ? (
