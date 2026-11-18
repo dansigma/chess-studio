@@ -10,13 +10,13 @@ import type { Course } from "./types";
 // SIG-1119: shown when the database refused course_content for this course
 // (locked means the query succeeded with no row). The site is free, so this
 // is a neutral message plus a link back to the course, never a paywall.
-export function LockedLesson({ course }: { course: Course }) {
+export function LockedLesson({ course, courseHref }: { course: Course; courseHref?: string }) {
   const locale = useStudioStore((state) => state.settings.locale);
   return (
     <div className="mx-auto max-w-3xl px-6 py-10">
       <p className="text-body text-studio-muted">{tCourseAccess(locale, "course.access.unavailable")}</p>
       <Link
-        href={`/courses/${course.slug}`}
+        href={courseHref ?? `/courses/${course.slug}`}
         className="mt-4 inline-flex items-center rounded-lg bg-studio-accent px-4 py-2 text-body font-semibold text-studio-on-accent"
       >
         {tCourse(locale, "course.lesson.backToCourse")}

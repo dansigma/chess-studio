@@ -27,6 +27,7 @@ const BADGE_CLASS: Record<StudyStatus, string> = {
  */
 export function LineCard({
   courseSlug,
+  courseHref,
   variation,
   number,
   progress,
@@ -34,6 +35,7 @@ export function LineCard({
   now,
 }: {
   courseSlug: string;
+  courseHref?: string;
   variation: CourseVariation;
   /** 1-based position inside the chapter. */
   number: number;
@@ -42,10 +44,11 @@ export function LineCard({
   now: Date;
 }) {
   const status = studyStatus(progress[variation.id], now);
+  const base = courseHref ?? `/courses/${courseSlug}`;
   return (
     <li>
       <Link
-        href={`/courses/${courseSlug}/${variation.id}`}
+        href={`${base}/${variation.id}`}
         className="flex items-center gap-3 rounded-lg border border-studio-border bg-studio-chrome px-3 py-2.5 hover:border-studio-border-strong hover:bg-studio-hover"
       >
         <span

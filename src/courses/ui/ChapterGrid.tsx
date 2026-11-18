@@ -11,12 +11,14 @@ import { ChapterCard } from "./ChapterCard";
  */
 export function ChapterGrid({
   course,
+  courseHref,
   chapters,
   progress,
   locale,
   now = new Date(),
 }: {
   course: Course;
+  courseHref?: string;
   /** Chapters in course order; chapters without lines are skipped. */
   chapters: readonly CourseChapter[];
   progress: Readonly<Record<string, VariationProgress | undefined>>;
@@ -36,6 +38,7 @@ export function ChapterGrid({
           <ChapterCard
             key={chapter.id}
             course={course}
+            courseHref={courseHref}
             chapter={chapter}
             index={index}
             progress={progress}

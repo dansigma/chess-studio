@@ -42,6 +42,7 @@ function ChapterTrack({ hasVideo, locale }: { hasVideo: boolean; locale: SiteLoc
  */
 export function ChapterDetail({
   course,
+  courseHref,
   chapter,
   number,
   progress,
@@ -49,6 +50,7 @@ export function ChapterDetail({
   now = new Date(),
 }: {
   course: Course;
+  courseHref?: string;
   chapter: CourseChapter;
   /** 1-based chapter position in the grid. */
   number: number;
@@ -58,10 +60,11 @@ export function ChapterDetail({
 }) {
   const description = chapter.description?.trim() ?? "";
   const hasVideo = chapter.hasVideo === true || Boolean(chapter.videoUrl);
+  const base = courseHref ?? `/courses/${course.slug}`;
   return (
     <section className="mt-8" aria-labelledby="course-chapter-heading">
       <Link
-        href={`/courses/${course.slug}`}
+        href={base}
         className="inline-flex items-center gap-1.5 text-caption font-medium text-studio-accent-text hover:underline"
       >
         <ArrowLeft size={14} aria-hidden />
@@ -81,6 +84,7 @@ export function ChapterDetail({
           <LineCard
             key={variation.id}
             courseSlug={course.slug}
+            courseHref={base}
             variation={variation}
             number={index + 1}
             progress={progress}

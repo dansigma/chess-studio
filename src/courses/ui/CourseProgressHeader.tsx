@@ -19,12 +19,14 @@ const BUTTON = "inline-flex h-8 items-center justify-center rounded-lg px-3.5 te
  */
 export function CourseProgressHeader({
   course,
+  courseHref,
   progress,
   ready,
   locale,
   now = new Date(),
 }: {
   course: Course;
+  courseHref?: string;
   progress: Readonly<Record<string, VariationProgress | undefined>>;
   ready: boolean;
   locale: SiteLocale;
@@ -37,9 +39,11 @@ export function CourseProgressHeader({
   if (!summary.hasProgress) {
     return null;
   }
-  const lineHref = (id: string | null) => (id ? `/courses/${course.slug}/${id}` : `/courses/${course.slug}`);
+  const base = courseHref ?? `/courses/${course.slug}`;
+  const isCustomBase = courseHref !== undefined && courseHref !== `/courses/${course.slug}`;
+  const lineHref = (id: string | null) => (id ? `${base}/${id}` : base);
   const continueHref = summary.complete ? lineHref(summary.firstLineId) : lineHref(summary.nextLineId);
-  const reviewTarget = reviewHref(course.slug);
+  const reviewTarget = isCustomBase ? null : reviewHref(course.slug);
   return (
     <section
       aria-label={tCourse(locale, "course.course.progressHeading")}
@@ -59,12 +63,12 @@ export function CourseProgressHeader({
       <ProgressBar value={summary.percent} label={tCourse(locale, "course.course.progressAria")} />
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Link
-          href={summary.complete ? reviewTarget : continueHref}
+          href={summary.complete && reviewTarget ? reviewTarget : continueHref}
           className={`${BUTTON} bg-studio-accent text-studio-accent-fg hover:bg-studio-accent-strong`}
         >
           {tCourse(locale, summary.complete ? "course.progress.header.reviewCourse" : "course.progress.header.continue")}
         </Link>
-        {summary.due > 0 ? (
+        {summary.due > 0 && reviewTarget ? (
           <Link
             href={reviewTarget}
             className={`${BUTTON} bg-studio-hover-strong text-studio-fg hover:bg-studio-selected`}

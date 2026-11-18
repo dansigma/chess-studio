@@ -34,6 +34,7 @@ import { useCourseData } from "./use-courses";
 import { useCourseContent } from "./use-course-content";
 import { LockedLesson } from "./LockedLesson";
 import { CourseChrome } from "./CourseChrome";
+import { AdminPreviewBanner } from "./ui/AdminPreviewBanner";
 import { StudyBoard } from "./ui/StudyBoard";
 import { LessonHeader } from "./lesson/LessonHeader";
 import { StudyLayout } from "./lesson/StudyLayout";
@@ -61,11 +62,16 @@ import type { Course, CourseChapter, CourseVariation } from "./types";
 export function LessonView({
   course,
   variationId,
+  previewBasePath,
+  previewQueueHref,
 }: {
   course: Course;
   variationId: string;
+  previewBasePath?: string;
+  previewQueueHref?: string;
 }) {
   const router = useRouter();
+  const isPreview = Boolean(previewBasePath || previewQueueHref);
   // SIG-1119: the gated lesson payload. Seed/local courses ship full content
   // (contentLoaded undefined) and skip the fetch; outline rows load it here.
   const [attempt, setAttempt] = useState(0);
@@ -99,6 +105,12 @@ export function LessonView({
     userId,
   } = useCourseData();
 
+  const effectiveProgress = useMemo(
+    () => (isPreview ? {} : savedProgress),
+    [isPreview, savedProgress],
+  );
+  const effectiveReady = isPreview || progressReady;
+
   const loaded: {
     course: Course;
     chapter: CourseChapter;
@@ -125,14 +137,14 @@ export function LessonView({
 
   const lastStep = Math.max(frames.length - 1, 0);
   const currentLessonKey = `${course.slug}/${variationId}`;
-  if (lessonKey !== currentLessonKey && progressReady && loaded) {
+  if (lessonKey !== currentLessonKey && effectiveReady && loaded) {
     setLessonKey(currentLessonKey);
     const mode = lessonModeFromUrl();
     setSession(
       lessonSessionReducer(INITIAL_LESSON_SESSION, {
         type: "open",
         mode,
-        step: lessonOpenStep(mode, savedProgress[variationId], lastStep),
+        step: lessonOpenStep(mode, effectiveProgress[variationId], lastStep),
         lastStep,
       }),
     );
@@ -149,8 +161,8 @@ export function LessonView({
   const studentSide = loaded?.course.color === "white" ? "w" : "b";
   // SIG-1374: Treinar continues along the course order; the course page is
   // both the after-the-last-line target and the "Curso concluído" label.
-  const nextHref = loaded ? nextLineHref(loaded.course, variationId) : "";
-  const courseHref = loaded ? `/courses/${loaded.course.slug}` : "";
+  const courseHref = previewBasePath ?? (loaded ? `/courses/${loaded.course.slug}` : "");
+  const nextHref = loaded ? nextLineHref(loaded.course, variationId, courseHref) : "";
   const atCourseEnd = nextHref === courseHref;
 
   // SIG-1052: first open per signed-in user and course, only when the lesson
@@ -160,7 +172,7 @@ export function LessonView({
   const contentReadable =
     course.contentLoaded !== false || content.status === "ready";
   useEffect(() => {
-    if (!signedIn || !userId || course.builtin || !contentReadable) {
+    if (isPreview || !signedIn || !userId || course.builtin || !contentReadable) {
       return;
     }
     const supabase = createBrowserSupabase();
@@ -168,9 +180,20 @@ export function LessonView({
       return;
     }
     void recordEnrollment(supabase, userId, course.id);
-  }, [signedIn, userId, course.builtin, course.id, contentReadable]);
+  }, [isPreview, signedIn, userId, course.builtin, course.id, contentReadable]);
 
   function persist(nextStep: number) {
+    setSession((state) =>
+      lessonSessionReducer(state, { type: "advance", lastStep }),
+    );
+    if (moveSound && session.reachedStep < lastStep) {
+      playMoveSound();
+    }
+    setNotice("");
+    setSelected(null);
+    if (isPreview) {
+      return;
+    }
     const current = loadProgress()[variationId];
     let next = progressAfterStep(
       current,
@@ -195,14 +218,6 @@ export function LessonView({
         new Date(),
       );
     }
-    setSession((state) =>
-      lessonSessionReducer(state, { type: "advance", lastStep }),
-    );
-    if (moveSound && session.reachedStep < lastStep) {
-      playMoveSound();
-    }
-    setNotice("");
-    setSelected(null);
     void saveVariationProgress(variationId, next, effectiveCourse).then(
       (error) => {
         if (error === PROGRESS_BROWSER_ONLY) {
@@ -354,7 +369,7 @@ export function LessonView({
   // Reduced motion means no pause animation: advance right away.
   const shouldAutoAdvance =
     lessonKey === currentLessonKey &&
-    progressReady &&
+    effectiveReady &&
     autoAdvance(session, frame);
   useEffect(() => {
     if (!shouldAutoAdvance) {
@@ -383,10 +398,15 @@ export function LessonView({
     }
   }, [frame, selected, waiting]);
 
+  const previewBanner = previewQueueHref ? (
+    <AdminPreviewBanner href={previewQueueHref} locale={locale} />
+  ) : null;
+
   if (!loaded) {
     return (
       <div className="min-h-full bg-studio-bg">
         <CourseChrome admin={admin} isAdmin={isAdmin} />
+        {previewBanner}
         <main className="px-6 py-10 text-studio-muted">
           {tCourse(locale, "course.lesson.notFound")}
         </main>
@@ -401,13 +421,15 @@ export function LessonView({
       return (
         <div className="min-h-full bg-studio-bg">
           <CourseChrome admin={admin} isAdmin={isAdmin} />
-          <LockedLesson course={course} />
+          {previewBanner}
+          <LockedLesson course={course} courseHref={courseHref || undefined} />
         </div>
       );
     }
     return (
       <div className="min-h-full bg-studio-bg">
         <CourseChrome admin={admin} isAdmin={isAdmin} />
+        {previewBanner}
         {content.status === "error" ? (
           <main className="mx-auto max-w-5xl px-4 py-10" role="alert">
             <p className="text-body text-studio-fg">
@@ -433,6 +455,7 @@ export function LessonView({
     return (
       <div className="min-h-full bg-studio-bg">
         <CourseChrome admin={admin} isAdmin={isAdmin} />
+        {previewBanner}
         <LessonSkeleton label={tCourse(locale, "course.lesson.loadingAria")} />
       </div>
     );
@@ -475,20 +498,22 @@ export function LessonView({
   const arrows = [...guideArrows(session, frame), ...hintArrows(session, frame)];
   const orientation =
     (loaded.course.color === "white") !== flipped ? "white" : "black";
-  const segments = chapterSegments(loaded.chapter, savedProgress, variationId);
+  const segments = chapterSegments(loaded.chapter, effectiveProgress, variationId);
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-studio-bg">
       <CourseChrome admin={admin} isAdmin={isAdmin} />
+      {previewBanner}
       <LessonHeader
         locale={locale}
         courseSlug={loaded.course.slug}
+        courseHref={courseHref}
         courseTitle={loaded.course.title}
         chapterTitle={loaded.chapter.title}
         lineTitle={loaded.variation.title}
         mode={session.mode}
         segments={segments}
-        progress={savedProgress}
+        progress={effectiveProgress}
         actions={
           <Button
             variant="secondary"
@@ -637,7 +662,7 @@ export function LessonView({
             )
           ) : finished ? (
             <Link
-              href={`/courses/${loaded.course.slug}`}
+              href={courseHref}
               className="inline-flex items-center text-body font-medium text-studio-accent-text max-sm:min-h-11"
             >
               {tCourse(locale, "course.lesson.backToCourse")}
