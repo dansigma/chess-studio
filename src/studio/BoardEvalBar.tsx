@@ -23,23 +23,32 @@ export function BoardEvalBar({
   label,
   orientation,
   neutral = false,
+  noEvalLabel,
 }: {
   pawns: number;
   label: string;
   orientation: BoardOrientation;
   /** SIG-1209: during a Game Review retry the bar stays level and shows no number. */
   neutral?: boolean;
+  /** SIG-1407: when neutral outside review retries (e.g. unfocused live board without [%eval]), show a muted/dashed bar with tooltip. */
+  noEvalLabel?: string;
 }) {
   const whitePercent = neutral ? 50 : evalBarPercent(pawns);
   const whiteAtBottom = orientation === "white";
   const whiteWinning = pawns >= 0;
+  const mutedUnavailable = neutral && Boolean(noEvalLabel);
 
   return (
     <div
-      aria-label={neutral ? undefined : `Evaluation ${label}`}
-      aria-hidden={neutral ? true : undefined}
-      title={neutral ? undefined : label}
-      className="relative w-5 shrink-0 overflow-hidden rounded-md bg-studio-loss ring-1 ring-studio-border-strong"
+      aria-label={mutedUnavailable ? noEvalLabel : neutral ? undefined : `Evaluation ${label}`}
+      aria-hidden={neutral && !mutedUnavailable ? true : undefined}
+      title={mutedUnavailable ? noEvalLabel : neutral ? undefined : label}
+      data-eval-unavailable={mutedUnavailable ? "" : undefined}
+      className={`relative w-5 shrink-0 overflow-hidden rounded-md bg-studio-loss ${
+        mutedUnavailable
+          ? "border border-dashed border-studio-border-strong opacity-45"
+          : "ring-1 ring-studio-border-strong"
+      }`}
     >
       <div
         className="absolute left-0 right-0 bg-studio-win transition-[height] duration-300 ease-out"

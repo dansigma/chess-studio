@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowUpDown, ArrowUpRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { ArrowUpDown, ArrowUpRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, GripVertical, X } from "lucide-react";
 import { Chessboard } from "react-chessboard";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
 import { piecesForSet } from "@/src/chess/piece-sets";
@@ -79,6 +79,12 @@ function PlayerBar({
  */
 export type LiveBoardVariant = "full" | "focus" | "compact" | "thumb";
 
+export type LiveBoardDragHandleProps = {
+  draggable: true;
+  onDragStart: (event: DragEvent<HTMLButtonElement>) => void;
+  onDragEnd: () => void;
+};
+
 /**
  * Follow-latest. By default the board shows the newest position of the game (`game.fen`) and each new
  * move moves it. Browsing back in the notation pauses that (`browsing` holds the viewed mainline path),
@@ -97,6 +103,7 @@ export function LiveBoard({
   variant = "full",
   flipped = false,
   onFlip,
+  dragHandleProps,
 }: {
   roundId: string;
   gameId: string;
@@ -110,6 +117,8 @@ export function LiveBoard({
   /** SIG-1313: black at the bottom. Per card: the board, the player bars and the eval bar turn together. */
   flipped?: boolean;
   onFlip?: () => void;
+  /** SIG-1407: drag-to-reorder handle props; only set in reorderable multi-board layouts. */
+  dragHandleProps?: LiveBoardDragHandleProps;
 }) {
   const game = useLiveGame(roundId, gameId);
   // A round that hasn't started: its games are not live yet (the JSON calls it neither ongoing nor finished).
@@ -226,7 +235,7 @@ export function LiveBoard({
         // SIG-1312: every card shows a bar for its shown ply: the broadcast's [%eval], else local
         // Stockfish on the focused card only (one engine search at a time), else a neutral bar.
         <div data-live-eval-slot="" className="flex shrink-0">
-          <LiveEvalBar fen={fen} pgnEval={evalAtView(tree, viewPath, game)} focused={focused} orientation={orientation} />
+          <LiveEvalBar fen={fen} pgnEval={evalAtView(tree, viewPath, game)} focused={focused} orientation={orientation} locale={locale} />
         </div>
       ) : null}
       {/* The board is display-only: its own pointer handling must not swallow the card's drag (SIG-1313), so events pass to the card. */}
@@ -269,6 +278,19 @@ export function LiveBoard({
       }`}
     >
       <header className="-mr-1 -mt-1 flex h-7 items-center gap-1">
+        {dragHandleProps ? (
+          <button
+            type="button"
+            {...dragHandleProps}
+            aria-label={tLive(locale, "live.board.drag")}
+            title={tLive(locale, "live.board.drag")}
+            data-live-drag-handle=""
+            onClick={(event) => event.stopPropagation()}
+            className="inline-flex h-6 w-5 shrink-0 cursor-grab items-center justify-center rounded text-studio-faint hover:bg-studio-hover hover:text-studio-fg active:cursor-grabbing"
+          >
+            <GripVertical size={14} aria-hidden="true" />
+          </button>
+        ) : null}
         <span className="flex min-w-0 flex-1 items-center gap-2 truncate text-caption text-studio-muted">
           {finished ? null : roundNotStarted ? (
             <span data-live-not-started="">{tLive(locale, "live.board.notStarted")}</span>
