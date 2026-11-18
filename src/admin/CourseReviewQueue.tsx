@@ -11,7 +11,7 @@
 // the actions stay usable at 390px.
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { approveCourse, rejectCourse } from "@/src/courses/publish";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -58,12 +58,35 @@ function ReviewRowActions({
   );
 }
 
-export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRowData[] }) {
+export function CourseReviewQueue({
+  initialRows,
+  onRemainingChange,
+}: {
+  initialRows: ReviewQueueRowData[];
+  /** Called with the number of undecided rows whenever it changes (keeps the header badge live). */
+  onRemainingChange?: (remaining: number) => void;
+}) {
   const locale = useStudioStore((state) => state.settings.locale);
   const [view, setView] = useState(emptyReviewQueueState());
   const [actionError, setActionError] = useState<ReviewQueueCode | null>(null);
 
   const visible = initialRows.filter((row) => !view.decided.has(row.id));
+  const remaining = visible.length;
+  useEffect(() => {
+    onRemainingChange?.(remaining);
+  }, [remaining, onRemainingChange]);
+
+  // A stale approve/reject error must not follow the admin into a freshly
+  // opened (or reopened) reject dialog.
+  function openReject(id: string) {
+    setActionError(null);
+    setView((current) => reviewQueueState(current, { type: "reject-open", id }));
+  }
+
+  function closeReject() {
+    setActionError(null);
+    setView((current) => reviewQueueState(current, { type: "reject-close" }));
+  }
 
   async function approve(id: string) {
     setView((current) => reviewQueueState(current, { type: "approve-start", id }));
@@ -152,7 +175,7 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
                               locale={locale}
                               pending={pending}
                               onApprove={() => void approve(row.id)}
-                              onReject={() => setView((current) => reviewQueueState(current, { type: "reject-open", id: row.id }))}
+                              onReject={() => openReject(row.id)}
                             />
                           </div>
                         </td>
@@ -178,7 +201,7 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
                       locale={locale}
                       pending={pending}
                       onApprove={() => void approve(row.id)}
-                      onReject={() => setView((current) => reviewQueueState(current, { type: "reject-open", id: row.id }))}
+                      onReject={() => openReject(row.id)}
                     />
                   </div>
                 </Panel>
@@ -192,14 +215,14 @@ export function CourseReviewQueue({ initialRows }: { initialRows: ReviewQueueRow
           title={tAdminUsers(locale, "admin.review.dialog.title", {
             title: initialRows.find((row) => row.id === view.rejecting!.id)?.title ?? "",
           })}
-          onClose={() => setView((current) => reviewQueueState(current, { type: "reject-close" }))}
+          onClose={closeReject}
           footer={
             <>
               <Button
                 type="button"
                 variant="secondary"
                 disabled={view.pending.has(view.rejecting.id)}
-                onClick={() => setView((current) => reviewQueueState(current, { type: "reject-close" }))}
+                onClick={closeReject}
               >
                 {tAdminUsers(locale, "admin.review.dialog.cancel")}
               </Button>

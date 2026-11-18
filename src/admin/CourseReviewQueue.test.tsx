@@ -6,16 +6,22 @@ import assert from "node:assert/strict";
 import { after, before, test, mock } from "node:test";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
 import { act, fireEvent, render, screen, cleanup, waitFor } from "@testing-library/react";
-import { CourseReviewQueue } from "./CourseReviewQueue.tsx";
 import { useStudioStore } from "../store/studio-store.ts";
 import type { ReviewQueueRowData } from "@/app/admin/courses/actions.ts";
 
+const publishCtl = { approveOk: false };
+
 mock.module("@/src/courses/publish.ts", {
   namedExports: {
-    approveCourse: async () => ({ ok: false as const, error: { key: "course.admin.error.serverUnavailable" } }),
+    approveCourse: async () =>
+      publishCtl.approveOk
+        ? ({ ok: true as const })
+        : ({ ok: false as const, error: { key: "course.admin.error.serverUnavailable" } }),
     rejectCourse: async () => ({ ok: false as const, error: { key: "course.admin.error.serverUnavailable" } }),
   },
 });
+
+const { CourseReviewQueue } = await import("./CourseReviewQueue.tsx");
 
 const ROW: ReviewQueueRowData = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -136,6 +142,41 @@ test("places reject actions in the Dialog footer", () => {
     act(() => {
       useStudioStore.getState().setLocale("en");
     });
+    cleanup();
+  }
+});
+
+test("a failed approve's error does not follow into the reject dialog", async () => {
+  act(() => {
+    useStudioStore.getState().setLocale("en");
+  });
+  try {
+    renderQueue();
+    fireEvent.click(screen.getAllByRole("button", { name: "Approve" })[0]);
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getAllByRole("button", { name: "Reject" })[0]);
+    const dialog = screen.getByRole("dialog");
+    assert.equal(dialog.querySelector('[role="alert"]'), null);
+    assert.equal(screen.queryByRole("alert"), null);
+  } finally {
+    cleanup();
+  }
+});
+
+test("reports the remaining count as courses are decided", async () => {
+  const second: ReviewQueueRowData = { ...ROW, id: "22222222-2222-4222-8222-222222222222", title: "Caro-Kann" };
+  const counts: number[] = [];
+  publishCtl.approveOk = true;
+  act(() => {
+    useStudioStore.getState().setLocale("en");
+  });
+  try {
+    render(<CourseReviewQueue initialRows={[ROW, second]} onRemainingChange={(n) => counts.push(n)} />);
+    assert.deepEqual(counts, [2]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Approve" })[0]);
+    await waitFor(() => assert.deepEqual(counts, [2, 1]));
+  } finally {
+    publishCtl.approveOk = false;
     cleanup();
   }
 });
