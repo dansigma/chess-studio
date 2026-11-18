@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useShallow } from "zustand/shallow";
 import {
   fenKey,
@@ -256,6 +256,9 @@ function EvalChart({
   const { points, currentIndex, evalByFen } = line;
   const [hover, setHover] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const clipBase = useId().replace(/:/g, "");
+  const aboveClipId = `${clipBase}-above`;
+  const belowClipId = `${clipBase}-below`;
   const [size, setSize] = useState({ width: 640, height: compact ? 40 : 160 });
   const PAD_X = compact ? 4 : PAD_X_FULL;
   const PAD_Y = compact ? 4 : PAD_Y_FULL;
@@ -378,6 +381,14 @@ function EvalChart({
               }
             }}
           >
+            <defs>
+              <clipPath id={aboveClipId}>
+                <rect x={0} y={0} width={width} height={Math.max(0, zeroY)} />
+              </clipPath>
+              <clipPath id={belowClipId}>
+                <rect x={0} y={zeroY} width={width} height={Math.max(0, height - zeroY)} />
+              </clipPath>
+            </defs>
             <line
               x1={PAD_X}
               x2={width - PAD_X}
@@ -386,7 +397,8 @@ function EvalChart({
               stroke="var(--studio-border)"
               strokeWidth="1"
             />
-            <path d={areaPath} fill="var(--studio-accent)" opacity="0.22" />
+            <path d={areaPath} fill="var(--studio-accent)" opacity="0.24" clipPath={`url(#${aboveClipId})`} />
+            <path d={areaPath} fill="var(--studio-muted)" opacity="0.28" clipPath={`url(#${belowClipId})`} />
             <path d={linePath} fill="none" stroke="var(--studio-accent)" strokeWidth="2" />
             {currentIndex >= 0 ? (
               <line

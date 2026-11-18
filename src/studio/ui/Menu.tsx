@@ -1,16 +1,18 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useRef, type CSSProperties, type ReactNode } from "react";
 import { Check, ChevronRight } from "lucide-react";
 import { focusMenuItem, useMenuKeyDown } from "./use-menu-keyboard";
 
 export function MenuSurface({
   className = "",
+  style,
   children,
   onClose,
   label,
 }: {
   className?: string;
+  style?: CSSProperties;
   children: ReactNode;
   onClose?: () => void;
   label?: string;
@@ -22,6 +24,7 @@ export function MenuSurface({
       ref={rootRef}
       role="menu"
       aria-label={label}
+      style={style}
       onKeyDown={handleKeyDown}
       className={`min-w-64 rounded-[9px] border border-studio-border-strong bg-studio-elevated p-1 shadow-2xl ${className}`}
     >

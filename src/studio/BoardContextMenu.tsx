@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
 import { tLibrary } from "@/src/i18n/library-strings.ts";
 import { tRepertoire } from "@/src/i18n/repertoire-strings.ts";
@@ -11,6 +11,24 @@ export type BoardMenuState = {
   x: number;
   y: number;
 };
+
+const FALLBACK_MENU_WIDTH = 220;
+const FALLBACK_MENU_HEIGHT = 340;
+const VIEWPORT_MARGIN = 8;
+
+function clampMenuPosition(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): { left: number; top: number } {
+  if (typeof window === "undefined") {
+    return { left: x, top: y };
+  }
+  const left = Math.max(VIEWPORT_MARGIN, Math.min(x, window.innerWidth - width - VIEWPORT_MARGIN));
+  const top = Math.max(VIEWPORT_MARGIN, Math.min(y, window.innerHeight - height - VIEWPORT_MARGIN));
+  return { left, top };
+}
 
 export function BoardContextMenu({
   menu,
@@ -47,6 +65,17 @@ export function BoardContextMenu({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [layoutsOpen, setLayoutsOpen] = useState(false);
+  const [position, setPosition] = useState<{ left: number; top: number }>(() =>
+    clampMenuPosition(menu.x, menu.y, FALLBACK_MENU_WIDTH, FALLBACK_MENU_HEIGHT),
+  );
+
+  useLayoutEffect(() => {
+    const rect = rootRef.current?.getBoundingClientRect();
+    const width = rect && rect.width > 0 ? rect.width : FALLBACK_MENU_WIDTH;
+    const height = rect && rect.height > 0 ? rect.height : FALLBACK_MENU_HEIGHT;
+    const next = clampMenuPosition(menu.x, menu.y, width, height);
+    setPosition((prev) => (prev.left === next.left && prev.top === next.top ? prev : next));
+  }, [menu.x, menu.y, repertoireColor, onSearchLibrary]);
 
   useEffect(() => {
     function onPointer(event: MouseEvent) {
@@ -60,11 +89,8 @@ export function BoardContextMenu({
     };
   }, [onClose]);
 
-  const left = Math.max(8, Math.min(menu.x, window.innerWidth - 220));
-  const top = Math.max(8, Math.min(menu.y, window.innerHeight - 180));
-
   return (
-    <div ref={rootRef} className="fixed z-[1100]" style={{ left, top }}>
+    <div ref={rootRef} className="fixed z-[1100]" style={position}>
       <MenuSurface className="min-w-52" onClose={onClose}>
         <MenuItem
           label={tPanels(locale, "panels.board.flip")}
