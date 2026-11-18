@@ -3,6 +3,7 @@ import { listReviewQueueAction } from "@/app/admin/courses/actions";
 import { getRole, isAdmin } from "@/src/lib/auth/roles";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 import { CourseReviewQueue } from "@/src/admin/CourseReviewQueue";
+import { SiteHeader } from "@/src/site/SiteHeader";
 
 export const metadata = {
   robots: { index: false, follow: false },
@@ -21,5 +22,13 @@ export default async function AdminCoursesPage() {
     redirect("/courses");
   }
   const first = await listReviewQueueAction();
-  return <CourseReviewQueue initialRows={first.ok ? first.data.rows : []} />;
+  const initialRows = first.ok ? first.data.rows : [];
+  return (
+    <div className="min-h-full bg-studio-bg text-studio-fg">
+      <SiteHeader admin isAdmin reviewCount={initialRows.length} />
+      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+        <CourseReviewQueue initialRows={initialRows} />
+      </main>
+    </div>
+  );
 }

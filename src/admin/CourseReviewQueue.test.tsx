@@ -115,3 +115,27 @@ test("mobile cards render the same rows and actions as the table", async () => {
     cleanup();
   }
 });
+
+test("places reject actions in the Dialog footer", () => {
+  act(() => {
+    useStudioStore.getState().setLocale("pt-br");
+  });
+  try {
+    render(<CourseReviewQueue initialRows={[ROW]} />);
+
+    // Reject dialog buttons are placed inside the pinned Dialog footer.
+    fireEvent.click(screen.getAllByRole("button", { name: "Rejeitar" })[0]);
+    const cancelBtn = screen.getByRole("button", { name: "Cancelar" });
+    const confirmBtn = screen.getByRole("button", { name: "Rejeitar curso" });
+    const footer = cancelBtn.parentElement!;
+    assert.equal(confirmBtn.parentElement, footer);
+    assert.match(footer.className, /\bshrink-0\b/);
+    assert.match(footer.className, /\bborder-t\b/);
+    assert.ok(!footer.className.includes("overflow-y-auto"));
+  } finally {
+    act(() => {
+      useStudioStore.getState().setLocale("en");
+    });
+    cleanup();
+  }
+});
