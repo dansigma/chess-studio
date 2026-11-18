@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { bookmarkKey } from "@/src/lib/player-bookmarks";
 import type { PlayerColorFilter, PlayerHit } from "@/src/lib/player-types";
@@ -12,9 +12,11 @@ import { IconButton } from "../ui/Button";
 import { Panel } from "../ui/Panel";
 import { LibraryPlayerDossier } from "./dossier/LibraryPlayerDossier";
 import { useDossierStore } from "./dossier/dossier-store";
+import { useIdleLocalPlayers } from "./use-idle-local-players";
 import { usePlayerSearch } from "./use-player-search";
 
 const NOTE = "px-3 py-2 text-dense leading-5 text-studio-faint";
+const SECTION = "px-2 pb-0.5 pt-1 text-caption uppercase tracking-wider text-studio-faint";
 
 // SIG-1318: the Library's Players mode (was the Search side panel).
 // SIG-1338: it is now a master-detail view. Selecting any player (local,
@@ -29,13 +31,52 @@ export function LibraryPlayers() {
   const { query, setQuery, searching, hits, loading } = usePlayerSearch();
   const [collapsed, setCollapsed] = useState(false);
 
-  const bookmarkedKeys = new Set(bookmarks.map((item) => bookmarkKey(item)));
+  const bookmarkedKeys = useMemo(() => new Set(bookmarks.map((item) => bookmarkKey(item))), [bookmarks]);
+  // SIG-1405: with no query the column suggests prep targets that already
+  // exist locally: the user's bookmarks and the most frequent players in the
+  // loaded PGN databases. The overview is skipped while a search is running.
+  const { top: idleLocalPlayers, names: localPlayerNames } = useIdleLocalPlayers(!searching);
+  const bookmarkedPlayers = useMemo(
+    () =>
+      bookmarks.map((bookmark) =>
+        // A stored bookmark keeps only the online fields; a studio player that
+        // still has games in the loaded PGN files is marked local again so the
+        // dossier offers "View in Games tab" instead of the Studio handoff.
+        bookmark.source === "studio" &&
+        bookmark.inDatabases !== true &&
+        localPlayerNames.has(bookmark.username.trim().toLowerCase())
+          ? { ...bookmark, inDatabases: true }
+          : bookmark,
+      ),
+    [bookmarks, localPlayerNames],
+  );
+  const idleSuggestions = useMemo(
+    () => idleLocalPlayers.filter((player) => !bookmarkedKeys.has(bookmarkKey(player))),
+    [idleLocalPlayers, bookmarkedKeys],
+  );
   // Collapsing only makes sense while a dossier is open: with no player the
   // whole tab is the search.
   const searchCollapsed = collapsed && dossierPlayer !== null;
 
   function open(player: PlayerHit, color: PlayerColorFilter = "all") {
     openDossierPlayer(player, color);
+  }
+
+  function isActive(player: PlayerHit): boolean {
+    return dossierPlayer !== null && bookmarkKey(dossierPlayer) === bookmarkKey(player);
+  }
+
+  function renderHit(player: PlayerHit) {
+    return (
+      <PlayerHitRow
+        key={bookmarkKey(player)}
+        player={player}
+        active={isActive(player)}
+        bookmarked={bookmarkedKeys.has(bookmarkKey(player))}
+        onOpen={(color) => open(player, color)}
+        onToggleBookmark={() => togglePlayerBookmark(player)}
+      />
+    );
   }
 
   return (
@@ -89,23 +130,45 @@ export function LibraryPlayers() {
               </p>
             ) : null}
             {!loading && searching && hits.length === 0 ? <p className={NOTE}>{tLibrary(locale, "library.players.none")}</p> : null}
-            {hits.map((player) => (
-              <PlayerHitRow
-                key={player.id}
-                player={player}
-                active={dossierPlayer?.id === player.id}
-                bookmarked={bookmarkedKeys.has(bookmarkKey(player))}
-                onOpen={(color) => open(player, color)}
-                onToggleBookmark={() => togglePlayerBookmark(player)}
-              />
-            ))}
+            {hits.map((player) => renderHit(player))}
             {!loading && searching && !hits.some((player) => player.source === "chesscom") ? (
               // SIG-1210: Chess.com only matches exact usernames.
               <p className="px-3 py-1.5 text-caption leading-4 text-studio-faint">
                 {tLibrary(locale, "library.players.chesscomExact")}
               </p>
             ) : null}
-            {!searching ? <p className={NOTE}>{tLibrary(locale, "library.players.hint")}</p> : null}
+            {!searching ? (
+              bookmarkedPlayers.length === 0 && idleSuggestions.length === 0 ? (
+                <p className={NOTE}>{tLibrary(locale, "library.players.hint")}</p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {bookmarkedPlayers.length > 0 ? (
+                    <section
+                      aria-labelledby="library-players-bookmarked"
+                      data-testid="library-players-bookmarked"
+                      className="flex flex-col gap-0.5"
+                    >
+                      <h3 id="library-players-bookmarked" className={SECTION}>
+                        {tLibrary(locale, "library.players.bookmarked")}
+                      </h3>
+                      {bookmarkedPlayers.map((player) => renderHit(player))}
+                    </section>
+                  ) : null}
+                  {idleSuggestions.length > 0 ? (
+                    <section
+                      aria-labelledby="library-players-local"
+                      data-testid="library-players-local"
+                      className="flex flex-col gap-0.5"
+                    >
+                      <h3 id="library-players-local" className={SECTION}>
+                        {tLibrary(locale, "library.players.localTop")}
+                      </h3>
+                      {idleSuggestions.map((player) => renderHit(player))}
+                    </section>
+                  ) : null}
+                </div>
+              )
+            ) : null}
           </div>
         </Panel>
       )}

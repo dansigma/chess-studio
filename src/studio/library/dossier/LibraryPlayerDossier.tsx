@@ -109,13 +109,19 @@ export function LibraryPlayerDossier() {
                 </p>
               </div>
               {isLocalPlayer(player) ? (
+                // SIG-1405: the Studio's player panels load a `studio` player
+                // through `/api/players/games`, which reads the online Studio
+                // database and sample book — not the PGN files loaded here. A
+                // local-only player would open an empty panel, so the local
+                // handoff is the Games tab and there is no Studio button.
                 <Button size="sm" variant="ghost" onClick={() => showPlayerInLibrary(player, filters.color)}>
                   {tLibrary(locale, "library.dossier.viewGames")}
                 </Button>
-              ) : null}
-              <Button size="sm" variant="secondary" onClick={openInStudio}>
-                {tLibrary(locale, "library.dossier.openInStudio")}
-              </Button>
+              ) : (
+                <Button size="sm" variant="secondary" onClick={openInStudio}>
+                  {tLibrary(locale, "library.dossier.openInStudio")}
+                </Button>
+              )}
               <IconButton size="sm" label={tLibrary(locale, "library.dossier.close")} onClick={closePlayer}>
                 <X size={14} />
               </IconButton>

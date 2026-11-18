@@ -48,6 +48,24 @@ function sortRows(rows: readonly DossierOpeningRow[], sort: OpeningSort): Dossie
   });
 }
 
+/**
+ * SIG-1405: the side the openings area follows when the dossier's colour
+ * filter is "all". Openings always need one side, so show the one the player
+ * used most (white on a tie) instead of offering a second colour control.
+ */
+export function dominantColor(games: readonly PlayerGame[]): "white" | "black" {
+  let white = 0;
+  let black = 0;
+  for (const game of games) {
+    if (game.color === "white") {
+      white += 1;
+    } else {
+      black += 1;
+    }
+  }
+  return black > white ? "black" : "white";
+}
+
 function openingName(row: DossierOpeningRow, locale: SiteLocale): string {
   const name = row.opening ?? row.eco ?? row.key;
   return localizeOpeningName(name, locale, row.eco);
@@ -152,7 +170,6 @@ export function DossierOpenings({ games }: { games: PlayerGame[] }) {
   const selectedOpening = useDossierStore((state) => state.selectedOpening);
   const selectOpening = useDossierStore((state) => state.selectOpening);
   const clearOpening = useDossierStore((state) => state.clearOpening);
-  const [colorTab, setColorTab] = useState<"white" | "black">("white");
   const [sort, setSort] = useState<OpeningSort>("games");
   const [minGames, setMinGames] = useState(1);
   const [uiFilters, setUiFilters] = useState<OpeningUiFilters>({
@@ -162,9 +179,11 @@ export function DossierOpenings({ games }: { games: PlayerGame[] }) {
   });
   const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(new Set());
 
-  // The dossier's Cor filter wins when it is not "all"; otherwise the local
-  // Brancas/Pretas tabs choose the side (same rule as My Stats).
-  const opponentColor = filters.color === "all" ? colorTab : filters.color;
+  // SIG-1405: the dossier's top colour filter is the single colour control.
+  // "All" still needs one side here, so the openings fall back to the side the
+  // player used most; the hint under the heading says how to switch sides.
+  const mainColor = useMemo(() => dominantColor(games), [games]);
+  const opponentColor = filters.color === "all" ? mainColor : filters.color;
   const rows = useMemo(
     () => sortRows(dossierOpenings(games, opponentColor, { minGames }), sort),
     [games, opponentColor, minGames, sort],
@@ -237,28 +256,11 @@ export function DossierOpenings({ games }: { games: PlayerGame[] }) {
           {tLibrary(locale, "library.dossier.mainOpenings")}
         </h4>
         {filters.color === "all" ? (
-          <div
-            role="tablist"
-            aria-label={tMyGames(locale, "myGames.statsByOpening")}
-            data-testid="dossier-openings-color-tabs"
-            className="flex gap-1"
-          >
-            {(["white", "black"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                role="tab"
-                aria-selected={opponentColor === tab}
-                onClick={() => {
-                  setColorTab(tab);
-                  resetTree();
-                }}
-                className={`rounded px-2 py-0.5 text-caption ${opponentColor === tab ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"}`}
-              >
-                {tMyGames(locale, tab === "white" ? "myGames.statsWhite" : "myGames.statsBlack")}
-              </button>
-            ))}
-          </div>
+          <p data-testid="dossier-openings-side" className="text-caption text-studio-faint">
+            {tLibrary(locale, "library.dossier.openingsSideHint", {
+              side: tMyGames(locale, opponentColor === "white" ? "myGames.statsWhite" : "myGames.statsBlack"),
+            })}
+          </p>
         ) : null}
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-caption text-studio-muted">
           <div role="group" aria-label={tMyGames(locale, "myGames.statsSortBy")} className="flex items-center gap-1">
@@ -321,15 +323,9 @@ export function DossierOpenings({ games }: { games: PlayerGame[] }) {
           embedded
           locale={locale}
           lineColor={opponentColor}
-          setLineColor={(color) => {
-            // The Cor filter wins when it is not "all"; the tree's own tabs
-            // then have nothing to change (the list must keep following it).
-            if (filters.color !== "all") {
-              return;
-            }
-            setColorTab(color);
-            resetTree();
-          }}
+          // Embedded: the tree's own colour tabs are hidden, and the dossier's
+          // top filter is the only colour control (SIG-1405).
+          setLineColor={() => undefined}
           uiFilters={uiFilters}
           setUiFilters={(next) => {
             setUiFilters(next);
