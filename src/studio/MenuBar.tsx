@@ -35,7 +35,6 @@ export function MenuBar({
   const [viewSub, setViewSub] = useState<ViewSubmenu>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   // SIG-857: root subscribes narrowly — only the account pill (user/email,
   // boardCount, dirtyCount), the help item (setAboutOpen), and the locale
   // (SIG-962) need store values here. File/edit/view menus own their
@@ -46,6 +45,9 @@ export function MenuBar({
   const boardCount = useStudioStore((state) => state.boards.length);
   const dirtyCount = useStudioStore(selectDirtyCount);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
+  const settingsDialog = useStudioStore((state) => state.settingsDialog);
+  const openSettings = useStudioStore((state) => state.openSettings);
+  const closeSettings = useStudioStore((state) => state.closeSettings);
   const locale = useStudioStore((state) => state.settings.locale);
 
   function close() {
@@ -111,7 +113,7 @@ export function MenuBar({
           viewSub={viewSub}
           setViewSub={setViewSub}
           leaveSubmenu={leaveSubmenu}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => openSettings()}
           run={run}
         />
       );
@@ -172,7 +174,7 @@ export function MenuBar({
           open={open === "account"}
           onToggle={() => toggleMenu("account")}
           onClose={close}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => openSettings()}
           dirtyCount={dirtyCount}
           boardCount={boardCount}
           onOpenBoards={() => setActivity("boards")}
@@ -201,7 +203,12 @@ export function MenuBar({
           </div>
         </Dialog>
       ) : null}
-      {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsDialog.open ? (
+        <SettingsDialog
+          initialSection={settingsDialog.section ?? undefined}
+          onClose={closeSettings}
+        />
+      ) : null}
     </div>
   );
 }

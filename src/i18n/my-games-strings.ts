@@ -85,6 +85,10 @@ export const MY_GAMES_STRING_KEYS = [
   "myGames.kpiTrendFew",
   "myGames.filterEmpty",
   "myGames.filterReset",
+  "myGames.openLinkedAccounts",
+  "myGames.playedWhite",
+  "myGames.playedBlack",
+  "myGames.rowAccuracy",
 ] as const;
 
 export type MyGamesStringKey = (typeof MY_GAMES_STRING_KEYS)[number];
@@ -171,6 +175,10 @@ const EN: Record<MyGamesStringKey, string> = {
   "myGames.kpiTrendFew": "Not enough reviewed games to compare (needs 20)",
   "myGames.filterEmpty": "No games match these filters.",
   "myGames.filterReset": "Reset Filters",
+  "myGames.openLinkedAccounts": "Open Linked accounts",
+  "myGames.playedWhite": "Played as White",
+  "myGames.playedBlack": "Played as Black",
+  "myGames.rowAccuracy": "Accuracy {value}%",
 };
 
 const PT_BR: Record<MyGamesStringKey, string> = {
@@ -255,6 +263,10 @@ const PT_BR: Record<MyGamesStringKey, string> = {
   "myGames.kpiTrendFew": "Partidas revisadas insuficientes para comparar (precisa de 20)",
   "myGames.filterEmpty": "Nenhuma partida para estes filtros.",
   "myGames.filterReset": "Limpar Filtros",
+  "myGames.openLinkedAccounts": "Abrir Contas vinculadas",
+  "myGames.playedWhite": "Jogou de Brancas",
+  "myGames.playedBlack": "Jogou de Pretas",
+  "myGames.rowAccuracy": "Precisão {value}%",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;
