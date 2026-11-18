@@ -35,6 +35,7 @@ export function FileGamesPanel() {
         {database.games.map((game) => (
           <GameOpenRow
             key={game.id}
+            previewEnabled
             className={`flex w-full items-baseline justify-between gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle ${
               game.id === gameId ? "bg-studio-selected" : ""
             }`}

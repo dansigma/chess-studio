@@ -126,3 +126,47 @@ test("clear saved reviews confirmation renders localized labels in PT-BR", () =>
   fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
   assert.ok(screen.getByRole("button", { name: "Limpar revisões salvas" }));
 });
+
+test("initialSection='linkedAccounts' scrolls the Linked accounts section into view when signed in", () => {
+  act(() => {
+    useStudioStore.setState({
+      user: { id: "u1", email: "user@example.com" },
+      settings: { ...DEFAULT_SETTINGS, locale: "en" },
+    });
+  });
+
+  const scrollCalls: Array<ScrollIntoViewOptions | boolean | undefined> = [];
+  const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+  HTMLElement.prototype.scrollIntoView = function (arg?: ScrollIntoViewOptions | boolean) {
+    if (this.tagName === "SECTION" && this.textContent?.includes("Linked accounts")) {
+      scrollCalls.push(arg);
+    }
+  };
+
+  try {
+    render(<SettingsDialog onClose={() => {}} initialSection="linkedAccounts" />);
+    assert.equal(scrollCalls.length, 1);
+  } finally {
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+  }
+});
+
+test("initialSection='linkedAccounts' is safe when scrollIntoView is unavailable", () => {
+  act(() => {
+    useStudioStore.setState({
+      user: { id: "u1", email: "user@example.com" },
+      settings: { ...DEFAULT_SETTINGS, locale: "en" },
+    });
+  });
+
+  const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+  // Simulate an environment like happy-dom without scrollIntoView.
+  (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView = undefined;
+
+  try {
+    render(<SettingsDialog onClose={() => {}} initialSection="linkedAccounts" />);
+    assert.ok(screen.getByRole("heading", { name: "Linked accounts" }));
+  } finally {
+    HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
+  }
+});

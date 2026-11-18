@@ -179,6 +179,13 @@ export type UserInfo = {
   displayName?: string | null;
 };
 
+export type SettingsDialogSection = "linkedAccounts";
+
+export type SettingsDialogState = {
+  open: boolean;
+  section: SettingsDialogSection | null;
+};
+
 export type StudioState = {
   boards: BoardSession[];
   activeBoardId: string;
@@ -199,6 +206,7 @@ export type StudioState = {
   // 5s window closed, the user dismissed it, or any newer edit landed.
   pendingCutUndo: CutUndo | null;
   aboutOpen: boolean;
+  settingsDialog: SettingsDialogState;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
   layoutNonce: number;
   // SIG-1316: user-saved dock layouts, the last applied layout key
@@ -353,6 +361,8 @@ export type StudioState = {
   retryExplorer: () => void;
   setStatus: (message: string | null) => void;
   setAboutOpen: (open: boolean) => void;
+  openSettings: (section?: SettingsDialogSection) => void;
+  closeSettings: () => void;
   setNotationEditor: (editor: "comment" | "commentBefore" | "headers" | null) => void;
   openPlayerView: (player: PlayerHit, color?: PlayerColorFilter) => void;
   setPlayerGames: (games: PlayerGame[], notice?: string | null) => void;

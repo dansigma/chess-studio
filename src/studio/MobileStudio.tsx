@@ -42,12 +42,14 @@ export type MobileStudioTab = (typeof TABS)[number];
 export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
   const workspaceView = useStudioStore((state) => state.workspaceView);
+  const settingsDialog = useStudioStore((state) => state.settingsDialog);
+  const openSettings = useStudioStore((state) => state.openSettings);
+  const closeSettings = useStudioStore((state) => state.closeSettings);
   const [activeTab, setActiveTab] = useState<MobileStudioTab>("moves");
   const [menuOpen, setMenuOpen] = useState(false);
   const [viewSub, setViewSub] = useState<"theme" | "pieces" | "notation" | "panel" | "scheme" | "layouts" | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   function closeMenu() {
     setMenuOpen(false);
@@ -166,7 +168,7 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
               leaveSubmenu={() => setViewSub(null)}
               onOpenSettings={() => {
                 closeMenu();
-                setSettingsOpen(true);
+                openSettings();
               }}
               run={run}
               flat
@@ -197,7 +199,12 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
           </div>
         </Dialog>
       ) : null}
-      {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsDialog.open ? (
+        <SettingsDialog
+          initialSection={settingsDialog.section ?? undefined}
+          onClose={closeSettings}
+        />
+      ) : null}
     </div>
   );
 }

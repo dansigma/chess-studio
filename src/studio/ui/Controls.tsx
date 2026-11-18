@@ -11,18 +11,26 @@ export function Kbd({ children }: { children: ReactNode }) {
 
 export function Badge({
   tone = "neutral",
+  className = "",
+  title,
+  "aria-label": ariaLabel,
   children,
 }: {
   tone?: "neutral" | "accent";
+  className?: string;
+  title?: string;
+  "aria-label"?: string;
   children: ReactNode;
 }) {
   return (
     <span
+      title={title}
+      aria-label={ariaLabel}
       className={`inline-flex h-[18px] shrink-0 items-center rounded-[5px] px-1.5 text-caption font-semibold ${
         tone === "accent"
           ? "bg-studio-accent-soft text-studio-accent-text"
           : "bg-studio-hover-strong text-studio-muted"
-      }`}
+      } ${className}`}
     >
       {children}
     </span>

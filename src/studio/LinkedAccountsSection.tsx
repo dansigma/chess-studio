@@ -4,7 +4,7 @@
 // users link one public Lichess and one Chess.com username; guests see
 // nothing. Reads/writes through the linked-accounts lib so validation and
 // error codes stay in one place.
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type Ref } from "react";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import {
   loadLinkedAccounts,
@@ -97,7 +97,7 @@ function AccountRow({
   );
 }
 
-export function LinkedAccountsSection() {
+export function LinkedAccountsSection({ sectionRef }: { sectionRef?: Ref<HTMLElement> } = {}) {
   const locale = useStudioStore((state) => state.settings.locale);
   const user = useStudioStore((state) => state.user);
   const [usernames, setUsernames] = useState<Record<LinkedAccountSource, string>>({
@@ -201,7 +201,7 @@ export function LinkedAccountsSection() {
   };
 
   return (
-    <section className="border-t border-studio-border pt-2">
+    <section ref={sectionRef} className="border-t border-studio-border pt-2">
       <h3 className="pb-1 text-caption uppercase tracking-wider text-studio-faint">
         {tLinkedAccounts(locale, "linkedAccounts.title")}
       </h3>

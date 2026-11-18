@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { useStudioStore } from "@/src/store/studio-store";
+import { useStudioStore, type SettingsDialogSection } from "@/src/store/studio-store";
 import { BOARD_THEME_IDS, BOARD_THEMES, type BoardTheme } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS } from "@/src/chess/move-notation";
@@ -103,7 +103,13 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export function SettingsDialog({ onClose }: { onClose: () => void }) {
+export function SettingsDialog({
+  onClose,
+  initialSection,
+}: {
+  onClose: () => void;
+  initialSection?: SettingsDialogSection;
+}) {
   const locale = useStudioStore((state) => state.settings.locale);
   const settings = useStudioStore((state) => state.settings);
   const setColorScheme = useStudioStore((state) => state.setColorScheme);
@@ -121,6 +127,17 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const clearButtonRef = useRef<HTMLButtonElement>(null);
   const confirmClearRef = useRef<HTMLButtonElement>(null);
   const wasConfirmingRef = useRef(false);
+  const linkedAccountsRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (initialSection !== "linkedAccounts") {
+      return;
+    }
+    const el = linkedAccountsRef.current;
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "start" });
+    }
+  }, [initialSection]);
 
   useEffect(() => {
     if (confirmingClear) {
@@ -254,7 +271,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             onChange={setLocale}
           />
         </Section>
-        <LinkedAccountsSection />
+        <LinkedAccountsSection sectionRef={linkedAccountsRef} />
       </div>
     </Dialog>
   );

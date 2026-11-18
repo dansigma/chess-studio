@@ -34,6 +34,7 @@ import {
 import type {
   BoardSession,
   SessionResetPayload,
+  SettingsDialogState,
   StudioSettings,
   StudioState,
 } from "./slices/types";
@@ -69,6 +70,8 @@ export type {
   EnginePreview,
   SessionDataKey,
   SessionResetPayload,
+  SettingsDialogSection,
+  SettingsDialogState,
   StudioSettings,
   StudioState,
   UserInfo,
@@ -83,6 +86,8 @@ export {
 } from "./slices/selectors";
 export { DEFAULT_SETTINGS, SETTINGS_KEY, loadLocalSettings } from "./slices/settings";
 export { emptyBoard, newId, withActive, analysisFen } from "./slices/board-helpers";
+
+const CLOSED_SETTINGS_DIALOG: SettingsDialogState = { open: false, section: null };
 
 function withWorkspaceView(
   state: StudioState,
@@ -141,6 +146,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   explorerRetry: 0,
   statusMessage: null,
   aboutOpen: false,
+  settingsDialog: CLOSED_SETTINGS_DIALOG,
   notationEditor: null,
   playerProfile: null,
   playerGames: [],
@@ -154,6 +160,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   retryExplorer: () => set((state) => ({ explorerRetry: state.explorerRetry + 1 })),
   setStatus: (statusMessage) => set({ statusMessage }),
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
+  openSettings: (section) => set({ settingsDialog: { open: true, section: section ?? null } }),
+  closeSettings: () => set({ settingsDialog: CLOSED_SETTINGS_DIALOG }),
   setNotationEditor: (notationEditor) => set({ notationEditor }),
   openPlayerView: (player, color = "all") => {
     const current = get().playerProfile;
@@ -222,6 +230,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       // SIG-1384: signing out drops any pending cut undo with the session.
       pendingCutUndo: null,
       aboutOpen: false,
+      settingsDialog: CLOSED_SETTINGS_DIALOG,
       notationEditor: null,
       enginePreview: null,
       engineEval: null,
