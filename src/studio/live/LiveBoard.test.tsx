@@ -369,10 +369,13 @@ test("SIG-1312: every card shows a bar from the PGN [%eval]; without one a neutr
 
   // Not focused, PGN eval at the shown (latest) ply: a bar with the mate label, no engine.
   await waitFor(() => assert.ok(evalSlot("a")?.querySelector('[aria-label="Evaluation M3"]')));
-  // Not focused, no PGN eval: level bar, no number, never "0.00".
+  // Not focused, no PGN eval: dimmed/dashed bar with tooltip/aria-label, no number, never "0.00".
   const neutral = evalSlot("b")!.firstElementChild as HTMLElement;
-  assert.equal(neutral.getAttribute("aria-hidden"), "true");
-  assert.equal(neutral.getAttribute("aria-label"), null);
+  assert.equal(neutral.getAttribute("data-eval-unavailable"), "");
+  assert.equal(neutral.getAttribute("aria-label"), "No evaluation available");
+  assert.equal(neutral.getAttribute("title"), "No evaluation available");
+  assert.equal(neutral.getAttribute("aria-hidden"), null);
+  assert.match(neutral.className, /border-dashed/u);
   assert.equal(neutral.textContent, "");
   assert.doesNotMatch(evalSlot("b")!.textContent!, /0\.00/u);
   assert.equal(engineLeases.length, 0);
@@ -386,10 +389,10 @@ test("SIG-1312: every card shows a bar from the PGN [%eval]; without one a neutr
   // Browsing back shows the [%eval] of the viewed ply.
   fireEvent.click(within(board("a")).getByRole("button", { name: "Previous move" }));
   await waitFor(() => assert.ok(evalSlot("a")!.querySelector('[aria-label="Evaluation -1.50"]')));
-  // The start position has no eval: the focused card falls back to Stockfish (neutral until it answers).
+  // The start position has no eval: the focused card falls back to Stockfish (unavailable bar until it answers).
   fireEvent.click(within(board("a")).getByRole("button", { name: "First move" }));
   await waitFor(() => assert.equal(activeLeases(), 1));
-  assert.equal((evalSlot("a")!.firstElementChild as HTMLElement).getAttribute("aria-hidden"), "true");
+  assert.equal((evalSlot("a")!.firstElementChild as HTMLElement).getAttribute("data-eval-unavailable"), "");
   // Back to a ply with an eval: the lease is released.
   fireEvent.click(within(board("a")).getByRole("button", { name: "Last move" }));
   await waitFor(() => assert.equal(activeLeases(), 0));

@@ -11,6 +11,7 @@ import { Button } from "@/src/studio/ui/Button";
 import { useIsMobile } from "../use-is-mobile";
 import { LiveConnectionIndicator } from "./LiveConnectionIndicator";
 import { LiveBoardGrid } from "./LiveBoardGrid";
+import { formatDisplayClock } from "./live-clock";
 import { LiveGamesTable, orderedGames } from "./LiveGamesTable";
 import { enqueueLiveRequest, useLiveStore } from "./live-store";
 import { useLiveRound, useLiveRoundInfo } from "./use-live";
@@ -35,9 +36,21 @@ export function roundOptionLabel(round: BroadcastRoundSummary, locale: SiteLocal
   return state ? `${round.name} — ${state}` : round.name;
 }
 
+function followedSummary(game: LiveGame, locale: SiteLocale): string {
+  const players = `${game.white.name} – ${game.black.name}`;
+  if (game.result !== "*") {
+    const result = game.result === "1/2-1/2" ? "½–½" : game.result.replace("-", "–");
+    return `${players} · ${result}`;
+  }
+  if (game.white.clockMs !== null && game.black.clockMs !== null) {
+    return `${players} · ${formatDisplayClock(game.white.clockMs)} – ${formatDisplayClock(game.black.clockMs)}`;
+  }
+  return `${players} · ${tLive(locale, "live.item.live")}`;
+}
+
 /**
- * Second bar: the focused game's opening (ECO code + name, once the PGN is known). Each card already has
- * the names, the result and its own Studio button, so the bar doesn't repeat them.
+ * Second bar: the focused game's opening (ECO code + name, once the PGN is known), falling back to
+ * players and status/clock summary before ECO data arrives so the bar never collapses to blank space.
  */
 function FollowedHeader({ game, locale }: { game: LiveGame | undefined; locale: SiteLocale }) {
   return (
@@ -49,7 +62,11 @@ function FollowedHeader({ game, locale }: { game: LiveGame | undefined; locale: 
             {game.eco && game.opening ? " · " : null}
             {game.opening}
           </span>
-        ) : null
+        ) : (
+          <span className="min-w-0 truncate text-studio-fg tabular-nums" data-live-followed-summary="">
+            {followedSummary(game, locale)}
+          </span>
+        )
       ) : (
         <span>{tLive(locale, "live.round.noFollowed")}</span>
       )}

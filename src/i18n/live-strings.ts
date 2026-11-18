@@ -100,6 +100,17 @@ export const LIVE_STRING_KEYS = [
   "live.layout.focus",
   "live.grid.clear",
   "live.round.opening",
+  "live.list.search.label",
+  "live.list.search.placeholder",
+  "live.list.filter.label",
+  "live.list.filter.all",
+  "live.list.filter.live",
+  "live.list.filter.upcoming",
+  "live.list.filter.past",
+  "live.list.emptyFiltered",
+  "live.item.noRounds",
+  "live.eval.unavailable",
+  "live.board.drag",
 ] as const;
 
 export type LiveStringKey = (typeof LIVE_STRING_KEYS)[number];
@@ -203,6 +214,17 @@ const EN: Record<LiveStringKey, string> = {
   "live.layout.focus": "Focus",
   "live.grid.clear": "Clear grid",
   "live.round.opening": "Opening",
+  "live.list.search.label": "Search broadcasts",
+  "live.list.search.placeholder": "Search broadcasts",
+  "live.list.filter.label": "Filter broadcasts",
+  "live.list.filter.all": "All",
+  "live.list.filter.live": "Live",
+  "live.list.filter.upcoming": "Upcoming",
+  "live.list.filter.past": "Past",
+  "live.list.emptyFiltered": "No broadcasts match your filter.",
+  "live.item.noRounds": "No rounds yet",
+  "live.eval.unavailable": "No evaluation available",
+  "live.board.drag": "Reorder board",
 };
 
 const PT_BR: Record<LiveStringKey, string> = {
@@ -304,6 +326,17 @@ const PT_BR: Record<LiveStringKey, string> = {
   "live.layout.focus": "Foco",
   "live.grid.clear": "Limpar grade",
   "live.round.opening": "Abertura",
+  "live.list.search.label": "Buscar transmissões",
+  "live.list.search.placeholder": "Buscar transmissões",
+  "live.list.filter.label": "Filtrar transmissões",
+  "live.list.filter.all": "Todas",
+  "live.list.filter.live": "Ao vivo",
+  "live.list.filter.upcoming": "Em breve",
+  "live.list.filter.past": "Encerrados",
+  "live.list.emptyFiltered": "Nenhuma transmissão encontrada.",
+  "live.item.noRounds": "Sem rodadas ainda",
+  "live.eval.unavailable": "Sem avaliação disponível",
+  "live.board.drag": "Reordenar tabuleiro",
 };
 
 export const tLive = createT(EN, PT_BR);

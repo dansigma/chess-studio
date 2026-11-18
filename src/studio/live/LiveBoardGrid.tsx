@@ -4,7 +4,7 @@ import { useState, type DragEvent } from "react";
 import { tLive, type LiveStringKey } from "@/src/i18n/live-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { useIsMobile } from "../use-is-mobile";
-import { LiveBoard, type LiveBoardVariant } from "./LiveBoard";
+import { LiveBoard, type LiveBoardDragHandleProps, type LiveBoardVariant } from "./LiveBoard";
 import { sameGameRef, useLiveStore } from "./live-store";
 import { compactGridShape, MAX_LIVE_BOARDS } from "./live-board-model";
 import { LIVE_LAYOUTS, useLiveLayoutPref, type LiveLayout } from "./use-live-layout-pref";
@@ -62,35 +62,15 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
   const activeLayout: LiveLayout = mobile ? "grid" : layout;
   const reorderable = !mobile && activeLayout !== "focus" && openBoards.length > 1;
 
-  const renderBoard = (ref: LiveGameRef, variant: LiveBoardVariant) => {
-    // The Focus layout's large card is the focused one even before the user clicked (focus null = first board).
-    const focused = sameGameRef(ref, activeLayout === "focus" ? effectiveFocus : focusedGame);
-    const key = refKey(ref);
-    return (
-      <LiveBoard
-        roundId={ref.roundId}
-        gameId={ref.gameId}
-        focused={focused}
-        showEval={showEval}
-        locale={locale}
-        variant={variant}
-        flipped={flipped[key] === true}
-        onFlip={() => setFlipped((prev) => ({ ...prev, [key]: !prev[key] }))}
-        onFocus={() => (focused ? undefined : focusBoard(ref))}
-        onClose={() => closeBoard(ref)}
-      />
-    );
-  };
-
   const endDrag = () => {
     setDragFrom(null);
     setDragOver(null);
   };
-  const dragHandlers = (index: number) =>
+  const dragHandleProps = (index: number): LiveBoardDragHandleProps | undefined =>
     reorderable
       ? {
           draggable: true,
-          onDragStart: (event: DragEvent<HTMLDivElement>) => {
+          onDragStart: (event: DragEvent<HTMLButtonElement>) => {
             event.dataTransfer.effectAllowed = "move";
             try {
               // Firefox starts no drag without data.
@@ -100,6 +80,12 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
             }
             setDragFrom(index);
           },
+          onDragEnd: endDrag,
+        }
+      : undefined;
+  const dropHandlers = (index: number) =>
+    reorderable
+      ? {
           onDragOver: (event: DragEvent<HTMLDivElement>) => {
             if (dragFrom === null) {
               return; // not one of our cards (a file, a link): leave the browser's default
@@ -118,9 +104,29 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
             moveBoard(dragFrom, index);
             endDrag();
           },
-          onDragEnd: endDrag,
         }
       : {};
+  const renderBoard = (ref: LiveGameRef, variant: LiveBoardVariant, index?: number) => {
+    // The Focus layout's large card is the focused one even before the user clicked (focus null = first board).
+    const focused = sameGameRef(ref, activeLayout === "focus" ? effectiveFocus : focusedGame);
+    const key = refKey(ref);
+    return (
+      <LiveBoard
+        roundId={ref.roundId}
+        gameId={ref.gameId}
+        focused={focused}
+        showEval={showEval}
+        locale={locale}
+        variant={variant}
+        flipped={flipped[key] === true}
+        onFlip={() => setFlipped((prev) => ({ ...prev, [key]: !prev[key] }))}
+        onFocus={() => (focused ? undefined : focusBoard(ref))}
+        onClose={() => closeBoard(ref)}
+        dragHandleProps={index !== undefined ? dragHandleProps(index) : undefined}
+      />
+    );
+  };
+
   const cardWrapper = (ref: LiveGameRef, index: number, variant: LiveBoardVariant) => (
     <div
       key={refKey(ref)}
@@ -129,9 +135,9 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
       }`}
       data-live-card={refKey(ref)}
       data-drop-target={dragFrom !== null && dragOver === index && dragFrom !== index ? "" : undefined}
-      {...dragHandlers(index)}
+      {...dropHandlers(index)}
     >
-      {renderBoard(ref, variant)}
+      {renderBoard(ref, variant, index)}
     </div>
   );
 
