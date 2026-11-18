@@ -16,7 +16,7 @@ mock.module("@/src/lib/supabase/client", {
   },
 });
 
-const { LibrarySourceRail } = await import("./LibrarySourceRail");
+const { LibrarySourceRail, FileNameInput } = await import("./LibrarySourceRail");
 const { LibraryView } = await import("./LibraryView");
 const { useLibraryStore } = await import("./library-store");
 const { resetImportQueue } = await import("./import-queue-store");
@@ -262,6 +262,73 @@ test("rename: Enter saves, empty is refused, Esc cancels", async () => {
   fireEvent.keyDown(input, { key: "Enter" });
   assert.equal(screen.queryByRole("textbox"), null);
   assert.equal(useStudioStore.getState().files.databases[0].name, "Endgames");
+});
+
+test("rename: clicking outside saves the trimmed name (SIG-1404)", async () => {
+  seed(TACTICS);
+  await renderRail();
+  openMenu();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+  const input = screen.getByRole("textbox", { name: "File name" });
+  fireEvent.change(input, { target: { value: "  Endgames  " } });
+  fireEvent.blur(input);
+  assert.equal(useStudioStore.getState().files.databases[0].name, "Endgames");
+  assert.equal(screen.queryByRole("textbox"), null);
+});
+
+test("rename: clicking outside with an empty or unchanged name cancels (SIG-1404)", async () => {
+  seed(TACTICS);
+  await renderRail();
+  const openRename = () => {
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
+    return screen.getByRole("textbox", { name: "File name" });
+  };
+  let input = openRename();
+  fireEvent.change(input, { target: { value: "   " } });
+  fireEvent.blur(input);
+  assert.equal(useStudioStore.getState().files.databases[0].name, "Tactics");
+  assert.equal(screen.queryByRole("textbox"), null);
+
+  input = openRename();
+  fireEvent.change(input, { target: { value: "Tactics" } });
+  fireEvent.blur(input);
+  assert.equal(useStudioStore.getState().files.databases[0].name, "Tactics");
+  assert.equal(screen.queryByRole("textbox"), null);
+});
+
+test("rename input: Enter saves once even when a blur follows (SIG-1404)", () => {
+  const calls: string[] = [];
+  render(
+    <FileNameInput
+      initial="Tactics"
+      label="File name"
+      onCommit={(name) => calls.push(`commit:${name}`)}
+      onCancel={() => calls.push("cancel")}
+    />,
+  );
+  const input = screen.getByRole("textbox", { name: "File name" });
+  fireEvent.change(input, { target: { value: " Endgames " } });
+  fireEvent.keyDown(input, { key: "Enter" });
+  fireEvent.blur(input);
+  assert.deepEqual(calls, ["commit:Endgames"]);
+});
+
+test("rename input: Escape never saves, even when a blur follows (SIG-1404)", () => {
+  const calls: string[] = [];
+  render(
+    <FileNameInput
+      initial="Tactics"
+      label="File name"
+      onCommit={(name) => calls.push(`commit:${name}`)}
+      onCancel={() => calls.push("cancel")}
+    />,
+  );
+  const input = screen.getByRole("textbox", { name: "File name" });
+  fireEvent.change(input, { target: { value: "Endgames" } });
+  fireEvent.keyDown(input, { key: "Escape" });
+  fireEvent.blur(input);
+  assert.deepEqual(calls, ["cancel"]);
 });
 
 test("export downloads every game joined by a blank line", async () => {

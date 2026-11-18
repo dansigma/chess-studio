@@ -151,7 +151,11 @@ function SourceKindIcon({
   return <DatabaseIcon {...common} />;
 }
 
-/** Inline name editor for a PGN file row: Enter saves, Esc/blur cancels, empty is refused. */
+/**
+ * Inline name editor for a PGN file row: Enter or clicking away saves the
+ * trimmed name, Esc cancels, an empty name is refused on Enter (SIG-1404: on
+ * blur it cancels instead of saving).
+ */
 export function FileNameInput({
   initial,
   label,
@@ -165,19 +169,39 @@ export function FileNameInput({
 }) {
   const [value, setValue] = useState(initial);
   const ref = useRef<HTMLInputElement>(null);
+  // Escape hides the editor; the blur that may follow must not save what was typed.
+  const cancelledRef = useRef(false);
+  // Enter already saved; the blur that follows must not save the same name again.
+  const committedRef = useRef(false);
   useEffect(() => {
     ref.current?.focus();
     ref.current?.select();
   }, []);
+  /** Save the trimmed name once; an unchanged name just closes the editor. */
+  const save = () => {
+    if (committedRef.current) {
+      return;
+    }
+    const next = value.trim();
+    if (!next) {
+      return;
+    }
+    if (next === initial.trim()) {
+      cancelledRef.current = true;
+      onCancel();
+      return;
+    }
+    committedRef.current = true;
+    onCommit(next);
+  };
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
       event.preventDefault();
-      if (value.trim()) {
-        onCommit(value.trim());
-      }
+      save();
     } else if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
+      cancelledRef.current = true;
       onCancel();
     }
   };
@@ -189,7 +213,18 @@ export function FileNameInput({
       maxLength={120}
       onChange={(event) => setValue(event.target.value)}
       onKeyDown={onKeyDown}
-      onBlur={onCancel}
+      onBlur={() => {
+        if (cancelledRef.current || committedRef.current) {
+          return;
+        }
+        // Empty on blur cancels; only Escape or an empty value may throw the text away.
+        if (!value.trim()) {
+          cancelledRef.current = true;
+          onCancel();
+          return;
+        }
+        save();
+      }}
       className="h-7 min-w-0 flex-1 rounded-md bg-transparent px-2 text-dense font-medium text-studio-fg outline-none"
     />
   );

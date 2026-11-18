@@ -98,8 +98,9 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
       role="dialog"
       aria-label={t("library.filtersPopover.title")}
       data-testid="library-filters-popover"
-      className="absolute right-0 top-8 z-30 flex w-80 max-w-[calc(100vw-1rem)] flex-col gap-3 rounded-[9px] border border-studio-border-strong bg-studio-elevated p-3 shadow-2xl"
+      className="absolute right-0 top-8 z-30 flex max-h-[min(80dvh,38rem)] w-80 max-w-[calc(100vw-1rem)] flex-col gap-3 overflow-y-auto rounded-[9px] border border-studio-border-strong bg-studio-elevated px-3 pt-3 shadow-2xl"
     >
+      {/* SIG-1404: the fields scroll under the pinned Clear footer on short viewports. */}
       <Field label={t("library.filtersPopover.position")} support={support("position")}>
         {() => (
           <div className="flex flex-col gap-2">
@@ -170,21 +171,49 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
         )}
       </Field>
 
-      <Field
-        label={t("library.filtersPopover.opponent")}
-        hint={t("library.filtersPopover.opponentHint")}
-        support={support("opponent")}
+      {/* SIG-1404: opponent and your color belong together — who you played and which side. */}
+      <div
+        role="group"
+        aria-label={t("library.filtersPopover.headToHead")}
+        data-testid="library-filters-head-to-head"
+        className="flex flex-col gap-2 rounded-md border border-studio-border bg-studio-bg/40 p-2"
       >
-        {(disabled, describedBy) => (
-          <DebouncedText
-            value={filters.opponent}
-            disabled={disabled}
-            describedBy={describedBy}
-            placeholder={t("library.filtersPopover.opponentPlaceholder")}
-            onCommit={(value) => setFilter("opponent", value)}
-          />
-        )}
-      </Field>
+        <span className="text-caption font-semibold uppercase tracking-wide text-studio-faint">
+          {t("library.filtersPopover.headToHead")}
+        </span>
+        <Field
+          label={t("library.filtersPopover.opponent")}
+          hint={t("library.filtersPopover.opponentHint")}
+          support={support("opponent")}
+        >
+          {(disabled, describedBy) => (
+            <DebouncedText
+              value={filters.opponent}
+              disabled={disabled}
+              describedBy={describedBy}
+              placeholder={t("library.filtersPopover.opponentPlaceholder")}
+              onCommit={(value) => setFilter("opponent", value)}
+            />
+          )}
+        </Field>
+
+        <Field label={t("library.filtersPopover.color")} support={support("color")}>
+          {(disabled, describedBy, labelId) => (
+            <Segmented<LibraryFilterState["color"]>
+              labelId={labelId}
+              describedBy={describedBy}
+              disabled={disabled}
+              value={filters.color}
+              onChange={(value) => setFilter("color", value)}
+              options={[
+                { value: "both", label: t("library.filtersPopover.colorBoth") },
+                { value: "white", label: t("library.filtersPopover.colorWhite") },
+                { value: "black", label: t("library.filtersPopover.colorBlack") },
+              ]}
+            />
+          )}
+        </Field>
+      </div>
 
       {/* Rating range and ECO code share one row to keep the popover short. */}
       <div className="grid grid-cols-2 items-start gap-2" data-testid="library-filters-elo-eco">
@@ -260,23 +289,6 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
         )}
       </Field>
 
-      <Field label={t("library.filtersPopover.color")} support={support("color")}>
-        {(disabled, describedBy, labelId) => (
-          <Segmented<LibraryFilterState["color"]>
-            labelId={labelId}
-            describedBy={describedBy}
-            disabled={disabled}
-            value={filters.color}
-            onChange={(value) => setFilter("color", value)}
-            options={[
-              { value: "both", label: t("library.filtersPopover.colorBoth") },
-              { value: "white", label: t("library.filtersPopover.colorWhite") },
-              { value: "black", label: t("library.filtersPopover.colorBlack") },
-            ]}
-          />
-        )}
-      </Field>
-
       <Field label={t("library.filtersPopover.result")} support={support("result")}>
         {(disabled, describedBy, labelId) => (
           <Segmented<LibraryFilterState["result"]>
@@ -312,7 +324,11 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
         )}
       </Field>
 
-      <div className="flex justify-end">
+      {/* SIG-1404: pinned to the bottom of the scrollport, so Clear stays reachable. */}
+      <div
+        data-testid="library-filters-footer"
+        className="sticky bottom-0 -mx-3 flex shrink-0 justify-end border-t border-studio-border bg-studio-elevated px-3 py-2"
+      >
         <button
           type="button"
           onClick={clearAdvanced}
