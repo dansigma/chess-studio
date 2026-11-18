@@ -4,6 +4,11 @@
       "id": "GHSA-mrhx-c7xc-m3w5",
       "reason": "zod memory-exhaustion advisory pulled in via the @cloudflare/config toolchain (vinext/cloudflare dev chain); fix requires a beta-line @cloudflare/vite-plugin or cf upgrade, not viable now",
       "expires": "2027-01-22"
+    },
+    {
+      "id": "GHSA-fc5q-39xc-vjpf",
+      "reason": "picomatch ReDoS advisory (<=4.0.7) pulled in via tinyglobby/vite in the vinext build toolchain, not exposed to untrusted user globs at runtime; no patched picomatch version is published yet — re-evaluate once an upstream fix is released",
+      "expires": "2027-02-15"
     }
   ]
 }
