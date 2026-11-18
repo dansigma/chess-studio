@@ -25,10 +25,12 @@ test("labels exist for every key in both languages", () => {
   assert.notEqual(insightsLabel("en", "tabThreats"), insightsLabel("pt", "tabThreats"));
 });
 
-test("language follows the browser locale, defaulting to English", () => {
+test("language follows the browser or site locale, defaulting to English", () => {
   assert.equal(insightsLangFrom("pt-BR"), "pt");
+  assert.equal(insightsLangFrom("pt-br"), "pt");
   assert.equal(insightsLangFrom("PT"), "pt");
   assert.equal(insightsLangFrom("en-US"), "en");
+  assert.equal(insightsLangFrom("en"), "en");
   assert.equal(insightsLangFrom(undefined), "en");
 });
 

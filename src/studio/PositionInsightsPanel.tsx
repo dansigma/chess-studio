@@ -8,7 +8,7 @@ import {
   type Color,
   type Threat,
   type ThreatSet,
-} from "@/src/chess/facts";
+} from "@/src/chess/facts/index";
 import type { BoardMarks } from "@/src/chess/marks";
 import { isNullMoveToken } from "@/src/chess/null-move";
 import { getFenAt, getLastMove, getNodeAt, goBack } from "@/src/chess/tree";
@@ -30,7 +30,7 @@ import {
   marksForThreats,
   mergeBoardMarks,
 } from "./insights-model";
-import { useInsightMarks } from "./useInsightMarks";
+import { useInsightMarks, usePinnedMarks } from "./useInsightMarks";
 
 type Tab = "pieces" | "threats" | "concepts";
 type Which = "before" | "after";
@@ -45,18 +45,16 @@ const previewKey = (fen: string) => `insights:${fen}`;
 
 const ROW =
   "flex w-full items-center gap-2 px-3 py-1 text-left text-dense hover:bg-studio-hover focus-visible:bg-studio-hover";
+const ROW_PINNED = "bg-studio-accent-soft ring-1 ring-inset ring-studio-accent";
 
 export function PositionInsightsPanel() {
   const board = useActiveBoard();
   const setupMode = useStudioStore((state) => state.setupMode);
+  const locale = useStudioStore((state) => state.settings.locale);
   const setEnginePreview = useStudioStore((state) => state.setEnginePreview);
   const [tab, setTab] = useState<Tab>("pieces");
   const [which, setWhich] = useState<Which>("after");
-  const [hover, setHover] = useState<BoardMarks | null>(null);
-  const lang = useMemo(
-    () => insightsLangFrom(typeof navigator === "undefined" ? undefined : navigator.language),
-    [],
-  );
+  const lang = insightsLangFrom(locale);
   const t = (key: InsightsLabelKey) => insightsLabel(lang, key);
 
   const fen = getFenAt(board.tree, board.path);
@@ -72,8 +70,11 @@ export function PositionInsightsPanel() {
   if (whichFen !== fen) {
     setWhichFen(fen);
     setWhich("after");
-    setHover(null);
   }
+
+  const { active, clearHover, isPinned, bindItem } = usePinnedMarks<BoardMarks>(
+    `${fen}|${tab}|${which}|${setupMode ? 1 : 0}`,
+  );
 
   const facts = useMemo(() => computePositionFacts(fen), [fen]);
   const comparison = useMemo(
@@ -127,14 +128,12 @@ export function PositionInsightsPanel() {
     return current ? marksForThreats(current.threats, "R") : null;
   }, [tab, which, comparison, current]);
 
-  useInsightMarks(setupMode ? null : shownFen, hover ?? baseMarks);
+  useInsightMarks(setupMode ? null : shownFen, active ?? baseMarks);
 
-  function hoverProps(marks: BoardMarks) {
+  function rowProps(id: string, marks: BoardMarks) {
     return {
-      onMouseEnter: () => setHover(marks),
-      onMouseLeave: () => setHover(null),
-      onFocus: () => setHover(marks),
-      onBlur: () => setHover(null),
+      className: isPinned(id) ? `${ROW} ${ROW_PINNED}` : ROW,
+      ...bindItem(id, marks),
     };
   }
 
@@ -145,7 +144,7 @@ export function PositionInsightsPanel() {
   function threatRows(threats: Threat[], badge?: Map<string, InsightsLabelKey>, color: "R" | "B" = "R") {
     return threats.map((threat) => (
       <li key={threat.id}>
-        <button type="button" className={ROW} {...hoverProps(marksForThreat(threat, color))}>
+        <button type="button" {...rowProps(`threat:${color}:${threat.id}`, marksForThreat(threat, color))}>
           <span className={`font-semibold ${color === "R" ? "text-studio-danger" : "text-studio-accent"}`}>
             {t(THREAT_KIND_LABEL[threat.kind])}
           </span>
@@ -193,7 +192,7 @@ export function PositionInsightsPanel() {
               .filter((row) => row.color === color)
               .map((row) => (
                 <li key={row.id}>
-                  <button type="button" className={ROW} {...hoverProps(row.marks)}>
+                  <button type="button" {...rowProps(`piece:${row.id}`, row.marks)}>
                     <span aria-hidden="true" className="w-4 text-center">
                       {PIECE_GLYPH[row.color][row.type]}
                     </span>
@@ -240,10 +239,7 @@ export function PositionInsightsPanel() {
                 key={id}
                 type="button"
                 aria-pressed={which === id}
-                onClick={() => {
-                  setHover(null);
-                  setWhich(id);
-                }}
+                onClick={() => setWhich(id)}
                 className={`rounded px-2 py-1 text-dense ${
                   which === id
                     ? "bg-studio-hover-strong font-semibold text-studio-fg"
@@ -284,7 +280,7 @@ export function PositionInsightsPanel() {
       <ul className="py-1">
         {concepts.map((item) => (
           <li key={item.id}>
-            <button type="button" className={ROW} {...hoverProps(item.marks)}>
+            <button type="button" {...rowProps(`concept:${item.id}`, item.marks)}>
               {item.color ? (
                 <span aria-hidden="true" className="w-4 text-center">
                   {PIECE_GLYPH[item.color].k}
@@ -310,10 +306,7 @@ export function PositionInsightsPanel() {
             type="button"
             role="tab"
             aria-selected={tab === item.id}
-            onClick={() => {
-              setHover(null);
-              setTab(item.id);
-            }}
+            onClick={() => setTab(item.id)}
             className={`rounded px-2 py-1 text-dense ${
               tab === item.id
                 ? "bg-studio-hover-strong font-semibold text-studio-fg"
@@ -324,7 +317,7 @@ export function PositionInsightsPanel() {
           </button>
         ))}
       </div>
-      <div role="tabpanel" className="min-h-0 flex-1 overflow-auto" onMouseLeave={() => setHover(null)}>
+      <div role="tabpanel" className="min-h-0 flex-1 overflow-auto" onMouseLeave={clearHover}>
         {body()}
       </div>
     </div>

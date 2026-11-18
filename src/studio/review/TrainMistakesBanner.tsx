@@ -17,9 +17,11 @@ import {
 export function TrainMistakesBanner({
   banner,
   locale,
+  onStartRetry,
 }: {
   banner: TrainBanner & { lineId: string };
   locale: SiteLocale;
+  onStartRetry?: () => void;
 }) {
   const [dismissedLine, setDismissedLine] = useState<string | null>(null);
   if (dismissedLine === banner.lineId) {
@@ -31,16 +33,26 @@ export function TrainMistakesBanner({
       className="mx-3 mt-2 flex items-center gap-2 rounded-md bg-studio-accent-soft px-2 py-1 text-caption text-studio-fg"
     >
       <Dumbbell aria-hidden className="size-3.5 shrink-0 text-studio-accent-text" />
-      <span className="min-w-0 flex-1 truncate">
-        {trainBannerText(locale, banner)}
-        <span aria-hidden> · </span>
-        <Link
-          href={MISTAKES_TRAINER_HREF}
-          className="font-semibold text-studio-accent-text underline-offset-2 hover:underline"
-        >
-          {tMistakes(locale, "mistakes.banner.action")}
-        </Link>
-      </span>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span className="min-w-0">{trainBannerText(locale, banner)}</span>
+        <span className="flex shrink-0 flex-wrap items-center gap-2">
+          {onStartRetry ? (
+            <button
+              type="button"
+              onClick={onStartRetry}
+              className="font-semibold text-studio-accent-text underline-offset-2 hover:underline"
+            >
+              {tMistakes(locale, "mistakes.banner.retryBoard")}
+            </button>
+          ) : null}
+          <Link
+            href={MISTAKES_TRAINER_HREF}
+            className="font-semibold text-studio-accent-text underline-offset-2 hover:underline"
+          >
+            {tMistakes(locale, "mistakes.banner.action")}
+          </Link>
+        </span>
+      </div>
       <button
         type="button"
         aria-label={tMistakes(locale, "mistakes.banner.dismiss")}

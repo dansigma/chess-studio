@@ -24,6 +24,7 @@ export const MISTAKE_STRING_KEYS = [
   "mistakes.banner.side.w",
   "mistakes.banner.side.b",
   "mistakes.banner.action",
+  "mistakes.banner.retryBoard",
   "mistakes.banner.dismiss",
 ] as const;
 
@@ -51,6 +52,7 @@ const EN: Record<MistakeStringKey, string> = {
   "mistakes.banner.side.w": "White's",
   "mistakes.banner.side.b": "Black's",
   "mistakes.banner.action": "Train now",
+  "mistakes.banner.retryBoard": "Retry on board",
   "mistakes.banner.dismiss": "Dismiss",
 };
 
@@ -73,6 +75,7 @@ const PT_BR: Record<MistakeStringKey, string> = {
   "mistakes.banner.side.w": "das Brancas",
   "mistakes.banner.side.b": "das Pretas",
   "mistakes.banner.action": "Treinar agora",
+  "mistakes.banner.retryBoard": "Refazer no tabuleiro",
   "mistakes.banner.dismiss": "Dispensar",
 };
 

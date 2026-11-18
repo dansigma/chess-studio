@@ -9,6 +9,7 @@ import { renderExplanation, uiText } from "@/src/chess/explain/render";
 import { formatSan, type MoveNotation } from "@/src/chess/move-notation";
 import { REVIEW_TIERS } from "@/src/chess/review-tiers";
 import { retryButtonLabel, tierName, tReview } from "@/src/chess/review-strings";
+import { moveNumberForPath, plyColor } from "@/src/chess/tree";
 import type { ReviewMoveRow } from "./useGameReview";
 import { RetryButton } from "./RetryCard";
 import { marksForStatement } from "./why-marks";
@@ -19,6 +20,7 @@ const LINE_PLIES = 8;
 
 type Props = {
   row: ReviewMoveRow;
+  startFen: string;
   fenBefore: string;
   fenAfter: string;
   /** The opponent's previous move, for recapture wording. */
@@ -31,13 +33,11 @@ type Props = {
   onRetry?: () => void;
 };
 
-function moveNumberLabel(fen: string, ply: number): string | null {
-  const fields = fen.split(" ");
-  const blackFirst = fields[1] === "b";
-  const full = Number.parseInt(fields[5] ?? "1", 10) || 1;
-  const isWhite = (ply % 2 === 0) !== blackFirst;
-  const number = full + Math.floor((ply + (blackFirst ? 1 : 0)) / 2);
-  if (isWhite) {
+function moveNumberLabel(startFen: string, basePathLength: number, ply: number): string | null {
+  const step = basePathLength + ply;
+  const color = plyColor(startFen, step);
+  const number = moveNumberForPath(startFen, step);
+  if (color === "w") {
     return `${number}.`;
   }
   return ply === 0 ? `${number}...` : null;
@@ -48,8 +48,12 @@ function moveNumberLabel(fen: string, ply: number): string | null {
  * best line. Rendered inline under a key-moment row and inside the collapsible
  * {@link WhyBlock}. Mount it only while it is visible — it computes on mount.
  */
-export function WhyBody({ row, fenBefore, fenAfter, previous, locale, moveNotation, onPlayLine, onRetry }: Props) {
-  const setHover = useWhyHover(fenBefore, fenAfter);
+export function WhyBody({ row, startFen, fenBefore, fenAfter, previous, locale, moveNotation, onPlayLine, onRetry }: Props) {
+  const { isPinned, bindItem, clearHover } = useWhyHover(
+    fenBefore,
+    fenAfter,
+    `${row.path.join(".")}:${row.playedUci}:${row.bestPv[0] ?? ""}`,
+  );
 
   const mover = row.side;
   const sign = mover === "w" ? 1 : -1;
@@ -84,21 +88,22 @@ export function WhyBody({ row, fenBefore, fenAfter, previous, locale, moveNotati
         rendered.sections.map((section) => (
           <div key={section.id}>
             <div className="pb-1 text-caption uppercase tracking-wide text-studio-faint">{section.title}</div>
-            <ul className="space-y-0.5">
+            <ul className="space-y-0.5" onMouseLeave={clearHover}>
               {section.items.map((item, index) => {
+                const id = `${section.id}:${item.statement.id}-${index}`;
                 const marks = marksForStatement(item.statement, section.id);
-                const hover = () => setHover({ marks, at: item.statement.highlight.at });
+                const pinned = isPinned(id);
                 return (
-                  <li
-                    key={`${item.statement.id}-${index}`}
-                    tabIndex={0}
-                    className="cursor-default rounded px-1.5 py-1 text-dense hover:bg-studio-hover focus:bg-studio-hover focus:outline-none"
-                    onMouseEnter={hover}
-                    onMouseLeave={() => setHover(null)}
-                    onFocus={hover}
-                    onBlur={() => setHover(null)}
-                  >
-                    {item.text}
+                  <li key={`${item.statement.id}-${index}`}>
+                    <button
+                      type="button"
+                      className={`w-full rounded px-1.5 py-1 text-left text-dense hover:bg-studio-hover focus-visible:bg-studio-hover focus:outline-none ${
+                        pinned ? "bg-studio-accent-soft ring-1 ring-inset ring-studio-accent" : ""
+                      }`}
+                      {...bindItem(id, { marks, at: item.statement.highlight.at })}
+                    >
+                      {item.text}
+                    </button>
                   </li>
                 );
               })}
@@ -113,8 +118,8 @@ export function WhyBody({ row, fenBefore, fenAfter, previous, locale, moveNotati
           <div className="pb-1 text-caption uppercase tracking-wide text-studio-faint">{uiText(locale, "bestLine")}</div>
           <div className="flex flex-wrap gap-x-1 gap-y-0.5">
             {line.map((entry, ply) => {
-              const number = moveNumberLabel(fenBefore, ply);
-              const side = (ply % 2 === 0) === (mover === "w") ? "w" : "b";
+              const number = moveNumberLabel(startFen, row.path.length, ply);
+              const side = plyColor(startFen, row.path.length + ply);
               return (
                 <button
                   key={`${entry.uci}-${ply}`}
@@ -137,7 +142,7 @@ export function WhyBody({ row, fenBefore, fenAfter, previous, locale, moveNotati
           <RetryButton
             locale={locale}
             label={retryButtonLabel(locale, moveNotation, {
-              moveNumber: Number.parseInt(fenBefore.split(" ")[5] ?? "1", 10) || 1,
+              moveNumber: moveNumberForPath(startFen, row.path.length),
               san: row.san,
               side: row.side,
             })}

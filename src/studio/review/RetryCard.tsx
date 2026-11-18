@@ -120,7 +120,12 @@ export function RetryCard({
           </span>
         ) : null}
       </div>
-      <p role="status" data-retry-message className={`truncate px-3 py-1 text-body ${tone}`} title={message}>
+      <p
+        role="status"
+        data-retry-message
+        className={`${retry.status === "revealed" ? "whitespace-normal break-words" : "truncate"} px-3 py-1 text-body ${tone}`}
+        title={message}
+      >
         {message}
       </p>
       <div className="flex flex-wrap items-center gap-1.5 px-3 pb-1.5">

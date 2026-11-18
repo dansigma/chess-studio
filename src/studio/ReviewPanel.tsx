@@ -55,6 +55,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { TrainMistakesBanner } from "./review/TrainMistakesBanner";
 import { RetryCard } from "./review/RetryCard";
 import { buildRetryTargets, type RetryTarget } from "@/src/chess/retry";
+import { dueExercises } from "@/src/lib/mistake-exercises-store";
 import { MoreHorizontal } from "lucide-react";
 import { Button, IconButton } from "./ui/Button";
 import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
@@ -511,6 +512,15 @@ export function ReviewPanel() {
       startRetry(target, retryTargets);
     }
   };
+  const mistakeExercises = useStudioStore((state) => state.mistakeExercises);
+  const bannerRetryTarget = useMemo(() => {
+    const userTargets = retryTargets.filter((target) => !target.exercise.fromOpponent);
+    if (userTargets.length === 0) {
+      return null;
+    }
+    const dueKeys = new Set(dueExercises(mistakeExercises).map((entry) => entry.exercise.key));
+    return userTargets.find((target) => dueKeys.has(target.exercise.key)) ?? userTargets[0];
+  }, [retryTargets, mistakeExercises]);
   const { prevMomentIndex, nextMomentIndex } = useMemo(() => {
     if (selectedMomentIndex != null) {
       const { prev, next } = prevNextIndices(filteredMoments.length, selectedMomentIndex);
@@ -844,6 +854,7 @@ export function ReviewPanel() {
                     <WhyBody
                       key={selected.path.join(".")}
                       row={selected}
+                      startFen={board.tree.startFen}
                       fenBefore={selectedContext.fenBefore}
                       fenAfter={selectedContext.fenAfter}
                       previous={selectedContext.previous}
@@ -861,11 +872,18 @@ export function ReviewPanel() {
             </div>
             {/* SIG-1206: after the key moments (so the first moment stays above
                 the fold) and outside reportRef (so it never lands in the PNG). */}
-            {trainBanner ? <TrainMistakesBanner banner={trainBanner} locale={locale} /> : null}
+            {trainBanner ? (
+              <TrainMistakesBanner
+                banner={trainBanner}
+                locale={locale}
+                onStartRetry={bannerRetryTarget && !retryHere ? () => startRetry(bannerRetryTarget, retryTargets) : undefined}
+              />
+            ) : null}
             {selected && selectedContext && selectedMomentIndex == null && !running && !retryHere ? (
               <WhyBlock
                 key={selected.path.join(".")}
                 row={selected}
+                startFen={board.tree.startFen}
                 fenBefore={selectedContext.fenBefore}
                 fenAfter={selectedContext.fenAfter}
                 previous={selectedContext.previous}
