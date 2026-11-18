@@ -6,6 +6,7 @@ import { getLibrarySource } from "@/src/lib/library/sources";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "../dock-api";
+import { useLibraryStore } from "./library-store";
 
 async function loadPgn(item: LibraryGameItem): Promise<string> {
   const adapter = getLibrarySource(item.sourceId);
@@ -28,9 +29,16 @@ export async function openLibraryGame(item: LibraryGameItem, locale: SiteLocale)
     if (!game) {
       throw new Error("PGN");
     }
-    useStudioStore.getState().openFileGame(game, { openInNewBoard: true });
-    const active = selectActiveBoard(useStudioStore.getState());
+    // SIG-1403: honour an active position filter so the board lands on the
+    // searched ply; `openFileGame` falls back to move 0 when the FEN is off-tree.
+    const atFen = useLibraryStore.getState().filters.position?.fen;
+    const store = useStudioStore;
+    store.getState().openFileGame(game, atFen ? { openInNewBoard: true, atFen } : { openInNewBoard: true });
+    const active = selectActiveBoard(store.getState());
     openBoardPanel(active.id, active.title);
+    // SIG-1403: the dock is hidden behind LibraryView, so opening a game must
+    // bring the user to the board the same way `trainLibraryGame` does.
+    store.getState().setWorkspaceView("studio");
   } catch (cause) {
     reportFailure(cause, locale);
   }
