@@ -13,7 +13,12 @@ import type { BoardSession } from "@/src/store/slices/types";
 
 type Listener = (info: EngineInfo) => void;
 
-const behavior = { delayMs: 5, failAll: false };
+const behavior: {
+  delayMs: number;
+  failAll: boolean;
+  /** Opt-in engine eval (mover's perspective); the SIG-1413 tests use it to create key moments. */
+  evalForFen: ((fen: string) => number | null) | null;
+} = { delayMs: 5, failAll: false, evalForFen: null };
 const analyzeCalls: Array<{ fen: string; depth: number; lines: number; threads: number }> = [];
 const listeners = new Set<Listener>();
 
@@ -68,6 +73,10 @@ const fakeWorkerClient = () => {
           return;
         }
         const evaluation = evaluationFor({ depth, lines });
+        const override = captured.evalForFen?.(fen);
+        if (override != null) {
+          evaluation.lines[0].whitePawns = override;
+        }
         for (const listener of [...clientListeners]) {
           listener(toInfo(fen, evaluation));
         }
@@ -182,11 +191,13 @@ after(() => {
 beforeEach(() => {
   behavior.delayMs = 5;
   behavior.failAll = false;
+  behavior.evalForFen = null;
   analyzeCalls.length = 0;
   listeners.clear();
   clearReviewCache();
   act(() => {
     useStudioStore.getState().setLocale("en");
+    useStudioStore.setState({ workspaceView: "studio" });
   });
   cleanup();
 });
@@ -302,6 +313,88 @@ test("done shows the report card and key moments", async () => {
     assert.equal(screen.getByRole("button", { name: tReview("en", "moments.prev") }).getAttribute("title"), "Previous moment ( [ )");
     assert.equal(screen.getByRole("button", { name: tReview("en", "moments.next") }).getAttribute("title"), "Next moment ( ] )");
   } finally {
+    cleanup();
+  }
+});
+
+// --- SIG-1413: [ and ] moment keys -------------------------------------------
+
+/**
+ * The fake reports +4 for whichever side is to move; the search adapter flips
+ * that to white's perspective, so every move swings the score by 8 pawns and
+ * the report has key moments to walk.
+ */
+function seedSwingingReview(): void {
+  behavior.evalForFen = () => 4;
+}
+
+async function renderFinishedReview(): Promise<void> {
+  seedBoard();
+  render(<ReviewPanel />);
+  fireEvent.click(screen.getByRole("button", { name: tReview("en", "panel.reviewGame") }));
+  await screen.findByRole("button", { name: tReview("en", "panel.reviewAgain") }, { timeout: 30_000 });
+}
+
+function pressMomentKey(key: string): void {
+  act(() => {
+    window.dispatchEvent(new window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+  });
+}
+
+/** Path of the first key moment, read by walking the report's own list. */
+function firstMomentPath(): string {
+  const group = screen.getByRole("group", { name: tReview("en", "report.keyMoments") });
+  fireEvent.click(within(group).getAllByRole("button")[0]);
+  return useStudioStore.getState().active().path.join(".");
+}
+
+test("SIG-1413: ] jumps to the next key moment in Studio", async () => {
+  seedSwingingReview();
+  try {
+    await renderFinishedReview();
+    const expected = firstMomentPath();
+    assert.notEqual(expected, "", "the report has key moments");
+    // From the initial position the next moment is the first listed one.
+    act(() => useStudioStore.getState().toStart());
+    pressMomentKey("]");
+    assert.equal(useStudioStore.getState().active().path.join("."), expected);
+  } finally {
+    cleanup();
+  }
+});
+
+test("SIG-1413: ] does nothing in the Library and Live views", async () => {
+  seedSwingingReview();
+  try {
+    await renderFinishedReview();
+    assert.notEqual(firstMomentPath(), "");
+    for (const view of ["library", "live"] as const) {
+      act(() => {
+        useStudioStore.getState().setWorkspaceView(view);
+        useStudioStore.getState().toStart();
+      });
+      pressMomentKey("]");
+      assert.equal(useStudioStore.getState().active().path.join("."), "", `the board stays put in ${view}`);
+    }
+  } finally {
+    cleanup();
+  }
+});
+
+test("SIG-1413: ] does nothing while a modal dialog is open", async () => {
+  seedSwingingReview();
+  const dialog = document.createElement("div");
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  try {
+    await renderFinishedReview();
+    assert.notEqual(firstMomentPath(), "");
+    act(() => useStudioStore.getState().toStart());
+    document.body.appendChild(dialog);
+    pressMomentKey("]");
+    assert.equal(useStudioStore.getState().active().path.join("."), "");
+  } finally {
+    dialog.remove();
     cleanup();
   }
 });
