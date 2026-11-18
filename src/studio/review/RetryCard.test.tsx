@@ -63,7 +63,10 @@ test("thinking: context, message and the three actions", () => {
   store().startRetry(target(0), [target(0)]);
   renderCard();
   assert.ok(screen.getByText("White to play · Blunder on move 1"));
-  assert.ok(screen.getByText("Find the best move."));
+  const msg = screen.getByText("Find the best move.");
+  assert.ok(msg);
+  assert.match(msg.className, /\btruncate\b/);
+  assert.doesNotMatch(msg.className, /\bwhitespace-normal\b/);
   for (const name of ["Hint", "Show solution", "Exit"]) {
     assert.ok(screen.getByRole("button", { name }), name);
   }
@@ -126,7 +129,11 @@ test("revealed shows the whole line and offers Insert into notation", () => {
   store().startRetry(target(0));
   renderCard();
   fireEvent.click(screen.getByRole("button", { name: "Show solution" }));
-  assert.ok(screen.getByText("The best line was Nf3 Nf6 Nc3."));
+  const msg = screen.getByText("The best line was Nf3 Nf6 Nc3.");
+  assert.ok(msg);
+  assert.doesNotMatch(msg.className, /\btruncate\b/);
+  assert.match(msg.className, /\bwhitespace-normal\b/);
+  assert.match(msg.className, /\bbreak-words\b/);
   assert.ok(screen.getByRole("button", { name: "Insert into notation" }));
   assert.equal(
     (screen.getByRole("button", { name: "Next mistake" }) as HTMLButtonElement).disabled,
