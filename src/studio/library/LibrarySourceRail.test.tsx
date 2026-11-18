@@ -282,7 +282,10 @@ test("delete asks first, then removes the file", async () => {
   assert.equal(useStudioStore.getState().files.databases.length, 1);
   openMenu();
   fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
-  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+  const confirmButton = within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" });
+  assert.match(confirmButton.className, /text-studio-danger/);
+  assert.match(confirmButton.className, /bg-studio-danger\/15/);
+  fireEvent.click(confirmButton);
   assert.equal(useStudioStore.getState().files.databases.length, 0);
 });
 
@@ -534,7 +537,10 @@ test("deleting a folder asks first, removes subfolders and keeps the files", asy
   assert.equal(folders().length, 3);
   openFolders();
   fireEvent.click(screen.getByRole("menuitem", { name: "Delete folder…" }));
-  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+  const confirmButton = within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" });
+  assert.match(confirmButton.className, /text-studio-danger/);
+  assert.match(confirmButton.className, /bg-studio-danger\/15/);
+  fireEvent.click(confirmButton);
   assert.deepEqual(folders().map((folder) => folder.id), ["f3"]);
   const files = useStudioStore.getState().files.databases;
   assert.equal(files.length, 4);

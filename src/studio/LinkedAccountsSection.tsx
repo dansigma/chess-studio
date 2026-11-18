@@ -4,7 +4,7 @@
 // users link one public Lichess and one Chess.com username; guests see
 // nothing. Reads/writes through the linked-accounts lib so validation and
 // error codes stay in one place.
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import {
   loadLinkedAccounts,
@@ -47,26 +47,40 @@ function AccountRow({
   onRemove: () => void;
 }) {
   const locale = useStudioStore((state) => state.settings.locale);
+  const inputId = useId();
   // SIG-1039: draft resets via `key` from the parent (key includes the saved
   // username), so a save/remove/load remounts the row with a fresh draft.
   const [draft, setDraft] = useState(initialUsername);
   const busy = saving || removing;
+  const trimmed = draft.trim();
+  const unchanged = trimmed === initialUsername.trim();
+  const saveDisabled = busy || trimmed.length === 0 || unchanged;
+  const label = tLinkedAccounts(locale, source === "lichess" ? "linkedAccounts.lichess" : "linkedAccounts.chesscom");
   return (
-    <div className="flex items-center justify-between gap-4 py-2">
-      <span className="text-body text-studio-fg">
-        {tLinkedAccounts(locale, source === "lichess" ? "linkedAccounts.lichess" : "linkedAccounts.chesscom")}
-      </span>
+    <form
+      className="flex items-center justify-between gap-4 py-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (saveDisabled) {
+          return;
+        }
+        onSave(draft);
+      }}
+    >
+      <label htmlFor={inputId} className="text-body text-studio-fg">
+        {label}
+      </label>
       <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
         <input
+          id={inputId}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder={tLinkedAccounts(locale, "linkedAccounts.usernamePlaceholder")}
           disabled={busy}
           maxLength={30}
-          aria-label={tLinkedAccounts(locale, source === "lichess" ? "linkedAccounts.lichess" : "linkedAccounts.chesscom")}
           className="h-7 min-w-0 flex-1 rounded-md border border-studio-border-strong bg-studio-panel px-2 text-dense text-studio-fg"
         />
-        <Button variant="secondary" size="sm" disabled={busy || draft.trim().length === 0} onClick={() => onSave(draft)}>
+        <Button type="submit" variant="secondary" size="sm" disabled={saveDisabled}>
           {saving
             ? tLinkedAccounts(locale, "linkedAccounts.saving")
             : justSaved
@@ -74,12 +88,12 @@ function AccountRow({
               : tLinkedAccounts(locale, "linkedAccounts.save")}
         </Button>
         {initialUsername && (
-          <Button variant="ghost" size="sm" disabled={busy} onClick={onRemove}>
+          <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={onRemove}>
             {removing ? tLinkedAccounts(locale, "linkedAccounts.removing") : tLinkedAccounts(locale, "linkedAccounts.remove")}
           </Button>
         )}
       </div>
-    </div>
+    </form>
   );
 }
 

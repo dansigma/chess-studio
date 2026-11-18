@@ -1,6 +1,6 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
-type ButtonVariant = "primary" | "secondary" | "ghost";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
@@ -10,6 +10,8 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     "bg-studio-hover-strong text-studio-fg hover:bg-studio-selected disabled:text-studio-disabled disabled:hover:bg-studio-hover-strong",
   ghost:
     "text-studio-muted hover:bg-studio-hover hover:text-studio-fg disabled:text-studio-disabled disabled:hover:bg-transparent",
+  danger:
+    "border border-studio-danger/40 bg-studio-danger/15 text-studio-danger hover:bg-studio-danger/25 disabled:border-studio-border disabled:bg-studio-hover-strong disabled:text-studio-disabled disabled:hover:bg-studio-hover-strong",
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
@@ -23,16 +25,19 @@ export function Button({
   block,
   className = "",
   type = "button",
+  ref,
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
   block?: boolean;
+  ref?: Ref<HTMLButtonElement>;
   children: ReactNode;
 }) {
   return (
     <button
+      ref={ref}
       type={type}
       className={`inline-flex items-center justify-center rounded-lg font-medium disabled:cursor-default ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${block ? "w-full" : ""} ${className}`}
       {...props}

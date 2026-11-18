@@ -43,3 +43,30 @@ test("Dialog calls onClose on Escape", () => {
     cleanup();
   }
 });
+
+test("Dialog caps height as a flex column with pinned header/footer and scrolling body", () => {
+  try {
+    render(
+      <Dialog title="Settings" onClose={() => {}} footer={<button type="button">Done</button>}>
+        <p>scroll-body-marker</p>
+      </Dialog>,
+    );
+    const dialog = screen.getByRole("dialog");
+    assert.match(dialog.className, /\bflex\b/);
+    assert.match(dialog.className, /\bflex-col\b/);
+    assert.match(dialog.className, /max-h-\[calc\(100dvh-2rem\)\]/);
+
+    const header = screen.getByRole("heading", { name: "Settings" }).parentElement!;
+    assert.match(header.className, /\bshrink-0\b/);
+
+    const body = screen.getByText("scroll-body-marker").parentElement!;
+    assert.match(body.className, /\bmin-h-0\b/);
+    assert.match(body.className, /\bflex-1\b/);
+    assert.match(body.className, /\boverflow-y-auto\b/);
+
+    const footer = screen.getByRole("button", { name: "Done" }).parentElement!;
+    assert.match(footer.className, /\bshrink-0\b/);
+  } finally {
+    cleanup();
+  }
+});

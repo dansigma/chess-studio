@@ -120,7 +120,7 @@ beforeEach(() => {
 });
 
 function selectInDialogRow(dialog: HTMLElement, label: string): HTMLSelectElement {
-  const labelNode = Array.from(dialog.querySelectorAll("span")).find((el) => el.textContent === label);
+  const labelNode = Array.from(dialog.querySelectorAll("label, span")).find((el) => el.textContent === label);
   assert.ok(labelNode, `expected row label ${label}`);
   const select = labelNode.parentElement?.querySelector("select");
   assert.ok(select, `expected select next to ${label}`);

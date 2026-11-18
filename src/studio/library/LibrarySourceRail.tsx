@@ -863,7 +863,7 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
                 {t("library.sources.file.cancel")}
               </Button>
               <Button
-                variant="primary"
+                variant="danger"
                 onClick={() => {
                   deleteFileDatabase(deletingDb.id);
                   setDeletingId(null);
