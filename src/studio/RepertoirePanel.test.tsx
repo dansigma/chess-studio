@@ -99,23 +99,22 @@ test("renders a training status card when training && !drillDueOnly with moves r
   assert.ok(card);
   assert.ok(within(card).getByText("Training active — play your repertoire move on the board."));
 
-  const restartButtons = screen.getAllByRole("button", { name: "Train again" });
-  const stopButtons = screen.getAllByRole("button", { name: "Stop" });
-  assert.equal(restartButtons.length, 2);
-  assert.equal(stopButtons.length, 2);
-  for (const btn of [...restartButtons, ...stopButtons]) {
+  // The header owns the controls; the card only reports status (one button per name).
+  const restartButton = screen.getByRole("button", { name: "Train again" });
+  const stopButton = screen.getByRole("button", { name: "Stop" });
+  assert.equal(within(card).queryAllByRole("button").length, 0);
+  for (const btn of [restartButton, stopButton]) {
     assert.match(btn.className, /\bh-7\b/);
     assert.match(btn.className, /\brounded-lg\b/);
   }
 
-  // Advance path inside the line, then restart from the card control.
   act(() => {
     useStudioStore.getState().goPath([0]);
   });
-  fireEvent.click(within(card).getByRole("button", { name: "Train again" }));
+  fireEvent.click(restartButton);
   assert.deepEqual(useStudioStore.getState().boards[0].path, []);
 
-  fireEvent.click(within(card).getByRole("button", { name: "Stop" }));
+  fireEvent.click(stopButton);
   assert.equal(useStudioStore.getState().training, false);
 });
 
@@ -135,8 +134,7 @@ test("renders line-complete message in training status card when no moves remain
     within(card).queryByText("Training active — play your repertoire move on the board."),
     null,
   );
-  const restartButton = within(card).getByRole("button", { name: "Train again" });
-  assert.match(restartButton.className, /\bbg-studio-accent-solid\b/);
+  assert.match(card.className, /\bfont-medium\b/);
 });
 
 test("translates training status card strings in pt-br", () => {

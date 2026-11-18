@@ -79,27 +79,15 @@ export function RepertoirePanel() {
             </div>
           ) : (
             <div className="p-3">
-              <div
+              <p
                 role="status"
                 data-testid="repertoire-training-card"
-                className="flex flex-col gap-3 rounded-lg border border-studio-border bg-studio-elevated p-3"
+                className={`rounded-lg border border-studio-border bg-studio-elevated p-3 text-dense ${
+                  moves.length === 0 ? "font-medium text-studio-fg" : "text-studio-muted"
+                }`}
               >
-                <p className={moves.length === 0 ? "text-dense font-medium text-studio-fg" : "text-dense text-studio-muted"}>
-                  {tPanels(locale, moves.length === 0 ? "repertoire.lineComplete" : "repertoire.trainingActive")}
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant={moves.length === 0 ? "primary" : "secondary"}
-                    size="sm"
-                    onClick={startTraining}
-                  >
-                    {tPanels(locale, "repertoire.trainAgain")}
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={stopTraining}>
-                    {tPanels(locale, "repertoire.stop")}
-                  </Button>
-                </div>
-              </div>
+                {tPanels(locale, moves.length === 0 ? "repertoire.lineComplete" : "repertoire.trainingActive")}
+              </p>
             </div>
           )
         ) : moves.length === 0 ? (
