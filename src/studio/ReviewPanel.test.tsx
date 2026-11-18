@@ -52,31 +52,48 @@ function toInfo(fen: string, evaluation: PositionEval): EngineInfo {
 // SIG-1223: the panel's hook builds a ReviewEnginePool; the real pool and
 // search adapter run over one fake worker client (pool size 1).
 const realPool = await import("@/src/engine/review-pool.ts");
-const fakeWorkerClient = () => ({
-  analyze: (fen: string, depth: number, lines: number, threads: number) => {
-    analyzeCalls.push({ fen, depth, lines, threads });
-    const captured = { ...behavior };
-    setTimeout(() => {
-      if (captured.failAll) {
-        for (const listener of [...listeners]) {
-          listener({ depth: 0, running: false, ready: true, failed: true, lines: [], nps: 0, nodes: 0, threaded: false, fen });
+const fakeWorkerClient = () => {
+  const clientListeners = new Set<Listener>();
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  return {
+    analyze: (fen: string, depth: number, lines: number, threads: number) => {
+      analyzeCalls.push({ fen, depth, lines, threads });
+      const captured = { ...behavior };
+      const timer = setTimeout(() => {
+        timers.delete(timer);
+        if (captured.failAll) {
+          for (const listener of [...clientListeners]) {
+            listener({ depth: 0, running: false, ready: true, failed: true, lines: [], nps: 0, nodes: 0, threaded: false, fen });
+          }
+          return;
         }
-        return;
+        const evaluation = evaluationFor({ depth, lines });
+        for (const listener of [...clientListeners]) {
+          listener(toInfo(fen, evaluation));
+        }
+      }, captured.delayMs);
+      timers.add(timer);
+    },
+    subscribe: (listener: Listener) => {
+      clientListeners.add(listener);
+      listeners.add(listener);
+      return () => {
+        clientListeners.delete(listener);
+        listeners.delete(listener);
+      };
+    },
+    dispose: () => {
+      for (const timer of timers) {
+        clearTimeout(timer);
       }
-      const evaluation = evaluationFor({ depth, lines });
-      for (const listener of [...listeners]) {
-        listener(toInfo(fen, evaluation));
+      timers.clear();
+      for (const listener of clientListeners) {
+        listeners.delete(listener);
       }
-    }, captured.delayMs);
-  },
-  subscribe: (listener: Listener) => {
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  },
-  dispose: () => undefined,
-});
+      clientListeners.clear();
+    },
+  };
+};
 mock.module("@/src/engine/review-pool", {
   namedExports: {
     ...realPool,
@@ -91,7 +108,8 @@ const { importPgn } = await import("@/src/chess/pgn.ts");
 const { clearReviewCache } = await import("./review/review-cache.ts");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
-const { tReview, reviewFailedText, reviewCancelledText } = await import("@/src/chess/review-strings.ts");
+const { tReview, reviewFailedText, reviewCancelledText, reviewPresetOption } = await import("@/src/chess/review-strings.ts");
+const { REVIEW_PRESETS } = await import("@/src/chess/review-engine.ts");
 
 // --- Fixtures ----------------------------------------------------------------
 
@@ -354,6 +372,146 @@ test("SIG-1219: below the width threshold the card shows chips instead of the ta
     assert.ok(document.querySelector("[data-classification=table]"), "wide again");
   } finally {
     (globalThis as Record<string, unknown>).ResizeObserver = resize;
+    cleanup();
+  }
+});
+
+test("SIG-1401: preset radiogroup renders pre-review and stays in sync with the actions menu radios both ways", () => {
+  seedBoard();
+  try {
+    render(<ReviewPanel />);
+    const group = screen.getByRole("radiogroup", { name: tReview("en", "panel.depthGroup") });
+    const radios = within(group).getAllByRole("radio");
+    assert.deepEqual(
+      radios.map((r) => r.textContent),
+      [tReview("en", "preset.fast"), tReview("en", "preset.standard"), tReview("en", "preset.deep")],
+    );
+    assert.equal(
+      radios[0].getAttribute("title"),
+      reviewPresetOption("en", "fast", REVIEW_PRESETS.fast.depth),
+    );
+    assert.equal(radios[1].getAttribute("aria-checked"), "true", "default preset is standard");
+
+    // Segmented -> menu sync
+    fireEvent.click(within(group).getByRole("radio", { name: tReview("en", "preset.deep") }));
+    assert.equal(within(group).getByRole("radio", { name: tReview("en", "preset.deep") }).getAttribute("aria-checked"), "true");
+
+    fireEvent.click(screen.getByRole("button", { name: tReview("en", "panel.actions") }));
+    const menu = screen.getByRole("menu");
+    assert.equal(
+      within(menu).getByRole("menuitemradio", { name: /^Deep/ }).getAttribute("aria-checked"),
+      "true",
+    );
+
+    // Menu -> segmented sync
+    fireEvent.click(within(menu).getByRole("menuitemradio", { name: /^Fast/ }));
+    assert.equal(screen.queryByRole("menu"), null);
+    assert.equal(within(group).getByRole("radio", { name: tReview("en", "preset.fast") }).getAttribute("aria-checked"), "true");
+  } finally {
+    cleanup();
+  }
+});
+
+test("SIG-1401: DeviationLine and DeviationAction render before running a review when the board deviates from a repertoire", () => {
+  const repertoireImported = importPgn(`[Event "White Rep"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bb5 *`);
+  const gameImported = importPgn(`[Event "Game"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 *`);
+  const repBoard: BoardSession = {
+    id: "rep-white",
+    remoteId: null,
+    title: "White Repertoire",
+    tree: repertoireImported.tree,
+    path: repertoireImported.path,
+    headers: repertoireImported.headers,
+    orientation: "white",
+    repertoireColor: "white",
+    dirty: false,
+    preview: false,
+  };
+  const gameBoard: BoardSession = {
+    id: "game-deviating",
+    remoteId: null,
+    title: "Game",
+    tree: gameImported.tree,
+    path: gameImported.path,
+    headers: gameImported.headers,
+    orientation: "white",
+    repertoireColor: null,
+    dirty: false,
+    preview: false,
+  };
+  useStudioStore.setState({
+    boards: [repBoard, gameBoard],
+    activeBoardId: gameBoard.id,
+    settings: { ...DEFAULT_SETTINGS, locale: "en" },
+    setupMode: false,
+  });
+  try {
+    render(<ReviewPanel />);
+    assert.ok(screen.getByRole("button", { name: tReview("en", "panel.reviewGame") }));
+    assert.ok(screen.getByText(/You left your repertoire at 3\. Bc4/));
+    assert.ok(screen.getByRole("button", { name: "Train this line" }));
+  } finally {
+    cleanup();
+  }
+});
+
+test("SIG-1401: post-report DOM order is summary -> chart -> filter bar -> key moments, with data-export-ignore on controls", async () => {
+  const clockedPgn = `[Event "Clocked"]
+[TimeControl "180+2"]
+
+1. e4 { [%clk 0:02:58.0] } e5 { [%clk 0:02:59.2] } 2. Nf3 { [%clk 0:02:57.3] } Nc6 { [%clk 0:02:59.4] } 3. Bb5 { [%clk 0:02:56.0] } a6 { [%clk 0:02:50.0] } *`;
+  const imported = importPgn(clockedPgn);
+  const board: BoardSession = {
+    id: "panel-clocked-order",
+    remoteId: null,
+    title: imported.title,
+    tree: imported.tree,
+    path: imported.path,
+    headers: imported.headers,
+    orientation: "white",
+    repertoireColor: null,
+    dirty: false,
+    preview: false,
+  };
+  useStudioStore.setState({
+    boards: [board],
+    activeBoardId: board.id,
+    settings: { ...DEFAULT_SETTINGS, locale: "en" },
+    setupMode: false,
+  });
+  try {
+    render(<ReviewPanel />);
+    fireEvent.click(screen.getByRole("button", { name: tReview("en", "panel.reviewGame") }));
+    assert.ok(await screen.findByRole("button", { name: tReview("en", "panel.reviewAgain") }, { timeout: 30_000 }));
+
+    const summary = document.querySelector("[data-report-card]") as HTMLElement;
+    const chart = screen.getByRole("img", { name: new RegExp(tReview("en", "chart.ariaLabel"), "i") });
+    const prevButton = screen.getByRole("button", { name: tReview("en", "moments.prev") });
+    const filterBar = prevButton.closest("[data-export-ignore]") as HTMLElement | null;
+    const keyMoments = screen.getByRole("group", { name: tReview("en", "report.keyMoments") });
+    const chartToggle = document.querySelector("[data-chart-mode-toggle]") as HTMLElement;
+    const details = screen.getByRole("button", { name: tReview("en", "report.details") });
+
+    assert.ok(summary, "summary card renders");
+    assert.ok(filterBar, "filter bar carries data-export-ignore");
+    assert.equal(chartToggle.hasAttribute("data-export-ignore"), true, "chart mode toggle carries data-export-ignore");
+
+    // summary, chart, filter bar, and key moments all share the reportRef wrapper; details sits outside it.
+    const reportWrapper = summary.parentElement!;
+    assert.ok(reportWrapper.contains(chart), "chart is inside reportRef");
+    assert.ok(reportWrapper.contains(filterBar), "filter bar is inside reportRef");
+    assert.ok(reportWrapper.contains(keyMoments), "key moments list is inside reportRef");
+    assert.equal(reportWrapper.contains(details), false, "ReportDetails stays outside reportRef");
+
+    const precedes = (a: Element, b: Element) =>
+      Boolean(a.compareDocumentPosition(b) & a.DOCUMENT_POSITION_FOLLOWING);
+    assert.ok(precedes(summary, chart), "summary precedes chart");
+    assert.ok(precedes(chart, filterBar), "chart precedes filter bar");
+    assert.ok(precedes(filterBar, keyMoments), "filter bar precedes key moments");
+    assert.ok(precedes(keyMoments, details), "key moments precedes ReportDetails");
+    // Preset selector stays available alongside "Review again" once finished.
+    assert.ok(screen.getByRole("radiogroup", { name: tReview("en", "panel.depthGroup") }));
+  } finally {
     cleanup();
   }
 });

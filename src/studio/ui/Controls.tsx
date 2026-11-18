@@ -1,4 +1,6 @@
-import type { KeyboardEvent, ReactNode, Ref } from "react";
+"use client";
+
+import { useRef, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import { Minus, Plus, Search, X } from "lucide-react";
 
 export function Kbd({ children }: { children: ReactNode }) {
@@ -224,5 +226,83 @@ export function Tooltip({
         {shortcut ? <Kbd>{shortcut}</Kbd> : null}
       </span>}
     </span>
+  );
+}
+
+export type SegmentedOption<T extends string> = {
+  value: T;
+  label: string;
+  title?: string;
+};
+
+/** Radio-group segmented control: roving tabindex, arrow keys move and select. */
+export function Segmented<T extends string>({
+  labelId,
+  ariaLabel,
+  describedBy,
+  disabled = false,
+  compact = false,
+  value,
+  options,
+  onChange,
+}: {
+  labelId?: string;
+  ariaLabel?: string;
+  describedBy?: string;
+  disabled?: boolean;
+  compact?: boolean;
+  value: T;
+  options: readonly SegmentedOption<T>[];
+  onChange: (value: T) => void;
+}) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const step =
+      event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (step === 0) {
+      return;
+    }
+    event.preventDefault();
+    const next = (index + step + options.length) % options.length;
+    onChange(options[next].value);
+    refs.current[next]?.focus();
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-labelledby={labelId}
+      aria-label={ariaLabel}
+      aria-describedby={describedBy}
+      className={
+        compact
+          ? "inline-flex max-w-full flex-wrap gap-0.5 rounded-md bg-studio-bg p-0.5"
+          : "flex w-full gap-0.5 rounded-md bg-studio-bg p-0.5"
+      }
+    >
+      {options.map((option, index) => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            ref={(node) => {
+              refs.current[index] = node;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            title={option.title}
+            disabled={disabled}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(option.value)}
+            onKeyDown={(event) => onKeyDown(event, index)}
+            className={`h-6 rounded disabled:text-studio-disabled ${
+              compact ? "whitespace-nowrap px-2 text-caption font-medium" : "flex-1 px-1.5 text-dense"
+            } ${selected ? "bg-studio-accent-soft text-studio-accent-text" : "text-studio-muted hover:bg-studio-hover-strong"}`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
