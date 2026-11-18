@@ -148,3 +148,8 @@ test("course outcome strings render whole sentences with vars", () => {
   assert.equal(tCourse("en", "course.catalog.chapters.one", { count: 1 }), "1 chapter");
   assert.equal(tCourse("pt-br", "course.catalog.chapters.other", { count: 5 }), "5 capítulos");
 });
+
+test("site header settings label renders in both locales", () => {
+  assert.equal(tCourse("en", "course.chrome.settings"), "Settings");
+  assert.equal(tCourse("pt-br", "course.chrome.settings"), "Configurações");
+});

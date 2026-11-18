@@ -616,6 +616,7 @@ function DailyPreview({ puzzle, locale }: { puzzle: CompiledPuzzle | null; local
       <div className={`relative ${size}`}>
         <div className="pointer-events-none size-full overflow-hidden rounded-lg ring-1 ring-studio-border-strong transition-shadow duration-150 group-hover:ring-studio-accent group-focus-visible:ring-studio-accent" aria-hidden>
           <Chessboard
+            key={`daily-preview-${puzzle.id}-${pieceSet}`}
             options={{
               id: `daily-preview-${puzzle.id}`,
               position: puzzle.fen,
