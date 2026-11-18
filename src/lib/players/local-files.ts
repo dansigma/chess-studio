@@ -134,6 +134,23 @@ function isNamed(name: string): boolean {
   return key !== "" && key !== "?";
 }
 
+/**
+ * The hit for a player found in the loaded PGN files. SIG-1405: the idle
+ * Players list reuses it so a player looks the same whether it came from a
+ * search or from the local suggestions.
+ */
+export function localPlayerHit(name: string): PlayerHit {
+  const resolved = name.trim();
+  return {
+    id: `studio:${resolved}`,
+    source: "studio",
+    username: resolved,
+    displayName: resolved,
+    subtitle: "Studio database",
+    inDatabases: true,
+  };
+}
+
 /** Local players whose name contains `query` (case-insensitive), one per name. */
 export function localPlayerHits(databases: FileDatabase[], query: string): PlayerHit[] {
   const target = nameKey(query);
@@ -148,15 +165,7 @@ export function localPlayerHits(databases: FileDatabase[], query: string): Playe
         if (!isNamed(raw) || !key.includes(target) || found.has(key)) {
           continue;
         }
-        const name = raw.trim();
-        found.set(key, {
-          id: `studio:${name}`,
-          source: "studio",
-          username: name,
-          displayName: name,
-          subtitle: "Studio database",
-          inDatabases: true,
-        });
+        found.set(key, localPlayerHit(raw));
       }
     }
   }
