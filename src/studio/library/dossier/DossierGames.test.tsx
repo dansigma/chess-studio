@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import type { PlayerGame, PlayerHit } from "@/src/lib/player-types";
 import { DOSSIER_GAMES_PAGE, DossierGames } from "./DossierGames.tsx";
 import { useDossierStore } from "./dossier-store.ts";
+import { openingGroupKey } from "@/src/lib/prep/opening-group.ts";
 import { useStudioStore } from "@/src/store/studio-store.ts";
 import { DEFAULT_SETTINGS } from "@/src/store/slices/settings.ts";
 
@@ -251,6 +252,44 @@ test("ArrowDown past the last shown row reveals the next game", () => {
   fireEvent.keyDown(list, { key: "ArrowDown" });
   assert.equal(rows().length, DOSSIER_GAMES_PAGE + 1);
   assert.equal(rows()[DOSSIER_GAMES_PAGE]!.getAttribute("aria-selected"), "true");
+});
+
+test("End stops at the last shown row instead of rendering the whole list", () => {
+  const games = Array.from({ length: 500 }, (_, index) =>
+    game(`g${index}`, { playedAt: Date.UTC(2026, 0, 1) - index * 86_400_000 }),
+  );
+  render(<DossierGames games={games} />);
+  const list = screen.getByTestId("dossier-games-scroll");
+  fireEvent.keyDown(list, { key: "End" });
+  assert.equal(rows().length, DOSSIER_GAMES_PAGE);
+  assert.equal(rows()[DOSSIER_GAMES_PAGE - 1]!.getAttribute("aria-selected"), "true");
+});
+
+test("a deep selection kept after clearing the opening chip does not expand the list", () => {
+  // 300 Italian games, then 10 Sicilian ones (older, so they sort last).
+  const games = [
+    ...Array.from({ length: 300 }, (_, index) =>
+      game(`i${index}`, { playedAt: Date.UTC(2026, 0, 1) - index * 86_400_000 }),
+    ),
+    ...Array.from({ length: 10 }, (_, index) =>
+      game(`s${index}`, {
+        eco: "B20",
+        opening: "Sicilian Defense",
+        moves: "e4 c5",
+        playedAt: Date.UTC(2020, 0, 1) - index * 86_400_000,
+      }),
+    ),
+  ];
+  // Narrow to the Sicilian through the store, the way the openings list does,
+  // and select its 6th game (index 305 in the full list).
+  useDossierStore.setState({ selectedOpening: openingGroupKey(games[300]!), selectedLine: [] });
+  render(<DossierGames games={games} />);
+  fireEvent.click(rows()[5]!);
+  assert.ok(screen.getByTestId("library-preview"));
+
+  act(() => useDossierStore.setState({ selectedOpening: null, selectedLine: null }));
+  assert.equal(rows().length, DOSSIER_GAMES_PAGE);
+  assert.equal(screen.queryByTestId("library-preview"), null);
 });
 
 test("a moves-only game builds a playable PGN for the preview", () => {

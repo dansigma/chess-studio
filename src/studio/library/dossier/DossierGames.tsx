@@ -169,10 +169,22 @@ export function DossierGames({ games }: { games: PlayerGame[] }) {
   // clears it without an effect on the list.
   const [selection, setSelection] = useState<{ playerId: string; gameId: string } | null>(null);
   const playerId = player?.id ?? null;
-  const selectedIndex =
+  // Rows shown: one page per "Load more" click (or ArrowDown past the last
+  // row), reset when the player or the opening filter changes. The shown rows
+  // never grow to reach a selection: a jump key or a selection kept after the
+  // opening chip is cleared must not render thousands of rows at once.
+  const pageScope = `${playerId ?? ""}|${selectedOpening ?? ""}`;
+  const [page, setPage] = useState<{ scope: string; count: number }>({ scope: pageScope, count: DOSSIER_GAMES_PAGE });
+  const pageCount = page.scope === pageScope ? page.count : DOSSIER_GAMES_PAGE;
+  const shownCount = Math.min(filtered.length, pageCount);
+  const shown = filtered.slice(0, shownCount);
+
+  // A selection outside the shown rows counts as none (no row, no preview).
+  const storedIndex =
     selection && playerId !== null && selection.playerId === playerId
       ? filtered.findIndex((game) => game.id === selection.gameId)
       : -1;
+  const selectedIndex = storedIndex < shownCount ? storedIndex : -1;
   const selectedGame = selectedIndex >= 0 ? filtered[selectedIndex] ?? null : null;
 
   // Drop a selection the player change or the filters left out of the list.
@@ -184,15 +196,6 @@ export function DossierGames({ games }: { games: PlayerGame[] }) {
         : null,
     );
   }, [playerId, filtered]);
-
-  // Rows shown: one page per "Load more" click, reset when the player or the
-  // opening filter changes, and always far enough to include the selection
-  // (ArrowDown past the last row reveals the next one).
-  const pageScope = `${playerId ?? ""}|${selectedOpening ?? ""}`;
-  const [page, setPage] = useState<{ scope: string; count: number }>({ scope: pageScope, count: DOSSIER_GAMES_PAGE });
-  const pageCount = page.scope === pageScope ? page.count : DOSSIER_GAMES_PAGE;
-  const shownCount = Math.min(filtered.length, Math.max(pageCount, selectedIndex + 1));
-  const shown = filtered.slice(0, shownCount);
 
   // Keep the selected row visible inside the dossier's scroll (keyboard steps,
   // including onto a row that only now became part of the list).
@@ -248,13 +251,19 @@ export function DossierGames({ games }: { games: PlayerGame[] }) {
       }
       return;
     }
-    const next = moveSelection(event.key, selectedIndex, filtered.length);
+    // Keys move within the shown rows; only ArrowDown may step one row past
+    // them, which reveals that row (End and PageDown stop at the last shown).
+    const limit = event.key === "ArrowDown" ? Math.min(filtered.length, shownCount + 1) : shownCount;
+    const next = moveSelection(event.key, selectedIndex, limit);
     if (next === null) {
       return;
     }
     event.preventDefault();
     const game = filtered[next];
     if (game) {
+      if (next >= shownCount) {
+        setPage({ scope: pageScope, count: next + 1 });
+      }
       // The effect on `selectedId` scrolls the row into view.
       selectGame(game);
     }
