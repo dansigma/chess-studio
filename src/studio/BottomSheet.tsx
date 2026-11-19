@@ -60,7 +60,7 @@ export function BottomSheet({
         </div>
         <div
           data-mobile-menu-content=""
-          className="max-h-[calc(80dvh-64px)] min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-6 pt-1"
+          className="max-h-[calc(80dvh-64px)] min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-1"
         >
           {children}
         </div>
