@@ -10,9 +10,10 @@ import type { CompiledPuzzle } from "@/src/puzzles/engine.ts";
 const storeHolder: {
   tableRows: CompiledPuzzle[] | null;
   tableRowById: Record<string, unknown>;
+  tableRowByIdError: Error | null;
   lastTableQuery: Record<string, unknown> | null;
   authedUser: boolean;
-} = { tableRows: null, tableRowById: {}, lastTableQuery: null, authedUser: false };
+} = { tableRows: null, tableRowById: {}, tableRowByIdError: null, lastTableQuery: null, authedUser: false };
 
 mock.module("@/src/puzzles/puzzle-store.ts", {
   namedExports: {
@@ -20,7 +21,12 @@ mock.module("@/src/puzzles/puzzle-store.ts", {
       storeHolder.lastTableQuery = options;
       return storeHolder.tableRows;
     },
-    fetchPuzzleRowById: async (id: string) => storeHolder.tableRowById[id] ?? null,
+    fetchPuzzleRowById: async (id: string) => {
+      if (storeHolder.tableRowByIdError) {
+        throw storeHolder.tableRowByIdError;
+      }
+      return storeHolder.tableRowById[id] ?? null;
+    },
   },
 });
 
@@ -228,4 +234,22 @@ test("signed-in windowed request with a fully seen loaded window stays empty", a
   assert.equal(res.headers.get("Cache-Control"), "no-store");
   storeHolder.tableRows = null;
   storeHolder.authedUser = false;
+});
+
+test("single id lookup returns 503 on DB error for non-catalog ids and still serves seed ids", async () => {
+  const { PUZZLE_CATALOG } = await import("@/src/puzzles/catalog.ts");
+  const seedId = PUZZLE_CATALOG[0]!.id;
+  storeHolder.tableRowById = {};
+  storeHolder.tableRowByIdError = new Error("supabase timeout");
+  try {
+    const missRes = await get("?id=non-seed-id");
+    assert.equal(missRes.res.status, 503);
+    assert.equal(missRes.res.headers.get("Cache-Control"), null);
+
+    const seedRes = await get(`?id=${seedId}`);
+    assert.equal(seedRes.res.status, 200);
+    assert.equal((seedRes.body as { id: string }).id, seedId);
+  } finally {
+    storeHolder.tableRowByIdError = null;
+  }
 });
