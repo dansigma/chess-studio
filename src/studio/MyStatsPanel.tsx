@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState } from "react";
 import { sanMovesFromPgn } from "@/src/chess/pgn-clean";
 import { tMyGames } from "@/src/i18n/my-games-strings";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
+import { tPanels } from "@/src/i18n/studio-panel-strings";
 import { loadCappedMyGames } from "@/src/lib/my-games/load-games";
 import {
   deviationsForRecentGames,
@@ -84,6 +85,7 @@ export function MyStatsPanel() {
   const user = useStudioStore((state) => state.user);
   const importPlayerGame = useStudioStore((state) => state.importPlayerGame);
   const flip = useStudioStore((state) => state.flip);
+  const setActivity = useStudioStore((state) => state.setActivity);
   const [games, setGames] = useState<PlayerGame[]>([]);
   // Load state derives from `user` on first render; the effect below keeps it
   // in sync on transitions (same grain as MyGamesSidebar's synchronous
@@ -321,6 +323,17 @@ export function MyStatsPanel() {
           <p role="status" className="text-dense text-studio-muted">
             {tMyGames(locale, "myGames.error.unavailable")}
           </p>
+        ) : games.length === 0 ? (
+          <div role="status" data-testid="mystats-no-games" className="flex flex-col items-start gap-2">
+            <p className="text-dense text-studio-muted">{tMyGames(locale, "myGames.empty")}</p>
+            <button
+              type="button"
+              onClick={() => setActivity("mygames")}
+              className="rounded bg-studio-hover px-2 py-0.5 text-caption font-medium text-studio-accent-text hover:bg-studio-hover-strong"
+            >
+              {tPanels(locale, "games.import")}
+            </button>
+          </div>
         ) : view === "empty" ? (
           <MyStatsReviewGate locale={locale} reviewed={totalReviewed} />
         ) : (
@@ -404,7 +417,15 @@ export function MyStatsPanel() {
             {/* SIG-1385: with filters leaving fewer than 3 reviewed games, the
                 gate shows once here; the trend and phase sections wait for it. */}
             {filteredReady ? null : (
-              <MyStatsReviewGate locale={locale} reviewed={reviewedCount} />
+              <MyStatsReviewGate
+                locale={locale}
+                reviewed={reviewedCount}
+                onResetFilters={
+                  reviewedCount === filteredGames.length
+                    ? () => setOverviewFilters(DEFAULT_OVERVIEW_FILTERS)
+                    : undefined
+                }
+              />
             )}
             {filteredReady ? (
               <section aria-labelledby="mystats-trend">

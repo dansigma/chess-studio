@@ -2,14 +2,24 @@
 
 // SIG-1385: the <3-reviewed-games gate. One component for every spot that
 // used to show the bare "review at least 3 games" sentence: progress toward
-// the minimum plus a button that opens the Game Review dock panel (the same
-// `openStudioPanel` path the View menu / sidebar use).
+// the minimum plus a button that opens the My Games activity (where batch
+// review persists `my_games.reviewed_at` / `user_accuracy`), or resets active
+// filters when every matching game is already reviewed.
 import { tMyGames } from "@/src/i18n/my-games-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { MY_STATS_MIN_REVIEWED } from "@/src/lib/my-games/stats";
-import { openStudioPanel } from "./dock-api";
+import { useStudioStore } from "@/src/store/studio-store";
 
-export function MyStatsReviewGate({ locale, reviewed }: { locale: SiteLocale; reviewed: number }) {
+export function MyStatsReviewGate({
+  locale,
+  reviewed,
+  onResetFilters,
+}: {
+  locale: SiteLocale;
+  reviewed: number;
+  onResetFilters?: () => void;
+}) {
+  const setActivity = useStudioStore((state) => state.setActivity);
   const done = Math.min(reviewed, MY_STATS_MIN_REVIEWED);
   const progress = tMyGames(locale, "myGames.statsGateProgress", {
     done: done,
@@ -33,10 +43,10 @@ export function MyStatsReviewGate({ locale, reviewed }: { locale: SiteLocale; re
       </div>
       <button
         type="button"
-        onClick={() => openStudioPanel("review")}
+        onClick={onResetFilters ?? (() => setActivity("mygames"))}
         className="rounded bg-studio-hover px-2 py-0.5 text-caption font-medium text-studio-accent-text hover:bg-studio-hover-strong"
       >
-        {tMyGames(locale, "myGames.statsReviewCta")}
+        {tMyGames(locale, onResetFilters ? "myGames.filterReset" : "myGames.statsReviewCta")}
       </button>
     </div>
   );
