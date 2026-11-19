@@ -142,6 +142,24 @@ export function sessionTarget(startRating: number, solvedInSession: number, mode
   return startRating;
 }
 
+export type PromotionPiece = "q" | "r" | "b" | "n";
+
+export const PROMOTION_PIECES: readonly PromotionPiece[] = ["q", "r", "b", "n"];
+
+export function isPromotionMove(fen: string, from: string, to: string): boolean {
+  if (!isSquare(from) || !isSquare(to)) {
+    return false;
+  }
+  try {
+    const chess = new Chess(fen);
+    return chess
+      .moves({ square: from, verbose: true })
+      .some((move) => move.to === to && Boolean(move.promotion));
+  } catch {
+    return false;
+  }
+}
+
 export type JudgedMove =
   | { kind: "illegal" }
   | { kind: "correct" | "wrong"; fen: string; from: string; to: string; san: string; uci: string; mate: boolean };
@@ -152,6 +170,7 @@ export function judgeMove(
   from: string,
   to: string,
   acceptMate = false,
+  promotion?: PromotionPiece,
 ): JudgedMove {
   if (!isSquare(from) || !isSquare(to)) {
     return { kind: "illegal" };
@@ -159,17 +178,21 @@ export function judgeMove(
   const chess = new Chess(fen);
   const piece = chess.get(from);
   const promotionRank = piece?.color === "w" ? "8" : "1";
-  const candidates: Array<string | undefined> =
-    piece?.type === "p" && to[1] === promotionRank ? ["q", "r", "b", "n"] : [undefined];
+  const isPromo = piece?.type === "p" && to[1] === promotionRank;
+  const candidates: Array<string | undefined> = isPromo
+    ? promotion
+      ? [promotion]
+      : ["q", "r", "b", "n"]
+    : [undefined];
   let played: { fen: string; from: string; to: string; san: string; uci: string; mate: boolean } | null =
     null;
   let mateAlt: { fen: string; from: string; to: string; san: string; uci: string; mate: boolean } | null =
     null;
-  for (const promotion of candidates) {
+  for (const promo of candidates) {
     const probe = new Chess(fen);
     let move;
     try {
-      move = probe.move({ from, to, promotion });
+      move = probe.move({ from, to, promotion: promo });
     } catch {
       continue;
     }

@@ -10,6 +10,7 @@ import {
   dateKey,
   emptyProgress,
   fenAtPly,
+  isPromotionMove,
   judgeMove,
   levelFromXp,
   materialFor,
@@ -514,4 +515,43 @@ test("normalizeProgress filters unknown themes and keeps the valid ones", () => 
   });
   assert.deepEqual(loaded.history[0]?.themes, ["fork", "pin"]);
   assert.equal(loaded.history[0]?.ms, 0);
+});
+
+test("isPromotionMove detects legal white/black promotions and ignores non-promotions or illegal moves", () => {
+  const whitePromoFen = "3rk3/4P3/8/8/8/8/8/4K3 w - - 0 1";
+  assert.equal(isPromotionMove(whitePromoFen, "e7", "d8"), true);
+  assert.equal(isPromotionMove(whitePromoFen, "e7", "e8"), false);
+
+  const whitePushFen = "4k3/P7/8/8/8/8/8/R3K3 w - - 0 1";
+  assert.equal(isPromotionMove(whitePushFen, "a7", "a8"), true);
+  assert.equal(isPromotionMove(whitePushFen, "a1", "a6"), false);
+
+  const blackPromoFen = "4k3/8/8/8/8/8/p7/4K3 b - - 0 1";
+  assert.equal(isPromotionMove(blackPromoFen, "a2", "a1"), true);
+  assert.equal(isPromotionMove(blackPromoFen, "z9", "a1"), false);
+});
+
+test("judgeMove honors explicit promotion choices and accepts underpromotions", () => {
+  // Promoting to queen stalemates or fails when knight promotion is required.
+  const fen = "5rk1/4P3/6N1/8/8/8/8/4K3 w - - 0 1";
+  const under = judgeMove(fen, "e7f8n", "e7", "f8", false, "n");
+  assert.equal(under.kind, "correct");
+  if (under.kind === "correct") {
+    assert.equal(under.uci, "e7f8n");
+  }
+
+  const wrongQueen = judgeMove(fen, "e7f8n", "e7", "f8", false, "q");
+  assert.equal(wrongQueen.kind, "wrong");
+  if (wrongQueen.kind === "wrong") {
+    assert.equal(wrongQueen.uci, "e7f8q");
+  }
+
+  // In a mate puzzle, an explicit promotion that delivers alternate mate is still accepted.
+  const puzzle = PUZZLES.find((item) => item.id === "promote-f");
+  assert.ok(puzzle);
+  const mateQueen = judgeMove(puzzle.fen, "f7f8r", "f7", "f8", true, "q");
+  assert.equal(mateQueen.kind, "correct");
+  if (mateQueen.kind === "correct") {
+    assert.equal(mateQueen.mate, true);
+  }
 });
