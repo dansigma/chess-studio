@@ -8,6 +8,7 @@ import { buildReviewVerdict } from "@/src/chess/review-verdict";
 import {
   formatReviewEta,
   momentNavHint,
+  presetLabel,
   progressBucket,
   reviewCancelledText,
   reviewCompleteText,
@@ -55,8 +56,10 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { TrainMistakesBanner } from "./review/TrainMistakesBanner";
 import { RetryCard } from "./review/RetryCard";
 import { buildRetryTargets, type RetryTarget } from "@/src/chess/retry";
+import { dueExercises } from "@/src/lib/mistake-exercises-store";
 import { MoreHorizontal } from "lucide-react";
 import { Button, IconButton } from "./ui/Button";
+import { Segmented } from "./ui/Controls";
 import { MenuDivider, MenuItem, MenuSurface } from "./ui/Menu";
 import { Dialog } from "./ui/Dialog";
 
@@ -511,6 +514,15 @@ export function ReviewPanel() {
       startRetry(target, retryTargets);
     }
   };
+  const mistakeExercises = useStudioStore((state) => state.mistakeExercises);
+  const bannerRetryTarget = useMemo(() => {
+    const userTargets = retryTargets.filter((target) => !target.exercise.fromOpponent);
+    if (userTargets.length === 0) {
+      return null;
+    }
+    const dueKeys = new Set(dueExercises(mistakeExercises).map((entry) => entry.exercise.key));
+    return userTargets.find((target) => dueKeys.has(target.exercise.key)) ?? userTargets[0];
+  }, [retryTargets, mistakeExercises]);
   const { prevMomentIndex, nextMomentIndex } = useMemo(() => {
     if (selectedMomentIndex != null) {
       const { prev, next } = prevNextIndices(filteredMoments.length, selectedMomentIndex);
@@ -530,7 +542,9 @@ export function ReviewPanel() {
   }, [selectedMomentIndex, currentIndex, filteredMoments.length, chartMoments]);
 
   // `[` / `]` walk the filtered moments. Guard editable targets so typing
-  // in notation inputs never navigates.
+  // in notation inputs never navigates. SIG-1413: the listener outlives the
+  // Studio dock, so also require the Studio view and no modal dialog (same
+  // guards as handleStudioShellKey).
   useEffect(() => {
     if (!report) {
       return;
@@ -540,6 +554,12 @@ export function ReviewPanel() {
         return;
       }
       if (event.key !== "[" && event.key !== "]") {
+        return;
+      }
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) {
+        return;
+      }
+      if (useStudioStore.getState().workspaceView !== "studio") {
         return;
       }
       const target = event.target as HTMLElement | null;
@@ -650,9 +670,23 @@ export function ReviewPanel() {
               </Button>
             </>
           ) : (
-            <Button size="sm" variant="primary" disabled={setupMode || points.length < 2} onClick={start}>
-              {rows ? tReview(locale, "panel.reviewAgain") : tReview(locale, "panel.reviewGame")}
-            </Button>
+            <>
+              <Segmented
+                compact
+                ariaLabel={tReview(locale, "panel.depthGroup")}
+                disabled={running}
+                value={preset}
+                onChange={setPreset}
+                options={PRESET_IDS.map((id) => ({
+                  value: id,
+                  label: presetLabel(locale, id),
+                  title: reviewPresetOption(locale, id, REVIEW_PRESETS[id].depth),
+                }))}
+              />
+              <Button size="sm" variant="primary" disabled={setupMode || points.length < 2} onClick={start}>
+                {rows ? tReview(locale, "panel.reviewAgain") : tReview(locale, "panel.reviewGame")}
+              </Button>
+            </>
           )}
           <div className="relative">
             <IconButton
@@ -803,6 +837,10 @@ export function ReviewPanel() {
             {reviewCancelledText(locale, { done: progress.done, total: progress.total })}
           </p>
         ) : null}
+        {deviationLine ? <DeviationLine text={deviationLine} /> : null}
+        {deviationAction ? (
+          <DeviationAction label={deviationAction.label} onClick={deviationAction.onClick} />
+        ) : null}
         {report ? (
           <>
             {cached ? (
@@ -831,6 +869,102 @@ export function ReviewPanel() {
                   time={timeView}
                 />
               )}
+              <div className="border-b border-studio-border-subtle px-3 py-2">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="text-caption uppercase tracking-wide text-studio-faint">{tReview(locale, "chart.title")}</span>
+                  {timeReport ? (
+                    <div
+                      role="group"
+                      aria-label={tReview(locale, "chart.modeGroup")}
+                      data-chart-mode-toggle
+                      data-export-ignore
+                      className="inline-flex overflow-hidden rounded-md border border-studio-border-strong text-caption"
+                    >
+                      {(["eval", "time"] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          data-mode={mode}
+                          aria-pressed={activeChartMode === mode}
+                          onClick={() => setChartMode(mode)}
+                          className={`h-5 px-2 focus-visible:outline-2 focus-visible:outline-studio-accent ${
+                            activeChartMode === mode ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"
+                          }`}
+                        >
+                          {tReview(locale, mode === "eval" ? "chart.modeEval" : "chart.modeTime")}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <ReviewEvalChart
+                  mode={activeChartMode}
+                  timeBars={timeBars}
+                  timeAriaLabel={tReview(locale, "chart.timeAriaLabel")}
+                  series={series}
+                  bookPlies={bookPlies}
+                  plyPaths={plyPaths}
+                  moments={chartMoments}
+                  separators={separators}
+                  currentIndex={currentIndex}
+                  moveNotation={moveNotation}
+                  locale={locale}
+                  ariaLabel={`${tReview(locale, "chart.ariaLabel")} — ${chartSummary(locale, {
+                    plies: series.length,
+                    moments: chartMoments.length,
+                  })}`}
+                  emptyText={tReview(locale, "chart.empty")}
+                  onSelect={goPath}
+                />
+                <div data-export-ignore className="mt-2 flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-1 text-caption text-studio-muted">
+                    <span>{tReview(locale, "filter.side")}</span>
+                    <select
+                      value={sideFilter}
+                      onChange={(event) => setSideFilter(event.target.value as SideFilter)}
+                      className="h-6 rounded-md border border-studio-border-strong bg-studio-panel px-1 text-caption text-studio-fg"
+                    >
+                      <option value="both">{tReview(locale, "filter.sideBoth")}</option>
+                      <option value="w">{tReview(locale, "filter.sideWhite")}</option>
+                      <option value="b">{tReview(locale, "filter.sideBlack")}</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1 text-caption text-studio-muted">
+                    <span>{tReview(locale, "filter.tierGroup")}</span>
+                    <select
+                      value={tierGroup}
+                      onChange={(event) => setTierGroup(event.target.value as TierGroup)}
+                      className="h-6 rounded-md border border-studio-border-strong bg-studio-panel px-1 text-caption text-studio-fg"
+                    >
+                      <option value="all">{tReview(locale, "filter.tierAll")}</option>
+                      <option value="brilliant">{tReview(locale, "filter.tierBrilliant")}</option>
+                      <option value="mistakes">{tReview(locale, "filter.tierMistakes")}</option>
+                      <option value="misses">{tReview(locale, "filter.tierMisses")}</option>
+                      <option value="blunders">{tReview(locale, "filter.tierBlunders")}</option>
+                    </select>
+                  </label>
+                  <span className="ml-auto flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={prevMomentIndex == null}
+                      title={momentNavHint(locale, "prev")}
+                      onClick={() => goToMoment(prevMomentIndex)}
+                    >
+                      {tReview(locale, "moments.prev")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={nextMomentIndex == null}
+                      title={momentNavHint(locale, "next")}
+                      onClick={() => goToMoment(nextMomentIndex)}
+                    >
+                      {tReview(locale, "moments.next")}
+                    </Button>
+                  </span>
+                </div>
+              </div>
               <KeyMomentsList
                 moments={momentRows}
                 moveNotation={moveNotation}
@@ -844,6 +978,7 @@ export function ReviewPanel() {
                     <WhyBody
                       key={selected.path.join(".")}
                       row={selected}
+                      startFen={board.tree.startFen}
                       fenBefore={selectedContext.fenBefore}
                       fenAfter={selectedContext.fenAfter}
                       previous={selectedContext.previous}
@@ -861,11 +996,18 @@ export function ReviewPanel() {
             </div>
             {/* SIG-1206: after the key moments (so the first moment stays above
                 the fold) and outside reportRef (so it never lands in the PNG). */}
-            {trainBanner ? <TrainMistakesBanner banner={trainBanner} locale={locale} /> : null}
+            {trainBanner ? (
+              <TrainMistakesBanner
+                banner={trainBanner}
+                locale={locale}
+                onStartRetry={bannerRetryTarget && !retryHere ? () => startRetry(bannerRetryTarget, retryTargets) : undefined}
+              />
+            ) : null}
             {selected && selectedContext && selectedMomentIndex == null && !running && !retryHere ? (
               <WhyBlock
                 key={selected.path.join(".")}
                 row={selected}
+                startFen={board.tree.startFen}
                 fenBefore={selectedContext.fenBefore}
                 fenAfter={selectedContext.fenAfter}
                 previous={selectedContext.previous}
@@ -873,105 +1015,6 @@ export function ReviewPanel() {
                 moveNotation={moveNotation}
                 onPlayLine={playLine}
               />
-            ) : null}
-            <div className="border-b border-studio-border-subtle px-3 py-2">
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <span className="text-caption uppercase tracking-wide text-studio-faint">{tReview(locale, "chart.title")}</span>
-                {timeReport ? (
-                  <div
-                    role="group"
-                    aria-label={tReview(locale, "chart.modeGroup")}
-                    data-chart-mode-toggle
-                    className="inline-flex overflow-hidden rounded-md border border-studio-border-strong text-caption"
-                  >
-                    {(["eval", "time"] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        data-mode={mode}
-                        aria-pressed={activeChartMode === mode}
-                        onClick={() => setChartMode(mode)}
-                        className={`h-5 px-2 focus-visible:outline-2 focus-visible:outline-studio-accent ${
-                          activeChartMode === mode ? "bg-studio-hover-strong text-studio-fg" : "text-studio-muted hover:bg-studio-hover"
-                        }`}
-                      >
-                        {tReview(locale, mode === "eval" ? "chart.modeEval" : "chart.modeTime")}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-              <ReviewEvalChart
-                mode={activeChartMode}
-                timeBars={timeBars}
-                timeAriaLabel={tReview(locale, "chart.timeAriaLabel")}
-                series={series}
-                bookPlies={bookPlies}
-                plyPaths={plyPaths}
-                moments={chartMoments}
-                separators={separators}
-                currentIndex={currentIndex}
-                moveNotation={moveNotation}
-                locale={locale}
-                ariaLabel={`${tReview(locale, "chart.ariaLabel")} — ${chartSummary(locale, {
-                  plies: series.length,
-                  moments: chartMoments.length,
-                })}`}
-                emptyText={tReview(locale, "chart.empty")}
-                onSelect={goPath}
-              />
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-1 text-caption text-studio-muted">
-                  <span>{tReview(locale, "filter.side")}</span>
-                  <select
-                    value={sideFilter}
-                    onChange={(event) => setSideFilter(event.target.value as SideFilter)}
-                    className="h-6 rounded-md border border-studio-border-strong bg-studio-panel px-1 text-caption text-studio-fg"
-                  >
-                    <option value="both">{tReview(locale, "filter.sideBoth")}</option>
-                    <option value="w">{tReview(locale, "filter.sideWhite")}</option>
-                    <option value="b">{tReview(locale, "filter.sideBlack")}</option>
-                  </select>
-                </label>
-                <label className="flex items-center gap-1 text-caption text-studio-muted">
-                  <span>{tReview(locale, "filter.tierGroup")}</span>
-                  <select
-                    value={tierGroup}
-                    onChange={(event) => setTierGroup(event.target.value as TierGroup)}
-                    className="h-6 rounded-md border border-studio-border-strong bg-studio-panel px-1 text-caption text-studio-fg"
-                  >
-                    <option value="all">{tReview(locale, "filter.tierAll")}</option>
-                    <option value="brilliant">{tReview(locale, "filter.tierBrilliant")}</option>
-                    <option value="mistakes">{tReview(locale, "filter.tierMistakes")}</option>
-                    <option value="misses">{tReview(locale, "filter.tierMisses")}</option>
-                    <option value="blunders">{tReview(locale, "filter.tierBlunders")}</option>
-                  </select>
-                </label>
-                <span className="ml-auto flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={prevMomentIndex == null}
-                    title={momentNavHint(locale, "prev")}
-                    onClick={() => goToMoment(prevMomentIndex)}
-                  >
-                    {tReview(locale, "moments.prev")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={nextMomentIndex == null}
-                    title={momentNavHint(locale, "next")}
-                    onClick={() => goToMoment(nextMomentIndex)}
-                  >
-                    {tReview(locale, "moments.next")}
-                  </Button>
-                </span>
-              </div>
-            </div>
-            {deviationLine ? <DeviationLine text={deviationLine} /> : null}
-            {deviationAction ? (
-              <DeviationAction label={deviationAction.label} onClick={deviationAction.onClick} />
             ) : null}
             <ReportDetails report={report} locale={locale} />
           </>

@@ -237,7 +237,7 @@ test("queryPuzzleTable with unseen falls back to puzzles_window on RPC error", a
   holder.authedRpcImpl = null;
 });
 
-test("fetchPuzzleRowById returns the row and null on miss", async () => {
+test("fetchPuzzleRowById returns the row, null on miss, and throws on DB error", async () => {
   holder.fromImpl = () => eqChain({ data: GOOD_ROW, error: null });
   assert.deepEqual(await fetchPuzzleRowById(GOOD_ROW.id), {
     id: GOOD_ROW.id,
@@ -249,5 +249,5 @@ test("fetchPuzzleRowById returns the row and null on miss", async () => {
   holder.fromImpl = () => eqChain({ data: null, error: null });
   assert.equal(await fetchPuzzleRowById("missing"), null);
   holder.fromImpl = () => eqChain({ data: null, error: new Error("db down") });
-  assert.equal(await fetchPuzzleRowById(GOOD_ROW.id), null);
+  await assert.rejects(() => fetchPuzzleRowById(GOOD_ROW.id), /db down/);
 });

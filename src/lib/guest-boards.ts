@@ -16,6 +16,7 @@ export type SnapshotBoardRecord = {
   headers: Record<string, string>;
   orientation: BoardOrientation;
   repertoireColor: BoardOrientation | null;
+  liveSource?: { roundId: string; gameId: string };
   dirty: boolean;
 };
 
@@ -41,6 +42,17 @@ function isBoardOrientation(value: unknown): value is BoardOrientation {
 export const GUEST_BOARDS_KEY = "studio-clone-guest-boards";
 const GUEST_BOARDS_VERSION = 1;
 
+function readLiveSource(value: unknown): { roundId: string; gameId: string } | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const obj = value as Record<string, unknown>;
+  if (typeof obj.roundId === "string" && obj.roundId.length > 0 && typeof obj.gameId === "string" && obj.gameId.length > 0) {
+    return { roundId: obj.roundId, gameId: obj.gameId };
+  }
+  return undefined;
+}
+
 export function readSnapshotBoard(value: unknown): SnapshotBoardRecord | null {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
@@ -56,6 +68,7 @@ export function readSnapshotBoard(value: unknown): SnapshotBoardRecord | null {
     record.repertoireColor === "white" || record.repertoireColor === "black"
       ? record.repertoireColor
       : null;
+  const liveSource = readLiveSource(record.liveSource);
   return {
     id: record.id,
     remoteId: typeof record.remoteId === "string" && record.remoteId ? record.remoteId : null,
@@ -67,6 +80,7 @@ export function readSnapshotBoard(value: unknown): SnapshotBoardRecord | null {
     headers: isGameHeaders(record.headers) ? record.headers : {},
     orientation: isBoardOrientation(record.orientation) ? record.orientation : "white",
     repertoireColor,
+    ...(liveSource ? { liveSource } : {}),
     dirty: record.dirty === true,
   };
 }
@@ -81,6 +95,7 @@ export function toSnapshotBoardRecord(board: BoardSession): SnapshotBoardRecord 
     headers: { ...board.headers },
     orientation: board.orientation,
     repertoireColor: board.repertoireColor,
+    ...(board.liveSource ? { liveSource: { ...board.liveSource } } : {}),
     dirty: board.dirty,
   };
 }
@@ -99,6 +114,7 @@ export function snapshotRecordToBoard(record: SnapshotBoardRecord, title: string
     headers: { ...imported.headers, ...record.headers },
     orientation: record.orientation,
     repertoireColor: record.repertoireColor,
+    ...(record.liveSource ? { liveSource: { ...record.liveSource } } : {}),
     dirty: record.dirty,
     preview: false,
   };

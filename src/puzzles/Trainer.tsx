@@ -1,18 +1,23 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SiteHeader as CourseChrome } from "@/src/site/SiteHeader";
-import { phaseName, tierName } from "@/src/chess/review-strings";
 import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { PuzzleBoard } from "./PuzzleBoard";
-import { PuzzlePanel } from "./PuzzlePanel";
+import { MistakesFilterPill, PuzzlePanel, formatMistakeFilterLabel } from "./PuzzlePanel";
 import { parseDifficulty, type Difficulty } from "./difficulty";
 import { isPuzzleMode, isPuzzleTheme } from "./engine";
 import { parseMistakeFilter } from "./mistake-puzzle";
+import {
+  hasOpenDialog,
+  isEditableTarget,
+  isInteractiveTarget,
+  resolveTrainerKeyAction,
+} from "./trainer-keyboard";
 import type { PuzzleMode, PuzzleTheme } from "./types";
 import { usePuzzleFeedback } from "./use-puzzle-feedback";
 import { usePuzzleScoring } from "./use-puzzle-scoring";
@@ -42,25 +47,69 @@ export function PuzzleTrainer() {
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const moveSound = useStudioStore((state) => state.settings.moveSound);
 
-  const filterText = [
-    mistakeFilter.phase ? phaseName(locale, mistakeFilter.phase) : null,
-    mistakeFilter.label ? tierName(locale, mistakeFilter.label) : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const filterText = mode === "mistakes" ? formatMistakeFilterLabel(locale, mistakeFilter) : "";
 
   const scoring = usePuzzleScoring(mode, difficulty !== null);
   const session = usePuzzleSession({ mode, theme, difficulty, mistakeFilter, moveSound, scoring });
   const feedback = usePuzzleFeedback({ mode, session, locale });
 
+  const {
+    puzzle,
+    fen,
+    loadError,
+    caughtUp,
+    exhausted,
+    summaryVisible,
+    status,
+    userTurn,
+    canScrub,
+    setHintLevel,
+    nextPuzzle,
+    stepView,
+  } = session;
+  const { continueLabel } = feedback;
+  const ready = Boolean(scoring.progress && puzzle && fen && !loadError && !caughtUp && !exhausted);
+  const canContinue = ready && status !== "playing" && !summaryVisible && Boolean(continueLabel);
+  const canPlayHint = ready && userTurn && !summaryVisible;
+  const canScrubMoves = ready && canScrub;
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const action = resolveTrainerKeyAction({
+        key: event.key,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        altKey: event.altKey,
+        shiftKey: event.shiftKey,
+        defaultPrevented: event.defaultPrevented,
+        inEditable: isEditableTarget(event.target),
+        inInteractive: isInteractiveTarget(event.target),
+        dialogOpen: hasOpenDialog(document),
+        userTurn: canPlayHint,
+        canContinue,
+        canScrub: canScrubMoves,
+      });
+      if (!action) {
+        return;
+      }
+      event.preventDefault();
+      if (action === "hint") {
+        setHintLevel((current) => Math.min(2, current + 1));
+      } else if (action === "continue") {
+        nextPuzzle();
+      } else if (action === "scrub-back") {
+        stepView(-1);
+      } else if (action === "scrub-forward") {
+        stepView(1);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [canPlayHint, canContinue, canScrubMoves, setHintLevel, nextPuzzle, stepView]);
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-studio-bg">
       <CourseChrome />
-      {filterText ? (
-        <p className="px-4 pt-2 text-caption text-studio-faint" data-testid="mistakes-filter-chip">
-          {filterText}
-        </p>
-      ) : null}
       {session.loadError ? (
         <main className="px-6 py-10 text-body text-studio-warning-fg">
           {tPuzzle(locale, "puzzle.trainer.loadError")}
@@ -68,6 +117,11 @@ export function PuzzleTrainer() {
       ) : mode === "mistakes" && session.caughtUp && session.attempts.length === 0 && scoring.progress ? (
         // SIG-1097: empty queue renders the caught-up state, not the spinner.
         <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+          {filterText ? (
+            <div className="mb-3">
+              <MistakesFilterPill locale={locale} filterText={filterText} />
+            </div>
+          ) : null}
           <h1 className="text-2xl font-semibold text-studio-fg">
             {tMistakes(locale, "mistakes.trainer.caughtUp.title")}
           </h1>
@@ -110,8 +164,17 @@ export function PuzzleTrainer() {
             boardTheme={boardTheme}
             pieceSet={pieceSet}
             showCoordinates={showCoordinates}
+            locale={locale}
           />
-          <PuzzlePanel mode={mode} theme={theme} difficulty={difficulty} session={session} feedback={feedback} locale={locale} />
+          <PuzzlePanel
+            mode={mode}
+            theme={theme}
+            difficulty={difficulty}
+            mistakeFilter={mistakeFilter}
+            session={session}
+            feedback={feedback}
+            locale={locale}
+          />
         </div>
         </div>
       )}

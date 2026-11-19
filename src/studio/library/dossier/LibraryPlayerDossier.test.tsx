@@ -54,6 +54,7 @@ function gamesState(overrides: Partial<PlayerGamesState> = {}): PlayerGamesState
     truncated: false,
     partial: false,
     notice: null,
+    fromLoadedFiles: false,
     retry: () => {
       retryCalls += 1;
     },
@@ -167,11 +168,16 @@ test("cards follow the filters, omit accuracy and sit above the two areas", () =
   assert.match(screen.getAllByTestId("dossier-opening-card")[0]!.textContent ?? "", /Italian Game/);
   assert.equal(screen.getAllByTestId("dossier-game-row").length, 3);
   assert.ok(screen.getByTestId("dossier-openings").parentElement?.className.includes("@min-[720px]:grid-cols-2"));
+  // SIG-1405: the top colour bar is the only colour control; with "all" the
+  // openings pick a side and say so instead of rendering their own tabs.
+  assert.equal(screen.queryByTestId("dossier-openings-color-tabs"), null);
+  assert.match(screen.getByTestId("dossier-openings-side").textContent ?? "", /Showing White openings/);
 
   fireEvent.click(screen.getByRole("button", { name: "White" }));
   assert.equal(screen.getByTestId("kpi-games").textContent, "2");
   assert.equal(screen.getByTestId("kpi-score").textContent, "100%");
   assert.equal(screen.getAllByTestId("dossier-game-row").length, 2);
+  assert.equal(screen.queryByTestId("dossier-openings-side"), null);
 });
 
 test("Open in Studio runs the online-player flow with the filters' colour", () => {
@@ -206,12 +212,33 @@ test("a local player keeps a path to the Games tab; online players have none", a
     subtitle: "Studio database",
     inDatabases: true,
   };
+  state = gamesState({ games: [game("g1")], fromLoadedFiles: true });
   useLibraryStore.setState({ mode: "players" });
   useDossierStore.getState().openPlayer(local, "black");
   render(<LibraryPlayerDossier />);
+  // SIG-1405: the Studio cannot load a local-only player, so its handoff is
+  // absent and the Games tab is the only route.
+  assert.equal(screen.queryByRole("button", { name: "Open in Studio" }), null);
   fireEvent.click(screen.getByRole("button", { name: "View in Games tab" }));
   const library = useLibraryStore.getState();
   assert.equal(library.mode, "games");
   assert.equal(library.filters.player, "Local Player");
   assert.equal(library.filters.playerColor, "black");
+});
+
+test("a studio player whose games come from the server keeps Open in Studio", () => {
+  // Server Studio hits and players restored from the URL carry `inDatabases`
+  // too; the handoff follows where the games were loaded from instead.
+  state = gamesState({ games: [game("g1")], fromLoadedFiles: false });
+  useDossierStore.getState().openPlayer({
+    id: "studio:Sample Player",
+    source: "studio",
+    username: "Sample Player",
+    displayName: "Sample Player",
+    subtitle: "",
+    inDatabases: true,
+  });
+  render(<LibraryPlayerDossier />);
+  assert.ok(screen.getByRole("button", { name: "Open in Studio" }));
+  assert.equal(screen.queryByRole("button", { name: "View in Games tab" }), null);
 });

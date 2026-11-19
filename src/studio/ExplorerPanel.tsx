@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
-import { fileExplorerSource, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
+import { explorerSourceTitle, fileExplorerSource, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
@@ -19,6 +19,9 @@ import { useExplorerData } from "./use-explorer-data";
 import { EXPLORER_COMPACT_MAX_HEIGHT, usePanelSize } from "./use-panel-size";
 
 const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(170px,220px)] items-center gap-3 px-3";
+
+// SIG-1385: fallback order for the empty-state "try another source" action.
+const EMPTY_STATE_ALTERNATES: readonly ExplorerSource[] = ["lichess", "masters", "curated"];
 
 /**
  * SIG-908: runtime guard for a dockview `params.source` value. The panel id
@@ -121,6 +124,11 @@ function ExplorerChrome({
     state.playerProfile?.source === "chesscom" ? state.playerProfile.username : null,
   );
   const chesscomNeedsPlayer = effectiveSource === "chesscom" && chesscomPlayer === null;
+  // SIG-1385: the empty state must offer a way forward — switch to the first
+  // alternative shared source (Lichess first: the broadest online DB, and it
+  // never needs a loaded Chess.com player).
+  const alternateSource =
+    EMPTY_STATE_ALTERNATES.find((candidate) => candidate !== effectiveSource) ?? null;
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const filters = useStudioStore((state) => state.settings.explorerFilters);
@@ -253,8 +261,21 @@ function ExplorerChrome({
           <div className="px-3 py-4 text-dense text-studio-faint" role="status">{tPanels(locale, "explorer.loadingLabel")}</div>
         ) : null}
         {!loading && !error && !hasMoves ? (
-          <div className="px-3 py-4 text-dense text-studio-faint">
-            {tPanels(locale, chesscomNeedsPlayer ? "explorer.chesscom.needPlayer" : "explorer.empty")}
+          <div className="flex flex-col items-start gap-2 px-3 py-4 text-dense text-studio-faint">
+            <p>
+              {tPanels(locale, chesscomNeedsPlayer ? "explorer.chesscom.needPlayer" : "explorer.empty")}
+            </p>
+            {alternateSource ? (
+              <button
+                type="button"
+                onClick={() => onSourceChange(alternateSource)}
+                className="rounded bg-studio-hover px-2 py-0.5 text-caption font-medium text-studio-accent-text hover:bg-studio-hover-strong"
+              >
+                {tPanels(locale, "explorer.trySource", {
+                  source: explorerSourceTitle(alternateSource, databases, locale),
+                })}
+              </button>
+            ) : null}
           </div>
         ) : null}
         {explorer?.moves.map((row) => {

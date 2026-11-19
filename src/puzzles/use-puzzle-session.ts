@@ -18,6 +18,7 @@ import {
   rankedPuzzles,
   sessionTarget,
   type CompiledPuzzle,
+  type PromotionPiece,
 } from "./engine";
 import {
   exerciseKeyForPuzzle,
@@ -157,6 +158,62 @@ export function elapsedMs(shownAt: number | null, now: number): number | null {
   return Math.max(0, now - shownAt);
 }
 
+export type ScrubFrame = {
+  fen: string;
+  last: { from: string; to: string } | null;
+};
+
+export function buildScrubFrames(
+  puzzle: CompiledPuzzle | null,
+  played: readonly ScrubFrame[],
+  status: Status,
+  ply: number,
+): ScrubFrame[] {
+  if (!puzzle) {
+    return [];
+  }
+  const frames: ScrubFrame[] = [{ fen: puzzle.fen, last: null }, ...played];
+  if (status === "failed") {
+    let currentFen = frames[frames.length - 1]?.fen ?? puzzle.fen;
+    for (let index = ply; index < puzzle.uci.length; index += 1) {
+      const uci = puzzle.uci[index];
+      if (!uci) {
+        break;
+      }
+      try {
+        const step = playUci(currentFen, uci);
+        currentFen = step.fen;
+        frames.push({ fen: step.fen, last: { from: step.from, to: step.to } });
+      } catch {
+        break;
+      }
+    }
+  }
+  return frames;
+}
+
+export function nextViewPly({
+  currentViewPly,
+  status,
+  ply,
+  frameCount,
+  delta,
+}: {
+  currentViewPly: number | null;
+  status: Status;
+  ply: number;
+  frameCount: number;
+  delta: -1 | 1;
+}): number | null {
+  if (status === "playing" || frameCount <= 0) {
+    return null;
+  }
+  const maxIndex = frameCount - 1;
+  const anchor = status === "solved" ? maxIndex : Math.min(ply, maxIndex);
+  const current = currentViewPly ?? anchor;
+  return Math.max(0, Math.min(maxIndex, current + delta));
+}
+
 export function usePuzzleSession({
   mode,
   theme,
@@ -199,6 +256,8 @@ export function usePuzzleSession({
   const [ply, setPly] = useState(0);
   const [status, setStatus] = useState<Status>("playing");
   const [last, setLast] = useState<{ from: string; to: string } | null>(null);
+  const [playedFrames, setPlayedFrames] = useState<ScrubFrame[]>([]);
+  const [viewPly, setViewPly] = useState<number | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [hintLevel, setHintLevel] = useState(0);
   const [reveal, setReveal] = useState(false);
@@ -277,6 +336,8 @@ export function usePuzzleSession({
     setPly(0);
     setStatus("playing");
     setLast(null);
+    setPlayedFrames([]);
+    setViewPly(null);
     setSelected(null);
     setHintLevel(0);
     setReveal(false);
@@ -379,12 +440,12 @@ export function usePuzzleSession({
           }
           exercisesRef.current = map;
           exercisesUserIdRef.current = userId;
+          exclude.current = new Set();
           const queue = mistakesQueue(map, exclude.current, new Date(), filter);
           mistakesRef.current = queue;
           mistakesIndexRef.current = 0;
           hydrate(loaded);
           sessionSolvedRef.current = 0;
-          exclude.current = new Set();
           setSessionSolved(0);
           setAttempts([]);
           setFinished(false);
@@ -413,6 +474,8 @@ export function usePuzzleSession({
           setPly(0);
           setStatus("playing");
           setLast(null);
+          setPlayedFrames([]);
+          setViewPly(null);
           setSelected(null);
           setHintLevel(0);
           setReveal(false);
@@ -473,6 +536,8 @@ export function usePuzzleSession({
         setPly(0);
         setStatus("playing");
         setLast(null);
+        setPlayedFrames([]);
+        setViewPly(null);
         setSelected(null);
         setHintLevel(0);
         setReveal(false);
@@ -506,6 +571,7 @@ export function usePuzzleSession({
       const step = playUci(fenRef.current, uci);
       setFen(step.fen);
       setLast({ from: step.from, to: step.to });
+      setPlayedFrames((prev) => [...prev, { fen: step.fen, last: { from: step.from, to: step.to } }]);
       setPly((current) => current + 1);
       if (moveSound) {
         playMoveSound();
@@ -589,11 +655,11 @@ export function usePuzzleSession({
   }, [summaryVisible, mode, failedInSession, dueMistakes]);
   const expected = puzzle && ply < puzzle.uci.length ? puzzle.uci[ply] : undefined;
 
-  function onDrop(from: string, to: string): boolean {
+  function onDrop(from: string, to: string, promotion?: PromotionPiece): boolean {
     if (!puzzle || !userTurn || !expected) {
       return false;
     }
-    const judged = judgeMove(fen, expected, from, to, puzzle.themes.includes("mate"));
+    const judged = judgeMove(fen, expected, from, to, puzzle.themes.includes("mate"), promotion);
     if (judged.kind === "illegal") {
       return false;
     }
@@ -615,6 +681,7 @@ export function usePuzzleSession({
     }
     setFen(judged.fen);
     setLast({ from: judged.from, to: judged.to });
+    setPlayedFrames((prev) => [...prev, { fen: judged.fen, last: { from: judged.from, to: judged.to } }]);
     const nextPly = ply + 1;
     setPly(nextPly);
     if (judged.mate || nextPly >= puzzle.uci.length) {
@@ -768,12 +835,43 @@ export function usePuzzleSession({
     showPuzzle(chosen);
   }
 
+  const scrubFrames = useMemo(
+    () => buildScrubFrames(puzzle, playedFrames, status, ply),
+    [puzzle, playedFrames, status, ply],
+  );
+  const canScrub = status !== "playing" && !summaryVisible && !(mode === "rush" && !sessionOver);
+  const activeViewPly =
+    canScrub && viewPly !== null && scrubFrames.length > 0
+      ? Math.max(0, Math.min(scrubFrames.length - 1, viewPly))
+      : null;
+  const displayFen = activeViewPly !== null ? (scrubFrames[activeViewPly]?.fen ?? fen) : fen;
+  const displayLast = activeViewPly !== null ? (scrubFrames[activeViewPly]?.last ?? null) : last;
+
+  function stepView(delta: -1 | 1) {
+    if (!canScrub) {
+      return;
+    }
+    setViewPly((current) =>
+      nextViewPly({
+        currentViewPly: current,
+        status,
+        ply,
+        frameCount: scrubFrames.length,
+        delta,
+      }),
+    );
+  }
+
   return {
     puzzle,
-    fen,
+    fen: displayFen,
     ply,
     status,
-    last,
+    last: displayLast,
+    viewPly: activeViewPly,
+    scrubFrames,
+    canScrub,
+    stepView,
     selected,
     hintLevel,
     reveal,

@@ -103,6 +103,9 @@ export type BoardSession = {
   // wholesale tree replacement (import/load/setup/clone). Optional so all
   // existing constructors stay valid; absent means "no undo available".
   reviewAnnotateUndo?: GameTree;
+  // SIG-1406: broadcast (roundId, gameId) link when opened from Live, used by
+  // "Pull latest moves" and "Back to Live".
+  liveSource?: { roundId: string; gameId: string };
 };
 
 export type EnginePreview = {
@@ -179,6 +182,13 @@ export type UserInfo = {
   displayName?: string | null;
 };
 
+export type SettingsDialogSection = "linkedAccounts";
+
+export type SettingsDialogState = {
+  open: boolean;
+  section: SettingsDialogSection | null;
+};
+
 export type StudioState = {
   boards: BoardSession[];
   activeBoardId: string;
@@ -202,6 +212,7 @@ export type StudioState = {
   // SIG-1383: Help → "Shortcuts and gestures" reference dialog (desktop
   // MenuBar and mobile sheet share the flag; StudioShell renders it).
   shortcutsOpen: boolean;
+  settingsDialog: SettingsDialogState;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
   layoutNonce: number;
   // SIG-1316: user-saved dock layouts, the last applied layout key
@@ -306,7 +317,11 @@ export type StudioState = {
     openInNewBoard?: boolean;
     // SIG-1247: side at the bottom of the opened board; omitted keeps the default.
     orientation?: BoardOrientation;
+    // SIG-1406: broadcast (roundId, gameId) link when opened from Live.
+    liveSource?: { roundId: string; gameId: string };
   }) => void;
+  /** SIG-1406: apply a merged live broadcast tree to a board without clearing variations. */
+  applyLiveMerge: (boardId: string, tree: GameTree, path: Path, result?: string) => void;
   importPlayerGame: (game: PlayerGame, options?: { openInNewBoard?: boolean; title?: string }) => void;
   exportActivePgn: () => string;
   pruneAfter: () => void;
@@ -357,6 +372,8 @@ export type StudioState = {
   setStatus: (message: string | null) => void;
   setAboutOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
+  openSettings: (section?: SettingsDialogSection) => void;
+  closeSettings: () => void;
   setNotationEditor: (editor: "comment" | "commentBefore" | "headers" | null) => void;
   openPlayerView: (player: PlayerHit, color?: PlayerColorFilter) => void;
   setPlayerGames: (games: PlayerGame[], notice?: string | null) => void;

@@ -18,7 +18,7 @@ import { usePlayerGames } from "../use-player-games";
 import { DossierGames } from "./DossierGames";
 import { DossierOpenings } from "./DossierOpenings";
 import { useDossierStore } from "./dossier-store";
-import { isLocalPlayer, showPlayerInLibrary } from "./show-in-library";
+import { showPlayerInLibrary } from "./show-in-library";
 import { X } from "lucide-react";
 
 const ORIGIN_KEYS: Record<PlayerSource, LibraryStringKey> = {
@@ -108,14 +108,21 @@ export function LibraryPlayerDossier() {
                   {period ? ` · ${period[0]}–${period[1]}` : ""}
                 </p>
               </div>
-              {isLocalPlayer(player) ? (
+              {games.fromLoadedFiles ? (
+                // SIG-1405: the Studio's player panels load a `studio` player
+                // through `/api/players/games`, which reads the online Studio
+                // database and sample book — not the PGN files loaded here. So
+                // the handoff follows where the dossier's games came from (not
+                // `inDatabases`, which server hits and URL players also carry):
+                // loaded files → Games tab, anything else → Studio.
                 <Button size="sm" variant="ghost" onClick={() => showPlayerInLibrary(player, filters.color)}>
                   {tLibrary(locale, "library.dossier.viewGames")}
                 </Button>
-              ) : null}
-              <Button size="sm" variant="secondary" onClick={openInStudio}>
-                {tLibrary(locale, "library.dossier.openInStudio")}
-              </Button>
+              ) : (
+                <Button size="sm" variant="secondary" onClick={openInStudio}>
+                  {tLibrary(locale, "library.dossier.openInStudio")}
+                </Button>
+              )}
               <IconButton size="sm" label={tLibrary(locale, "library.dossier.close")} onClick={closePlayer}>
                 <X size={14} />
               </IconButton>

@@ -11,7 +11,7 @@ const openExplorerPanel = mock.fn();
 const openStudioPanel = mock.fn();
 mock.module("../../dock-api", { namedExports: { openBoardPanel, openExplorerPanel, openStudioPanel } });
 
-const { DossierOpenings } = await import("./DossierOpenings.tsx");
+const { DossierOpenings, dominantColor } = await import("./DossierOpenings.tsx");
 const { useDossierStore } = await import("./dossier-store.ts");
 const { useStudioStore, selectActiveBoard } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
@@ -94,23 +94,46 @@ test("renders one card per opening for the filtered colour", () => {
   assert.ok(screen.getByText("Move-by-move lines"));
 });
 
-test("shows Brancas/Pretas tabs only when the dossier colour is all", () => {
+test("the dossier colour filter is the only side control; all picks the most played side", () => {
+  render(
+    <DossierOpenings
+      games={[
+        game("i1"),
+        game("i2", { playedAt: Date.UTC(2024, 2, 1) }),
+        game("f1", { color: "black", opening: "French Defense", moves: "e4 e6" }),
+      ]}
+    />,
+  );
+  // SIG-1405: no local Brancas/Pretas tabs; with "all" the openings pick the
+  // side the player used most and the hint points at the top colour filter.
+  assert.equal(screen.queryByTestId("dossier-openings-color-tabs"), null);
+  assert.match(screen.getByTestId("dossier-openings-side").textContent ?? "", /Showing White openings/);
+  const cards = screen.getAllByTestId("dossier-opening-card");
+  assert.equal(cards.length, 1);
+  assert.match(cards[0]!.textContent ?? "", /Italian Game/);
+
+  cleanup();
+  setColor("black");
   render(
     <DossierOpenings
       games={[game("i1"), game("f1", { color: "black", opening: "French Defense", moves: "e4 e6" })]}
     />,
   );
-  const tabs = within(screen.getByTestId("dossier-openings-color-tabs"));
-  assert.equal(tabs.getAllByRole("tab").length, 2);
-  fireEvent.click(tabs.getByRole("tab", { name: "Black" }));
-  const cards = screen.getAllByTestId("dossier-opening-card");
-  assert.equal(cards.length, 1);
-  assert.match(cards[0]!.textContent ?? "", /French Defense/);
-
-  cleanup();
-  setColor("white");
-  render(<DossierOpenings games={[game("i1")]} />);
   assert.equal(screen.queryByTestId("dossier-openings-color-tabs"), null);
+  assert.equal(screen.queryByTestId("dossier-openings-side"), null);
+  const blackCards = screen.getAllByTestId("dossier-opening-card");
+  assert.equal(blackCards.length, 1);
+  assert.match(blackCards[0]!.textContent ?? "", /French Defense/);
+});
+
+test("dominantColor returns the side the player used most", () => {
+  assert.equal(dominantColor([]), "white");
+  assert.equal(dominantColor([game("a")]), "white");
+  assert.equal(dominantColor([game("a"), game("b", { color: "black" })]), "white");
+  assert.equal(
+    dominantColor([game("a"), game("b", { color: "black" }), game("c", { color: "black" })]),
+    "black",
+  );
 });
 
 test("clicking a card toggles the dossier's opening selection", () => {

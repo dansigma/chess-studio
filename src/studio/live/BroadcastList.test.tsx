@@ -46,6 +46,7 @@ mock.module("@/src/lib/live/lichess-broadcast", {
 });
 
 const { LiveView } = await import("./LiveView.tsx");
+const { useLiveStore } = await import("./live-store.ts");
 const { roundIdForItem, appendUnique } = await import("./use-broadcast-list.ts");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
@@ -72,7 +73,10 @@ function page(over: Partial<Omit<BroadcastListPage, "past">> & { past?: Broadcas
 }
 
 before(() => setupDom());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  useLiveStore.getState().leaveLive();
+});
 after(async () => {
   await teardownDom();
 });
@@ -151,4 +155,69 @@ test("Load more appends only past items and hides the button when nextPage is nu
   assert.deepEqual(calls, [1, 2]);
   assert.ok(screen.getByText("Tour a1"));
   assert.equal(screen.queryByRole("button", { name: "Load more" }), null);
+});
+
+test("SIG-1407: search filters by tournament/round name, filter chips switch sections, empty state, and no-round badge", async () => {
+  handler = async () =>
+    page({
+      active: [item("alpha", { tour: { ...item("alpha").tour, name: "Tata Steel Masters" }, round: { ...item("alpha").round!, name: "Round 5" } }, true)],
+      upcoming: [
+        item("beta", { tour: { ...item("beta").tour, name: "Norway Chess" }, round: null }),
+        item("gamma", { tour: { ...item("gamma").tour, name: "Grand Swiss" }, round: { ...item("gamma").round!, name: "Round 1" } }),
+      ],
+      past: [item("delta", { tour: { ...item("delta").tour, name: "Candidates" }, round: { ...item("delta").round!, name: "Final Tiebreak" } })],
+      next: 2,
+    });
+  render(<LiveView />);
+  await screen.findByText("Tata Steel Masters");
+
+  // Cards without a round show a muted "No rounds yet" badge and are not buttons.
+  const noRoundCard = screen.getByText("Norway Chess").closest("[class*='rounded-lg']")!;
+  assert.equal(noRoundCard.tagName, "DIV");
+  assert.ok(noRoundCard.textContent!.includes("No rounds yet"));
+
+  // Quick filter chips: All (default), Live, Upcoming, Past.
+  const allChip = screen.getByRole("button", { name: "All" });
+  const liveChip = screen.getByRole("button", { name: "Live" });
+  const upcomingChip = screen.getByRole("button", { name: "Upcoming" });
+  const pastChip = screen.getByRole("button", { name: "Past" });
+  assert.equal(allChip.getAttribute("aria-pressed"), "true");
+
+  fireEvent.click(liveChip);
+  assert.equal(liveChip.getAttribute("aria-pressed"), "true");
+  assert.ok(screen.getByText("Tata Steel Masters"));
+  assert.equal(screen.queryByText("Norway Chess"), null);
+  assert.equal(screen.queryByText("Candidates"), null);
+  assert.equal(screen.queryByRole("button", { name: "Load more" }), null);
+
+  fireEvent.click(upcomingChip);
+  assert.ok(screen.getByText("Norway Chess"));
+  assert.ok(screen.getByText("Grand Swiss"));
+  assert.equal(screen.queryByText("Tata Steel Masters"), null);
+
+  fireEvent.click(pastChip);
+  assert.ok(screen.getByText("Candidates"));
+  assert.ok(screen.getByRole("button", { name: "Load more" }));
+  assert.equal(screen.queryByText("Tata Steel Masters"), null);
+
+  fireEvent.click(allChip);
+
+  // Search by tournament name and round name.
+  const search = screen.getByRole("textbox", { name: "Search broadcasts" }) as HTMLInputElement;
+  fireEvent.change(search, { target: { value: "tiebreak" } });
+  assert.ok(screen.getByText("Candidates"));
+  assert.equal(screen.queryByText("Tata Steel Masters"), null);
+
+  fireEvent.change(search, { target: { value: "norway" } });
+  assert.ok(screen.getByText("Norway Chess"));
+  assert.equal(screen.queryByText("Candidates"), null);
+
+  // Empty filtered state.
+  fireEvent.change(search, { target: { value: "nonexistent" } });
+  assert.ok(screen.getByText("No broadcasts match your filter."));
+
+  // Escape clears search.
+  fireEvent.keyDown(search, { key: "Escape" });
+  assert.equal(search.value, "");
+  assert.ok(screen.getByText("Tata Steel Masters"));
 });

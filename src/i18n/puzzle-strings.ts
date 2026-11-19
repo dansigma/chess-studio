@@ -95,6 +95,9 @@ export const PUZZLE_STRING_KEYS = [
   "puzzle.dashboard.history.solved",
   "puzzle.dashboard.history.missed",
   "puzzle.dashboard.history.time",
+  "puzzle.dashboard.recent.openAria",
+  "puzzle.dashboard.recent.notFound",
+  "puzzle.dashboard.recent.loadError",
   "puzzle.theme.label.mate",
   "puzzle.theme.label.mateIn1",
   "puzzle.theme.label.mateIn2",
@@ -231,6 +234,11 @@ export const PUZZLE_STRING_KEYS = [
   "puzzle.summary.list.showAll",
   "puzzle.summary.list.showLess",
   "puzzle.summary.list.analyzeAria",
+  "puzzle.promotion.dialog",
+  "puzzle.promotion.q",
+  "puzzle.promotion.r",
+  "puzzle.promotion.b",
+  "puzzle.promotion.n",
 ] as const;
 
 export type PuzzleStringKey = (typeof PUZZLE_STRING_KEYS)[number];
@@ -301,6 +309,9 @@ const EN: Record<PuzzleStringKey, string> = {
   "puzzle.dashboard.history.solved": "Solved",
   "puzzle.dashboard.history.missed": "Missed",
   "puzzle.dashboard.history.time": "Time",
+  "puzzle.dashboard.recent.openAria": "{summary} — Analyze in Studio",
+  "puzzle.dashboard.recent.notFound": "This puzzle is no longer available to open in the Studio.",
+  "puzzle.dashboard.recent.loadError": "Could not load this puzzle. Try again.",
   "puzzle.heatmap.title": "Monthly progress",
   "puzzle.heatmap.streak.one": "{count}-day streak",
   "puzzle.heatmap.streak.other": "{count}-day streak",
@@ -458,6 +469,11 @@ const EN: Record<PuzzleStringKey, string> = {
   "puzzle.summary.list.showAll": "Show all ({count})",
   "puzzle.summary.list.showLess": "Show last {count}",
   "puzzle.summary.list.analyzeAria": "Analyze puzzle {number} in Studio",
+  "puzzle.promotion.dialog": "Choose promotion piece",
+  "puzzle.promotion.q": "Promote to Queen",
+  "puzzle.promotion.r": "Promote to Rook",
+  "puzzle.promotion.b": "Promote to Bishop",
+  "puzzle.promotion.n": "Promote to Knight",
 };
 
 const PT_BR: Record<PuzzleStringKey, string> = {
@@ -526,6 +542,9 @@ const PT_BR: Record<PuzzleStringKey, string> = {
   "puzzle.dashboard.history.solved": "Resolvido",
   "puzzle.dashboard.history.missed": "Errado",
   "puzzle.dashboard.history.time": "Tempo",
+  "puzzle.dashboard.recent.openAria": "{summary} — Analisar no Studio",
+  "puzzle.dashboard.recent.notFound": "Este problema não está mais disponível para abrir no Studio.",
+  "puzzle.dashboard.recent.loadError": "Não foi possível carregar este problema. Tente novamente.",
   "puzzle.heatmap.title": "Progresso mensal",
   "puzzle.heatmap.streak.one": "Ofensiva de {count} dia",
   "puzzle.heatmap.streak.other": "Ofensiva de {count} dias",
@@ -683,6 +702,11 @@ const PT_BR: Record<PuzzleStringKey, string> = {
   "puzzle.summary.list.showAll": "Mostrar todos ({count})",
   "puzzle.summary.list.showLess": "Mostrar os últimos {count}",
   "puzzle.summary.list.analyzeAria": "Analisar o problema {number} no Studio",
+  "puzzle.promotion.dialog": "Escolha a peça de promoção",
+  "puzzle.promotion.q": "Promover para Dama",
+  "puzzle.promotion.r": "Promover para Torre",
+  "puzzle.promotion.b": "Promover para Bispo",
+  "puzzle.promotion.n": "Promover para Cavalo",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

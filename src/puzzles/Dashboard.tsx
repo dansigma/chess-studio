@@ -1,10 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import { Chessboard } from "react-chessboard";
 import { useRouter } from "next/navigation";
-import { CalendarDays, ChartNoAxesColumn, Check, Flame, History, Play, RotateCcw, Shapes, Target, X, Zap, type LucideIcon } from "lucide-react";
+import {
+  CalendarDays,
+  ChartNoAxesColumn,
+  Check,
+  Flame,
+  History,
+  Microscope,
+  Play,
+  RotateCcw,
+  Shapes,
+  Target,
+  X,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { SiteFooter } from "@/src/site/SiteFooter";
 import { SiteHeader as CourseChrome } from "@/src/site/SiteHeader";
 import { Skeleton } from "@/src/site/ui/Skeleton";
@@ -21,15 +35,17 @@ import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-the
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { DIFFICULTIES, type Difficulty } from "./difficulty";
 import { LevelBar } from "./XpBreakdown";
-import { dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
+import { compilePuzzle, dailyPuzzle, dateKey, levelFromXp, type CompiledPuzzle } from "./engine";
 import { orientationFor } from "./use-puzzle-feedback";
+import { exerciseKeyForPuzzle, exerciseToPuzzle } from "./mistake-puzzle";
 import { motifSummary, weakestMotif } from "./motif-stats";
-import { loadPuzzleCatalog } from "./puzzle-client";
+import { loadPuzzleById, loadPuzzleCatalog } from "./puzzle-client";
 import { ProgressHeatmap, StreakMetrics } from "./ProgressHeatmap";
 import { localDayKey } from "./activity";
 import { hydratePuzzleProgress, progressSource } from "./progress";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
-import { THEME_CARDS, THEME_LABEL_KEYS, type PuzzleMode, type PuzzleProgress } from "./types";
+import { openPuzzleInStudio, type StudioPuzzle } from "./studio-handoff";
+import { THEME_CARDS, THEME_LABEL_KEYS, type PuzzleHistoryEntry, type PuzzleMode, type PuzzleProgress } from "./types";
 
 const MODE_KEYS: Record<PuzzleMode, PuzzleStringKey> = {
   rated: "puzzle.mode.rated",
@@ -48,6 +64,7 @@ export function PuzzleDashboard() {
   const locale = useStudioStore((state) => state.settings.locale);
   const [progress, setProgress] = useState<PuzzleProgress | null>(null);
   const [puzzles, setPuzzles] = useState<CompiledPuzzle[]>([]);
+  const [exercises, setExercises] = useState<MistakeExercisesMap>({});
   const [now, setNow] = useState<number | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   // SIG-1258: known only once the load has read the auth user; null = not known yet.
@@ -55,8 +72,13 @@ export function PuzzleDashboard() {
   const [source, setSource] = useState<"account" | "browser">("browser");
   // SIG-1097: due mistake-exercise count for the "My mistakes" card.
   const [dueMistakes, setDueMistakes] = useState<number | null>(null);
-  // SIG-1256: difficulty filter for theme links; null = All (normal rated session).
+  // SIG-1256 / SIG-1412: difficulty filter shared between hero Solve now and theme links; null = All (normal rated session).
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
+  const [openingKey, setOpeningKey] = useState<string | null>(null);
+  const [recentError, setRecentError] = useState<string | null>(null);
+  const openingRef = useRef<{ rowKey: string; controller: AbortController | null; seq: number } | null>(null);
+  const openingSeqRef = useRef(0);
+  const mountedRef = useRef(true);
 
   // Bumped on every load and on unmount, so a stale response is dropped.
   const requestId = useRef(0);
@@ -66,7 +88,7 @@ export function PuzzleDashboard() {
     try {
       const supabase = createBrowserSupabase();
       const user = supabase ? (await supabase.auth.getUser()).data.user : null;
-      const [loaded, catalog, exercises] = await Promise.all([
+      const [loaded, catalog, loadedExercises] = await Promise.all([
         hydratePuzzleProgress(user?.id ?? null),
         loadPuzzleCatalog(),
         hydrateExercises(user?.id ?? null),
@@ -77,10 +99,11 @@ export function PuzzleDashboard() {
       }
       setProgress(loaded);
       setPuzzles(catalog);
+      setExercises(loadedExercises as MistakeExercisesMap);
       setNow(timestamp);
       setSource(progressSource());
       setSignedIn(Boolean(user));
-      setDueMistakes(dueExercises(exercises as MistakeExercisesMap, new Date(timestamp)).length);
+      setDueMistakes(dueExercises(loadedExercises as MistakeExercisesMap, new Date(timestamp)).length);
       setStatus("ready");
     } catch (error) {
       console.error("Failed to load puzzle progress.", error);
@@ -88,6 +111,7 @@ export function PuzzleDashboard() {
         // No partial data: zeros would read as real progress.
         setProgress(null);
         setPuzzles([]);
+        setExercises({});
         setNow(null);
         setSignedIn(null);
         setDueMistakes(null);
@@ -97,22 +121,109 @@ export function PuzzleDashboard() {
   }, []);
 
   const retry = useCallback(() => {
+    openingRef.current?.controller?.abort();
+    openingRef.current = null;
+    setOpeningKey(null);
     setStatus("loading");
+    setRecentError(null);
     void load();
   }, [load]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- SIG-1258: initial fetch; state is only set after the awaits. */
   useEffect(() => {
+    mountedRef.current = true;
     void load();
     const ref = requestId;
     return () => {
+      mountedRef.current = false;
       ref.current += 1;
+      openingRef.current?.controller?.abort();
+      openingRef.current = null;
     };
   }, [load]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const openRecent = useCallback(
+    async (entry: PuzzleHistoryEntry, rowKey: string) => {
+      if (openingRef.current?.rowKey === rowKey) {
+        return;
+      }
+      // Last clicked row wins: cancel any earlier lookup so it cannot clobber
+      // or hijack navigation after the user picks another Recent row.
+      openingRef.current?.controller?.abort();
+      const seq = openingSeqRef.current + 1;
+      openingSeqRef.current = seq;
+      openingRef.current = null;
+      setOpeningKey(null);
+      setRecentError(null);
+
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const push = (href: string) => router.push(href);
+      const openNow = (puzzle: StudioPuzzle) => {
+        openingRef.current = { rowKey, controller: null, seq };
+        setOpeningKey(rowKey);
+        openPuzzleInStudio(puzzle, entry.mode, locale, push, origin);
+      };
+
+      if (entry.mode === "mistakes" || entry.id.startsWith("mx-")) {
+        const stored = exercises[exerciseKeyForPuzzle(entry.id)] ?? exercises[entry.id];
+        const converted = stored ? exerciseToPuzzle(stored.exercise) : null;
+        let compiled: StudioPuzzle | null = null;
+        if (converted) {
+          try {
+            compiled = compilePuzzle(converted);
+          } catch {
+            compiled = null;
+          }
+        }
+        if (compiled) {
+          openNow(compiled);
+        } else {
+          setRecentError(tPuzzle(locale, "puzzle.dashboard.recent.notFound"));
+        }
+        return;
+      }
+
+      const cached = puzzles.find((item) => item.id === entry.id);
+      if (cached) {
+        openNow(cached);
+        return;
+      }
+
+      const controller = new AbortController();
+      openingRef.current = { rowKey, controller, seq };
+      setOpeningKey(rowKey);
+      try {
+        const loaded = await loadPuzzleById(entry.id, { signal: controller.signal });
+        if (!mountedRef.current || openingRef.current?.seq !== seq) {
+          return;
+        }
+        if (!loaded) {
+          openingRef.current = null;
+          setOpeningKey(null);
+          setRecentError(tPuzzle(locale, "puzzle.dashboard.recent.notFound"));
+          return;
+        }
+        openingRef.current = { rowKey, controller: null, seq };
+        openPuzzleInStudio(loaded, entry.mode, locale, push, origin);
+      } catch {
+        if (!mountedRef.current || openingRef.current?.seq !== seq) {
+          return;
+        }
+        openingRef.current = null;
+        setOpeningKey(null);
+        setRecentError(tPuzzle(locale, "puzzle.dashboard.recent.loadError"));
+      }
+    },
+    [exercises, locale, puzzles, router],
+  );
+
   const loading = status === "loading";
   const failed = status === "error";
+
+  const solveNowHref = difficulty
+    ? `/puzzles/play?mode=rated&difficulty=${difficulty}`
+    : "/puzzles/play?mode=rated";
 
   const daily = now === null ? null : dailyPuzzle(puzzles, now);
   const playedToday = Boolean(progress && now !== null && progress.daily === dateKey(now));
@@ -136,13 +247,21 @@ export function PuzzleDashboard() {
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-semibold leading-8 text-studio-fg sm:text-[28px] sm:leading-9">{tPuzzle(locale, "puzzle.dashboard.heading")}</h1>
             <p className="mt-2 max-w-md text-body text-studio-muted">{tPuzzle(locale, "puzzle.dashboard.intro")}</p>
-            <Button
-              className="mt-4 w-full transition-colors duration-150 max-sm:h-11 sm:w-auto sm:min-w-40"
-              variant="primary"
-              onClick={() => router.push("/puzzles/play?mode=rated")}
-            >
-              {tPuzzle(locale, "puzzle.dashboard.solveNow")}
-            </Button>
+            <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+              <Button
+                className="w-full shrink-0 transition-colors duration-150 max-sm:h-11 sm:w-auto sm:min-w-40"
+                variant="primary"
+                onClick={() => router.push(solveNowHref)}
+              >
+                {tPuzzle(locale, "puzzle.dashboard.solveNow")}
+              </Button>
+              <DifficultySegmented difficulty={difficulty} onChange={setDifficulty} locale={locale} />
+            </div>
+            {difficulty ? (
+              <p className="mt-1.5 text-caption text-studio-muted" data-testid="hero-difficulty-unrated">
+                {tPuzzle(locale, "puzzle.panel.unrated")}
+              </p>
+            ) : null}
             {loading ? <Skeleton className="mt-1.5 w-40 text-caption" /> : null}
             {status === "ready" && signedIn ? (
               <p className="mt-1.5 text-caption text-studio-muted">
@@ -442,53 +561,92 @@ export function PuzzleDashboard() {
           <Panel as="ul" className="mt-2 divide-y divide-studio-border-subtle overflow-hidden">
             {/* SIG-1267: display only the last 10; `progress.history` itself keeps 20. SIG-1269: below `sm` only the first 5 show (CSS, so SSR and hydration agree). */}
             {progress.history.slice(0, RECENT_LIMIT).map((entry, index) => {
+              const rowKey = `${entry.id}-${entry.at}-${index}`;
+              const isOpening = openingKey === rowKey;
               // SIG-1268: themes, time and rating come from the entry itself (older entries have none).
               const themes = (entry.themes ?? []).filter((item) => item in THEME_LABEL_KEYS).slice(0, 2);
               // "Rated" is the default, so only the other modes are named.
               const modeLabel = entry.mode === "rated" ? "" : tPuzzle(locale, MODE_KEYS[entry.mode satisfies PuzzleMode]);
               const ResultIcon = entry.success ? Check : X;
+              const outcomeLabel = entry.success
+                ? tPuzzle(locale, "puzzle.dashboard.history.solved")
+                : tPuzzle(locale, "puzzle.dashboard.history.missed");
+              const ratingText = entry.puzzleRating !== undefined ? formatInteger(locale, entry.puzzleRating) : null;
+              const timeText = entry.ms !== undefined ? formatDuration(locale, entry.ms) : null;
+              const deltaText = entry.delta > 0 ? `+${entry.delta}` : entry.delta === 0 ? "—" : String(entry.delta);
+              const rowSummary = [
+                outcomeLabel,
+                ratingText,
+                ...themes.map((item) => tPuzzle(locale, THEME_LABEL_KEYS[item])),
+                timeText,
+                modeLabel || null,
+                entry.delta !== 0 ? deltaText : null,
+              ]
+                .filter(Boolean)
+                .join(", ");
               return (
                 <li
-                  key={`${entry.id}-${entry.at}-${index}`}
-                  className={`flex h-8 items-center justify-between gap-3 px-3 ${index >= RECENT_LIMIT_MOBILE ? "max-sm:hidden" : ""}`}
+                  key={rowKey}
+                  className={index >= RECENT_LIMIT_MOBILE ? "max-sm:hidden" : undefined}
                 >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <ResultIcon aria-hidden className={`size-4 shrink-0 ${entry.success ? "text-studio-success" : "text-studio-warning-fg"}`} />
-                    <span className="sr-only">
-                      {entry.success
-                        ? tPuzzle(locale, "puzzle.dashboard.history.solved")
-                        : tPuzzle(locale, "puzzle.dashboard.history.missed")}
-                    </span>
-                    {entry.puzzleRating !== undefined ? (
-                      <span className="shrink-0 text-dense tabular-nums text-studio-fg">{formatInteger(locale, entry.puzzleRating)}</span>
-                    ) : null}
-                    {/* One line tall: a pill that does not fit wraps out of view, so the second theme drops first. */}
-                    {themes.length > 0 ? (
-                      <span className="flex h-[18px] min-w-0 flex-wrap gap-1 overflow-hidden">
-                        {themes.map((item) => (
-                          <Badge key={item}>{tPuzzle(locale, THEME_LABEL_KEYS[item])}</Badge>
-                        ))}
-                      </span>
-                    ) : null}
-                    {entry.ms !== undefined ? (
-                      <span className="shrink-0 text-caption tabular-nums text-studio-muted">
-                        <span className="sr-only">{tPuzzle(locale, "puzzle.dashboard.history.time")} </span>
-                        {formatDuration(locale, entry.ms)}
-                      </span>
-                    ) : null}
-                    {modeLabel ? <span className="min-w-0 truncate text-caption text-studio-muted">{modeLabel}</span> : null}
-                  </div>
-                  <div
-                    className={`shrink-0 text-dense font-medium tabular-nums ${
-                      entry.delta > 0 ? "text-studio-success" : entry.delta < 0 ? "text-studio-warning-fg" : "text-studio-muted"
-                    }`}
+                  <button
+                    type="button"
+                    onClick={() => void openRecent(entry, rowKey)}
+                    disabled={isOpening}
+                    aria-busy={isOpening || undefined}
+                    aria-label={tPuzzle(locale, "puzzle.dashboard.recent.openAria", { summary: rowSummary })}
+                    title={tPuzzle(locale, "puzzle.studio.analyze")}
+                    className="group flex min-h-11 w-full items-center justify-between gap-3 px-3 text-left transition-colors duration-150 hover:bg-studio-hover focus-visible:bg-studio-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-studio-accent disabled:cursor-wait disabled:opacity-60 sm:h-8 sm:min-h-0"
                   >
-                    {entry.delta > 0 ? `+${entry.delta}` : entry.delta === 0 ? "—" : entry.delta}
-                  </div>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <ResultIcon aria-hidden className={`size-4 shrink-0 ${entry.success ? "text-studio-success" : "text-studio-warning-fg"}`} />
+                      <span className="sr-only">{outcomeLabel}</span>
+                      {ratingText ? (
+                        <span className="shrink-0 text-dense tabular-nums text-studio-fg">{ratingText}</span>
+                      ) : null}
+                      {/* One line tall: a pill that does not fit wraps out of view, so the second theme drops first. */}
+                      {themes.length > 0 ? (
+                        <span className="flex h-[18px] min-w-0 flex-wrap gap-1 overflow-hidden">
+                          {themes.map((item) => (
+                            <Badge key={item}>{tPuzzle(locale, THEME_LABEL_KEYS[item])}</Badge>
+                          ))}
+                        </span>
+                      ) : null}
+                      {timeText ? (
+                        <span className="shrink-0 text-caption tabular-nums text-studio-muted">
+                          <span className="sr-only">{tPuzzle(locale, "puzzle.dashboard.history.time")} </span>
+                          {timeText}
+                        </span>
+                      ) : null}
+                      {modeLabel ? <span className="min-w-0 truncate text-caption text-studio-muted">{modeLabel}</span> : null}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span
+                        className={`text-dense font-medium tabular-nums ${
+                          entry.delta > 0 ? "text-studio-success" : entry.delta < 0 ? "text-studio-warning-fg" : "text-studio-muted"
+                        }`}
+                      >
+                        {deltaText}
+                      </span>
+                      <Microscope
+                        aria-hidden
+                        className={`size-3.5 shrink-0 transition-opacity duration-150 ${
+                          isOpening
+                            ? "animate-pulse text-studio-accent-text opacity-100"
+                            : "text-studio-faint opacity-0 group-hover:text-studio-accent-text group-hover:opacity-100 group-focus-visible:text-studio-accent-text group-focus-visible:opacity-100 max-sm:opacity-60"
+                        }`}
+                      />
+                    </span>
+                  </button>
                 </li>
               );
             })}
           </Panel>
+        ) : null}
+        {recentError ? (
+          <p role="status" className="mt-2 text-dense text-studio-warning-fg">
+            {recentError}
+          </p>
         ) : null}
         </section>
         </div>
@@ -497,6 +655,71 @@ export function PuzzleDashboard() {
         </p>
       </main>
       <SiteFooter />
+    </div>
+  );
+}
+
+const DIFFICULTY_OPTIONS: readonly (Difficulty | null)[] = [null, ...DIFFICULTIES];
+
+function DifficultySegmented({
+  difficulty,
+  onChange,
+  locale,
+}: {
+  difficulty: Difficulty | null;
+  onChange: (value: Difficulty | null) => void;
+  locale: SiteLocale;
+}) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const step =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (step === 0) {
+      return;
+    }
+    event.preventDefault();
+    const next = (index + step + DIFFICULTY_OPTIONS.length) % DIFFICULTY_OPTIONS.length;
+    onChange(DIFFICULTY_OPTIONS[next] ?? null);
+    refs.current[next]?.focus();
+  };
+  return (
+    <div
+      role="radiogroup"
+      aria-label={tPuzzle(locale, "puzzle.difficulty.label")}
+      className="inline-flex max-w-full flex-wrap items-center gap-0.5 rounded-lg bg-studio-bg p-0.5"
+    >
+      {DIFFICULTY_OPTIONS.map((option, index) => {
+        const selected = option === difficulty;
+        const label =
+          option === null
+            ? tPuzzle(locale, "puzzle.difficulty.all")
+            : tPuzzle(locale, `puzzle.difficulty.${option}`);
+        return (
+          <button
+            key={option ?? "all"}
+            ref={(node) => {
+              refs.current[index] = node;
+            }}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            tabIndex={selected ? 0 : -1}
+            onClick={() => onChange(option)}
+            onKeyDown={(event) => onKeyDown(event, index)}
+            className={`min-h-11 rounded-md px-2.5 text-dense font-medium whitespace-nowrap transition-colors duration-150 sm:h-7 sm:min-h-0 ${
+              selected
+                ? "bg-studio-accent-soft text-studio-accent-text"
+                : "text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -616,6 +839,7 @@ function DailyPreview({ puzzle, locale }: { puzzle: CompiledPuzzle | null; local
       <div className={`relative ${size}`}>
         <div className="pointer-events-none size-full overflow-hidden rounded-lg ring-1 ring-studio-border-strong transition-shadow duration-150 group-hover:ring-studio-accent group-focus-visible:ring-studio-accent" aria-hidden>
           <Chessboard
+            key={`daily-preview-${puzzle.id}-${pieceSet}`}
             options={{
               id: `daily-preview-${puzzle.id}`,
               position: puzzle.fen,

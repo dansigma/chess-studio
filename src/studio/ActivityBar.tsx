@@ -16,6 +16,7 @@ import { SITE_NAME } from "@/src/site/sections";
 import { isActivePath, SITE_NAV_ICONS, siteNavSections } from "@/src/site/nav";
 import { useStudioStore, type ActivityView } from "@/src/store/studio-store";
 import { tStudioChrome, type StudioChromeStringKey } from "@/src/i18n/studio-chrome-strings";
+import { useLiveStore } from "./live/live-store";
 import { Tooltip } from "./ui/Controls";
 import { ChessboardIcon } from "./ui/ChessboardIcon";
 
@@ -93,12 +94,14 @@ function ActivityButton({
   label,
   active,
   expanded,
+  indicator = false,
   onClick,
   children,
 }: {
   label: string;
   active?: boolean;
   expanded: boolean;
+  indicator?: boolean;
   onClick: () => void;
   children: ReactNode;
 }) {
@@ -117,11 +120,18 @@ function ActivityButton({
           <span className="absolute inset-y-2.5 left-0 w-0.5 rounded-r bg-studio-accent" />
         ) : null}
         <span
-          className={`flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg ${
+          className={`relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-lg ${
             active ? "bg-studio-hover" : "group-hover:bg-studio-hover"
           }`}
         >
           {children}
+          {indicator ? (
+            <span
+              data-live-indicator=""
+              aria-hidden="true"
+              className="absolute right-1 top-1 h-2 w-2 rounded-full bg-studio-success ring-2 ring-studio-bg"
+            />
+          ) : null}
         </span>
         <ItemLabel expanded={expanded}>{label}</ItemLabel>
       </button>
@@ -139,8 +149,10 @@ export function ActivityBar() {
   const toggleLibrary = useStudioStore((state) => state.toggleLibrary);
   const toggleLive = useStudioStore((state) => state.toggleLive);
   const toggleSidebar = useStudioStore((state) => state.toggleSidebar);
+  const hasActiveLive = useLiveStore((state) => state.tableRoundId !== null || state.openBoards.length > 0);
   const pathname = usePathname();
-  const expanded = !sidebarCollapsed;
+  // SIG-1398: keep the activity rail compact (w-12) even when a sidebar is open.
+  const expanded = false;
   const sections = siteNavSections(locale);
 
   return (
@@ -206,6 +218,7 @@ export function ActivityBar() {
           label={tStudioChrome(locale, "chrome.activity.live")}
           expanded={expanded}
           active={workspaceView === "live"}
+          indicator={hasActiveLive}
           onClick={toggleLive}
         >
           <Radio size={18} />

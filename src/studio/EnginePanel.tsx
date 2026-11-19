@@ -203,6 +203,7 @@ export function EnginePanel() {
         ? tPanels(locale, "engine.status.line", { depth: display.depth, target: depthTarget, nps })
         : tPanels(locale, "engine.status.lineNoNps", { depth: display.depth, target: depthTarget });
   const running = info.running && !paused;
+  const skeletonAnimating = running || (started && !paused && inStudio && !info.ready && !info.failed);
 
   if (retryActive) {
     return (
@@ -552,19 +553,24 @@ export function EnginePanel() {
               </span>
             </div>
           ))}
-          {Array.from({ length: placeholderLines }, (_, index) => (
-            <div
-              key={`empty-${index}`}
-              aria-hidden="true"
-              className="flex h-7 items-center gap-2 border-b border-studio-border-subtle px-2"
-            >
-              <span className="h-5 min-w-12 animate-pulse rounded-[5px] bg-studio-hover-strong" />
-              <span
-                className="h-2.5 animate-pulse rounded bg-studio-hover-strong"
-                style={{ width: `${70 - index * 12}%` }}
-              />
-            </div>
-          ))}
+          {Array.from({ length: placeholderLines }, (_, index) => {
+            const barClass = skeletonAnimating
+              ? "animate-pulse bg-studio-hover-strong"
+              : "bg-studio-hover";
+            return (
+              <div
+                key={`empty-${index}`}
+                aria-hidden="true"
+                className="flex h-7 items-center gap-2 border-b border-studio-border-subtle px-2"
+              >
+                <span className={`h-5 min-w-12 rounded-[5px] ${barClass}`} />
+                <span
+                  className={`h-2.5 rounded ${barClass}`}
+                  style={{ width: `${70 - index * 12}%` }}
+                />
+              </div>
+            );
+          })}
         </div>
       </div>
       {lineMenu ? (

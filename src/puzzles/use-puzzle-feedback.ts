@@ -139,6 +139,8 @@ export function boardHighlights({
   selected,
   miss,
   dests,
+  viewPly = null,
+  ply = 0,
 }: {
   last: { from: string; to: string } | null;
   status: Status;
@@ -149,10 +151,12 @@ export function boardHighlights({
   selected: string | null;
   miss: Miss | null;
   dests: readonly string[];
+  viewPly?: number | null;
+  ply?: number;
 }): { squareStyles: Record<string, SquareStyle>; arrows: BoardArrow[] } {
   const squareStyles: Record<string, SquareStyle> = {};
   if (last) {
-    const color = status === "failed" && !reveal ? "rgba(239, 68, 68, 0.55)" : "rgba(186, 202, 68, 0.72)";
+    const color = status === "failed" && !reveal && viewPly === null ? "rgba(239, 68, 68, 0.55)" : "rgba(186, 202, 68, 0.72)";
     squareStyles[last.from] = { backgroundColor: color };
     squareStyles[last.to] = { backgroundColor: color };
   }
@@ -175,11 +179,12 @@ export function boardHighlights({
       backgroundImage: "radial-gradient(circle, rgba(0,0,0,0.28) 22%, transparent 23%)",
     };
   }
-  const arrowFrom = reveal && miss ? miss.from : hintLevel > 1 && expected ? expected.slice(0, 2) : "";
-  const arrowTo = reveal && miss ? miss.to : hintLevel > 1 && expected ? expected.slice(2, 4) : "";
+  const showMissArrow = Boolean(reveal && miss && (viewPly === null || viewPly === ply));
+  const arrowFrom = showMissArrow && miss ? miss.from : hintLevel > 1 && expected ? expected.slice(0, 2) : "";
+  const arrowTo = showMissArrow && miss ? miss.to : hintLevel > 1 && expected ? expected.slice(2, 4) : "";
   const arrows =
     arrowFrom && arrowTo
-      ? [{ startSquare: arrowFrom, endSquare: arrowTo, color: reveal ? MARK_HEX.G : MARK_HEX.Y }]
+      ? [{ startSquare: arrowFrom, endSquare: arrowTo, color: showMissArrow ? MARK_HEX.G : MARK_HEX.Y }]
       : [];
 
   return { squareStyles, arrows };
@@ -200,6 +205,7 @@ export function usePuzzleFeedback({
     ply,
     status,
     last,
+    viewPly,
     selected,
     hintLevel,
     reveal,
@@ -246,6 +252,8 @@ export function usePuzzleFeedback({
     selected,
     miss,
     dests,
+    viewPly,
+    ply,
   });
 
   return {

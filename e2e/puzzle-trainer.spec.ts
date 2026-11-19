@@ -25,6 +25,7 @@ interface ApiPuzzle {
 interface SquareMove {
   from: string;
   to: string;
+  promotion?: string;
 }
 
 function board(page: Page): Locator {
@@ -74,7 +75,7 @@ function solverMoves(puzzle: ApiPuzzle): SquareMove[] {
   return puzzle.moves
     .map((san, ply) => ({ ply, move: chess.move(san) }))
     .filter(({ ply }) => ply % 2 === 0)
-    .map(({ move }) => ({ from: move.from, to: move.to }));
+    .map(({ move }) => ({ from: move.from, to: move.to, promotion: move.promotion }));
 }
 
 /** A legal move that is neither the solution nor a mate. */
@@ -86,12 +87,15 @@ function wrongMove(puzzle: ApiPuzzle): SquareMove {
   if (!candidate) {
     throw new Error(`no wrong move available for ${puzzle.id}`);
   }
-  return { from: candidate.from, to: candidate.to };
+  return { from: candidate.from, to: candidate.to, promotion: candidate.promotion };
 }
 
 async function clickMove(page: Page, move: SquareMove): Promise<void> {
   await board(page).locator(`[data-square="${move.from}"]`).click();
   await board(page).locator(`[data-square="${move.to}"]`).click();
+  if (move.promotion) {
+    await page.getByTestId("promotion-picker").locator(`[data-promotion-piece="${move.promotion}"]`).click();
+  }
 }
 
 async function solve(page: Page, puzzle: ApiPuzzle): Promise<void> {

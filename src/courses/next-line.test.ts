@@ -33,6 +33,14 @@ describe("nextLineHref", () => {
       "/courses/empty",
     );
   });
+
+  it("uses a custom course base path when provided", () => {
+    const base = "/admin/courses/course-1/preview";
+    assert.equal(nextLineHref(course, "a1", base), `${base}/a2`);
+    assert.equal(nextLineHref(course, "a2", base), `${base}/b1`);
+    assert.equal(nextLineHref(course, "b2", base), base);
+    assert.equal(nextLineHref(course, "missing", base), base);
+  });
 });
 
 // SIG-1386: the line a review session leads to.

@@ -1,7 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { useStudioStore } from "@/src/store/studio-store";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useStudioStore, type SettingsDialogSection } from "@/src/store/studio-store";
 import { BOARD_THEME_IDS, BOARD_THEMES, type BoardTheme } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS } from "@/src/chess/move-notation";
@@ -16,26 +16,35 @@ import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { AccountSection } from "./AccountSection";
 import { LinkedAccountsSection } from "./LinkedAccountsSection";
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function Row({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 py-2">
-      <span className="text-body text-studio-fg">{label}</span>
+      {htmlFor ? (
+        <label htmlFor={htmlFor} className="text-body text-studio-fg">
+          {label}
+        </label>
+      ) : (
+        <span className="text-body text-studio-fg">{label}</span>
+      )}
       {children}
     </div>
   );
 }
 
 function Select<T extends string>({
+  id,
   value,
   options,
   onChange,
 }: {
+  id?: string;
   value: T;
   options: ReadonlyArray<{ id: T; label: string }>;
   onChange: (value: T) => void;
 }) {
   return (
     <select
+      id={id}
       value={value}
       onChange={(event) => onChange(event.target.value as T)}
       className="h-7 min-w-40 rounded-md border border-studio-border-strong bg-studio-panel px-2 text-dense text-studio-fg"
@@ -46,6 +55,25 @@ function Select<T extends string>({
         </option>
       ))}
     </select>
+  );
+}
+
+function SelectRow<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: ReadonlyArray<{ id: T; label: string }>;
+  onChange: (value: T) => void;
+}) {
+  const id = useId();
+  return (
+    <Row label={label} htmlFor={id}>
+      <Select id={id} value={value} options={options} onChange={onChange} />
+    </Row>
   );
 }
 
@@ -75,7 +103,13 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-export function SettingsDialog({ onClose }: { onClose: () => void }) {
+export function SettingsDialog({
+  onClose,
+  initialSection,
+}: {
+  onClose: () => void;
+  initialSection?: SettingsDialogSection;
+}) {
   const locale = useStudioStore((state) => state.settings.locale);
   const settings = useStudioStore((state) => state.settings);
   const setColorScheme = useStudioStore((state) => state.setColorScheme);
@@ -89,6 +123,30 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const toggleMoveSound = useStudioStore((state) => state.toggleMoveSound);
   const toggleGamePreview = useStudioStore((state) => state.toggleGamePreview);
   const setEngineBuild = useStudioStore((state) => state.setEngineBuild);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const clearButtonRef = useRef<HTMLButtonElement>(null);
+  const confirmClearRef = useRef<HTMLButtonElement>(null);
+  const wasConfirmingRef = useRef(false);
+  const linkedAccountsRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (initialSection !== "linkedAccounts") {
+      return;
+    }
+    const el = linkedAccountsRef.current;
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "start" });
+    }
+  }, [initialSection]);
+
+  useEffect(() => {
+    if (confirmingClear) {
+      confirmClearRef.current?.focus();
+    } else if (wasConfirmingRef.current) {
+      clearButtonRef.current?.focus();
+    }
+    wasConfirmingRef.current = confirmingClear;
+  }, [confirmingClear]);
 
   return (
     <Dialog
@@ -104,30 +162,27 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
       <div className="grid gap-3">
         <AccountSection />
         <Section title={tStudioChrome(locale, "chrome.settings.appearance")}>
-          <Row label={tStudioChrome(locale, "chrome.settings.colorScheme")}>
-            <Select
-              value={settings.colorScheme}
-              options={COLOR_SCHEME_IDS.map((id) => ({
-                id,
-                label: tStudioChrome(locale, `chrome.settings.colorScheme.${id}`),
-              }))}
-              onChange={setColorScheme}
-            />
-          </Row>
-          <Row label={tStudioChrome(locale, "chrome.settings.boardTheme")}>
-            <Select<BoardTheme>
-              value={settings.boardTheme}
-              options={BOARD_THEME_IDS.map((id) => ({ id, label: BOARD_THEMES[id].label }))}
-              onChange={setBoardTheme}
-            />
-          </Row>
-          <Row label={tStudioChrome(locale, "chrome.settings.pieceSet")}>
-            <Select
-              value={settings.pieceSet}
-              options={PIECE_SET_IDS.map((id) => ({ id, label: PIECE_SETS[id].label }))}
-              onChange={setPieceSet}
-            />
-          </Row>
+          <SelectRow
+            label={tStudioChrome(locale, "chrome.settings.colorScheme")}
+            value={settings.colorScheme}
+            options={COLOR_SCHEME_IDS.map((id) => ({
+              id,
+              label: tStudioChrome(locale, `chrome.settings.colorScheme.${id}`),
+            }))}
+            onChange={setColorScheme}
+          />
+          <SelectRow<BoardTheme>
+            label={tStudioChrome(locale, "chrome.settings.boardTheme")}
+            value={settings.boardTheme}
+            options={BOARD_THEME_IDS.map((id) => ({ id, label: BOARD_THEMES[id].label }))}
+            onChange={setBoardTheme}
+          />
+          <SelectRow
+            label={tStudioChrome(locale, "chrome.settings.pieceSet")}
+            value={settings.pieceSet}
+            options={PIECE_SET_IDS.map((id) => ({ id, label: PIECE_SETS[id].label }))}
+            onChange={setPieceSet}
+          />
         </Section>
         <Section title={tStudioChrome(locale, "chrome.settings.board")}>
           <Row label={tStudioChrome(locale, "chrome.settings.showCoordinates")}>
@@ -148,51 +203,75 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
           </Row>
         </Section>
         <Section title={tStudioChrome(locale, "chrome.settings.engine")}>
-          <Row label="Stockfish">
-            <Select
-              value={settings.engineBuild}
-              options={ENGINE_BUILDS.map((id) => ({ id, label: ENGINE_BUILD_INFO[id].label }))}
-              onChange={setEngineBuild}
-            />
-          </Row>
+          <SelectRow
+            label="Stockfish"
+            value={settings.engineBuild}
+            options={ENGINE_BUILDS.map((id) => ({ id, label: ENGINE_BUILD_INFO[id].label }))}
+            onChange={setEngineBuild}
+          />
           <p className="pb-1 text-caption text-studio-faint">{tStudioChrome(locale, "chrome.settings.engineReviewNote")}</p>
         </Section>
         <Section title={tStudioChrome(locale, "chrome.settings.notation")}>
-          <Row label={tStudioChrome(locale, "chrome.settings.moveNotation")}>
-            <Select
-              value={settings.moveNotation}
-              options={MOVE_NOTATION_IDS.map((id) => ({
-                id,
-                label: tStudioChrome(locale, `chrome.settings.moveNotation.${id}`),
-              }))}
-              onChange={setMoveNotation}
-            />
-          </Row>
-          <Row label={tStudioChrome(locale, "chrome.settings.notationDensity")}>
-            <Select
-              value={settings.notationDensity}
-              options={NOTATION_DENSITY_IDS.map((id) => ({ id, label: tStudioChrome(locale, `chrome.settings.density.${id}`) }))}
-              onChange={setNotationDensity}
-            />
-          </Row>
+          <SelectRow
+            label={tStudioChrome(locale, "chrome.settings.moveNotation")}
+            value={settings.moveNotation}
+            options={MOVE_NOTATION_IDS.map((id) => ({
+              id,
+              label: tStudioChrome(locale, `chrome.settings.moveNotation.${id}`),
+            }))}
+            onChange={setMoveNotation}
+          />
+          <SelectRow
+            label={tStudioChrome(locale, "chrome.settings.notationDensity")}
+            value={settings.notationDensity}
+            options={NOTATION_DENSITY_IDS.map((id) => ({ id, label: tStudioChrome(locale, `chrome.settings.density.${id}`) }))}
+            onChange={setNotationDensity}
+          />
         </Section>
         <Section title={tStudioChrome(locale, "chrome.settings.gameReview")}>
           <Row label={tStudioChrome(locale, "chrome.settings.savedReviews")}>
-            <Button variant="secondary" size="sm" onClick={() => clearReviewCache()}>
-              {tStudioChrome(locale, "chrome.settings.clearReviews")}
-            </Button>
+            {confirmingClear ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  ref={confirmClearRef}
+                  variant="danger"
+                  size="sm"
+                  onClick={() => {
+                    clearReviewCache();
+                    setConfirmingClear(false);
+                  }}
+                >
+                  {tStudioChrome(locale, "chrome.settings.clearReviewsConfirm")}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmingClear(false)}
+                >
+                  {tStudioChrome(locale, "chrome.settings.clearReviewsCancel")}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                ref={clearButtonRef}
+                variant="secondary"
+                size="sm"
+                onClick={() => setConfirmingClear(true)}
+              >
+                {tStudioChrome(locale, "chrome.settings.clearReviews")}
+              </Button>
+            )}
           </Row>
         </Section>
         <Section title={tStudioChrome(locale, "chrome.settings.language")}>
-          <Row label={tStudioChrome(locale, "chrome.settings.siteLanguage")}>
-            <Select
-              value={settings.locale}
-              options={SITE_LOCALES.map((id) => ({ id, label: SITE_LOCALE_LABELS[id] }))}
-              onChange={setLocale}
-            />
-          </Row>
+          <SelectRow
+            label={tStudioChrome(locale, "chrome.settings.siteLanguage")}
+            value={settings.locale}
+            options={SITE_LOCALES.map((id) => ({ id, label: SITE_LOCALE_LABELS[id] }))}
+            onChange={setLocale}
+          />
         </Section>
-        <LinkedAccountsSection />
+        <LinkedAccountsSection sectionRef={linkedAccountsRef} />
       </div>
     </Dialog>
   );

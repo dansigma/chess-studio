@@ -43,6 +43,7 @@ function linesLabel(locale: SiteLocale, count: number): string {
  */
 export function ChapterCard({
   course,
+  courseHref,
   chapter,
   index,
   progress,
@@ -50,6 +51,7 @@ export function ChapterCard({
   now,
 }: {
   course: Course;
+  courseHref?: string;
   chapter: CourseChapter;
   /** Zero-based position among the chapters shown. */
   index: number;
@@ -61,11 +63,13 @@ export function ChapterCard({
   const number = index + 1;
   const hasVideo = chapter.hasVideo === true || Boolean(chapter.videoUrl);
   const dueCount = formatInteger(locale, summary.due);
+  const base = courseHref ?? `/courses/${course.slug}`;
+  const isCustomBase = courseHref !== undefined && courseHref !== `/courses/${course.slug}`;
   return (
     <li className="min-w-0">
       <div className="flex h-full flex-col rounded-xl border border-studio-border bg-studio-chrome p-4 hover:border-studio-border-strong">
         <Link
-          href={`/courses/${course.slug}?${CHAPTER_PARAM}=${chapterParam(index)}`}
+          href={`${base}?${CHAPTER_PARAM}=${chapterParam(index)}`}
           data-chapter-open
           className="flex flex-1 flex-col"
         >
@@ -103,7 +107,7 @@ export function ChapterCard({
           </div>
         </Link>
         <div className="mt-3">
-          {summary.due > 0 ? (
+          {summary.due > 0 && !isCustomBase ? (
             <Link
               href={reviewHref(course.slug, index)}
               data-chapter-review

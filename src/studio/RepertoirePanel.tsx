@@ -7,6 +7,8 @@ import { getDueRepertoireMoves, repertoireMoves } from "@/src/chess/repertoire";
 import { getFenAt, getNodeAt } from "@/src/chess/tree";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
+import { Button } from "./ui/Button";
+import { Badge } from "./ui/Controls";
 
 export function RepertoirePanel() {
   // SIG-857: shared active-board selector instead of the inline find.
@@ -35,57 +37,36 @@ export function RepertoirePanel() {
       <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2">
         <div className="flex items-center gap-2">
           <span className="text-caption uppercase tracking-wide text-studio-faint">{tPanels(locale, "repertoire.title")}</span>
-          <span className="rounded bg-studio-surface-raised px-1.5 py-0.5 text-dense font-mono text-studio-accent">
+          <Badge tone={dueCount > 0 ? "accent" : "neutral"}>
             {dueCount === 1
               ? tPanels(locale, "repertoire.due.one", { count: dueCount })
               : tPanels(locale, "repertoire.due.other", { count: dueCount })}
-          </span>
+          </Badge>
         </div>
         <span className="flex gap-2">
           {training ? (
             <>
               {drillDueOnly ? (
-                <button
-                  type="button"
-                  className="rounded bg-studio-accent px-2 py-1 text-dense text-studio-accent-fg hover:bg-studio-accent-strong"
-                  onClick={startDueDrill}
-                >
+                <Button variant="primary" size="sm" onClick={startDueDrill}>
                   {tPanels(locale, "repertoire.drillDue")}
-                </button>
+                </Button>
               ) : (
-                <button
-                  type="button"
-                  className="rounded bg-studio-accent px-2 py-1 text-dense text-studio-accent-fg hover:bg-studio-accent-strong"
-                  onClick={startTraining}
-                >
+                <Button variant="primary" size="sm" onClick={startTraining}>
                   {tPanels(locale, "repertoire.trainAgain")}
-                </button>
+                </Button>
               )}
-              <button
-                type="button"
-                className="rounded px-2 py-1 text-dense text-studio-muted hover:text-studio-fg"
-                onClick={stopTraining}
-              >
+              <Button variant="ghost" size="sm" onClick={stopTraining}>
                 {tPanels(locale, "repertoire.stop")}
-              </button>
+              </Button>
             </>
           ) : (
             <>
-              <button
-                type="button"
-                className="rounded bg-studio-hover-strong px-2 py-1 text-dense text-studio-fg hover:bg-studio-selected"
-                onClick={startTraining}
-              >
+              <Button variant="secondary" size="sm" onClick={startTraining}>
                 {tPanels(locale, "repertoire.train")}
-              </button>
-              <button
-                type="button"
-                disabled={dueCount === 0}
-                className="rounded bg-studio-accent px-2 py-1 text-dense text-studio-accent-fg hover:bg-studio-accent-strong disabled:cursor-not-allowed disabled:opacity-40"
-                onClick={startDueDrill}
-              >
+              </Button>
+              <Button variant="primary" size="sm" disabled={dueCount === 0} onClick={startDueDrill}>
                 {tPanels(locale, "repertoire.drillDue")}
-              </button>
+              </Button>
             </>
           )}
         </span>
@@ -96,7 +77,19 @@ export function RepertoirePanel() {
             <div className="px-3 py-4 text-studio-muted">
               {tPanels(locale, "repertoire.drilling", { count: dueCount })}
             </div>
-          ) : null
+          ) : (
+            <div className="p-3">
+              <p
+                role="status"
+                data-testid="repertoire-training-card"
+                className={`rounded-lg border border-studio-border bg-studio-elevated p-3 text-dense ${
+                  moves.length === 0 ? "font-medium text-studio-fg" : "text-studio-muted"
+                }`}
+              >
+                {tPanels(locale, moves.length === 0 ? "repertoire.lineComplete" : "repertoire.trainingActive")}
+              </p>
+            </div>
+          )
         ) : moves.length === 0 ? (
           <div className="px-3 py-4 text-studio-faint">{tPanels(locale, "repertoire.empty")}</div>
         ) : (

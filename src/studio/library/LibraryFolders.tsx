@@ -255,7 +255,7 @@ function FolderDeleteDialog({ folder, onClose }: { folder: FileFolder; onClose: 
             {t("library.sources.file.cancel")}
           </Button>
           <Button
-            variant="primary"
+            variant="danger"
             onClick={() => {
               deleteFileFolder(folder.id);
               setFolderId(null);

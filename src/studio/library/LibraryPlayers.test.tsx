@@ -28,6 +28,31 @@ const LOCAL: PlayerHit = {
 const realFetch = globalThis.fetch;
 const urls: string[] = [];
 
+const pgn = (white: string, black: string) =>
+  `[White "${white}"]\n[Black "${black}"]\n[Result "*"]\n\n1. e4 *`;
+
+function fileDatabase(id: string, games: Array<[string, string]>) {
+  return {
+    id,
+    remoteId: null,
+    name: id,
+    folderId: null,
+    games: games.map(([white, black], index) => ({
+      id: `${id}-${index}`,
+      white,
+      black,
+      result: "*",
+      event: "",
+      date: "",
+      title: `${white} vs ${black}`,
+      pgn: pgn(white, black),
+    })),
+  };
+}
+
+const setDatabases = (databases: unknown[]) =>
+  useStudioStore.setState((state) => ({ files: { ...state.files, databases: databases as never } }));
+
 before(() => setupDom());
 after(() => teardownDom());
 beforeEach(() => {
@@ -37,7 +62,7 @@ beforeEach(() => {
     return new Response(JSON.stringify({ players: [HIT] }), { status: 200 });
   }) as typeof fetch;
   act(() => {
-    useStudioStore.setState({ workspaceView: "library", settings: { ...DEFAULT_SETTINGS, locale: "en" }, playerProfile: null, bookmarks: [] });
+    useStudioStore.setState({ workspaceView: "library", settings: { ...DEFAULT_SETTINGS, locale: "en" }, playerProfile: null, bookmarks: [], files: { folders: [], databases: [] } });
     useLibraryStore.setState({ mode: "games", filters: DEFAULT_LIBRARY_FILTERS, selectedKey: null });
     useDossierStore.getState().closePlayer();
   });
@@ -56,6 +81,8 @@ async function searchFor(value: string, text: string | RegExp = "Magnus") {
 test("debounces, fetches once and lists results; opening a player opens the dossier in place", async () => {
   render(<LibraryPlayers />);
   assert.ok(screen.getByText(/Type at least two letters/));
+  assert.equal(screen.queryByTestId("library-players-bookmarked"), null);
+  assert.equal(screen.queryByTestId("library-players-local"), null);
   const input = screen.getByRole("textbox");
   fireEvent.change(input, { target: { value: "ma" } });
   fireEvent.change(input, { target: { value: "mag" } });
@@ -189,4 +216,69 @@ test("bookmarks still toggle without opening the dossier", async () => {
   fireEvent.click(screen.getByTitle("Bookmark player"));
   assert.equal(useStudioStore.getState().bookmarks.length, 1);
   assert.equal(useDossierStore.getState().player, null);
+});
+
+test("before typing, bookmarked players are listed and open the dossier in one click", () => {
+  act(() => useStudioStore.setState({ bookmarks: [{ ...HIT, bookmarkedAt: 1 }] }));
+  render(<LibraryPlayers />);
+
+  assert.equal(screen.queryByText(/Type at least two letters/), null);
+  const section = screen.getByTestId("library-players-bookmarked");
+  assert.match(section.textContent ?? "", /Bookmarked players/);
+  assert.equal(screen.queryByTestId("library-players-local"), null);
+
+  fireEvent.click(within(section).getByText("Magnus"));
+  assert.equal(useDossierStore.getState().player?.id, HIT.id);
+  assert.ok(within(screen.getByTestId("library-player-dossier")).getByRole("heading", { name: "Magnus" }));
+
+  // The row's bookmark button still only toggles the bookmark.
+  fireEvent.click(within(section).getByTitle("Remove bookmark"));
+  assert.equal(useStudioStore.getState().bookmarks.length, 0);
+  assert.equal(useDossierStore.getState().player?.id, HIT.id);
+});
+
+test("before typing, frequent local players are listed with the local handoff", () => {
+  act(() =>
+    setDatabases([
+      fileDatabase("d1", [
+        ["Magnus", "Hikaru"],
+        ["Magnus", "Nepo"],
+        ["Magnus", "Hikaru"],
+      ]),
+    ]),
+  );
+  render(<LibraryPlayers />);
+
+  const section = screen.getByTestId("library-players-local");
+  assert.match(section.textContent ?? "", /Frequent in your PGN files/);
+  // Most games first: Magnus (3) before Hikaru (2) and Nepo (1).
+  assert.ok((section.textContent ?? "").indexOf("Magnus") < (section.textContent ?? "").indexOf("Hikaru"));
+
+  fireEvent.click(within(section).getByText("Magnus"));
+  assert.equal(useDossierStore.getState().player?.id, "studio:Magnus");
+  const dossier = screen.getByTestId("library-player-dossier");
+  assert.match(within(dossier).getByTestId("dossier-player-meta").textContent ?? "", /Local database/);
+  assert.ok(within(dossier).getByRole("button", { name: "View in Games tab" }));
+  // SIG-1405: the Studio cannot load a local-only player, so no broken handoff.
+  assert.equal(within(dossier).queryByRole("button", { name: "Open in Studio" }), null);
+});
+
+test("a bookmarked local player is not repeated locally and keeps the local handoff", () => {
+  act(() => {
+    useStudioStore.setState({ bookmarks: [{ ...LOCAL, bookmarkedAt: 1 }] });
+    setDatabases([fileDatabase("d1", [[LOCAL.username, "Other"]])]);
+  });
+  render(<LibraryPlayers />);
+
+  const bookmarked = screen.getByTestId("library-players-bookmarked");
+  assert.ok(within(bookmarked).getByText(LOCAL.username));
+  const local = screen.getByTestId("library-players-local");
+  assert.ok(within(local).getByText("Other"));
+  assert.equal(within(local).queryByText(LOCAL.username), null);
+
+  fireEvent.click(within(bookmarked).getByText(LOCAL.username));
+  const dossier = screen.getByTestId("library-player-dossier");
+  assert.equal(useDossierStore.getState().player?.id, LOCAL.id);
+  assert.ok(within(dossier).getByRole("button", { name: "View in Games tab" }));
+  assert.equal(within(dossier).queryByRole("button", { name: "Open in Studio" }), null);
 });

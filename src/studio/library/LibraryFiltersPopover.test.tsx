@@ -1,7 +1,7 @@
 import { after, afterEach, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { LibraryToolbar } from "./LibraryToolbar";
 import { useLibraryStore } from "./library-store";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -172,6 +172,29 @@ test("Clear filters also resets the new fields", () => {
   fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
   const f = filters();
   assert.deepEqual([f.player, f.playerColor, f.eloMin, f.eloMax, f.eco, f.yearFrom, f.yearTo], ["", "both", null, null, "", null, null]);
+});
+
+test("caps its height and scrolls, with the Clear action pinned to the bottom (SIG-1404)", () => {
+  const popover = screen.getByTestId("library-filters-popover");
+  assert.match(popover.className, /max-h-\[min\(80dvh,38rem\)\]/);
+  assert.match(popover.className, /overflow-y-auto/);
+  assert.match(popover.className, /bg-studio-elevated/);
+  assert.match(popover.className, /border-studio-border-strong/);
+  const footer = screen.getByTestId("library-filters-footer");
+  assert.match(footer.className, /sticky/);
+  assert.match(footer.className, /bottom-0/);
+  assert.match(footer.className, /bg-studio-elevated/);
+  assert.ok(footer.contains(screen.getByRole("button", { name: "Clear filters" })));
+});
+
+test("Opponent and color share one head-to-head group (SIG-1404)", () => {
+  const group = screen.getByTestId("library-filters-head-to-head");
+  assert.equal(group.getAttribute("role"), "group");
+  assert.equal(group.getAttribute("aria-label"), "Head-to-head");
+  assert.ok(within(group).getByPlaceholderText("Player name"));
+  assert.ok(within(group).getByRole("radiogroup", { name: "Color" }));
+  // The rest of the popover keeps its own fields outside the group.
+  assert.equal(within(group).queryByPlaceholderText("Name, e.g. Carlsen"), null);
 });
 
 test("sources that apply the new filters partly show the partial note", () => {

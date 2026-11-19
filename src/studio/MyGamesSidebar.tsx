@@ -30,6 +30,8 @@ import {
   type ReviewQueueGame,
 } from "@/src/lib/my-games/review-queue";
 import type { PlayerGame } from "@/src/lib/player-types";
+import { formatInteger } from "@/src/i18n/format";
+import type { SiteLocale } from "@/src/i18n/locale";
 import { tMyGames } from "@/src/i18n/my-games-strings";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { tPanels } from "@/src/i18n/studio-panel-strings";
@@ -46,6 +48,7 @@ import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
 import { PlayerCell, outcomeFor } from "./ui/PlayerCell";
 import { Button, IconButton } from "./ui/Button";
+import { Badge } from "./ui/Controls";
 import { SidebarHint, SidebarPanel } from "./ui/Sidebar";
 import { myGamesViewState } from "@/src/lib/my-games/view-state";
 
@@ -57,11 +60,144 @@ type SyncNotice =
 
 type BatchState = { done: number; total: number };
 
+export type MyGamesRowFix = {
+  label: string;
+  kind: "user_deviation" | "opponent_gap";
+  event: DeviationEvent;
+};
+
+export function MyGamesRow({
+  game,
+  locale,
+  checked,
+  disabled,
+  badge,
+  fix,
+  repMissing,
+  onToggleSelect,
+  onOpen,
+  onOpenNew,
+  onFix,
+}: {
+  game: PlayerGame;
+  locale: SiteLocale;
+  checked: boolean;
+  disabled: boolean;
+  badge: string | null;
+  fix: MyGamesRowFix | null;
+  repMissing: boolean;
+  onToggleSelect: (rowId: string) => void;
+  onOpen: () => void;
+  onOpenNew: () => void;
+  onFix: () => void;
+}) {
+  const rowId = game.rowId ?? null;
+  const opponentSide = game.color === "white" ? "black" : "white";
+  const opponentName = opponentSide === "white" ? game.whiteName : game.blackName;
+  const opponentRating = (opponentSide === "white" ? game.whiteRating : game.blackRating) ?? null;
+  const colorLabel = tMyGames(locale, game.color === "white" ? "myGames.playedWhite" : "myGames.playedBlack");
+  const dateText = formatYearMonth(game.year, game.month);
+  const detail = [formatTimeClass(game.timeClass), game.opening].filter(Boolean).join(" · ");
+  const roundedAccuracy = game.userAccuracy != null ? Math.round(game.userAccuracy) : null;
+  const formattedAccuracy = roundedAccuracy != null ? formatInteger(locale, roundedAccuracy) : null;
+  const accuracyText = formattedAccuracy != null ? `${formattedAccuracy}%` : null;
+  const accuracyLabel =
+    formattedAccuracy != null ? tMyGames(locale, "myGames.rowAccuracy", { value: formattedAccuracy }) : undefined;
+
+  return (
+    <div className="flex items-start gap-1 px-1">
+      {rowId != null && game.pgn?.trim() ? (
+        <input
+          type="checkbox"
+          className="mt-2.5 shrink-0"
+          checked={checked}
+          disabled={disabled}
+          onChange={() => onToggleSelect(rowId)}
+          onClick={(event) => event.stopPropagation()}
+          aria-label={`${game.whiteName} – ${game.blackName}`}
+        />
+      ) : (
+        <span className="w-[13px] shrink-0" aria-hidden="true" />
+      )}
+      <div className="min-w-0 flex-1 rounded-md hover:bg-studio-hover">
+        <GameOpenRow
+          className="flex w-full flex-col px-2 py-1.5 text-left text-dense"
+          onOpen={onOpen}
+          onOpenNew={onOpenNew}
+        >
+          <span className="flex w-full items-center gap-1.5">
+            <span
+              role="img"
+              aria-label={colorLabel}
+              title={colorLabel}
+              className={`size-2.5 shrink-0 rounded-full ring-1 ring-studio-border-strong ${
+                game.color === "white"
+                  ? "bg-studio-piece-white text-studio-piece-white-fg"
+                  : "bg-studio-piece-black text-studio-piece-black-fg"
+              }`}
+            />
+            <span className="min-w-0 flex-1">
+              <PlayerCell
+                name={opponentName}
+                rating={opponentRating}
+                outcome={outcomeFor(game.winner, opponentSide)}
+              />
+            </span>
+            <ResultMark winner={game.winner} />
+            {dateText ? (
+              <span className="shrink-0 tabular-nums text-caption text-studio-faint">
+                {dateText}
+              </span>
+            ) : null}
+          </span>
+          {detail || accuracyText ? (
+            <span className="mt-0.5 flex w-full items-center justify-between gap-2">
+              <span className="min-w-0 flex-1 truncate text-caption text-studio-faint">
+                {detail}
+              </span>
+              {accuracyText ? (
+                <Badge
+                  tone="accent"
+                  title={accuracyLabel}
+                  aria-label={accuracyLabel}
+                  className="tabular-nums"
+                >
+                  {accuracyText}
+                </Badge>
+              ) : null}
+            </span>
+          ) : null}
+          {badge ? (
+            <span className="mt-0.5 block w-full truncate text-caption text-studio-muted">
+              {badge}
+            </span>
+          ) : null}
+        </GameOpenRow>
+        {fix ? (
+          <div className="px-2 pb-1.5">
+            <button
+              type="button"
+              title={repMissing ? tRepertoire(locale, "repertoire.deviation.noBoard") : fix.label}
+              aria-label={fix.label}
+              disabled={repMissing}
+              onClick={onFix}
+              className="text-caption font-medium text-studio-accent-text hover:underline disabled:cursor-default disabled:text-studio-disabled disabled:hover:no-underline"
+            >
+              {fix.label}
+            </button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function MyGamesSidebar() {
   const locale = useStudioStore((state) => state.settings.locale);
   const user = useStudioStore((state) => state.user);
   const importPlayerGame = useStudioStore((state) => state.importPlayerGame);
   const setStatus = useStudioStore((state) => state.setStatus);
+  const openSettings = useStudioStore((state) => state.openSettings);
   const [games, setGames] = useState<PlayerGame[]>([]);
   const [linkedCount, setLinkedCount] = useState(0);
   const [linkedLoading, setLinkedLoading] = useState(Boolean(user));
@@ -415,7 +551,16 @@ export function MyGamesSidebar() {
           {tMyGames(locale, "myGames.loading")}
         </p>
       ) : null}
-      {view === "linkAccount" ? <SidebarHint>{tMyGames(locale, "myGames.linkAccountHint")}</SidebarHint> : null}
+      {view === "linkAccount" ? (
+        <>
+          <SidebarHint>{tMyGames(locale, "myGames.linkAccountHint")}</SidebarHint>
+          <div className="px-2 pb-3">
+            <Button variant="secondary" size="sm" onClick={() => openSettings("linkedAccounts")}>
+              {tMyGames(locale, "myGames.openLinkedAccounts")}
+            </Button>
+          </div>
+        </>
+      ) : null}
       {view === "empty" ? <SidebarHint>{tMyGames(locale, "myGames.empty")}</SidebarHint> : null}
       {view === "list" || (games.length > 0 && (gamesLoading || loadingMore)) ? (
         <>
@@ -460,7 +605,6 @@ export function MyGamesSidebar() {
             ) : null}
           </div>
           {games.map((game) => {
-            const detail = [formatTimeClass(game.timeClass), game.opening].filter(Boolean).join(" · ");
             const rowId = game.rowId ?? null;
             const checked = rowId != null && selected.has(rowId);
             const row = rowBadges.get(game.rowId ?? game.id) ?? null;
@@ -469,65 +613,29 @@ export function MyGamesSidebar() {
             const repMissing =
               game.color === "white" ? whiteRepBoardId === null : blackRepBoardId === null;
             return (
-              <div key={game.id} className="flex items-start gap-1 px-1">
-                {rowId != null && game.pgn?.trim() ? (
-                  <input
-                    type="checkbox"
-                    className="mt-2.5 shrink-0"
-                    checked={checked}
-                    disabled={batch !== null}
-                    onChange={() => toggleSelect(rowId)}
-                    onClick={(event) => event.stopPropagation()}
-                    aria-label={`${game.whiteName} – ${game.blackName}`}
-                  />
-                ) : (
-                  <span className="w-[13px] shrink-0" aria-hidden="true" />
-                )}
-                <GameOpenRow
-                  className="min-w-0 flex-1 px-2 py-1.5 text-left text-dense hover:bg-studio-hover"
-                  onOpen={() => openGame(game)}
-                  onOpenNew={() => openGame(game, true)}
-                >
-                  <span className="grid w-full grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_56px] items-center gap-x-3">
-                    <ResultMark winner={game.winner} />
-                    <PlayerCell name={game.whiteName} rating={game.whiteRating ?? null} outcome={outcomeFor(game.winner, "white")} />
-                    <PlayerCell name={game.blackName} rating={game.blackRating ?? null} outcome={outcomeFor(game.winner, "black")} />
-                    <span className="truncate tabular-nums text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
-                  </span>
-                  {detail ? (
-                    <span className="mt-0.5 block truncate pl-[52px] text-caption text-studio-faint">{detail}</span>
-                  ) : null}
-                  {game.userAccuracy != null ? (
-                    <span className="mt-0.5 block pl-[52px] text-caption tabular-nums text-studio-accent-text">
-                      {Math.round(game.userAccuracy)}
-                    </span>
-                  ) : null}
-                  {badge ? (
-                    <span className="mt-0.5 block truncate pl-[52px] text-caption text-studio-muted">{badge}</span>
-                  ) : null}
-                  {fix ? (
-                    <span className="mt-0.5 block pl-[52px]">
-                      <button
-                        type="button"
-                        title={repMissing ? tRepertoire(locale, "repertoire.deviation.noBoard") : fix.label}
-                        aria-label={fix.label}
-                        disabled={repMissing}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (fix.kind === "user_deviation") {
-                            trainDeviationLine(fix.event, game.color);
-                          } else {
-                            addGapToRepertoire(fix.event, game.color);
-                          }
-                        }}
-                        className="text-caption font-medium text-studio-accent-text hover:underline disabled:cursor-default disabled:text-studio-disabled disabled:hover:no-underline"
-                      >
-                        {fix.label}
-                      </button>
-                    </span>
-                  ) : null}
-                </GameOpenRow>
-              </div>
+              <MyGamesRow
+                key={game.id}
+                game={game}
+                locale={locale}
+                checked={checked}
+                disabled={batch !== null}
+                badge={badge}
+                fix={fix}
+                repMissing={repMissing}
+                onToggleSelect={toggleSelect}
+                onOpen={() => openGame(game)}
+                onOpenNew={() => openGame(game, true)}
+                onFix={() => {
+                  if (!fix) {
+                    return;
+                  }
+                  if (fix.kind === "user_deviation") {
+                    trainDeviationLine(fix.event, game.color);
+                  } else {
+                    addGapToRepertoire(fix.event, game.color);
+                  }
+                }}
+              />
             );
           })}
           {hasMore ? (

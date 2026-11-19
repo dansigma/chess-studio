@@ -7,6 +7,7 @@ import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS } from "@/src/chess/move-notation";
 import { COLOR_SCHEME_IDS } from "@/src/studio/color-scheme";
 import { OPEN_PANEL_ITEMS, openBoardPanel, openExplorerPanel, openStudioPanel } from "./dock-api";
+import { useLiveStore } from "./live/live-store";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 import { LayoutsSubmenu } from "./LayoutsMenu";
 import { tStudioChrome, type StudioChromeStringKey } from "@/src/i18n/studio-chrome-strings";
@@ -73,6 +74,7 @@ export function ViewMenuItems({
   const workspaceView = useStudioStore((state) => state.workspaceView);
   const toggleLibrary = useStudioStore((state) => state.toggleLibrary);
   const toggleLive = useStudioStore((state) => state.toggleLive);
+  const hasActiveLive = useLiveStore((s) => s.tableRoundId !== null || s.openBoards.length > 0);
   const locale = useStudioStore((state) => state.settings.locale);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const showEvalBar = useStudioStore((state) => state.settings.showEvalBar);
@@ -103,7 +105,16 @@ export function ViewMenuItems({
         onClick={run(toggleLibrary)}
       />
       <Item
-        label={tStudioChrome(locale, "chrome.view.live")}
+        label={
+          hasActiveLive ? (
+            <span className="inline-flex items-center gap-1.5">
+              <span>{tStudioChrome(locale, "chrome.view.live")}</span>
+              <span data-live-indicator="" className="h-1.5 w-1.5 rounded-full bg-studio-success" aria-hidden="true" />
+            </span>
+          ) : (
+            tStudioChrome(locale, "chrome.view.live")
+          )
+        }
         checked={workspaceView === "live"}
         onMouseEnter={flat ? undefined : leaveSubmenu}
         onClick={run(toggleLive)}

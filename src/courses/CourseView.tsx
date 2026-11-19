@@ -9,6 +9,7 @@ import { tCourse } from "@/src/i18n/course-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { lessonFrames } from "./lesson.ts";
 import { CourseChrome } from "./CourseChrome";
+import { AdminPreviewBanner } from "./ui/AdminPreviewBanner";
 import { CourseOverview } from "./ui/CourseOverview";
 import { CourseProgressHeader } from "./ui/CourseProgressHeader";
 import { CourseInfoCard } from "./ui/CourseInfoCard";
@@ -25,10 +26,22 @@ import { useCourseContent } from "./use-course-content";
 import { useCourseData } from "./use-courses";
 import { useStudioStore } from "@/src/store/studio-store";
 
-export function CourseView({ course }: { course: Course }) {
+export function CourseView({
+  course,
+  previewBasePath,
+  previewQueueHref,
+}: {
+  course: Course;
+  previewBasePath?: string;
+  previewQueueHref?: string;
+}) {
   const router = useRouter();
   const locale = useStudioStore((state) => state.settings.locale);
   const { progress, admin, isAdmin, ready, signedIn, userId, source } = useCourseData();
+  const isPreview = Boolean(previewBasePath || previewQueueHref);
+  const courseHref = previewBasePath ?? `/courses/${course.slug}`;
+  const effectiveProgress = useMemo(() => (isPreview ? {} : progress), [isPreview, progress]);
+  const effectiveReady = !isPreview && ready;
 
   // SIG-1052: first open per signed-in user and course. Fires once per
   // session via the module guard inside recordEnrollment; anonymous visitors
@@ -38,7 +51,7 @@ export function CourseView({ course }: { course: Course }) {
   // public.can_access_course gate (same source of truth as the lesson
   // content read); failures close the gate without throwing.
   useEffect(() => {
-    if (!signedIn || !userId || course.builtin) {
+    if (isPreview || !signedIn || !userId || course.builtin) {
       return;
     }
     const supabase = createBrowserSupabase();
@@ -51,7 +64,7 @@ export function CourseView({ course }: { course: Course }) {
       }
       await recordEnrollment(supabase, userId, course.id);
     })();
-  }, [signedIn, userId, course.builtin, course.id]);
+  }, [isPreview, signedIn, userId, course.builtin, course.id]);
 
   const frameCounts = useMemo(() => {
     const counts: Record<string, number | null> = {};
@@ -69,20 +82,35 @@ export function CourseView({ course }: { course: Course }) {
   const variationIds = courseVariationIds(course);
   // SIG-1362: students with progress study from the chapter grid; everyone
   // else keeps the syllabus. Progress is client-only, so the switch happens
-  // once `ready` — never during the prerender.
-  const studentGrid = ready && hasCourseProgress(course, progress);
+  // once `ready` — never during the prerender. Preview stays on full syllabus.
+  const studentGrid = effectiveReady && hasCourseProgress(course, effectiveProgress);
 
   return (
     <div className="min-h-full bg-studio-bg">
       <CourseChrome admin={admin} isAdmin={isAdmin} />
+      {previewQueueHref ? <AdminPreviewBanner href={previewQueueHref} locale={locale} /> : null}
       <main className="mx-auto max-w-5xl px-6 py-8">
-        <CourseProgressHeader course={course} progress={progress} ready={ready} locale={locale} />
+        <CourseProgressHeader
+          course={course}
+          courseHref={courseHref}
+          progress={effectiveProgress}
+          ready={effectiveReady}
+          locale={locale}
+        />
         <CourseOverview
           course={course}
           locale={locale}
-          aside={<CourseInfoCard course={course} progress={progress} ready={ready} locale={locale} />}
+          aside={
+            <CourseInfoCard
+              course={course}
+              courseHref={courseHref}
+              progress={effectiveProgress}
+              ready={effectiveReady}
+              locale={locale}
+            />
+          }
         />
-        {variationIds.length > 0 ? <div className="mt-5">
+        {variationIds.length > 0 && !isPreview ? <div className="mt-5">
           {source === "account" ? (
             <p className="mt-2 text-caption text-studio-muted">{tCourse(locale, "course.course.savedAccount")}</p>
           ) : signedIn ? (
@@ -101,20 +129,21 @@ export function CourseView({ course }: { course: Course }) {
           // useSearchParams inside opts this subtree out of the prerender; the
           // page itself keeps its ISR HTML and the URL keeps the open chapter.
           <Suspense fallback={null}>
-            <CourseChapters course={course} progress={progress} locale={locale} />
+            <CourseChapters course={course} courseHref={courseHref} progress={effectiveProgress} locale={locale} />
           </Suspense>
         ) : (
           <CourseSyllabus
             course={course}
+            courseHref={courseHref}
             locale={locale}
-            progress={progress}
+            progress={effectiveProgress}
             frameCounts={frameCounts}
             onOpenInStudio={(variation) => {
               const written = writeCourseStudyImport({
                 title: `${course.title} — ${variation.title}`,
                 pgn: variation.pgn,
               });
-              router.push(written ? "/studio" : `/courses/${course.slug}/${variation.id}`);
+              router.push(written ? "/studio" : `${courseHref}/${variation.id}`);
             }}
           />
         )}
@@ -131,10 +160,12 @@ export function CourseView({ course }: { course: Course }) {
  */
 function CourseChapters({
   course,
+  courseHref,
   progress,
   locale,
 }: {
   course: Course;
+  courseHref: string;
   progress: Record<string, VariationProgress>;
   locale: SiteLocale;
 }) {
@@ -147,11 +178,12 @@ function CourseChapters({
   }, [course, content]);
   const index = chapterIndex(searchParams.get(CHAPTER_PARAM), chapters.length);
   if (index === null) {
-    return <ChapterGrid course={course} chapters={chapters} progress={progress} locale={locale} />;
+    return <ChapterGrid course={course} courseHref={courseHref} chapters={chapters} progress={progress} locale={locale} />;
   }
   return (
     <ChapterDetail
       course={course}
+      courseHref={courseHref}
       chapter={chapters[index]}
       number={index + 1}
       progress={progress}

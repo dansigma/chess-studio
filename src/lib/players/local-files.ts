@@ -134,6 +134,57 @@ function isNamed(name: string): boolean {
   return key !== "" && key !== "?";
 }
 
+/**
+ * The hit for a player found in the loaded PGN files. SIG-1405: the idle
+ * Players list reuses it so a player looks the same whether it came from a
+ * search or from the local suggestions.
+ */
+export function localPlayerHit(name: string): PlayerHit {
+  const resolved = name.trim();
+  return {
+    id: `studio:${resolved}`,
+    source: "studio",
+    username: resolved,
+    displayName: resolved,
+    subtitle: "Studio database",
+    inDatabases: true,
+  };
+}
+
+/**
+ * The `n` players with most games in the loaded PGN files (ties by name), plus
+ * every local player name (trimmed, lower case). Reads only the stored
+ * White/Black names, so it never parses a PGN (the idle Players list calls it
+ * while rendering).
+ */
+export function frequentLocalPlayers(
+  databases: FileDatabase[],
+  n: number,
+): { top: PlayerHit[]; names: Set<string> } {
+  const counts = new Map<string, { name: string; games: number }>();
+  for (const database of databases) {
+    for (const game of database.games) {
+      for (const raw of [game.white, game.black]) {
+        if (!isNamed(raw)) {
+          continue;
+        }
+        const key = nameKey(raw);
+        const hit = counts.get(key);
+        if (hit) {
+          hit.games += 1;
+        } else {
+          counts.set(key, { name: raw.trim(), games: 1 });
+        }
+      }
+    }
+  }
+  const top = [...counts.values()]
+    .sort((a, b) => b.games - a.games || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    .slice(0, n)
+    .map(({ name }) => localPlayerHit(name));
+  return { top, names: new Set(counts.keys()) };
+}
+
 /** Local players whose name contains `query` (case-insensitive), one per name. */
 export function localPlayerHits(databases: FileDatabase[], query: string): PlayerHit[] {
   const target = nameKey(query);
@@ -148,15 +199,7 @@ export function localPlayerHits(databases: FileDatabase[], query: string): Playe
         if (!isNamed(raw) || !key.includes(target) || found.has(key)) {
           continue;
         }
-        const name = raw.trim();
-        found.set(key, {
-          id: `studio:${name}`,
-          source: "studio",
-          username: name,
-          displayName: name,
-          subtitle: "Studio database",
-          inDatabases: true,
-        });
+        found.set(key, localPlayerHit(raw));
       }
     }
   }

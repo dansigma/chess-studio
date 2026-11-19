@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, Link2, Menu } from "lucide-react";
+import { Check, Copy, Link2, Menu, Radio } from "lucide-react";
 import { BoardPanel } from "./BoardPanel";
 import { EnginePanel } from "./EnginePanel";
 import { ExplorerPanel } from "./ExplorerPanel";
@@ -14,6 +14,7 @@ import { tMobile } from "@/src/i18n/mobile-strings.ts";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { LiveView } from "./live/LiveView";
+import { useLiveStore } from "./live/live-store";
 import { LibraryView } from "./library/LibraryView";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
@@ -37,11 +38,15 @@ export type MobileStudioTab = (typeof TABS)[number];
 export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
   const workspaceView = useStudioStore((state) => state.workspaceView);
+  const toggleLive = useStudioStore((state) => state.toggleLive);
+  const hasActiveLive = useLiveStore((state) => state.tableRoundId !== null || state.openBoards.length > 0);
+  const settingsDialog = useStudioStore((state) => state.settingsDialog);
+  const openSettings = useStudioStore((state) => state.openSettings);
+  const closeSettings = useStudioStore((state) => state.closeSettings);
   const [activeTab, setActiveTab] = useState<MobileStudioTab>("moves");
   const [menuOpen, setMenuOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   function closeMenu() {
     setMenuOpen(false);
@@ -82,6 +87,19 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
         <span className="truncate text-sm font-medium text-studio-fg">
           {tMobile(locale, "mobile.menu.title")}
         </span>
+        {hasActiveLive && workspaceView !== "live" ? (
+          <button
+            type="button"
+            data-mobile-live-indicator=""
+            aria-label={tStudioChrome(locale, "chrome.activity.live")}
+            onClick={toggleLive}
+            className="ml-auto inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-full border border-studio-border bg-studio-bg px-2.5 text-xs font-medium text-studio-fg hover:bg-studio-hover-strong"
+          >
+            <span className="h-2 w-2 rounded-full bg-studio-success" aria-hidden="true" />
+            <Radio size={14} aria-hidden="true" />
+            <span>{tStudioChrome(locale, "chrome.activity.live")}</span>
+          </button>
+        ) : null}
       </div>
       {workspaceView === "library" ? (
         <div data-mobile-library="" className="min-h-0 flex-1 overflow-auto p-1.5">
@@ -131,7 +149,7 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
         <MobileMenuSheet
           onOpenPgn={onOpenPgn}
           onShare={handleShare}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => openSettings()}
           onClose={closeMenu}
         />
       ) : null}
@@ -157,7 +175,12 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
           </div>
         </Dialog>
       ) : null}
-      {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsDialog.open ? (
+        <SettingsDialog
+          initialSection={settingsDialog.section ?? undefined}
+          onClose={closeSettings}
+        />
+      ) : null}
     </div>
   );
 }

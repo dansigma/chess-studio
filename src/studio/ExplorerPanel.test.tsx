@@ -4,7 +4,7 @@
 import { after, afterEach, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ExplorerPanel } from "./ExplorerPanel";
 import { useStudioStore } from "@/src/store/studio-store";
 
@@ -49,6 +49,22 @@ test("chesscom source names the loaded player and drops the hint", async () => {
   assert.ok(screen.getByRole("option", { name: "Chess.com · hikaru" }));
   assert.equal(screen.queryByText(/Search for a Chess\.com player/), null);
   assert.ok(screen.getByText("No games for this position."));
+});
+
+test("SIG-1385: empty state offers switching to another source", async () => {
+  useStudioStore.setState({ playerProfile: null, playerGames: [], databaseSource: "masters" });
+  useStudioStore.setState({
+    explorer: { fen: "x", source: "masters", white: 0, draws: 0, black: 0, opening: null, games: [], moves: [] } as never,
+    explorerLoading: false,
+    explorerError: null,
+  });
+  await act(async () => {
+    render(<ExplorerPanel />);
+  });
+  assert.ok(screen.getByText("No games for this position."));
+  // Masters falls back to Lichess ("Online Database"), the broadest shared DB.
+  fireEvent.click(screen.getByRole("button", { name: "Try Online Database" }));
+  assert.equal(useStudioStore.getState().databaseSource, "lichess");
 });
 
 test("SIG-1299: Total row shares the rows' grid, scroller and cell structure", async () => {

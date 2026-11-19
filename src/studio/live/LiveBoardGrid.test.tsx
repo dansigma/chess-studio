@@ -53,7 +53,10 @@ function snapshot(games: LiveGame[], roundId = "R1"): BroadcastRoundSnapshot {
 }
 
 before(() => setupDom());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  useLiveStore.getState().leaveLive();
+});
 after(async () => {
   await teardownDom();
 });
@@ -217,19 +220,21 @@ test("Clear grid appears at two or more boards and closes them all", async () =>
   assert.equal(window.location.search, "?view=live&live=R1");
 });
 
-test("dragging a card onto another reorders openBoards, the URL games= order and the sidebar numbers", async () => {
+test("dragging from the header grip handle onto another card reorders openBoards, the URL games= order and the sidebar numbers", async () => {
   await renderRound([game("a"), game("b"), game("c")]);
   openBoards("a", "b", "c");
   assert.deepEqual(cardOrder(), ["a", "b", "c"]);
   const cards = () => [...document.querySelectorAll("[data-live-card]")] as HTMLElement[];
   const dataTransfer = { setData: () => undefined, effectAllowed: "", dropEffect: "" };
   const [first, , third] = cards();
-  assert.equal(first!.getAttribute("draggable"), "true");
-  fireEvent.dragStart(first!, { dataTransfer });
+  assert.equal(first!.getAttribute("draggable"), null, "card wrapper itself is not draggable");
+  const handle = within(first!).getByRole("button", { name: "Reorder board" });
+  assert.equal(handle.getAttribute("draggable"), "true");
+  fireEvent.dragStart(handle, { dataTransfer });
   fireEvent.dragOver(third!, { dataTransfer });
   assert.equal(third!.getAttribute("data-drop-target"), "");
   fireEvent.drop(third!, { dataTransfer });
-  fireEvent.dragEnd(first!, { dataTransfer });
+  fireEvent.dragEnd(handle, { dataTransfer });
   assert.deepEqual(boardIds(), ["b", "c", "a"]);
   assert.deepEqual(cardOrder(), ["b", "c", "a"]);
   assert.equal(window.location.search, "?view=live&live=R1&games=R1%3Ab%2CR1%3Ac%2CR1%3Aa");
@@ -238,20 +243,22 @@ test("dragging a card onto another reorders openBoards, the URL games= order and
   assert.equal(document.querySelector("[data-drop-target]"), null);
 });
 
-test("a drag that is not one of our cards is left alone; one card or the Focus layout has nothing to drag", async () => {
+test("dragging from card body/players/moves does not start a drag; one card or Focus layout has no grip handle", async () => {
   await renderRound([game("a"), game("b")]);
   openBoards("a");
-  assert.equal((document.querySelector("[data-live-card]") as HTMLElement).getAttribute("draggable"), null);
+  assert.equal(screen.queryByRole("button", { name: "Reorder board" }), null);
   openBoards("b");
   const dataTransfer = { setData: () => undefined, effectAllowed: "", dropEffect: "" };
   const [first, second] = [...document.querySelectorAll("[data-live-card]")] as HTMLElement[];
+  // Attempting dragStart on the card wrapper or player name does not initiate reorder.
+  fireEvent.dragStart(first!, { dataTransfer });
+  fireEvent.dragStart(within(first!).getByText("Wa"), { dataTransfer });
   const notPrevented = fireEvent.dragOver(second!, { dataTransfer });
-  assert.equal(notPrevented, true, "no drag started here: dragover is not claimed");
+  assert.equal(notPrevented, true, "no drag started from card body/player: dragover is not claimed");
   fireEvent.drop(second!, { dataTransfer });
   assert.deepEqual(boardIds(), ["a", "b"]);
   fireEvent.click(screen.getByRole("radio", { name: "Focus" }));
-  assert.equal(document.querySelector("[data-live-card][draggable]"), null);
-  void first;
+  assert.equal(screen.queryByRole("button", { name: "Reorder board" }), null);
 });
 
 test("the context bar shows only the opening: no time control, Studio button, names or result", async () => {
@@ -265,13 +272,14 @@ test("the context bar shows only the opening: no time control, Studio button, na
   assert.ok(document.querySelector("[data-live-connection]"), "the connection indicator stays");
 });
 
-test("the opening shows nothing while unknown; the hint shows with no game", async () => {
+test("before ECO arrives, FollowedHeader shows players and clock/status summary; the hint shows with no game", async () => {
   await renderRound([game("a")]);
   const bar = () => document.querySelector("[data-live-followed]") as HTMLElement;
   assert.match(bar().textContent!, /Click a game to follow it\./u);
   act(() => useLiveStore.getState().openBoard({ roundId: "R1", gameId: "a" }));
   assert.equal(bar().querySelector("[data-live-opening]"), null);
-  assert.doesNotMatch(bar().textContent!, /undefined|null|\?|–$/u);
+  assert.equal(bar().querySelector("[data-live-followed-summary]")!.textContent, "Wa – Ba · 10:00 – 10:00");
+  assert.doesNotMatch(bar().textContent!, /undefined|null|\?/u);
   act(() => useLiveStore.getState().ingestUpdate({
     id: "a", roundId: "R1", pgn: "p", fen: WHITE_TO_MOVE, lastMoveUci: null, result: "*", eco: "A08", opening: "Zukertort Opening",
     white: { name: "Wa", title: null, rating: null, fideId: null }, black: { name: "Ba", title: null, rating: null, fideId: null },

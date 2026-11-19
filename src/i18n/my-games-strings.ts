@@ -25,7 +25,9 @@ export const MY_GAMES_STRING_KEYS = [
   "myGames.reviewFailed",
   "myGames.stats",
   "myGames.statsTitle",
-  "myGames.statsEmpty",
+  "myGames.statsGateProgress",
+  "myGames.statsReviewCta",
+  "myGames.statsDeviationsEmpty",
   "myGames.statsTrend",
   "myGames.trendMean",
   "myGames.trendAria",
@@ -40,7 +42,6 @@ export const MY_GAMES_STRING_KEYS = [
   "myGames.statsPhaseBasis.other",
   "myGames.statsPerGame",
   "myGames.statsTrain",
-  "myGames.statsTrainNone",
   "myGames.statsTrainAllGames",
   "myGames.statsWhite",
   "myGames.statsBlack",
@@ -85,6 +86,10 @@ export const MY_GAMES_STRING_KEYS = [
   "myGames.kpiTrendFew",
   "myGames.filterEmpty",
   "myGames.filterReset",
+  "myGames.openLinkedAccounts",
+  "myGames.playedWhite",
+  "myGames.playedBlack",
+  "myGames.rowAccuracy",
 ] as const;
 
 export type MyGamesStringKey = (typeof MY_GAMES_STRING_KEYS)[number];
@@ -111,7 +116,9 @@ const EN: Record<MyGamesStringKey, string> = {
   "myGames.reviewFailed": "Skipped {count} game without review",
   "myGames.stats": "Stats",
   "myGames.statsTitle": "My Stats",
-  "myGames.statsEmpty": "Review at least 3 games to see your stats.",
+  "myGames.statsGateProgress": "{done} of {total} games reviewed",
+  "myGames.statsReviewCta": "Review a game",
+  "myGames.statsDeviationsEmpty": "No repertoire deviations in these games.",
   "myGames.statsTrend": "Accuracy trend",
   "myGames.trendMean": "Mean {value}",
   "myGames.trendAria": "Accuracy trend over {count} games: mean {mean}, latest {latest}. Use arrow keys to move between games, Enter to open.",
@@ -126,7 +133,6 @@ const EN: Record<MyGamesStringKey, string> = {
   "myGames.statsPhaseBasis.other": "Based on {count} reviewed games",
   "myGames.statsPerGame": "{value}/game",
   "myGames.statsTrain": "Train ({count})",
-  "myGames.statsTrainNone": "No saved positions for these mistakes",
   "myGames.statsTrainAllGames": "Includes mistakes from all games",
   "myGames.statsWhite": "White",
   "myGames.statsBlack": "Black",
@@ -171,6 +177,10 @@ const EN: Record<MyGamesStringKey, string> = {
   "myGames.kpiTrendFew": "Not enough reviewed games to compare (needs 20)",
   "myGames.filterEmpty": "No games match these filters.",
   "myGames.filterReset": "Reset Filters",
+  "myGames.openLinkedAccounts": "Open Linked accounts",
+  "myGames.playedWhite": "Played as White",
+  "myGames.playedBlack": "Played as Black",
+  "myGames.rowAccuracy": "Accuracy {value}%",
 };
 
 const PT_BR: Record<MyGamesStringKey, string> = {
@@ -195,7 +205,9 @@ const PT_BR: Record<MyGamesStringKey, string> = {
   "myGames.reviewFailed": "Ignorada {count} partida sem revisão",
   "myGames.stats": "Estatísticas",
   "myGames.statsTitle": "Minhas Estatísticas",
-  "myGames.statsEmpty": "Revise pelo menos 3 partidas para ver suas estatísticas.",
+  "myGames.statsGateProgress": "{done} de {total} partidas revisadas",
+  "myGames.statsReviewCta": "Revisar partida",
+  "myGames.statsDeviationsEmpty": "Nenhum desvio de repertório nestas partidas.",
   "myGames.statsTrend": "Evolução da precisão",
   "myGames.trendMean": "Média {value}",
   "myGames.trendAria": "Evolução da precisão em {count} partidas: média {mean}, última {latest}. Use as setas para navegar entre partidas e Enter para abrir.",
@@ -210,7 +222,6 @@ const PT_BR: Record<MyGamesStringKey, string> = {
   "myGames.statsPhaseBasis.other": "Com base em {count} partidas revisadas",
   "myGames.statsPerGame": "{value}/partida",
   "myGames.statsTrain": "Treinar ({count})",
-  "myGames.statsTrainNone": "Nenhuma posição salva para esses erros",
   "myGames.statsTrainAllGames": "Inclui erros de todas as partidas",
   "myGames.statsWhite": "Brancas",
   "myGames.statsBlack": "Pretas",
@@ -255,6 +266,10 @@ const PT_BR: Record<MyGamesStringKey, string> = {
   "myGames.kpiTrendFew": "Partidas revisadas insuficientes para comparar (precisa de 20)",
   "myGames.filterEmpty": "Nenhuma partida para estes filtros.",
   "myGames.filterReset": "Limpar Filtros",
+  "myGames.openLinkedAccounts": "Abrir Contas vinculadas",
+  "myGames.playedWhite": "Jogou de Brancas",
+  "myGames.playedBlack": "Jogou de Pretas",
+  "myGames.rowAccuracy": "Precisão {value}%",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

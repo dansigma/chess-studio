@@ -57,6 +57,7 @@ export async function openLiveStudioLink(link: LiveStudioLink, signal?: AbortSig
       pgn: exportPgn(imported.tree, headers),
       atFen: getFenAt(imported.tree, path),
       openInNewBoard: true,
+      liveSource: { roundId: link.roundId, gameId: link.gameId },
     });
     // `atFen` resolves to the first occurrence of a repeated position; pin the exact ply.
     store.goPath(path);

@@ -54,18 +54,18 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`${width} max-w-full animate-[studio-dialog-in_160ms_ease-out] rounded-xl border border-studio-border-strong bg-studio-elevated shadow-2xl`}
+        className={`${width} flex max-h-[calc(100dvh-2rem)] max-w-full flex-col animate-[studio-dialog-in_160ms_ease-out] rounded-xl border border-studio-border-strong bg-studio-elevated shadow-2xl`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 px-4 pb-1 pt-3.5">
+        <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-1 pt-3.5">
           <h2 id={titleId} className="text-title font-semibold text-studio-fg">{title}</h2>
           <IconButton label={tStudioChrome(locale, "chrome.dialog.close")} shortcut="Esc" onClick={onClose}>
             <X size={14} />
           </IconButton>
         </div>
-        <div className="px-4 pb-4 pt-1 text-body text-studio-muted">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-1 text-body text-studio-muted">{children}</div>
         {footer || hint ? (
-          <div className="flex items-center gap-2 border-t border-studio-border px-4 py-3">
+          <div className="flex shrink-0 items-center gap-2 border-t border-studio-border px-4 py-3">
             <span className="mr-auto text-caption text-studio-faint">
               {hint ?? (
                 <>

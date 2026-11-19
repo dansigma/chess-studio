@@ -81,7 +81,10 @@ function snapshot(games: LiveGame[], group = true): BroadcastRoundSnapshot {
 }
 
 before(() => setupDom());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  useLiveStore.getState().leaveLive();
+});
 after(async () => {
   await teardownDom();
 });
@@ -131,6 +134,10 @@ test("only the side to move ticks, on one shared ticker; leaving Live clears the
   assert.equal(tickerSubscribers(), 4);
   view.unmount();
   assert.equal(tickerSubscribers(), 0);
+  // SIG-1406: unmounting LiveView preserves the store across workspaceView switches;
+  // leaveLive() (called when leaving /studio) clears it.
+  assert.equal(useLiveStore.getState().tableRoundId, "R1");
+  useLiveStore.getState().leaveLive();
   const s = useLiveStore.getState();
   assert.equal(s.tableRoundId, null);
   assert.deepEqual(s.gamesByRound, {});
@@ -151,8 +158,8 @@ test("click follows (focus) and opens boards in click order; URL and row state u
   assert.equal(rowOf("b").dataset.focused, "true");
   assert.equal(rowOf("a").dataset.open, "true");
   assert.equal(rowOf("a").dataset.focused, undefined);
-  // SIG-1313: the context bar no longer repeats the focused game's names (its card shows them).
-  assert.doesNotMatch(document.querySelector("[data-live-followed]")!.textContent!, /Wb|Bb/u);
+  // SIG-1407: before ECO/opening data arrives, the context bar shows the focused game's players and clock/status summary.
+  assert.match(document.querySelector("[data-live-followed]")!.textContent!, /Wb – Bb · 10:00 – 8:20/u);
   assert.equal(document.querySelector('[data-live-board="b"]')!.getAttribute("data-focused"), "true");
 });
 

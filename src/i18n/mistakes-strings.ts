@@ -24,7 +24,10 @@ export const MISTAKE_STRING_KEYS = [
   "mistakes.banner.side.w",
   "mistakes.banner.side.b",
   "mistakes.banner.action",
+  "mistakes.banner.retryBoard",
   "mistakes.banner.dismiss",
+  "mistakes.panel.queueProgress",
+  "mistakes.panel.clearFilter",
 ] as const;
 
 export type MistakeStringKey = (typeof MISTAKE_STRING_KEYS)[number];
@@ -51,7 +54,10 @@ const EN: Record<MistakeStringKey, string> = {
   "mistakes.banner.side.w": "White's",
   "mistakes.banner.side.b": "Black's",
   "mistakes.banner.action": "Train now",
+  "mistakes.banner.retryBoard": "Retry on board",
   "mistakes.banner.dismiss": "Dismiss",
+  "mistakes.panel.queueProgress": "{current} of {total}",
+  "mistakes.panel.clearFilter": "Clear filter",
 };
 
 const PT_BR: Record<MistakeStringKey, string> = {
@@ -73,7 +79,10 @@ const PT_BR: Record<MistakeStringKey, string> = {
   "mistakes.banner.side.w": "das Brancas",
   "mistakes.banner.side.b": "das Pretas",
   "mistakes.banner.action": "Treinar agora",
+  "mistakes.banner.retryBoard": "Refazer no tabuleiro",
   "mistakes.banner.dismiss": "Dispensar",
+  "mistakes.panel.queueProgress": "{current} de {total}",
+  "mistakes.panel.clearFilter": "Limpar filtro",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

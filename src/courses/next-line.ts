@@ -33,8 +33,8 @@ export type CourseLineOrder = {
 export function nextLineHref(
   course: CourseLineOrder,
   currentId: string,
+  courseHref = `/courses/${course.slug}`,
 ): string {
-  const courseHref = `/courses/${course.slug}`;
   let takeNext = false;
   for (const chapter of course.chapters) {
     for (const variation of chapter.variations) {

@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Chess, type Square } from "chess.js";
 import { MARK_FILL } from "@/src/chess/marks";
+import { playMoveSound } from "@/src/chess/move-sound";
 import { importPgn } from "@/src/chess/pgn";
 import { tCourse } from "@/src/i18n/course-strings";
 import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
+import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "@/src/studio/ui/Button";
 import { lessonFrames, planMarks, studentMoveMatches } from "../lesson.ts";
 import type { DueLine } from "../review-queue";
@@ -64,6 +66,7 @@ export function ReviewLine({
   const [selected, setSelected] = useState<string | null>(null);
   const [flipped, setFlipped] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const moveSound = useStudioStore((state) => state.settings.moveSound);
 
   const frame = frames[Math.min(session.viewStep, lastStep)];
   const waiting = lessonWaiting(session, frame);
@@ -71,6 +74,9 @@ export function ReviewLine({
   const studentSide = course.color === "white" ? "w" : "b";
 
   function advance() {
+    if (moveSound && session.reachedStep < lastStep) {
+      playMoveSound();
+    }
     setSession((state) =>
       lessonSessionReducer(state, { type: "advance", lastStep }),
     );
@@ -79,6 +85,9 @@ export function ReviewLine({
   }
 
   function go(step: number) {
+    if (moveSound && step > session.viewStep && session.viewStep < Math.min(session.reachedStep, lastStep)) {
+      playMoveSound();
+    }
     setSession((state) =>
       lessonSessionReducer(state, { type: "view", step, lastStep }),
     );

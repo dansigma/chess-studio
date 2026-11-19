@@ -14,6 +14,7 @@ import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
 import { LibraryView } from "./library/LibraryView";
 import { LiveView } from "./live/LiveView";
+import { useLiveStore } from "./live/live-store";
 import { useWorkspaceViewUrl } from "./use-workspace-view-url";
 import { ResizeHandle } from "./ui/ResizeHandle";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
@@ -54,21 +55,7 @@ import { LayoutDialogs } from "./LayoutDialogs";
 import { Button } from "./ui/Button";
 import { BrandLockup } from "./ui/BrandLockup";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  if (
-    target.tagName === "INPUT" ||
-    target.tagName === "TEXTAREA" ||
-    target.tagName === "SELECT" ||
-    target.isContentEditable
-  ) {
-    return true;
-  }
-  return Boolean(target.closest('[role="dialog"]'));
-}
+import { handleStudioShellKey } from "./studio-shortcuts";
 
 export function StudioShell() {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -83,6 +70,9 @@ export function StudioShell() {
   const activeBoardId = useStudioStore((state) => state.activeBoardId);
   useWorkspaceViewUrl();
   useReferenceSourcePersistence();
+  // SIG-1406: tear down the live broadcast stream only when leaving the /studio
+  // route, not when switching workspaceView between "live" and "studio".
+  useEffect(() => () => useLiveStore.getState().leaveLive(), []);
   // SIG-1273: choosing a board (any change of the active board) leaves the Library and Live.
   const lastBoardId = useRef(activeBoardId);
   useEffect(() => {
@@ -446,109 +436,34 @@ export function StudioShell() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      if (isEditableTarget(event.target)) {
-        return;
-      }
-      if (document.querySelector("[data-promotion-open]")) {
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "o") {
-        event.preventDefault();
-        fileRef.current?.click();
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        void runDirtySavePass({
-          getBoards: () => useStudioStore.getState().boards,
-          persist: (board) => persistBoard(board),
-          markSaved: (id, remoteId) => useStudioStore.getState().markSaved(id, remoteId),
-          onError: () => {
-            useStudioStore.getState().setStatus(
-              tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.saveFailed"),
-            );
-          },
-        });
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
-        event.preventDefault();
-        flip();
-      }
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === "l") {
-        event.preventDefault();
-        useStudioStore.getState().toggleLibrary();
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
-        event.preventDefault();
-        // SIG-907: Ctrl+N creates a session, so open its `board:*` panel too.
-        useStudioStore.getState().newBoard();
-        const active = useStudioStore.getState().active();
-        openBoardPanel(active.id, active.title);
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
-        event.preventDefault();
-        void printActiveBoard();
-      }
-      const ctrl = event.ctrlKey || event.metaKey;
-      const chromeFocus = !isEditableTarget(document.activeElement);
-      // SIG-1192: bare F flips too (Lichess muscle memory). Ctrl+F stays for
-      // ChessBase parity; this alias adds a key, it does not move one.
-      if (!ctrl && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "f" && chromeFocus) {
-        event.preventDefault();
-        flip();
-        return;
-      }
-      if (ctrl && event.shiftKey && event.key.toLowerCase() === "a" && chromeFocus) {
-        event.preventDefault();
-        const board = useStudioStore.getState().active();
-        if (board.path.length > 0) {
-          useStudioStore.getState().setNotationEditor("commentBefore");
-        }
-        return;
-      }
-      if (ctrl && !event.shiftKey && event.key.toLowerCase() === "a" && chromeFocus) {
-        event.preventDefault();
-        useStudioStore.getState().setNotationEditor("comment");
-        return;
-      }
-      if (ctrl && event.key === "Delete") {
-        event.preventDefault();
-        useStudioStore.getState().deleteVariation();
-        return;
-      }
-      if (ctrl && event.shiftKey && event.key === "ArrowUp") {
-        event.preventDefault();
-        useStudioStore.getState().makeMainline();
-        return;
-      }
-      if (ctrl && event.key === "ArrowUp") {
-        event.preventDefault();
-        useStudioStore.getState().promoteVariation();
-        return;
-      }
-      if (event.key === "Delete") {
-        event.preventDefault();
-        useStudioStore.getState().pruneAfter();
-        return;
-      }
-      if (event.key === "Home") {
-        event.preventDefault();
-        useStudioStore.getState().toStart();
-        return;
-      }
-      if (event.key === "End") {
-        event.preventDefault();
-        useStudioStore.getState().toEnd();
-        return;
-      }
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        back();
-      }
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        forward();
-      }
+      handleStudioShellKey(event, {
+        openFile: () => fileRef.current?.click(),
+        save: () => {
+          void runDirtySavePass({
+            getBoards: () => useStudioStore.getState().boards,
+            persist: (board) => persistBoard(board),
+            markSaved: (id, remoteId) => useStudioStore.getState().markSaved(id, remoteId),
+            onError: () => {
+              useStudioStore.getState().setStatus(
+                tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.saveFailed"),
+              );
+            },
+          });
+        },
+        newBoard: () => {
+          // SIG-907: Ctrl+N creates a session, so open its `board:*` panel too.
+          useStudioStore.getState().newBoard();
+          const active = useStudioStore.getState().active();
+          openBoardPanel(active.id, active.title);
+        },
+        print: () => {
+          void printActiveBoard();
+        },
+        toggleLibrary: () => useStudioStore.getState().toggleLibrary(),
+        flip,
+        back,
+        forward,
+      });
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -572,7 +487,7 @@ export function StudioShell() {
 
   return (
     <>
-    <div className="studio-screen flex h-screen flex-col overflow-hidden bg-studio-bg text-studio-fg">
+    <div className="studio-screen flex h-dvh flex-col overflow-hidden bg-studio-bg text-studio-fg">
       {isMobile ? null : <MenuBar onOpenPgn={() => fileRef.current?.click()} />}
       {isMobile ? (
         <MobileStudio onOpenPgn={() => fileRef.current?.click()} />

@@ -25,7 +25,7 @@ mock.module("@/src/lib/my-games/load-games", {
   },
 });
 mock.module("@/src/lib/supabase/client", { namedExports: { createBrowserSupabase: () => ({}) } });
-mock.module("./dock-api", { namedExports: { openBoardPanel } });
+mock.module("./dock-api", { namedExports: { openBoardPanel, openStudioPanel: mock.fn() } });
 
 const { MyStatsPanel } = await import("./MyStatsPanel.tsx");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");

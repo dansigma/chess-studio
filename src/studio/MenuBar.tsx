@@ -2,18 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Check, Copy, Link2 } from "lucide-react";
-import { signOut } from "@/app/login/actions";
-import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectDirtyCount, useStudioStore } from "@/src/store/studio-store";
 import { SITE_NAME } from "@/src/site/sections";
-import { accountInitials } from "@/src/lib/account-initials";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
-import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
+import { MenuItem as Item, MenuSurface } from "./ui/Menu";
 import { BrandLockup } from "./ui/BrandLockup";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
+import { AccountMenu } from "./AccountMenu";
 import { SettingsDialog } from "./SettingsDialog";
 import { MenuBarFileMenu } from "./MenuBarFileMenu";
 import { MenuBarEditMenu } from "./MenuBarEditMenu";
@@ -38,8 +35,6 @@ export function MenuBar({
   const [viewSub, setViewSub] = useState<ViewSubmenu>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const router = useRouter();
   // SIG-857: root subscribes narrowly — only the account pill (user/email,
   // boardCount, dirtyCount), the help item (setAboutOpen), and the locale
   // (SIG-962) need store values here. File/edit/view menus own their
@@ -49,9 +44,11 @@ export function MenuBar({
   const setActivity = useStudioStore((state) => state.setActivity);
   const boardCount = useStudioStore((state) => state.boards.length);
   const dirtyCount = useStudioStore(selectDirtyCount);
-  const user = useStudioStore((state) => state.user);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
   const setShortcutsOpen = useStudioStore((state) => state.setShortcutsOpen);
+  const settingsDialog = useStudioStore((state) => state.settingsDialog);
+  const openSettings = useStudioStore((state) => state.openSettings);
+  const closeSettings = useStudioStore((state) => state.closeSettings);
   const locale = useStudioStore((state) => state.settings.locale);
 
   function close() {
@@ -117,7 +114,7 @@ export function MenuBar({
           viewSub={viewSub}
           setViewSub={setViewSub}
           leaveSubmenu={leaveSubmenu}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => openSettings()}
           run={run}
         />
       );
@@ -180,78 +177,15 @@ export function MenuBar({
       ))}
 
       <div className="relative z-20 ml-auto flex items-center gap-2">
-        {user?.email ? (
-          <>
-            <button
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={open === "account"}
-              // SIG-1215: initials only — the e-mail stays out of the bar (and
-              // out of screenshots); it is in the tooltip and the menu header.
-              // SIG-1216: with a display name the tooltip is "Name · email".
-              aria-label={
-                user.displayName
-                  ? tStudioChrome(locale, "chrome.account.labelNamed", { name: user.displayName, email: user.email })
-                  : tStudioChrome(locale, "chrome.account.label", { email: user.email })
-              }
-              title={user.displayName ? `${user.displayName} · ${user.email}` : user.email}
-              onClick={() => toggleMenu("account")}
-              className={`grid h-[26px] w-[26px] place-items-center rounded-full ${
-                open === "account" ? "ring-2 ring-studio-border-strong" : "hover:ring-2 hover:ring-studio-border"
-              }`}
-            >
-              <span className="relative grid h-[26px] w-[26px] place-items-center rounded-full bg-studio-accent-soft text-[11px] font-bold text-studio-accent-text">
-                {accountInitials(user.displayName, user.email)}
-                {/* SIG-1198: no "Synced" label — synced is the normal state. Only
-                    pending changes get a signal: an amber dot on the avatar. */}
-                {dirtyCount ? (
-                  <span
-                    className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-studio-warning-fg ring-2 ring-studio-bg"
-                    title={tStudioChrome(locale, dirtyCount === 1 ? "chrome.account.waitingToSync.one" : "chrome.account.waitingToSync.other", { count: dirtyCount })}
-                  />
-                ) : null}
-              </span>
-            </button>
-            {open === "account" ? (
-              <MenuSurface className="absolute right-0 top-[calc(100%+5px)] min-w-60" onClose={close}>
-                <div className="px-2 pb-1.5 pt-2">
-                  {user.displayName ? (
-                    <>
-                      <div className="truncate font-medium text-studio-fg">{user.displayName}</div>
-                      <div className="truncate text-caption text-studio-muted">{user.email}</div>
-                    </>
-                  ) : (
-                    <div className="truncate font-medium text-studio-fg">{user.email}</div>
-                  )}
-                  <div className="mt-0.5 flex items-center gap-1.5 text-caption text-studio-faint">
-                    <span className={`h-1.5 w-1.5 rounded-full ${dirtyCount ? "bg-studio-warning-fg" : "bg-studio-success"}`} />
-                    {dirtyCount
-                      ? tStudioChrome(locale, dirtyCount === 1 ? "chrome.account.waitingToSync.one" : "chrome.account.waitingToSync.other", { count: dirtyCount })
-                      : tStudioChrome(locale, "chrome.account.allSynced")}
-                  </div>
-                </div>
-                <Divider />
-                <Item label={tStudioChrome(locale, "chrome.account.myBoards")} shortcut={String(boardCount)} onClick={run(() => setActivity("boards"))} />
-                <Item label={tStudioChrome(locale, "chrome.account.settings")} onClick={run(() => setSettingsOpen(true))} />
-                <Divider />
-                <Item
-                  label={tStudioChrome(locale, "chrome.account.signOut")}
-                  danger
-                  onClick={run(() => {
-                    void (async () => {
-                      await createBrowserSupabase()?.auth.signOut();
-                      await signOut();
-                    })();
-                  })}
-                />
-              </MenuSurface>
-            ) : null}
-          </>
-        ) : (
-          <Button size="sm" variant="ghost" className="border border-studio-border" onClick={() => router.push("/login")}>
-            {tStudioChrome(locale, "chrome.account.signIn")}
-          </Button>
-        )}
+        <AccountMenu
+          open={open === "account"}
+          onToggle={() => toggleMenu("account")}
+          onClose={close}
+          onOpenSettings={() => openSettings()}
+          dirtyCount={dirtyCount}
+          boardCount={boardCount}
+          onOpenBoards={() => setActivity("boards")}
+        />
       </div>
 
       {shareUrl ? (
@@ -276,7 +210,12 @@ export function MenuBar({
           </div>
         </Dialog>
       ) : null}
-      {settingsOpen ? <SettingsDialog onClose={() => setSettingsOpen(false)} /> : null}
+      {settingsDialog.open ? (
+        <SettingsDialog
+          initialSection={settingsDialog.section ?? undefined}
+          onClose={closeSettings}
+        />
+      ) : null}
     </div>
   );
 }
