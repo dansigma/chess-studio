@@ -70,3 +70,47 @@ export async function loadPuzzleCatalog(
     });
   }
 }
+
+function isCompiledPuzzle(value: unknown): value is CompiledPuzzle {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.id === "string" &&
+    typeof item.fen === "string" &&
+    Array.isArray(item.sans) &&
+    Array.isArray(item.uci) &&
+    typeof item.rating === "number"
+  );
+}
+
+/**
+ * Fetch a single compiled puzzle by id from `/api/puzzles?id=...`, falling back
+ * to the built-in starter catalog when offline or when the API is unavailable.
+ */
+export async function loadPuzzleById(id: string): Promise<CompiledPuzzle | null> {
+  if (!id) {
+    return null;
+  }
+  const fallbackMatch = () => getFallbackCatalog().find((puzzle) => puzzle.id === id) ?? null;
+  try {
+    const response = await fetch(`/api/puzzles?id=${encodeURIComponent(id)}`, {
+      cache: "force-cache",
+    });
+    if (response.status === 404 || response.status === 400) {
+      return fallbackMatch();
+    }
+    if (!response.ok) {
+      throw new Error(`puzzles API ${response.status}`);
+    }
+    const payload: unknown = await response.json();
+    if (!isCompiledPuzzle(payload)) {
+      throw new Error("puzzles API shape");
+    }
+    return payload;
+  } catch {
+    return fallbackMatch();
+  }
+}
+

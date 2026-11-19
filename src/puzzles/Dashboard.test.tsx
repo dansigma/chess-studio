@@ -10,9 +10,20 @@ const ctl = {
   gate: null as Promise<void> | null,
   progress: null as unknown,
   progressCalls: 0,
+  pushed: [] as string[],
+  catalog: [] as import("./engine.ts").CompiledPuzzle[],
+  exercises: {} as import("../lib/mistake-exercises-store.ts").MistakeExercisesMap,
+  byId: {} as Record<string, import("./engine.ts").CompiledPuzzle | null>,
+  byIdCalls: [] as string[],
+  byIdGate: null as Promise<void> | null,
 };
 
-mock.module("next/navigation", { namedExports: { useRouter: () => ({ push() {} }), usePathname: () => "/puzzles" } });
+mock.module("next/navigation", {
+  namedExports: {
+    useRouter: () => ({ push: (href: string) => ctl.pushed.push(href) }),
+    usePathname: () => "/puzzles",
+  },
+});
 mock.module("../lib/supabase/client.ts", {
   namedExports: {
     createBrowserSupabase: () => ({ auth: { getUser: async () => ({ data: { user: ctl.user } }) } }),
@@ -31,14 +42,24 @@ mock.module("./progress.ts", {
     progressSource: () => (ctl.user ? "account" : "browser"),
   },
 });
-mock.module("./puzzle-client.ts", { namedExports: { loadPuzzleCatalog: async () => [] } });
+mock.module("./puzzle-client.ts", {
+  namedExports: {
+    loadPuzzleCatalog: async () => ctl.catalog,
+    loadPuzzleById: async (id: string) => {
+      ctl.byIdCalls.push(id);
+      if (ctl.byIdGate) await ctl.byIdGate;
+      return ctl.byId[id] ?? null;
+    },
+  },
+});
 const realExercises = await import("../lib/mistake-exercises-store.ts");
 mock.module("../lib/mistake-exercises-store.ts", {
-  namedExports: { ...realExercises, hydrateExercises: async () => ({}) },
+  namedExports: { ...realExercises, hydrateExercises: async () => ctl.exercises },
 });
 
 const { PuzzleDashboard } = await import("./Dashboard.tsx");
-const { emptyProgress } = await import("./engine.ts");
+const { compilePuzzle, emptyProgress } = await import("./engine.ts");
+const { puzzleIdForExercise } = await import("./mistake-puzzle.ts");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
 
@@ -49,11 +70,18 @@ after(async () => {
 
 beforeEach(() => {
   cleanup();
+  window.sessionStorage.clear();
   ctl.user = null;
   ctl.fail = false;
   ctl.gate = null;
   ctl.progressCalls = 0;
   ctl.progress = { ...emptyProgress(), rating: 1500, solved: 7, failed: 3 };
+  ctl.pushed = [];
+  ctl.catalog = [];
+  ctl.exercises = {};
+  ctl.byId = {};
+  ctl.byIdCalls = [];
+  ctl.byIdGate = null;
   act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en" } }));
 });
 
@@ -168,3 +196,167 @@ test("SIG-1268: Recent shows saved themes, time and rating; older entries show o
   assert.equal(old?.textContent, "Missed-5");
   for (const row of rows) assert.doesNotMatch(row.textContent ?? "", /undefined|NaN/);
 });
+
+test("SIG-1412: hero difficulty selector synchronizes with Themes and updates Solve now URL", async () => {
+  render(<PuzzleDashboard />);
+  await screen.findByTestId("signin-prompt");
+
+  const solveNow = screen.getByRole("button", { name: "Solve now" });
+  fireEvent.click(solveNow);
+  assert.deepEqual(ctl.pushed, ["/puzzles/play?mode=rated"]);
+
+  // Select Beginner via the hero difficulty radiogroup.
+  const heroBeginner = screen.getByRole("radio", { name: "Beginner" });
+  fireEvent.click(heroBeginner);
+  assert.equal(heroBeginner.getAttribute("aria-checked"), "true");
+  assert.equal(screen.getByRole("button", { name: "Beginner" }).getAttribute("aria-pressed"), "true");
+  assert.ok(screen.getByTestId("hero-difficulty-unrated"));
+  assert.ok(
+    screen.getByRole("link", { name: /Fork/ }).getAttribute("href")?.endsWith("difficulty=beginner"),
+  );
+
+  fireEvent.click(solveNow);
+  assert.equal(ctl.pushed.at(-1), "/puzzles/play?mode=rated&difficulty=beginner");
+
+  // Switching via the Themes difficulty chip updates the hero selector and Solve now URL.
+  const themesAdvanced = screen.getByRole("button", { name: "Advanced" });
+  fireEvent.click(themesAdvanced);
+  assert.equal(screen.getByRole("radio", { name: "Advanced" }).getAttribute("aria-checked"), "true");
+  fireEvent.click(solveNow);
+  assert.equal(ctl.pushed.at(-1), "/puzzles/play?mode=rated&difficulty=advanced");
+
+  // Clearing back to All resets Solve now to /puzzles/play?mode=rated.
+  fireEvent.click(screen.getByRole("radio", { name: "All" }));
+  assert.equal(screen.queryByTestId("hero-difficulty-unrated"), null);
+  fireEvent.click(solveNow);
+  assert.equal(ctl.pushed.at(-1), "/puzzles/play?mode=rated");
+});
+
+test("SIG-1412: clicking a Recent row opens catalog, fetched, and mistake puzzles in the Studio", async () => {
+  const catalogPuzzle = compilePuzzle({
+    id: "queen-corridor",
+    fen: "7k/5Qpp/8/8/8/8/6PP/6K1 w - - 0 1",
+    moves: ["Qf8#"],
+    rating: 750,
+    themes: ["mate"],
+  });
+  const remotePuzzle = compilePuzzle({
+    id: "00sHx",
+    fen: "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+    moves: ["Re8#"],
+    rating: 800,
+    themes: ["mate"],
+  });
+  const mistakeKey = "mx:r3k3/8/8/8/8/8/6PP/R5K1 b - -";
+  const mistakeId = puzzleIdForExercise(mistakeKey);
+
+  ctl.catalog = [catalogPuzzle];
+  ctl.byId = { "00sHx": remotePuzzle };
+  ctl.exercises = {
+    [mistakeKey]: {
+      exercise: {
+        key: mistakeKey,
+        fen: "r3k3/8/8/8/8/8/6PP/R5K1 b - - 3 17",
+        solutionUci: ["a8a1", "g1f2", "a1a2"],
+        bestPv: ["Rxa1+", "Kf2", "Ra2+"],
+        playedUci: "a8b8",
+        label: "blunder",
+        phase: "endgame",
+        lossCp: 350,
+        beforePawns: 0,
+        afterPawns: -3.5,
+        motif: "win-material",
+        createdAt: "2026-11-01T00:00:00.000Z",
+      },
+      srs: null,
+    },
+  };
+  ctl.progress = {
+    ...emptyProgress(),
+    history: [
+      { id: "queen-corridor", mode: "rated", success: true, at: 30, delta: 8, puzzleRating: 750 },
+      { id: "00sHx", mode: "rush", success: false, at: 20, delta: 0, puzzleRating: 800 },
+      { id: mistakeId, mode: "mistakes", success: true, at: 10, delta: 0 },
+      { id: "missing-id", mode: "rated", success: false, at: 5, delta: -6 },
+    ],
+  };
+
+  const { container } = render(<PuzzleDashboard />);
+  const buttons = await waitFor(() => {
+    const found = container.querySelectorAll("ul > li > button");
+    assert.equal(found.length, 4);
+    return [...found] as HTMLButtonElement[];
+  });
+
+  // 1. Catalog puzzle opens immediately without calling loadPuzzleById.
+  fireEvent.click(buttons[0]!);
+  assert.deepEqual(ctl.byIdCalls, []);
+  assert.equal(ctl.pushed.at(-1), "/studio");
+  const catalogHandoff = JSON.parse(window.sessionStorage.getItem("chess-studio:course-import") ?? "null");
+  assert.equal(catalogHandoff?.title, "Puzzle queen-corridor");
+  assert.equal(catalogHandoff?.atFen, catalogPuzzle.fen);
+
+  // 2. Non-cached puzzle fetches via loadPuzzleById and guards against double-clicks while loading.
+  let releaseFetch!: () => void;
+  ctl.byIdGate = new Promise<void>((resolve) => {
+    releaseFetch = resolve;
+  });
+  fireEvent.click(buttons[1]!);
+  fireEvent.click(buttons[1]!);
+  assert.deepEqual(ctl.byIdCalls, ["00sHx"]);
+  assert.equal(buttons[1]!.disabled, true);
+  ctl.byIdGate = null;
+  await act(async () => releaseFetch());
+  await waitFor(() => assert.equal(ctl.pushed.length, 2));
+  const remoteHandoff = JSON.parse(window.sessionStorage.getItem("chess-studio:course-import") ?? "null");
+  assert.equal(remoteHandoff?.title, "Puzzle 00sHx");
+  assert.match(remoteHandoff?.pgn ?? "", /\[Site "https:\/\/lichess\.org\/training\/00sHx"\]/);
+
+  // 3. Mistake exercise resolves from hydrated exercises with localized mistake title.
+  fireEvent.click(buttons[2]!);
+  assert.equal(ctl.pushed.length, 3);
+  const mistakeHandoff = JSON.parse(window.sessionStorage.getItem("chess-studio:course-import") ?? "null");
+  assert.equal(mistakeHandoff?.title, "My mistake");
+  assert.equal(mistakeHandoff?.orientation, "black");
+
+  // 4. Missing puzzle shows status message without navigating.
+  await act(async () => {
+    fireEvent.click(buttons[3]!);
+  });
+  const status = await screen.findByRole("status");
+  assert.equal(status.textContent, "This puzzle is no longer available to open in the Studio.");
+  assert.equal(ctl.pushed.length, 3);
+});
+
+test("SIG-1412: mobile keeps 5-row cap and >= 44px touch targets on Recent rows and hero difficulty radios", async () => {
+  ctl.progress = {
+    ...emptyProgress(),
+    history: Array.from({ length: 12 }, (_, index) => ({
+      id: `p-${index}`,
+      mode: "rated" as const,
+      success: index % 2 === 0,
+      at: 100 - index,
+      delta: index % 2 === 0 ? 5 : -5,
+    })),
+  };
+
+  const { container } = render(<PuzzleDashboard />);
+  const items = await waitFor(() => {
+    const found = container.querySelectorAll("ul > li");
+    assert.equal(found.length, 10);
+    return [...found];
+  });
+
+  items.forEach((li, index) => {
+    assert.equal(li.classList.contains("max-sm:hidden"), index >= 5);
+    const btn = li.querySelector("button");
+    assert.ok(btn);
+    assert.equal(btn.getAttribute("type"), "button");
+    assert.ok(btn.className.includes("min-h-11"), "mobile >= 44px touch target");
+  });
+
+  for (const radio of screen.getAllByRole("radio")) {
+    assert.ok(radio.className.includes("min-h-11"), "hero difficulty radio >= 44px touch target on mobile");
+  }
+});
+
