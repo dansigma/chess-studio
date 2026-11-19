@@ -1,18 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import { Check, Copy, Link2, Menu, Radio } from "lucide-react";
+import { useState, type CSSProperties } from "react";
+import { ArrowLeft, Check, ChevronDown, Copy, Link2, Menu, Radio } from "lucide-react";
 import { BoardPanel } from "./BoardPanel";
+import { BoardsSidebar } from "./BoardsSidebar";
+import { BookmarksSidebar } from "./BookmarksSidebar";
 import { EnginePanel } from "./EnginePanel";
 import { ExplorerPanel } from "./ExplorerPanel";
+import { FileGamesPanel } from "./FileGamesPanel";
 import { MobileMoveStrip } from "./MobileMoveStrip";
+import { MyGamesSidebar } from "./MyGamesSidebar";
 import { NotationPanel } from "./NotationPanel";
+import { PositionInsightsPanel } from "./PositionInsightsPanel";
+import { RepertoirePanel } from "./RepertoirePanel";
 import { ReviewPanel } from "./ReviewPanel";
+import { BottomSheet } from "./BottomSheet";
 import { MobileMenuSheet } from "./MobileMenuSheet";
 import { SettingsDialog } from "./SettingsDialog";
+import { boardTitle } from "./dock-api";
 import { tMobile } from "@/src/i18n/mobile-strings.ts";
+import { tPanels } from "@/src/i18n/studio-panel-strings";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
-import { useStudioStore } from "@/src/store/studio-store";
+import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { LiveView } from "./live/LiveView";
 import { useLiveStore } from "./live/live-store";
 import { LibraryView } from "./library/LibraryView";
@@ -31,20 +40,34 @@ import { Button } from "./ui/Button";
 // that reuses the desktop File/Edit/View menu items — the desktop MenuBar is
 // hidden on mobile (see StudioShell), so this is the touch entry point for
 // Open PGN and the rest of the menus.
-const TABS = ["moves", "engine", "review", "explorer"] as const;
+const TABS = ["moves", "engine", "review", "explorer", "more"] as const;
 
 export type MobileStudioTab = (typeof TABS)[number];
 
-export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
+export function MobileStudio({
+  onOpenPgn,
+  fileGamesOpen = false,
+  onCloseFileGames,
+}: {
+  onOpenPgn: () => void;
+  fileGamesOpen?: boolean;
+  onCloseFileGames?: () => void;
+}) {
   const locale = useStudioStore((state) => state.settings.locale);
+  const boards = useStudioStore((state) => state.boards);
+  const activeBoard = useStudioStore(selectActiveBoard);
   const workspaceView = useStudioStore((state) => state.workspaceView);
+  const setWorkspaceView = useStudioStore((state) => state.setWorkspaceView);
   const toggleLive = useStudioStore((state) => state.toggleLive);
   const hasActiveLive = useLiveStore((state) => state.tableRoundId !== null || state.openBoards.length > 0);
   const settingsDialog = useStudioStore((state) => state.settingsDialog);
   const openSettings = useStudioStore((state) => state.openSettings);
   const closeSettings = useStudioStore((state) => state.closeSettings);
   const [activeTab, setActiveTab] = useState<MobileStudioTab>("moves");
+  const [moreTool, setMoreTool] = useState<"insights" | "repertoire">("insights");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [boardsSheetOpen, setBoardsSheetOpen] = useState(false);
+  const [boardsSheetTab, setBoardsSheetTab] = useState<"boards" | "mygames" | "bookmarks">("boards");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
 
@@ -84,16 +107,49 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
         >
           <Menu size={20} />
         </button>
-        <span className="truncate text-sm font-medium text-studio-fg">
-          {tMobile(locale, "mobile.menu.title")}
-        </span>
+        {workspaceView === "library" || workspaceView === "live" ? (
+          <>
+            <button
+              type="button"
+              data-mobile-back-board=""
+              aria-label={tMobile(locale, "mobile.topbar.backToBoard")}
+              onClick={() => setWorkspaceView("studio")}
+              className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-studio-accent-text hover:bg-studio-hover-strong"
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              <span>{tMobile(locale, "mobile.topbar.board")}</span>
+            </button>
+            <span className="truncate text-sm font-medium text-studio-fg">
+              {tStudioChrome(locale, workspaceView === "library" ? "chrome.activity.library" : "chrome.activity.live")}
+            </span>
+          </>
+        ) : (
+          <button
+            type="button"
+            data-mobile-board-switcher=""
+            aria-label={tMobile(locale, "mobile.boards.switch")}
+            onClick={() => setBoardsSheetOpen(true)}
+            className="flex min-h-[44px] min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-sm font-medium text-studio-fg hover:bg-studio-hover-strong"
+          >
+            <span className="truncate">{boardTitle(locale, activeBoard.title)}</span>
+            {boards.length > 1 ? (
+              <span
+                data-mobile-board-count=""
+                className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-studio-accent-soft px-1.5 text-[11px] font-semibold text-studio-accent-text"
+              >
+                {boards.length}
+              </span>
+            ) : null}
+            <ChevronDown size={14} className="shrink-0 text-studio-muted" aria-hidden="true" />
+          </button>
+        )}
         {hasActiveLive && workspaceView !== "live" ? (
           <button
             type="button"
             data-mobile-live-indicator=""
             aria-label={tStudioChrome(locale, "chrome.activity.live")}
             onClick={toggleLive}
-            className="ml-auto inline-flex min-h-[36px] shrink-0 items-center gap-1.5 rounded-full border border-studio-border bg-studio-bg px-2.5 text-xs font-medium text-studio-fg hover:bg-studio-hover-strong"
+            className="ml-auto inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border border-studio-border bg-studio-bg px-2.5 text-xs font-medium text-studio-fg hover:bg-studio-hover-strong"
           >
             <span className="h-2 w-2 rounded-full bg-studio-success" aria-hidden="true" />
             <Radio size={14} aria-hidden="true" />
@@ -120,6 +176,36 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
         {activeTab === "engine" ? <EnginePanel /> : null}
         {activeTab === "review" ? <ReviewPanel /> : null}
         {activeTab === "explorer" ? <ExplorerPanel /> : null}
+        {activeTab === "more" ? (
+          <div className="flex h-full min-h-0 flex-col">
+            <div
+              role="tablist"
+              aria-label={tMobile(locale, "mobile.more.label")}
+              className="flex shrink-0 gap-1 border-b border-studio-border-subtle bg-studio-panel px-2 py-1"
+            >
+              {(["insights", "repertoire"] as const).map((tool) => (
+                <button
+                  key={tool}
+                  type="button"
+                  role="tab"
+                  aria-selected={moreTool === tool}
+                  data-mobile-more-tool={tool}
+                  onClick={() => setMoreTool(tool)}
+                  className={`min-h-[44px] flex-1 rounded-md px-3 text-sm font-medium ${
+                    moreTool === tool
+                      ? "bg-studio-accent-soft text-studio-accent-text"
+                      : "text-studio-muted hover:text-studio-fg"
+                  }`}
+                >
+                  {tPanels(locale, tool === "insights" ? "panels.insights" : "panels.repertoire")}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto">
+              {moreTool === "insights" ? <PositionInsightsPanel /> : <RepertoirePanel />}
+            </div>
+          </div>
+        ) : null}
       </div>
       <nav aria-label={tMobile(locale, "mobile.tabs.label")} data-mobile-tabbar="">
         <div role="tablist" className="flex shrink-0 border-t border-studio-border-subtle bg-studio-panel">
@@ -132,7 +218,7 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
               aria-controls="mobile-panel-area"
               data-mobile-tab={tab}
               onClick={() => setActiveTab(tab)}
-              className={`min-h-[44px] min-w-[44px] flex-1 px-2 text-sm font-medium ${
+              className={`min-h-[44px] min-w-[44px] flex-1 px-1.5 text-xs font-medium sm:text-sm ${
                 activeTab === tab
                   ? "text-studio-accent-text"
                   : "text-studio-muted hover:text-studio-fg"
@@ -155,6 +241,58 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
           }}
           onClose={closeMenu}
         />
+      ) : null}
+      {boardsSheetOpen ? (
+        <BottomSheet title={tMobile(locale, "mobile.boards.sheetTitle")} onClose={() => setBoardsSheetOpen(false)}>
+          <div
+            role="tablist"
+            aria-label={tMobile(locale, "mobile.boards.sheetTitle")}
+            className="mb-2 flex gap-1 rounded-lg bg-studio-panel p-1"
+          >
+            {(
+              [
+                ["boards", "chrome.activity.boards"],
+                ["mygames", "chrome.activity.mygames"],
+                ["bookmarks", "chrome.activity.bookmarks"],
+              ] as const
+            ).map(([tabId, labelKey]) => (
+              <button
+                key={tabId}
+                type="button"
+                role="tab"
+                aria-selected={boardsSheetTab === tabId}
+                data-mobile-boards-tab={tabId}
+                onClick={() => setBoardsSheetTab(tabId)}
+                className={`min-h-[44px] flex-1 rounded-md px-2 text-xs font-medium ${
+                  boardsSheetTab === tabId
+                    ? "bg-studio-accent-soft text-studio-accent-text"
+                    : "text-studio-muted hover:text-studio-fg"
+                }`}
+              >
+                {tStudioChrome(locale, labelKey)}
+              </button>
+            ))}
+          </div>
+          <div style={{ "--sidebar-width": "100%" } as CSSProperties}>
+            {boardsSheetTab === "boards" ? (
+              <BoardsSidebar mobile onSelect={() => setBoardsSheetOpen(false)} />
+            ) : boardsSheetTab === "mygames" ? (
+              <MyGamesSidebar onOpenGame={() => setBoardsSheetOpen(false)} />
+            ) : (
+              <BookmarksSidebar onSelect={() => setBoardsSheetOpen(false)} />
+            )}
+          </div>
+        </BottomSheet>
+      ) : null}
+      {fileGamesOpen ? (
+        <BottomSheet
+          title={tPanels(locale, "panels.fileGames")}
+          onClose={() => onCloseFileGames?.()}
+        >
+          <div data-mobile-file-games="" className="-mx-4">
+            <FileGamesPanel mobile onGameSelect={onCloseFileGames} />
+          </div>
+        </BottomSheet>
       ) : null}
       {shareUrl ? (
         <Dialog

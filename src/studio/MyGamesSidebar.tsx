@@ -192,7 +192,7 @@ export function MyGamesRow({
   );
 }
 
-export function MyGamesSidebar() {
+export function MyGamesSidebar({ onOpenGame }: { onOpenGame?: () => void } = {}) {
   const locale = useStudioStore((state) => state.settings.locale);
   const user = useStudioStore((state) => state.user);
   const importPlayerGame = useStudioStore((state) => state.importPlayerGame);
@@ -233,6 +233,7 @@ export function MyGamesSidebar() {
     setStatus(null);
     const active = selectActiveBoard(useStudioStore.getState());
     openBoardPanel(active.id, active.title);
+    onOpenGame?.();
   }
 
   /* eslint-disable react-hooks/set-state-in-effect -- SIG-1089: the

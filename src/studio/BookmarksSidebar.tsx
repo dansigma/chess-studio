@@ -7,7 +7,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { PlayerHitRow } from "./PlayerHitRow";
 import { SidebarHint, SidebarPanel } from "./ui/Sidebar";
 
-export function BookmarksSidebar() {
+export function BookmarksSidebar({ onSelect }: { onSelect?: () => void } = {}) {
   const locale = useStudioStore((state) => state.settings.locale);
   const bookmarks = useStudioStore((state) => state.bookmarks);
   const openPlayerView = useStudioStore((state) => state.openPlayerView);
@@ -16,6 +16,7 @@ export function BookmarksSidebar() {
 
   function open(player: PlayerHit, color: PlayerColorFilter = "all") {
     openPlayerView(player, color);
+    onSelect?.();
   }
 
   return (

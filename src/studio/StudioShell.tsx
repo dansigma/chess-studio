@@ -142,6 +142,7 @@ export function StudioShell() {
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
   const shortcutsOpen = useStudioStore((state) => state.shortcutsOpen);
   const setShortcutsOpen = useStudioStore((state) => state.setShortcutsOpen);
+  const [mobileFileGamesOpen, setMobileFileGamesOpen] = useState(false);
   // SIG-1187: single Forward-choicer mount outside the mobile split so the
   // chooser covers desktop and mobile entry points.
   const variationChoice = useStudioStore((state) => state.variationChoice);
@@ -490,7 +491,11 @@ export function StudioShell() {
     <div className="studio-screen flex h-dvh flex-col overflow-hidden bg-studio-bg text-studio-fg">
       {isMobile ? null : <MenuBar onOpenPgn={() => fileRef.current?.click()} />}
       {isMobile ? (
-        <MobileStudio onOpenPgn={() => fileRef.current?.click()} />
+        <MobileStudio
+          onOpenPgn={() => fileRef.current?.click()}
+          fileGamesOpen={mobileFileGamesOpen}
+          onCloseFileGames={() => setMobileFileGamesOpen(false)}
+        />
       ) : (
       <div className="flex min-h-0 flex-1">
         <ActivityBar />
@@ -550,7 +555,15 @@ export function StudioShell() {
           }
           void file.text().then((text) => {
             openPgnSource(file.name.replace(/\.pgn$/i, "") || "PGN", text);
-            openStudioPanel("fileGames");
+            if (isMobile) {
+              const state = useStudioStore.getState();
+              const database = state.files.databases.find((item) => item.id === state.activeFileDatabaseId);
+              if (database && database.games.length > 1) {
+                setMobileFileGamesOpen(true);
+              }
+            } else {
+              openStudioPanel("fileGames");
+            }
           });
           event.target.value = "";
         }}
