@@ -57,6 +57,7 @@ export type BoardEditSlice = Pick<
   | "flip"
   | "importPgnText"
   | "openListedGame"
+  | "applyLiveMerge"
   | "importPlayerGame"
   | "exportActivePgn"
   | "pruneAfter"
@@ -171,6 +172,7 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         ...(args.orientation ? { orientation: args.orientation } : {}),
         // SIG-968: a fresh game replaces the tree — drop any annotate undo.
         reviewAnnotateUndo: undefined,
+        liveSource: args.liveSource,
         dirty: false,
       };
       const previewMode = state.settings.gamePreviewEnabled && !args.openInNewBoard;
@@ -221,6 +223,23 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         activeBoardId: board.id,
       };
     });
+  },
+  applyLiveMerge: (boardId, tree, path, result) => {
+    set((state) => ({
+      boards: state.boards.map((board) => {
+        if (board.id !== boardId) {
+          return board;
+        }
+        return {
+          ...board,
+          tree,
+          path,
+          headers: result ? { ...board.headers, Result: result } : board.headers,
+          reviewAnnotateUndo: undefined,
+          dirty: true,
+        };
+      }),
+    }));
   },
   importPlayerGame: (game, options) => {
     const headers: GameHeaders = {

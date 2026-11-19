@@ -95,7 +95,7 @@ export function mergeSessionBoards(
       merged.push(localBoard);
       seenLocalIds.add(localBoard.id);
     } else {
-      merged.push(session);
+      merged.push(localBoard?.liveSource ? { ...session, liveSource: localBoard.liveSource } : session);
       if (localBoard) {
         seenLocalIds.add(localBoard.id);
       }

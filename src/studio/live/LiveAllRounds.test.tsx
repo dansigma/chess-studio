@@ -270,7 +270,9 @@ test("the toggle resets when the round changes, and leaving Live clears the cach
   fireEvent.click(toggle());
   await waitFor(() => assert.ok(rowOf("gameB2xx")));
   assert.equal(tourPgnCalls.length, 1, "still cached for the session");
-  cleanup(); // unmounting LiveView leaves Live
+  cleanup();
+  // SIG-1406: leaving /studio calls leaveLive(), which clears the tour PGN cache.
+  useLiveStore.getState().leaveLive();
   tourPgnCalls.length = 0;
   window.history.replaceState(null, "", "/studio?view=live&live=RoundBBB");
   await renderRound();

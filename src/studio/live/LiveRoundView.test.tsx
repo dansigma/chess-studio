@@ -81,7 +81,10 @@ function snapshot(games: LiveGame[], group = true): BroadcastRoundSnapshot {
 }
 
 before(() => setupDom());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  useLiveStore.getState().leaveLive();
+});
 after(async () => {
   await teardownDom();
 });
@@ -131,6 +134,10 @@ test("only the side to move ticks, on one shared ticker; leaving Live clears the
   assert.equal(tickerSubscribers(), 4);
   view.unmount();
   assert.equal(tickerSubscribers(), 0);
+  // SIG-1406: unmounting LiveView preserves the store across workspaceView switches;
+  // leaveLive() (called when leaving /studio) clears it.
+  assert.equal(useLiveStore.getState().tableRoundId, "R1");
+  useLiveStore.getState().leaveLive();
   const s = useLiveStore.getState();
   assert.equal(s.tableRoundId, null);
   assert.deepEqual(s.gamesByRound, {});

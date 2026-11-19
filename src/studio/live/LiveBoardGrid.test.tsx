@@ -53,7 +53,10 @@ function snapshot(games: LiveGame[], roundId = "R1"): BroadcastRoundSnapshot {
 }
 
 before(() => setupDom());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  useLiveStore.getState().leaveLive();
+});
 after(async () => {
   await teardownDom();
 });

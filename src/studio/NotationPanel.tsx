@@ -15,6 +15,7 @@ import { NotationContextMenu, notationMenuEnablement, type NotationMenuState } f
 import { pgnResultCaption } from "./ResultMark";
 import { Line, TableMainline } from "./NotationMoves";
 import { useNotationCommentDraft } from "./use-notation-comment-draft";
+import { NotationLiveSyncBar } from "./live/NotationLiveSyncBar";
 
 export function NotationPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
@@ -179,6 +180,9 @@ export function NotationPanel() {
           />
         </>
       )}
+      {board.liveSource ? (
+        <NotationLiveSyncBar boardId={board.id} liveSource={board.liveSource} locale={locale} />
+      ) : null}
 
       <div
         className={`min-h-0 flex-1 overflow-auto ${compact ? "p-2 text-dense leading-5" : "p-2.5 text-[14px] leading-6"}`}
