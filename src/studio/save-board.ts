@@ -2,6 +2,8 @@ import { persistBoard, useStudioStore } from "@/src/store/studio-store";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { downloadTextFile } from "@/src/lib/download-file";
 import { pgnFilename } from "@/src/lib/pgn-filename";
+import { saveBoardNow } from "@/src/lib/studio-autosave";
+import { exportPgn } from "@/src/chess/pgn";
 import { boardTitle } from "./dock-api";
 
 type SaveFilePickerHandle = {
@@ -29,28 +31,33 @@ export function suggestedActivePgnFilename(): string {
 }
 
 /**
- * Saves the active board to the account; when signed out, downloads its PGN
- * with the sanitised suggested name and shows `chrome.status.savedPgnFile`.
+ * Saves the active board to the account through the autosave's per-board
+ * path (`saveBoardNow`): it waits for a save already running on the board,
+ * and an edit made during the round-trip is saved too instead of being
+ * marked saved unsent. When signed out, downloads the board's PGN with the
+ * sanitised suggested name and shows `chrome.status.savedPgnFile`.
  */
 export async function saveActiveBoard(): Promise<void> {
   const state = useStudioStore.getState();
   const locale = state.settings.locale;
-  try {
-    const active = state.active();
-    const remoteId = await persistBoard(active);
-    if (!remoteId) {
-      const filename = pgnFilename(boardTitle(locale, active.title), "board");
-      downloadTextFile(filename, state.exportActivePgn());
-      state.setStatus(tStudioChrome(locale, "chrome.status.savedPgnFile"));
-      return;
-    }
-    useStudioStore.getState().markSaved(active.id, remoteId);
-    useStudioStore.getState().setStatus(tStudioChrome(locale, "chrome.status.boardSaved"));
-  } catch (error) {
-    useStudioStore
-      .getState()
-      .setStatus(error instanceof Error ? error.message : tStudioChrome(locale, "chrome.status.saveFailed"));
+  const active = state.active();
+  const outcome = await saveBoardNow(active.id, {
+    getBoards: () => useStudioStore.getState().boards,
+    persist: (board) => persistBoard(board),
+    markSaved: (id, remoteId) => useStudioStore.getState().markSaved(id, remoteId),
+  });
+  const setStatus = useStudioStore.getState().setStatus;
+  if (outcome === "declined") {
+    const board = useStudioStore.getState().boards.find((item) => item.id === active.id) ?? active;
+    downloadTextFile(pgnFilename(boardTitle(locale, board.title), "board"), exportPgn(board.tree, board.headers));
+    setStatus(tStudioChrome(locale, "chrome.status.savedPgnFile"));
+  } else if (outcome === "saved") {
+    setStatus(tStudioChrome(locale, "chrome.status.boardSaved"));
+  } else if (outcome === "failed") {
+    setStatus(tStudioChrome(locale, "chrome.status.saveFailed"));
   }
+  // "deferred": edits kept landing mid-save; the autosave finishes the job.
+  // "closed": the board was closed meanwhile; nothing to report.
 }
 
 /**

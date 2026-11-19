@@ -23,7 +23,8 @@ type RetryState = {
   burstNotified: boolean;
 };
 
-const inflight = new Set<string>();
+/** One running save per board id, shared by the autosave pass and manual saves. */
+const inflight = new Map<string, Promise<BoardSaveOutcome>>();
 const retries = new Map<string, RetryState>();
 
 function retryDelayMs(failures: number): number {
@@ -80,13 +81,72 @@ function noteSuccess(id: string): void {
 }
 
 /**
- * Persist every dirty board once. For each board: capture the current object,
- * await persist, then re-read the board by id — mark saved only when the
- * live object is still the same reference; otherwise loop and persist the
- * new object, with a bounded number of catch-up iterations per board per
- * pass (a later pass picks up anything beyond the bound). At most one
- * in-flight save per board id; boards already in flight are skipped (a
- * later pass picks them up).
+ * - `saved`: the live board was persisted and marked saved.
+ * - `declined`: persist returned no id (signed out); the board stays dirty.
+ * - `failed`: persist threw; the failure feeds the retry backoff.
+ * - `deferred`: newer edits kept landing mid-save; a later pass finishes.
+ * - `closed`: the board no longer exists.
+ */
+export type BoardSaveOutcome = "saved" | "declined" | "failed" | "deferred" | "closed";
+
+/**
+ * Persist one board until the saved snapshot is still the live object: after
+ * each persist, re-read the board by id and mark it saved only when it is the
+ * same reference; otherwise persist the newer object (SIG-1186), up to
+ * AUTOSAVE_MAX_CATCHUP_PERSISTS times. `manual` persists at least once even
+ * when the board is clean or a preview, as an explicit Save does.
+ */
+async function persistUntilCurrent(
+  id: string,
+  deps: SavePassDeps,
+  now: number,
+  manual: boolean,
+): Promise<BoardSaveOutcome> {
+  let current = deps.getBoards().find((board) => board.id === id);
+  let force = manual;
+  let catchup = 0;
+  while (current && (force || (current.dirty && (manual || !current.preview)))) {
+    force = false;
+    const snapshot = current;
+    let remoteId: string | null;
+    try {
+      remoteId = await deps.persist(snapshot);
+    } catch {
+      noteFailure(id, now, deps.onError);
+      return "failed";
+    }
+    if (!remoteId) {
+      // Persist declined (e.g. signed out mid-flight) — leave dirty and
+      // stop; the shell effect re-runs when the dependency changes.
+      return "declined";
+    }
+    const live = deps.getBoards().find((board) => board.id === id);
+    if (!live) {
+      // Board closed while saving — drop retry state, nothing to mark.
+      retries.delete(id);
+      return "closed";
+    }
+    if (live !== snapshot) {
+      // SIG-1186: a newer edit landed mid-save — loop and persist the
+      // new object instead of marking the stale snapshot saved.
+      catchup += 1;
+      if (catchup >= AUTOSAVE_MAX_CATCHUP_PERSISTS) {
+        return "deferred";
+      }
+      current = live;
+      continue;
+    }
+    deps.markSaved(snapshot.id, remoteId);
+    noteSuccess(id);
+    return "saved";
+  }
+  return current ? "saved" : "closed";
+}
+
+/**
+ * Persist every dirty board once. At most one in-flight save per board id;
+ * boards already in flight are skipped (a later pass picks them up), and
+ * boards in retry backoff wait for their next retry time.
  */
 export async function runDirtySavePass(deps: SavePassDeps, now = Date.now()): Promise<void> {
   const boards = deps
@@ -101,47 +161,35 @@ export async function runDirtySavePass(deps: SavePassDeps, now = Date.now()): Pr
     if (retry && retry.nextRetryAt > now) {
       continue;
     }
-    inflight.add(seed.id);
+    const running = persistUntilCurrent(seed.id, deps, now, false);
+    inflight.set(seed.id, running);
     try {
-      let current = deps.getBoards().find((board) => board.id === seed.id);
-      let catchup = 0;
-      while (current && current.dirty && !current.preview) {
-        const snapshot = current;
-        let remoteId: string | null;
-        try {
-          remoteId = await deps.persist(snapshot);
-        } catch {
-          noteFailure(seed.id, now, deps.onError);
-          break;
-        }
-        if (!remoteId) {
-          // Persist declined (e.g. signed out mid-flight) — leave dirty and
-          // stop; the shell effect re-runs when the dependency changes.
-          break;
-        }
-        const live = deps.getBoards().find((board) => board.id === seed.id);
-        if (!live) {
-          // Board closed while saving — drop retry state, nothing to mark.
-          retries.delete(seed.id);
-          break;
-        }
-        if (live !== snapshot) {
-          // SIG-1186: a newer edit landed mid-save — loop and persist the
-          // new object instead of marking the stale snapshot saved.
-          catchup += 1;
-          if (catchup >= AUTOSAVE_MAX_CATCHUP_PERSISTS) {
-            break;
-          }
-          current = live;
-          continue;
-        }
-        deps.markSaved(snapshot.id, remoteId);
-        noteSuccess(seed.id);
-        break;
-      }
+      await running;
     } finally {
       inflight.delete(seed.id);
     }
   }
   pruneAutosaveRetries(deps.getBoards());
+}
+
+/**
+ * Explicit Save of one board (menu Save, Ctrl+S). Waits for a save already
+ * running on that board (autosave or another Save) so the two never insert
+ * the same new board twice, then persists the live board with the same
+ * stale-snapshot check as the autosave pass. Ignores the retry backoff: the
+ * user asked to save now. A failure still feeds the backoff.
+ */
+export async function saveBoardNow(id: string, deps: SavePassDeps, now = Date.now()): Promise<BoardSaveOutcome> {
+  for (let running = inflight.get(id); running; running = inflight.get(id)) {
+    await running.catch(() => undefined);
+  }
+  const mine = persistUntilCurrent(id, deps, now, true);
+  inflight.set(id, mine);
+  try {
+    return await mine;
+  } finally {
+    if (inflight.get(id) === mine) {
+      inflight.delete(id);
+    }
+  }
 }

@@ -7,6 +7,7 @@ import {
   pruneAutosaveRetries,
   resetAutosaveStateForTests,
   runDirtySavePass,
+  saveBoardNow,
   type SavePassDeps,
 } from "./studio-autosave.ts";
 import { emptyBoard } from "../store/slices/board-helpers.ts";
@@ -206,5 +207,71 @@ describe("SIG-1186 runDirtySavePass", () => {
       ["unmarked", "marked"],
       "unmarks sort first so the unique-slot handoff never overlaps",
     );
+  });
+});
+
+describe("SIG-1414 saveBoardNow (menu Save and Ctrl+S)", () => {
+  it("persists the newer edit made during the round-trip instead of marking the stale snapshot saved", async () => {
+    const harness = makeHarness([seedBoard("a", { dirty: true })]);
+    const sent: string[] = [];
+    let edited = false;
+    harness.deps.persist = async (board) => {
+      sent.push(board.title);
+      if (!edited) {
+        edited = true;
+        harness.editBoard("a", (item) => ({ ...item, title: "after edit", dirty: true }));
+      }
+      return "remote-a";
+    };
+    assert.equal(await saveBoardNow("a", harness.deps), "saved");
+    assert.deepEqual(sent, ["Board a", "after edit"]);
+    const board = harness.getBoards()[0]!;
+    assert.equal(board.title, "after edit");
+    assert.equal(board.dirty, false);
+  });
+
+  it("waits for an autosave already saving a new board, so the board is inserted once", async () => {
+    const harness = makeHarness([seedBoard("a", { dirty: true, remoteId: null })]);
+    let inserts = 0;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    harness.deps.persist = async (board) => {
+      if (!board.remoteId) {
+        inserts += 1;
+        await gate;
+        return "remote-a";
+      }
+      return board.remoteId;
+    };
+    const autosave = runDirtySavePass(harness.deps);
+    const manual = saveBoardNow("a", harness.deps);
+    release();
+    await autosave;
+    assert.equal(await manual, "saved");
+    assert.equal(inserts, 1, "the manual save updates the row the autosave inserted");
+    assert.equal(harness.getBoards()[0]!.remoteId, "remote-a");
+  });
+
+  it("saves a clean board once and reports a failure into the retry backoff", async () => {
+    const harness = makeHarness([seedBoard("a", { dirty: false })]);
+    assert.equal(await saveBoardNow("a", harness.deps), "saved");
+    assert.deepEqual(harness.persisted, ["a"]);
+
+    harness.deps.persist = async () => {
+      throw new Error("network");
+    };
+    harness.editBoard("a", (item) => ({ ...item, dirty: true }));
+    assert.equal(await saveBoardNow("a", harness.deps), "failed");
+    assert.notEqual(nextAutosaveRetryAt(), null);
+    assert.equal(harness.getBoards()[0]!.dirty, true);
+  });
+
+  it("reports declined when persist returns no id (signed out)", async () => {
+    const harness = makeHarness([seedBoard("a", { dirty: true })]);
+    harness.deps.persist = async () => null;
+    assert.equal(await saveBoardNow("a", harness.deps), "declined");
+    assert.equal(harness.getBoards()[0]!.dirty, true);
   });
 });
