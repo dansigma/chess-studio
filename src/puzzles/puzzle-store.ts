@@ -153,7 +153,11 @@ function compileRows(
   return compiled;
 }
 
-/** Single-row lookup for `?id=`; `null` means "try the catalog". */
+/**
+ * Single-row lookup for `?id=`.
+ * Returns `null` when the table is unconfigured or the row does not exist;
+ * rethrows Supabase read errors so the route can answer 503 instead of a false 404.
+ */
 export async function fetchPuzzleRowById(id: string): Promise<Puzzle | null> {
   const supabase = createPublicServerSupabase();
   if (!supabase) {
@@ -164,7 +168,10 @@ export async function fetchPuzzleRowById(id: string): Promise<Puzzle | null> {
     .select("id,fen,moves,rating,themes,popularity,nb_plays")
     .eq("id", id)
     .maybeSingle();
-  if (error || !data) {
+  if (error) {
+    throw error;
+  }
+  if (!data) {
     return null;
   }
   const themes = Array.isArray(data.themes) ? data.themes.filter(isPuzzleTheme) : [];

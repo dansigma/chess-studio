@@ -85,18 +85,54 @@ function isCompiledPuzzle(value: unknown): value is CompiledPuzzle {
   );
 }
 
+export const PUZZLE_LOOKUP_TIMEOUT_MS = 10_000;
+
+export interface LoadPuzzleByIdOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
 /**
- * Fetch a single compiled puzzle by id from `/api/puzzles?id=...`, falling back
- * to the built-in starter catalog when offline or when the API is unavailable.
+ * Fetch a single compiled puzzle by id from `/api/puzzles?id=...`.
+ * Returns `null` only on an authoritative not-found/invalid-id response (404/400)
+ * when the id is not in the built-in starter catalog. Transient network, timeout,
+ * rate-limit, 5xx, and malformed-payload errors fall back to the starter catalog
+ * if present and otherwise rethrow so callers can offer a retry instead of
+ * reporting the puzzle as permanently removed.
  */
-export async function loadPuzzleById(id: string): Promise<CompiledPuzzle | null> {
+export async function loadPuzzleById(
+  id: string,
+  options?: LoadPuzzleByIdOptions,
+): Promise<CompiledPuzzle | null> {
   if (!id) {
     return null;
   }
+  const externalSignal = options?.signal;
+  if (externalSignal?.aborted) {
+    throw externalSignal.reason ?? new DOMException("Aborted", "AbortError");
+  }
   const fallbackMatch = () => getFallbackCatalog().find((puzzle) => puzzle.id === id) ?? null;
+  const controller = new AbortController();
+  let callerAborted = false;
+  let timedOut = false;
+  const onExternalAbort = () => {
+    callerAborted = true;
+    controller.abort(externalSignal?.reason);
+  };
+  externalSignal?.addEventListener("abort", onExternalAbort, { once: true });
+  const timeoutMs = options?.timeoutMs ?? PUZZLE_LOOKUP_TIMEOUT_MS;
+  const timer =
+    timeoutMs > 0 && Number.isFinite(timeoutMs)
+      ? setTimeout(() => {
+          timedOut = true;
+          controller.abort(new Error("puzzles API timeout"));
+        }, timeoutMs)
+      : null;
+
   try {
     const response = await fetch(`/api/puzzles?id=${encodeURIComponent(id)}`, {
       cache: "force-cache",
+      signal: controller.signal,
     });
     if (response.status === 404 || response.status === 400) {
       return fallbackMatch();
@@ -109,8 +145,23 @@ export async function loadPuzzleById(id: string): Promise<CompiledPuzzle | null>
       throw new Error("puzzles API shape");
     }
     return payload;
-  } catch {
-    return fallbackMatch();
+  } catch (error) {
+    if (callerAborted || externalSignal?.aborted) {
+      throw error;
+    }
+    const fallback = fallbackMatch();
+    if (fallback) {
+      return fallback;
+    }
+    if (timedOut) {
+      throw new Error("puzzles API timeout");
+    }
+    throw error;
+  } finally {
+    if (timer !== null) {
+      clearTimeout(timer);
+    }
+    externalSignal?.removeEventListener("abort", onExternalAbort);
   }
 }
 

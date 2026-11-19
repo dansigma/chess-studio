@@ -78,7 +78,14 @@ export async function GET(request: NextRequest) {
     if (!/^[a-zA-Z0-9-]{1,80}$/.test(id)) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
     }
-    const row = await fetchPuzzleRowById(id);
+    let row: Awaited<ReturnType<typeof fetchPuzzleRowById>> = null;
+    let storeError = false;
+    try {
+      row = await fetchPuzzleRowById(id);
+    } catch (error) {
+      storeError = true;
+      console.error(`[puzzles] failed to read puzzle ${id}:`, error);
+    }
     if (row) {
       try {
         return NextResponse.json(compilePuzzle(row), { headers: CACHE_HEADERS });
@@ -87,10 +94,13 @@ export async function GET(request: NextRequest) {
       }
     }
     const puzzle = PUZZLES.find((item) => item.id === id);
-    if (!puzzle) {
-      return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
+    if (puzzle) {
+      return NextResponse.json(puzzle, { headers: CACHE_HEADERS });
     }
-    return NextResponse.json(puzzle, { headers: CACHE_HEADERS });
+    if (storeError) {
+      return NextResponse.json({ error: "Failed to load puzzle" }, { status: 503 });
+    }
+    return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
   }
 
   // Filtered / paginated query
