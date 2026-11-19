@@ -41,7 +41,9 @@ test("debounces eligible positions, cancels previous lookups and hides stale res
   await act(async () => calls[0].resolve(response()));
   assert.equal(result.current, null);
   await act(async () => calls[1].resolve(response()));
-  assert.equal(result.current?.category, "win");
+  assert.deepEqual(result.current, {
+    available: true, category: "win", dtz: null, dtm: null, moves: [], bestMove: null,
+  });
 
   rerender({ fen: fens[3] });
   t.mock.timers.tick(250);
