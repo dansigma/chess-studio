@@ -78,6 +78,8 @@ function pointerMenuAnchor(event: MouseEvent<Element>): MenuAnchor {
 
 export type LibrarySourceRailProps = {
   sourceErrors: Partial<Record<LibrarySourceId, string>>;
+  /** When true, renders full-width inside a mobile BottomSheet without the desktop collapse chrome. */
+  inSheet?: boolean;
 };
 
 /** My Games total, fetched once per mount; null while loading, on error or signed out. */
@@ -231,7 +233,7 @@ export function FileNameInput({
 }
 
 /** SIG-1337: collapsible rail listing every source plus the PGN folder tree. */
-export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
+export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySourceRailProps) {
   const locale = useStudioStore((s) => s.settings.locale);
   const databases = useStudioStore((s) => s.files.databases);
   const folders = useStudioStore((s) => s.files.folders);
@@ -915,7 +917,7 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     </>
   );
 
-  if (collapsed) {
+  if (collapsed && !inSheet) {
     return (
       <Panel
         as="aside"
@@ -976,26 +978,8 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
     );
   }
 
-  return (
-    <Panel
-      as="aside"
-      aria-label={railLabel}
-      data-testid="library-source-rail"
-      className="flex w-56 shrink-0 flex-col overflow-hidden"
-    >
-      <div className="flex h-8 shrink-0 items-center gap-1 border-b border-studio-border px-2">
-        <span className="min-w-0 flex-1 truncate text-caption font-semibold uppercase tracking-wide text-studio-faint">
-          {t("library.sources.rail.title")}
-        </span>
-        <IconButton
-          label={t("library.sources.rail.collapse")}
-          size="sm"
-          aria-expanded
-          onClick={toggleCollapsed}
-        >
-          <PanelLeftClose size={14} />
-        </IconButton>
-      </div>
+  const railBody = (
+    <>
       <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1 py-1">
         <div className="px-0.5 pb-1">
           <Chip
@@ -1043,6 +1027,43 @@ export function LibrarySourceRail({ sourceErrors }: LibrarySourceRailProps) {
         {importControl}
       </div>
       {dialogs}
+    </>
+  );
+
+  if (inSheet) {
+    return (
+      <div
+        role="region"
+        aria-label={railLabel}
+        data-testid="library-source-rail"
+        className="flex min-h-0 w-full flex-col overflow-hidden"
+      >
+        {railBody}
+      </div>
+    );
+  }
+
+  return (
+    <Panel
+      as="aside"
+      aria-label={railLabel}
+      data-testid="library-source-rail"
+      className="flex w-56 shrink-0 flex-col overflow-hidden"
+    >
+      <div className="flex h-8 shrink-0 items-center gap-1 border-b border-studio-border px-2">
+        <span className="min-w-0 flex-1 truncate text-caption font-semibold uppercase tracking-wide text-studio-faint">
+          {t("library.sources.rail.title")}
+        </span>
+        <IconButton
+          label={t("library.sources.rail.collapse")}
+          size="sm"
+          aria-expanded
+          onClick={toggleCollapsed}
+        >
+          <PanelLeftClose size={14} />
+        </IconButton>
+      </div>
+      {railBody}
     </Panel>
   );
 }
@@ -1059,7 +1080,7 @@ function FileMenuPosition({
 }) {
   const style = useMenuPosition(anchor, menuRef);
   return (
-    <div ref={menuRef} className="fixed z-[1000]" style={style}>
+    <div ref={menuRef} className="fixed z-[1200]" style={style}>
       {children}
     </div>
   );
