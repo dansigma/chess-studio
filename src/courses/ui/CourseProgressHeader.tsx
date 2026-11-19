@@ -7,9 +7,11 @@ import { formatInteger } from "@/src/i18n/format";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { ProgressBar } from "@/src/site/ui/ProgressBar";
 import { courseProgressSummary } from "../progress-summary";
-import { reviewHref } from "../review-queue";
+import { reviewDueLabel, reviewHref } from "../review-queue";
 import type { Course, VariationProgress } from "../types";
 
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
 const BUTTON = "inline-flex h-8 items-center justify-center rounded-lg px-3.5 text-body font-medium";
 
 /**
@@ -61,6 +63,15 @@ export function CourseProgressHeader({
         </span>
       </div>
       <ProgressBar value={summary.percent} label={tCourse(locale, "course.course.progressAria")} />
+      {summary.in4h > 0 || summary.in1d > 0 || summary.in7d > 0 ? (
+        <p className="mt-2 text-caption text-studio-muted">
+          {[
+            `${formatInteger(locale, summary.in4h)} ${reviewDueLabel(locale, new Date(now.getTime() + 4 * HOUR_MS).toISOString(), now)}`,
+            `${formatInteger(locale, summary.in1d)} ${reviewDueLabel(locale, new Date(now.getTime() + DAY_MS).toISOString(), now)}`,
+            `${formatInteger(locale, summary.in7d)} ${tCourse(locale, "course.progress.header.forecastWeek")}`,
+          ].join(" · ")}
+        </p>
+      ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Link
           href={summary.complete && reviewTarget ? reviewTarget : continueHref}

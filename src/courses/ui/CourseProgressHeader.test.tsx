@@ -94,3 +94,31 @@ test("complete course: Revisar curso and Curso concluído", () => {
   assert.equal(link?.getAttribute("href"), "/courses/caro/revisar");
   assert.ok(!(c.textContent ?? "").includes("Continuar"));
 });
+
+const HOUR_MS = 3_600_000;
+const DAY_MS = 24 * HOUR_MS;
+const offsetIso = (ms: number) => new Date(NOW.getTime() + ms).toISOString();
+
+test("forecast line shows all three buckets when any is non-zero", () => {
+  const text =
+    view({
+      a: learned(PAST),
+      b: learned(offsetIso(4 * HOUR_MS)),
+      c: learned(offsetIso(DAY_MS)),
+      d: learned(offsetIso(3 * DAY_MS)),
+    }).textContent ?? "";
+  assert.ok(text.includes("Revisar (1)"), text);
+  assert.ok(text.includes("1 em 4 horas · 1 em 1 dia · 1 esta semana"), text);
+});
+
+test("forecast line is hidden when all buckets are zero", () => {
+  const noneText = view({ a: learned(FUTURE) }).textContent ?? "";
+  assert.ok(noneText.includes("Nenhuma revisão pendente"));
+  assert.ok(!noneText.includes("em 4 horas"));
+  assert.ok(!noneText.includes("esta semana"));
+
+  const dueOnlyText = view({ a: learned(PAST), b: learned(FUTURE) }).textContent ?? "";
+  assert.ok(dueOnlyText.includes("Revisar (1)"));
+  assert.ok(!dueOnlyText.includes("em 4 horas"));
+  assert.ok(!dueOnlyText.includes("esta semana"));
+});
