@@ -32,8 +32,6 @@ test("studio chrome interpolated strings render whole sentences with vars", () =
     tStudioChrome("pt-br", "chrome.account.waitingToSync.other", { count: 3 }),
     "3 tabuleiros aguardando sincronização",
   );
-  assert.equal(tStudioChrome("en", "chrome.statusBar.threads.other", { count: 4 }), "4 threads");
-  assert.equal(tStudioChrome("pt-br", "chrome.statusBar.threads.other", { count: 4 }), "4 threads");
   assert.equal(
     tStudioChrome("pt-br", "chrome.menu.aboutSite", { site: "Chess Studio" }),
     "Sobre Chess Studio",

@@ -1,10 +1,19 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
-import { canMakeMainline, canPromote, getNodeAt, plyColor, type GameTree, type Path } from "@/src/chess/tree";
+import { formatSan } from "@/src/chess/move-notation";
+import {
+  canMakeMainline,
+  canPromote,
+  continuationsAt,
+  getNodeAt,
+  plyColor,
+  type GameTree,
+  type Path,
+} from "@/src/chess/tree";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { NotationContextMenu, notationMenuEnablement, type NotationMenuState } from "./NotationContextMenu";
 import { createLongPress, touchPoint } from "./use-gestures";
@@ -26,21 +35,24 @@ export function mobileStripModel(tree: GameTree, path: Path): MobileStripModel {
   const moves: MobileStripMove[] = [];
   let nodes = tree.children;
   let cursor: Path = [];
-  // Walk the mainline (first-child spine), recording each ply's path.
+  let currentIndex = -1;
+  // Walk from root along the active path so variations surface their moves.
+  for (const index of path) {
+    const node = nodes[index];
+    if (!node) {
+      break;
+    }
+    cursor = [...cursor, index];
+    moves.push({ san: node.san, path: cursor });
+    currentIndex = moves.length - 1;
+    nodes = node.children;
+  }
+  // Continue along the current node's mainline (first-child spine).
   while (nodes[0]) {
     const node = nodes[0];
     cursor = [...cursor, 0];
     moves.push({ san: node.san, path: cursor });
     nodes = node.children;
-  }
-  // The live path may diverge into a variation — clamp to the longest
-  // mainline prefix so the highlight never points past the strip.
-  let currentIndex = -1;
-  for (let i = 0; i < moves.length; i++) {
-    if (i >= path.length || path[i] !== 0) {
-      break;
-    }
-    currentIndex = i;
   }
   return { moves, currentIndex };
 }
@@ -53,11 +65,13 @@ function MobileStripMoveButton({
   san,
   path,
   active,
+  buttonRef,
   onOpenMenu,
 }: {
   san: string;
   path: Path;
   active: boolean;
+  buttonRef?: Ref<HTMLButtonElement>;
   onOpenMenu: (path: Path, point: { x: number; y: number }) => void;
 }) {
   const goPath = useStudioStore((state) => state.goPath);
@@ -65,6 +79,7 @@ function MobileStripMoveButton({
 
   return (
     <button
+      ref={buttonRef}
       type="button"
       data-mobile-move={path.length - 1}
       aria-current={active ? "step" : undefined}
@@ -109,6 +124,7 @@ function MobileStripMoveButton({
 export function MobileMoveStrip() {
   const board = useActiveBoard();
   const locale = useStudioStore((state) => state.settings.locale);
+  const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const back = useStudioStore((state) => state.back);
   const forward = useStudioStore((state) => state.forward);
   const goPath = useStudioStore((state) => state.goPath);
@@ -122,7 +138,17 @@ export function MobileMoveStrip() {
   const clearMoveNags = useStudioStore((state) => state.clearMoveNags);
   const insertNullMove = useStudioStore((state) => state.insertNullMove);
   const [contextMenu, setContextMenu] = useState<NotationMenuState | null>(null);
+  const activeButtonRef = useRef<HTMLButtonElement | null>(null);
   const { moves, currentIndex } = mobileStripModel(board.tree, board.path);
+  const canForward = continuationsAt(board.tree, board.path).length > 0;
+  const activePathKey = currentIndex >= 0 ? (moves[currentIndex]?.path.join("-") ?? "") : "";
+
+  useEffect(() => {
+    const el = activeButtonRef.current;
+    if (el && typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+    }
+  }, [activePathKey]);
 
   const menuNode = contextMenu ? getNodeAt(board.tree, contextMenu.path) : undefined;
   const menuMoveColor: "w" | "b" = contextMenu
@@ -157,12 +183,14 @@ export function MobileMoveStrip() {
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5">
         {moves.map((move, index) => {
           const active = index === currentIndex;
+          const color = plyColor(board.tree.startFen, move.path.length);
           return (
             <MobileStripMoveButton
               key={move.path.join("-")}
-              san={move.san}
+              san={formatSan(move.san, moveNotation, color)}
               path={move.path}
               active={active}
+              buttonRef={active ? activeButtonRef : undefined}
               onOpenMenu={(path, point) => {
                 if (path.length === 0) {
                   return;
@@ -178,7 +206,7 @@ export function MobileMoveStrip() {
         type="button"
         aria-label={tStudioChrome(locale, "chrome.moves.next")}
         onClick={forward}
-        disabled={currentIndex >= moves.length - 1}
+        disabled={!canForward}
         className="shrink-0 rounded-md p-1.5 text-studio-fg hover:bg-studio-hover-strong disabled:opacity-40"
       >
         <ChevronRight size={18} />

@@ -34,10 +34,21 @@ describe("mobile strip model (SIG-1043)", () => {
     assert.equal(mobileStripModel(tree, goEnd(tree, [])).currentIndex, 2);
   });
 
-  test("clamps a variation path to the shared mainline prefix", () => {
-    const { tree } = importPgn(`${SHORT_GAME}\n\n1. e4 c5 2. Nf3`);
-    // [0, 1, ...] diverges at ply 2 — highlight stays on the shared prefix.
-    assert.equal(mobileStripModel(tree, [0, 1, 0]).currentIndex, 0);
+  test("surfaces variation moves and tracks the active index inside a variation", () => {
+    const { tree } = importPgn(`1. e4 e5 (1... c5 2. Nf3) 2. Nf3 *`);
+    const atVariation = mobileStripModel(tree, [0, 1]);
+    assert.deepEqual(
+      atVariation.moves.map((move) => move.san),
+      ["e4", "c5", "Nf3"],
+    );
+    assert.deepEqual(
+      atVariation.moves.map((move) => move.path),
+      [[0], [0, 1], [0, 1, 0]],
+    );
+    assert.equal(atVariation.currentIndex, 1);
+
+    const atVariationEnd = mobileStripModel(tree, [0, 1, 0]);
+    assert.equal(atVariationEnd.currentIndex, 2);
   });
 
   test("is empty for the start position with no moves", () => {
