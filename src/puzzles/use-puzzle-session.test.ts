@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PUZZLE_CATALOG } from "./catalog.ts";
-import { compilePuzzle, dailyPuzzle, type CompiledPuzzle } from "./engine.ts";
-import { RUSH_STRIKES, capExcludeIds, clock, elapsedMs, loadWindowedCatalog, nextSessionScore, pickPuzzle, ratingWindowRequests, rushAfterMiss } from "./use-puzzle-session";
+import { compilePuzzle, dailyPuzzle, playUci, type CompiledPuzzle } from "./engine.ts";
+import {
+  RUSH_STRIKES,
+  buildScrubFrames,
+  capExcludeIds,
+  clock,
+  elapsedMs,
+  loadWindowedCatalog,
+  nextSessionScore,
+  nextViewPly,
+  pickPuzzle,
+  ratingWindowRequests,
+  rushAfterMiss,
+} from "./use-puzzle-session";
 
 const template = compilePuzzle(PUZZLE_CATALOG[0]);
 
@@ -181,4 +193,66 @@ test("pickPuzzle with a difficulty targets the band midpoint and ignores out-of-
     assert.equal(pickPuzzle(puzzles, "rated", null, { rating: 900 }, 0, new Set(["mid"]), "advanced")?.id, "edge");
     assert.equal(pickPuzzle(puzzles, "rated", null, { rating: 900 }, 0, new Set(["mid", "edge"]), "advanced"), null);
   });
+});
+
+test("buildScrubFrames and nextViewPly step backward and forward on solved multi-move puzzles", () => {
+  const multi = PUZZLE_CATALOG.map(compilePuzzle).find((p) => p.uci.length >= 3);
+  assert.ok(multi);
+  const m0 = playUci(multi.fen, multi.uci[0]);
+  const m1 = playUci(m0.fen, multi.uci[1]);
+  const m2 = playUci(m1.fen, multi.uci[2]);
+  const played = [
+    { fen: m0.fen, last: { from: m0.from, to: m0.to } },
+    { fen: m1.fen, last: { from: m1.from, to: m1.to } },
+    { fen: m2.fen, last: { from: m2.from, to: m2.to } },
+  ];
+
+  const frames = buildScrubFrames(multi, played, "solved", 3);
+  assert.equal(frames.length, 4);
+  assert.deepEqual(frames[0], { fen: multi.fen, last: null });
+  assert.equal(frames[3]?.fen, m2.fen);
+
+  assert.equal(nextViewPly({ currentViewPly: null, status: "playing", ply: 1, frameCount: 4, delta: -1 }), null);
+  const back1 = nextViewPly({ currentViewPly: null, status: "solved", ply: 3, frameCount: 4, delta: -1 });
+  assert.equal(back1, 2);
+  const back2 = nextViewPly({ currentViewPly: back1, status: "solved", ply: 3, frameCount: 4, delta: -1 });
+  assert.equal(back2, 1);
+  const back3 = nextViewPly({ currentViewPly: back2, status: "solved", ply: 3, frameCount: 4, delta: -1 });
+  assert.equal(back3, 0);
+  const clampedStart = nextViewPly({ currentViewPly: back3, status: "solved", ply: 3, frameCount: 4, delta: -1 });
+  assert.equal(clampedStart, 0);
+
+  const forward1 = nextViewPly({ currentViewPly: clampedStart, status: "solved", ply: 3, frameCount: 4, delta: 1 });
+  assert.equal(forward1, 1);
+  const clampedEnd = nextViewPly({ currentViewPly: 3, status: "solved", ply: 3, frameCount: 4, delta: 1 });
+  assert.equal(clampedEnd, 3);
+});
+
+test("buildScrubFrames reveals remaining solution moves on failure and anchors at the miss ply", () => {
+  const multi = PUZZLE_CATALOG.map(compilePuzzle).find((p) => p.uci.length === 3);
+  assert.ok(multi);
+  const m0 = playUci(multi.fen, multi.uci[0]);
+  const m1 = playUci(m0.fen, multi.uci[1]);
+  const played = [
+    { fen: m0.fen, last: { from: m0.from, to: m0.to } },
+    { fen: m1.fen, last: { from: m1.from, to: m1.to } },
+  ];
+
+  // Failed on ply 2: frames should include start, m0, m1, and revealed m2.
+  const frames = buildScrubFrames(multi, played, "failed", 2);
+  assert.equal(frames.length, 4);
+  assert.equal(frames[3]?.fen, multi.endFen);
+
+  const stepIntoSolution = nextViewPly({ currentViewPly: null, status: "failed", ply: 2, frameCount: 4, delta: 1 });
+  assert.equal(stepIntoSolution, 3);
+  const stepBackToMiss = nextViewPly({
+    currentViewPly: stepIntoSolution,
+    status: "failed",
+    ply: 2,
+    frameCount: 4,
+    delta: -1,
+  });
+  assert.equal(stepBackToMiss, 2);
+  const stepEarlier = nextViewPly({ currentViewPly: null, status: "failed", ply: 2, frameCount: 4, delta: -1 });
+  assert.equal(stepEarlier, 1);
 });

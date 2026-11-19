@@ -293,3 +293,28 @@ test("boardHighlights arrows nothing while the line has no expected move", () =>
   });
   assert.deepEqual(highlighted.arrows, []);
 });
+
+test("boardHighlights respects viewPly when scrubbing after a failure", () => {
+  const base = {
+    last: { from: "e2", to: "e4" },
+    status: "failed" as Status,
+    hintLevel: 0,
+    userTurn: false,
+    expected: undefined,
+    selected: null,
+    miss: MISS,
+    dests: [],
+    ply: 2,
+  };
+
+  // Before reveal while scrubbing, last move uses the normal green highlight (not miss red).
+  const scrubbedBeforeReveal = boardHighlights({ ...base, reveal: false, viewPly: 1 });
+  assert.deepEqual(scrubbedBeforeReveal.squareStyles.e2, { backgroundColor: "rgba(186, 202, 68, 0.72)" });
+
+  // After reveal, miss arrow only displays when viewing the miss ply (or not scrubbing).
+  const atMissPly = boardHighlights({ ...base, reveal: true, viewPly: 2 });
+  assert.deepEqual(atMissPly.arrows, [{ startSquare: "d1", endSquare: "h5", color: MARK_HEX.G }]);
+
+  const awayFromMissPly = boardHighlights({ ...base, reveal: true, viewPly: 3 });
+  assert.deepEqual(awayFromMissPly.arrows, []);
+});

@@ -3,13 +3,16 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, Crown } from "lucide-react";
+import { Check, ChevronRight, Crown, X } from "lucide-react";
+import { phaseName, tierName } from "@/src/chess/review-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { formatInteger } from "@/src/i18n/format";
+import { tMistakes } from "@/src/i18n/mistakes-strings";
 import { tPuzzle } from "@/src/i18n/puzzle-strings";
 import { Button } from "@/src/studio/ui/Button";
 import { Badge } from "@/src/studio/ui/Controls";
 import type { Difficulty } from "./difficulty";
+import type { MistakeFilter } from "./mistake-puzzle";
 import { THEME_LABEL_KEYS, type PuzzleMode, type PuzzleTheme } from "./types";
 import { RUSH_STRIKES, clock, type PuzzleSession } from "./use-puzzle-session";
 import type { PuzzleFeedback } from "./use-puzzle-feedback";
@@ -20,10 +23,51 @@ import { buildSessionSummary } from "./session-summary";
 import { AnalyzeInStudioButton, PuzzleSourceLine } from "./PuzzleStudioLinks";
 import { openPuzzleInStudio } from "./studio-handoff";
 
+export function formatMistakeFilterLabel(locale: SiteLocale, filter: MistakeFilter | null | undefined): string {
+  if (!filter) {
+    return "";
+  }
+  return [
+    filter.phase ? phaseName(locale, filter.phase) : null,
+    filter.label ? tierName(locale, filter.label) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function MistakesFilterPill({
+  locale,
+  filterText,
+}: {
+  locale: SiteLocale;
+  filterText: string;
+}) {
+  if (!filterText) {
+    return null;
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border border-studio-border bg-studio-hover px-2.5 py-0.5 text-caption text-studio-fg"
+      data-testid="mistakes-filter-chip"
+    >
+      <span>{filterText}</span>
+      <Link
+        href="/puzzles/play?mode=mistakes"
+        aria-label={tMistakes(locale, "mistakes.panel.clearFilter")}
+        title={tMistakes(locale, "mistakes.panel.clearFilter")}
+        className="inline-flex size-4 items-center justify-center rounded-full text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"
+      >
+        <X className="size-3" aria-hidden />
+      </Link>
+    </span>
+  );
+}
+
 export function PuzzlePanel({
   mode,
   theme,
   difficulty = null,
+  mistakeFilter = null,
   session,
   feedback,
   locale,
@@ -31,6 +75,7 @@ export function PuzzlePanel({
   mode: PuzzleMode;
   theme: PuzzleTheme | null;
   difficulty?: Difficulty | null;
+  mistakeFilter?: MistakeFilter | null;
   session: PuzzleSession;
   feedback: PuzzleFeedback;
   locale: SiteLocale;
@@ -43,6 +88,8 @@ export function PuzzlePanel({
     sessionOver,
     secondsLeft,
     exhausted,
+    mistakesTotal,
+    mistakesIndex,
     progress,
     sessionStart,
     attempts,
@@ -62,6 +109,7 @@ export function PuzzlePanel({
   } = session;
   const router = useRouter();
   const { level, modeLabel, continueLabel, bubbleTitle, bubbleBody, solverMoves, solverIndex, runStreak } = feedback;
+  const filterText = mode === "mistakes" ? formatMistakeFilterLabel(locale, mistakeFilter) : "";
 
   const summary = useMemo(
     () =>
@@ -129,6 +177,24 @@ export function PuzzlePanel({
           strikeLimit={RUSH_STRIKES}
           unrated={difficulty !== null}
         />
+        {mode === "mistakes" && (mistakesTotal > 0 || filterText) ? (
+          <div className="flex flex-wrap items-center justify-between gap-2" data-testid="mistakes-meta">
+            {mistakesTotal > 0 ? (
+              <span
+                className="text-dense font-medium tabular-nums text-studio-muted"
+                data-testid="mistakes-queue-progress"
+              >
+                {tMistakes(locale, "mistakes.panel.queueProgress", {
+                  current: formatInteger(locale, Math.min(mistakesIndex + 1, mistakesTotal)),
+                  total: formatInteger(locale, mistakesTotal),
+                })}
+              </span>
+            ) : (
+              <span />
+            )}
+            <MistakesFilterPill locale={locale} filterText={filterText} />
+          </div>
+        ) : null}
         {difficulty ? (
           <p className="text-dense text-studio-muted" data-testid="panel-unrated">
             <Badge tone="accent">{tPuzzle(locale, `puzzle.difficulty.${difficulty}`)}</Badge>{" "}
@@ -176,20 +242,20 @@ export function PuzzlePanel({
             <Button onClick={giveUp}>{tPuzzle(locale, "puzzle.panel.solution")}</Button>
           </div>
         ) : null}
-        {status !== "playing" ? (
-          <AnalyzeInStudioButton
-            locale={locale}
-            onAnalyze={() =>
-              openPuzzleInStudio(puzzle, mode, locale, (href) => router.push(href), window.location.origin)
-            }
-          />
-        ) : null}
         {status !== "playing" && continueLabel && !exhausted ? (
           <Button variant="primary" className="w-full" onClick={nextPuzzle}>
             <Check className="size-4" aria-hidden />
             {continueLabel}
             <ChevronRight className="size-4" aria-hidden />
           </Button>
+        ) : null}
+        {status !== "playing" && !(mode === "rush" && !sessionOver) ? (
+          <AnalyzeInStudioButton
+            locale={locale}
+            onAnalyze={() =>
+              openPuzzleInStudio(puzzle, mode, locale, (href) => router.push(href), window.location.origin)
+            }
+          />
         ) : null}
         {(mode === "rated" || mode === "mistakes") && attempts.length > 0 ? (
           // SIG-1235: rated and mistakes sessions have no natural end; the

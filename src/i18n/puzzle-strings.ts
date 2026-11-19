@@ -231,6 +231,11 @@ export const PUZZLE_STRING_KEYS = [
   "puzzle.summary.list.showAll",
   "puzzle.summary.list.showLess",
   "puzzle.summary.list.analyzeAria",
+  "puzzle.promotion.dialog",
+  "puzzle.promotion.q",
+  "puzzle.promotion.r",
+  "puzzle.promotion.b",
+  "puzzle.promotion.n",
 ] as const;
 
 export type PuzzleStringKey = (typeof PUZZLE_STRING_KEYS)[number];
@@ -458,6 +463,11 @@ const EN: Record<PuzzleStringKey, string> = {
   "puzzle.summary.list.showAll": "Show all ({count})",
   "puzzle.summary.list.showLess": "Show last {count}",
   "puzzle.summary.list.analyzeAria": "Analyze puzzle {number} in Studio",
+  "puzzle.promotion.dialog": "Choose promotion piece",
+  "puzzle.promotion.q": "Promote to Queen",
+  "puzzle.promotion.r": "Promote to Rook",
+  "puzzle.promotion.b": "Promote to Bishop",
+  "puzzle.promotion.n": "Promote to Knight",
 };
 
 const PT_BR: Record<PuzzleStringKey, string> = {
@@ -683,6 +693,11 @@ const PT_BR: Record<PuzzleStringKey, string> = {
   "puzzle.summary.list.showAll": "Mostrar todos ({count})",
   "puzzle.summary.list.showLess": "Mostrar os últimos {count}",
   "puzzle.summary.list.analyzeAria": "Analisar o problema {number} no Studio",
+  "puzzle.promotion.dialog": "Escolha a peça de promoção",
+  "puzzle.promotion.q": "Promover para Dama",
+  "puzzle.promotion.r": "Promover para Torre",
+  "puzzle.promotion.b": "Promover para Bispo",
+  "puzzle.promotion.n": "Promover para Cavalo",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;
