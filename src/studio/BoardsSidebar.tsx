@@ -28,6 +28,8 @@ export function BoardsSidebar({
   const signedIn = useStudioStore((state) => Boolean(state.user));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  // Escape belongs to the rename field only while it has focus.
+  const [renameFocused, setRenameFocused] = useState(false);
 
   // SIG-915: browser-tab semantics — clicking a sidebar row activates the
   // session AND opens (or focuses) its tab in the single board group.
@@ -113,8 +115,10 @@ export function BoardsSidebar({
           <form
             key={board.id}
             data-board-rename-form={board.id}
-            // Escape cancels the rename first; a surrounding sheet or dialog closes only on a second press.
-            data-escape-defer=""
+            // While the field has focus, Escape cancels the rename and a surrounding
+            // sheet or dialog closes only on a second press. Once focus leaves the
+            // field (a dialog opened, a tap elsewhere), Escape works as usual.
+            data-escape-defer={renameFocused ? "" : undefined}
             className="mb-px flex items-center gap-1 rounded-md bg-studio-hover px-2 py-1.5"
             onSubmit={(event) => {
               event.preventDefault();
@@ -126,6 +130,8 @@ export function BoardsSidebar({
               aria-label={tSidebar(locale, "sidebar.boards.rename")}
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
+              onFocus={() => setRenameFocused(true)}
+              onBlur={() => setRenameFocused(false)}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.stopPropagation();

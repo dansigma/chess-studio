@@ -8,7 +8,7 @@ import { ActivityBar } from "./ActivityBar";
 import { BoardsSidebar } from "./BoardsSidebar";
 import { MenuBar } from "./MenuBar";
 import { MobileStudio } from "./MobileStudio";
-import { useIsMobile } from "./use-is-mobile";
+import { mobileQuery, useIsMobile } from "./use-is-mobile";
 import { MyGamesSidebar } from "./MyGamesSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
@@ -181,7 +181,10 @@ export function StudioShell() {
 
   /** After a PGN is opened: the dock panel on desktop, the Games sheet on a phone when it holds several games. */
   function showFileGames(): void {
-    if (!isMobile) {
+    // Read the layout now, not at render: the file read is async and the
+    // viewport may have crossed the breakpoint meanwhile.
+    const mobileNow = typeof window.matchMedia === "function" && window.matchMedia(mobileQuery()).matches;
+    if (!mobileNow) {
       openStudioPanel("fileGames");
       return;
     }

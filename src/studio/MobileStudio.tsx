@@ -309,7 +309,14 @@ export function MobileStudio({
           onClose={() => onCloseFileGames?.()}
         >
           <div data-mobile-file-games="" className="-mx-4">
-            <FileGamesPanel mobile onGameSelect={onCloseFileGames} />
+            <FileGamesPanel
+              mobile
+              onGameSelect={() => {
+                // Opened from Library or Live, the chosen game must be on screen.
+                setWorkspaceView("studio");
+                onCloseFileGames?.();
+              }}
+            />
           </div>
         </BottomSheet>
       ) : null}

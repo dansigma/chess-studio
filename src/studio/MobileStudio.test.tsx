@@ -307,3 +307,39 @@ test("Open from clipboard hands the PGN to the caller's game picker instead of t
   const state = useStudioStore.getState();
   assert.equal(state.files.databases.find((item) => item.id === state.activeFileDatabaseId)?.games.length, 2);
 });
+
+test("after the rename field loses focus, Escape closes the board sheet again", () => {
+  render(<MobileStudio onOpenPgn={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: /^Switch board/ }));
+  const sheet = document.querySelector("[data-mobile-menu-sheet]") as HTMLElement;
+  fireEvent.click(within(sheet).getByRole("button", { name: "Rename board" }));
+  const input = within(sheet).getByRole("textbox", { name: "Rename board" });
+  fireEvent.focus(input);
+  assert.ok(document.querySelector("[data-escape-defer]"));
+  fireEvent.blur(input);
+  assert.equal(document.querySelector("[data-escape-defer]"), null);
+  fireEvent.keyDown(document.body, { key: "Escape" });
+  assert.equal(document.querySelector("[data-mobile-menu-sheet]"), null);
+});
+
+test("choosing a game in the Games sheet from Library returns to the board", () => {
+  const multiPgn = `[White "Alpha"]\n[Black "Beta"]\n\n1. e4 e5 *\n\n[White "Gamma"]\n[Black "Delta"]\n\n1. d4 d5 *`;
+  act(() => {
+    useStudioStore.getState().openPgnSource("Club Match", multiPgn);
+    useStudioStore.getState().setWorkspaceView("library");
+  });
+  let closed = 0;
+  render(
+    <MobileStudio
+      onOpenPgn={() => {}}
+      fileGamesOpen
+      onCloseFileGames={() => {
+        closed += 1;
+      }}
+    />,
+  );
+  const sheet = document.querySelector("[data-mobile-file-games]") as HTMLElement;
+  fireEvent.click(within(sheet).getByText(/Gamma/));
+  assert.equal(closed, 1);
+  assert.equal(useStudioStore.getState().workspaceView, "studio");
+});
