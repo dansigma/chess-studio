@@ -184,3 +184,33 @@ test("mobile: full-width table, Sources button opens BottomSheet, tapping game o
   assert.equal(useLibraryStore.getState().selectedKey, null);
   assert.equal(screen.queryByTestId("library-preview"), null);
 });
+
+test("mobile: Escape in a Sources-sheet menu or dialog closes only that layer, not the sheet", async () => {
+  setPhone(true);
+  useLibraryStore.setState({ mode: "games", selectedKey: null });
+  await act(async () => {
+    render(<LibraryView />);
+  });
+  fireEvent.click(screen.getByTestId("library-sources-button"));
+  const sheet = () => document.querySelector("[data-mobile-menu-sheet]") as HTMLElement | null;
+  assert.ok(sheet());
+
+  // Import menu open: the first Escape closes the menu, the sheet stays.
+  fireEvent.click(within(sheet()!).getByRole("button", { name: "+ Import PGN" }));
+  const menu = screen.getByRole("menu", { name: "+ Import PGN" });
+  fireEvent.keyDown(menu, { key: "Escape" });
+  assert.equal(screen.queryByRole("menu", { name: "+ Import PGN" }), null);
+  assert.ok(sheet());
+
+  // Paste PGN dialog open: Escape closes the dialog and keeps the sheet.
+  fireEvent.click(within(sheet()!).getByRole("button", { name: "+ Import PGN" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Paste PGN" }));
+  assert.equal(document.querySelectorAll('[role="dialog"][aria-modal="true"]').length, 2);
+  fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+  assert.equal(document.querySelectorAll('[role="dialog"][aria-modal="true"]').length, 1);
+  assert.ok(sheet());
+
+  // With nothing on top, Escape closes the sheet.
+  fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+  assert.equal(sheet(), null);
+});

@@ -1027,6 +1027,9 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
         {importControl}
       </div>
       {dialogs}
+      {/* Inside the mobile Sources sheet, an open rail menu takes Escape first
+          (MenuSurface closes it); the sheet closes only on a second press. */}
+      {inSheet && (menu || importMenu || folderMenu) ? <span hidden data-escape-defer="" /> : null}
     </>
   );
 
@@ -1080,7 +1083,7 @@ function FileMenuPosition({
 }) {
   const style = useMenuPosition(anchor, menuRef);
   return (
-    <div ref={menuRef} className="fixed z-[1200]" style={style}>
+    <div ref={menuRef} className="fixed z-[1000]" style={style}>
       {children}
     </div>
   );
