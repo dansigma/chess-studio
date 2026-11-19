@@ -13,6 +13,9 @@ mock.module("next/navigation", {
 const { MobileStudio } = await import("./MobileStudio.tsx");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
+const { useDossierStore } = await import("./library/dossier/dossier-store.ts");
+const { useLibraryStore } = await import("./library/library-store.ts");
+const { FileMenuItems } = await import("./MenuBarFileMenu.tsx");
 
 function setMobileViewport() {
   Object.defineProperty(window, "innerWidth", { value: 390, configurable: true, writable: true });
@@ -54,7 +57,7 @@ beforeEach(() => {
 test("top bar shows active board title, count badge when > 1, and switches/creates/renames/closes boards", () => {
   render(<MobileStudio onOpenPgn={() => {}} />);
 
-  const switcher = screen.getByRole("button", { name: "Switch board" });
+  const switcher = screen.getByRole("button", { name: /^Switch board/ });
   assert.equal(switcher.textContent?.includes("Board"), true);
   assert.equal(switcher.querySelector("[data-mobile-board-count]"), null);
 
@@ -98,10 +101,10 @@ test("top bar shows active board title, count badge when > 1, and switches/creat
   fireEvent.click(within(sheet as HTMLElement).getByText("Board"));
   assert.equal(document.querySelector("[data-mobile-menu-sheet]"), null);
   assert.equal(useStudioStore.getState().activeBoardId, useStudioStore.getState().boards[0]?.id);
-  assert.equal(screen.getByRole("button", { name: "Switch board" }).textContent?.includes("Board"), true);
+  assert.equal(screen.getByRole("button", { name: /^Switch board/ }).textContent?.includes("Board"), true);
 
   // Re-open sheet and close the second board.
-  fireEvent.click(screen.getByRole("button", { name: "Switch board" }));
+  fireEvent.click(screen.getByRole("button", { name: /^Switch board/ }));
   const reopened = document.querySelector("[data-mobile-menu-sheet]") as HTMLElement;
   const closeButtons = within(reopened).getAllByRole("button", { name: "Close board" });
   fireEvent.click(closeButtons[1]!);
@@ -191,4 +194,116 @@ test("More tab exposes Insights and Repertoire, and hamburger sheet includes Acc
   assert.ok(within(accountSection).getByText("GM User"));
   assert.ok(within(accountSection).getByText("gm@chess.dev"));
   assert.ok(within(accountSection).getByRole("button", { name: "Sign out" }));
+});
+
+test("board switcher's accessible name carries the visible title and the open-board count", () => {
+  render(<MobileStudio onOpenPgn={() => {}} />);
+  assert.ok(screen.getByRole("button", { name: "Switch board: Board" }));
+  act(() => {
+    useStudioStore.getState().newBoard();
+    useStudioStore.getState().renameActive("Sicilian Prep");
+  });
+  assert.ok(screen.getByRole("button", { name: "Switch board: Sicilian Prep, 2 boards open" }));
+});
+
+test("Escape in the rename field cancels the rename and keeps the board sheet open", () => {
+  render(<MobileStudio onOpenPgn={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: /^Switch board/ }));
+  const sheet = document.querySelector("[data-mobile-menu-sheet]") as HTMLElement;
+  fireEvent.click(within(sheet).getByRole("button", { name: "Rename board" }));
+  const input = within(sheet).getByRole("textbox", { name: "Rename board" });
+  fireEvent.change(input, { target: { value: "Draft" } });
+  fireEvent.keyDown(input, { key: "Escape" });
+  assert.equal(within(sheet).queryByRole("textbox", { name: "Rename board" }), null);
+  assert.ok(document.querySelector("[data-mobile-menu-sheet]"));
+  assert.equal(useStudioStore.getState().boards[0]?.title, "Board");
+});
+
+test("saving an unchanged rename keeps the translated default title and the board clean", () => {
+  act(() => {
+    useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } });
+    const [first] = useStudioStore.getState().boards;
+    useStudioStore.setState({ boards: [{ ...first!, title: "Board", dirty: false }] });
+  });
+  render(<MobileStudio onOpenPgn={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: /^Trocar tabuleiro/ }));
+  const sheet = document.querySelector("[data-mobile-menu-sheet]") as HTMLElement;
+  fireEvent.click(within(sheet).getAllByRole("button", { name: /renomear/i })[0]!);
+  const input = within(sheet).getByRole("textbox") as HTMLInputElement;
+  assert.equal(input.value, "Tabuleiro");
+  fireEvent.submit(input.closest("form")!);
+  const board = useStudioStore.getState().boards[0]!;
+  assert.equal(board.title, "Board");
+  assert.equal(board.dirty, false);
+});
+
+test("a bookmark in the board sheet opens the Library player dossier, since phones have no player panels", () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => {
+    throw new Error("offline");
+  }) as typeof fetch;
+  try {
+    act(() => {
+      useStudioStore.setState({
+        bookmarks: [
+          { id: "lichess:drnykterstein", source: "lichess", username: "DrNykterstein", displayName: "Magnus", subtitle: "", bookmarkedAt: 1 },
+        ],
+      });
+      useDossierStore.getState().closePlayer();
+      useLibraryStore.getState().setMode("games");
+    });
+    render(<MobileStudio onOpenPgn={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Switch board/ }));
+    const sheet = document.querySelector("[data-mobile-menu-sheet]") as HTMLElement;
+    fireEvent.click(within(sheet).getByRole("tab", { name: "Bookmarks" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "B" }));
+    assert.equal(useStudioStore.getState().workspaceView, "library");
+    assert.equal(useLibraryStore.getState().mode, "players");
+    assert.equal(useDossierStore.getState().player?.username, "DrNykterstein");
+    assert.equal(useDossierStore.getState().filters.color, "black");
+    assert.equal(document.querySelector("[data-mobile-menu-sheet]"), null);
+  } finally {
+    act(() => {
+      useDossierStore.getState().closePlayer();
+      useStudioStore.setState({ bookmarks: [], workspaceView: "studio" });
+    });
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("My Games in the board sheet has no Stats action (the stats panel is desktop-only)", () => {
+  act(() => {
+    useStudioStore.getState().setUser({ id: "u1", email: "gm@chess.dev", displayName: "GM User" });
+  });
+  render(<MobileStudio onOpenPgn={() => {}} />);
+  fireEvent.click(screen.getByRole("button", { name: /^Switch board/ }));
+  const sheet = document.querySelector("[data-mobile-menu-sheet]") as HTMLElement;
+  fireEvent.click(within(sheet).getByRole("tab", { name: "My Games" }));
+  assert.equal(within(sheet).queryByRole("button", { name: "Stats" }), null);
+});
+
+test("Open from clipboard hands the PGN to the caller's game picker instead of the dock", async () => {
+  const pgn = `[White "Alpha"]\n[Black "Beta"]\n\n1. e4 e5 *\n\n[White "Gamma"]\n[Black "Delta"]\n\n1. d4 d5 *`;
+  Object.defineProperty(navigator, "clipboard", {
+    configurable: true,
+    value: { readText: async () => pgn, writeText: async () => {} },
+  });
+  let shown = 0;
+  render(
+    <FileMenuItems
+      onOpenPgn={() => {}}
+      onShowFileGames={() => {
+        shown += 1;
+      }}
+      onShare={() => {}}
+      close={() => {}}
+      run={(action) => action}
+    />,
+  );
+  await act(async () => {
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open from clipboard" }));
+  });
+  assert.equal(shown, 1);
+  const state = useStudioStore.getState();
+  assert.equal(state.files.databases.find((item) => item.id === state.activeFileDatabaseId)?.games.length, 2);
 });

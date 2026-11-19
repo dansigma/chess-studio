@@ -573,7 +573,8 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
     }
     set((state) => ({
       boards: state.boards.map((board) =>
-        board.id === id ? { ...board, title: trimmed, dirty: true } : board,
+        // Same name: nothing to save, so the board stays clean.
+        board.id === id && board.title !== trimmed ? { ...board, title: trimmed, dirty: true } : board,
       ),
     }));
   },

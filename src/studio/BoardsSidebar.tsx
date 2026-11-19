@@ -57,9 +57,11 @@ export function BoardsSidebar({
     setDraft(boardTitle(locale, currentTitle));
   }
 
-  function commitRename(boardId: string): void {
+  function commitRename(boardId: string, currentTitle: string): void {
     const trimmed = draft.trim();
-    if (trimmed) {
+    // An unchanged name keeps the stored default (shown translated) and the
+    // board's saved state.
+    if (trimmed && trimmed !== boardTitle(locale, currentTitle)) {
       renameBoard(boardId, trimmed);
     }
     setEditingId(null);
@@ -111,10 +113,12 @@ export function BoardsSidebar({
           <form
             key={board.id}
             data-board-rename-form={board.id}
+            // Escape cancels the rename first; a surrounding sheet or dialog closes only on a second press.
+            data-escape-defer=""
             className="mb-px flex items-center gap-1 rounded-md bg-studio-hover px-2 py-1.5"
             onSubmit={(event) => {
               event.preventDefault();
-              commitRename(board.id);
+              commitRename(board.id, board.title);
             }}
           >
             <input

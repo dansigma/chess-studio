@@ -23,11 +23,13 @@ type ViewSubmenu = "theme" | "pieces" | "notation" | "panel" | "scheme" | "layou
 // sheet closing, so their state cannot live here.
 export function MobileMenuSheet({
   onOpenPgn,
+  onShowFileGames,
   onShare,
   onOpenSettings,
   onClose,
 }: {
   onOpenPgn: () => void;
+  onShowFileGames?: () => void;
   onShare: (url: string, copied: boolean) => void;
   onOpenSettings: () => void;
   onClose: () => void;
@@ -88,7 +90,7 @@ export function MobileMenuSheet({
         <div className="px-1.5 pb-1 pt-2 text-caption font-semibold uppercase tracking-wider text-studio-faint">
           {tStudioChrome(locale, "chrome.menu.file")}
         </div>
-        <FileMenuItems onOpenPgn={onOpenPgn} onShare={onShare} close={onClose} run={run} />
+        <FileMenuItems onOpenPgn={onOpenPgn} onShowFileGames={onShowFileGames} onShare={onShare} close={onClose} run={run} />
         <Divider />
         <div className="px-1.5 pb-1 pt-2 text-caption font-semibold uppercase tracking-wider text-studio-faint">
           {tStudioChrome(locale, "chrome.menu.edit")}

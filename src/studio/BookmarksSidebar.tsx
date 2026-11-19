@@ -7,7 +7,14 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { PlayerHitRow } from "./PlayerHitRow";
 import { SidebarHint, SidebarPanel } from "./ui/Sidebar";
 
-export function BookmarksSidebar({ onSelect }: { onSelect?: () => void } = {}) {
+export function BookmarksSidebar({
+  onSelect,
+  onOpenPlayer,
+}: {
+  onSelect?: () => void;
+  /** Replaces the dock player view (mobile has no dock). */
+  onOpenPlayer?: (player: PlayerHit, color: PlayerColorFilter) => void;
+} = {}) {
   const locale = useStudioStore((state) => state.settings.locale);
   const bookmarks = useStudioStore((state) => state.bookmarks);
   const openPlayerView = useStudioStore((state) => state.openPlayerView);
@@ -15,6 +22,10 @@ export function BookmarksSidebar({ onSelect }: { onSelect?: () => void } = {}) {
   const activeId = useStudioStore((state) => state.playerProfile?.id ?? null);
 
   function open(player: PlayerHit, color: PlayerColorFilter = "all") {
+    if (onOpenPlayer) {
+      onOpenPlayer(player, color);
+      return;
+    }
     openPlayerView(player, color);
     onSelect?.();
   }

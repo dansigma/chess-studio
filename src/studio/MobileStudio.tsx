@@ -25,6 +25,7 @@ import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { LiveView } from "./live/LiveView";
 import { useLiveStore } from "./live/live-store";
 import { LibraryView } from "./library/LibraryView";
+import { openPlayerDossier } from "./library/dossier/open-player-dossier";
 import { Dialog } from "./ui/Dialog";
 import { Button } from "./ui/Button";
 
@@ -48,10 +49,12 @@ export function MobileStudio({
   onOpenPgn,
   fileGamesOpen = false,
   onCloseFileGames,
+  onShowFileGames,
 }: {
   onOpenPgn: () => void;
   fileGamesOpen?: boolean;
   onCloseFileGames?: () => void;
+  onShowFileGames?: () => void;
 }) {
   const locale = useStudioStore((state) => state.settings.locale);
   const boards = useStudioStore((state) => state.boards);
@@ -127,7 +130,15 @@ export function MobileStudio({
           <button
             type="button"
             data-mobile-board-switcher=""
-            aria-label={tMobile(locale, "mobile.boards.switch")}
+            // The accessible name keeps the visible title and count (WCAG 2.5.3).
+            aria-label={
+              boards.length > 1
+                ? tMobile(locale, "mobile.boards.switchMany", {
+                    title: boardTitle(locale, activeBoard.title),
+                    count: boards.length,
+                  })
+                : tMobile(locale, "mobile.boards.switch", { title: boardTitle(locale, activeBoard.title) })
+            }
             onClick={() => setBoardsSheetOpen(true)}
             className="flex min-h-[44px] min-w-0 flex-1 items-center gap-1.5 rounded-md px-2 text-left text-sm font-medium text-studio-fg hover:bg-studio-hover-strong"
           >
@@ -234,6 +245,7 @@ export function MobileStudio({
       {menuOpen ? (
         <MobileMenuSheet
           onOpenPgn={onOpenPgn}
+          onShowFileGames={onShowFileGames}
           onShare={handleShare}
           onOpenSettings={() => {
             closeMenu();
@@ -277,9 +289,16 @@ export function MobileStudio({
             {boardsSheetTab === "boards" ? (
               <BoardsSidebar mobile onSelect={() => setBoardsSheetOpen(false)} />
             ) : boardsSheetTab === "mygames" ? (
-              <MyGamesSidebar onOpenGame={() => setBoardsSheetOpen(false)} />
+              <MyGamesSidebar showStats={false} onOpenGame={() => setBoardsSheetOpen(false)} />
             ) : (
-              <BookmarksSidebar onSelect={() => setBoardsSheetOpen(false)} />
+              // The player panels live in the desktop dock only: on a phone a
+              // bookmark opens the Library player dossier instead.
+              <BookmarksSidebar
+                onOpenPlayer={(player, color) => {
+                  setBoardsSheetOpen(false);
+                  openPlayerDossier(player, color);
+                }}
+              />
             )}
           </div>
         </BottomSheet>

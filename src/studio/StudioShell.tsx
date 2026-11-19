@@ -169,6 +169,28 @@ export function StudioShell() {
   // the render branch below differs. StudioDock is never mounted on mobile,
   // so no desktop layout is read or written there.
   const isMobile = useIsMobile();
+  // The mobile Games sheet belongs to the phone layout: leaving it (a rotation
+  // past the breakpoint) drops the request so it does not reopen on return.
+  const [fileGamesLayout, setFileGamesLayout] = useState(isMobile);
+  if (fileGamesLayout !== isMobile) {
+    setFileGamesLayout(isMobile);
+    if (!isMobile) {
+      setMobileFileGamesOpen(false);
+    }
+  }
+
+  /** After a PGN is opened: the dock panel on desktop, the Games sheet on a phone when it holds several games. */
+  function showFileGames(): void {
+    if (!isMobile) {
+      openStudioPanel("fileGames");
+      return;
+    }
+    const state = useStudioStore.getState();
+    const database = state.files.databases.find((item) => item.id === state.activeFileDatabaseId);
+    if (database && database.games.length > 1) {
+      setMobileFileGamesOpen(true);
+    }
+  }
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
@@ -495,6 +517,7 @@ export function StudioShell() {
           onOpenPgn={() => fileRef.current?.click()}
           fileGamesOpen={mobileFileGamesOpen}
           onCloseFileGames={() => setMobileFileGamesOpen(false)}
+          onShowFileGames={showFileGames}
         />
       ) : (
       <div className="flex min-h-0 flex-1">
@@ -555,15 +578,7 @@ export function StudioShell() {
           }
           void file.text().then((text) => {
             openPgnSource(file.name.replace(/\.pgn$/i, "") || "PGN", text);
-            if (isMobile) {
-              const state = useStudioStore.getState();
-              const database = state.files.databases.find((item) => item.id === state.activeFileDatabaseId);
-              if (database && database.games.length > 1) {
-                setMobileFileGamesOpen(true);
-              }
-            } else {
-              openStudioPanel("fileGames");
-            }
+            showFileGames();
           });
           event.target.value = "";
         }}

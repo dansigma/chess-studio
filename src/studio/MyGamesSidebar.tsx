@@ -192,7 +192,14 @@ export function MyGamesRow({
   );
 }
 
-export function MyGamesSidebar({ onOpenGame }: { onOpenGame?: () => void } = {}) {
+export function MyGamesSidebar({
+  onOpenGame,
+  showStats = true,
+}: {
+  onOpenGame?: () => void;
+  /** The stats panel lives in the desktop dock; the mobile sheet hides the action. */
+  showStats?: boolean;
+} = {}) {
   const locale = useStudioStore((state) => state.settings.locale);
   const user = useStudioStore((state) => state.user);
   const importPlayerGame = useStudioStore((state) => state.importPlayerGame);
@@ -517,13 +524,15 @@ export function MyGamesSidebar({ onOpenGame }: { onOpenGame?: () => void } = {})
       actions={
         user ? (
           <>
-            <IconButton
-              label={tMyGames(locale, "myGames.stats")}
-              size="sm"
-              onClick={() => openStudioPanel("myStats")}
-            >
-              <ChartSpline size={14} />
-            </IconButton>
+            {showStats ? (
+              <IconButton
+                label={tMyGames(locale, "myGames.stats")}
+                size="sm"
+                onClick={() => openStudioPanel("myStats")}
+              >
+                <ChartSpline size={14} />
+              </IconButton>
+            ) : null}
             <IconButton label={syncLabel} size="sm" disabled={syncing || gamesLoading} onClick={handleSync}>
               <RefreshCw size={14} className={syncing ? "animate-spin" : undefined} />
             </IconButton>
