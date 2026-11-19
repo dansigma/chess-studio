@@ -624,6 +624,9 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
         ensureMissingPanels(api);
       }
       ensureActiveBoardPanel();
+      // The board session may already be hydrated when the dock mounts.
+      const active = selectActiveBoard(useStudioStore.getState());
+      api.getPanel(boardPanelId(active.id))?.api.setActive();
     });
     if (pendingLayout) {
       // The applied layout becomes the persisted current layout.

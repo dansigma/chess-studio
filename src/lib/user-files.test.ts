@@ -86,7 +86,7 @@ test("folderWriteErrorMessage maps the folder_cycle database error", () => {
   assert.equal(folderWriteErrorMessage(null), null);
 });
 
-test("localFiles roundtrip preserves parentId and migrates legacy entries", () => {
+test("localFiles roundtrip preserves parentId and migrates legacy entries", async () => {
   const storage = new Map<string, string>();
   (globalThis as { window?: unknown }).window = {
     localStorage: {
@@ -106,19 +106,19 @@ test("localFiles roundtrip preserves parentId and migrates legacy entries", () =
     ],
   };
 
-  saveLocalFiles(sample);
-  const loaded = loadLocalFiles();
+  await saveLocalFiles(sample);
+  const loaded = await loadLocalFiles();
   assert.deepEqual(loaded, sample);
 
   // Legacy data without parentId
   storage.set(
-    "chess-studio:user-files",
+    "studio-clone-files",
     JSON.stringify({
       folders: [{ id: "legacy", name: "Legacy" }],
       databases: [],
     }),
   );
-  const legacyLoaded = loadLocalFiles();
+  const legacyLoaded = await loadLocalFiles();
   assert.equal(legacyLoaded.folders[0].parentId, null);
 });
 

@@ -872,3 +872,25 @@ describe("sig-1275 my_game_positions migration", () => {
     assert.ok(sig1275.includes("to authenticated"));
   });
 });
+
+describe("SIG-1416 personal Library quotas", () => {
+  const migration = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261120000100_library_limits_10x25000.sql"),
+    "utf8",
+  );
+
+  it("updates the insert-only database quota without changing existing databases", () => {
+    assert.match(migration, /create or replace function public\.check_personal_database_quota\(\)\s+returns trigger\s+language plpgsql\s+security invoker\s+set search_path = ''/);
+    assert.match(migration, /if owned >= 10 then\s+raise exception using\s+errcode = 'P0001',\s+message = 'quota_databases'/);
+    assert.doesNotMatch(migration, /(?:create|drop) trigger/i);
+    assert.doesNotMatch(migration, /delete from public\.game_databases/i);
+  });
+
+  it("shares the 25,000-game cap and preserves the swap contract", () => {
+    assert.match(migration, /create or replace function public\.max_games_per_database\(\)[\s\S]*?select 25000;/);
+    assert.match(migration, /create or replace function public\.swap_database_games\(p_database_id uuid\)\s+returns integer\s+language plpgsql\s+security invoker\s+set search_path = ''/);
+    assert.match(migration, /if pending_count > public\.max_games_per_database\(\) then\s+raise exception using\s+errcode = 'P0001',\s+message = 'quota_games'/);
+    assert.match(migration, /grant execute on function public\.swap_database_games\(uuid\) to authenticated;/);
+    assert.doesNotMatch(migration, /to (anon|public|service_role)/);
+  });
+});

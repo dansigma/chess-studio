@@ -71,12 +71,12 @@ test("an unreadable file is marked failed and the rest of the batch still import
   assert.equal(entries[1].error, "read");
 });
 
-test("a file over 5,000 games imports the first 5,000 and reports the rest", async () => {
+test("a file over 25,000 games imports the first 25,000 and reports the rest", async () => {
   const deps = makeDeps();
-  await enqueuePgnFiles([bigFile("big.pgn", 5010)], deps).done;
-  assert.equal(deps.calls[0].games.length, 5000);
+  await enqueuePgnFiles([bigFile("big.pgn", 25010)], deps).done;
+  assert.equal(deps.calls[0].games.length, 25000);
   const [entry] = useImportQueue.getState().entries;
-  assert.equal(entry.imported, 5000);
+  assert.equal(entry.imported, 25000);
   assert.equal(entry.overLimit, 10);
   assert.equal(entry.unreadable, 0);
 });
@@ -90,8 +90,8 @@ test("unreadable games are counted separately", async () => {
   assert.equal(entry.overLimit, 0);
 });
 
-test("with 50 databases the file does not start and says why", async () => {
-  const deps = makeDeps(50);
+test("with 10 databases the file does not start and says why", async () => {
+  const deps = makeDeps(10);
   await enqueuePgnFiles([file("a.pgn")], deps).done;
   assert.equal(deps.calls.length, 0);
   const [entry] = useImportQueue.getState().entries;
@@ -99,8 +99,8 @@ test("with 50 databases the file does not start and says why", async () => {
   assert.equal(entry.error, "database-limit");
 });
 
-test("49 existing + 3 files: the first imports, the other two hit the limit", async () => {
-  const deps = makeDeps(49);
+test("9 existing + 3 files: the first imports, the other two hit the limit", async () => {
+  const deps = makeDeps(9);
   await enqueuePgnFiles([file("a.pgn"), file("b.pgn"), file("c.pgn")], deps).done;
   assert.deepEqual(deps.calls.map((c) => c.name), ["a"]);
   const entries = useImportQueue.getState().entries;
@@ -257,8 +257,8 @@ test("the queue waits on the dialog answer, and the widget cancel closes it", as
   assert.deepEqual(useImportQueue.getState().entries.map((e) => e.state), ["cancelled", "done"]);
 });
 
-test("at 50 databases a name match still asks; Keep both is blocked, Replace and Merge work", async () => {
-  const names = Array.from({ length: 50 }, (_, i) => (i === 0 ? "Sicilian" : `db ${i}`));
+test("at 10 databases a name match still asks; Keep both is blocked, Replace and Merge work", async () => {
+  const names = Array.from({ length: 10 }, (_, i) => (i === 0 ? "Sicilian" : `db ${i}`));
   const blocked = conflictDeps(names, "keep-both");
   await enqueuePgnFiles([file("Sicilian.pgn")], blocked).done;
   assert.deepEqual(blocked.asked, [{ name: "Sicilian", keepBothAllowed: false }]);
@@ -275,7 +275,7 @@ test("at 50 databases a name match still asks; Keep both is blocked, Replace and
   const merge = conflictDeps(names, "merge");
   await enqueuePgnFiles([file("Sicilian.pgn", g("Nc3"))], merge).done;
   assert.equal(merge.replaced.length, 1);
-  // A non-matching file at 50 is still refused without prompting.
+  // A non-matching file at 10 is still refused without prompting.
   resetImportQueue();
   for (const stop of stops.splice(0)) stop();
   const other = conflictDeps(names, "replace");
@@ -284,12 +284,12 @@ test("at 50 databases a name match still asks; Keep both is blocked, Replace and
   assert.equal(useImportQueue.getState().entries[0].error, "database-limit");
 });
 
-test("Merge counts new games past the 5,000 limit", async () => {
+test("Merge counts new games past the 25,000 limit", async () => {
   const deps = conflictDeps(["Sicilian"], "merge");
-  const many = Array.from({ length: 5010 }, (_, i) => `[White "P${i}"]\n[Black "B"]\n[Result "1-0"]\n\n1. e4 e5 1-0\n\n`).join("");
+  const many = Array.from({ length: 25010 }, (_, i) => `[White "P${i}"]\n[Black "B"]\n[Result "1-0"]\n\n1. e4 e5 1-0\n\n`).join("");
   await enqueuePgnFiles([file("Sicilian.pgn", many)], deps).done;
-  assert.equal(deps.replaced[0].games.length, 5000);
+  assert.equal(deps.replaced[0].games.length, 25000);
   const [entry] = useImportQueue.getState().entries;
-  assert.equal(entry.added, 4999);
+  assert.equal(entry.added, 24999);
   assert.equal(entry.overLimit, 10 + 1);
 });

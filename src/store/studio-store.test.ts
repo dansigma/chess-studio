@@ -117,7 +117,7 @@ type SignedInSeed = {
 
 // Loads every session key with account-A residue (including non-default
 // preferences, which must survive) and seeds the localStorage caches.
-function seedSignedInUser(user: { id: string; email: string | null }): SignedInSeed {
+async function seedSignedInUser(user: { id: string; email: string | null }): Promise<SignedInSeed> {
   useStudioStore.setState({
     user,
     boards: [residueBoard()],
@@ -182,7 +182,7 @@ function seedSignedInUser(user: { id: string; email: string | null }): SignedInS
   useStudioStore.setState({ settings, layoutNonce: LAYOUT_NONCE });
 
   writes.length = 0;
-  saveLocalFiles(FILES_A);
+  await saveLocalFiles(FILES_A);
   saveLocalBookmarks([BOOKMARK_A]);
   // SIG-1092: clearGuestBoards always writes removeItem (even when the key
   // is absent) so the reset's write set carries the guest-boards key too.
@@ -277,14 +277,14 @@ function collectResidue(value: unknown, path = "state", found: string[] = [], se
   return found;
 }
 
-test("signing out wipes the previous user's session state and keeps global preferences", () => {
+test("signing out wipes the previous user's session state and keeps global preferences", async () => {
   resetStore();
 
   useStudioStore.getState().setUser(USER_A);
-  const seed = seedSignedInUser(USER_A);
+  const seed = await seedSignedInUser(USER_A);
   assert.equal(useStudioStore.getState().playerProfile?.displayName, "A Player", "precondition: A's state is loaded");
   assert.ok(collectResidue(useStudioStore.getState()).length > 0, "precondition: A's residue is reachable");
-  assert.deepEqual(loadLocalFiles(), FILES_A, "precondition: A's files cache is seeded");
+  assert.deepEqual(await loadLocalFiles(), FILES_A, "precondition: A's files cache is seeded");
 
   useStudioStore.getState().setUser(null);
 
@@ -297,17 +297,17 @@ test("signing out wipes the previous user's session state and keeps global prefe
   assert.equal(state.settings.boardTheme, "brown", "board theme kept");
   assert.equal(state.settings.pieceSet, "merida", "piece set kept");
   assert.equal(state.layoutNonce, seed.layoutNonce, "dock layout nonce kept");
-  assert.deepEqual(loadLocalFiles(), EMPTY_FILES, "files cache holds the empty library");
+  assert.deepEqual(await loadLocalFiles(), EMPTY_FILES, "files cache holds the empty library");
   assert.deepEqual(loadLocalBookmarks(), [], "bookmarks cache is empty");
   assert.equal(storage.has(GUEST_BOARDS_KEY), false, "guest boards cache cleared");
   assert.deepEqual([...writes].sort(), seed.cacheKeys, "the reset rewrote exactly the caches");
 });
 
-test("a direct user switch leaves zero residue from the previous account", () => {
+test("a direct user switch leaves zero residue from the previous account", async () => {
   resetStore();
 
   useStudioStore.getState().setUser(USER_A);
-  const seed = seedSignedInUser(USER_A);
+  const seed = await seedSignedInUser(USER_A);
 
   // No intermediate null: the auth callback can jump straight from A to B.
   useStudioStore.getState().setUser(USER_B);
@@ -319,17 +319,17 @@ test("a direct user switch leaves zero residue from the previous account", () =>
   assert.deepEqual(collectResidue(state), [], "no trace of A is reachable from the store");
   assert.equal(state.settings, seed.settings, "preferences survive by reference");
   assert.equal(state.layoutNonce, seed.layoutNonce, "dock layout nonce kept");
-  assert.deepEqual(loadLocalFiles(), EMPTY_FILES, "files cache holds the empty library");
+  assert.deepEqual(await loadLocalFiles(), EMPTY_FILES, "files cache holds the empty library");
   assert.deepEqual(loadLocalBookmarks(), [], "bookmarks cache is empty");
   assert.equal(storage.has(GUEST_BOARDS_KEY), false, "guest boards cache cleared");
   assert.deepEqual([...writes].sort(), seed.cacheKeys, "the reset rewrote exactly the caches");
 });
 
-test("the reset re-seeds boards to the initial empty placeholder", () => {
+test("the reset re-seeds boards to the initial empty placeholder", async () => {
   resetStore();
 
   useStudioStore.getState().setUser(USER_A);
-  seedSignedInUser(USER_A);
+  await seedSignedInUser(USER_A);
   const residueBoardId = useStudioStore.getState().boards[0].id;
 
   useStudioStore.getState().setUser(USER_B);
@@ -340,12 +340,12 @@ test("the reset re-seeds boards to the initial empty placeholder", () => {
   assert.notEqual(state.boards[0].id, residueBoardId, "the previous board id is not reused");
 });
 
-test("a same-user refresh and a sign-in from signed out leave the session untouched", () => {
+test("a same-user refresh and a sign-in from signed out leave the session untouched", async () => {
   resetStore();
 
   // A -> A (fresh object, same id): token refreshes must not wipe in-flight work.
   useStudioStore.getState().setUser(USER_A);
-  seedSignedInUser(USER_A);
+  await seedSignedInUser(USER_A);
   const boardsBefore = useStudioStore.getState().boards;
   const profileBefore = useStudioStore.getState().playerProfile;
 
@@ -354,7 +354,7 @@ test("a same-user refresh and a sign-in from signed out leave the session untouc
   assert.equal(useStudioStore.getState().boards, boardsBefore, "boards untouched");
   assert.equal(useStudioStore.getState().playerProfile, profileBefore, "player state untouched");
   assert.deepEqual(writes, [], "no cache purge on a same-user refresh");
-  assert.equal(loadLocalFiles().databases[0]?.name, "A db", "files cache untouched");
+  assert.equal((await loadLocalFiles()).databases[0]?.name, "A db", "files cache untouched");
 
   // null -> A: guest work is preserved while signing in.
   resetStore();

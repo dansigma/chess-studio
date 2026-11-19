@@ -212,13 +212,13 @@ test("persistRemoteDatabase: failed second chunk leaves game_count untouched and
   assert.ok(!calls.some((call) => call.op === "rpc-swap"), "swap must not run after a failed chunk");
 });
 
-test("persistRemoteDatabase: 51st database maps quota_databases to the databases message", async () => {
+test("persistRemoteDatabase: 11th database maps quota_databases to the databases message", async () => {
   const { calls } = installFakeSupabase({ failCreateDbWith: { message: "quota_databases", code: "P0001" } });
 
   const result = await persistRemoteDatabase({ ...databaseWithGames(1), remoteId: null }, "user-1");
 
   assert.equal(result.remoteId, null);
-  assert.equal(result.saveError, "You can keep up to 50 personal databases. Delete one to add another.");
+  assert.equal(result.saveError, "You can keep up to 10 personal databases. Delete one to add another.");
   assert.ok(!calls.some((call) => call.op === "insert-games"), "no games may be written when creation is rejected");
 });
 
@@ -231,7 +231,7 @@ test("persistRemoteDatabase: swap quota failure maps quota_games and cleans pend
   const result = await persistRemoteDatabase(databaseWithGames(10), "user-1");
 
   assert.equal(result.remoteId, null);
-  assert.equal(result.saveError, "This database holds more than 5,000 games. Remove some games and try again.");
+  assert.equal(result.saveError, "This database holds more than 25,000 games. Remove some games and try again.");
   assert.deepEqual(
     calls.filter((call) => call.op === "delete-games"),
     [{ op: "delete-games", filters: { database_id: "remote-db", pending: true } }],
@@ -265,15 +265,16 @@ test("persistRemoteDatabase: over-1 MB pgn is rejected client-side without touch
   assert.deepEqual(calls, [], "no database request may run before the client-side size check");
 });
 
-test("persistRemoteDatabase: success swaps once after the last chunk and updates game_count from the swap", async () => {
-  const { calls, rpcCount } = installFakeSupabase({ promotedCount: 250 });
+test("persistRemoteDatabase: a 25,000-game first upload swaps once after the last chunk and updates game_count from the swap", async () => {
+  const { calls, rpcCount } = installFakeSupabase({ promotedCount: 25_000 });
 
-  const result = await persistRemoteDatabase(databaseWithGames(250), "user-1");
+  const result = await persistRemoteDatabase({ ...databaseWithGames(25_000), remoteId: null }, "user-1");
 
   assert.equal(result.saveError, null);
   assert.equal(result.remoteId, "remote-db");
   const inserts = calls.filter((call) => call.op === "insert-games");
-  assert.equal(inserts.length, 2, "250 games must be inserted in 200-row chunks");
+  assert.equal(inserts.length, 125);
+  assert.ok(inserts.every((call) => call.rows.length === 200));
   assert.equal(rpcCount(), 1, "swap must run exactly once");
   // Swap runs after all chunks: rpc-swap is the call right after the last insert.
   const lastInsertIndex = calls.map((call) => call.op).lastIndexOf("insert-games");
@@ -282,7 +283,7 @@ test("persistRemoteDatabase: success swaps once after the last chunk and updates
   assert.equal(gameCountUpdates.length, 1);
   assert.deepEqual(
     (gameCountUpdates[0] as { row: Record<string, unknown> }).row,
-    { game_count: 250 },
+    { game_count: 25_000 },
     "game_count must come from the swap return value",
   );
 });
@@ -343,4 +344,133 @@ test("append to a 1,000-game cloud database sends one game write and metadata ch
     ["delete", edited.id],
   ]);
   assert.equal(calls[2].p_previous_pgn, edited.pgn);
+});
+
+test("sign-in uploads local databases once, skips duplicates, and keeps rejected databases local", async () => {
+  const { useStudioStore } = await import("@/src/store/studio-store");
+  const { loadLocalFiles, saveLocalFiles } = await import("./user-files.ts");
+  const { calls } = installFakeSupabase({
+    failChunkAt: 2,
+    failChunkWith: { message: "quota_games", code: "P0001" },
+  });
+  const originalWindow = (globalThis as { window?: unknown }).window;
+  const cache = new Map<string, string>();
+  (globalThis as { window?: unknown }).window = { localStorage: {
+    getItem: (key: string) => cache.get(key) ?? null,
+    setItem: (key: string, value: string) => cache.set(key, value),
+  } };
+  const base = { ...databaseWithGames(1), remoteId: null };
+  const local = {
+    folders: [],
+    databases: [
+      { ...base, id: "local-1", name: "New" },
+      { ...base, id: "local-2", name: "Rejected" },
+      { ...base, id: "local-3", name: "Already there" },
+    ],
+  };
+  const remote = {
+    folders: [],
+    databases: [{ ...base, id: "cloud-1", remoteId: "account-db", name: "Already there" }],
+  };
+  try {
+    await saveLocalFiles(local);
+    useStudioStore.getState().setUser({ id: "user-1", email: null });
+    await useStudioStore.getState().uploadLocalDatabases(remote);
+
+    assert.deepEqual(calls.flatMap((call) => call.op === "insert-db" ? [call.row.name] : []), ["New", "Rejected"]);
+    const { files, statusMessage } = useStudioStore.getState();
+    assert.deepEqual(files.databases.map(({ id, remoteId }) => [id, remoteId]), [
+      ["local-1", "remote-db"], ["local-2", null], ["local-3", null], ["cloud-1", "account-db"],
+    ]);
+    assert.deepEqual(await loadLocalFiles(), files);
+    assert.match(statusMessage ?? "", /Databases uploaded to your account: 1/);
+    assert.match(statusMessage ?? "", /Rejected \(This database holds more than 25,000 games\./);
+  } finally {
+    (globalThis as { window?: unknown }).window = originalWindow;
+  }
+});
+
+test("account Library downloads every page and keeps databases above the new quota", async () => {
+  const ranges: Array<[number, number]> = [];
+  const rows = Array.from({ length: 11 }, (_, i) => ({
+    id: `remote-${i}`, name: `Database ${i}`, folder_id: null, game_count: i === 0 ? 25_000 : 0,
+  }));
+  const readGames = {
+    eq: () => readGames,
+    order: (column: string) => {
+      assert.equal(column, "id");
+      return readGames;
+    },
+    range: (start: number, end: number) => {
+      ranges.push([start, end]);
+      return {
+        data: Array.from({ length: end - start + 1 }, (_, i) => makePgnGame(start + i)),
+        error: null,
+      };
+    },
+  };
+  (globalThis as { __sig1037Fake?: unknown }).__sig1037Fake = {
+    from: (table: string) => ({
+      select: () => {
+        if (table === "user_folders") return { eq: () => ({ data: [], error: null }) };
+        if (table === "game_databases") return { eq: () => ({ eq: () => ({ data: rows, error: null }) }) };
+        assert.equal(table, "games");
+        return readGames;
+      },
+    }),
+  };
+  const { loadRemoteFiles } = await import("./user-files.ts");
+  const files = await loadRemoteFiles("user-1");
+  assert.equal(files.databases.length, 11);
+  assert.equal(files.databases[0].games.length, 25_000);
+  assert.equal(new Set(files.databases[0].games.map(({ id }) => id)).size, 25_000);
+  assert.equal(ranges.length, 25);
+  assert.deepEqual(ranges.at(-1), [24_000, 24_999]);
+});
+
+test("sign-in joins an in-flight first upload and an append queues one game write", async () => {
+  const { useStudioStore } = await import("@/src/store/studio-store");
+  const { fake, calls } = buildFakeSupabase();
+  const swapStarted = Promise.withResolvers<void>();
+  const finishSwap = Promise.withResolvers<void>();
+  const writes: Record<string, unknown>[] = [];
+  (globalThis as { __sig1037Fake?: unknown }).__sig1037Fake = {
+    ...fake,
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      if (name === "write_database_game") {
+        writes.push(args);
+        return { error: null };
+      }
+      swapStarted.resolve();
+      await finishSwap.promise;
+      return fake.rpc(name, args);
+    },
+  };
+  useStudioStore.setState({
+    files: { folders: [], databases: [] },
+    filesHydrated: true,
+    user: { id: "user-1", email: null },
+  });
+  const state = useStudioStore.getState();
+  const id = state.importParsedDatabase("New", [makePgnGame(0)]);
+  await swapStarted.promise;
+  const signIn = state.uploadLocalDatabases({ folders: [], databases: [] });
+  try {
+    state.importPgnText('[White "Judit"]\n\n1. d4 d5 *', "Board");
+    assert.equal(state.addActiveGameToDatabase({ id }), true);
+    assert.equal(writes.length, 0);
+  } finally {
+    finishSwap.resolve();
+  }
+  await signIn;
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const { files, statusMessage } = useStudioStore.getState();
+  const [database] = files.databases;
+  assert.match(statusMessage ?? "", /Databases uploaded to your account: 1/);
+  assert.equal(database.remoteId, "remote-db");
+  assert.equal(database.games.length, 2);
+  assert.equal(calls.filter(({ op }) => op === "insert-db").length, 1);
+  assert.deepEqual(writes.map(({ p_operation, p_game_id }) => [p_operation, p_game_id]), [
+    ["insert", database.games[1].id],
+  ]);
 });
