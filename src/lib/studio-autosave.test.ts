@@ -341,3 +341,32 @@ describe("SIG-1414 retry listeners", () => {
     assert.equal(notified, 1, "no calls after unsubscribe");
   });
 });
+
+describe("SIG-1414 retries only for boards the autosave pass will retry", () => {
+  it("a failed explicit Save of a clean board records no retry deadline", async () => {
+    const harness = makeHarness([seedBoard("a", { dirty: false }), seedBoard("p", { dirty: true, preview: true })]);
+    harness.deps.persist = async () => {
+      throw new Error("offline");
+    };
+    let notified = 0;
+    subscribeAutosaveRetries(() => {
+      notified += 1;
+    });
+    assert.equal(await saveBoardNow("a", harness.deps), "failed");
+    assert.equal(await saveBoardNow("p", harness.deps), "failed");
+    assert.equal(nextAutosaveRetryAt(), null, "nothing for the pass to consume");
+    assert.equal(notified, 0);
+  });
+
+  it("pruning drops a retry once its board is clean, so no past deadline lingers", async () => {
+    const harness = makeHarness([seedBoard("a", { dirty: true })]);
+    harness.deps.persist = async () => {
+      throw new Error("offline");
+    };
+    await runDirtySavePass(harness.deps, 0);
+    assert.notEqual(nextAutosaveRetryAt(), null);
+    harness.editBoard("a", (item) => ({ ...item, dirty: false }));
+    pruneAutosaveRetries(harness.getBoards());
+    assert.equal(nextAutosaveRetryAt(), null);
+  });
+});

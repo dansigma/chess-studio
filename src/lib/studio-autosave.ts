@@ -66,11 +66,22 @@ export function nextAutosaveRetryAt(): number | null {
   return earliest;
 }
 
-/** Drop retry state for boards that no longer exist (closed or replaced). */
+/** The autosave pass persists (and so retries) only dirty, non-preview boards. */
+function autosaveRetries(board: BoardSession | undefined): boolean {
+  return board !== undefined && board.dirty && !board.preview;
+}
+
+/**
+ * Drop retry state for boards that no longer exist (closed or replaced) and
+ * for boards the pass would not retry (clean or preview): their deadline
+ * would never be consumed, and a past deadline keeps the shell's retry
+ * wakeup firing at once.
+ */
 export function pruneAutosaveRetries(boards: BoardSession[]): void {
   const ids = new Set(boards.map((board) => board.id));
+  const byId = new Map(boards.map((board) => [board.id, board]));
   for (const id of [...retries.keys()]) {
-    if (!ids.has(id)) {
+    if (!autosaveRetries(byId.get(id))) {
       retries.delete(id);
     }
   }
@@ -143,7 +154,11 @@ async function persistUntilCurrent(
     try {
       remoteId = await deps.persist(inserted ? { ...snapshot, remoteId: inserted } : snapshot);
     } catch {
-      noteFailure(id, now, deps.onError);
+      // An explicit Save may have sent a clean or preview board, which the
+      // pass never retries: record a retry only when the pass will run it.
+      if (!manual || autosaveRetries(deps.getBoards().find((board) => board.id === id))) {
+        noteFailure(id, now, deps.onError);
+      }
       return "failed";
     }
     if (!remoteId) {
