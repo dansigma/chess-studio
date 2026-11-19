@@ -71,3 +71,16 @@ test("dialog closes on Escape", () => {
   fireEvent.keyDown(window, { key: "Escape" });
   assert.equal(closed, 1);
 });
+
+test("dialog caps height to viewport and keeps body scrollable with close buttons outside", () => {
+  render(<ShortcutsDialog onClose={() => {}} />);
+  const dialog = screen.getByRole("dialog");
+  assert.match(dialog.className, /max-h-\[calc\(100dvh-2rem\)\]/);
+  const list = dialog.querySelector("section");
+  const scrollBody = list?.closest(".overflow-y-auto");
+  assert.ok(scrollBody, "shortcuts content must sit inside an overflow-y-auto body");
+  assert.match(scrollBody.className, /\bmin-h-0\b/);
+  for (const button of screen.getAllByRole("button")) {
+    assert.equal(scrollBody.contains(button), false, "close buttons must stay outside the scroll area");
+  }
+});

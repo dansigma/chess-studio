@@ -149,7 +149,10 @@ export function MobileStudio({ onOpenPgn }: { onOpenPgn: () => void }) {
         <MobileMenuSheet
           onOpenPgn={onOpenPgn}
           onShare={handleShare}
-          onOpenSettings={() => openSettings()}
+          onOpenSettings={() => {
+            closeMenu();
+            openSettings();
+          }}
           onClose={closeMenu}
         />
       ) : null}

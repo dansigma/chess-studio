@@ -67,5 +67,5 @@ test("sheet Help section opens the shortcuts dialog", () => {
   assert.equal(useStudioStore.getState().shortcutsOpen, true);
   assert.ok(screen.getByText("Atalhos de teclado e gestos"));
   assert.ok(screen.getByText("Navegação"));
-  assert.ok(screen.getByText("Botão direito ou toque longo no tabuleiro"));
+  assert.ok(screen.getByText("Botão direito ao lado do tabuleiro (fora das casas) ou toque longo no tabuleiro"));
 });
