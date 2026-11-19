@@ -245,6 +245,9 @@ export type StudioState = {
   playerColorFilter: PlayerColorFilter;
   playerResultFilter: PlayerResultFilter;
   files: FilesLibrary;
+  filesHydrated: boolean;
+  hydrateLocalFiles: () => Promise<void>;
+  uploadLocalDatabases: (remote: FilesLibrary) => Promise<void>;
   filesQuery: string;
   activeFileDatabaseId: string | null;
   activeFileGameId: string | null;

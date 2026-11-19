@@ -15,7 +15,7 @@ export type PgnImportDeps = {
   replaceDatabaseGames: (id: string, games: ParsedFileGame[]) => boolean;
   /**
    * Asks what to do with a file whose name matches `existing`. Settles with
-   * "cancel" when `signal` aborts. `keepBothAllowed` is false at the 50-database limit.
+   * "cancel" when `signal` aborts. `keepBothAllowed` is false at the 10-database limit.
    */
   resolveConflict: (
     existing: FileDatabase,
@@ -33,7 +33,7 @@ export type ImportOneOptions = {
 
 export type ImportOneOutcome =
   | { kind: "imported"; id: string; imported: number; overLimit: number; unreadable: number }
-  /** The 50-database limit is reached; nothing was read. */
+  /** The 10-database limit is reached; nothing was read. */
   | { kind: "database-limit" }
   /** Name match, existing database's games replaced (same id). */
   | { kind: "replaced"; id: string; imported: number; overLimit: number; unreadable: number }
@@ -72,7 +72,7 @@ export function splitPgnFiles(files: File[]): { pgn: File[]; skipped: string[] }
  * fully parsed games and only then handed to the store, so a cancel (abort)
  * never leaves a half database. A file named like an existing database stops
  * after the parse and asks (replace / keep both / merge / cancel) before
- * anything is saved. Replace and Merge create no database, so the 50-database
+ * anything is saved. Replace and Merge create no database, so the 10-database
  * limit only blocks a new one.
  */
 export async function importOne(
@@ -140,6 +140,9 @@ export async function importOne(
     return { kind: "database-limit" };
   }
   const id = deps.importParsedDatabase(importName, parsed.games);
+  if (!id) {
+    return { kind: "database-limit" };
+  }
   return {
     kind: "imported",
     id,
