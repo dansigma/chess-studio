@@ -54,6 +54,23 @@ const setDatabases = (databases: unknown[]) =>
   useStudioStore.setState((state) => ({ files: { ...state.files, databases: databases as never } }));
 
 before(() => setupDom());
+const realMatchMedia = window.matchMedia;
+function setPhone(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
 after(() => teardownDom());
 beforeEach(() => {
   urls.length = 0;
@@ -71,6 +88,11 @@ afterEach(() => {
   cleanup();
   clearLibrarySources();
   globalThis.fetch = realFetch;
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: realMatchMedia,
+  });
 });
 
 async function searchFor(value: string, text: string | RegExp = "Magnus") {
@@ -281,4 +303,28 @@ test("a bookmarked local player is not repeated locally and keeps the local hand
   assert.equal(useDossierStore.getState().player?.id, LOCAL.id);
   assert.ok(within(dossier).getByRole("button", { name: "View in Games tab" }));
   assert.equal(within(dossier).queryByRole("button", { name: "Open in Studio" }), null);
+});
+
+test("mobile: full-width player list transitions to full-width dossier with back button", () => {
+  setPhone(true);
+  act(() => useStudioStore.setState({ bookmarks: [{ ...HIT, bookmarkedAt: 1 }] }));
+  render(<LibraryPlayers />);
+
+  const list = screen.getByTestId("library-players-list");
+  assert.ok(list.className.includes("w-full"));
+  assert.equal(screen.queryByTestId("library-player-dossier"), null);
+
+  fireEvent.click(within(list).getByText("Magnus"));
+  assert.equal(screen.queryByTestId("library-players-list"), null);
+  const dossier = screen.getByTestId("library-player-dossier");
+  assert.ok(within(dossier).getByRole("heading", { name: "Magnus" }));
+  assert.equal(within(dossier).queryByRole("button", { name: "Close player dossier" }), null);
+
+  const backButton = within(dossier).getByTestId("dossier-back-button");
+  assert.equal(backButton.textContent, "Players");
+  fireEvent.click(backButton);
+
+  assert.equal(useDossierStore.getState().player, null);
+  assert.ok(screen.getByTestId("library-players-list"));
+  assert.equal(screen.queryByTestId("library-player-dossier"), null);
 });

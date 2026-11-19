@@ -30,6 +30,12 @@ export function BottomSheet({
         if (document.querySelector("[data-escape-defer]")) {
           return;
         }
+        // A modal opened on top of the sheet (a Dialog rendered inside it or
+        // after it) owns Escape: only the topmost layer closes.
+        const modals = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+        if (modals.length > 0 && modals[modals.length - 1] !== sheetRef.current) {
+          return;
+        }
         event.stopPropagation();
         onClose();
       }

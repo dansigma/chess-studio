@@ -1,7 +1,7 @@
 import { after, afterEach, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { LibraryView, LibraryPlaceholderList } from "./LibraryView";
 import type { LibraryGamesState } from "./use-library-games";
 import { useLibraryStore } from "./library-store";
@@ -11,10 +11,33 @@ import { emptyOverview } from "@/src/lib/library/overview";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 
 before(() => setupDom());
+const realMatchMedia = window.matchMedia;
+function setPhone(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
 after(() => teardownDom());
 afterEach(() => {
   cleanup();
   clearLibrarySources();
+  useLibraryStore.setState({ selectedKey: null });
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    writable: true,
+    value: realMatchMedia,
+  });
 });
 
 const base: LibraryGamesState = {
@@ -111,4 +134,83 @@ test("the right panel shows the summary with no selection and the preview after 
   fireEvent.keyDown(screen.getByRole("grid"), { key: "Escape" });
   assert.ok(screen.getByTestId("library-summary"));
   assert.equal(useLibraryStore.getState().selectedKey, null);
+});
+
+test("mobile: full-width table, Sources button opens BottomSheet, tapping game opens preview BottomSheet", async () => {
+  setPhone(true);
+  registerLibrarySource({
+    id: "my-games",
+    label: () => "My Games",
+    capabilities: () => ({}) as never,
+    list: async () => ({ items: [ITEM], nextCursor: null, total: 1 }),
+    loadPgn: async () => PGN,
+    overview: async () => emptyOverview(),
+  });
+  useLibraryStore.setState({
+    mode: "games",
+    selectedKey: null,
+    filters: { ...useLibraryStore.getState().filters, sources: ["my-games"] },
+  });
+
+  await act(async () => {
+    render(<LibraryView />);
+  });
+
+  assert.ok(screen.getByTestId("library-table-slot"));
+  assert.equal(screen.queryByRole("separator"), null);
+  assert.equal(screen.queryByTestId("library-source-rail"), null);
+  assert.equal(screen.queryByTestId("library-summary"), null);
+  assert.ok(screen.getByTestId("library-header").className.includes("flex-wrap"));
+
+  // Sources trigger opens LibrarySourceRail inside a BottomSheet.
+  fireEvent.click(screen.getByTestId("library-sources-button"));
+  const sourcesSheet = document.querySelector("[data-mobile-menu-sheet]") as HTMLElement;
+  assert.ok(sourcesSheet);
+  assert.ok(within(sourcesSheet).getByTestId("library-source-rail"));
+  fireEvent.click(within(sourcesSheet).getByRole("button", { name: "Close" }));
+  assert.equal(document.querySelector("[data-mobile-menu-sheet]"), null);
+
+  // Tapping a game opens LibraryPreview inside a BottomSheet.
+  const row = await screen.findByTestId("library-row");
+  fireEvent.click(row);
+  await screen.findByTestId("library-preview");
+  const previewSheet = document.querySelector("[data-mobile-menu-sheet]") as HTMLElement;
+  assert.ok(previewSheet);
+  assert.ok(within(previewSheet).getByTestId("library-preview"));
+  assert.ok(within(previewSheet).getByRole("button", { name: "Open in Studio" }));
+
+  // Closing the preview sheet clears the selection.
+  fireEvent.click(within(previewSheet).getByRole("button", { name: "Close" }));
+  assert.equal(useLibraryStore.getState().selectedKey, null);
+  assert.equal(screen.queryByTestId("library-preview"), null);
+});
+
+test("mobile: Escape in a Sources-sheet menu or dialog closes only that layer, not the sheet", async () => {
+  setPhone(true);
+  useLibraryStore.setState({ mode: "games", selectedKey: null });
+  await act(async () => {
+    render(<LibraryView />);
+  });
+  fireEvent.click(screen.getByTestId("library-sources-button"));
+  const sheet = () => document.querySelector("[data-mobile-menu-sheet]") as HTMLElement | null;
+  assert.ok(sheet());
+
+  // Import menu open: the first Escape closes the menu, the sheet stays.
+  fireEvent.click(within(sheet()!).getByRole("button", { name: "+ Import PGN" }));
+  const menu = screen.getByRole("menu", { name: "+ Import PGN" });
+  fireEvent.keyDown(menu, { key: "Escape" });
+  assert.equal(screen.queryByRole("menu", { name: "+ Import PGN" }), null);
+  assert.ok(sheet());
+
+  // Paste PGN dialog open: Escape closes the dialog and keeps the sheet.
+  fireEvent.click(within(sheet()!).getByRole("button", { name: "+ Import PGN" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Paste PGN" }));
+  assert.equal(document.querySelectorAll('[role="dialog"][aria-modal="true"]').length, 2);
+  fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+  assert.equal(document.querySelectorAll('[role="dialog"][aria-modal="true"]').length, 1);
+  assert.ok(sheet());
+
+  // With nothing on top, Escape closes the sheet.
+  fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+  assert.equal(sheet(), null);
 });
