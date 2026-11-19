@@ -26,6 +26,26 @@ type RetryState = {
 /** One running save per board id, shared by the autosave pass and manual saves. */
 const inflight = new Map<string, Promise<BoardSaveOutcome>>();
 const retries = new Map<string, RetryState>();
+/**
+ * Row id returned by the first insert of a board whose store copy has no
+ * remoteId yet (the insert's snapshot went stale, so markSaved was skipped).
+ * Later persists of that board send it, so they update the row instead of
+ * inserting a second one. Cleared once the board is marked saved or closed.
+ */
+const insertedRemoteIds = new Map<string, string>();
+const retryListeners = new Set<() => void>();
+
+/**
+ * Called whenever a failed save records a retry deadline, whoever ran the
+ * save (the autosave pass or an explicit Save), so the shell can arm its
+ * retry wakeup. Returns the unsubscribe function.
+ */
+export function subscribeAutosaveRetries(listener: () => void): () => void {
+  retryListeners.add(listener);
+  return () => {
+    retryListeners.delete(listener);
+  };
+}
 
 function retryDelayMs(failures: number): number {
   if (failures <= 0) {
@@ -54,12 +74,19 @@ export function pruneAutosaveRetries(boards: BoardSession[]): void {
       retries.delete(id);
     }
   }
+  for (const id of [...insertedRemoteIds.keys()]) {
+    if (!ids.has(id)) {
+      insertedRemoteIds.delete(id);
+    }
+  }
 }
 
 /** Test hook: reset module-level in-flight and retry state. */
 export function resetAutosaveStateForTests(): void {
   inflight.clear();
   retries.clear();
+  insertedRemoteIds.clear();
+  retryListeners.clear();
 }
 
 function noteFailure(id: string, now: number, onError?: () => void): void {
@@ -73,6 +100,9 @@ function noteFailure(id: string, now: number, onError?: () => void): void {
   if (!previous && onError) {
     // One notification per failure burst, not one per retry.
     onError();
+  }
+  for (const listener of retryListeners) {
+    listener();
   }
 }
 
@@ -108,9 +138,10 @@ async function persistUntilCurrent(
   while (current && (force || (current.dirty && (manual || !current.preview)))) {
     force = false;
     const snapshot = current;
+    const inserted = snapshot.remoteId ? undefined : insertedRemoteIds.get(id);
     let remoteId: string | null;
     try {
-      remoteId = await deps.persist(snapshot);
+      remoteId = await deps.persist(inserted ? { ...snapshot, remoteId: inserted } : snapshot);
     } catch {
       noteFailure(id, now, deps.onError);
       return "failed";
@@ -120,10 +151,14 @@ async function persistUntilCurrent(
       // stop; the shell effect re-runs when the dependency changes.
       return "declined";
     }
+    if (!snapshot.remoteId) {
+      insertedRemoteIds.set(id, remoteId);
+    }
     const live = deps.getBoards().find((board) => board.id === id);
     if (!live) {
       // Board closed while saving — drop retry state, nothing to mark.
       retries.delete(id);
+      insertedRemoteIds.delete(id);
       return "closed";
     }
     if (live !== snapshot) {
@@ -137,6 +172,7 @@ async function persistUntilCurrent(
       continue;
     }
     deps.markSaved(snapshot.id, remoteId);
+    insertedRemoteIds.delete(id);
     noteSuccess(id);
     return "saved";
   }

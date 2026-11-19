@@ -8,6 +8,7 @@ import {
   resetAutosaveStateForTests,
   runDirtySavePass,
   saveBoardNow,
+  subscribeAutosaveRetries,
   type SavePassDeps,
 } from "./studio-autosave.ts";
 import { emptyBoard } from "../store/slices/board-helpers.ts";
@@ -273,5 +274,70 @@ describe("SIG-1414 saveBoardNow (menu Save and Ctrl+S)", () => {
     harness.deps.persist = async () => null;
     assert.equal(await saveBoardNow("a", harness.deps), "declined");
     assert.equal(harness.getBoards()[0]!.dirty, true);
+  });
+});
+
+describe("SIG-1414 a new board is inserted once even when edits land during its insert", () => {
+  function insertCounter(harness: ReturnType<typeof makeHarness>, onPersist: () => void) {
+    const inserts: string[] = [];
+    harness.deps.persist = async (board) => {
+      onPersist();
+      if (board.remoteId) {
+        return board.remoteId;
+      }
+      const id = `row-${inserts.length + 1}`;
+      inserts.push(id);
+      return id;
+    };
+    return inserts;
+  }
+
+  it("the catch-up persist updates the inserted row (explicit Save)", async () => {
+    const harness = makeHarness([seedBoard("a", { dirty: true, remoteId: null })]);
+    let edits = 0;
+    const inserts = insertCounter(harness, () => {
+      if (edits === 0) {
+        edits += 1;
+        harness.editBoard("a", (item) => ({ ...item, title: "edited", dirty: true }));
+      }
+    });
+    assert.equal(await saveBoardNow("a", harness.deps), "saved");
+    assert.deepEqual(inserts, ["row-1"]);
+    assert.equal(harness.getBoards()[0]!.remoteId, "row-1");
+  });
+
+  it("a later autosave pass reuses the row after the catch-up bound defers the board", async () => {
+    const harness = makeHarness([seedBoard("a", { dirty: true, remoteId: null })]);
+    let editing = true;
+    const inserts = insertCounter(harness, () => {
+      if (editing) {
+        harness.editBoard("a", (item) => ({ ...item, dirty: true }));
+      }
+    });
+    await runDirtySavePass(harness.deps);
+    assert.equal(harness.getBoards()[0]!.dirty, true, "deferred: edits kept landing");
+    editing = false;
+    await runDirtySavePass(harness.deps);
+    assert.deepEqual(inserts, ["row-1"]);
+    assert.equal(harness.getBoards()[0]!.remoteId, "row-1");
+    assert.equal(harness.getBoards()[0]!.dirty, false);
+  });
+});
+
+describe("SIG-1414 retry listeners", () => {
+  it("are told about a failed explicit Save so the shell can arm the retry wakeup", async () => {
+    const harness = makeHarness([seedBoard("a", { dirty: true })]);
+    harness.deps.persist = async () => {
+      throw new Error("network");
+    };
+    let notified = 0;
+    const unsubscribe = subscribeAutosaveRetries(() => {
+      notified += 1;
+    });
+    assert.equal(await saveBoardNow("a", harness.deps), "failed");
+    assert.equal(notified, 1);
+    unsubscribe();
+    await saveBoardNow("a", harness.deps);
+    assert.equal(notified, 1, "no calls after unsubscribe");
   });
 });

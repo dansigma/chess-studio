@@ -30,6 +30,7 @@ import {
 import {
   nextAutosaveRetryAt,
   runDirtySavePass,
+  subscribeAutosaveRetries,
 } from "@/src/lib/studio-autosave";
 import { useExplorerData } from "./use-explorer-data";
 import {
@@ -433,7 +434,11 @@ export function StudioShell() {
         },
       }).finally(scheduleRetryWakeup);
     }, 1000);
+    // A failed explicit Save (menu Save, Ctrl+S) records a retry too; arm the
+    // wakeup for it, since no autosave pass callback runs in that case.
+    const unsubscribeRetries = subscribeAutosaveRetries(scheduleRetryWakeup);
     return () => {
+      unsubscribeRetries();
       window.clearTimeout(handle);
       window.clearTimeout(retryHandle);
     };
