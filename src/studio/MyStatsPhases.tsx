@@ -90,7 +90,6 @@ export function MyStatsPhases({
                       phase={phase}
                       tier={tier}
                       available={exerciseCounts[phase][tier]}
-                      mistakes={totals[phase][tier]}
                       filtersActive={filtersActive}
                     />
                   ) : null}
@@ -109,43 +108,22 @@ function TrainAction({
   phase,
   tier,
   available,
-  mistakes,
   filtersActive,
 }: {
   locale: SiteLocale;
   phase: GamePhase;
   tier: TrainableTier;
   available: number;
-  mistakes: number;
   filtersActive: boolean;
 }) {
-  if (available === 0 && mistakes === 0) {
+  // SIG-1385: a 0-count action is dead UI — hide it entirely instead of
+  // rendering a disabled "Train (0)".
+  if (available === 0) {
     return null;
   }
   const label = tMyGames(locale, "myGames.statsTrain", { count: formatInteger(locale, available) });
   const note = filtersActive ? tMyGames(locale, "myGames.statsTrainAllGames") : undefined;
   const base = "ml-2 text-caption";
-  if (available === 0) {
-    const hintId = `train-hint-${phase}-${tier}`;
-    const hint = tMyGames(locale, "myGames.statsTrainNone");
-    return (
-      <>
-        <span
-          role="link"
-          aria-disabled="true"
-          aria-describedby={hintId}
-          title={hint}
-          data-testid={`train-${phase}-${tier}`}
-          className={`${base} cursor-not-allowed text-studio-faint`}
-        >
-          {label}
-        </span>
-        <span id={hintId} className="sr-only">
-          {hint}
-        </span>
-      </>
-    );
-  }
   return (
     <Link
       href={`/puzzles/play?mode=mistakes&label=${tier}&phase=${phase}`}

@@ -17,6 +17,7 @@ export function GamesPanel() {
   const setStatus = useStudioStore((state) => state.setStatus);
   const source = useStudioStore((state) => state.databaseSource);
   const databases = useStudioStore((state) => state.files.databases);
+  const setActivity = useStudioStore((state) => state.setActivity);
 
   // SIG-1192: masters/online rows carry no event name, so the column is
   // only shown when at least one listed game has one (curated, personal).
@@ -101,7 +102,18 @@ export function GamesPanel() {
           </div>
         ) : null}
         {!loading && (explorer?.games.length ?? 0) === 0 ? (
-          <div className="px-3 py-4 text-studio-faint">{tPanels(locale, "games.empty")}</div>
+          <div className="flex flex-col items-start gap-2 px-3 py-4 text-studio-faint">
+            <p>{tPanels(locale, "games.empty")}</p>
+            {/* SIG-1385: the empty row points at the import flow — same
+                `setActivity("mygames")` the activity bar uses to open My Games. */}
+            <button
+              type="button"
+              onClick={() => setActivity("mygames")}
+              className="rounded bg-studio-hover px-2 py-0.5 text-caption font-medium text-studio-accent-text hover:bg-studio-hover-strong"
+            >
+              {tPanels(locale, "games.import")}
+            </button>
+          </div>
         ) : null}
         {explorer?.games.map((game) => (
           <GameOpenRow

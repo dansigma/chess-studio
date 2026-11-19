@@ -83,13 +83,10 @@ test("enabled Train action links to the filtered session with the exercise count
   assert.equal(link.getAttribute("title"), null);
 });
 
-test("0 exercises with stats mistakes renders a disabled action with a hint", () => {
+test("0 exercises renders no Train action at all (SIG-1385: hidden, not disabled)", () => {
   render(<MyStatsPhases locale="pt-br" stats={trainStats()} exerciseCounts={counts({ mistake: 6 })} />);
-  const el = screen.getByTestId("train-opening-blunder");
-  assert.equal(el.getAttribute("aria-disabled"), "true");
-  assert.equal(el.getAttribute("href"), null);
-  assert.equal(el.getAttribute("title"), "Nenhuma posição salva para esses erros");
-  assert.ok(document.getElementById(el.getAttribute("aria-describedby") ?? ""));
+  assert.equal(screen.queryByTestId("train-opening-blunder"), null);
+  assert.ok(screen.getByTestId("train-opening-mistake"));
 });
 
 test("active filters explain in the title; loading shows no actions", () => {

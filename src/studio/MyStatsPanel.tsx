@@ -23,6 +23,7 @@ import { useEffect, useMemo, useState } from "react";
 import { sanMovesFromPgn } from "@/src/chess/pgn-clean";
 import { tMyGames } from "@/src/i18n/my-games-strings";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
+import { tPanels } from "@/src/i18n/studio-panel-strings";
 import { loadCappedMyGames } from "@/src/lib/my-games/load-games";
 import {
   deviationsForRecentGames,
@@ -66,6 +67,7 @@ import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
 import { MyStatsPhases } from "./MyStatsPhases";
+import { MyStatsReviewGate } from "./MyStatsReviewGate";
 import { MyStatsTrend } from "./MyStatsTrend";
 
 type LoadState = "signedOut" | "loading" | "ready" | "unavailable";
@@ -83,6 +85,7 @@ export function MyStatsPanel() {
   const user = useStudioStore((state) => state.user);
   const importPlayerGame = useStudioStore((state) => state.importPlayerGame);
   const flip = useStudioStore((state) => state.flip);
+  const setActivity = useStudioStore((state) => state.setActivity);
   const [games, setGames] = useState<PlayerGame[]>([]);
   // Load state derives from `user` on first render; the effect below keeps it
   // in sync on transitions (same grain as MyGamesSidebar's synchronous
@@ -320,10 +323,19 @@ export function MyStatsPanel() {
           <p role="status" className="text-dense text-studio-muted">
             {tMyGames(locale, "myGames.error.unavailable")}
           </p>
+        ) : games.length === 0 ? (
+          <div role="status" data-testid="mystats-no-games" className="flex flex-col items-start gap-2">
+            <p className="text-dense text-studio-muted">{tMyGames(locale, "myGames.empty")}</p>
+            <button
+              type="button"
+              onClick={() => setActivity("mygames")}
+              className="rounded bg-studio-hover px-2 py-0.5 text-caption font-medium text-studio-accent-text hover:bg-studio-hover-strong"
+            >
+              {tPanels(locale, "games.import")}
+            </button>
+          </div>
         ) : view === "empty" ? (
-          <p role="status" className="text-dense text-studio-muted">
-            {tMyGames(locale, "myGames.statsEmpty")}
-          </p>
+          <MyStatsReviewGate locale={locale} reviewed={totalReviewed} />
         ) : (
           <>
             <div role="tablist" aria-label={tMyGames(locale, "myGames.statsTitle")} className="mb-2 flex gap-1">
@@ -402,16 +414,27 @@ export function MyStatsPanel() {
             ) : (
             <>
             <MyStatsKpiCards locale={locale} kpis={kpis} />
-            <section aria-labelledby="mystats-trend">
-              <h2 id="mystats-trend" className="mb-1 text-caption font-semibold text-studio-muted">
-                {tMyGames(locale, "myGames.statsTrend")}
-              </h2>
-              {filteredReady ? (
+            {/* SIG-1385: with filters leaving fewer than 3 reviewed games, the
+                gate shows once here; the trend and phase sections wait for it. */}
+            {filteredReady ? null : (
+              <MyStatsReviewGate
+                locale={locale}
+                reviewed={reviewedCount}
+                onResetFilters={
+                  reviewedCount === filteredGames.length
+                    ? () => setOverviewFilters(DEFAULT_OVERVIEW_FILTERS)
+                    : undefined
+                }
+              />
+            )}
+            {filteredReady ? (
+              <section aria-labelledby="mystats-trend">
+                <h2 id="mystats-trend" className="mb-1 text-caption font-semibold text-studio-muted">
+                  {tMyGames(locale, "myGames.statsTrend")}
+                </h2>
                 <MyStatsTrend games={filteredGames} locale={locale} onOpenGame={onOpenGame} />
-              ) : (
-                <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
-              )}
-            </section>
+              </section>
+            ) : null}
             <OpeningResultsTable
               locale={locale}
               rows={openings}
@@ -423,28 +446,26 @@ export function MyStatsPanel() {
               minGames={minGames}
               onMinGamesChange={setMinGames}
             />
-            <section aria-labelledby="mystats-phases">
-              <h2 id="mystats-phases" className="mb-1 text-caption font-semibold text-studio-muted">
-                {tMyGames(locale, "myGames.statsByPhase")}
-              </h2>
-              {filteredReady ? (
+            {filteredReady ? (
+              <section aria-labelledby="mystats-phases">
+                <h2 id="mystats-phases" className="mb-1 text-caption font-semibold text-studio-muted">
+                  {tMyGames(locale, "myGames.statsByPhase")}
+                </h2>
                 <MyStatsPhases
                   locale={locale}
                   stats={phaseStats}
                   exerciseCounts={userId ? exerciseCounts : null}
                   filtersActive={!isDefaultOverviewFilters(overviewFilters)}
                 />
-              ) : (
-                <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
-              )}
-            </section>
+              </section>
+            ) : null}
             {whiteRepTree === null && blackRepTree === null ? null : (
               <section aria-labelledby="mystats-deviations">
                 <h2 id="mystats-deviations" className="mb-1 text-caption font-semibold text-studio-muted">
                   {tRepertoire(locale, "repertoire.deviation.statsTitle")}
                 </h2>
                 {deviationGroups.length === 0 ? (
-                  <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsEmpty")}</p>
+                  <p className="text-dense text-studio-faint">{tMyGames(locale, "myGames.statsDeviationsEmpty")}</p>
                 ) : (
                   <ul className="flex flex-col gap-1.5">
                     {deviationGroups.map((group) => {
