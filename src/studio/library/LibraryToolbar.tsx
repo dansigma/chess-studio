@@ -7,6 +7,7 @@ import { tLibrary } from "@/src/i18n/library-strings";
 import { listLibrarySources } from "@/src/lib/library/sources";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Badge, SearchInput, Tooltip } from "../ui/Controls";
+import { useIsMobile } from "../use-is-mobile";
 import {
   buildFilterChips,
   chipRemovalPatch,
@@ -42,6 +43,7 @@ function useAvailableSources(): ChipSource[] {
  */
 export function LibraryToolbar({ total }: LibraryToolbarProps) {
   const locale = useStudioStore((state) => state.settings.locale);
+  const isMobile = useIsMobile();
   const filters = useLibraryStore((s) => s.filters);
   const filtersOpen = useLibraryStore((s) => s.filtersOpen);
   const setFiltersOpen = useLibraryStore((s) => s.setFiltersOpen);
@@ -53,7 +55,7 @@ export function LibraryToolbar({ total }: LibraryToolbarProps) {
   const advancedCount = countAdvancedFilters(filters);
 
   return (
-    <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 px-0.5">
+    <div className={`flex min-w-0 flex-1 ${isMobile ? "flex-wrap" : "flex-nowrap"} items-center gap-2 px-0.5`}>
       <DebouncedSearch />
       <div className="relative shrink-0">
         <button

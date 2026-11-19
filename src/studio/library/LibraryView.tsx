@@ -1,9 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { Database } from "lucide-react";
 import { useStudioStore } from "@/src/store/studio-store";
 import { tLibrary } from "@/src/i18n/library-strings";
+import { BottomSheet } from "../BottomSheet";
+import { Button } from "../ui/Button";
 import { Panel } from "../ui/Panel";
+import { useIsMobile } from "../use-is-mobile";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { useLibraryGames, type LibraryGamesState } from "./use-library-games";
 import { LibraryFilterChips, LibraryToolbar } from "./LibraryToolbar";
@@ -86,8 +90,10 @@ export function LibraryView(slots: LibraryViewSlots = {}) {
 
 function LibraryGames({ toolbar, table, preview, tabs }: LibraryViewSlots & { tabs: ReactNode }) {
   useLibrarySources();
+  const isMobile = useIsMobile();
   const locale = useStudioStore((state) => state.settings.locale);
   const selectedKey = useLibraryStore((s) => s.selectedKey);
+  const selectGame = useLibraryStore((s) => s.selectGame);
   const games = useLibraryGames();
   const filters = useLibraryStore((s) => s.filters);
   const indexing = useMyGamesIndexing(
@@ -96,6 +102,7 @@ function LibraryGames({ toolbar, table, preview, tabs }: LibraryViewSlots & { ta
   );
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [split, setSplit] = useState(DEFAULT_LIBRARY_SPLIT);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
 
   useEffect(() => {
     // Read after mount so server and first client render agree.
@@ -154,61 +161,108 @@ function LibraryGames({ toolbar, table, preview, tabs }: LibraryViewSlots & { ta
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-      <div className="flex min-w-0 shrink-0 flex-nowrap items-center gap-2" data-testid="library-header">
+      <div
+        className={`flex min-w-0 shrink-0 ${isMobile ? "flex-wrap" : "flex-nowrap"} items-center gap-2`}
+        data-testid="library-header"
+      >
         {tabs}
+        {isMobile ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSourcesOpen(true)}
+            data-testid="library-sources-button"
+            className="ml-auto min-h-[44px] shrink-0"
+          >
+            <Database size={14} aria-hidden="true" />
+            {tLibrary(locale, "library.sources.rail.title")}
+          </Button>
+        ) : null}
         <div
           aria-label={tLibrary(locale, "library.toolbar.label")}
           role="search"
           data-testid="library-toolbar-slot"
-          className="flex min-w-0 flex-1"
+          className={isMobile ? "flex w-full min-w-0 basis-full" : "flex min-w-0 flex-1"}
         >
           {toolbar ?? <LibraryToolbar total={games.total} />}
         </div>
       </div>
       {toolbar ? null : <LibraryFilterChips />}
-      <div className="flex min-h-0 flex-1">
-        <LibrarySourceRail sourceErrors={games.sourceErrors} />
-        <div aria-hidden className="w-1.5 shrink-0" />
-        {/* SIG-1337: the rail sits outside the resizable split, so the split keeps its own width. */}
-        <div ref={containerRef} className="flex min-h-0 min-w-0 flex-1">
+      {isMobile ? (
+        <>
           <Panel
             as="section"
             aria-label={tLibrary(locale, "library.table.label")}
-            className="flex min-w-0 flex-col overflow-hidden"
-            style={{ width: `${split}%` }}
+            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
             data-testid="library-table-slot"
           >
             <IndexingNotice state={indexing} />
             {table ? table(games) : <LibraryTable games={games} />}
           </Panel>
-          <div
-            role="separator"
-            tabIndex={0}
-            aria-orientation="vertical"
-            aria-valuenow={Math.round(split)}
-            aria-valuemin={30}
-            aria-valuemax={85}
-            aria-label={tLibrary(locale, "library.resize")}
-            className="group flex w-1.5 shrink-0 cursor-col-resize touch-none select-none items-center justify-center outline-none"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
-            onDoubleClick={() => applySplit(DEFAULT_LIBRARY_SPLIT, true)}
-            onKeyDown={onKeyDown}
-          >
-            <div className="h-full w-0.5 rounded-full bg-transparent transition-colors group-hover:bg-studio-border group-focus-visible:bg-studio-accent" />
+          {sourcesOpen ? (
+            <BottomSheet
+              title={tLibrary(locale, "library.sources.rail.title")}
+              onClose={() => setSourcesOpen(false)}
+            >
+              <LibrarySourceRail sourceErrors={games.sourceErrors} inSheet />
+            </BottomSheet>
+          ) : null}
+          {selected ? (
+            <BottomSheet
+              title={`${selected.white} – ${selected.black}`}
+              onClose={() => selectGame(null)}
+            >
+              <div data-testid="library-preview-slot" className="flex min-w-0 flex-col">
+                {preview ? preview(selected) : <LibraryPreview item={selected} />}
+              </div>
+            </BottomSheet>
+          ) : null}
+        </>
+      ) : (
+        <div className="flex min-h-0 flex-1">
+          <LibrarySourceRail sourceErrors={games.sourceErrors} />
+          <div aria-hidden className="w-1.5 shrink-0" />
+          {/* SIG-1337: the rail sits outside the resizable split, so the split keeps its own width. */}
+          <div ref={containerRef} className="flex min-h-0 min-w-0 flex-1">
+            <Panel
+              as="section"
+              aria-label={tLibrary(locale, "library.table.label")}
+              className="flex min-w-0 flex-col overflow-hidden"
+              style={{ width: `${split}%` }}
+              data-testid="library-table-slot"
+            >
+              <IndexingNotice state={indexing} />
+              {table ? table(games) : <LibraryTable games={games} />}
+            </Panel>
+            <div
+              role="separator"
+              tabIndex={0}
+              aria-orientation="vertical"
+              aria-valuenow={Math.round(split)}
+              aria-valuemin={30}
+              aria-valuemax={85}
+              aria-label={tLibrary(locale, "library.resize")}
+              className="group flex w-1.5 shrink-0 cursor-col-resize touch-none select-none items-center justify-center outline-none"
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={endDrag}
+              onPointerCancel={endDrag}
+              onDoubleClick={() => applySplit(DEFAULT_LIBRARY_SPLIT, true)}
+              onKeyDown={onKeyDown}
+            >
+              <div className="h-full w-0.5 rounded-full bg-transparent transition-colors group-hover:bg-studio-border group-focus-visible:bg-studio-accent" />
+            </div>
+            <Panel
+              as="section"
+              aria-label={tLibrary(locale, "library.preview.label")}
+              className="min-w-0 flex-1 overflow-hidden"
+              data-testid="library-preview-slot"
+            >
+              {preview ? preview(selected) : selected ? <LibraryPreview item={selected} /> : <LibrarySummary />}
+            </Panel>
           </div>
-          <Panel
-            as="section"
-            aria-label={tLibrary(locale, "library.preview.label")}
-            className="min-w-0 flex-1 overflow-hidden"
-            data-testid="library-preview-slot"
-          >
-            {preview ? preview(selected) : selected ? <LibraryPreview item={selected} /> : <LibrarySummary />}
-          </Panel>
         </div>
-      </div>
+      )}
     </div>
   );
 }

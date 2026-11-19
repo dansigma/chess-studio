@@ -14,12 +14,13 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { MyStatsFilterBar, MyStatsKpiCards } from "../../MyStatsOverviewHeader";
 import { Button, IconButton } from "../../ui/Button";
 import { Panel } from "../../ui/Panel";
+import { useIsMobile } from "../../use-is-mobile";
 import { usePlayerGames } from "../use-player-games";
 import { DossierGames } from "./DossierGames";
 import { DossierOpenings } from "./DossierOpenings";
 import { useDossierStore } from "./dossier-store";
 import { showPlayerInLibrary } from "./show-in-library";
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 
 const ORIGIN_KEYS: Record<PlayerSource, LibraryStringKey> = {
   studio: "library.dossier.origin.local",
@@ -53,6 +54,7 @@ export function playerYearRange(games: readonly PlayerGame[]): [number, number] 
 }
 
 export function LibraryPlayerDossier() {
+  const isMobile = useIsMobile();
   const locale = useStudioStore((state) => state.settings.locale);
   const openPlayerView = useStudioStore((state) => state.openPlayerView);
   const setWorkspaceView = useStudioStore((state) => state.setWorkspaceView);
@@ -93,7 +95,19 @@ export function LibraryPlayerDossier() {
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="@container flex min-w-0 flex-col gap-3 p-3">
-            <header className="flex min-w-0 items-start gap-2">
+            <header className={`flex min-w-0 ${isMobile ? "flex-wrap items-center" : "items-start"} gap-2`}>
+              {isMobile ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={closePlayer}
+                  data-testid="dossier-back-button"
+                  className="min-h-[44px] shrink-0"
+                >
+                  <ArrowLeft size={14} aria-hidden="true" />
+                  {tLibrary(locale, "library.dossier.back")}
+                </Button>
+              ) : null}
               <div className="min-w-0 flex-1">
                 <h2 className="truncate text-body font-semibold text-studio-fg" data-testid="dossier-player-name">
                   {player.displayName}
@@ -123,9 +137,11 @@ export function LibraryPlayerDossier() {
                   {tLibrary(locale, "library.dossier.openInStudio")}
                 </Button>
               )}
-              <IconButton size="sm" label={tLibrary(locale, "library.dossier.close")} onClick={closePlayer}>
-                <X size={14} />
-              </IconButton>
+              {!isMobile ? (
+                <IconButton size="sm" label={tLibrary(locale, "library.dossier.close")} onClick={closePlayer}>
+                  <X size={14} />
+                </IconButton>
+              ) : null}
             </header>
             <MyStatsFilterBar
               locale={locale}
