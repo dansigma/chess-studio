@@ -22,11 +22,14 @@ import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 // sheet renders FileMenuItems directly with its own run/close wiring.
 export function FileMenuItems({
   onOpenPgn,
+  onShowFileGames = () => openStudioPanel("fileGames"),
   onShare,
   close,
   run,
 }: {
   onOpenPgn: () => void;
+  /** Shows the games of the PGN just opened; the mobile sheet passes its own. */
+  onShowFileGames?: () => void;
   onShare: (url: string, copied: boolean) => void;
   close: () => void;
   run: (action: () => void) => () => void;
@@ -161,7 +164,7 @@ export function FileMenuItems({
   async function openClipboard() {
     const text = await navigator.clipboard.readText();
     openPgnSource("Clipboard", text);
-    openStudioPanel("fileGames");
+    onShowFileGames();
     close();
   }
 

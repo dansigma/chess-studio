@@ -362,6 +362,7 @@ export type StudioState = {
   setMistakeExercises: (exercises: MistakeExercisesMap) => void;
   hydrateMistakeExercises: () => Promise<void>;
   renameActive: (title: string) => void;
+  renameBoard: (id: string, title: string) => void;
   setBoardRepertoire: (boardId: string, color: BoardOrientation | null) => void;
   trainDeviationLine: (event: DeviationEvent, color: BoardOrientation) => void;
   addGapToRepertoire: (event: DeviationEvent, color: BoardOrientation) => void;

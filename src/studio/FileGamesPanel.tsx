@@ -6,7 +6,13 @@ import { openBoardPanel } from "./dock-api";
 import { GameOpenRow } from "./GameOpenRow";
 import { selectFileDatabase } from "./select-file-database";
 
-export function FileGamesPanel() {
+export function FileGamesPanel({
+  onGameSelect,
+  mobile = false,
+}: {
+  onGameSelect?: () => void;
+  mobile?: boolean;
+} = {}) {
   const locale = useStudioStore((state) => state.settings.locale);
   const databaseId = useStudioStore((state) => state.activeFileDatabaseId);
   const gameId = useStudioStore((state) => state.activeFileGameId);
@@ -35,15 +41,21 @@ export function FileGamesPanel() {
         {database.games.map((game) => (
           <GameOpenRow
             key={game.id}
-            previewEnabled
-            className={`flex w-full items-baseline justify-between gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle ${
+            previewEnabled={!mobile}
+            className={`flex w-full justify-between gap-2 px-3 text-left hover:bg-studio-hover-subtle ${
+              mobile ? "min-h-[44px] items-center py-2" : "items-baseline py-1.5"
+            } ${
               game.id === gameId ? "bg-studio-selected" : ""
             }`}
-            onOpen={() => openFileGame(game)}
+            onOpen={() => {
+              openFileGame(game);
+              onGameSelect?.();
+            }}
             onOpenNew={() => {
               openFileGame(game, { openInNewBoard: true });
               const active = selectActiveBoard(useStudioStore.getState());
               openBoardPanel(active.id, active.title);
+              onGameSelect?.();
             }}
           >
             <span className="min-w-0 flex-1 truncate">{game.title}</span>

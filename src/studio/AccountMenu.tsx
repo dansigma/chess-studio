@@ -8,6 +8,50 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "./ui/Button";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 
+/** Signs out of Supabase in the browser, clears the store user, then the server session. */
+export async function signOutEverywhere(): Promise<void> {
+  await createBrowserSupabase()?.auth.signOut();
+  useStudioStore.getState().setUser(null);
+  const { signOut } = await import("@/app/login/actions");
+  await signOut();
+}
+
+/**
+ * Name / e-mail lines for the signed-in user. The board sync line shows only
+ * when `dirtyCount` is supplied (Studio surfaces).
+ */
+export function AccountIdentity({ dirtyCount }: { dirtyCount?: number }) {
+  const user = useStudioStore((state) => state.user);
+  const locale = useStudioStore((state) => state.settings.locale);
+  if (!user?.email) {
+    return null;
+  }
+  return (
+    <>
+      {user.displayName ? (
+        <>
+          <div className="truncate font-medium text-studio-fg">{user.displayName}</div>
+          <div className="truncate text-caption text-studio-muted">{user.email}</div>
+        </>
+      ) : (
+        <div className="truncate font-medium text-studio-fg">{user.email}</div>
+      )}
+      {dirtyCount !== undefined ? (
+        <div className="mt-0.5 flex items-center gap-1.5 text-caption text-studio-faint">
+          <span className={`h-1.5 w-1.5 rounded-full ${dirtyCount ? "bg-studio-warning-fg" : "bg-studio-success"}`} />
+          {dirtyCount
+            ? tStudioChrome(
+                locale,
+                dirtyCount === 1 ? "chrome.account.waitingToSync.one" : "chrome.account.waitingToSync.other",
+                { count: dirtyCount },
+              )
+            : tStudioChrome(locale, "chrome.account.allSynced")}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * Shared account avatar / sign-in trigger and menu surface used by both the
  * Studio MenuBar and the site-wide SiteHeader. Studio-only board sync status
@@ -90,26 +134,7 @@ export function AccountMenu({
           onClose={onClose}
         >
           <div className="px-2 pb-1.5 pt-2">
-            {user.displayName ? (
-              <>
-                <div className="truncate font-medium text-studio-fg">{user.displayName}</div>
-                <div className="truncate text-caption text-studio-muted">{user.email}</div>
-              </>
-            ) : (
-              <div className="truncate font-medium text-studio-fg">{user.email}</div>
-            )}
-            {showStudioItems ? (
-              <div className="mt-0.5 flex items-center gap-1.5 text-caption text-studio-faint">
-                <span className={`h-1.5 w-1.5 rounded-full ${dirtyCount ? "bg-studio-warning-fg" : "bg-studio-success"}`} />
-                {dirtyCount
-                  ? tStudioChrome(
-                      locale,
-                      dirtyCount === 1 ? "chrome.account.waitingToSync.one" : "chrome.account.waitingToSync.other",
-                      { count: dirtyCount },
-                    )
-                  : tStudioChrome(locale, "chrome.account.allSynced")}
-              </div>
-            ) : null}
+            <AccountIdentity dirtyCount={showStudioItems ? dirtyCount : undefined} />
           </div>
           <Divider />
           {onOpenBoards ? (
@@ -135,12 +160,7 @@ export function AccountMenu({
             danger
             onClick={() => {
               onClose();
-              void (async () => {
-                await createBrowserSupabase()?.auth.signOut();
-                useStudioStore.getState().setUser(null);
-                const { signOut } = await import("@/app/login/actions");
-                await signOut();
-              })();
+              void signOutEverywhere();
             }}
           />
         </MenuSurface>

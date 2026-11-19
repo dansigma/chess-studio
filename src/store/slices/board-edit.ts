@@ -79,6 +79,7 @@ export type BoardEditSlice = Pick<
   | "toggleBoardArrowMark"
   | "setHeaders"
   | "renameActive"
+  | "renameBoard"
   | "setSetupMode"
   | "applySetupFen"
   | "openSharedPosition"
@@ -563,6 +564,18 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         title,
         dirty: true,
       })),
+    }));
+  },
+  renameBoard: (id, title) => {
+    const trimmed = title.trim();
+    if (!trimmed) {
+      return;
+    }
+    set((state) => ({
+      boards: state.boards.map((board) =>
+        // Same name: nothing to save, so the board stays clean.
+        board.id === id && board.title !== trimmed ? { ...board, title: trimmed, dirty: true } : board,
+      ),
     }));
   },
   setSetupMode: (setupMode) => set({ setupMode, enginePreview: null, threat: null }),

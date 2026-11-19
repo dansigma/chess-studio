@@ -8,7 +8,7 @@ import { ActivityBar } from "./ActivityBar";
 import { BoardsSidebar } from "./BoardsSidebar";
 import { MenuBar } from "./MenuBar";
 import { MobileStudio } from "./MobileStudio";
-import { useIsMobile } from "./use-is-mobile";
+import { mobileQuery, useIsMobile } from "./use-is-mobile";
 import { MyGamesSidebar } from "./MyGamesSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
@@ -142,6 +142,7 @@ export function StudioShell() {
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
   const shortcutsOpen = useStudioStore((state) => state.shortcutsOpen);
   const setShortcutsOpen = useStudioStore((state) => state.setShortcutsOpen);
+  const [mobileFileGamesOpen, setMobileFileGamesOpen] = useState(false);
   // SIG-1187: single Forward-choicer mount outside the mobile split so the
   // chooser covers desktop and mobile entry points.
   const variationChoice = useStudioStore((state) => state.variationChoice);
@@ -168,6 +169,31 @@ export function StudioShell() {
   // the render branch below differs. StudioDock is never mounted on mobile,
   // so no desktop layout is read or written there.
   const isMobile = useIsMobile();
+  // The mobile Games sheet belongs to the phone layout: leaving it (a rotation
+  // past the breakpoint) drops the request so it does not reopen on return.
+  const [fileGamesLayout, setFileGamesLayout] = useState(isMobile);
+  if (fileGamesLayout !== isMobile) {
+    setFileGamesLayout(isMobile);
+    if (!isMobile) {
+      setMobileFileGamesOpen(false);
+    }
+  }
+
+  /** After a PGN is opened: the dock panel on desktop, the Games sheet on a phone when it holds several games. */
+  function showFileGames(): void {
+    // Read the layout now, not at render: the file read is async and the
+    // viewport may have crossed the breakpoint meanwhile.
+    const mobileNow = typeof window.matchMedia === "function" && window.matchMedia(mobileQuery()).matches;
+    if (!mobileNow) {
+      openStudioPanel("fileGames");
+      return;
+    }
+    const state = useStudioStore.getState();
+    const database = state.files.databases.find((item) => item.id === state.activeFileDatabaseId);
+    if (database && database.games.length > 1) {
+      setMobileFileGamesOpen(true);
+    }
+  }
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
@@ -490,7 +516,12 @@ export function StudioShell() {
     <div className="studio-screen flex h-dvh flex-col overflow-hidden bg-studio-bg text-studio-fg">
       {isMobile ? null : <MenuBar onOpenPgn={() => fileRef.current?.click()} />}
       {isMobile ? (
-        <MobileStudio onOpenPgn={() => fileRef.current?.click()} />
+        <MobileStudio
+          onOpenPgn={() => fileRef.current?.click()}
+          fileGamesOpen={mobileFileGamesOpen}
+          onCloseFileGames={() => setMobileFileGamesOpen(false)}
+          onShowFileGames={showFileGames}
+        />
       ) : (
       <div className="flex min-h-0 flex-1">
         <ActivityBar />
@@ -550,7 +581,7 @@ export function StudioShell() {
           }
           void file.text().then((text) => {
             openPgnSource(file.name.replace(/\.pgn$/i, "") || "PGN", text);
-            openStudioPanel("fileGames");
+            showFileGames();
           });
           event.target.value = "";
         }}
