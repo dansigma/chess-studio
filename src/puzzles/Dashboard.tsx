@@ -76,7 +76,8 @@ export function PuzzleDashboard() {
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null);
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const [recentError, setRecentError] = useState<string | null>(null);
-  const openingRef = useRef<string | null>(null);
+  const openingRef = useRef<{ rowKey: string; controller: AbortController | null; seq: number } | null>(null);
+  const openingSeqRef = useRef(0);
   const mountedRef = useRef(true);
 
   // Bumped on every load and on unmount, so a stale response is dropped.
@@ -120,6 +121,9 @@ export function PuzzleDashboard() {
   }, []);
 
   const retry = useCallback(() => {
+    openingRef.current?.controller?.abort();
+    openingRef.current = null;
+    setOpeningKey(null);
     setStatus("loading");
     setRecentError(null);
     void load();
@@ -133,18 +137,33 @@ export function PuzzleDashboard() {
     return () => {
       mountedRef.current = false;
       ref.current += 1;
+      openingRef.current?.controller?.abort();
+      openingRef.current = null;
     };
   }, [load]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const openRecent = useCallback(
     async (entry: PuzzleHistoryEntry, rowKey: string) => {
-      if (openingRef.current !== null) {
+      if (openingRef.current?.rowKey === rowKey) {
         return;
       }
+      // Last clicked row wins: cancel any earlier lookup so it cannot clobber
+      // or hijack navigation after the user picks another Recent row.
+      openingRef.current?.controller?.abort();
+      const seq = openingSeqRef.current + 1;
+      openingSeqRef.current = seq;
+      openingRef.current = null;
+      setOpeningKey(null);
       setRecentError(null);
+
       const origin = typeof window !== "undefined" ? window.location.origin : "";
       const push = (href: string) => router.push(href);
+      const openNow = (puzzle: StudioPuzzle) => {
+        openingRef.current = { rowKey, controller: null, seq };
+        setOpeningKey(rowKey);
+        openPuzzleInStudio(puzzle, entry.mode, locale, push, origin);
+      };
 
       if (entry.mode === "mistakes" || entry.id.startsWith("mx-")) {
         const stored = exercises[exerciseKeyForPuzzle(entry.id)] ?? exercises[entry.id];
@@ -158,7 +177,7 @@ export function PuzzleDashboard() {
           }
         }
         if (compiled) {
-          openPuzzleInStudio(compiled, entry.mode, locale, push, origin);
+          openNow(compiled);
         } else {
           setRecentError(tPuzzle(locale, "puzzle.dashboard.recent.notFound"));
         }
@@ -167,31 +186,33 @@ export function PuzzleDashboard() {
 
       const cached = puzzles.find((item) => item.id === entry.id);
       if (cached) {
-        openPuzzleInStudio(cached, entry.mode, locale, push, origin);
+        openNow(cached);
         return;
       }
 
-      openingRef.current = rowKey;
+      const controller = new AbortController();
+      openingRef.current = { rowKey, controller, seq };
       setOpeningKey(rowKey);
       try {
-        const loaded = await loadPuzzleById(entry.id);
-        if (!mountedRef.current) {
+        const loaded = await loadPuzzleById(entry.id, { signal: controller.signal });
+        if (!mountedRef.current || openingRef.current?.seq !== seq) {
           return;
         }
         if (!loaded) {
+          openingRef.current = null;
+          setOpeningKey(null);
           setRecentError(tPuzzle(locale, "puzzle.dashboard.recent.notFound"));
           return;
         }
+        openingRef.current = { rowKey, controller: null, seq };
         openPuzzleInStudio(loaded, entry.mode, locale, push, origin);
       } catch {
-        if (mountedRef.current) {
-          setRecentError(tPuzzle(locale, "puzzle.dashboard.recent.notFound"));
+        if (!mountedRef.current || openingRef.current?.seq !== seq) {
+          return;
         }
-      } finally {
         openingRef.current = null;
-        if (mountedRef.current) {
-          setOpeningKey(null);
-        }
+        setOpeningKey(null);
+        setRecentError(tPuzzle(locale, "puzzle.dashboard.recent.loadError"));
       }
     },
     [exercises, locale, puzzles, router],

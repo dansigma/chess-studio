@@ -42,7 +42,7 @@ test("loadPuzzleById returns null on 404 for unknown puzzle", async () => {
   assert.equal(await loadPuzzleById("no-such-puzzle"), null);
 });
 
-test("loadPuzzleById falls back to the starter catalog when the network fails", async () => {
+test("loadPuzzleById falls back to the starter catalog on network failure and rethrows for non-starter ids", async () => {
   const starter = getFallbackCatalog()[0]!;
   globalThis.fetch = (async () => {
     throw new Error("offline");
@@ -50,14 +50,50 @@ test("loadPuzzleById falls back to the starter catalog when the network fails", 
 
   const loaded = await loadPuzzleById(starter.id);
   assert.equal(loaded?.id, starter.id);
-  assert.equal(await loadPuzzleById("missing-offline-id"), null);
+  await assert.rejects(() => loadPuzzleById("missing-offline-id"), /offline/);
 });
 
-test("loadPuzzleById falls back cleanly when the API returns a malformed payload", async () => {
+test("loadPuzzleById rethrows on 429/5xx and malformed payloads for non-starter ids", async () => {
   const starter = getFallbackCatalog()[1]!;
   globalThis.fetch = (async () =>
     new Response(JSON.stringify({ id: starter.id }), { status: 200 })) as typeof fetch;
 
   const loaded = await loadPuzzleById(starter.id);
   assert.equal(loaded?.id, starter.id);
+  await assert.rejects(() => loadPuzzleById("00sHx"), /puzzles API shape/);
+
+  globalThis.fetch = (async () => new Response("rate limited", { status: 429 })) as typeof fetch;
+  await assert.rejects(() => loadPuzzleById("00sHx"), /puzzles API 429/);
+
+  globalThis.fetch = (async () => new Response("server error", { status: 503 })) as typeof fetch;
+  await assert.rejects(() => loadPuzzleById("00sHx"), /puzzles API 503/);
+});
+
+test("loadPuzzleById aborts and rejects on timeout", async () => {
+  let aborted = false;
+  globalThis.fetch = ((_input: string | URL | Request, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => {
+        aborted = true;
+        reject(init.signal?.reason ?? new DOMException("Aborted", "AbortError"));
+      });
+    })) as typeof fetch;
+
+  await assert.rejects(() => loadPuzzleById("00sHx", { timeoutMs: 15 }), /timeout/);
+  assert.equal(aborted, true);
+});
+
+test("loadPuzzleById respects caller AbortSignal even for starter ids", async () => {
+  const starter = getFallbackCatalog()[0]!;
+  const controller = new AbortController();
+  globalThis.fetch = ((_input: string | URL | Request, init?: RequestInit) =>
+    new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => {
+        reject(new DOMException("Aborted", "AbortError"));
+      });
+    })) as typeof fetch;
+
+  const pending = loadPuzzleById(starter.id, { signal: controller.signal, timeoutMs: 5_000 });
+  controller.abort();
+  await assert.rejects(() => pending, /Abort/);
 });

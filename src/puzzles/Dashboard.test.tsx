@@ -15,7 +15,9 @@ const ctl = {
   exercises: {} as import("../lib/mistake-exercises-store.ts").MistakeExercisesMap,
   byId: {} as Record<string, import("./engine.ts").CompiledPuzzle | null>,
   byIdCalls: [] as string[],
+  byIdSignals: [] as (AbortSignal | undefined)[],
   byIdGate: null as Promise<void> | null,
+  byIdError: null as Error | null,
 };
 
 mock.module("next/navigation", {
@@ -45,9 +47,16 @@ mock.module("./progress.ts", {
 mock.module("./puzzle-client.ts", {
   namedExports: {
     loadPuzzleCatalog: async () => ctl.catalog,
-    loadPuzzleById: async (id: string) => {
+    loadPuzzleById: async (id: string, options?: { signal?: AbortSignal }) => {
       ctl.byIdCalls.push(id);
+      ctl.byIdSignals.push(options?.signal);
       if (ctl.byIdGate) await ctl.byIdGate;
+      if (options?.signal?.aborted) {
+        throw new DOMException("Aborted", "AbortError");
+      }
+      if (ctl.byIdError) {
+        throw ctl.byIdError;
+      }
       return ctl.byId[id] ?? null;
     },
   },
@@ -81,7 +90,9 @@ beforeEach(() => {
   ctl.exercises = {};
   ctl.byId = {};
   ctl.byIdCalls = [];
+  ctl.byIdSignals = [];
   ctl.byIdGate = null;
+  ctl.byIdError = null;
   act(() => useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en" } }));
 });
 
@@ -360,3 +371,149 @@ test("SIG-1412: mobile keeps 5-row cap and >= 44px touch targets on Recent rows 
   }
 });
 
+
+test("SIG-1412 follow-up: double-click guard covers cached/mistake rows and last-clicked row wins", async () => {
+  const catalogPuzzle = compilePuzzle({
+    id: "queen-corridor",
+    fen: "7k/5Qpp/8/8/8/8/6PP/6K1 w - - 0 1",
+    moves: ["Qf8#"],
+    rating: 750,
+    themes: ["mate"],
+  });
+  const remoteA = compilePuzzle({
+    id: "00sHa",
+    fen: "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+    moves: ["Re8#"],
+    rating: 800,
+    themes: ["mate"],
+  });
+  const remoteB = compilePuzzle({
+    id: "00sHb",
+    fen: "7k/5Qpp/8/8/8/8/6PP/6K1 w - - 0 1",
+    moves: ["Qf8#"],
+    rating: 850,
+    themes: ["mate"],
+  });
+  const mistakeKey = "mx:r3k3/8/8/8/8/8/6PP/R5K1 b - -";
+  const mistakeId = puzzleIdForExercise(mistakeKey);
+
+  ctl.catalog = [catalogPuzzle];
+  ctl.byId = { "00sHa": remoteA, "00sHb": remoteB };
+  ctl.exercises = {
+    [mistakeKey]: {
+      exercise: {
+        key: mistakeKey,
+        fen: "r3k3/8/8/8/8/8/6PP/R5K1 b - - 3 17",
+        solutionUci: ["a8a1", "g1f2", "a1a2"],
+        bestPv: ["Rxa1+", "Kf2", "Ra2+"],
+        playedUci: "a8b8",
+        label: "blunder",
+        phase: "endgame",
+        lossCp: 350,
+        beforePawns: 0,
+        afterPawns: -3.5,
+        motif: "win-material",
+        createdAt: "2026-11-01T00:00:00.000Z",
+      },
+      srs: null,
+    },
+  };
+  ctl.progress = {
+    ...emptyProgress(),
+    history: [
+      { id: "queen-corridor", mode: "rated", success: true, at: 40, delta: 8 },
+      { id: mistakeId, mode: "mistakes", success: true, at: 30, delta: 0 },
+      { id: "00sHa", mode: "rated", success: false, at: 20, delta: -6 },
+      { id: "00sHb", mode: "rated", success: true, at: 10, delta: 6 },
+    ],
+  };
+
+  const { container } = render(<PuzzleDashboard />);
+  const buttons = await waitFor(() => {
+    const found = container.querySelectorAll("ul > li > button");
+    assert.equal(found.length, 4);
+    return [...found] as HTMLButtonElement[];
+  });
+
+  // Fast double-click on cached row pushes /studio only once.
+  fireEvent.click(buttons[0]!);
+  fireEvent.click(buttons[0]!);
+  assert.equal(ctl.pushed.length, 1);
+
+  // Fast double-click on mistake row pushes /studio only once.
+  fireEvent.click(buttons[1]!);
+  fireEvent.click(buttons[1]!);
+  assert.equal(ctl.pushed.length, 2);
+
+  // Start remote lookup on row A, then click row B before row A settles:
+  // row A's AbortSignal is aborted and row B wins without dropping the click.
+  let releaseA!: () => void;
+  ctl.byIdGate = new Promise<void>((resolve) => {
+    releaseA = resolve;
+  });
+  fireEvent.click(buttons[2]!);
+  assert.deepEqual(ctl.byIdCalls, ["00sHa"]);
+  assert.equal(ctl.byIdSignals[0]?.aborted, false);
+  assert.equal(buttons[3]!.disabled, false);
+
+  ctl.byIdGate = null;
+  await act(async () => {
+    fireEvent.click(buttons[3]!);
+  });
+  assert.equal(ctl.byIdSignals[0]?.aborted, true);
+  await waitFor(() => assert.equal(ctl.pushed.length, 3));
+  const handoff = JSON.parse(window.sessionStorage.getItem("chess-studio:course-import") ?? "null");
+  assert.equal(handoff?.title, "Puzzle 00sHb");
+
+  // Settling the aborted row A later must not navigate or show an error.
+  await act(async () => releaseA());
+  assert.equal(ctl.pushed.length, 3);
+  assert.equal(screen.queryByRole("status"), null);
+});
+
+test("SIG-1412 follow-up: transient lookup failure shows retryable error, allows retry, and unmount aborts in-flight request", async () => {
+  const remotePuzzle = compilePuzzle({
+    id: "00sHx",
+    fen: "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1",
+    moves: ["Re8#"],
+    rating: 800,
+    themes: ["mate"],
+  });
+  ctl.byId = { "00sHx": remotePuzzle };
+  ctl.byIdError = new Error("puzzles API 503");
+  ctl.progress = {
+    ...emptyProgress(),
+    history: [{ id: "00sHx", mode: "rated", success: false, at: 20, delta: -6 }],
+  };
+
+  const { container, unmount } = render(<PuzzleDashboard />);
+  const rowButton = await waitFor(() => {
+    const found = container.querySelector("ul > li > button") as HTMLButtonElement | null;
+    assert.ok(found);
+    return found;
+  });
+
+  // Transient error shows retryable copy instead of permanent-removal copy.
+  await act(async () => {
+    fireEvent.click(rowButton);
+  });
+  const status = await screen.findByRole("status");
+  assert.equal(status.textContent, "Could not load this puzzle. Try again.");
+  assert.equal(rowButton.disabled, false);
+  assert.equal(ctl.pushed.length, 0);
+
+  // Clicking the same row again retries and succeeds once the API recovers.
+  ctl.byIdError = null;
+  let releasePending!: () => void;
+  ctl.byIdGate = new Promise<void>((resolve) => {
+    releasePending = resolve;
+  });
+  fireEvent.click(rowButton);
+  assert.equal(ctl.byIdCalls.length, 2);
+  assert.equal(ctl.byIdSignals[1]?.aborted, false);
+
+  // Unmounting while a lookup is pending aborts the in-flight signal.
+  unmount();
+  assert.equal(ctl.byIdSignals[1]?.aborted, true);
+  releasePending();
+});
