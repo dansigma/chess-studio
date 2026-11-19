@@ -6,10 +6,13 @@ import { liveSearch, parseLiveUrlState, useLiveStore } from "./live-store";
 
 /**
  * The single place where the Live URL and `useLiveStore` meet (SIG-1291).
- * - On mount and on every `popstate`: URL → store (`applyLiveUrlState`).
+ * - On mount and on every `popstate`: URL → store (`applyLiveUrlState`), unless returning to
+ *   Live with an active in-memory selection and a bare `?view=live` URL (SIG-1406).
  * - On every store change of the selection: store → URL (`liveSearch`). Opening a round from the list
  *   pushes one history entry (so Back returns to the list); every other change replaces the entry.
- * - On unmount (leaving the Live view): `leaveLive()` aborts the stream and drops the live data.
+ * - Unmounting the Live view preserves `useLiveStore` so switching `workspaceView` to Studio and back
+ *   keeps `tableRoundId`, `openBoards` and `focusedGame` intact; `StudioShell` calls `leaveLive()` when
+ *   navigating away from `/studio`.
  * `ready` turns true once the URL has been applied. `goBack()` returns to the list the way the browser Back button does.
  */
 export function useLiveUrlSync(): { goBack: () => void; ready: boolean } {
@@ -19,7 +22,25 @@ export function useLiveUrlSync(): { goBack: () => void; ready: boolean } {
 
   useEffect(() => {
     const store = useLiveStore;
-    const apply = () => store.getState().applyLiveUrlState(parseLiveUrlState(window.location.search));
+    const apply = () => {
+      const url = parseLiveUrlState(window.location.search);
+      const current = store.getState();
+      const hasUrlState = url.round !== null || url.games.length > 0 || url.focus !== null;
+      const hasStoreState =
+        current.tableRoundId !== null || current.openBoards.length > 0 || current.focusedGame !== null;
+      if (hasUrlState || !hasStoreState) {
+        current.applyLiveUrlState(url);
+      } else if (parseWorkspaceView(window.location.search) === "live") {
+        const search = liveSearch(window.location.search, current);
+        if (search !== window.location.search) {
+          window.history.replaceState(
+            window.history.state,
+            "",
+            `${window.location.pathname}${search}${window.location.hash}`,
+          );
+        }
+      }
+    };
     apply();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot flag after syncing the external URL into the store
     setReady(true);
@@ -60,7 +81,6 @@ export function useLiveUrlSync(): { goBack: () => void; ready: boolean } {
     return () => {
       unsubscribe();
       window.removeEventListener("popstate", onPopState);
-      store.getState().leaveLive();
     };
   }, []);
 

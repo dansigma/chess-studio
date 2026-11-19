@@ -103,6 +103,9 @@ export type BoardSession = {
   // wholesale tree replacement (import/load/setup/clone). Optional so all
   // existing constructors stay valid; absent means "no undo available".
   reviewAnnotateUndo?: GameTree;
+  // SIG-1406: broadcast (roundId, gameId) link when opened from Live, used by
+  // "Pull latest moves" and "Back to Live".
+  liveSource?: { roundId: string; gameId: string };
 };
 
 export type EnginePreview = {
@@ -311,7 +314,11 @@ export type StudioState = {
     openInNewBoard?: boolean;
     // SIG-1247: side at the bottom of the opened board; omitted keeps the default.
     orientation?: BoardOrientation;
+    // SIG-1406: broadcast (roundId, gameId) link when opened from Live.
+    liveSource?: { roundId: string; gameId: string };
   }) => void;
+  /** SIG-1406: apply a merged live broadcast tree to a board without clearing variations. */
+  applyLiveMerge: (boardId: string, tree: GameTree, path: Path, result?: string) => void;
   importPlayerGame: (game: PlayerGame, options?: { openInNewBoard?: boolean; title?: string }) => void;
   exportActivePgn: () => string;
   pruneAfter: () => void;

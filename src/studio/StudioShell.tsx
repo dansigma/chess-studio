@@ -14,6 +14,7 @@ import { BookmarksSidebar } from "./BookmarksSidebar";
 import { StudioDock } from "./StudioDock";
 import { LibraryView } from "./library/LibraryView";
 import { LiveView } from "./live/LiveView";
+import { useLiveStore } from "./live/live-store";
 import { useWorkspaceViewUrl } from "./use-workspace-view-url";
 import { ResizeHandle } from "./ui/ResizeHandle";
 import { openBoardPanel, openStudioPanel } from "./dock-api";
@@ -68,6 +69,9 @@ export function StudioShell() {
   const activeBoardId = useStudioStore((state) => state.activeBoardId);
   useWorkspaceViewUrl();
   useReferenceSourcePersistence();
+  // SIG-1406: tear down the live broadcast stream only when leaving the /studio
+  // route, not when switching workspaceView between "live" and "studio".
+  useEffect(() => () => useLiveStore.getState().leaveLive(), []);
   // SIG-1273: choosing a board (any change of the active board) leaves the Library and Live.
   const lastBoardId = useRef(activeBoardId);
   useEffect(() => {

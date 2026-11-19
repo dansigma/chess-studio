@@ -46,6 +46,7 @@ mock.module("@/src/lib/live/lichess-broadcast", {
 });
 
 const { LiveView } = await import("./LiveView.tsx");
+const { useLiveStore } = await import("./live-store.ts");
 const { roundIdForItem, appendUnique } = await import("./use-broadcast-list.ts");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
@@ -72,7 +73,10 @@ function page(over: Partial<Omit<BroadcastListPage, "past">> & { past?: Broadcas
 }
 
 before(() => setupDom());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  useLiveStore.getState().leaveLive();
+});
 after(async () => {
   await teardownDom();
 });

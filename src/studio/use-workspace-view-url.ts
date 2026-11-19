@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useStudioStore } from "@/src/store/studio-store";
 import { useLibraryStore } from "./library/library-store";
 import { useDossierStore } from "./library/dossier/dossier-store";
+import { liveSearch, useLiveStore } from "./live/live-store";
 import {
   parseLibraryMode,
   parseLibraryPlayer,
@@ -21,6 +22,8 @@ function searchForState(search: string): string {
     next = withLibraryMode(next, useLibraryStore.getState().mode);
     const dossier = useDossierStore.getState();
     next = withLibraryPlayer(next, dossier.player, dossier.filters.color);
+  } else if (view === "live") {
+    next = liveSearch(next, useLiveStore.getState());
   }
   return next;
 }

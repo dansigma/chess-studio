@@ -102,7 +102,10 @@ const rowOf = (id: string) => document.querySelector(`[data-live-row="${id}"]`) 
 const clockText = (id: string, side: "white" | "black") => board(id).querySelector(`[data-live-clock="${side}"]`)!.textContent;
 
 before(() => setupDom());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  useLiveStore.getState().leaveLive();
+});
 after(async () => {
   await teardownDom();
 });
