@@ -209,6 +209,9 @@ export type StudioState = {
   // 5s window closed, the user dismissed it, or any newer edit landed.
   pendingCutUndo: CutUndo | null;
   aboutOpen: boolean;
+  // SIG-1383: Help → "Shortcuts and gestures" reference dialog (desktop
+  // MenuBar and mobile sheet share the flag; StudioShell renders it).
+  shortcutsOpen: boolean;
   settingsDialog: SettingsDialogState;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
   layoutNonce: number;
@@ -368,6 +371,7 @@ export type StudioState = {
   retryExplorer: () => void;
   setStatus: (message: string | null) => void;
   setAboutOpen: (open: boolean) => void;
+  setShortcutsOpen: (open: boolean) => void;
   openSettings: (section?: SettingsDialogSection) => void;
   closeSettings: () => void;
   setNotationEditor: (editor: "comment" | "commentBefore" | "headers" | null) => void;

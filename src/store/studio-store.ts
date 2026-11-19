@@ -146,6 +146,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   explorerRetry: 0,
   statusMessage: null,
   aboutOpen: false,
+  shortcutsOpen: false,
   settingsDialog: CLOSED_SETTINGS_DIALOG,
   notationEditor: null,
   playerProfile: null,
@@ -160,6 +161,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
   retryExplorer: () => set((state) => ({ explorerRetry: state.explorerRetry + 1 })),
   setStatus: (statusMessage) => set({ statusMessage }),
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
+  setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   openSettings: (section) => set({ settingsDialog: { open: true, section: section ?? null } }),
   closeSettings: () => set({ settingsDialog: CLOSED_SETTINGS_DIALOG }),
   setNotationEditor: (notationEditor) => set({ notationEditor }),
@@ -230,6 +232,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       // SIG-1384: signing out drops any pending cut undo with the session.
       pendingCutUndo: null,
       aboutOpen: false,
+      shortcutsOpen: false,
       settingsDialog: CLOSED_SETTINGS_DIALOG,
       notationEditor: null,
       enginePreview: null,

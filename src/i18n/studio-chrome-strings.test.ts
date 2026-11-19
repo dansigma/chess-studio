@@ -42,3 +42,12 @@ test("dialog hint 'Esc to close' is translated", () => {
   assert.equal(tStudioChrome("en", "chrome.dialog.toClose"), "to close");
   assert.equal(tStudioChrome("pt-br", "chrome.dialog.toClose"), "para fechar");
 });
+
+test("board menu gesture copy clarifies right-click outside squares vs long-press", () => {
+  const en = tStudioChrome("en", "chrome.shortcuts.gesture.boardMenu");
+  const pt = tStudioChrome("pt-br", "chrome.shortcuts.gesture.boardMenu");
+  assert.match(en, /outside the squares/i);
+  assert.match(en, /long-press/i);
+  assert.match(pt, /fora das casas/i);
+  assert.match(pt, /toque longo/i);
+});

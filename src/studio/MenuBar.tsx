@@ -45,6 +45,7 @@ export function MenuBar({
   const boardCount = useStudioStore((state) => state.boards.length);
   const dirtyCount = useStudioStore(selectDirtyCount);
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
+  const setShortcutsOpen = useStudioStore((state) => state.setShortcutsOpen);
   const settingsDialog = useStudioStore((state) => state.settingsDialog);
   const openSettings = useStudioStore((state) => state.openSettings);
   const closeSettings = useStudioStore((state) => state.closeSettings);
@@ -118,7 +119,13 @@ export function MenuBar({
         />
       );
     }
-    return <Item label={tStudioChrome(locale, "chrome.menu.aboutSite", { site: SITE_NAME })} onClick={run(() => setAboutOpen(true))} />;
+    // SIG-1383: Help lists the shortcuts/gestures reference above About.
+    return (
+      <>
+        <Item label={tStudioChrome(locale, "chrome.shortcuts.open")} onClick={run(() => setShortcutsOpen(true))} />
+        <Item label={tStudioChrome(locale, "chrome.menu.aboutSite", { site: SITE_NAME })} onClick={run(() => setAboutOpen(true))} />
+      </>
+    );
   }
 
   return (
