@@ -83,7 +83,7 @@ test("a file over 5,000 games imports the first 5,000 and reports the rest", asy
 
 test("unreadable games are counted separately", async () => {
   const deps = makeDeps();
-  await enqueuePgnFiles([file("m.pgn", GAME + '[Event "x"]\n\n*\n\n' + GAME)], deps).done;
+  await enqueuePgnFiles([file("m.pgn", GAME + '[Site "x"]\n\n*\n\n' + GAME)], deps).done;
   const [entry] = useImportQueue.getState().entries;
   assert.equal(entry.imported, 2);
   assert.equal(entry.unreadable, 1);

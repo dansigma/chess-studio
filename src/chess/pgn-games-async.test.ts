@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parsePgnCollectionAsync } from "./pgn-games";
+import { parsePgnCollection, parsePgnCollectionAsync } from "./pgn-games";
 
 const game = (n: number) => `[Event "g${n}"]\n[White "A"]\n[Black "B"]\n[Result "1-0"]\n\n1. e4 e5 1-0\n\n`;
-const junk = (n: number) => `[Event "bad${n}"]\n[White "A"]\n[Black "B"]\n[Result "*"]\n\n*\n\n`;
+const junk = (n: number) => `[Site "bad${n}"]\n\n*\n\n`;
 const many = (count: number) => Array.from({ length: count }, (_, i) => game(i)).join("");
 
 test("parses all games, reports progress per batch and ends at done === total", async () => {
@@ -55,4 +55,17 @@ test("an already aborted signal throws before parsing", async () => {
   const controller = new AbortController();
   controller.abort();
   await assert.rejects(parsePgnCollectionAsync(many(3), { signal: controller.signal }), { name: "AbortError" });
+});
+
+test("keeps header-only and setup games and skips blank input", async () => {
+  const text = '\n\n[White "Ada"]\n\n[FEN "8/8/8/8/8/8/1k6/5K2 w - - 0 1"]\n\n*\n\n';
+  const sync = parsePgnCollection(text);
+  const asyncResult = await parsePgnCollectionAsync(text);
+  assert.equal(sync.games.length, 2);
+  assert.equal(sync.skipped, 0);
+  assert.equal(asyncResult.games.length, 2);
+  assert.equal(asyncResult.unreadable, 0);
+  assert.equal(sync.games[0].white, "Ada");
+  assert.match(sync.games[1].pgn, /^\[FEN /);
+  assert.deepEqual(parsePgnCollection(" \n\t "), { games: [], skipped: 0 });
 });

@@ -140,6 +140,11 @@ jobs:
       - name: Verify migration status
         run: supabase migration list --local
 
+      - name: Verify per-game database writes
+        run: >
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          -v ON_ERROR_STOP=1 -f supabase/tests/per_game_database_writes.sql
+
       - name: Verify folder cycle protection
         run: >
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres"

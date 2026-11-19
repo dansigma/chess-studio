@@ -5,7 +5,7 @@ import { formatCommentWithMarks, marksAreEmpty, marksFromPgnArrays, mergeMarks, 
 import { applyNullMoveFen, isNullMoveToken, NULL_MOVE_SAN, NULL_MOVE_UCI } from "./null-move";
 import { clockToken, parseClockMs } from "./clock";
 import { parsePgnEval } from "./pgn-eval";
-import { pgnGameChunks, sanMovesFromPgn } from "./pgn-clean";
+import { hasPgnGameHeaders, pgnGameChunks, sanMovesFromPgn } from "./pgn-clean";
 import { formatPgnNagTokens, parseNags } from "./nags";
 import {
   START_FEN,
@@ -415,10 +415,10 @@ export function mainlinePathForPgn(tree: GameTree, pgn: string): Path {
 
 export function openListedFileGame(databasePgn: string, gamePgn: string): ImportedGame | null {
   const selected = importPgn(gamePgn);
-  const hasGame =
-    selected.tree.children.length > 0 || fenKey(selected.tree.startFen) !== fenKey(START_FEN);
-  if (!hasGame) {
-    return null;
+  if (selected.tree.children.length === 0) {
+    return hasPgnGameHeaders(gamePgn) || fenKey(selected.tree.startFen) !== fenKey(START_FEN)
+      ? selected
+      : null;
   }
   const merged = openablePgn(databasePgn);
   const sameStart =

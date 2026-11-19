@@ -142,8 +142,8 @@ export type SaveErrorCode =
 export const GAME_PGN_TOO_LARGE_MESSAGE = "One game is larger than 1 MB and was not saved.";
 export const BOARD_PGN_TOO_LARGE_MESSAGE = "One board is larger than 2 MB and was not saved.";
 export const LAYOUT_TOO_LARGE_MESSAGE = "The layout is larger than 256 KB and was not saved.";
-export const TOO_MANY_GAMES_MESSAGE = "This database holds more than 5,000 games. Remove some games and try again.";
-export const TOO_MANY_DATABASES_MESSAGE = "You can keep up to 50 personal databases. Delete one to add another.";
+export const TOO_MANY_GAMES_MESSAGE = `This database holds more than ${MAX_GAMES_PER_DATABASE.toLocaleString("en-US")} games. Remove some games and try again.`;
+export const TOO_MANY_DATABASES_MESSAGE = `You can keep up to ${MAX_DATABASES} personal databases. Delete one to add another.`;
 
 export function databaseSaveErrorMessage(error: { message?: string; code?: string } | null): string | null {
   if (!error) {
@@ -179,60 +179,31 @@ export async function persistRemoteDatabase(
   if (!supabase) {
     return { remoteId: null, indexError: null, saveError: null };
   }
-  let remoteId = database.remoteId;
+  if (database.remoteId) {
+    throw new Error("Initial upload requires a local database");
+  }
   if (database.games.some((game) => new TextEncoder().encode(game.pgn).length > MAX_GAME_PGN_BYTES)) {
-    return { remoteId, indexError: null, saveError: GAME_PGN_TOO_LARGE_MESSAGE };
+    return { remoteId: null, indexError: null, saveError: GAME_PGN_TOO_LARGE_MESSAGE };
   }
-  if (!remoteId) {
-    const { data, error } = await supabase
-      .from("game_databases")
-      .insert({
-        user_id: userId,
-        name: database.name,
-        kind: "personal",
-        game_count: 0,
-        folder_id: database.folderId,
-      })
-      .select("id")
-      .single();
-    if (error || !data) {
-      return { remoteId: null, indexError: null, saveError: databaseSaveErrorMessage(error) };
-    }
-    remoteId = data.id;
-  } else {
-    await supabase
-      .from("game_databases")
-      .update({
-        name: database.name,
-        folder_id: database.folderId,
-      })
-      .eq("id", remoteId);
+  const { data, error } = await supabase
+    .from("game_databases")
+    .insert({
+      user_id: userId,
+      name: database.name,
+      kind: "personal",
+      game_count: 0,
+      folder_id: database.folderId,
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    return { remoteId: null, indexError: null, saveError: databaseSaveErrorMessage(error) };
   }
+  const remoteId = data.id;
   if (database.games.length > 0) {
     const prepared = database.games.map((game) => {
-      const imported = importPgn(game.pgn);
-      const headers = imported.headers;
-      const id = crypto.randomUUID();
-      return {
-        id,
-        imported,
-        row: {
-          id,
-          database_id: remoteId,
-          pending: true,
-          white: headers.White ?? game.white,
-          black: headers.Black ?? game.black,
-          white_elo: headerNumber(headers.WhiteElo),
-          black_elo: headerNumber(headers.BlackElo),
-          event: headers.Event ?? game.event ?? null,
-          date: sqlDate(headers.Date ?? game.date),
-          eco: headers.ECO ?? null,
-          opening: headers.Opening ?? null,
-          result: headers.Result ?? game.result,
-          ply_count: imported.tree.children.length > 0 ? countMoves(imported.tree) : 0,
-          pgn: game.pgn,
-        },
-      };
+      const { tree, row } = prepareRemoteGame(game);
+      return { tree, row: { ...row, id: game.id, database_id: remoteId, pending: true } };
     });
     const insertError = await insertChunks(
       prepared.map((item) => item.row),
@@ -241,40 +212,98 @@ export async function persistRemoteDatabase(
     );
     if (insertError) {
       await supabase.from("games").delete().eq("database_id", remoteId).eq("pending", true);
-      return { remoteId, indexError: null, saveError: databaseSaveErrorMessage(insertError) };
+      await supabase.from("game_databases").delete().eq("id", remoteId);
+      return { remoteId: null, indexError: null, saveError: databaseSaveErrorMessage(insertError) };
     }
     const { data: promoted, error: swapError } = await supabase.rpc("swap_database_games", {
       p_database_id: remoteId,
     });
     if (swapError) {
       await supabase.from("games").delete().eq("database_id", remoteId).eq("pending", true);
-      return { remoteId, indexError: null, saveError: databaseSaveErrorMessage(swapError) };
+      await supabase.from("game_databases").delete().eq("id", remoteId);
+      return { remoteId: null, indexError: null, saveError: databaseSaveErrorMessage(swapError) };
     }
-    await supabase
+    const { error: countError } = await supabase
       .from("game_databases")
       .update({ game_count: promoted ?? prepared.length })
       .eq("id", remoteId);
+    if (countError) {
+      await deleteRemoteDatabase(remoteId);
+      return { remoteId: null, indexError: null, saveError: databaseSaveErrorMessage(countError) };
+    }
     const indexError = await writePositionIndex(
       supabase,
       remoteId,
-      prepared.map((item) => ({
-        id: item.id,
-        tree: item.imported.tree,
-        result: item.row.result,
-      })),
+      prepared.map(({ row, tree }) => ({ id: row.id, tree, result: row.result })),
     );
-    return { remoteId, indexError, saveError: null };
-  } else {
-    const { error: swapError } = await supabase.rpc("swap_database_games", {
-      p_database_id: remoteId,
-    });
-    if (swapError) {
-      return { remoteId, indexError: null, saveError: databaseSaveErrorMessage(swapError) };
+    if (indexError) {
+      await supabase.from("game_databases").delete().eq("id", remoteId);
+      return { remoteId: null, indexError, saveError: null };
     }
-    await supabase.from("game_databases").update({ game_count: 0 }).eq("id", remoteId);
-    await supabase.from("position_stats").delete().eq("database_id", remoteId);
   }
   return { remoteId, indexError: null, saveError: null };
+}
+
+function prepareRemoteGame(game: FileGame) {
+  const { tree, headers } = importPgn(game.pgn);
+  return {
+    tree,
+    row: {
+      white: headers.White ?? game.white,
+      black: headers.Black ?? game.black,
+      white_elo: headerNumber(headers.WhiteElo),
+      black_elo: headerNumber(headers.BlackElo),
+      event: headers.Event ?? game.event,
+      date: sqlDate(headers.Date ?? game.date),
+      eco: headers.ECO ?? null,
+      opening: headers.Opening ?? null,
+      result: headers.Result ?? game.result,
+      ply_count: countMoves(tree),
+      pgn: game.pgn,
+    },
+  };
+}
+
+async function writeRemoteGame(
+  remoteId: string,
+  operation: "insert" | "update" | "delete",
+  game: FileGame,
+  previousPgn: string | null = null,
+  knownIds: string[] = [],
+): Promise<string | null> {
+  const supabase = createBrowserSupabase();
+  if (!supabase) {
+    return null;
+  }
+  if (operation !== "delete" && new TextEncoder().encode(game.pgn).length > MAX_GAME_PGN_BYTES) {
+    return GAME_PGN_TOO_LARGE_MESSAGE;
+  }
+  const prepared = operation === "delete" ? null : prepareRemoteGame(game);
+  const positions = prepared
+    ? rowsForTree(prepared.tree, game.id, resultBucket(prepared.row.result)).positions
+    : [];
+  const { error } = await supabase.rpc("write_database_game", {
+    p_database_id: remoteId,
+    p_game_id: game.id,
+    p_operation: operation,
+    p_game: prepared?.row ?? null,
+    p_positions: positions,
+    p_previous_pgn: previousPgn,
+    p_known_ids: knownIds,
+  });
+  return databaseSaveErrorMessage(error);
+}
+
+export function insertRemoteGame(remoteId: string, game: FileGame) {
+  return writeRemoteGame(remoteId, "insert", game);
+}
+
+export function updateRemoteGame(remoteId: string, game: FileGame, previous: FileGame, knownIds: string[]) {
+  return writeRemoteGame(remoteId, "update", game, previous.pgn, knownIds);
+}
+
+export function deleteRemoteGame(remoteId: string, game: FileGame, knownIds: string[]) {
+  return writeRemoteGame(remoteId, "delete", game, game.pgn, knownIds);
 }
 
 function headerNumber(value: string | undefined): number | null {
@@ -384,14 +413,25 @@ export async function persistRemoteFolder(folder: FileFolder, userId: string): P
   return folderWriteErrorMessage(error);
 }
 
-/** Name-only update of a synced database (does not re-save its games). */
-export async function persistRemoteDatabaseName(remoteId: string, name: string): Promise<string | null> {
+/** Metadata changes leave the games and position index alone. */
+export function persistRemoteDatabaseName(remoteId: string, name: string) {
+  return persistRemoteDatabaseMetadata(remoteId, { name });
+}
+
+export function persistRemoteDatabaseFolder(remoteId: string, folderId: string | null) {
+  return persistRemoteDatabaseMetadata(remoteId, { folder_id: folderId });
+}
+
+async function persistRemoteDatabaseMetadata(
+  remoteId: string,
+  fields: { name: string } | { folder_id: string | null },
+): Promise<string | null> {
   const supabase = createBrowserSupabase();
   if (!supabase) {
     return null;
   }
-  const { error } = await supabase.from("game_databases").update({ name }).eq("id", remoteId);
-  return error ? (error.message ?? "Could not rename the database.") : null;
+  const { error } = await supabase.from("game_databases").update(fields).eq("id", remoteId);
+  return databaseSaveErrorMessage(error);
 }
 
 export async function deleteRemoteFolder(folderId: string): Promise<void> {
@@ -428,26 +468,42 @@ export async function loadRemoteFiles(userId: string): Promise<FilesLibrary> {
   }
   const result: FileDatabase[] = [];
   for (const row of databases) {
-    const { data: games } = await supabase
-      .from("games")
-      .select("id, white, black, event, result, pgn")
-      .eq("database_id", row.id)
-      .eq("pending", false);
+    // The Supabase API caps each response at 1,000 rows.
+    const pageSize = 1000;
+    const games: FileGame[] = [];
+    for (let offset = 0; ; offset += pageSize) {
+      const { data: page } = await supabase
+        .from("games")
+        .select("id, white, black, event, result, pgn")
+        .eq("database_id", row.id)
+        .eq("pending", false)
+        .order("id")
+        .range(offset, offset + pageSize - 1);
+      if (!page) {
+        break;
+      }
+      for (const game of page) {
+        games.push({
+          id: game.id,
+          white: game.white,
+          black: game.black,
+          result: game.result ?? "*",
+          event: game.event ?? "",
+          date: "",
+          pgn: game.pgn,
+          title: `${game.white} vs ${game.black}`,
+        });
+      }
+      if (page.length < pageSize) {
+        break;
+      }
+    }
     result.push({
       id: crypto.randomUUID(),
       remoteId: row.id,
       name: row.name,
       folderId: row.folder_id ?? null,
-      games: (games ?? []).map((game) => ({
-        id: game.id,
-        white: game.white,
-        black: game.black,
-        result: game.result ?? "*",
-        event: game.event ?? "",
-        date: "",
-        pgn: game.pgn,
-        title: `${game.white} vs ${game.black}`,
-      })),
+      games,
     });
   }
   return { folders, databases: result };

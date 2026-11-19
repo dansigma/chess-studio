@@ -1,5 +1,7 @@
 import type { StateCreator } from "zustand";
 import { fenKey, mainlinePathForFen } from "@/src/chess/tree";
+import { parsePgnCollection } from "@/src/chess/pgn-games";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { openListedFileGame } from "@/src/chess/pgn";
 import {
   bookmarkKey,
@@ -18,11 +20,18 @@ import {
   canMoveFolder,
   deleteRemoteDatabase,
   deleteRemoteFolder,
+  deleteRemoteGame,
+  insertRemoteGame,
+  updateRemoteGame,
+  MAX_DATABASES,
+  MAX_GAMES_PER_DATABASE,
+  MAX_GAME_PGN_BYTES,
   getDescendantFolderIds,
   libraryFromPgn,
   loadLocalFiles,
   persistRemoteDatabase,
   persistRemoteDatabaseName,
+  persistRemoteDatabaseFolder,
   persistRemoteFolder,
   saveLocalFiles,
   type FileDatabase,
@@ -48,6 +57,7 @@ export type FilesSlice = Pick<
   | "moveFileDatabase"
   | "importFileDatabase"
   | "importParsedDatabase"
+  | "addActiveGameToDatabase"
   | "replaceFileDatabaseGames"
   | "showFileDatabase"
   | "openPgnSource"
@@ -65,31 +75,123 @@ type FilesGet = Parameters<StateCreator<StudioState, [], [], FilesSlice>>[1];
 
 const STORAGE_FULL_MESSAGE = "Saved in this session only: browser storage is full";
 
-/** Saves the database to the account (signed in) and keeps the remote id it returns. */
-function syncRemoteDatabase(set: FilesSet, get: FilesGet, database: FileDatabase, indexMessage: string) {
-  const user = get().user;
-  if (!user) {
+// Serialize writes per database, including edits made while its initial upload is running.
+const remoteWrites = new Map<string, Promise<void>>();
+const incompleteSyncs = new Map<string, FileDatabase["games"]>();
+
+function queueRemoteWrite(set: FilesSet, get: FilesGet, id: string, write: () => Promise<void>) {
+  const userId = get().user?.id;
+  if (!userId) {
     return;
   }
-  void persistRemoteDatabase(database, user.id).then(({ remoteId, indexError, saveError }) => {
-    if (saveError) {
-      set({ statusMessage: saveError });
-    } else if (indexError) {
-      set({ statusMessage: indexMessage });
-    }
-    if (!remoteId) {
+  const next = (remoteWrites.get(id) ?? Promise.resolve())
+    .then(async () => {
+      if (get().user?.id === userId) {
+        await write();
+      }
+    })
+    .catch((error: unknown) => {
+      set({ statusMessage: error instanceof Error ? error.message : String(error) });
+    })
+    .finally(() => {
+      if (remoteWrites.get(id) === next) {
+        remoteWrites.delete(id);
+      }
+    });
+  remoteWrites.set(id, next);
+}
+
+function syncRemoteDatabase(
+  set: FilesSet,
+  get: FilesGet,
+  database: FileDatabase,
+  previousGames: FileDatabase["games"] = [],
+) {
+  const userId = get().user?.id;
+  if (!userId) {
+    return;
+  }
+  queueRemoteWrite(set, get, database.id, async () => {
+    const current = get().files.databases.find((item) => item.id === database.id);
+    if (!current) {
       return;
     }
-    set((state) => {
-      const files = {
-        ...state.files,
-        databases: state.files.databases.map((item) =>
-          item.id === database.id ? { ...item, remoteId } : item,
-        ),
-      };
-      saveLocalFiles(files);
-      return { files };
-    });
+    const remoteId = current.remoteId;
+    if (!remoteId) {
+      const result = await persistRemoteDatabase(database, userId);
+      if (result.saveError || result.indexError) {
+        set({ statusMessage: result.saveError ?? result.indexError });
+      }
+      if (!result.remoteId) {
+        return;
+      }
+      if (!get().files.databases.some((item) => item.id === database.id)) {
+        await deleteRemoteDatabase(result.remoteId);
+        return;
+      }
+      set((state) => {
+        const files = {
+          ...state.files,
+          databases: state.files.databases.map((item) =>
+            item.id === database.id ? { ...item, remoteId: result.remoteId } : item,
+          ),
+        };
+        saveLocalFiles(files);
+        return { files };
+      });
+      return;
+    }
+    const synced = new Map(
+      (incompleteSyncs.get(database.id) ?? previousGames).map((game) => [game.id, game]),
+    );
+    const desired = new Map(database.games.map((game) => [game.id, game]));
+    const knownIds = [...synced.keys()];
+    const reportFailure = (message: string) => {
+      incompleteSyncs.set(database.id, [...synced.values()]);
+      set({ statusMessage: message });
+    };
+    for (const [id, game] of synced) {
+      if (!desired.has(id)) {
+        const error = await deleteRemoteGame(remoteId, game, knownIds);
+        if (error) {
+          reportFailure(error);
+          return;
+        }
+        synced.delete(id);
+      }
+    }
+    for (const [id, game] of desired) {
+      const previous = synced.get(id);
+      if (previous?.pgn === game.pgn) {
+        continue;
+      }
+      const error = previous
+        ? await updateRemoteGame(remoteId, game, previous, knownIds)
+        : await insertRemoteGame(remoteId, game);
+      if (error) {
+        reportFailure(error);
+        return;
+      }
+      synced.set(id, game);
+    }
+    incompleteSyncs.delete(database.id);
+  });
+}
+
+function syncDatabaseMetadata(
+  set: FilesSet,
+  get: FilesGet,
+  id: string,
+  write: (remoteId: string) => Promise<string | null>,
+) {
+  queueRemoteWrite(set, get, id, async () => {
+    const remoteId = get().files.databases.find((item) => item.id === id)?.remoteId;
+    if (remoteId) {
+      const error = await write(remoteId);
+      if (error) {
+        set({ statusMessage: error });
+      }
+    }
   });
 }
 
@@ -116,7 +218,7 @@ function addImportedDatabase(
       statusMessage: stored ? imported : `${imported} · ${STORAGE_FULL_MESSAGE}`,
     };
   });
-  syncRemoteDatabase(set, get, database, "Games imported, but the position index could not be saved.");
+  syncRemoteDatabase(set, get, database);
   return database.id;
 }
 
@@ -186,13 +288,11 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     if (!trimmed) {
       return;
     }
-    let remoteId: string | null = null;
     let found = false;
     set((state) => {
       const databases = state.files.databases.map((database) => {
         if (database.id === id) {
           found = true;
-          remoteId = database.remoteId;
           return { ...database, name: trimmed };
         }
         return database;
@@ -204,12 +304,8 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       saveLocalFiles(files);
       return { files };
     });
-    if (get().user && remoteId) {
-      void persistRemoteDatabaseName(remoteId, trimmed).then((saveError) => {
-        if (saveError) {
-          set({ statusMessage: saveError });
-        }
-      });
+    if (found) {
+      syncDatabaseMetadata(set, get, id, (remoteId) => persistRemoteDatabaseName(remoteId, trimmed));
     }
   },
   moveFileFolder: (id, targetParentId) => {
@@ -254,13 +350,8 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       saveLocalFiles(files);
       return { files };
     });
-    const user = get().user;
-    if (user && updatedDatabase) {
-      void persistRemoteDatabase(updatedDatabase, user.id).then(({ saveError }) => {
-        if (saveError) {
-          set({ statusMessage: saveError });
-        }
-      });
+    if (updatedDatabase) {
+      syncDatabaseMetadata(set, get, id, (remoteId) => persistRemoteDatabaseFolder(remoteId, targetFolderId));
     }
   },
   importFileDatabase: (name, pgn, folderId = null) =>
@@ -271,6 +362,51 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       get,
       { id: crypto.randomUUID(), remoteId: null, name: name.trim() || "Database", folderId, games },
     ),
+  addActiveGameToDatabase: (destination) => {
+    const state = get();
+    const locale = state.settings.locale;
+    const target = "id" in destination
+      ? state.files.databases.find((database) => database.id === destination.id)
+      : undefined;
+    const name = "name" in destination ? destination.name.trim() : target?.name;
+    if (!name) {
+      return false;
+    }
+    if (target ? target.games.length >= MAX_GAMES_PER_DATABASE : state.files.databases.length >= MAX_DATABASES) {
+      set({
+        statusMessage: tStudioChrome(locale, target ? "chrome.addToDatabase.gameLimit" : "chrome.addToDatabase.databaseLimit", {
+          limit: String(target ? MAX_GAMES_PER_DATABASE : MAX_DATABASES),
+        }),
+      });
+      return false;
+    }
+    const pgn = state.exportActivePgn();
+    if (new TextEncoder().encode(pgn).length > MAX_GAME_PGN_BYTES) {
+      set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.tooLarge") });
+      return false;
+    }
+    const game = parsePgnCollection(pgn, 1).games[0];
+    if (!game) {
+      return false;
+    }
+    // Keep the exact export, including whitespace within comments.
+    game.pgn = pgn;
+    const updated: FileDatabase = target
+      ? { ...target, games: [...target.games, game] }
+      : { id: newId(), remoteId: null, name, folderId: null, games: [game] };
+    const files = {
+      ...state.files,
+      databases: target
+        ? state.files.databases.map((database) => database.id === target.id ? updated : database)
+        : [...state.files.databases, updated],
+    };
+    dropFilesExplorerIndex(updated.id);
+    const stored = saveLocalFiles(files);
+    const message = tStudioChrome(locale, "chrome.addToDatabase.added", { name });
+    set({ files, statusMessage: stored ? message : `${message} · ${STORAGE_FULL_MESSAGE}` });
+    syncRemoteDatabase(set, get, updated, target?.games);
+    return true;
+  },
   replaceFileDatabaseGames: (id, games) => {
     const target = get().files.databases.find((item) => item.id === id);
     if (!target) {
@@ -294,7 +430,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         statusMessage: stored ? message : `${message} · ${STORAGE_FULL_MESSAGE}`,
       };
     });
-    syncRemoteDatabase(set, get, updated, "Games saved, but the position index could not be saved.");
+    syncRemoteDatabase(set, get, updated, target.games);
     return true;
   },
   showFileDatabase: (id) => set({ activeFileDatabaseId: id }),
@@ -416,8 +552,10 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         databaseSource: selectedId === id ? "masters" : state.databaseSource,
       };
     });
+    incompleteSyncs.delete(id);
     if (target?.remoteId) {
-      void deleteRemoteDatabase(target.remoteId);
+      const remoteId = target.remoteId;
+      queueRemoteWrite(set, get, id, () => deleteRemoteDatabase(remoteId));
     }
   },
   mergeRemoteFiles: (payload) => {

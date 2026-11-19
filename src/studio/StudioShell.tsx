@@ -51,6 +51,7 @@ import { StatusBar, StatusToast } from "./StatusBar";
 import { CutUndoToast } from "./CutUndoToast";
 import { VariationChoiceDialog } from "./VariationChoiceDialog";
 import { ShortcutsDialog } from "./ShortcutsDialog";
+import { AddToDatabaseDialog } from "./AddToDatabaseDialog";
 import { SaveAsDialog } from "./SaveAsDialog";
 import { saveActiveBoard, saveActiveBoardAs } from "./save-board";
 import { Dialog } from "./ui/Dialog";
@@ -145,6 +146,8 @@ export function StudioShell() {
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
   const shortcutsOpen = useStudioStore((state) => state.shortcutsOpen);
   const setShortcutsOpen = useStudioStore((state) => state.setShortcutsOpen);
+  const addToDatabaseOpen = useStudioStore((state) => state.addToDatabaseOpen);
+  const setAddToDatabaseOpen = useStudioStore((state) => state.setAddToDatabaseOpen);
   const saveAsOpen = useStudioStore((state) => state.saveAsOpen);
   const setSaveAsOpen = useStudioStore((state) => state.setSaveAsOpen);
   const [mobileFileGamesOpen, setMobileFileGamesOpen] = useState(false);
@@ -628,6 +631,7 @@ export function StudioShell() {
         </Dialog>
       ) : null}
       {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+      {addToDatabaseOpen ? <AddToDatabaseDialog onClose={() => setAddToDatabaseOpen(false)} /> : null}
       {saveAsOpen ? <SaveAsDialog onClose={() => setSaveAsOpen(false)} /> : null}
       {variationChoice ? <VariationChoiceDialog /> : null}
       <LayoutDialogs />

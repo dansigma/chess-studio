@@ -1,5 +1,5 @@
 import { importPgn, titleFromHeaders } from "./pgn";
-import { pgnGameChunks } from "./pgn-clean";
+import { hasPgnGameHeaders, pgnGameChunks } from "./pgn-clean";
 
 export function splitPgnGames(text: string): string[] {
   // SIG-1218: keep [%clk] so games opened from a file keep per-move clocks.
@@ -17,7 +17,11 @@ export type ParsedFileGame = {
   title: string;
 };
 
-export function parsePgnCollection(text: string, limit = 500): {
+export function parsePgnCollection(
+  text: string,
+  limit = 500,
+  { requireMoves = false }: { requireMoves?: boolean } = {},
+): {
   games: ParsedFileGame[];
   skipped: number;
 } {
@@ -29,24 +33,12 @@ export function parsePgnCollection(text: string, limit = 500): {
       skipped += 1;
       continue;
     }
-    const imported = importPgn(chunk);
-    // importPgn keeps the declared headers/FEN and warnings even when no move
-    // was playable, so playability alone decides the skip (headers no longer
-    // imply an openable game).
-    if (imported.tree.children.length === 0) {
+    const game = parseChunk(chunk, requireMoves);
+    if (game) {
+      games.push(game);
+    } else {
       skipped += 1;
-      continue;
     }
-    games.push({
-      id: crypto.randomUUID(),
-      white: imported.headers.White ?? "White",
-      black: imported.headers.Black ?? "Black",
-      result: imported.headers.Result ?? "*",
-      event: imported.headers.Event ?? "",
-      date: imported.headers.Date ?? "",
-      pgn: chunk,
-      title: titleFromHeaders(imported.headers),
-    });
   }
   return { games, skipped };
 }
@@ -62,7 +54,7 @@ export type ParsePgnCollectionOptions = {
 
 export type ParsedPgnCollection = {
   games: ParsedFileGame[];
-  /** Chunks that held no playable game. */
+  /** Chunks that held neither moves nor game headers. */
   unreadable: number;
   /** Chunks left unread because the limit was reached. */
   overLimit: number;
@@ -83,9 +75,9 @@ function yieldToEventLoop(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-function parseChunk(chunk: string): ParsedFileGame | null {
+function parseChunk(chunk: string, requireMoves = false): ParsedFileGame | null {
   const imported = importPgn(chunk);
-  if (imported.tree.children.length === 0) {
+  if (imported.tree.children.length === 0 && (requireMoves || !hasPgnGameHeaders(chunk))) {
     return null;
   }
   return {

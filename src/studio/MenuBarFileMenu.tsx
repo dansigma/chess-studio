@@ -169,6 +169,10 @@ export function FileMenuItems({
       <Divider />
       <Item label={tStudioChrome(locale, "chrome.file.save")} shortcut="Ctrl+S" onClick={saveBoard} />
       <Item label={tStudioChrome(locale, "chrome.file.saveAs")} shortcut="Ctrl+Shift+S" onClick={saveBoardAs} />
+      <Item
+        label={tStudioChrome(locale, "chrome.file.addToDatabase")}
+        onClick={run(() => useStudioStore.getState().setAddToDatabaseOpen(true))}
+      />
       <Item label={tStudioChrome(locale, "chrome.file.exportPgn")} onClick={() => downloadPgn(suggestedActivePgnFilename())} />
       <Divider />
       <Item label={tStudioChrome(locale, "chrome.file.copyPgn")} onClick={() => void copyPgn()} />

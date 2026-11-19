@@ -213,6 +213,7 @@ export type StudioState = {
   // MenuBar and mobile sheet share the flag; StudioShell renders it).
   shortcutsOpen: boolean;
   saveAsOpen: boolean;
+  addToDatabaseOpen: boolean;
   settingsDialog: SettingsDialogState;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
   layoutNonce: number;
@@ -375,6 +376,7 @@ export type StudioState = {
   setAboutOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
   setSaveAsOpen: (open: boolean) => void;
+  setAddToDatabaseOpen: (open: boolean) => void;
   openSettings: (section?: SettingsDialogSection) => void;
   closeSettings: () => void;
   setNotationEditor: (editor: "comment" | "commentBefore" | "headers" | null) => void;
@@ -401,6 +403,7 @@ export type StudioState = {
     folderId?: string | null,
   ) => string;
   /** Replaces a database's games, keeping its id (Library import: Replace / Merge). False if the id is unknown. */
+  addActiveGameToDatabase: (destination: { id: string } | { name: string }) => boolean;
   replaceFileDatabaseGames: (id: string, games: ParsedFileGame[]) => boolean;
   showFileDatabase: (id: string) => void;
   openPgnSource: (name: string, pgn: string) => void;
