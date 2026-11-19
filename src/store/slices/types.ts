@@ -212,6 +212,7 @@ export type StudioState = {
   // SIG-1383: Help → "Shortcuts and gestures" reference dialog (desktop
   // MenuBar and mobile sheet share the flag; StudioShell renders it).
   shortcutsOpen: boolean;
+  saveAsOpen: boolean;
   settingsDialog: SettingsDialogState;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
   layoutNonce: number;
@@ -373,6 +374,7 @@ export type StudioState = {
   setStatus: (message: string | null) => void;
   setAboutOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
+  setSaveAsOpen: (open: boolean) => void;
   openSettings: (section?: SettingsDialogSection) => void;
   closeSettings: () => void;
   setNotationEditor: (editor: "comment" | "commentBefore" | "headers" | null) => void;

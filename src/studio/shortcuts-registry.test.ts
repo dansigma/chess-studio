@@ -84,6 +84,7 @@ const EXPECTED_BINDINGS: ReadonlyArray<{ action: StudioChromeStringKey; chord: s
   { action: "chrome.view.flip", chord: "Ctrl+F" },
   { action: "chrome.view.flip", chord: "F" },
   { action: "chrome.file.save", chord: "Ctrl+S" },
+  { action: "chrome.file.saveAs", chord: "Ctrl+Shift+S" },
   { action: "chrome.file.openPgn", chord: "Ctrl+O" },
   { action: "chrome.file.newBoard", chord: "Ctrl+N" },
   { action: "chrome.file.print", chord: "Ctrl+P" },

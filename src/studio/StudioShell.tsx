@@ -30,6 +30,7 @@ import {
 import {
   nextAutosaveRetryAt,
   runDirtySavePass,
+  subscribeAutosaveRetries,
 } from "@/src/lib/studio-autosave";
 import { useExplorerData } from "./use-explorer-data";
 import {
@@ -50,6 +51,8 @@ import { StatusBar, StatusToast } from "./StatusBar";
 import { CutUndoToast } from "./CutUndoToast";
 import { VariationChoiceDialog } from "./VariationChoiceDialog";
 import { ShortcutsDialog } from "./ShortcutsDialog";
+import { SaveAsDialog } from "./SaveAsDialog";
+import { saveActiveBoard, saveActiveBoardAs } from "./save-board";
 import { Dialog } from "./ui/Dialog";
 import { LayoutDialogs } from "./LayoutDialogs";
 import { Button } from "./ui/Button";
@@ -142,6 +145,8 @@ export function StudioShell() {
   const setAboutOpen = useStudioStore((state) => state.setAboutOpen);
   const shortcutsOpen = useStudioStore((state) => state.shortcutsOpen);
   const setShortcutsOpen = useStudioStore((state) => state.setShortcutsOpen);
+  const saveAsOpen = useStudioStore((state) => state.saveAsOpen);
+  const setSaveAsOpen = useStudioStore((state) => state.setSaveAsOpen);
   const [mobileFileGamesOpen, setMobileFileGamesOpen] = useState(false);
   // SIG-1187: single Forward-choicer mount outside the mobile split so the
   // chooser covers desktop and mobile entry points.
@@ -429,7 +434,11 @@ export function StudioShell() {
         },
       }).finally(scheduleRetryWakeup);
     }, 1000);
+    // A failed explicit Save (menu Save, Ctrl+S) records a retry too; arm the
+    // wakeup for it, since no autosave pass callback runs in that case.
+    const unsubscribeRetries = subscribeAutosaveRetries(scheduleRetryWakeup);
     return () => {
+      unsubscribeRetries();
       window.clearTimeout(handle);
       window.clearTimeout(retryHandle);
     };
@@ -465,16 +474,10 @@ export function StudioShell() {
       handleStudioShellKey(event, {
         openFile: () => fileRef.current?.click(),
         save: () => {
-          void runDirtySavePass({
-            getBoards: () => useStudioStore.getState().boards,
-            persist: (board) => persistBoard(board),
-            markSaved: (id, remoteId) => useStudioStore.getState().markSaved(id, remoteId),
-            onError: () => {
-              useStudioStore.getState().setStatus(
-                tStudioChrome(useStudioStore.getState().settings.locale, "chrome.shell.saveFailed"),
-              );
-            },
-          });
+          void saveActiveBoard();
+        },
+        saveAs: () => {
+          void saveActiveBoardAs();
         },
         newBoard: () => {
           // SIG-907: Ctrl+N creates a session, so open its `board:*` panel too.
@@ -625,6 +628,7 @@ export function StudioShell() {
         </Dialog>
       ) : null}
       {shortcutsOpen ? <ShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+      {saveAsOpen ? <SaveAsDialog onClose={() => setSaveAsOpen(false)} /> : null}
       {variationChoice ? <VariationChoiceDialog /> : null}
       <LayoutDialogs />
     </div>
