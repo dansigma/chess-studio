@@ -43,6 +43,7 @@ function makeDeps() {
   const calls = {
     openFile: 0,
     save: 0,
+    saveAs: 0,
     newBoard: 0,
     print: 0,
     toggleLibrary: 0,
@@ -53,6 +54,9 @@ function makeDeps() {
     },
     save: () => {
       calls.save += 1;
+    },
+    saveAs: () => {
+      calls.saveAs += 1;
     },
     newBoard: () => {
       calls.newBoard += 1;
@@ -141,6 +145,27 @@ test("Ctrl+Shift+L toggles library from library view and returns to studio", () 
   assert.equal(ev.defaultPrevented, true);
   assert.equal(calls.toggleLibrary, 1);
   assert.equal(useStudioStore.getState().workspaceView, "studio");
+});
+
+test("Ctrl+Shift+S and Cmd+Shift+S call saveAs only; Ctrl+S calls save only", () => {
+  const { calls, deps } = makeDeps();
+
+  const ctrlShiftS = makeKeyEvent("S", { ctrlKey: true, shiftKey: true });
+  handleStudioShellKey(ctrlShiftS, deps);
+  assert.equal(calls.saveAs, 1);
+  assert.equal(calls.save, 0);
+  assert.equal(ctrlShiftS.defaultPrevented, true);
+
+  const cmdShiftS = makeKeyEvent("s", { metaKey: true, shiftKey: true });
+  handleStudioShellKey(cmdShiftS, deps);
+  assert.equal(calls.saveAs, 2);
+  assert.equal(calls.save, 0);
+
+  const ctrlS = makeKeyEvent("s", { ctrlKey: true });
+  handleStudioShellKey(ctrlS, deps);
+  assert.equal(calls.save, 1);
+  assert.equal(calls.saveAs, 2);
+  assert.equal(ctrlS.defaultPrevented, true);
 });
 
 test("global shortcuts (Ctrl+O, Ctrl+S, Ctrl+N) work in library and live without falling through", () => {

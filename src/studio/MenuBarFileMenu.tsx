@@ -1,6 +1,6 @@
 "use client";
 
-import { persistBoard, selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
+import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { getFenAt } from "@/src/chess/tree";
 import { boardImageElement, fenToCopy } from "@/src/chess/copy-board";
 import { shareBoardUrl } from "@/src/chess/share-board";
@@ -11,6 +11,7 @@ import { closeBoardPanel, openBoardPanel, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item } from "./ui/Menu";
 import { downloadTextFile } from "@/src/lib/download-file";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { saveActiveBoard, saveActiveBoardAs, suggestedActivePgnFilename } from "./save-board";
 
 // SIG-857: file-menu subscriptions live here so the closed MenuBar root does
 // not re-render on board changes. The only value subscription is the active
@@ -34,7 +35,6 @@ export function FileMenuItems({
   close: () => void;
   run: (action: () => void) => () => void;
 }) {
-  const activeTitle = useStudioStore((state) => selectActiveBoard(state).title);
   const locale = useStudioStore((state) => state.settings.locale);
   const setStatus = useStudioStore((state) => state.setStatus);
   const exportActivePgn = useStudioStore((state) => state.exportActivePgn);
@@ -139,21 +139,14 @@ export function FileMenuItems({
     close();
   }
 
-  async function saveBoard() {
-    try {
-      const active = useStudioStore.getState().active();
-      const remoteId = await persistBoard(active);
-      if (!remoteId) {
-        downloadPgn(`${active.title}.pgn`);
-        setStatus(tStudioChrome(locale, "chrome.status.savedPgnFile"));
-        return;
-      }
-      useStudioStore.getState().markSaved(active.id, remoteId);
-      setStatus(tStudioChrome(locale, "chrome.status.boardSaved"));
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : tStudioChrome(locale, "chrome.status.saveFailed"));
-    }
+  function saveBoard() {
     close();
+    void saveActiveBoard();
+  }
+
+  function saveBoardAs() {
+    close();
+    void saveActiveBoardAs();
   }
 
   async function printBoard() {
@@ -174,9 +167,9 @@ export function FileMenuItems({
       <Item label={tStudioChrome(locale, "chrome.file.openPgn")} shortcut="Ctrl+O" onClick={run(onOpenPgn)} />
       <Item label={tStudioChrome(locale, "chrome.file.openClipboard")} onClick={() => void openClipboard()} />
       <Divider />
-      <Item label={tStudioChrome(locale, "chrome.file.save")} shortcut="Ctrl+S" onClick={() => void saveBoard()} />
-      <Item label={tStudioChrome(locale, "chrome.file.saveAs")} shortcut="Ctrl+Shift+S" onClick={() => downloadPgn(`${activeTitle}.pgn`)} />
-      <Item label={tStudioChrome(locale, "chrome.file.exportPgn")} onClick={() => downloadPgn(`${activeTitle}.pgn`)} />
+      <Item label={tStudioChrome(locale, "chrome.file.save")} shortcut="Ctrl+S" onClick={saveBoard} />
+      <Item label={tStudioChrome(locale, "chrome.file.saveAs")} shortcut="Ctrl+Shift+S" onClick={saveBoardAs} />
+      <Item label={tStudioChrome(locale, "chrome.file.exportPgn")} onClick={() => downloadPgn(suggestedActivePgnFilename())} />
       <Divider />
       <Item label={tStudioChrome(locale, "chrome.file.copyPgn")} onClick={() => void copyPgn()} />
       <Item label={tStudioChrome(locale, "chrome.file.copyFen")} onClick={() => void copyFen()} />

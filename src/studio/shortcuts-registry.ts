@@ -41,6 +41,7 @@ export const SHORTCUT_ENTRIES: readonly ShortcutEntry[] = [
   // Ctrl+F (SIG-1192). Right-click / long-press opens BoardContextMenu.
   { group: "board", action: "chrome.view.flip", chords: [["Ctrl", "F"], ["F"]] },
   { group: "board", action: "chrome.file.save", chords: [["Ctrl", "S"]] },
+  { group: "board", action: "chrome.file.saveAs", chords: [["Ctrl", "Shift", "S"]] },
   { group: "board", action: "chrome.file.openPgn", chords: [["Ctrl", "O"]] },
   { group: "board", action: "chrome.file.newBoard", chords: [["Ctrl", "N"]] },
   { group: "board", action: "chrome.file.print", chords: [["Ctrl", "P"]] },

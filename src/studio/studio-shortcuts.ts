@@ -18,6 +18,7 @@ export function isEditableTarget(target: EventTarget | null): boolean {
 export interface StudioShellShortcutDeps {
   openFile: () => void;
   save: () => void;
+  saveAs: () => void;
   newBoard: () => void;
   print: () => void;
   toggleLibrary: () => void;
@@ -53,7 +54,12 @@ export function handleStudioShellKey(
     deps.openFile();
     return;
   }
-  if (ctrl && key === "s") {
+  if (ctrl && event.shiftKey && !event.altKey && key === "s") {
+    event.preventDefault();
+    deps.saveAs();
+    return;
+  }
+  if (ctrl && !event.shiftKey && key === "s") {
     event.preventDefault();
     deps.save();
     return;
