@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Radio, RefreshCw } from "lucide-react";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
@@ -9,7 +9,7 @@ import { Button } from "../ui/Button";
 import { useLiveStore } from "./live-store";
 import { pullLiveMoves } from "./pull-live-moves";
 
-type Feedback = { tone: "neutral" | "success" | "error"; text: string };
+type Feedback = { key: string; tone: "neutral" | "success" | "error"; text: string };
 
 /**
  * SIG-1406: shown in the Notation panel when the active board was opened from a
@@ -25,12 +25,10 @@ export function NotationLiveSyncBar({
   liveSource: { roundId: string; gameId: string };
   locale: SiteLocale;
 }) {
+  const sourceKey = `${boardId}:${liveSource.roundId}:${liveSource.gameId}`;
   const [pulling, setPulling] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-
-  useEffect(() => {
-    setFeedback(null);
-  }, [boardId, liveSource.roundId, liveSource.gameId]);
+  const visibleFeedback = feedback?.key === sourceKey ? feedback : null;
 
   async function handlePull() {
     if (pulling) {
@@ -43,16 +41,16 @@ export function NotationLiveSyncBar({
     if (result.status === "updated") {
       if (result.addedMoves > 0) {
         const key = result.addedMoves === 1 ? "notation.live.pulled.one" : "notation.live.pulled.other";
-        setFeedback({ tone: "success", text: tPanels(locale, key, { count: result.addedMoves }) });
+        setFeedback({ key: sourceKey, tone: "success", text: tPanels(locale, key, { count: result.addedMoves }) });
       } else {
-        setFeedback({ tone: "success", text: tPanels(locale, "notation.live.upToDate") });
+        setFeedback({ key: sourceKey, tone: "success", text: tPanels(locale, "notation.live.upToDate") });
       }
     } else if (result.status === "up-to-date") {
-      setFeedback({ tone: "neutral", text: tPanels(locale, "notation.live.upToDate") });
+      setFeedback({ key: sourceKey, tone: "neutral", text: tPanels(locale, "notation.live.upToDate") });
     } else if (result.status === "diverged") {
-      setFeedback({ tone: "error", text: tPanels(locale, "notation.live.diverged") });
+      setFeedback({ key: sourceKey, tone: "error", text: tPanels(locale, "notation.live.diverged") });
     } else {
-      setFeedback({ tone: "error", text: tPanels(locale, "notation.live.error") });
+      setFeedback({ key: sourceKey, tone: "error", text: tPanels(locale, "notation.live.error") });
     }
   }
 
@@ -65,9 +63,9 @@ export function NotationLiveSyncBar({
   }
 
   const toneClass =
-    feedback?.tone === "success"
+    visibleFeedback?.tone === "success"
       ? "text-studio-success"
-      : feedback?.tone === "error"
+      : visibleFeedback?.tone === "error"
         ? "text-studio-danger"
         : "text-studio-muted";
 
@@ -81,9 +79,9 @@ export function NotationLiveSyncBar({
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-studio-success" aria-hidden="true" />
           <span>{tPanels(locale, "notation.live.badge")}</span>
         </span>
-        {feedback ? (
+        {visibleFeedback ? (
           <span data-live-pull-feedback="" role="status" className={`truncate text-caption font-medium ${toneClass}`}>
-            {feedback.text}
+            {visibleFeedback.text}
           </span>
         ) : null}
       </div>

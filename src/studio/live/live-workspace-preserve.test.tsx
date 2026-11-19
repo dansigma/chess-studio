@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, beforeEach, mock, test } from "node:test";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { setupDom, teardownDom } from "@/src/test-utils/dom.ts";
 import type { BroadcastRoundSnapshot, LiveGame } from "@/src/lib/live/types.ts";
 
