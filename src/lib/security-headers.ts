@@ -19,7 +19,11 @@ export const CSP_HEADER = "Content-Security-Policy";
 /** Third-party hosts the browser talks to directly (everything else goes via /api/* proxies). */
 export const PIECE_IMAGE_HOSTS = ["https://cdn.jsdelivr.net"] as const;
 /** SIG-1287: Live reads the public Lichess Broadcast API straight from the browser (CORS `*`, no token). */
-export const LICHESS_API_HOSTS = ["https://lichess.org"] as const;
+export const LICHESS_API_HOSTS = [
+  "https://lichess.org",
+  // SIG-1284: Studio queries the public Lichess tablebase directly (CORS `*`, no token).
+  "https://tablebase.lichess.ovh",
+] as const;
 export const VIDEO_EMBED_HOSTS = ["https://www.youtube-nocookie.com", "https://player.vimeo.com"] as const;
 
 function origin(value: string | undefined): string | null {

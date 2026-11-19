@@ -40,6 +40,7 @@ describe("security headers", () => {
     assert.ok(directive(csp, "connect-src").includes("wss://proj.supabase.co"));
     // SIG-1287: Live calls the Lichess Broadcast API from the browser.
     assert.ok(directive(csp, "connect-src").includes("https://lichess.org"));
+    assert.ok(directive(csp, "connect-src").includes("https://tablebase.lichess.ovh"));
     // Legacy covers come from any https host (courseImageUrl), and file videos from any https URL.
     assert.ok(directive(csp, "img-src").includes("https:"));
     assert.ok(directive(csp, "media-src").includes("https:"));

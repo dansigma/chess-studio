@@ -31,6 +31,8 @@ import { formatSanAtPly } from "@/src/chess/move-notation";
 import { IconButton } from "./ui/Button";
 import { Stepper } from "./ui/Controls";
 import { EvalSparkline } from "./EvalGraphPanel";
+import { TABLEBASE_OUTCOMES } from "@/src/lib/tablebase/lichess";
+import { useTablebase } from "./useTablebase";
 import { ENGINE_SPARKLINE_MIN_HEIGHT, usePanelSize } from "./use-panel-size";
 
 function isInsideEnginePv(target: EventTarget | null): boolean {
@@ -77,6 +79,9 @@ export function EnginePanel() {
   // search there so a hidden panel never keeps the shared worker busy. Panel
   // state (paused, depth, ...) is untouched, so coming back re-analyzes.
   const inStudio = useStudioStore((state) => state.workspaceView === "studio");
+  const tablebase = useTablebase(inStudio && !retryActive ? fen : null);
+  const outcome = tablebase && TABLEBASE_OUTCOMES[tablebase.category];
+  const tablebaseMove = tablebase?.bestMove;
   const engineRef = useRef<SharedEngineLease | null>(null);
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(true);
@@ -447,6 +452,25 @@ export function EnginePanel() {
 
       <div className="flex min-h-0 flex-1">
         <div className="min-h-0 min-w-0 flex-1 overflow-auto">
+          {tablebase && outcome ? (
+            <div className="flex items-center gap-2 border-b border-studio-border-subtle px-2 py-1 text-caption">
+              <span className="text-studio-muted">Lichess tablebase</span>
+              <span title={"title" in outcome ? outcome.title : undefined}>
+                {outcome.label}
+                {tablebase.dtz !== null ? ` · DTZ ${tablebase.dtz}` : ""}
+                {tablebase.dtm !== null ? ` · DTM ${tablebase.dtm}` : ""}
+              </span>
+              {tablebaseMove ? (
+                <button
+                  type="button"
+                  className="font-semibold hover:text-studio-accent-text hover:underline"
+                  onClick={() => playUciSequence([tablebaseMove.uci])}
+                >
+                  {tablebaseMove.san}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {lines.map((line) => (
             <div
               key={line.multipv}
@@ -509,6 +533,8 @@ export function EnginePanel() {
                     const key = `${line.multipv}-${index}`;
                     const ucis = line.pvUci.slice(0, index + 1);
                     const hovered = previewKey === key;
+                    const move = index === 0 ? tablebase?.moves.find(({ uci }) => uci === ucis[0]) : undefined;
+                    const verdict = move && TABLEBASE_OUTCOMES[move.category].moveLabel;
                     const number = moveNumberLabel(fen, side, index);
                     const tone =
                       index < PV_EMPHASIS
@@ -546,6 +572,7 @@ export function EnginePanel() {
                       >
                         {number ? <span className="mr-0.5 font-normal text-studio-faint">{number}</span> : null}
                         {formatSanAtPly(san, moveNotation, side, index)}
+                        {verdict ? <span className="ml-1 text-caption font-normal text-studio-muted">· {verdict}</span> : null}
                       </button>
                     );
                   })
