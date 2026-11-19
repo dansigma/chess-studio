@@ -463,7 +463,7 @@ export function findVariation(course: Course, variationId: string) {
   return null;
 }
 
-export function courseVariationIds(course: Course): string[] {
+export function courseVariationIds(course: Pick<Course, "chapters">): string[] {
   return course.chapters.flatMap((chapter) => chapter.variations.map((variation) => variation.id));
 }
 
