@@ -49,7 +49,7 @@ export type ChapterPgnVariations = {
 };
 
 export function variationsFromChapterPgn(text: string): ChapterPgnVariations {
-  const { games } = parsePgnCollection(text, 40);
+  const { games } = parsePgnCollection(text, 40, { requireMoves: true });
   const lines: CourseVariation[] = [];
   const warnings: ChapterPgnWarning[] = [];
   for (const game of games) {
@@ -81,7 +81,7 @@ function sharedHeader(values: string[], gameCount: number): string {
 }
 
 export function chapterTitleFromPgn(text: string): string {
-  const { games } = parsePgnCollection(text, 40);
+  const { games } = parsePgnCollection(text, 40, { requireMoves: true });
   const chapters: string[] = [];
   const events: string[] = [];
   for (const game of games) {

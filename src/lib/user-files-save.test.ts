@@ -128,7 +128,7 @@ function buildFakeSupabase(options: FakeOptions = {}) {
             },
             eq: (column: string, value: unknown) => dbBuilder({ ...filters, [column]: value }),
             select: () => ({ single: async () => ({ data: { id: "remote-db" }, error: null }) }),
-            delete: () => finish({}),
+            delete: () => ({ eq: () => finish({}) }),
           };
           return builder;
         };
@@ -174,19 +174,19 @@ function buildFakeSupabase(options: FakeOptions = {}) {
 function databaseWithGames(count: number): FileDatabase {
   return {
     id: "local-db",
-    remoteId: "remote-db",
+    remoteId: null,
     name: "Db",
     folderId: null,
     games: Array.from({ length: count }, (_, index) => makePgnGame(index)),
   };
 }
 
-test("persistRemoteDatabase: failed second chunk keeps old games and game_count, deletes pending rows", async () => {
+test("persistRemoteDatabase: failed second chunk leaves game_count untouched and deletes pending rows", async () => {
   const { calls } = installFakeSupabase({ failChunkAt: 2 });
 
   const result = await persistRemoteDatabase(databaseWithGames(250), "user-1");
 
-  assert.equal(result.remoteId, "remote-db");
+  assert.equal(result.remoteId, null);
   assert.equal(result.saveError, "chunk 2 failed");
   assert.equal(result.indexError, null);
   // Exactly one chunk (200 rows) succeeded before the failure.
@@ -230,7 +230,7 @@ test("persistRemoteDatabase: swap quota failure maps quota_games and cleans pend
 
   const result = await persistRemoteDatabase(databaseWithGames(10), "user-1");
 
-  assert.equal(result.remoteId, "remote-db");
+  assert.equal(result.remoteId, null);
   assert.equal(result.saveError, "This database holds more than 5,000 games. Remove some games and try again.");
   assert.deepEqual(
     calls.filter((call) => call.op === "delete-games"),
@@ -285,4 +285,62 @@ test("persistRemoteDatabase: success swaps once after the last chunk and updates
     { game_count: 250 },
     "game_count must come from the swap return value",
   );
+});
+
+test("append to a 1,000-game cloud database sends one game write and metadata changes send none", async () => {
+  const calls: Record<string, unknown>[] = [];
+  const metadata: Record<string, unknown>[] = [];
+  (globalThis as { __sig1037Fake?: unknown }).__sig1037Fake = {
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      assert.equal(name, "write_database_game");
+      calls.push(args);
+      return { error: null };
+    },
+    from: (table: string) => {
+      assert.equal(table, "game_databases");
+      return {
+        update: (fields: Record<string, unknown>) => ({
+          eq: async (column: string, value: string) => {
+            assert.equal(column, "id");
+            assert.equal(value, "remote-db");
+            metadata.push(fields);
+            return { error: null };
+          },
+        }),
+      };
+    },
+  };
+
+  const { useStudioStore } = await import("@/src/store/studio-store");
+  const database = { ...databaseWithGames(1000), remoteId: "remote-db" };
+  useStudioStore.setState({
+    files: { databases: [database], folders: [] },
+    user: { id: "user-1", email: "owner@example.test" },
+  });
+  const state = useStudioStore.getState();
+  state.importPgnText('[White "Judit"]\n\n1. e4 e5 *', "Board");
+  assert.equal(state.addActiveGameToDatabase({ id: database.id }), true);
+  state.renameFileDatabase(database.id, "Renamed");
+  state.moveFileDatabase(database.id, "folder");
+  const { games } = useStudioStore.getState().files.databases[0];
+  assert.equal(games.length, 1001);
+  assert.deepEqual(games.slice(0, -1), database.games);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].p_operation, "insert");
+  assert.equal(calls[0].p_game_id, games[1000].id);
+  assert.equal((calls[0].p_game as { pgn: string }).pgn, games[1000].pgn);
+  assert.equal((calls[0].p_positions as unknown[]).length, 3);
+  assert.deepEqual(metadata, [{ name: "Renamed" }, { folder_id: "folder" }]);
+
+  const edited = { ...games[1000], pgn: '[Result "1-0"]\n\n1. d4 1-0' };
+  state.replaceFileDatabaseGames(database.id, [...games.slice(0, -1), edited]);
+  state.replaceFileDatabaseGames(database.id, games.slice(0, -1));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(calls.map((call) => [call.p_operation, call.p_game_id]), [
+    ["insert", edited.id],
+    ["update", edited.id],
+    ["delete", edited.id],
+  ]);
+  assert.equal(calls[2].p_previous_pgn, edited.pgn);
 });

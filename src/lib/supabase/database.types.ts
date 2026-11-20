@@ -917,6 +917,19 @@ export type Database = {
         };
         Returns: Array<{ id: string }>;
       };
+      max_games_per_database: { Args: Record<PropertyKey, never>; Returns: number };
+      write_database_game: {
+        Args: {
+          p_database_id: string;
+          p_game_id: string;
+          p_operation: string;
+          p_game: Json;
+          p_positions: Json;
+          p_previous_pgn: string | null;
+          p_known_ids: string[];
+        };
+        Returns: undefined;
+      };
       swap_database_games: {
         Args: { p_database_id: string };
         Returns: number;

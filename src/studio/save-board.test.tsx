@@ -232,3 +232,73 @@ test("Menu Save and saveActiveBoard share the same signed-out download and statu
     "Saved as PGN file (sign in to save in the cloud)",
   );
 });
+
+test("Add to database saves the active PGN to the selected Library database", async () => {
+  const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
+  const { databaseToPgn } = await import("@/src/lib/export-database-pgn");
+  const { loadLocalFiles } = await import("@/src/lib/user-files");
+  const state = useStudioStore.getState();
+  useStudioStore.setState({ files: { folders: [], databases: [] } });
+  state.importFileDatabase("First", '[White "Ada"]\n\n1. d4 *');
+  const selected = state.importFileDatabase("Second", '[White "Grace"]\n\n1. c4 *');
+  state.importPgnText('[White "Judit"]\n[Black "Magnus"]\n\n1. e4 {Try two lines} (1. d4) e5 *', "Board");
+  const pgn = state.exportActivePgn();
+  let closed = 0;
+  render(<AddToDatabaseDialog onClose={() => { closed += 1; }} />);
+  fireEvent.change(screen.getByLabelText("Database"), { target: { value: selected } });
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  const [first, second] = useStudioStore.getState().files.databases;
+  assert.equal(closed, 1);
+  assert.equal(first.games.length, 1);
+  assert.equal(second.games[1].white, "Judit");
+  assert.equal(second.games[1].pgn, pgn);
+  assert.match(pgn, /\{Try two lines\}.*\(1\. d4\)/);
+  assert.equal(databaseToPgn(second), `${second.games[0].pgn.trim()}\n\n${pgn.trim()}\n`);
+  assert.deepEqual(loadLocalFiles().databases, [first, second]);
+  assert.equal(useStudioStore.getState().statusMessage, "Added to Second");
+});
+
+test("Add to database can create a named database and save a move-less board", async () => {
+  const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
+  useStudioStore.setState({ files: { folders: [], databases: [] } });
+  useStudioStore.getState().newBoard();
+  render(<AddToDatabaseDialog onClose={() => {}} />);
+  fireEvent.change(screen.getByLabelText("Database name"), { target: { value: "  Studies  " } });
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  const [database] = useStudioStore.getState().files.databases;
+  assert.equal(database.name, "Studies");
+  assert.equal(database.games.length, 1);
+  useStudioStore.getState().openFileGame(database.games[0]);
+  assert.equal(useStudioStore.getState().statusMessage, null);
+});
+
+test("Cancel closes Add to database without saving", async () => {
+  const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
+  const files = { folders: [], databases: [] };
+  useStudioStore.setState({ files });
+  let closed = 0;
+  render(<AddToDatabaseDialog onClose={() => { closed += 1; }} />);
+  fireEvent.change(screen.getByLabelText("Database name"), { target: { value: "Discarded" } });
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  assert.equal(closed, 1);
+  assert.equal(useStudioStore.getState().files, files);
+});
+
+test("File menu leaves the Add to database dialog open after the menu closes", () => {
+  useStudioStore.getState().setAddToDatabaseOpen(false);
+  let closed = false;
+  render(
+    <FileMenuItems
+      onOpenPgn={() => {}}
+      onShare={() => {}}
+      close={() => {}}
+      run={(action) => () => {
+        action();
+        closed = true;
+      }}
+    />,
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Add to database…" }));
+  assert.equal(closed, true);
+  assert.equal(useStudioStore.getState().addToDatabaseOpen, true);
+});

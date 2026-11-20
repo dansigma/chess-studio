@@ -128,3 +128,7 @@ function numberSanLineWithClocks(sans: string, clocks: (string | undefined)[]): 
   });
   return parts.join(" ");
 }
+
+export function hasPgnGameHeaders(pgn: string): boolean {
+  return /^\s*\[(?:White|Black|Event|FEN)\s+"/m.test(pgn);
+}

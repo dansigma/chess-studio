@@ -2,13 +2,18 @@ import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 import * as realUserFiles from "@/src/lib/user-files.ts";
 
-const persistCalls: Array<[realUserFiles.FileDatabase, string]> = [];
+const writes: Array<[string, string, string]> = [];
 mock.module("@/src/lib/user-files.ts", {
   namedExports: {
     ...realUserFiles,
-    persistRemoteDatabase: async (database: realUserFiles.FileDatabase, userId: string) => {
-      persistCalls.push([database, userId]);
-      return { remoteId: "r1", indexError: null, saveError: null };
+    persistRemoteDatabase: async () => assert.fail("A synced database must not use the initial upload"),
+    deleteRemoteGame: async (remoteId: string, game: realUserFiles.FileGame) => {
+      writes.push(["delete", remoteId, game.id]);
+      return null;
+    },
+    insertRemoteGame: async (remoteId: string, game: realUserFiles.FileGame) => {
+      writes.push(["insert", remoteId, game.id]);
+      return null;
     },
   },
 });
@@ -34,15 +39,18 @@ test("replaceFileDatabaseGames ignores an unknown id", () => {
   assert.equal(useStudioStore.getState().replaceFileDatabaseGames("zzz", []), false);
 });
 
-test("signed in: the full new list goes to persistRemoteDatabase with the same remote id", async () => {
-  useStudioStore.setState((s) => ({ files: { ...s.files, databases: [db("a", "r1")] }, user: { id: "u1" } as never }));
-  useStudioStore.getState().replaceFileDatabaseGames("a", [game("n1"), game("n2")]);
-  await new Promise((r) => setTimeout(r, 0));
-  assert.equal(persistCalls.length, 1);
-  const [database, userId] = persistCalls[0];
-  assert.equal(database.id, "a");
-  assert.equal(database.remoteId, "r1");
-  assert.deepEqual(database.games.map((x) => x.id), ["n1", "n2"]);
-  assert.equal(userId, "u1");
+test("signed in: replacing games applies only the changes to the same remote database", async () => {
+  const unchanged = game("keep");
+  const database = { ...db("a", "r1"), games: [game("old"), unchanged] };
+  useStudioStore.setState((s) => ({
+    files: { ...s.files, databases: [database] },
+    user: { id: "u1", email: null },
+  }));
+  useStudioStore.getState().replaceFileDatabaseGames("a", [unchanged, game("new")]);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(writes, [
+    ["delete", "r1", "old"],
+    ["insert", "r1", "new"],
+  ]);
   useStudioStore.setState({ user: null });
 });
