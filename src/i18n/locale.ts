@@ -25,4 +25,6 @@ export function htmlLangFor(locale: SiteLocale): string {
   return locale === "pt-br" ? "pt-BR" : "en";
 }
 
-export const LANG_BOOTSTRAP = `(function(){try{var lang="en";var raw=localStorage.getItem("studio-clone-settings");if(raw){var parsed=JSON.parse(raw);if(parsed&&(parsed.locale==="en"||parsed.locale==="pt-br")){lang=parsed.locale==="pt-br"?"pt-BR":"en";}}document.documentElement.lang=lang;}catch(e){}})();`;
+// Pre-hydration <html lang>: mirrors loadLocalSettings — a valid persisted
+// locale wins, otherwise the browser language decides (SIG-1419).
+export const LANG_BOOTSTRAP = `(function(){try{var nav=navigator.language||"";var lang=nav.toLowerCase().indexOf("pt")===0?"pt-BR":"en";var raw=localStorage.getItem("studio-clone-settings");if(raw){var parsed=JSON.parse(raw);if(parsed&&(parsed.locale==="en"||parsed.locale==="pt-br")){lang=parsed.locale==="pt-br"?"pt-BR":"en";}}document.documentElement.lang=lang;}catch(e){}})();`;
