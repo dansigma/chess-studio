@@ -216,7 +216,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     get().hydrateSavedLayouts([]);
     clearGuestBoards();
     resetCourseProgressState();
-    saveLocalFiles(EMPTY_FILES);
+    void saveLocalFiles(EMPTY_FILES);
     saveLocalBookmarks([]);
     const board = emptyBoard();
     const sessionReset = {
@@ -255,6 +255,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       playerColorFilter: "all",
       playerResultFilter: "all",
       files: EMPTY_FILES,
+      filesHydrated: true,
       filesQuery: "",
       activeFileDatabaseId: null,
       activeFileGameId: null,

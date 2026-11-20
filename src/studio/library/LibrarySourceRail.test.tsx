@@ -860,3 +860,20 @@ test("collapsed rail: failed sources keep their mark and import stays available"
   assert.ok(screen.getByRole("menuitem", { name: "Paste PGN" }));
   fireEvent.click(screen.getByRole("button", { name: "Expand sources" }));
 });
+
+test("the file group shows guests a sign-in link on desktop and in the Sources sheet", () => {
+  seed([]);
+  const view = render(<LibrarySourceRail sourceErrors={{}} />);
+  const hint = "Sign in to access your databases on any computer.";
+  assert.equal(screen.getByRole("link", { name: hint }).getAttribute("href"), "/login");
+
+  act(() => {
+    useStudioStore.setState((state) => ({ settings: { ...state.settings, locale: "pt-br" } }));
+  });
+  view.rerender(<LibrarySourceRail sourceErrors={{}} inSheet />);
+  const portugueseHint = "Entre na sua conta para acessar suas bases em qualquer computador.";
+  assert.equal(screen.getByRole("link", { name: portugueseHint }).getAttribute("href"), "/login");
+
+  act(() => { useStudioStore.setState({ user: { id: "user", email: null } }); });
+  assert.equal(screen.queryByRole("link", { name: portugueseHint }), null);
+});

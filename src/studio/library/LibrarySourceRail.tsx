@@ -2,6 +2,7 @@
 
 // SIG-1337: the Library's sources rail — public databases, My Games and the PGN
 // file tree live left of the games table; the old source bar above it is gone.
+import Link from "next/link";
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
   Bookmark,
@@ -287,6 +288,7 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
 
   const selectedAvailable = ids.filter((id) => selected.includes(id));
   const allSelected = selectedAvailable.length === ids.length;
+  const signedIn = useStudioStore((state) => Boolean(state.user));
   const t = (key: Parameters<typeof tLibrary>[1], vars?: Record<string, string | number>) => tLibrary(locale, key, vars);
 
   const count = (id: LibrarySourceId): string | null => {
@@ -1018,6 +1020,11 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
           >
             {t("library.sources.group.files")}
           </h3>
+          {!signedIn ? (
+            <Link href="/login" className="rounded px-2 py-1 text-caption text-studio-accent-text hover:underline">
+              {t("library.sources.signInHint")}
+            </Link>
+          ) : null}
           {tree.rootFolders.map((node) => folderRow(node, 0))}
           {tree.rootDatabases.map((database) => sourceRow(`file:${database.id}`, 0))}
         </section>
