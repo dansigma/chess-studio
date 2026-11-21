@@ -2,7 +2,6 @@ import { decodeCountsBook, type CountsBook } from "@/src/chess/opening-book-coun
 import { OPENING_BOOK_MANIFEST } from "@/src/chess/opening-book-manifest";
 
 const manifest: { file: string; countsFile?: string } = OPENING_BOOK_MANIFEST;
-const WAIT_MS = 3_000;
 const RETRY_MS = 5 * 60_000;
 let loaded: CountsBook | null = null;
 let loading: Promise<CountsBook | null> | null = null;
@@ -21,7 +20,7 @@ async function download(file: string): Promise<CountsBook | null> {
   }
 }
 
-/** Loads the optional counts book on demand, sharing the download across callers. */
+/** Loads the optional counts book on demand, sharing the download across callers; null when absent or failed (retried after RETRY_MS). */
 export async function loadCountsBook(): Promise<CountsBook | null> {
   const file = manifest.countsFile;
   if (!file || loaded) {
@@ -37,12 +36,6 @@ export async function loadCountsBook(): Promise<CountsBook | null> {
     loading = null;
     return book;
   });
-  const pending = loading;
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), WAIT_MS);
-    void pending.then((book) => {
-      clearTimeout(timer);
-      resolve(book);
-    });
-  });
+  // Unlike Game Review, the variation book cannot proceed without the file, so callers wait for the download.
+  return loading;
 }
