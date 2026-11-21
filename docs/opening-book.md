@@ -127,6 +127,18 @@ as such and left out of the "identical on X of Y" summary.
 Expect the same book length on most games. Differences are expected where the explorer's 2200-2500 rating
 band and the local source filters disagree on a borderline move.
 
+### Move counts
+
+Add `--counts` to `build-book.mjs` to write `opening-book-counts-v<N>.bin.gz` and
+`opening-book-counts-v<N>.manifest.json` alongside the theory book. The companion
+stores each retained move's count and the position total, which includes moves excluded
+by the theory rule. With `--app-manifest`, the generated app manifest includes `countsFile`.
+
+To merge books with counts, build each input with `--counts`, keep its companion file
+in the same directory, and pass `--counts` to `union-books.mjs`. The union sums each
+move's count across inputs that retained it and each position total across inputs
+that retained the position.
+
 ### Upload and deploy
 
 The object key is `book/<file>` in the engine bucket. Files are versioned and immutable: never overwrite a
@@ -137,6 +149,13 @@ npx wrangler r2 object put chess-studio-engine/book/opening-book-v2.bin.gz \
   --file out/opening-book-v2.bin.gz --content-type application/octet-stream --remote
 # (--remote: wrangler 4 writes to a local simulator without it)
 git add src/chess/opening-book-manifest.ts && git commit -m "chore(book): opening book v2"
+```
+
+If the app manifest includes `countsFile`, upload that file before deploying too:
+
+```bash
+npx wrangler r2 object put chess-studio-engine/book/opening-book-counts-v2.bin.gz \
+  --file out/opening-book-counts-v2.bin.gz --content-type application/octet-stream --remote
 ```
 
 Deploy after the upload. Check:

@@ -1,7 +1,7 @@
 // scripts/opening-book/union-books.test.mjs
 // SIG-1229: merging books, the merged manifest and the app manifest module.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -9,8 +9,9 @@ import { describe, it } from "node:test";
 import { gunzipSync } from "node:zlib";
 import { Chess } from "chess.js";
 import { bookKey } from "../../src/chess/opening-book.ts";
+import { decodeCountsBook } from "../../src/chess/opening-book-counts-format.ts";
 import { decodeBook, encodeBook, encodeMove } from "../../src/chess/opening-book-format.ts";
-import { appManifestSource, buildBook, writeOutputs } from "./build-book.mjs";
+import { appManifestSource, buildBook, run, writeOutputs } from "./build-book.mjs";
 import { iterateBook, manifestPathFor, runUnion, unionBooks } from "./union-books.mjs";
 import { ENGLISH, QGD, TEN_MOVES, many, otb, pgn, source, who } from "./test-helpers.mjs";
 
@@ -169,4 +170,42 @@ describe("runUnion (files)", () => {
     assert.throws(() => runUnion([book, lone]), /usage/);
     assert.throws(() => runUnion([book, "--out-dir", "o", "--version", "4"]), /usage/);
   });
+});
+
+it("writes companion files and sums only matching theory moves across inputs", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "counts-test-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const paths = [];
+  for (const [name, e4, d4] of [["first", 100, 19], ["second", 150, 50]]) {
+    const pgnPath = join(dir, `${name}.pgn`);
+    const outDir = join(dir, name);
+    writeFileSync(pgnPath, pgn(TEN_MOVES).repeat(e4) + pgn(QGD).repeat(d4));
+    const args = [pgnPath, "--out-dir", outDir, "--version", "3"];
+    const plain = await run(args);
+    const withCounts = await run([...args, "--counts"]);
+    assert.deepEqual(withCounts.gz, plain.gz);
+    const file = "opening-book-counts-v3.bin.gz";
+    const countsManifest = JSON.parse(readFileSync(join(outDir, manifestPathFor(file)), "utf8"));
+    assert.deepEqual(countsManifest, withCounts.counts.manifest);
+    const counts = decodeCountsBook(gunzipSync(readFileSync(join(outDir, file))));
+    assert.equal(counts.entryCount, withCounts.manifest.moves);
+    assert.equal(counts.positionFor(bookKey(START)).total, e4 + d4);
+    paths.push(join(outDir, withCounts.manifest.file));
+  }
+  const outDir = join(dir, "union");
+  const appManifest = join(dir, "manifest.ts");
+  const args = [...paths, "--out-dir", outDir, "--version", "4", "--app-manifest", appManifest];
+  const plain = runUnion(args);
+  const union = runUnion([...args, "--counts"]);
+  assert.deepEqual(union.gz, plain.gz);
+  const { OPENING_BOOK_MANIFEST } = await import(pathToFileURL(appManifest).href);
+  assert.equal(OPENING_BOOK_MANIFEST.countsFile, "opening-book-counts-v4.bin.gz");
+  const counts = decodeCountsBook(gunzipSync(readFileSync(join(outDir, OPENING_BOOK_MANIFEST.countsFile))));
+  assert.deepEqual(counts.positionFor(bookKey(START)), {
+    total: 319,
+    moves: [{ uci: "e2e4", games: 250 }, { uci: "d2d4", games: 50 }],
+  });
+
+  rmSync(join(dir, "first", "opening-book-counts-v3.bin.gz"));
+  assert.throws(() => runUnion([...args, "--counts"]), /counts file not found/);
 });

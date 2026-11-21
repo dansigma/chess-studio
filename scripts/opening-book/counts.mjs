@@ -237,7 +237,7 @@ class RunReader {
  * has at least `minPositionGames` games; a move is kept when it has at least
  * `minMoveGames` games AND at least `minMoveShare` of the position's games.
  * With `rule.minDistinctPlayers` > 0 (needs a store that tracked players) a
- * move also needs that many distinct players. Returns { entries: [{ key, move }],
+ * move also needs that many distinct players. Returns { entries: [{ key, move, count, total }],
  * positions, positionsSeen, movesSeen }.
  */
 export function selectTheory(records, rule) {
@@ -256,7 +256,7 @@ export function selectTheory(records, rule) {
     if (total >= rule.minPositionGames) {
       for (const move of group.moves) {
         if (move.count >= rule.minMoveGames && move.count >= rule.minMoveShare * total && (move.players ?? Infinity) >= minPlayers) {
-          entries.push({ key: group.key, move: move.move });
+          entries.push({ key: group.key, move: move.move, count: move.count, total });
           keptKeys.add(group.key);
         }
       }

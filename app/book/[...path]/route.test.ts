@@ -56,3 +56,11 @@ test("serves the file as immutable opaque bytes under the book/ key prefix", asy
   assert.equal(res.headers.get("Cross-Origin-Resource-Policy"), "same-origin");
   assert.equal(res.headers.get("ETag"), '"book-etag"');
 });
+
+test("serves the opening book counts file", async () => {
+  const file = "opening-book-counts-v8.bin.gz";
+  setCloudflareEnv({ ENGINE: fakeEngineBucket({ [`book/${file}`]: { body: "counts-gzip" } }) });
+  const res = await GET(URL_OF(file), params([file]));
+  assert.equal(res.status, 200);
+  assert.equal(await res.text(), "counts-gzip");
+});

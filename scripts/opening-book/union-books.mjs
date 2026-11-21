@@ -13,6 +13,7 @@
 // every input under `sources` with its own stats.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { pathToFileURL } from "node:url";
 import {
@@ -20,11 +21,13 @@ import {
   FORMAT_VERSION,
   HEADER_BYTES,
   encodeBook,
+  encodeMove,
 } from "../../src/chess/opening-book-format.ts";
-import { writeOutputs } from "./build-book.mjs";
+import { decodeCountsBook } from "../../src/chess/opening-book-counts-format.ts";
+import { buildCountsOutput, writeOutputs } from "./build-book.mjs";
 
 const USAGE =
-  "usage: node scripts/opening-book/union-books.mjs <book.bin.gz> <book.bin.gz> ... --out-dir DIR --version N [--app-manifest PATH] [--build-date ISO]";
+  "usage: node scripts/opening-book/union-books.mjs <book.bin.gz> <book.bin.gz> ... --out-dir DIR --version N [--app-manifest PATH] [--build-date ISO] [--counts]";
 const U64 = (1n << 64n) - 1n;
 
 /**
@@ -102,11 +105,50 @@ export function unionPairs(books) {
   return { pairs, unique, perBook };
 }
 
+function mergeCounts(inputs, pairs) {
+  const positions = new Map();
+  for (const { raw, countsRaw, manifest } of inputs) {
+    if (!countsRaw) {
+      throw new Error(`counts file required for ${manifest.file}`);
+    }
+    const counts = decodeCountsBook(countsRaw);
+    let keys = 0;
+    let entries = 0;
+    const mismatch = () => new Error(`counts file does not match theory book ${manifest.file}`);
+    for (const { key, moves } of iterateBook(raw)) {
+      const position = counts.positionFor(key);
+      const theoryMoves = new Set(moves);
+      if (!position || position.moves.length !== moves.length) {
+        throw mismatch();
+      }
+      const merged = positions.get(key) ?? { total: 0, moves: new Map() };
+      merged.total += position.total;
+      for (const { uci, games } of position.moves) {
+        const move = encodeMove(uci);
+        if (!theoryMoves.has(move)) {
+          throw mismatch();
+        }
+        merged.moves.set(move, (merged.moves.get(move) ?? 0) + games);
+      }
+      positions.set(key, merged);
+      keys += 1;
+      entries += moves.length;
+    }
+    if (counts.maxPly !== raw[5] || counts.keyCount !== keys || counts.entryCount !== entries) {
+      throw mismatch();
+    }
+  }
+  return pairs.map(({ key, move }) => {
+    const { total, moves } = positions.get(key);
+    return { key, move, total, count: moves.get(move) };
+  });
+}
+
 /**
  * Builds the union of `inputs` ({ raw: Uint8Array, manifest }). `now` stamps the
  * merged manifest. Throws when an input is not a book of this format.
  */
-export function unionBooks(inputs, { version, buildDate }) {
+export function unionBooks(inputs, { version, buildDate, counts }) {
   if (inputs.length < 2) {
     throw new Error("a union needs at least two books");
   }
@@ -135,23 +177,32 @@ export function unionBooks(inputs, { version, buildDate }) {
     licenses: [...new Set(inputs.map((input) => input.manifest.license).filter(Boolean))],
     sources: inputs.map((input, index) => ({ ...input.manifest, profile: input.manifest.profile ?? "lichess", uniqueMoves: unique[index] })),
   };
-  return { raw, gz, manifest, stats: { inputs: inputs.length, uniquePerInput: unique } };
+  return { raw, gz, manifest, ...(counts ? { counts: buildCountsOutput(mergeCounts(inputs, pairs), manifest) } : {}), stats: { inputs: inputs.length, uniquePerInput: unique } };
 }
 
 export function manifestPathFor(bookPath) {
   return bookPath.replace(/\.bin\.gz$/, ".manifest.json");
 }
 
-export function loadInput(path) {
+export function loadInput(path, counts = false) {
   const manifestPath = manifestPathFor(path);
   if (!existsSync(manifestPath)) {
     throw new Error(`manifest not found next to the book: ${manifestPath}`);
   }
-  return { raw: new Uint8Array(gunzipSync(readFileSync(path))), manifest: JSON.parse(readFileSync(manifestPath, "utf8")) };
+  const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const input = { raw: gunzipSync(readFileSync(path)), manifest };
+  if (counts) {
+    const countsPath = join(dirname(path), `opening-book-counts-v${manifest.version}.bin.gz`);
+    if (!existsSync(countsPath)) {
+      throw new Error(`counts file not found next to the book: ${countsPath}`);
+    }
+    input.countsRaw = gunzipSync(readFileSync(countsPath));
+  }
+  return input;
 }
 
 export function parseUnionArgs(argv) {
-  const args = { inputs: [], outDir: null, version: null, appManifest: null, buildDate: null };
+  const args = { inputs: [], outDir: null, version: null, appManifest: null, buildDate: null, counts: false };
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (token === "--out-dir" || token === "--app-manifest" || token === "--build-date") {
@@ -167,6 +218,8 @@ export function parseUnionArgs(argv) {
       }
       args.version = value;
       i += 1;
+    } else if (token === "--counts") {
+      args.counts = true;
     } else if (token.startsWith("--")) {
       throw new Error(USAGE);
     } else {
@@ -181,7 +234,7 @@ export function parseUnionArgs(argv) {
 
 export function runUnion(argv) {
   const args = parseUnionArgs(argv);
-  const result = unionBooks(args.inputs.map(loadInput), args);
+  const result = unionBooks(args.inputs.map((path) => loadInput(path, args.counts)), args);
   writeOutputs(result, args);
   return result;
 }
