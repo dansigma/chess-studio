@@ -23,24 +23,44 @@ let catalog: Promise<readonly CatalogEntry[]> | undefined;
 
 export function loadCatalog(): Promise<readonly CatalogEntry[]> {
   return (catalog ??= import("../data/openings-catalog.json", { with: { type: "json" } })
-    .then(({ default: lines }) => lines.map(toEntry))
+    .then(({ default: lines }) => {
+      const positions = new Map<string, string>();
+      return lines.map((line) => toEntry(line, positions));
+    })
     .catch((error) => {
       catalog = undefined;
       throw error;
     }));
 }
 
-function toEntry(line: CatalogLine): CatalogEntry {
+function toEntry(line: CatalogLine, positions: Map<string, string>): CatalogEntry {
   let fen: string | undefined;
   return {
     ...line,
     get fen() {
       if (fen === undefined) {
-        const chess = new Chess();
-        for (const move of line.uci) {
-          chess.move({ from: move.slice(0, 2), to: move.slice(2, 4), promotion: move[4] });
+        // Catalog entries share many prefixes. Resume at the longest one
+        // already replayed when indexing the catalog by position.
+        let length = line.uci.length;
+        let prefix = line.uci.join(" ");
+        let previousFen = positions.get(prefix);
+        while (!previousFen && length > 0) {
+          length -= 1;
+          prefix = line.uci.slice(0, length).join(" ");
+          previousFen = positions.get(prefix);
         }
-        fen = chess.fen();
+        if (previousFen && length === line.uci.length) {
+          fen = previousFen;
+        } else {
+          const chess = new Chess(previousFen);
+          fen = chess.fen();
+          for (const move of line.uci.slice(length)) {
+            chess.move({ from: move.slice(0, 2), to: move.slice(2, 4), promotion: move[4] });
+            prefix = prefix ? `${prefix} ${move}` : move;
+            fen = chess.fen();
+            positions.set(prefix, fen);
+          }
+        }
       }
       return fen;
     },

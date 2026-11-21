@@ -1,3 +1,4 @@
+import { scopeFilter, scopeIncludesPosition } from "@/src/chess/repertoire-scope";
 import { Chess } from "chess.js";
 import type { StateCreator, StoreApi } from "zustand";
 import {
@@ -65,8 +66,17 @@ function soundForAdvance(
 
 const TRAINING_REPLY_DELAY_MS = 400;
 
-function trainingLineStatus(state: StudioState, board: BoardSession, path: number[]) {
-  return repertoireMoves(board.tree, path).length === 0
+function boardTrainingScope(state: StudioState, board: BoardSession) {
+  return state.settings.trainingScope[trainingColor(board) === "w" ? "white" : "black"];
+}
+
+function trainingFilter(state: StudioState, board: BoardSession) {
+  const color = state.trainingUserColor === "w" ? "white" : "black";
+  return scopeFilter(board.tree, state.settings.trainingScope[color], state.trainingCatalogPositions);
+}
+
+function trainingLineStatus(state: StudioState, board: BoardSession, path: number[], filter: ReturnType<typeof scopeFilter>) {
+  return repertoireMoves(board.tree, path, filter).length === 0
     ? tPanels(state.settings.locale, "repertoire.lineComplete")
     : null;
 }
@@ -78,7 +88,7 @@ function advanceTraining(
   path: number[],
 ): void {
   set((state) => ({
-    statusMessage: trainingLineStatus(state, board, path),
+    statusMessage: trainingLineStatus(state, board, path, trainingFilter(state, board)),
     trainingMiss: null,
     threat: null,
     boards: withActive(state.boards, state.activeBoardId, (active) => ({ ...active, path })),
@@ -94,7 +104,7 @@ function scheduleTrainingReply(
   const board = state.active();
   if (
     !state.training || state.drillDueOnly ||
-    repertoireMoves(board.tree, board.path).length === 0 ||
+    repertoireMoves(board.tree, board.path, trainingFilter(state, board)).length === 0 ||
     sideFromFen(getFenAt(board.tree, board.path)) === state.trainingUserColor
   ) {
     return;
@@ -111,7 +121,7 @@ function scheduleTrainingReply(
     ) {
       return;
     }
-    const reply = pickOpponentReply(active.tree, active.path, current.repertoireProgress);
+    const reply = pickOpponentReply(active.tree, active.path, current.repertoireProgress, Math.random, trainingFilter(current, active));
     if (reply) {
       advanceTraining(set, get, active, reply);
     }
@@ -120,11 +130,13 @@ function scheduleTrainingReply(
 
 const DUE_REPLAY_DELAY_MS = 300;
 
-function targetExists(board: BoardSession, target: DueRepertoireMove): boolean {
+function targetExists(board: BoardSession, target: DueRepertoireMove, filter: ReturnType<typeof scopeFilter>): boolean {
   const fen = target.path.length ? getNodeAt(board.tree, target.path)?.fen : board.tree.startFen;
   return !!fen &&
     repertoireMoveKey(fen, target.uci) === target.key &&
-    continuationsAt(board.tree, target.path).some((move) => move.uci === target.uci);
+    continuationsAt(board.tree, target.path).some((move, index) =>
+      move.uci === target.uci && (!filter || filter([...target.path, index], fen)),
+    );
 }
 
 function queueDueQuestion(
@@ -136,7 +148,8 @@ function queueDueQuestion(
 ): void {
   const state = get();
   const board = state.active();
-  const queue = remaining.filter((target) => targetExists(board, target));
+  const filter = trainingFilter(state, board);
+  const queue = remaining.filter((target) => targetExists(board, target, filter));
   // Finish the current line before returning to sibling variations in DFS order.
   const next = queue.findIndex((target) => pathsEqual(target.path.slice(0, from.length), from));
   const [target] = queue.splice(Math.max(0, next), 1);
@@ -145,6 +158,7 @@ function queueDueQuestion(
   set({
     training: !!target,
     trainingStart: target ? state.trainingStart : null,
+    trainingCatalogPositions: target ? state.trainingCatalogPositions : undefined,
     trainingMiss: null,
     drillDueOnly: !!target,
     dueDrill: target ? { queue: [target, ...queue], total, replaying } : null,
@@ -167,7 +181,7 @@ function advanceDueReplay(
     return;
   }
   const [target, ...remaining] = drill.queue;
-  if (!targetExists(board, target)) {
+  if (!targetExists(board, target, trainingFilter(state, board))) {
     queueDueQuestion(set, get, remaining, drill.total, []);
     return;
   }
@@ -211,6 +225,7 @@ export type BoardsSlice = Pick<
   | "boardsHydrated"
   | "training"
   | "trainingStart"
+  | "trainingCatalogPositions"
   | "trainingMiss"
   | "showTrainingHint"
   | "trainingUserColor"
@@ -266,6 +281,7 @@ export const initialBoardsState = {
   boardsHydrated: false,
   training: false,
   trainingStart: null,
+  trainingCatalogPositions: undefined,
   dueDrill: null,
   trainingMiss: null,
   trainingUserColor: "w" as const,
@@ -307,6 +323,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       threat: null,
       training: false,
       trainingStart: null,
+      trainingCatalogPositions: undefined,
       dueDrill: null,
       trainingMiss: null,
       drillDueOnly: false,
@@ -332,7 +349,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
         boards = [emptyBoard()];
       }
       const activeBoardId = neighbor ?? boards[0].id;
-      return { boards, activeBoardId, threat: null, training: false, trainingStart: null, dueDrill: null, trainingMiss: null, drillDueOnly: false, variationChoice: null };
+      return { boards, activeBoardId, threat: null, training: false, trainingStart: null, trainingCatalogPositions: undefined, dueDrill: null, trainingMiss: null, drillDueOnly: false, variationChoice: null };
     });
     // SIG-1199: persist the close now; the shell's debounced saves lag behind.
     persistBoardClose(get(), closed);
@@ -363,6 +380,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       activeBoardId: clone.id,
       training: false,
       trainingStart: null,
+      trainingCatalogPositions: undefined,
       dueDrill: null,
       trainingMiss: null,
       drillDueOnly: false,
@@ -381,6 +399,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       setupMode: false,
       training: false,
       trainingStart: null,
+      trainingCatalogPositions: undefined,
       dueDrill: null,
       trainingMiss: null,
       drillDueOnly: false,
@@ -401,8 +420,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       if (dueDrill?.replaying) {
         return false;
       }
+      const filter = trainingFilter(get(), board);
       const target = dueDrill?.queue[0];
-      if (dueDrill && target && !targetExists(board, target)) {
+      if (dueDrill && target && !targetExists(board, target, filter)) {
         queueDueQuestion(set, get, dueDrill.queue.slice(1), dueDrill.total, []);
         return false;
       }
@@ -411,7 +431,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       if (!isDueOnly && sideFromFen(currentFen) !== trainingUserColor) {
         return false;
       }
-      const attempt = trainingAttempt(board.tree, board.path, uci);
+      const attempt = trainingAttempt(board.tree, board.path, uci, filter);
 
       if (attempt.kind === "complete") {
         set({
@@ -424,7 +444,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
         if (miss) {
           set({ trainingMiss: { ...miss, hint: 2 } });
         } else {
-          const valid = target ? [target] : repertoireMoves(board.tree, board.path);
+          const valid = target ? [target] : repertoireMoves(board.tree, board.path, filter);
           for (const candidate of valid) {
             get().recordRepertoireMove(currentFen, candidate.uci, false);
           }
@@ -738,25 +758,29 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }));
     soundForAdvance(get, previous);
   },
-  startTraining: () => {
+  startTraining: (catalogPositions) => {
     if (get().retry.active) {
       get().exitRetry();
     }
     const state = get();
     const board = state.active();
     const restart = state.training && state.trainingStart;
-    const start = [...(restart || board.path)];
+    const scope = boardTrainingScope(state, board);
+    const candidate = restart || board.path;
+    const filter = scopeFilter(board.tree, scope, catalogPositions);
+    const start = scopeIncludesPosition(board.tree, candidate, filter) ? [...candidate] : [];
     set({
       training: true,
       trainingStart: start,
+      trainingCatalogPositions: catalogPositions,
       trainingMiss: null,
       trainingUserColor: trainingColor(board),
       drillDueOnly: false,
       dueDrill: null,
       // SIG-1187: entering training parks navigation — drop a pending chooser.
       variationChoice: null,
-      statusMessage: trainingLineStatus(state, board, start),
-      boards: restart
+      statusMessage: trainingLineStatus(state, board, start, filter),
+      boards: !pathsEqual(board.path, start)
         ? withActive(state.boards, state.activeBoardId, (active) => ({ ...active, path: [...start] }))
         : state.boards,
     });
@@ -764,6 +788,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
   },
   stopTraining: () => set((state) => ({
     training: false,
+    trainingCatalogPositions: undefined,
     trainingStart: null,
     dueDrill: null,
     trainingMiss: null,
@@ -776,13 +801,14 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       set({ trainingMiss: { ...trainingMiss, hint: trainingMiss.hint === 0 ? 1 : 2 } });
     }
   },
-  startDueDrill: () => {
+  startDueDrill: (catalogPositions) => {
     if (get().retry.active) {
       get().exitRetry();
     }
     const board = get().active();
     const trainingUserColor = trainingColor(board);
-    const dueMoves = getDueRepertoireMoves(board.tree, get().repertoireProgress, trainingUserColor);
+    const filter = scopeFilter(board.tree, boardTrainingScope(get(), board), catalogPositions);
+    const dueMoves = getDueRepertoireMoves(board.tree, get().repertoireProgress, trainingUserColor, undefined, filter);
     if (dueMoves.length === 0) {
       if (get().drillDueOnly) {
         get().stopTraining();
@@ -792,6 +818,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
     set({
       trainingStart: [],
+      trainingCatalogPositions: catalogPositions,
       trainingUserColor,
       enginePreview: null,
       variationChoice: null,

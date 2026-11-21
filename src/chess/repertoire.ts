@@ -1,3 +1,4 @@
+import type { RepertoireScopeFilter } from "./repertoire-scope";
 import { sideFromFen } from "./move-notation";
 import { fenKey, getFenAt, getNodeAt, type GameTree, type Path, type TreeNode } from "./tree";
 
@@ -7,7 +8,14 @@ export type RepertoireMove = {
   path: Path;
 };
 
-export function repertoireMoves(tree: GameTree, path: Path): RepertoireMove[] {
+export function repertoireMoves(tree: GameTree, path: Path, filter?: RepertoireScopeFilter): RepertoireMove[] {
+  if (filter) {
+    // Scoped training follows concrete tree paths, preserving branch membership and move numbers.
+    const fen = getFenAt(tree, path);
+    const children = path.length ? getNodeAt(tree, path)?.children ?? [] : tree.children;
+    return children.map((child, index) => ({ uci: child.uci, san: child.san, path: [...path, index] }))
+      .filter((move) => filter(move.path, fen));
+  }
   const target = fenKey(getFenAt(tree, path));
   const moves: RepertoireMove[] = [];
   const seen = new Set<string>();
@@ -128,13 +136,15 @@ export function getDueRepertoireMoves(
   progress: Record<string, SpacedRepetitionItem>,
   color: "w" | "b",
   now: Date = new Date(),
+  filter?: RepertoireScopeFilter,
 ): DueRepertoireMove[] {
   const dueMoves: DueRepertoireMove[] = [];
   const seenKeys = new Set<string>();
 
   function scanNode(fen: string, children: TreeNode[], path: Path) {
     if (sideFromFen(fen) === color) {
-      for (const child of children) {
+      for (const [index, child] of children.entries()) {
+        if (filter && !filter([...path, index], fen)) continue;
         const key = repertoireMoveKey(fen, child.uci);
         if (!seenKeys.has(key)) {
           seenKeys.add(key);

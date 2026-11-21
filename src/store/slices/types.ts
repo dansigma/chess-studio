@@ -1,3 +1,4 @@
+import type { Scope } from "@/src/chess/repertoire-scope";
 import type { SiteLocale } from "@/src/i18n/locale";
 import type { BoardTheme } from "@/src/chess/board-themes";
 import type { PieceSet } from "@/src/chess/piece-sets";
@@ -152,6 +153,7 @@ export type ExplorerHover = {
 };
 
 export type StudioSettings = {
+  trainingScope: Partial<Record<BoardOrientation, Scope>>;
   showCoordinates: boolean;
   showEvalBar: boolean;
   boardTheme: BoardTheme;
@@ -352,6 +354,7 @@ export type StudioState = {
   skipForward: () => void;
   training: boolean;
   trainingStart: Path | null;
+  trainingCatalogPositions: ReadonlyMap<string, unknown> | undefined;
   trainingMiss: { fenKey: string; uci: string; hint: 0 | 1 | 2; alternate?: boolean } | null;
   showTrainingHint: () => void;
   trainingUserColor: "w" | "b";
@@ -359,9 +362,10 @@ export type StudioState = {
   dueDrill: { queue: DueRepertoireMove[]; total: number; replaying: boolean } | null;
   skipDueReplay: () => void;
   repertoireProgress: Record<string, SpacedRepetitionItem>;
-  startTraining: () => void;
+  setTrainingScope: (color: BoardOrientation, scope: Scope) => void;
+  startTraining: (catalogPositions?: ReadonlyMap<string, unknown>) => void;
   stopTraining: () => void;
-  startDueDrill: () => void;
+  startDueDrill: (catalogPositions?: ReadonlyMap<string, unknown>) => void;
   recordRepertoireMove: (fen: string, uci: string, correct: boolean) => void;
   setRepertoireProgress: (progress: Record<string, SpacedRepetitionItem>) => void;
   hydrateRepertoire: () => Promise<void>;

@@ -3,10 +3,10 @@
 import { after, afterEach, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { importPgn } from "@/src/chess/pgn";
 import { getDueRepertoireMoves, type SpacedRepetitionItem } from "@/src/chess/repertoire";
-import { createEmptyTree } from "@/src/chess/tree";
+import { createEmptyTree, START_FEN } from "@/src/chess/tree";
 import { DEFAULT_SETTINGS } from "@/src/store/slices/settings.ts";
 import { emptyBoard, useStudioStore } from "@/src/store/studio-store";
 import { RepertoirePanel } from "./RepertoirePanel";
@@ -331,4 +331,26 @@ test("opens Add variation with the active repertoire color selected", async () =
   const dialog = screen.getByRole("dialog", { name: "Add variation" });
   assert.equal(within(dialog).getByRole("radio", { name: "Black" }).getAttribute("aria-checked"), "true");
   await within(dialog).findByRole("button", { name: "Sicilian Defense" });
+});
+
+test("selects a catalog variation and move cap, updating displayed due counts and the drill", async () => {
+  const board = useStudioStore.getState().active();
+  const { tree } = importPgn(`[SetUp "1"]
+[FEN "${START_FEN.replace(/ 1$/, " 10")}"]
+
+10. e4 c5 (10... e5 11. Bc4) 11. Nf3 *`);
+  useStudioStore.setState({ boards: [{ ...board, tree, repertoireColor: "white" }] });
+  render(<RepertoirePanel />);
+  const select = screen.getByRole("combobox", { name: "Variation" });
+  const sicilian = await waitFor(() => within(select).getByRole("option", { name: /Sicilian Defense/ }), { timeout: 5000 });
+  fireEvent.change(select, { target: { value: (sicilian as HTMLOptionElement).value } });
+  assert.ok(screen.getByText("2 Due"));
+  fireEvent.click(screen.getByRole("radio", { name: "10" }));
+  assert.ok(screen.getByText("1 Due"));
+  assert.ok(within(select).getByRole("option", { name: /Sicilian Defense.*\(1 Due\)/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Drill Due" }));
+  assert.deepEqual(useStudioStore.getState().dueDrill?.queue.map(({ uci }) => uci), ["e2e4"]);
+  fireEvent.change(select, { target: { value: "" } });
+  assert.equal(useStudioStore.getState().training, false);
+  assert.deepEqual(useStudioStore.getState().settings.trainingScope.white, { maxMove: 10 });
 });
