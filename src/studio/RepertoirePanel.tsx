@@ -2,10 +2,11 @@
 
 import { useMemo } from "react";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
+import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { getDueRepertoireMoves, repertoireMoves } from "@/src/chess/repertoire";
 import { trainingColor } from "@/src/chess/training";
-import { getFenAt, getNodeAt } from "@/src/chess/tree";
+import { fenKey, getFenAt, getNodeAt } from "@/src/chess/tree";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "./ui/Button";
@@ -18,6 +19,8 @@ export function RepertoirePanel() {
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const goPath = useStudioStore((state) => state.goPath);
   const training = useStudioStore((state) => state.training);
+  const trainingMiss = useStudioStore((state) => state.trainingMiss);
+  const showTrainingHint = useStudioStore((state) => state.showTrainingHint);
   const drillDueOnly = useStudioStore((state) => state.drillDueOnly);
   const repertoireProgress = useStudioStore((state) => state.repertoireProgress);
   const startTraining = useStudioStore((state) => state.startTraining);
@@ -26,6 +29,7 @@ export function RepertoirePanel() {
   const moves = repertoireMoves(board.tree, board.path);
   const fen = getFenAt(board.tree, board.path);
   const side = sideFromFen(fen);
+  const miss = trainingMiss?.fenKey === fenKey(fen) ? trainingMiss : null;
 
   const color = trainingColor(board);
   const dueMoves = useMemo(
@@ -75,7 +79,14 @@ export function RepertoirePanel() {
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {training ? (
-          drillDueOnly ? (
+          miss ? (
+            <div className="flex items-center justify-between gap-2 p-3">
+              <p role="status">{tRepertoire(locale, "repertoire.training.wrongMove")}</p>
+              <Button variant="secondary" size="sm" onClick={showTrainingHint} disabled={miss.hint === 2}>
+                {tRepertoire(locale, "repertoire.training.hint")}
+              </Button>
+            </div>
+          ) : drillDueOnly ? (
             <div className="px-3 py-4 text-studio-muted">
               {tPanels(locale, "repertoire.drilling", { count: dueCount })}
             </div>

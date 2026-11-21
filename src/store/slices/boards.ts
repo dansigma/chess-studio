@@ -3,6 +3,7 @@ import type { StateCreator, StoreApi } from "zustand";
 import {
   cloneTree,
   continuationsAt,
+  fenKey,
   getFenAt,
   getLastMove,
   goBack,
@@ -23,6 +24,7 @@ import {
 import { persistBoardClose } from "@/src/lib/close-board-persistence";
 import { pickOpponentReply, trainingAttempt, trainingColor } from "@/src/chess/training";
 import { sideFromFen } from "@/src/chess/move-notation";
+import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { tPanels } from "@/src/i18n/studio-panel-strings";
 import {
   hydrateRepertoireProgress,
@@ -74,6 +76,7 @@ function advanceTraining(
 ): void {
   set((state) => ({
     statusMessage: trainingLineStatus(state, board, path),
+    trainingMiss: null,
     threat: null,
     boards: withActive(state.boards, state.activeBoardId, (active) => ({ ...active, path })),
   }));
@@ -120,6 +123,8 @@ export type BoardsSlice = Pick<
   | "boardsHydrated"
   | "training"
   | "trainingStart"
+  | "trainingMiss"
+  | "showTrainingHint"
   | "trainingUserColor"
   | "drillDueOnly"
   | "repertoireProgress"
@@ -171,6 +176,7 @@ export const initialBoardsState = {
   boardsHydrated: false,
   training: false,
   trainingStart: null,
+  trainingMiss: null,
   trainingUserColor: "w" as const,
   drillDueOnly: false,
   repertoireProgress: typeof window !== "undefined" ? readLocalRepertoireProgress() : {},
@@ -210,6 +216,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       threat: null,
       training: false,
       trainingStart: null,
+      trainingMiss: null,
       // SIG-1187: a new active board never inherits a pending chooser.
       variationChoice: null,
     }));
@@ -232,7 +239,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
         boards = [emptyBoard()];
       }
       const activeBoardId = neighbor ?? boards[0].id;
-      return { boards, activeBoardId, threat: null, training: false, trainingStart: null, drillDueOnly: false, variationChoice: null };
+      return { boards, activeBoardId, threat: null, training: false, trainingStart: null, trainingMiss: null, drillDueOnly: false, variationChoice: null };
     });
     // SIG-1199: persist the close now; the shell's debounced saves lag behind.
     persistBoardClose(get(), closed);
@@ -263,6 +270,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       activeBoardId: clone.id,
       training: false,
       trainingStart: null,
+      trainingMiss: null,
       drillDueOnly: false,
       // SIG-1187: a clone is a new board, not a second holder of the choice.
       variationChoice: null,
@@ -279,6 +287,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       setupMode: false,
       training: false,
       trainingStart: null,
+      trainingMiss: null,
       drillDueOnly: false,
       // SIG-1187: a board switch never carries a pending chooser.
       variationChoice: null,
@@ -293,7 +302,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       const board = get().active();
       const uci = `${from}${to}${promotion ?? ""}`;
       const currentFen = getFenAt(board.tree, board.path);
-      const { drillDueOnly: isDueOnly, trainingUserColor } = get();
+      const { drillDueOnly: isDueOnly, trainingUserColor, trainingMiss, settings } = get();
+      const positionKey = fenKey(currentFen);
+      const miss = trainingMiss?.fenKey === positionKey ? trainingMiss : null;
       if (!isDueOnly && sideFromFen(currentFen) !== trainingUserColor) {
         return false;
       }
@@ -301,20 +312,29 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
 
       if (attempt.kind === "complete") {
         set({
-          statusMessage: isDueOnly ? "Line complete." : tPanels(get().settings.locale, "repertoire.lineComplete"),
+          statusMessage: tPanels(settings.locale, "repertoire.lineComplete"),
         });
         return false;
       }
       if (attempt.kind === "refused") {
-        const valid = repertoireMoves(board.tree, board.path);
-        for (const candidate of valid) {
-          get().recordRepertoireMove(currentFen, candidate.uci, false);
+        if (miss) {
+          set({ trainingMiss: { ...miss, hint: 2 } });
+        } else {
+          const valid = repertoireMoves(board.tree, board.path);
+          for (const candidate of valid) {
+            get().recordRepertoireMove(currentFen, candidate.uci, false);
+          }
+          set({
+            trainingMiss: { fenKey: positionKey, uci: valid[0].uci, hint: 0 },
+            statusMessage: tRepertoire(settings.locale, "repertoire.training.wrongMove"),
+          });
         }
-        set({ statusMessage: "Not in the repertoire." });
         return false;
       }
 
-      get().recordRepertoireMove(currentFen, uci, true);
+      if (!miss) {
+        get().recordRepertoireMove(currentFen, uci, true);
+      }
       const previous = board.path;
 
       if (isDueOnly) {
@@ -324,8 +344,9 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
           set((state) => ({
             training: false,
             trainingStart: null,
+            trainingMiss: null,
             drillDueOnly: false,
-            statusMessage: "All reviews complete!",
+            statusMessage: tRepertoire(settings.locale, "repertoire.training.reviewsComplete"),
             threat: null,
             boards: withActive(state.boards, state.activeBoardId, (active) => ({
               ...active,
@@ -336,6 +357,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
           const nextTarget = remaining[0];
           set((state) => ({
             trainingStart: [...nextTarget.path],
+            trainingMiss: null,
             statusMessage: null,
             threat: null,
             boards: withActive(state.boards, state.activeBoardId, (active) => ({
@@ -649,6 +671,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     set({
       training: true,
       trainingStart: start,
+      trainingMiss: null,
       trainingUserColor: trainingColor(board),
       drillDueOnly: false,
       // SIG-1187: entering training parks navigation — drop a pending chooser.
@@ -660,7 +683,19 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     });
     scheduleTrainingReply(set, get);
   },
-  stopTraining: () => set({ training: false, trainingStart: null, drillDueOnly: false }),
+  stopTraining: () => set((state) => ({
+    training: false,
+    trainingStart: null,
+    trainingMiss: null,
+    drillDueOnly: false,
+    statusMessage: state.training ? null : state.statusMessage,
+  })),
+  showTrainingHint: () => {
+    const { training, trainingMiss, fen } = get();
+    if (training && trainingMiss?.fenKey === fenKey(fen()) && trainingMiss.hint < 2) {
+      set({ trainingMiss: { ...trainingMiss, hint: trainingMiss.hint === 0 ? 1 : 2 } });
+    }
+  },
   startDueDrill: () => {
     if (get().retry.active) {
       get().exitRetry();
@@ -669,13 +704,14 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     const trainingUserColor = trainingColor(board);
     const dueMoves = getDueRepertoireMoves(board.tree, get().repertoireProgress, trainingUserColor);
     if (dueMoves.length === 0) {
-      set({ statusMessage: "No reviews due." });
+      set({ statusMessage: tRepertoire(get().settings.locale, "repertoire.training.noReviewsDue") });
       return;
     }
     const target = dueMoves[0];
     set((state) => ({
       training: true,
       trainingStart: [...target.path],
+      trainingMiss: null,
       drillDueOnly: true,
       trainingUserColor,
       statusMessage: null,

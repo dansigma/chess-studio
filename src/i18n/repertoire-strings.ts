@@ -24,6 +24,10 @@ export const REPERTOIRE_STRING_KEYS = [
   "repertoire.deviation.statsTitle",
   "repertoire.deviation.statsCount.one",
   "repertoire.deviation.statsCount.other",
+  "repertoire.training.wrongMove",
+  "repertoire.training.hint",
+  "repertoire.training.reviewsComplete",
+  "repertoire.training.noReviewsDue",
 ] as const;
 
 export type RepertoireStringKey = (typeof REPERTOIRE_STRING_KEYS)[number];
@@ -49,6 +53,10 @@ const EN: Record<RepertoireStringKey, string> = {
   "repertoire.deviation.statsTitle": "Where you leave your repertoire",
   "repertoire.deviation.statsCount.one": "{count} game",
   "repertoire.deviation.statsCount.other": "{count} games",
+  "repertoire.training.wrongMove": "Not in your repertoire",
+  "repertoire.training.hint": "Hint",
+  "repertoire.training.reviewsComplete": "All reviews complete!",
+  "repertoire.training.noReviewsDue": "No reviews due.",
 };
 
 const PT_BR: Record<RepertoireStringKey, string> = {
@@ -72,6 +80,10 @@ const PT_BR: Record<RepertoireStringKey, string> = {
   "repertoire.deviation.statsTitle": "Onde você sai do repertório",
   "repertoire.deviation.statsCount.one": "{count} partida",
   "repertoire.deviation.statsCount.other": "{count} partidas",
+  "repertoire.training.wrongMove": "Não está no repertório",
+  "repertoire.training.hint": "Dica",
+  "repertoire.training.reviewsComplete": "Todas as revisões concluídas!",
+  "repertoire.training.noReviewsDue": "Nenhuma revisão pendente.",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;
