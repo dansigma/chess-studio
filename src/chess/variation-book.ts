@@ -1,7 +1,7 @@
 import { Chess } from "chess.js";
 import { bookKey } from "./opening-book.ts";
 import type { CountsBook } from "./opening-book-counts-format.ts";
-import { createEmptyTree, type GameTree, type TreeNode } from "./tree.ts";
+import { createEmptyTree, newNodeId, type GameTree, type TreeNode } from "./tree.ts";
 
 export const VARIATION_LEVELS = {
   beginner: { lastMove: 10, coverage: 0.7, minReplyShare: 0.1, reachCutoff: 0.05, maxReplies: 2 },
@@ -36,12 +36,11 @@ export function buildVariationBook(
   // Allow for rounding in the product when a reply lands exactly on the cutoff.
   const reachCutoff = rules.reachCutoff * (1 - maxPly * Number.EPSILON);
 
-  let nextId = 0;
   function appendMove(children: TreeNode[], uci: string): TreeNode {
     const { san, after, from, to, lan } = chess.move({
       from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4],
     });
-    const node: TreeNode = { id: `variation-${nextId++}`, san, uci: lan, fen: after, from, to, children: [] };
+    const node: TreeNode = { id: newNodeId(), san, uci: lan, fen: after, from, to, children: [] };
     children.push(node);
     return node;
   }
