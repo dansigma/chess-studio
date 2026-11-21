@@ -79,3 +79,15 @@ test("loadMore appends the next page without duplicates", async () => {
   assert.deepEqual(result.current.items.map((i) => i.gameId), ["1", "2", "3"]);
   assert.equal(result.current.hasMore, false);
 });
+
+test("clears stale sourceErrors immediately when a new query starts", async () => {
+  const { calls, query } = makeQuery();
+  const { result } = renderHook(() => useLibraryGames(query));
+  await act(async () => calls[0].resolve(page(["1"], { sourceErrors: { masters: "down" } })));
+  assert.deepEqual(result.current.sourceErrors, { masters: "down" });
+
+  act(() => useLibraryStore.getState().setQuery("sicilian"));
+  await waitFor(() => assert.equal(calls.length, 2));
+  assert.equal(result.current.loading, true);
+  assert.deepEqual(result.current.sourceErrors, {});
+});

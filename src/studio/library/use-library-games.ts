@@ -61,6 +61,7 @@ export function useLibraryGames(query: Query = queryLibrary): LibraryGamesState 
     setLoading(true);
     setLoadingMore(false);
     setError(null);
+    setSourceErrors({});
     /* eslint-enable react-hooks/set-state-in-effect */
     query(filters, null, LIBRARY_PAGE_SIZE, controller.signal)
       .then((result) => {

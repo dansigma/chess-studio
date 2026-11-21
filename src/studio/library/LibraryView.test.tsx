@@ -97,13 +97,18 @@ test("players mode: the header row shows only the tabs", async () => {
   useLibraryStore.setState({ mode: "games" });
 });
 
-test("loading shows skeleton rows; error offers retry; partial names sources", () => {
-  const { rerender } = render(<LibraryPlaceholderList games={{ ...base, loading: true }} />);
+test("loading shows skeleton rows; error offers retry; partial names sources and offers retry", () => {
+  let retried = 0;
+  const retry = () => { retried++; };
+  const { rerender } = render(<LibraryPlaceholderList games={{ ...base, loading: true, retry }} />);
   assert.equal(screen.getAllByTestId("library-skeleton-row").length, 8);
-  rerender(<LibraryPlaceholderList games={{ ...base, error: "boom" }} />);
+  rerender(<LibraryPlaceholderList games={{ ...base, error: "boom", retry }} />);
   assert.ok(screen.getByText("Try again"));
-  rerender(<LibraryPlaceholderList games={{ ...base, sourceErrors: { masters: "x" } }} />);
-  assert.ok(screen.getByText(/masters/));
+  rerender(<LibraryPlaceholderList games={{ ...base, sourceErrors: { masters: "x" }, retry }} />);
+  const status = screen.getByRole("status");
+  assert.match(status.textContent ?? "", /masters/);
+  fireEvent.click(within(status).getByRole("button", { name: "Try again" }));
+  assert.equal(retried, 1);
 });
 
 test("split is clamped", () => {
