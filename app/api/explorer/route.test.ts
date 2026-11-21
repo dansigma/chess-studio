@@ -203,17 +203,54 @@ test("returns a noticed empty response when Lichess is unreachable", async (t) =
   assert.equal(res.headers.get("Cache-Control"), "public, max-age=30, s-maxage=60");
 });
 
-test("rate-limits after 60 requests from one IP", async () => {
+function uncachedFen(index: number) {
+  return `rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 ${index + 1}`;
+}
+
+test("rate-limits uncached requests after 60 counted requests from one IP", async (t) => {
   state.public = createFakeSupabase();
   state.service = createFakeSupabase();
+  mockFetch(t, () =>
+    jsonResponse({ white: 1, draws: 0, black: 0, moves: [], topGames: [], recentGames: [] }),
+  );
   const ip = nextTestIp();
-  let last = { status: 0, res: null as unknown as Response | null };
-  for (let i = 0; i < 61; i += 1) {
-    const { res } = await get(STARTPOS, "curated", "", ip);
-    last = { status: res.status, res };
+  for (let i = 0; i < 60; i += 1) {
+    const { res } = await get(uncachedFen(i), "lichess", "", ip);
+    assert.equal(res.status, 200);
   }
-  assert.equal(last.status, 429);
-  assert.equal(last.res?.headers.get("Cache-Control"), null);
+  const { res } = await get(uncachedFen(60), "lichess", "", ip);
+  assert.equal(res.status, 429);
+  assert.equal(res.headers.get("Cache-Control"), null);
+});
+
+test("serves memory-cached FENs and curated source after the IP rate-limit budget is exhausted", async (t) => {
+  state.public = createFakeSupabase();
+  state.service = createFakeSupabase();
+  mockFetch(t, () =>
+    jsonResponse({ white: 1, draws: 0, black: 0, moves: [], topGames: [], recentGames: [] }),
+  );
+  const ip = nextTestIp();
+
+  // Warm the memory cache and verify neither curated nor memory-cached hits
+  // consume the 60-request per-IP budget.
+  const cachedFen = uncachedFen(0);
+  assert.equal((await get(cachedFen, "lichess", "", ip)).res.status, 200);
+  for (let i = 0; i < 10; i += 1) {
+    assert.equal((await get(cachedFen, "lichess", "", ip)).res.status, 200);
+    assert.equal((await get(STARTPOS, "curated", "", ip)).res.status, 200);
+  }
+
+  // Exhaust the remaining 59 counted requests.
+  for (let i = 1; i < 60; i += 1) {
+    assert.equal((await get(uncachedFen(i), "lichess", "", ip)).res.status, 200);
+  }
+
+  // Uncached FEN is now rate-limited.
+  assert.equal((await get(uncachedFen(60), "lichess", "", ip)).res.status, 429);
+
+  // Memory-cached FEN and curated source still return 200.
+  assert.equal((await get(cachedFen, "lichess", "", ip)).res.status, 200);
+  assert.equal((await get(STARTPOS, "curated", "", ip)).res.status, 200);
 });
 
 test("serves cached fallback responses with notice within fallback TTL without re-fetching upstream", async (t) => {
