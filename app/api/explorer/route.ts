@@ -70,12 +70,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "fen is not a valid position" }, { status: 400 });
   }
 
-  const ip = clientIp(request.headers);
-  const verdict = await limiter.checkAsync(rateLimitKey("explorer", ip));
-  if (!verdict.ok) {
-    return tooManyRequests(verdict);
-  }
-
   const filters = filtersFromSearchParams(request.nextUrl.searchParams);
   const filtered = !filtersAreDefault(filters);
 
@@ -92,6 +86,14 @@ export async function GET(request: NextRequest) {
     if (Date.now() - memory.fetchedAt < ttl) {
       return cachedJson(memory.payload, filtered);
     }
+  }
+
+  // Only count requests that miss the curated index and memory cache and fall
+  // through to Supabase or upstream Lichess.
+  const ip = clientIp(request.headers);
+  const verdict = await limiter.checkAsync(rateLimitKey("explorer", ip));
+  if (!verdict.ok) {
+    return tooManyRequests(verdict);
   }
 
   // Cookie-free read: explorer_cache is publicly selectable (anon, SIG-839),
