@@ -92,7 +92,7 @@ describe("theory rule", () => {
   });
   it("a move under 20 games is not theory even above 1%", () => {
     const result = selectTheory(recordsFor(300, [[1, 281], [2, 19]]), BOOK_RULE); // 19 / 300 = 6.3%
-    assert.deepEqual(result.entries.map((entry) => entry.move), [1]);
+    assert.deepEqual(result.entries, [{ key: 1n, move: 1, count: 281, total: 300 }]);
   });
   it("a move under 1% of the position is not theory even above 20 games", () => {
     const result = selectTheory(recordsFor(3000, [[1, 2910], [2, 29], [3, 30], [4, 31]]), BOOK_RULE); // 0.97%, 1.0%, 1.03%

@@ -31,6 +31,7 @@ import { Chess } from "chess.js";
 import { BOOK_RULE, LOCAL_BOOK_BUILD } from "../../src/chess/opening-theory.ts";
 import { bookKey } from "../../src/chess/opening-book.ts";
 import { FORMAT_VERSION, encodeBook, encodeMove } from "../../src/chess/opening-book-format.ts";
+import { COUNTS_FORMAT_VERSION, encodeCountsBook } from "../../src/chess/opening-book-counts-format.ts";
 import { lastMoveNumber, linesOf, readGames, sanTokens } from "./pgn.mjs";
 import { CountStore, selectTheory } from "./counts.mjs";
 import { HashSet64, hash64 } from "./hashset.mjs";
@@ -46,7 +47,7 @@ const USAGE =
   "usage: node scripts/opening-book/build-book.mjs <input.pgn[.zst|.gz] | -> ... --out-dir DIR --version N\n" +
   "  [--profile lichess|masters|correspondence] [--min-elo N] [--min-players N] [--max-ply 40]\n" +
   "  [--max-games N] [--min-games-read N] [--max-map-entries 3000000] [--tmp-dir DIR]\n" +
-  "  [--months 2026-05,2026-06] [--assume-correspondence] [--license TEXT] [--attribution TEXT] [--build-date ISO] [--app-manifest PATH]";
+  "  [--months 2026-05,2026-06] [--assume-correspondence] [--license TEXT] [--attribution TEXT] [--build-date ISO] [--app-manifest PATH] [--counts]";
 
 /** Warn when a dump read this fraction of the expected games or less. */
 const SANITY_FRACTION = 0.1;
@@ -70,6 +71,7 @@ export function parseArgs(argv) {
     license: null,
     attribution: null,
     assumeCorrespondence: false,
+    counts: false,
   };
   const numeric = {
     "--version": "version",
@@ -105,6 +107,8 @@ export function parseArgs(argv) {
     } else if (token === "--months") {
       args.months = (argv[i + 1] ?? "").split(",").filter(Boolean);
       i += 1;
+    } else if (token === "--counts") {
+      args.counts = true;
     } else if (token === "--assume-correspondence") {
       args.assumeCorrespondence = true;
     } else if (token === "--help" || token === "-h" || (token.startsWith("--") && token !== "-")) {
@@ -346,6 +350,7 @@ export async function buildBook(sources, options) {
       raw,
       gz,
       manifest,
+      ...(options.counts ? { counts: buildCountsOutput(theory.entries, manifest) } : {}),
       warnings,
       stats: {
         ...stats,
@@ -361,13 +366,32 @@ export async function buildBook(sources, options) {
   }
 }
 
+/** Encodes the companion file and records its name in the theory manifest. */
+export function buildCountsOutput(entries, manifest) {
+  const { version, builtAt, maxPly, positions, moves } = manifest;
+  const raw = encodeCountsBook(entries, { maxPly });
+  const gz = gzipSync(raw, { level: 9 });
+  const file = `opening-book-counts-v${version}.bin.gz`;
+  manifest.countsFile = file;
+  return {
+    gz,
+    manifest: {
+      version, format: COUNTS_FORMAT_VERSION, file, builtAt, maxPly, positions, moves,
+      theoryFile: manifest.file,
+      bytes: raw.length,
+      gzipBytes: gz.length,
+      sha256: createHash("sha256").update(gz).digest("hex"),
+    },
+  };
+}
+
 /** Text of src/chess/opening-book-manifest.ts for a built (or merged) manifest. */
 export function appManifestSource(manifest) {
   return (
     "// SIG-1226: the DEPLOYED local opening book. Written by\n" +
     "// scripts/opening-book/build-book.mjs / union-books.mjs --app-manifest; `version` is part of the\n" +
     "// review cache key, `file` is the versioned object under /book/ (R2 key book/<file>). The app\n" +
-    "// reads only those two; `sources` documents what the file was merged from.\n" +
+    "// reads optional `countsFile` for move frequencies. `sources` records the union inputs.\n" +
     `export const OPENING_BOOK_MANIFEST = ${JSON.stringify(manifest, null, 2)} as const;\n`
   );
 }
@@ -377,6 +401,10 @@ export function writeOutputs(result, { outDir, version, appManifest }) {
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, result.manifest.file), result.gz);
   writeFileSync(join(outDir, `opening-book-v${version}.manifest.json`), `${JSON.stringify(result.manifest, null, 2)}\n`);
+  if (result.counts) {
+    writeFileSync(join(outDir, result.counts.manifest.file), result.counts.gz);
+    writeFileSync(join(outDir, `opening-book-counts-v${version}.manifest.json`), `${JSON.stringify(result.counts.manifest, null, 2)}\n`);
+  }
   if (appManifest) {
     writeFileSync(appManifest, appManifestSource(result.manifest));
   }

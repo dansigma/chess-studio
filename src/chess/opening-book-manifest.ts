@@ -1,7 +1,7 @@
 // SIG-1226: the DEPLOYED local opening book. Written by
 // scripts/opening-book/build-book.mjs / union-books.mjs --app-manifest; `version` is part of the
 // review cache key, `file` is the versioned object under /book/ (R2 key book/<file>). The app
-// reads only those two; `sources` documents what the file was merged from.
+// reads optional `countsFile` for move frequencies. `sources` records the union inputs.
 export const OPENING_BOOK_MANIFEST = {
   "version": 4,
   "format": 1,
