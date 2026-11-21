@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { START_FEN, createEmptyTree, getFenAt } from "../chess/tree.ts";
 import { importPgn } from "../chess/pgn.ts";
-import { getDueRepertoireMoves, repertoireMoveKey, type SpacedRepetitionItem } from "../chess/repertoire.ts";
+import { repertoireMoveKey, scheduleReview } from "../chess/repertoire.ts";
 import { loadLocalBookmarks, saveLocalBookmarks, type PlayerBookmark } from "../lib/player-bookmarks.ts";
 import { clearGuestBoards, GUEST_BOARDS_KEY } from "../lib/guest-boards.ts";
 import type { PlayerGame, PlayerHit } from "../lib/player-types.ts";
@@ -517,6 +517,8 @@ test("SIG-923: store spaced repetition drill engine updates progress and complet
   resetStore();
   const repertoirePgn = "1. e4 e5 (1... c5) 2. Nf3 Nc6 *";
   const imported = importPgn(repertoirePgn);
+  const opponentKey = repertoireMoveKey(getFenAt(imported.tree, [0]), "e7e5");
+  const opponentProgress = scheduleReview(undefined, true, new Date("2026-01-01T00:00:00Z"));
   useStudioStore.setState((state) => ({
     boards: [
       {
@@ -525,7 +527,8 @@ test("SIG-923: store spaced repetition drill engine updates progress and complet
         path: [],
       },
     ],
-    repertoireProgress: {},
+    trainingUserColor: "b",
+    repertoireProgress: { [opponentKey]: opponentProgress },
   }));
 
   const store = useStudioStore.getState();
@@ -534,6 +537,7 @@ test("SIG-923: store spaced repetition drill engine updates progress and complet
   let state = useStudioStore.getState();
   assert.equal(state.training, true, "training started");
   assert.equal(state.drillDueOnly, true, "due drill active");
+  assert.equal(state.trainingUserColor, "w");
   assert.deepEqual(state.boards[0].path, [], "initial root path has due move e4");
 
   // Make incorrect move
@@ -551,26 +555,16 @@ test("SIG-923: store spaced repetition drill engine updates progress and complet
   assert.equal(ok, true, "e2e4 accepted");
   state = useStudioStore.getState();
   assert.ok(state.repertoireProgress[fenKeyE4]);
-  // Next due position should be e4 with e5 or c5, or Nf3
   assert.equal(state.training, true);
+  assert.deepEqual(state.boards[0].path, [0, 0], "the next review asks for Nf3");
 
-  // Complete all due moves by marking progress as not due
-  const future = new Date(Date.now() + 86400000 * 30).toISOString();
-  const allDue = getDueRepertoireMoves(imported.tree, {});
-  const allReviewed: Record<string, SpacedRepetitionItem> = {};
-  for (const item of allDue) {
-    allReviewed[repertoireMoveKey(item.fen, item.uci)] = {
-      dueDate: future,
-      intervalDays: 1,
-      easeFactor: 2.5,
-      lastReviewedAt: future,
-      mistakeCount: 0,
-    };
-  }
-  store.setRepertoireProgress(allReviewed);
+  assert.equal(store.makeUciMove("g1", "f3"), true);
+  state = useStudioStore.getState();
+  assert.equal(state.training, false);
+  assert.equal(state.drillDueOnly, false);
+  assert.equal(state.statusMessage, "All reviews complete!");
+  assert.equal(state.repertoireProgress[opponentKey], opponentProgress);
 
-  // Now starting due drill should report no reviews due
-  store.stopTraining();
   store.startDueDrill();
   state = useStudioStore.getState();
   assert.equal(state.training, false);

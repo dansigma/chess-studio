@@ -185,14 +185,19 @@ test("transpositions produce identical keys and share progress", () => {
   assert.equal(key1, key2);
 });
 
-test("getDueRepertoireMoves collects unreviewed and due moves in tree without duplicates", () => {
-  const { tree } = transposedTree("Bc5");
+test("getDueRepertoireMoves lists due and unreviewed moves for each color without duplicates", () => {
+  const { tree } = transposedTree("Nc6");
   const now = new Date("2026-10-13T12:00:00.000Z");
-  const due = getDueRepertoireMoves(tree, {}, now);
-  // All moves in the tree are unreviewed, so each unique (fenKey, uci) is listed once
-  const keys = due.map((d) => d.key);
-  const uniqueKeys = new Set(keys);
-  assert.equal(keys.length, uniqueKeys.size);
-  assert.ok(due.length > 0);
-});
+  const whiteKey = repertoireMoveKey(tree.startFen, "e2e4");
+  const blackKey = repertoireMoveKey(getFenAt(tree, [0]), "e7e5");
+  const progress = {
+    [whiteKey]: scheduleReview(undefined, true, now),
+    [blackKey]: scheduleReview(undefined, true, new Date("2026-10-12T12:00:00.000Z")),
+  };
 
+  const white = getDueRepertoireMoves(tree, progress, "w", now);
+  assert.deepEqual(white.map(({ san }) => san), ["Nf3", "Nf3", "e4"]);
+  const black = getDueRepertoireMoves(tree, progress, "b", now);
+  assert.deepEqual(black.map(({ san }) => san), ["e5", "Nc6", "e5"]);
+  assert.equal(black[0].key, blackKey);
+});

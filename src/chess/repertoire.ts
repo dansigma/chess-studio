@@ -1,3 +1,4 @@
+import { sideFromFen } from "./move-notation";
 import { fenKey, getFenAt, getNodeAt, type GameTree, type Path, type TreeNode } from "./tree";
 
 export type RepertoireMove = {
@@ -125,24 +126,27 @@ export function isDue(item: SpacedRepetitionItem | undefined, now: Date = new Da
 export function getDueRepertoireMoves(
   tree: GameTree,
   progress: Record<string, SpacedRepetitionItem>,
+  color: "w" | "b",
   now: Date = new Date(),
 ): DueRepertoireMove[] {
   const dueMoves: DueRepertoireMove[] = [];
   const seenKeys = new Set<string>();
 
   function scanNode(fen: string, children: TreeNode[], path: Path) {
-    for (const child of children) {
-      const key = repertoireMoveKey(fen, child.uci);
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
-        if (isDue(progress[key], now)) {
-          dueMoves.push({
-            key,
-            path,
-            fen,
-            uci: child.uci,
-            san: child.san,
-          });
+    if (sideFromFen(fen) === color) {
+      for (const child of children) {
+        const key = repertoireMoveKey(fen, child.uci);
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          if (isDue(progress[key], now)) {
+            dueMoves.push({
+              key,
+              path,
+              fen,
+              uci: child.uci,
+              san: child.san,
+            });
+          }
         }
       }
     }

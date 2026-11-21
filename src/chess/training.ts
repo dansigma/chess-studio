@@ -34,7 +34,7 @@ export function pickOpponentReply(
   progress: Record<string, SpacedRepetitionItem>,
   rng: () => number = Math.random,
 ): Path | null {
-  const opponent = sideFromFen(getFenAt(tree, path));
+  const userColor = sideFromFen(getFenAt(tree, path)) === "w" ? "b" : "w";
   const now = new Date();
   let bestScore = -1;
   let bestPaths: Path[] = [];
@@ -44,8 +44,12 @@ export function pickOpponentReply(
     if (!node) {
       continue;
     }
-    const due = getDueRepertoireMoves({ startFen: node.fen, children: node.children }, progress, now);
-    const score = due.filter(({ fen }) => sideFromFen(fen) !== opponent).length;
+    const score = getDueRepertoireMoves(
+      { startFen: node.fen, children: node.children },
+      progress,
+      userColor,
+      now,
+    ).length;
     if (score > bestScore) {
       bestScore = score;
       bestPaths = [move.path];

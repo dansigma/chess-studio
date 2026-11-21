@@ -319,7 +319,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
 
       if (isDueOnly) {
         soundForAdvance(get, previous);
-        const remaining = getDueRepertoireMoves(board.tree, get().repertoireProgress);
+        const remaining = getDueRepertoireMoves(board.tree, get().repertoireProgress, trainingUserColor);
         if (remaining.length === 0) {
           set((state) => ({
             training: false,
@@ -666,7 +666,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       get().exitRetry();
     }
     const board = get().active();
-    const dueMoves = getDueRepertoireMoves(board.tree, get().repertoireProgress);
+    const trainingUserColor = trainingColor(board);
+    const dueMoves = getDueRepertoireMoves(board.tree, get().repertoireProgress, trainingUserColor);
     if (dueMoves.length === 0) {
       set({ statusMessage: "No reviews due." });
       return;
@@ -676,6 +677,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       training: true,
       trainingStart: [...target.path],
       drillDueOnly: true,
+      trainingUserColor,
       statusMessage: null,
       threat: null,
       // SIG-1187: entering training parks navigation — drop a pending chooser.

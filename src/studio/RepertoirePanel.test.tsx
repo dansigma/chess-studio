@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { importPgn } from "@/src/chess/pgn";
-import { getDueRepertoireMoves, repertoireMoveKey, type SpacedRepetitionItem } from "@/src/chess/repertoire";
+import { getDueRepertoireMoves, type SpacedRepetitionItem } from "@/src/chess/repertoire";
 import { createEmptyTree } from "@/src/chess/tree";
 import { DEFAULT_SETTINGS } from "@/src/store/slices/settings.ts";
 import { emptyBoard, useStudioStore } from "@/src/store/studio-store";
@@ -15,12 +15,12 @@ before(() => setupDom());
 after(() => teardownDom());
 afterEach(() => cleanup());
 
-function markAllReviewed(pgn: string): Record<string, SpacedRepetitionItem> {
+function markWhiteMovesReviewed(pgn: string): Record<string, SpacedRepetitionItem> {
   const { tree } = importPgn(pgn);
   const future = new Date(Date.now() + 86400000 * 30).toISOString();
   const reviewed: Record<string, SpacedRepetitionItem> = {};
-  for (const item of getDueRepertoireMoves(tree, {})) {
-    reviewed[repertoireMoveKey(item.fen, item.uci)] = {
+  for (const item of getDueRepertoireMoves(tree, {}, "w")) {
+    reviewed[item.key] = {
       dueDate: future,
       intervalDays: 1,
       easeFactor: 2.5,
@@ -49,12 +49,12 @@ test("uses Badge (no bg-studio-surface-raised) with accent tone when due > 0 and
   const { container, rerender } = render(<RepertoirePanel />);
   assert.equal(container.innerHTML.includes("bg-studio-surface-raised"), false);
 
-  const dueBadge = screen.getByText("2 Due");
+  const dueBadge = screen.getByText("1 Due");
   assert.match(dueBadge.className, /\bbg-studio-accent-soft\b/);
   assert.match(dueBadge.className, /\btext-studio-accent-text\b/);
 
   act(() => {
-    useStudioStore.setState({ repertoireProgress: markAllReviewed("1. e4 e5 *") });
+    useStudioStore.setState({ repertoireProgress: markWhiteMovesReviewed("1. e4 e5 *") });
   });
   rerender(<RepertoirePanel />);
 
@@ -79,7 +79,7 @@ test("header buttons use Button primitives and preserve disabled and click handl
   assert.equal(drillButton.disabled, false);
 
   act(() => {
-    useStudioStore.setState({ repertoireProgress: markAllReviewed("1. e4 e5 *") });
+    useStudioStore.setState({ repertoireProgress: markWhiteMovesReviewed("1. e4 e5 *") });
   });
   rerender(<RepertoirePanel />);
   assert.equal((screen.getByRole("button", { name: "Drill Due" }) as HTMLButtonElement).disabled, true);
@@ -87,6 +87,26 @@ test("header buttons use Button primitives and preserve disabled and click handl
   fireEvent.click(screen.getByRole("button", { name: "Train" }));
   assert.equal(useStudioStore.getState().training, true);
   assert.equal(useStudioStore.getState().drillDueOnly, false);
+});
+
+test("counts only the repertoire color and disables the drill when only opponent moves are due", () => {
+  const board = useStudioStore.getState().boards[0];
+  useStudioStore.setState({
+    boards: [{ ...board, orientation: "black", repertoireColor: "white" }],
+    settings: { ...DEFAULT_SETTINGS, locale: "pt-br" },
+    repertoireProgress: markWhiteMovesReviewed("1. e4 e5 *"),
+  });
+
+  render(<RepertoirePanel />);
+  assert.ok(screen.getByText("0 a vencer"));
+  const drillButton = screen.getByRole("button", { name: "Treinar vencidas" }) as HTMLButtonElement;
+  assert.equal(drillButton.disabled, true);
+
+  act(() => {
+    useStudioStore.setState({ boards: [{ ...board, orientation: "black" }] });
+  });
+  assert.ok(screen.getByText("1 a vencer"));
+  assert.equal(drillButton.disabled, false);
 });
 
 test("renders a training status card when training && !drillDueOnly with moves remaining", () => {
@@ -162,7 +182,7 @@ test("renders Button controls during drillDueOnly mode", () => {
   useStudioStore.setState({ training: true, trainingStart: [], drillDueOnly: true });
 
   render(<RepertoirePanel />);
-  assert.ok(screen.getByText("Drilling due moves (2 remaining)"));
+  assert.ok(screen.getByText("Drilling due moves (1 remaining)"));
   const drillButton = screen.getByRole("button", { name: "Drill Due" });
   const stopButton = screen.getByRole("button", { name: "Stop" });
   assert.match(drillButton.className, /\bbg-studio-accent-solid\b/);
