@@ -152,6 +152,18 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   // against the position actually shown, never stored on the tree.
   const insight = !retryHere && isActive && insightMarks?.fen === fen ? insightMarks.marks : null;
   const previewing = Boolean(isActive && enginePreview);
+  const replaying = useStudioStore((state) =>
+    state.activeBoardId === board.id && state.training && !!state.dueDrill?.replaying
+  );
+  const skipDueReplay = useStudioStore((state) => state.skipDueReplay);
+  const [wasReplaying, setWasReplaying] = useState(replaying);
+  if (wasReplaying !== replaying) {
+    setWasReplaying(replaying);
+    if (replaying) {
+      setSelected(null);
+      setPromotion(null);
+    }
+  }
   const trainingMiss = useStudioStore((state) => state.training ? state.trainingMiss : null);
   const trainingHint = isActive && !retryHere && !previewing && trainingMiss?.fenKey === fenKey(fen)
     ? trainingMiss
@@ -485,6 +497,9 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
+            if (replaying) {
+              skipDueReplay();
+            }
           }}
         >
         <Chessboard
@@ -510,19 +525,23 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
             squareRenderer,
             boardStyle: { width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" },
             canDragPiece: ({ piece }) => {
-              if (previewing || retryLocked) {
+              if (replaying || previewing || retryLocked) {
                 return false;
               }
               const color = piece.pieceType.startsWith("w") ? "w" : "b";
               return color === turn;
             },
             onPieceDrop: ({ sourceSquare, targetSquare }) => {
-              if (previewing || retryLocked || !targetSquare) {
+              if (replaying || previewing || retryLocked || !targetSquare) {
                 return false;
               }
               return attemptMove(sourceSquare, targetSquare);
             },
             onSquareClick: ({ square, piece }) => {
+              if (replaying) {
+                skipDueReplay();
+                return;
+              }
               if (previewing) {
                 // Never leave the user in a dead board: a lingering engine
                 // preview (hover that did not clear) must not swallow clicks.
@@ -552,7 +571,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
                 setEnginePreview(null);
                 return;
               }
-              if (event.button !== 2) {
+              if (replaying || event.button !== 2) {
                 return;
               }
               pending.current = {
@@ -561,7 +580,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
               };
             },
             onSquareMouseUp: ({ square }, event) => {
-              if (event.button !== 2) {
+              if (replaying || event.button !== 2) {
                 return;
               }
               const start = pending.current;

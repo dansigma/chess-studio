@@ -22,6 +22,8 @@ export function RepertoirePanel() {
   const trainingMiss = useStudioStore((state) => state.trainingMiss);
   const showTrainingHint = useStudioStore((state) => state.showTrainingHint);
   const drillDueOnly = useStudioStore((state) => state.drillDueOnly);
+  const dueDrill = useStudioStore((state) => state.dueDrill);
+  const skipDueReplay = useStudioStore((state) => state.skipDueReplay);
   const repertoireProgress = useStudioStore((state) => state.repertoireProgress);
   const startTraining = useStudioStore((state) => state.startTraining);
   const startDueDrill = useStudioStore((state) => state.startDueDrill);
@@ -78,19 +80,34 @@ export function RepertoirePanel() {
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
+        {training && drillDueOnly && dueDrill && (
+          <div className="flex items-center justify-between gap-2 px-3 py-4 text-studio-muted">
+            <p role={miss ? undefined : "status"}>
+              {tPanels(locale, "repertoire.drilling", {
+                current: dueDrill.total - dueDrill.queue.length + 1,
+                total: dueDrill.total,
+              })}
+            </p>
+            {dueDrill.replaying && (
+              <Button variant="secondary" size="sm" onClick={skipDueReplay}>
+                {tPanels(locale, "repertoire.skipAnimation")}
+              </Button>
+            )}
+          </div>
+        )}
         {training ? (
           miss ? (
             <div className="flex items-center justify-between gap-2 p-3">
-              <p role="status">{tRepertoire(locale, "repertoire.training.wrongMove")}</p>
+              <p role="status">
+                {tRepertoire(locale, miss.alternate
+                  ? "repertoire.training.tryReviewMove"
+                  : "repertoire.training.wrongMove")}
+              </p>
               <Button variant="secondary" size="sm" onClick={showTrainingHint} disabled={miss.hint === 2}>
                 {tRepertoire(locale, "repertoire.training.hint")}
               </Button>
             </div>
-          ) : drillDueOnly ? (
-            <div className="px-3 py-4 text-studio-muted">
-              {tPanels(locale, "repertoire.drilling", { count: dueCount })}
-            </div>
-          ) : (
+          ) : drillDueOnly ? null : (
             <div className="p-3">
               <p
                 role="status"

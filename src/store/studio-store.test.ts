@@ -556,7 +556,9 @@ test("SIG-923: store spaced repetition drill engine updates progress and complet
   state = useStudioStore.getState();
   assert.ok(state.repertoireProgress[fenKeyE4]);
   assert.equal(state.training, true);
-  assert.deepEqual(state.boards[0].path, [0, 0], "the next review asks for Nf3");
+  assert.deepEqual(state.boards[0].path, [0], "the replay continues from e4");
+  store.skipDueReplay();
+  assert.deepEqual(useStudioStore.getState().boards[0].path, [0, 0], "the next review asks for Nf3");
 
   assert.equal(store.makeUciMove("g1", "f3"), true);
   state = useStudioStore.getState();
