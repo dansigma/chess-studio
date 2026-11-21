@@ -160,6 +160,7 @@ function seedSignedInUser(user: { id: string; email: string | null }): SignedInS
     setupMode: true,
     training: true,
     trainingStart: [0],
+    trainingUserColor: "b",
     drillDueOnly: true,
     repertoireProgress: {
       "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR:e7e5": {
@@ -228,6 +229,7 @@ const CLEARED_DEFAULTS = {
   setupMode: false,
   training: false,
   trainingStart: null,
+  trainingUserColor: "w",
   drillDueOnly: false,
   repertoireProgress: {},
 };

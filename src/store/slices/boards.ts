@@ -1,5 +1,5 @@
 import { Chess } from "chess.js";
-import type { StateCreator } from "zustand";
+import type { StateCreator, StoreApi } from "zustand";
 import {
   cloneTree,
   continuationsAt,
@@ -21,7 +21,9 @@ import {
   scheduleReview,
 } from "@/src/chess/repertoire";
 import { persistBoardClose } from "@/src/lib/close-board-persistence";
-import { trainingAttempt } from "@/src/chess/training";
+import { pickOpponentReply, trainingAttempt, trainingColor } from "@/src/chess/training";
+import { sideFromFen } from "@/src/chess/move-notation";
+import { tPanels } from "@/src/i18n/studio-panel-strings";
 import {
   hydrateRepertoireProgress,
   readLocalRepertoireProgress,
@@ -56,6 +58,60 @@ function soundForAdvance(
   }
 }
 
+const TRAINING_REPLY_DELAY_MS = 400;
+
+function trainingLineStatus(state: StudioState, board: BoardSession, path: number[]) {
+  return repertoireMoves(board.tree, path).length === 0
+    ? tPanels(state.settings.locale, "repertoire.lineComplete")
+    : null;
+}
+
+function advanceTraining(
+  set: StoreApi<StudioState>["setState"],
+  get: () => StudioState,
+  board: BoardSession,
+  path: number[],
+): void {
+  set((state) => ({
+    statusMessage: trainingLineStatus(state, board, path),
+    threat: null,
+    boards: withActive(state.boards, state.activeBoardId, (active) => ({ ...active, path })),
+  }));
+  soundForAdvance(get, board.path);
+}
+
+function scheduleTrainingReply(
+  set: StoreApi<StudioState>["setState"],
+  get: () => StudioState,
+): void {
+  const state = get();
+  const board = state.active();
+  if (
+    !state.training || state.drillDueOnly ||
+    repertoireMoves(board.tree, board.path).length === 0 ||
+    sideFromFen(getFenAt(board.tree, board.path)) === state.trainingUserColor
+  ) {
+    return;
+  }
+
+  // Each start gets its own path array, even when restarting at the same position.
+  const session = state.trainingStart;
+  setTimeout(() => {
+    const current = get();
+    const active = current.active();
+    if (
+      !current.training || current.drillDueOnly || current.trainingStart !== session ||
+      active.id !== board.id || active.tree !== board.tree || !pathsEqual(active.path, board.path)
+    ) {
+      return;
+    }
+    const reply = pickOpponentReply(active.tree, active.path, current.repertoireProgress);
+    if (reply) {
+      advanceTraining(set, get, active, reply);
+    }
+  }, TRAINING_REPLY_DELAY_MS);
+}
+
 // Local navigation/move state: boards, selection, path, and training mode.
 export type BoardsSlice = Pick<
   StudioState,
@@ -64,6 +120,7 @@ export type BoardsSlice = Pick<
   | "boardsHydrated"
   | "training"
   | "trainingStart"
+  | "trainingUserColor"
   | "drillDueOnly"
   | "repertoireProgress"
   | "mistakeExercises"
@@ -114,6 +171,7 @@ export const initialBoardsState = {
   boardsHydrated: false,
   training: false,
   trainingStart: null,
+  trainingUserColor: "w" as const,
   drillDueOnly: false,
   repertoireProgress: typeof window !== "undefined" ? readLocalRepertoireProgress() : {},
   mistakeExercises: typeof window !== "undefined" ? readLocalExercises() : {},
@@ -235,11 +293,16 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       const board = get().active();
       const uci = `${from}${to}${promotion ?? ""}`;
       const currentFen = getFenAt(board.tree, board.path);
+      const { drillDueOnly: isDueOnly, trainingUserColor } = get();
+      if (!isDueOnly && sideFromFen(currentFen) !== trainingUserColor) {
+        return false;
+      }
       const attempt = trainingAttempt(board.tree, board.path, uci);
-      const isDueOnly = get().drillDueOnly;
 
       if (attempt.kind === "complete") {
-        set({ statusMessage: "Line complete." });
+        set({
+          statusMessage: isDueOnly ? "Line complete." : tPanels(get().settings.locale, "repertoire.lineComplete"),
+        });
         return false;
       }
       if (attempt.kind === "refused") {
@@ -284,15 +347,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
         return true;
       }
 
-      set((state) => ({
-        statusMessage: repertoireMoves(board.tree, attempt.path).length === 0 ? "Line complete." : null,
-        threat: null,
-        boards: withActive(state.boards, state.activeBoardId, (active) => ({
-          ...active,
-          path: attempt.path,
-        })),
-      }));
-      soundForAdvance(get, previous);
+      advanceTraining(set, get, board, attempt.path);
+      scheduleTrainingReply(set, get);
       return true;
     }
     const board = get().active();
@@ -587,32 +643,22 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       get().exitRetry();
     }
     const state = get();
-    if (state.training && state.trainingStart) {
-      const start = state.trainingStart;
-      set((current) => ({
-        drillDueOnly: false,
-        statusMessage: null,
-        boards: withActive(current.boards, current.activeBoardId, (board) => ({
-          ...board,
-          path: [...start],
-        })),
-      }));
-      const board = get().active();
-      if (repertoireMoves(board.tree, board.path).length === 0) {
-        set({ statusMessage: "Line complete." });
-      }
-      return;
-    }
-    const board = get().active();
-    const start = [...board.path];
+    const board = state.active();
+    const restart = state.training && state.trainingStart;
+    const start = [...(restart || board.path)];
     set({
       training: true,
       trainingStart: start,
+      trainingUserColor: trainingColor(board),
       drillDueOnly: false,
       // SIG-1187: entering training parks navigation — drop a pending chooser.
       variationChoice: null,
-      statusMessage: repertoireMoves(board.tree, start).length === 0 ? "Line complete." : null,
+      statusMessage: trainingLineStatus(state, board, start),
+      boards: restart
+        ? withActive(state.boards, state.activeBoardId, (active) => ({ ...active, path: [...start] }))
+        : state.boards,
     });
+    scheduleTrainingReply(set, get);
   },
   stopTraining: () => set({ training: false, trainingStart: null, drillDueOnly: false }),
   startDueDrill: () => {
