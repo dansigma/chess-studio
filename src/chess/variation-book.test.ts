@@ -176,7 +176,9 @@ test("caps at 600 user moves and keeps higher-reach branches across the tree", (
   const result = buildVariationBook(book, settings);
   assert.equal(result.capped, true);
   assert.equal(result.userMoves, 600);
-  assert.deepEqual(result, buildVariationBook(book, settings));
+  // Node ids are random UUIDs; everything else must be deterministic.
+  const withoutIds = (value: unknown) => JSON.parse(JSON.stringify(value, (key, item) => (key === "id" ? undefined : item)));
+  assert.deepEqual(withoutIds(result), withoutIds(buildVariationBook(book, settings)));
 
   const [first, , last] = result.tree.children;
   const lowReachReply = first.children[0].children.find((node) => node.uci === "d2d3");
