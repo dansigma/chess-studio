@@ -87,7 +87,8 @@ function scheduleTrainingReply(
   const state = get();
   const board = state.active();
   if (
-    !state.training || state.drillDueOnly || state.statusMessage ||
+    !state.training || state.drillDueOnly ||
+    repertoireMoves(board.tree, board.path).length === 0 ||
     sideFromFen(getFenAt(board.tree, board.path)) === state.trainingUserColor
   ) {
     return;
