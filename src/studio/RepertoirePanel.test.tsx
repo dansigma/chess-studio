@@ -64,6 +64,86 @@ test("uses Badge (no bg-studio-surface-raised) with accent tone when due > 0 and
   assert.match(zeroBadge.className, /\btext-studio-muted\b/);
 });
 
+test("opens each marked board and shows due counts from both repertoire trees", () => {
+  const game = useStudioStore.getState().boards[0];
+  const white = {
+    ...emptyBoard("White", "white"),
+    repertoireColor: "white" as const,
+    tree: importPgn("1. d4 d5 2. c4 *").tree,
+  };
+  const black = {
+    ...emptyBoard("Black", "black"),
+    repertoireColor: "black" as const,
+    tree: importPgn("1. c4 e5 *").tree,
+  };
+  useStudioStore.setState({ boards: [game, white, black] });
+  render(<RepertoirePanel />);
+
+  const whiteRadio = screen.getByRole("radio", { name: "White 2" });
+  const blackRadio = screen.getByRole("radio", { name: "Black 1" });
+  assert.equal(whiteRadio.getAttribute("aria-checked"), "false");
+  assert.equal(blackRadio.getAttribute("aria-checked"), "false");
+  assert.equal(whiteRadio.tabIndex, 0);
+  assert.ok(screen.getByText("This board is not a repertoire"));
+  assert.ok(screen.getByRole("button", { name: "e4" }));
+  fireEvent.click(screen.getByRole("button", { name: "Train" }));
+  assert.equal(useStudioStore.getState().training, true);
+
+  fireEvent.click(whiteRadio);
+  assert.equal(useStudioStore.getState().activeBoardId, white.id);
+  assert.equal(useStudioStore.getState().training, false);
+  assert.equal(whiteRadio.getAttribute("aria-checked"), "true");
+  assert.equal(screen.queryByText("This board is not a repertoire"), null);
+  assert.ok(screen.getByText("2 Due"));
+  assert.ok(screen.getByRole("button", { name: "d4" }));
+
+  fireEvent.keyDown(whiteRadio, { key: "ArrowRight" });
+  assert.equal(useStudioStore.getState().activeBoardId, black.id);
+  assert.equal(blackRadio.getAttribute("aria-checked"), "true");
+  assert.ok(screen.getByText("1 Due"));
+  assert.ok(screen.getByRole("button", { name: "c4" }));
+});
+
+test("offers to mark the active board when the selected repertoire is missing", () => {
+  render(<RepertoirePanel />);
+  fireEvent.click(screen.getByRole("radio", { name: "White 0" }));
+
+  assert.ok(screen.getByText("No board is marked as the White repertoire."));
+  assert.ok(screen.getByRole("button", { name: "Create repertoire" }));
+  fireEvent.click(screen.getByRole("button", { name: "Mark this board" }));
+
+  const { boards, activeBoardId } = useStudioStore.getState();
+  assert.equal(activeBoardId, "rep-board");
+  assert.equal(boards.length, 1);
+  assert.equal(boards[0].repertoireColor, "white");
+  assert.equal(screen.getByRole("radio", { name: "White 1" }).getAttribute("aria-checked"), "true");
+  assert.equal(screen.queryByRole("button", { name: "Mark this board" }), null);
+  assert.ok(screen.getByRole("button", { name: "e4" }));
+});
+
+test("creates and activates an empty repertoire with a localized title", () => {
+  const game = useStudioStore.getState().boards[0];
+  useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } });
+  render(<RepertoirePanel />);
+
+  fireEvent.click(screen.getByRole("radio", { name: "Pretas 0" }));
+  assert.ok(screen.getByText("Este tabuleiro não é um repertório"));
+  assert.ok(screen.getByText("Nenhum tabuleiro está marcado como repertório de Pretas."));
+  assert.ok(screen.getByRole("button", { name: "Marcar este tabuleiro" }));
+  fireEvent.click(screen.getByRole("button", { name: "Criar repertório" }));
+
+  const { boards, activeBoardId } = useStudioStore.getState();
+  assert.equal(boards.length, 2);
+  assert.deepEqual(boards[0], game);
+  const created = boards[1];
+  assert.equal(activeBoardId, created.id);
+  assert.equal(created.repertoireColor, "black");
+  assert.equal(created.title, "Repertório de Pretas");
+  assert.deepEqual(created.tree, createEmptyTree());
+  assert.equal(screen.getByRole("radio", { name: "Pretas 0" }).getAttribute("aria-checked"), "true");
+  assert.ok(screen.getByText("Sem lances guardados aqui."));
+});
+
 test("header buttons use Button primitives and preserve disabled and click handlers", () => {
   const { rerender } = render(<RepertoirePanel />);
 
