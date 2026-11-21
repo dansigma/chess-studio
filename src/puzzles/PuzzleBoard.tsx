@@ -55,7 +55,7 @@ export function PuzzleBoard({
   showCoordinates: boolean;
   locale?: SiteLocale;
 }) {
-  const { puzzle, fen, status, last, viewPly, selected, userTurn, gained, onDrop, setSelected } = session;
+  const { puzzle, fen, status, last, viewPly, selected, userTurn, gained, wrongTick, onDrop, setSelected } = session;
   const { orientation, squareStyles, arrows, dests } = feedback;
   const [pendingPromotion, setPendingPromotion] = useState<PendingPromotion | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -133,7 +133,15 @@ export function PuzzleBoard({
 
   return (
     <div className="flex h-full min-h-0 w-full items-center justify-center [container-type:size]">
-      <div className="relative size-[min(100cqw,100cqh,520px)] lg:size-[min(100cqw,100cqh)] overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong">
+      <div
+        className="relative size-[min(100cqw,100cqh,520px)] lg:size-[min(100cqw,100cqh)] overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong"
+        style={
+          wrongTick > 0
+            ? { animation: `${wrongTick % 2 === 1 ? "puzzle-shake" : "puzzle-shake-alt"} 300ms ease-out` }
+            : undefined
+        }
+        data-testid="puzzle-board-frame"
+      >
         <Chessboard
           key={`${puzzle.id}-${pieceSet}`}
           options={{

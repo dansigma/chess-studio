@@ -154,6 +154,7 @@ export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.settings.showCoordinates",
   "chrome.settings.showEvalBar",
   "chrome.settings.moveSound",
+  "chrome.settings.puzzleSound",
   "chrome.settings.gamePreview",
   "chrome.settings.engine",
   "chrome.settings.engineReviewNote",
@@ -373,6 +374,7 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.settings.showCoordinates": "Show coordinates",
   "chrome.settings.showEvalBar": "Show evaluation bar",
   "chrome.settings.moveSound": "Move sound",
+  "chrome.settings.puzzleSound": "Puzzle sounds",
   "chrome.settings.gamePreview": "Game preview mode",
   "chrome.settings.engine": "Engine",
   "chrome.settings.engineReviewNote":
@@ -592,6 +594,7 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.settings.showCoordinates": "Mostrar coordenadas",
   "chrome.settings.showEvalBar": "Mostrar barra de avaliação",
   "chrome.settings.moveSound": "Som de lance",
+  "chrome.settings.puzzleSound": "Som nos puzzles",
   "chrome.settings.gamePreview": "Modo de prévia de partidas",
   "chrome.settings.engine": "Engine",
   "chrome.settings.engineReviewNote":

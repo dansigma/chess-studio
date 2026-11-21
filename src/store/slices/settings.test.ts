@@ -290,3 +290,35 @@ test("pinPreviewBoard keeps the dirty flag so the next save pass picks it up (SI
   assert.equal(pinned.dirty, true);
   assert.equal(selectDirtyCount(useStudioStore.getState()), 1);
 });
+
+test("puzzleSound defaults to on, toggles independently of moveSound, and persists (SIG-1422)", () => {
+  assert.equal(DEFAULT_SETTINGS.puzzleSound, true);
+
+  storage.delete(SETTINGS_KEY);
+  resetSettings();
+  actions().hydrateLocalSettings();
+  assert.equal(useStudioStore.getState().settings.puzzleSound, true);
+  assert.equal(useStudioStore.getState().settings.moveSound, false);
+
+  actions().togglePuzzleSound();
+  assert.equal(useStudioStore.getState().settings.puzzleSound, false);
+  assert.equal(useStudioStore.getState().settings.moveSound, false);
+
+  actions().toggleMoveSound();
+  assert.equal(useStudioStore.getState().settings.moveSound, true);
+  assert.equal(useStudioStore.getState().settings.puzzleSound, false);
+
+  for (const persisted of [true, false]) {
+    storage.set(SETTINGS_KEY, JSON.stringify({ puzzleSound: persisted, moveSound: !persisted }));
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.puzzleSound, persisted);
+    assert.equal(useStudioStore.getState().settings.moveSound, !persisted);
+  }
+
+  storage.set(SETTINGS_KEY, JSON.stringify({ puzzleSound: "yes" }));
+  actions().hydrateLocalSettings();
+  assert.equal(useStudioStore.getState().settings.puzzleSound, true);
+
+  storage.delete(SETTINGS_KEY);
+  resetSettings();
+});

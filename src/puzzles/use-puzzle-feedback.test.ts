@@ -318,3 +318,34 @@ test("boardHighlights respects viewPly when scrubbing after a failure", () => {
   const awayFromMissPly = boardHighlights({ ...base, reveal: true, viewPly: 3 });
   assert.deepEqual(awayFromMissPly.arrows, []);
 });
+
+test("boardHighlights pulses destination square on player's correct moves only (SIG-1422)", () => {
+  const base = {
+    last: { from: "e2", to: "e4" },
+    reveal: false,
+    hintLevel: 0,
+    userTurn: false,
+    expected: undefined,
+    selected: null,
+    miss: null,
+    dests: [],
+    viewPly: null,
+  };
+
+  // Player's intermediate correct move (ply 1, playing)
+  const playerMove1 = boardHighlights({ ...base, status: "playing", ply: 1, correctTick: 1 });
+  assert.match(playerMove1.squareStyles.e4?.animation ?? "", /^puzzle-square-pulse /);
+  assert.equal(playerMove1.squareStyles.e2?.animation, undefined);
+
+  // Opponent's reply (ply 2, playing) does not pulse
+  const opponentReply = boardHighlights({ ...base, status: "playing", ply: 2, correctTick: 1 });
+  assert.equal(opponentReply.squareStyles.e4?.animation, undefined);
+
+  // Player's final solving move (solved) alternates animation name on next correctTick
+  const solveMove = boardHighlights({ ...base, status: "solved", ply: 3, correctTick: 2 });
+  assert.match(solveMove.squareStyles.e4?.animation ?? "", /^puzzle-square-pulse-alt /);
+
+  // Scrubbing does not pulse
+  const scrubbed = boardHighlights({ ...base, status: "solved", ply: 3, correctTick: 2, viewPly: 1 });
+  assert.equal(scrubbed.squareStyles.e4?.animation, undefined);
+});

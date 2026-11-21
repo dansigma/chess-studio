@@ -50,6 +50,8 @@ function makeSession(overrides: Partial<PuzzleSession> = {}): PuzzleSession {
     hintLevel: 0,
     reveal: false,
     miss: null,
+    wrongTick: 0,
+    correctTick: 0,
     sessionSolved: 0,
     strikes: 0,
     sessionOver: false,

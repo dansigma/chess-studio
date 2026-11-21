@@ -10,7 +10,7 @@ import { puzzleGoal, solvedPraise } from "./feedback";
 import type { PuzzleMode, PuzzleTheme } from "./types";
 import type { Miss, PuzzleSession, Status } from "./use-puzzle-session";
 
-export type SquareStyle = { backgroundColor?: string; backgroundImage?: string; boxShadow?: string };
+export type SquareStyle = { backgroundColor?: string; backgroundImage?: string; boxShadow?: string; animation?: string };
 export type BoardArrow = { startSquare: string; endSquare: string; color: string };
 
 export function orientationFor(puzzle: CompiledPuzzle | null): "white" | "black" {
@@ -141,6 +141,7 @@ export function boardHighlights({
   dests,
   viewPly = null,
   ply = 0,
+  correctTick = 0,
 }: {
   last: { from: string; to: string } | null;
   status: Status;
@@ -153,12 +154,22 @@ export function boardHighlights({
   dests: readonly string[];
   viewPly?: number | null;
   ply?: number;
+  correctTick?: number;
 }): { squareStyles: Record<string, SquareStyle>; arrows: BoardArrow[] } {
   const squareStyles: Record<string, SquareStyle> = {};
   if (last) {
     const color = status === "failed" && !reveal && viewPly === null ? "rgba(239, 68, 68, 0.55)" : "rgba(186, 202, 68, 0.72)";
+    const pulseCorrect =
+      correctTick > 0 && viewPly === null && (status === "solved" || (status === "playing" && ply % 2 === 1));
     squareStyles[last.from] = { backgroundColor: color };
-    squareStyles[last.to] = { backgroundColor: color };
+    squareStyles[last.to] = {
+      backgroundColor: color,
+      ...(pulseCorrect
+        ? {
+            animation: `${correctTick % 2 === 1 ? "puzzle-square-pulse" : "puzzle-square-pulse-alt"} 450ms ease-out`,
+          }
+        : {}),
+    };
   }
   const hintFrom = hintLevel > 0 && userTurn && expected ? expected.slice(0, 2) : "";
   if (hintFrom) {
@@ -210,6 +221,7 @@ export function usePuzzleFeedback({
     hintLevel,
     reveal,
     miss,
+    correctTick,
     sessionSolved,
     sessionOver,
     secondsLeft,
@@ -254,6 +266,7 @@ export function usePuzzleFeedback({
     dests,
     viewPly,
     ply,
+    correctTick,
   });
 
   return {

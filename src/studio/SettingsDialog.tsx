@@ -121,6 +121,7 @@ export function SettingsDialog({
   const toggleCoordinates = useStudioStore((state) => state.toggleCoordinates);
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
   const toggleMoveSound = useStudioStore((state) => state.toggleMoveSound);
+  const togglePuzzleSound = useStudioStore((state) => state.togglePuzzleSound);
   const toggleGamePreview = useStudioStore((state) => state.toggleGamePreview);
   const setEngineBuild = useStudioStore((state) => state.setEngineBuild);
   const [confirmingClear, setConfirmingClear] = useState(false);
@@ -193,6 +194,9 @@ export function SettingsDialog({
           </Row>
           <Row label={tStudioChrome(locale, "chrome.settings.moveSound")}>
             <Toggle label={tStudioChrome(locale, "chrome.settings.moveSound")} checked={settings.moveSound} onChange={toggleMoveSound} />
+          </Row>
+          <Row label={tStudioChrome(locale, "chrome.settings.puzzleSound")}>
+            <Toggle label={tStudioChrome(locale, "chrome.settings.puzzleSound")} checked={settings.puzzleSound} onChange={togglePuzzleSound} />
           </Row>
           <Row label={tStudioChrome(locale, "chrome.settings.gamePreview")}>
             <Toggle

@@ -80,3 +80,25 @@ test("unrated rated session leads with solved, no rating or delta", () => {
     cleanup();
   }
 });
+
+test("delta pops when shown and streak flame pops at 5 and 10 (SIG-1422)", () => {
+  try {
+    render(<PanelScore {...base} mode="rated" locale="en" rating={1889} delta={16} streak={4} />);
+    assert.ok(screen.getByTestId("panel-delta").className.includes("animate-puzzle-pop"));
+    assert.equal(screen.getByTestId("panel-streak").className.includes("animate-puzzle-pop"), false);
+    cleanup();
+
+    render(<PanelScore {...base} mode="rated" locale="en" rating={1889} delta={16} streak={5} />);
+    assert.ok(screen.getByTestId("panel-streak").className.includes("animate-puzzle-pop"));
+    cleanup();
+
+    render(<PanelScore {...base} mode="rated" locale="en" rating={1889} delta={16} streak={6} />);
+    assert.equal(screen.getByTestId("panel-streak").className.includes("animate-puzzle-pop"), false);
+    cleanup();
+
+    render(<PanelScore {...base} mode="rated" locale="en" rating={1889} delta={16} streak={10} />);
+    assert.ok(screen.getByTestId("panel-streak").className.includes("animate-puzzle-pop"));
+  } finally {
+    cleanup();
+  }
+});

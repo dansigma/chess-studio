@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { playMoveSound } from "@/src/chess/move-sound";
+import { playErrorSound, playMoveSound, playSuccessSound } from "@/src/chess/move-sound";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import {
   dueExercises,
@@ -219,7 +219,7 @@ export function usePuzzleSession({
   theme,
   difficulty = null,
   mistakeFilter = null,
-  moveSound,
+  sound,
   scoring,
 }: {
   mode: PuzzleMode;
@@ -227,7 +227,7 @@ export function usePuzzleSession({
   difficulty?: Difficulty | null;
   /** SIG-1307: optional label/phase filter for the mistakes queue. */
   mistakeFilter?: MistakeFilter | null;
-  moveSound: boolean;
+  sound: boolean;
   scoring: PuzzleScoring;
 }) {
   const {
@@ -262,6 +262,8 @@ export function usePuzzleSession({
   const [hintLevel, setHintLevel] = useState(0);
   const [reveal, setReveal] = useState(false);
   const [miss, setMiss] = useState<Miss | null>(null);
+  const [wrongTick, setWrongTick] = useState(0);
+  const [correctTick, setCorrectTick] = useState(0);
   const [sessionSolved, setSessionSolved] = useState(0);
   const [strikes, setStrikes] = useState(0);
   const [sessionOver, setSessionOver] = useState(false);
@@ -342,6 +344,8 @@ export function usePuzzleSession({
     setHintLevel(0);
     setReveal(false);
     setMiss(null);
+    setWrongTick(0);
+    setCorrectTick(0);
   }
 
   function commit(success: boolean, currentPuzzle: CompiledPuzzle) {
@@ -573,12 +577,12 @@ export function usePuzzleSession({
       setLast({ from: step.from, to: step.to });
       setPlayedFrames((prev) => [...prev, { fen: step.fen, last: { from: step.from, to: step.to } }]);
       setPly((current) => current + 1);
-      if (moveSound) {
+      if (sound) {
         playMoveSound();
       }
     }, 340);
     return () => window.clearTimeout(timer);
-  }, [puzzle, status, sessionOver, ply, moveSound]);
+  }, [puzzle, status, sessionOver, ply, sound]);
 
   useEffect(() => {
     if (status !== "failed" || !miss || reveal) {
@@ -665,10 +669,11 @@ export function usePuzzleSession({
     }
     setSelected(null);
     setHintLevel(0);
-    if (moveSound) {
-      playMoveSound();
-    }
     if (judged.kind === "wrong") {
+      if (sound) {
+        playErrorSound();
+      }
+      setWrongTick((current) => current + 1);
       setFen(judged.fen);
       setLast({ from: judged.from, to: judged.to });
       setMiss({ fen, from: expected.slice(0, 2), to: expected.slice(2, 4), san: puzzle.sans[ply] ?? "" });
@@ -679,17 +684,23 @@ export function usePuzzleSession({
       }
       return true;
     }
+    setCorrectTick((current) => current + 1);
     setFen(judged.fen);
     setLast({ from: judged.from, to: judged.to });
     setPlayedFrames((prev) => [...prev, { fen: judged.fen, last: { from: judged.from, to: judged.to } }]);
     const nextPly = ply + 1;
     setPly(nextPly);
     if (judged.mate || nextPly >= puzzle.uci.length) {
+      if (sound) {
+        playSuccessSound();
+      }
       setStatus("solved");
       commit(true, puzzle);
       if (mode === "rush" && secondsRef.current > 0) {
         scheduleRush(700);
       }
+    } else if (sound) {
+      playMoveSound();
     }
     return true;
   }
@@ -876,6 +887,8 @@ export function usePuzzleSession({
     hintLevel,
     reveal,
     miss,
+    wrongTick,
+    correctTick,
     sessionSolved,
     strikes,
     sessionOver,
