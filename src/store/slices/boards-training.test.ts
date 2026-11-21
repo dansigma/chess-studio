@@ -85,3 +85,76 @@ test("restarting at the same position gives the new reply its own full delay", (
   t.mock.timers.tick(200);
   assert.deepEqual(store().active().path, [0]);
 });
+
+test("hints reveal the piece then the move without rescheduling a missed position", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  seedTraining("1. e4 (1. d4) e5 2. Nf3 *");
+  store().startTraining();
+  store().showTrainingHint();
+  assert.equal(store().trainingMiss, null);
+  assert.equal(store().makeUciMove("c2", "c4"), false);
+  assert.equal(store().statusMessage, "Not in your repertoire");
+  assert.equal(store().trainingMiss?.hint, 0);
+  assert.equal(store().trainingMiss?.uci, "e2e4");
+  const progress = store().repertoireProgress;
+  for (const uci of ["e2e4", "d2d4"]) {
+    assert.equal(progress[repertoireMoveKey(START_FEN, uci)].mistakeCount, 1);
+  }
+
+  store().showTrainingHint();
+  assert.equal(store().trainingMiss?.hint, 1);
+  store().showTrainingHint();
+  assert.equal(store().trainingMiss?.hint, 2);
+  store().showTrainingHint();
+  assert.equal(store().trainingMiss?.hint, 2);
+  assert.equal(store().makeUciMove("e2", "e4"), true);
+  assert.equal(store().repertoireProgress, progress);
+  assert.equal(store().trainingMiss, null);
+
+  t.mock.timers.tick(400);
+  assert.equal(store().trainingMiss, null);
+  assert.equal(store().makeUciMove("f1", "c4"), false);
+  assert.equal(store().trainingMiss?.hint, 0);
+  assert.equal(store().trainingMiss?.uci, "g1f3");
+});
+
+test("a second wrong move reveals the answer and restarting, stopping or switching clears it", () => {
+  seedTraining("1. e4 *");
+  store().startTraining();
+  store().makeUciMove("c2", "c4");
+  const progress = store().repertoireProgress;
+  store().makeUciMove("d2", "d4");
+  assert.equal(store().trainingMiss?.hint, 2);
+  store().makeUciMove("g1", "f3");
+  assert.equal(store().repertoireProgress, progress);
+
+  store().startTraining();
+  assert.equal(store().trainingMiss, null);
+  store().makeUciMove("d2", "d4");
+  assert.equal(store().trainingMiss?.hint, 0);
+  store().stopTraining();
+  assert.equal(store().trainingMiss, null);
+  store().startTraining();
+  store().makeUciMove("d2", "d4");
+  store().setActiveBoard("other");
+  assert.equal(store().trainingMiss, null);
+});
+
+test("due drill localizes wrong moves and completion statuses without recording a recovered success", () => {
+  seedTraining("1. e4 *");
+  useStudioStore.setState({ settings: { ...store().settings, locale: "pt-br" } });
+  store().startDueDrill();
+  assert.equal(store().makeUciMove("d2", "d4"), false);
+  assert.equal(store().statusMessage, "Não está no repertório");
+  const progress = store().repertoireProgress;
+  assert.equal(store().makeUciMove("e2", "e4"), true);
+  assert.equal(store().repertoireProgress, progress);
+  assert.equal(store().trainingMiss, null);
+  assert.equal(store().statusMessage, "Todas as revisões concluídas!");
+  store().startDueDrill();
+  assert.equal(store().statusMessage, "Nenhuma revisão pendente.");
+
+  useStudioStore.setState({ training: true, drillDueOnly: true });
+  assert.equal(store().makeUciMove("e7", "e5"), false);
+  assert.equal(store().statusMessage, "Linha concluída.");
+});

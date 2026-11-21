@@ -145,6 +145,7 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
       statusMessage: null,
       training: false,
       trainingStart: null,
+      trainingMiss: null,
       threat: null,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
@@ -186,6 +187,7 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
             setupMode: false,
             training: false,
             trainingStart: null,
+            trainingMiss: null,
             activeBoardId: existing.id,
             boards: state.boards.map((board) =>
               board.id === existing.id ? { ...board, ...content, preview: true } : board,
@@ -204,6 +206,7 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
           setupMode: false,
           training: false,
           trainingStart: null,
+          trainingMiss: null,
           boards: [...state.boards, board],
           activeBoardId: board.id,
         };
@@ -220,6 +223,7 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         setupMode: false,
         training: false,
         trainingStart: null,
+        trainingMiss: null,
         boards: [...state.boards, board],
         activeBoardId: board.id,
       };

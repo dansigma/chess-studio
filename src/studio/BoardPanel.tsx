@@ -8,7 +8,7 @@ import { useReviewLabels } from "@/src/store/review-labels";
 import { tierName } from "@/src/chess/review-strings";
 import { BOARD_BADGE_FRACTION, TierBadge } from "./review/TierBadge";
 import { selectBoard, useStudioStore } from "@/src/store/studio-store";
-import { getFenAt, getLastMove, getMarksAt } from "@/src/chess/tree";
+import { fenKey, getFenAt, getLastMove, getMarksAt } from "@/src/chess/tree";
 import {
   MARK_FILL,
   MARK_HEX,
@@ -152,6 +152,12 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   // against the position actually shown, never stored on the tree.
   const insight = !retryHere && isActive && insightMarks?.fen === fen ? insightMarks.marks : null;
   const previewing = Boolean(isActive && enginePreview);
+  const trainingMiss = useStudioStore((state) => state.training ? state.trainingMiss : null);
+  const trainingHint = isActive && !retryHere && !previewing && trainingMiss?.fenKey === fenKey(fen)
+    ? trainingMiss
+    : null;
+  const hintSquare = trainingHint && trainingHint.hint >= 1 ? trainingHint.uci.slice(0, 2) : null;
+  const hintArrow = trainingHint?.hint === 2 ? trainingHint.uci : null;
   const [wasPreviewing, setWasPreviewing] = useState(previewing);
   if (wasPreviewing !== previewing) {
     setWasPreviewing(previewing);
@@ -283,8 +289,15 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
           "radial-gradient(circle, rgba(0,0,0,0.28) 22%, transparent 23%)",
       };
     }
+    if (hintSquare) {
+      styles[hintSquare] = {
+        ...styles[hintSquare],
+        backgroundColor: MARK_FILL.B,
+        boxShadow: `inset 0 0 0 3px ${MARK_HEX.B}`,
+      };
+    }
     return styles;
-  }, [dests, insight, lastMoveKey, squareMarks, selected, retry, retryHere, retryWrong]);
+  }, [dests, hintSquare, insight, lastMoveKey, squareMarks, selected, retry, retryHere, retryWrong]);
 
   // SIG-1219: Game Review tier badge in the top-right corner of the square the
   // current move landed on. Only for the position the tree shows (not an engine
@@ -327,7 +340,10 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
     if (retryHere) {
       return [];
     }
-    const marked = arrowsForRender([...arrowMarks, ...(insight?.arrows ?? [])], preview);
+    const trainingArrows = hintArrow
+      ? [{ from: hintArrow.slice(0, 2), to: hintArrow.slice(2, 4), color: "B" as const }]
+      : [];
+    const marked = arrowsForRender([...trainingArrows, ...arrowMarks, ...(insight?.arrows ?? [])], preview);
     // SIG-1194: the explorer move under the pointer, FEN-guarded like the
     // insight overlay and drawn on the active board only.
     const hover = isActive && explorerHover && explorerHover.fen === fen ? explorerHover : null;
@@ -354,7 +370,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
       ...base,
       { startSquare: squares.from, endSquare: squares.to, color: MARK_HEX.R },
     ];
-  }, [arrowMarks, insight, isActive, preview, showThreat, threat, fen, explorerHover, retryHere]);
+  }, [arrowMarks, hintArrow, insight, isActive, preview, showThreat, threat, fen, explorerHover, retryHere]);
 
   function attemptMove(from: string, to: string): boolean {
     let chess: Chess;

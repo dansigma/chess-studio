@@ -40,6 +40,7 @@ beforeEach(() => {
     settings: { ...DEFAULT_SETTINGS, locale: "en" },
     training: false,
     trainingStart: null,
+    trainingMiss: null,
     drillDueOnly: false,
     repertoireProgress: {},
   });
@@ -188,3 +189,32 @@ test("renders Button controls during drillDueOnly mode", () => {
   assert.match(drillButton.className, /\bbg-studio-accent-solid\b/);
   assert.match(stopButton.className, /\btext-studio-muted\b/);
 });
+
+for (const [locale, feedback, hint] of [
+  ["en", "Not in your repertoire", "Hint"],
+  ["pt-br", "Não está no repertório", "Dica"],
+] as const) {
+  test(`shows localized mistake feedback and advances hints in ${locale}`, () => {
+    useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale } });
+    const store = useStudioStore.getState();
+    if (locale === "pt-br") {
+      store.startDueDrill();
+    } else {
+      store.startTraining();
+    }
+    render(<RepertoirePanel />);
+    assert.equal(screen.queryByRole("button", { name: hint }), null);
+
+    act(() => { store.makeUciMove("d2", "d4"); });
+    assert.equal(screen.getByRole("status").textContent, feedback);
+    const button = screen.getByRole("button", { name: hint }) as HTMLButtonElement;
+    fireEvent.click(button);
+    assert.equal(useStudioStore.getState().trainingMiss?.hint, 1);
+    fireEvent.click(button);
+    assert.equal(useStudioStore.getState().trainingMiss?.hint, 2);
+    assert.equal(button.disabled, true);
+
+    act(() => { store.stopTraining(); });
+    assert.equal(screen.queryByRole("button", { name: hint }), null);
+  });
+}

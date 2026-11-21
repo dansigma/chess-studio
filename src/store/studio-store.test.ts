@@ -544,7 +544,7 @@ test("SIG-923: store spaced repetition drill engine updates progress and complet
   const failed = store.makeUciMove("d2", "d4");
   assert.equal(failed, false, "d2d4 refused");
   state = useStudioStore.getState();
-  assert.equal(state.statusMessage, "Not in the repertoire.");
+  assert.equal(state.statusMessage, "Not in your repertoire");
   const fenKeyE4 = repertoireMoveKey(START_FEN, "e2e4");
   assert.ok(state.repertoireProgress[fenKeyE4], "failed move recorded");
   assert.equal(state.repertoireProgress[fenKeyE4]?.mistakeCount, 1);
