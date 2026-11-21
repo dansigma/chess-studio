@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Check, ChevronRight, Crown, X } from "lucide-react";
+import { Check, ChevronRight, Crown, Volume2, VolumeX, X } from "lucide-react";
 import { phaseName, tierName } from "@/src/chess/review-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { formatInteger } from "@/src/i18n/format";
@@ -71,6 +71,8 @@ export function PuzzlePanel({
   session,
   feedback,
   locale,
+  sound = true,
+  onToggleSound,
 }: {
   mode: PuzzleMode;
   theme: PuzzleTheme | null;
@@ -79,6 +81,8 @@ export function PuzzlePanel({
   session: PuzzleSession;
   feedback: PuzzleFeedback;
   locale: SiteLocale;
+  sound?: boolean;
+  onToggleSound?: () => void;
 }) {
   const {
     puzzle,
@@ -150,19 +154,34 @@ export function PuzzlePanel({
           {modeLabel}
           {theme ? ` · ${tPuzzle(locale, THEME_LABEL_KEYS[theme])}` : ""}
         </h1>
-        {mode === "rush" ? (
-          <span
-            className={`text-title font-semibold tabular-nums ${
-              secondsLeft <= 30 ? "text-studio-danger" : "text-studio-fg"
-            }`}
-          >
-            {clock(secondsLeft)}
-          </span>
-        ) : (
-          <span className="text-body tabular-nums text-studio-muted">
-            {tPuzzle(locale, "puzzle.panel.puzzleRating", { rating: formatInteger(locale, puzzle.rating) })}
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {mode === "rush" ? (
+            <span
+              className={`text-title font-semibold tabular-nums ${
+                secondsLeft <= 30 ? "text-studio-danger" : "text-studio-fg"
+              }`}
+            >
+              {clock(secondsLeft)}
+            </span>
+          ) : (
+            <span className="text-body tabular-nums text-studio-muted">
+              {tPuzzle(locale, "puzzle.panel.puzzleRating", { rating: formatInteger(locale, puzzle.rating) })}
+            </span>
+          )}
+          {onToggleSound ? (
+            <button
+              type="button"
+              onClick={onToggleSound}
+              aria-label={tPuzzle(locale, "puzzle.panel.sound")}
+              title={tPuzzle(locale, "puzzle.panel.sound")}
+              aria-pressed={sound}
+              data-testid="puzzle-sound-toggle"
+              className="inline-flex size-7 items-center justify-center rounded-md text-studio-muted transition-colors hover:bg-studio-hover hover:text-studio-fg"
+            >
+              {sound ? <Volume2 className="size-4" aria-hidden /> : <VolumeX className="size-4" aria-hidden />}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">

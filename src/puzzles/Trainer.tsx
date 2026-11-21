@@ -45,12 +45,13 @@ export function PuzzleTrainer() {
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
-  const moveSound = useStudioStore((state) => state.settings.moveSound);
+  const puzzleSound = useStudioStore((state) => state.settings.puzzleSound);
+  const togglePuzzleSound = useStudioStore((state) => state.togglePuzzleSound);
 
   const filterText = mode === "mistakes" ? formatMistakeFilterLabel(locale, mistakeFilter) : "";
 
   const scoring = usePuzzleScoring(mode, difficulty !== null);
-  const session = usePuzzleSession({ mode, theme, difficulty, mistakeFilter, moveSound, scoring });
+  const session = usePuzzleSession({ mode, theme, difficulty, mistakeFilter, sound: puzzleSound, scoring });
   const feedback = usePuzzleFeedback({ mode, session, locale });
 
   const {
@@ -174,6 +175,8 @@ export function PuzzleTrainer() {
             session={session}
             feedback={feedback}
             locale={locale}
+            sound={puzzleSound}
+            onToggleSound={togglePuzzleSound}
           />
         </div>
         </div>

@@ -23,6 +23,7 @@ const ctl = {
   catalog: [CATALOG_3PLY] as CompiledPuzzle[],
   exercises: {} as MistakeExercisesMap,
   progress: emptyProgress(),
+  sounds: [] as ("move" | "success" | "error")[],
   boardOptions: {} as {
     position?: string;
     onPieceDrop?: (args: { sourceSquare: string; targetSquare: string | null }) => boolean;
@@ -59,7 +60,15 @@ const realMoveSound = await import("../chess/move-sound.ts");
 mock.module("../chess/move-sound.ts", {
   namedExports: {
     ...realMoveSound,
-    playMoveSound: () => {},
+    playMoveSound: () => {
+      ctl.sounds.push("move");
+    },
+    playSuccessSound: () => {
+      ctl.sounds.push("success");
+    },
+    playErrorSound: () => {
+      ctl.sounds.push("error");
+    },
   },
 });
 
@@ -109,6 +118,7 @@ beforeEach(() => {
   ctl.catalog = [CATALOG_3PLY];
   ctl.exercises = {};
   ctl.progress = emptyProgress();
+  ctl.sounds = [];
   ctl.boardOptions = {};
   act(() => {
     useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", moveSound: false } });
@@ -343,4 +353,95 @@ test("Rush disables scrubbing and filtered empty mistakes queue still renders fi
   assert.equal(within(chip).getByRole("link", { name: "Clear filter" }).getAttribute("href"), "/puzzles/play?mode=mistakes");
 });
 
+test("speaker button toggles puzzleSound independently of moveSound and plays distinct feedback sounds (SIG-1422)", async () => {
+  ctl.catalog = [CATALOG_3PLY];
+  // Studio moveSound is off, puzzleSound is on by default
+  render(<PuzzleTrainer />);
+  await waitFor(() => {
+    assert.equal(screen.getByTestId("trainer-board").getAttribute("data-position"), CATALOG_3PLY.fen);
+  });
 
+  const speaker = screen.getByTestId("puzzle-sound-toggle");
+  assert.equal(speaker.getAttribute("aria-pressed"), "true");
+  assert.equal(useStudioStore.getState().settings.puzzleSound, true);
+  assert.equal(useStudioStore.getState().settings.moveSound, false);
+
+  // Play intermediate correct move -> move sound; wait for opponent reply -> move sound; final move -> success chime
+  const [m0, , m2] = CATALOG_3PLY.uci;
+  act(() => {
+    ctl.boardOptions.onPieceDrop?.({ sourceSquare: m0.slice(0, 2), targetSquare: m0.slice(2, 4) });
+  });
+  assert.deepEqual(ctl.sounds, ["move"]);
+
+  await act(async () => {
+    await sleep(400);
+  });
+  assert.deepEqual(ctl.sounds, ["move", "move"]);
+
+  act(() => {
+    ctl.boardOptions.onPieceDrop?.({ sourceSquare: m2.slice(0, 2), targetSquare: m2.slice(2, 4) });
+  });
+  assert.deepEqual(ctl.sounds, ["move", "move", "success"]);
+
+  // Toggle puzzleSound off via the speaker button; even with moveSound on, trainer is silent
+  fireEvent.click(speaker);
+  assert.equal(useStudioStore.getState().settings.puzzleSound, false);
+  assert.equal(speaker.getAttribute("aria-pressed"), "false");
+
+  cleanup();
+  ctl.sounds = [];
+  act(() => {
+    useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", moveSound: true, puzzleSound: false } });
+  });
+  ctl.catalog = [UNDERPROMO_PUZZLE];
+  render(<PuzzleTrainer />);
+  await waitFor(() => {
+    assert.equal(screen.getByTestId("trainer-board").getAttribute("data-position"), UNDERPROMO_PUZZLE.fen);
+  });
+  // Wrong move (queen instead of knight) -> silent when puzzleSound is off, but board still shakes
+  act(() => {
+    ctl.boardOptions.onPieceDrop?.({ sourceSquare: "e7", targetSquare: "f8" });
+  });
+  fireEvent.click(within(screen.getByTestId("promotion-picker")).getByRole("button", { name: "Promote to Queen" }));
+  assert.deepEqual(ctl.sounds, []);
+  assert.match(screen.getByTestId("puzzle-board-frame").style.animation, /puzzle-shake/);
+
+  // With puzzleSound back on, wrong move plays error sound
+  cleanup();
+  window.localStorage.clear();
+  ctl.sounds = [];
+  act(() => {
+    useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", moveSound: false, puzzleSound: true } });
+  });
+  render(<PuzzleTrainer />);
+  await waitFor(() => {
+    assert.equal(screen.getByTestId("trainer-board").getAttribute("data-position"), UNDERPROMO_PUZZLE.fen);
+  });
+  act(() => {
+    ctl.boardOptions.onPieceDrop?.({ sourceSquare: "e7", targetSquare: "f8" });
+  });
+  fireEvent.click(within(screen.getByTestId("promotion-picker")).getByRole("button", { name: "Promote to Queen" }));
+  assert.deepEqual(ctl.sounds, ["error"]);
+});
+
+
+test("a mode reload clears the wrong-move shake so the fresh board does not shake (SIG-1422)", async () => {
+  ctl.catalog = [UNDERPROMO_PUZZLE];
+  const { rerender } = render(<PuzzleTrainer />);
+  await waitFor(() => {
+    assert.equal(screen.getByTestId("trainer-board").getAttribute("data-position"), UNDERPROMO_PUZZLE.fen);
+  });
+  act(() => {
+    ctl.boardOptions.onPieceDrop?.({ sourceSquare: "e7", targetSquare: "f8" });
+  });
+  fireEvent.click(within(screen.getByTestId("promotion-picker")).getByRole("button", { name: "Promote to Queen" }));
+  assert.match(screen.getByTestId("puzzle-board-frame").style.animation, /puzzle-shake/);
+
+  ctl.search = "mode=streak";
+  ctl.catalog = [CATALOG_3PLY];
+  rerender(<PuzzleTrainer />);
+  await waitFor(() => {
+    assert.equal(screen.getByTestId("trainer-board").getAttribute("data-position"), CATALOG_3PLY.fen);
+  });
+  assert.equal(screen.getByTestId("puzzle-board-frame").style.animation, "");
+});

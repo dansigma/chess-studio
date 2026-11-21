@@ -168,6 +168,7 @@ export type StudioSettings = {
   sidebarWidth: number;
   explorerFilters: ExplorerFilters;
   moveSound: boolean;
+  puzzleSound: boolean;
   /** SIG-1196: 40px eval sparkline under the engine control row. */
   engineSparkline: boolean;
   /** Site language; also drives Game Review explanations (SIG-971). */
@@ -284,6 +285,7 @@ export type StudioState = {
   flip: () => void;
   toggleCoordinates: () => void;
   toggleMoveSound: () => void;
+  togglePuzzleSound: () => void;
   toggleEngineSparkline: () => void;
   toggleEvalBar: () => void;
   toggleGamePreview: () => void;

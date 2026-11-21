@@ -48,7 +48,8 @@ export function PanelScore({
           <>
             {" "}
             <span
-              className={`text-title font-semibold tabular-nums ${
+              key={delta}
+              className={`animate-puzzle-pop text-title font-semibold tabular-nums ${
                 delta > 0 ? "text-studio-success" : "text-studio-warning-fg"
               }`}
               data-testid="panel-delta"
@@ -72,7 +73,13 @@ export function PanelScore({
           ))}
         </p>
       ) : (
-        <p className="flex items-center gap-1 text-title font-semibold tabular-nums text-studio-fg">
+        <p
+          key={streak === 5 || streak === 10 ? `streak-${streak}` : "streak"}
+          className={`flex items-center gap-1 text-title font-semibold tabular-nums text-studio-fg ${
+            streak === 5 || streak === 10 ? "animate-puzzle-pop" : ""
+          }`}
+          data-testid="panel-streak"
+        >
           <Flame className="size-5 text-studio-tier-mistake" aria-hidden />
           {streak}
         </p>

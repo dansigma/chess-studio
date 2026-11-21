@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   explorerFilters: DEFAULT_EXPLORER_FILTERS,
   moveSound: false,
+  puzzleSound: true,
   engineSparkline: true,
   locale: DEFAULT_SITE_LOCALE,
 };
@@ -102,6 +103,7 @@ export function loadLocalSettings(): StudioSettings {
           : DEFAULT_SETTINGS.sidebarWidth,
       explorerFilters: readExplorerFilters(parsed.explorerFilters),
       moveSound: typeof parsed.moveSound === "boolean" ? parsed.moveSound : DEFAULT_SETTINGS.moveSound,
+      puzzleSound: typeof parsed.puzzleSound === "boolean" ? parsed.puzzleSound : DEFAULT_SETTINGS.puzzleSound,
       engineSparkline:
         typeof parsed.engineSparkline === "boolean" ? parsed.engineSparkline : DEFAULT_SETTINGS.engineSparkline,
       locale: isSiteLocale(parsed.locale) ? parsed.locale : siteLocaleFromLanguage(window.navigator?.language),
@@ -115,6 +117,7 @@ export type SettingsSlice = Pick<
   StudioState,
   | "toggleCoordinates"
   | "toggleMoveSound"
+  | "togglePuzzleSound"
   | "toggleEngineSparkline"
   | "toggleEvalBar"
   | "toggleGamePreview"
@@ -154,6 +157,14 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
       settings: {
         ...state.settings,
         moveSound: !state.settings.moveSound,
+      },
+    }));
+  },
+  togglePuzzleSound: () => {
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        puzzleSound: !state.settings.puzzleSound,
       },
     }));
   },
