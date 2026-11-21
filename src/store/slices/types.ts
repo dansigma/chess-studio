@@ -352,6 +352,7 @@ export type StudioState = {
   skipForward: () => void;
   training: boolean;
   trainingStart: Path | null;
+  trainingUserColor: "w" | "b";
   drillDueOnly: boolean;
   repertoireProgress: Record<string, SpacedRepetitionItem>;
   startTraining: () => void;

@@ -1,5 +1,6 @@
-import { repertoireMoves } from "./repertoire";
-import { getNodeAt, type GameTree, type Path } from "./tree";
+import { sideFromFen } from "./move-notation";
+import { getDueRepertoireMoves, repertoireMoves, type SpacedRepetitionItem } from "./repertoire";
+import { getFenAt, getNodeAt, type GameTree, type Path } from "./tree";
 
 export type TrainingAttempt =
   | { kind: "accepted"; path: Path }
@@ -16,4 +17,45 @@ export function trainingAttempt(tree: GameTree, path: Path, uci: string): Traini
     return { kind: "refused" };
   }
   return { kind: "accepted", path: match.path };
+}
+
+type Color = "w" | "b";
+
+export function trainingColor(board: {
+  repertoireColor?: "white" | "black" | null;
+  orientation: "white" | "black";
+}): Color {
+  return (board.repertoireColor ?? board.orientation) === "black" ? "b" : "w";
+}
+
+export function pickOpponentReply(
+  tree: GameTree,
+  path: Path,
+  progress: Record<string, SpacedRepetitionItem>,
+  rng: () => number = Math.random,
+): Path | null {
+  const opponent = sideFromFen(getFenAt(tree, path));
+  const now = new Date();
+  let bestScore = -1;
+  let bestPaths: Path[] = [];
+
+  for (const move of repertoireMoves(tree, path)) {
+    const node = getNodeAt(tree, move.path);
+    if (!node) {
+      continue;
+    }
+    const due = getDueRepertoireMoves({ startFen: node.fen, children: node.children }, progress, now);
+    const score = due.filter(({ fen }) => sideFromFen(fen) !== opponent).length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestPaths = [move.path];
+    } else if (score === bestScore) {
+      bestPaths.push(move.path);
+    }
+  }
+
+  if (bestPaths.length <= 1) {
+    return bestPaths[0] ?? null;
+  }
+  return bestPaths[Math.floor(rng() * bestPaths.length)];
 }
