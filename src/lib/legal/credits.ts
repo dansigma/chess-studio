@@ -7,7 +7,7 @@ import type { SiteLocale } from "@/src/i18n/locale";
 /** A piece of text, optionally a link. */
 export type CreditSegment = string | { text: string; href: string };
 
-export type CreditRow = { id: "engine" | "explorer" | "book" | "puzzles"; label: string; segments: CreditSegment[] };
+export type CreditRow = { id: "engine" | "explorer" | "book" | "catalog" | "puzzles"; label: string; segments: CreditSegment[] };
 
 export const LICENSE_URLS = {
   cc0: "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -167,6 +167,7 @@ type Copy = {
   engine: string;
   explorer: string;
   book: string;
+  catalog: string;
   puzzles: string;
   engineBefore: string;
   engineLicense: string;
@@ -187,6 +188,7 @@ const COPY: Record<SiteLocale, Copy> = {
     engine: "Engine",
     explorer: "Opening explorer",
     book: "Opening book (Game Review)",
+    catalog: "Opening catalog",
     puzzles: "Puzzles",
     engineBefore: "Stockfish 19 lite, runs locally. License ",
     engineLicense: "GPLv3",
@@ -204,6 +206,7 @@ const COPY: Record<SiteLocale, Copy> = {
     engine: "Engine",
     explorer: "Explorador de aberturas",
     book: "Livro de aberturas (Revisão de partida)",
+    catalog: "Catálogo de aberturas",
     puzzles: "Exercícios",
     engineBefore: "Stockfish 19 lite, executado localmente. Licença ",
     engineLicense: "GPLv3",
@@ -265,7 +268,7 @@ export function bookRow(locale: SiteLocale, manifest: BookManifestLike = OPENING
   return { id: "book", label: copy.book, segments };
 }
 
-/** Engine, explorer, book and puzzles rows, in the order of the About dialog. */
+/** Credits in the order of the About dialog. */
 export function creditRows(locale: SiteLocale, manifest: BookManifestLike = OPENING_BOOK_MANIFEST): CreditRow[] {
   const copy = COPY[locale];
   return [
@@ -288,6 +291,16 @@ export function creditRows(locale: SiteLocale, manifest: BookManifestLike = OPEN
       segments: [copy.explorerBefore, { text: "Lichess", href: "https://lichess.org" }, copy.explorerAfter],
     },
     bookRow(locale, manifest),
+    {
+      id: "catalog",
+      label: copy.catalog,
+      segments: [
+        { text: "Lichess Chess Openings", href: "https://github.com/lichess-org/chess-openings" },
+        " (",
+        { text: "CC0", href: LICENSE_URLS.cc0 },
+        ").",
+      ],
+    },
     {
       id: "puzzles",
       label: copy.puzzles,
