@@ -38,7 +38,7 @@ test("v2 manifest (no sources) credits only Lichess, CC0, no CC BY-SA claim", ()
 
 test("the deployed manifest renders", () => {
   const rows = creditRows("en");
-  assert.deepEqual(rows.map((r) => r.id), ["engine", "explorer", "book", "puzzles"]);
+  assert.deepEqual(rows.map((r) => r.id), ["engine", "explorer", "book", "catalog", "puzzles"]);
 });
 
 test("v3-shaped manifest lists all sources and the CC BY-SA statement", () => {
@@ -79,7 +79,7 @@ test("engine row links the GPLv3 text and both source repositories", () => {
 test("puzzles and explorer rows", () => {
   const rows = creditRows("en");
   assert.equal(text(rows[1].segments), "Public Lichess explorer (masters and online database).");
-  assert.equal(text(rows[3].segments), "Lichess puzzle database (CC0).");
+  assert.equal(text(rows[4].segments), "Lichess puzzle database (CC0).");
 });
 
 // SIG-1249: book v4 replaces the Broadcast subset with Lumbra's complete release (CC BY-NC 4.0).
@@ -110,5 +110,16 @@ test("v4 manifest credits Lumbra's complete GigaBase under CC BY-NC 4.0, with no
     const l = links(segments);
     assert.equal(l["Lumbra's GigaBase"], "https://lumbrasgigabase.com");
     assert.equal(l["CC BY-NC 4.0"], "https://creativecommons.org/licenses/by-nc/4.0/");
+  }
+});
+
+test("the opening catalog credits the Lichess dataset under CC0 in both locales", () => {
+  for (const locale of ["en", "pt-br"] as const) {
+    const row = creditRows(locale).find((row) => row.id === "catalog");
+    assert.ok(row);
+    assert.deepEqual(links(row.segments), {
+      "Lichess Chess Openings": "https://github.com/lichess-org/chess-openings",
+      CC0: "https://creativecommons.org/publicdomain/zero/1.0/",
+    });
   }
 });
