@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
@@ -8,13 +8,21 @@ import { getDueRepertoireMoves, repertoireMoves } from "@/src/chess/repertoire";
 import { trainingColor } from "@/src/chess/training";
 import { fenKey, getFenAt, getNodeAt } from "@/src/chess/tree";
 import { useActiveBoard } from "@/src/store/hooks";
+import { selectRepertoireBoard } from "@/src/store/slices/selectors";
+import type { BoardOrientation } from "@/src/store/slices/types";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "./ui/Button";
-import { Badge } from "./ui/Controls";
+import { Badge, Segmented } from "./ui/Controls";
 
 export function RepertoirePanel() {
   // SIG-857: shared active-board selector instead of the inline find.
   const board = useActiveBoard();
+  const whiteBoard = useStudioStore((state) => selectRepertoireBoard(state, "white"));
+  const blackBoard = useStudioStore((state) => selectRepertoireBoard(state, "black"));
+  const [missingSelection, setMissingSelection] = useState<{
+    boardId: string;
+    color: BoardOrientation;
+  } | null>(null);
   const locale = useStudioStore((state) => state.settings.locale);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const goPath = useStudioStore((state) => state.goPath);
@@ -37,10 +45,49 @@ export function RepertoirePanel() {
     [board.tree, repertoireProgress, color]
   );
   const dueCount = dueMoves.length;
+  const whiteTree = whiteBoard?.tree;
+  const blackTree = blackBoard?.tree;
+  const whiteDue = useMemo(
+    () => whiteTree ? getDueRepertoireMoves(whiteTree, repertoireProgress, "w").length : 0,
+    [whiteTree, repertoireProgress],
+  );
+  const blackDue = useMemo(
+    () => blackTree ? getDueRepertoireMoves(blackTree, repertoireProgress, "b").length : 0,
+    [blackTree, repertoireProgress],
+  );
+  const missingColor = missingSelection?.boardId === board.id &&
+    !(missingSelection.color === "white" ? whiteBoard : blackBoard)
+    ? missingSelection.color
+    : null;
+
+  function openRepertoire(color: BoardOrientation) {
+    const target = color === "white" ? whiteBoard : blackBoard;
+    setMissingSelection(target ? null : { boardId: board.id, color });
+    if (target && target.id !== board.id) {
+      useStudioStore.getState().setActiveBoard(target.id);
+    }
+  }
+
+  function markRepertoire(color: BoardOrientation) {
+    const store = useStudioStore.getState();
+    store.stopTraining();
+    store.setBoardRepertoire(board.id, color);
+    setMissingSelection(null);
+  }
+
+  function createRepertoire(color: BoardOrientation) {
+    const store = useStudioStore.getState();
+    store.stopTraining();
+    store.newBoard();
+    const { activeBoardId } = useStudioStore.getState();
+    store.setBoardRepertoire(activeBoardId, color);
+    store.renameBoard(activeBoardId, tPanels(locale, `repertoire.boardTitle.${color}`));
+    setMissingSelection(null);
+  }
 
   return (
     <div className="flex h-full flex-col bg-studio-panel text-body text-studio-fg">
-      <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-studio-border-subtle px-3 py-2">
         <div className="flex items-center gap-2">
           <span className="text-caption uppercase tracking-wide text-studio-faint">{tPanels(locale, "repertoire.title")}</span>
           <Badge tone={dueCount > 0 ? "accent" : "neutral"}>
@@ -49,6 +96,16 @@ export function RepertoirePanel() {
               : tPanels(locale, "repertoire.due.other", { count: dueCount })}
           </Badge>
         </div>
+        <Segmented<BoardOrientation>
+          compact
+          ariaLabel={tPanels(locale, "repertoire.colorSwitch")}
+          value={board.repertoireColor ?? null}
+          options={[
+            { value: "white", label: `${tPanels(locale, "repertoire.color.white")} ${whiteDue}` },
+            { value: "black", label: `${tPanels(locale, "repertoire.color.black")} ${blackDue}` },
+          ]}
+          onChange={openRepertoire}
+        />
         <span className="flex gap-2">
           {training ? (
             <>
@@ -77,6 +134,24 @@ export function RepertoirePanel() {
           )}
         </span>
       </div>
+      {(!board.repertoireColor || missingColor) && (
+        <div className="space-y-2 border-b border-studio-border-subtle px-3 py-2 text-dense text-studio-muted">
+          {!board.repertoireColor && <p>{tPanels(locale, "repertoire.unmarked")}</p>}
+          {missingColor && (
+            <>
+              <p aria-live="polite">{tPanels(locale, `repertoire.missing.${missingColor}`)}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" size="sm" onClick={() => markRepertoire(missingColor)}>
+                  {tPanels(locale, "repertoire.markBoard")}
+                </Button>
+                <Button variant="primary" size="sm" onClick={() => createRepertoire(missingColor)}>
+                  {tPanels(locale, "repertoire.createBoard")}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-auto">
         {training ? (
           miss ? (

@@ -251,7 +251,7 @@ export function Segmented<T extends string>({
   describedBy?: string;
   disabled?: boolean;
   compact?: boolean;
-  value: T;
+  value: T | null;
   options: readonly SegmentedOption<T>[];
   onChange: (value: T) => void;
 }) {
@@ -292,7 +292,7 @@ export function Segmented<T extends string>({
             aria-checked={selected}
             title={option.title}
             disabled={disabled}
-            tabIndex={selected ? 0 : -1}
+            tabIndex={selected || (value === null && index === 0) ? 0 : -1}
             onClick={() => onChange(option.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={`h-6 rounded disabled:text-studio-disabled ${
