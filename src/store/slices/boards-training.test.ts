@@ -158,3 +158,104 @@ test("due drill localizes wrong moves and completion statuses without recording 
   assert.equal(store().makeUciMove("e7", "e5"), false);
   assert.equal(store().statusMessage, "Linha concluída.");
 });
+
+test("due review replays each ply from the root and ignores moves until the question", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  seedTraining("1. e4 e5 2. Nf3 Nc6 *", { orientation: "black" });
+  store().toEnd();
+  store().recordRepertoireMove(store().active().tree.children[0].fen, "e7e5", true);
+  const progress = store().repertoireProgress;
+
+  store().startDueDrill();
+  assert.deepEqual(store().active().path, []);
+  assert.equal(store().dueDrill?.total, 1);
+  t.mock.timers.tick(300);
+  assert.deepEqual(store().active().path, [0]);
+  assert.equal(store().makeUciMove("e7", "e5"), false);
+  assert.equal(store().makeUciMove("c7", "c5"), false);
+  assert.equal(store().repertoireProgress, progress);
+  assert.equal(store().trainingMiss, null);
+  t.mock.timers.tick(300);
+  assert.deepEqual(store().active().path, [0, 0]);
+  t.mock.timers.tick(299);
+  assert.equal(store().dueDrill?.replaying, true);
+  t.mock.timers.tick(1);
+  assert.deepEqual(store().active().path, [0, 0, 0]);
+  assert.equal(store().dueDrill?.replaying, false);
+  assert.equal(store().makeUciMove("b8", "c6"), true);
+  assert.equal(store().training, false);
+});
+
+test("due moves on the current line come before a sibling variation", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  seedTraining("1. e4 (1. d4 d5 2. c4) e5 2. Nf3 *");
+  store().startDueDrill();
+
+  assert.equal(store().dueDrill?.total, 4);
+  assert.equal(store().makeUciMove("e2", "e4"), true);
+  assert.deepEqual(store().active().path, [0]);
+  assert.equal(store().dueDrill?.queue.length, 3);
+  t.mock.timers.tick(100);
+  store().skipDueReplay();
+  assert.deepEqual(store().active().path, [0, 0]);
+  assert.equal(store().makeUciMove("g1", "f3"), true);
+
+  assert.deepEqual(store().active().path, []);
+  assert.equal(store().dueDrill?.queue.length, 2);
+  assert.equal(store().makeUciMove("d2", "d4"), true);
+  t.mock.timers.tick(200);
+  assert.deepEqual(store().active().path, [1], "the skipped timer did not advance the new replay");
+  t.mock.timers.tick(100);
+  assert.deepEqual(store().active().path, [1, 0]);
+  assert.equal(store().makeUciMove("c2", "c4"), true);
+  assert.equal(store().training, false);
+});
+
+test("stopping, restarting, and switching boards invalidate pending due replay steps", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  seedTraining("1. e4 e5 *", { orientation: "black" });
+  store().startDueDrill();
+  store().stopTraining();
+  t.mock.timers.tick(300);
+  assert.deepEqual(store().active().path, []);
+
+  store().startDueDrill();
+  t.mock.timers.tick(200);
+  store().startDueDrill();
+  t.mock.timers.tick(100);
+  assert.deepEqual(store().active().path, []);
+
+  store().setActiveBoard("other");
+  t.mock.timers.tick(300);
+  assert.equal(store().dueDrill, null);
+  assert.ok(store().boards.every((board) => board.path.length === 0));
+});
+
+test("due replay skips targets removed from the tree", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  seedTraining("1. e4 e5 (1... c5) *", { orientation: "black" });
+  store().startDueDrill();
+  useStudioStore.setState({
+    boards: [{ ...store().active(), tree: importPgn("1. e4 c5 *").tree }],
+  });
+
+  t.mock.timers.tick(300);
+  assert.deepEqual(store().active().path, []);
+  assert.equal(store().dueDrill?.queue.length, 1);
+  store().skipDueReplay();
+  assert.deepEqual(store().active().path, [0]);
+  assert.equal(store().makeUciMove("c7", "c5"), true);
+});
+
+test("a different repertoire move keeps the current due question and hints its answer", () => {
+  seedTraining("1. e4 (1. d4) *");
+  store().startDueDrill();
+
+  assert.equal(store().makeUciMove("d2", "d4"), false);
+  assert.equal(store().statusMessage, "Try the move being reviewed");
+  assert.equal(store().trainingMiss?.uci, "e2e4");
+  assert.equal(store().dueDrill?.queue.length, 2);
+  assert.equal(store().repertoireProgress[repertoireMoveKey(START_FEN, "d2d4")], undefined);
+  assert.equal(store().makeUciMove("e2", "e4"), true);
+  assert.equal(store().makeUciMove("d2", "d4"), true);
+});

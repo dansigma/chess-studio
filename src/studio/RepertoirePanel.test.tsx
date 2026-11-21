@@ -260,15 +260,39 @@ test("translates training status card strings in pt-br", () => {
 });
 
 test("renders Button controls during drillDueOnly mode", () => {
-  useStudioStore.setState({ training: true, trainingStart: [], drillDueOnly: true });
+  useStudioStore.getState().startDueDrill();
 
   render(<RepertoirePanel />);
-  assert.ok(screen.getByText("Drilling due moves (1 remaining)"));
+  assert.ok(screen.getByText("Reviewing: 1 of 1"));
   const drillButton = screen.getByRole("button", { name: "Drill Due" });
   const stopButton = screen.getByRole("button", { name: "Stop" });
   assert.match(drillButton.className, /\bbg-studio-accent-solid\b/);
   assert.match(stopButton.className, /\btext-studio-muted\b/);
 });
+
+for (const [locale, progress, skip] of [
+  ["en", "Reviewing: 2 of 2", "Skip animation"],
+  ["pt-br", "Revisando: 2 de 2", "Pular animação"],
+] as const) {
+  test(`shows progress and skips replay in ${locale}`, (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const store = useStudioStore.getState();
+    const board = store.active();
+    useStudioStore.setState({
+      boards: [{ ...board, tree: importPgn("1. e4 e5 2. Nf3 *").tree }],
+      settings: { ...DEFAULT_SETTINGS, locale },
+    });
+    store.startDueDrill();
+    render(<RepertoirePanel />);
+    act(() => { store.makeUciMove("e2", "e4"); });
+
+    assert.equal(screen.getByRole("status").textContent, progress);
+    fireEvent.click(screen.getByRole("button", { name: skip }));
+    assert.deepEqual(useStudioStore.getState().active().path, [0, 0]);
+    assert.equal(screen.queryByRole("button", { name: skip }), null);
+    assert.equal(screen.getByRole("status").textContent, progress);
+  });
+}
 
 for (const [locale, feedback, hint] of [
   ["en", "Not in your repertoire", "Hint"],
