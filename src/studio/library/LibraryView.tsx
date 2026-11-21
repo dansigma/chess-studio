@@ -22,6 +22,7 @@ import {
   writeLibrarySplit,
 } from "./library-layout";
 import { LibraryTable } from "./LibraryTable";
+import { LibraryPartialNotice } from "./LibraryPartialNotice";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 import { LibraryPreview } from "./LibraryPreview";
 import { LibraryPlayers } from "./LibraryPlayers";
@@ -319,7 +320,7 @@ export function LibraryPlaceholderList({ games }: { games: LibraryGamesState }) 
     const noSources = filters.sources.length === 0 || (failed.length > 0 && failed.length >= filters.sources.length);
     return (
       <div className="flex flex-col items-start gap-2 p-4 text-sm text-studio-muted">
-        {failed.length > 0 && <PartialNotice failed={failed} />}
+        {failed.length > 0 && <LibraryPartialNotice failed={failed} onRetry={games.retry} textClassName="text-xs" />}
         <p>{tLibrary(locale, noSources ? "library.empty.noSources" : "library.empty.noMatch")}</p>
         {!noSources && hasActiveFilters(filters) && (
           <button type="button" className="rounded-md px-2 py-1 text-studio-accent" onClick={resetFilters}>
@@ -331,7 +332,7 @@ export function LibraryPlaceholderList({ games }: { games: LibraryGamesState }) 
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {failed.length > 0 && <PartialNotice failed={failed} />}
+      {failed.length > 0 && <LibraryPartialNotice failed={failed} onRetry={games.retry} textClassName="text-xs" />}
       {error && (
         <div role="alert" className="flex items-center gap-2 px-3 py-1 text-xs text-studio-fg">
           <span>{tLibrary(locale, "library.error.title", { message: error })}</span>
@@ -368,15 +369,6 @@ export function LibraryPlaceholderList({ games }: { games: LibraryGamesState }) 
           </li>
         )}
       </ul>
-    </div>
-  );
-}
-
-function PartialNotice({ failed }: { failed: string[] }) {
-  const locale = useStudioStore((state) => state.settings.locale);
-  return (
-    <div role="status" className="bg-studio-border/30 px-3 py-1 text-xs text-studio-muted">
-      {tLibrary(locale, "library.partial", { sources: failed.join(", ") })}
     </div>
   );
 }

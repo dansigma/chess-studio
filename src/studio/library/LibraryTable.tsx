@@ -15,6 +15,7 @@ import { outcomeFor, PlayerCell } from "../ui/PlayerCell";
 import { usePanelSize } from "../use-panel-size";
 import { moveSelection, nextSort, visibleColumns, type LibraryColumn } from "./library-columns";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
+import { LibraryPartialNotice } from "./LibraryPartialNotice";
 import { openLibraryGame, trainLibraryGame } from "./open-library-game";
 import type { LibraryGamesState } from "./use-library-games";
 import { nearEnd, useVirtualRows } from "./use-virtual-rows";
@@ -273,7 +274,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
     const noSources = filters.sources.length === 0 || (failed.length > 0 && failed.length >= filters.sources.length);
     return (
       <div className="flex flex-col items-start gap-2 p-4 text-dense text-studio-muted">
-        {failed.length > 0 && <PartialNotice failed={failed} />}
+        {failed.length > 0 && <LibraryPartialNotice failed={failed} onRetry={games.retry} />}
         <p>
           {tLibrary(
             locale,
@@ -296,7 +297,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
   const visible = items.slice(rows.start, rows.end);
   return (
     <div className="flex min-h-0 flex-1 flex-col text-dense text-studio-fg" data-testid="library-table">
-      {failed.length > 0 && <PartialNotice failed={failed} />}
+      {failed.length > 0 && <LibraryPartialNotice failed={failed} onRetry={games.retry} />}
       {error && (
         <div role="alert" className="flex items-center gap-2 px-3 py-1 text-caption text-studio-fg">
           <span>{tLibrary(locale, "library.error.title", { message: error })}</span>
@@ -422,13 +423,4 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
 
 function rowDomId(key: string): string {
   return `library-row-${key.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-}
-
-function PartialNotice({ failed }: { failed: string[] }) {
-  const locale = useStudioStore((state) => state.settings.locale);
-  return (
-    <div role="status" className="bg-studio-border/30 px-3 py-1 text-caption text-studio-muted">
-      {tLibrary(locale, "library.partial", { sources: failed.join(", ") })}
-    </div>
-  );
 }

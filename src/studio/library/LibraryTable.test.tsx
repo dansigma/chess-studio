@@ -226,3 +226,12 @@ test("Masters with other sources and a text search (no position) shows the posit
   rerender(<LibraryTable games={games(1)} />);
   assert.equal(screen.queryByTestId("library-masters-text-note"), null);
 });
+
+test("partial notice shows failed sources and its retry button calls retry", () => {
+  let retried = 0;
+  render(<LibraryTable games={games(1, { sourceErrors: { masters: "down" }, retry: () => { retried++; } })} />);
+  const status = screen.getByRole("status");
+  assert.match(status.textContent ?? "", /masters/);
+  fireEvent.click(within(status).getByRole("button", { name: "Try again" }));
+  assert.equal(retried, 1);
+});
