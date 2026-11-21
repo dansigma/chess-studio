@@ -255,3 +255,45 @@ function countUciAtFen(tree: GameTree, event: DeviationEvent, uci: string): numb
     path.length === 0 ? tree.children : (getNodeAt(tree, path)?.children ?? []);
   return siblings.filter((child) => child.uci === uci).length;
 }
+
+describe("SIG-1434 addVariationToRepertoire", () => {
+  it("creates a localized board marked for the chosen color", () => {
+    const book = treeFromSans(["e4", "c5"]).tree;
+    seedBoards(book, book);
+    useStudioStore.setState({
+      settings: { ...useStudioStore.getState().settings, locale: "pt-br" },
+    });
+
+    const board = useStudioStore.getState().addVariationToRepertoire(book, "black", "Siciliana");
+    assert.ok(board);
+    assert.equal(board.title, "Repertório de Pretas");
+    assert.equal(board.orientation, "black");
+    assert.equal(board.repertoireColor, "black");
+    assert.equal(board.dirty, true);
+    assert.equal(useStudioStore.getState().activeBoardId, board.id);
+    assert.equal(useStudioStore.getState().boards.length, 3);
+  });
+
+  it("activates and dirties the marked board and reports added lines and kept conflicts", () => {
+    const repertoire = treeFromPgn("1. e4 e5 2. Bc4 *");
+    const book = treeFromPgn("1. e4 e5 (1... c5 2. Nf3) 2. Nf3 *");
+    seedBoards(repertoire, book);
+    useStudioStore.setState({
+      settings: { ...useStudioStore.getState().settings, locale: "en" },
+    });
+
+    assert.equal(useStudioStore.getState().addVariationToRepertoire(book, "white", "King's Pawn"), null);
+    assert.equal(useStudioStore.getState().activeBoardId, "game-board");
+    assert.equal(useStudioStore.getState().boards[0].dirty, false);
+    const board = useStudioStore.getState().resolveVariationMerge({});
+    assert.ok(board);
+    assert.equal(board.id, "rep-white");
+    assert.equal(board.dirty, true);
+    assert.equal(getNodeAt(board.tree, [0, 0, 0])?.san, "Bc4");
+    assert.equal(getNodeAt(board.tree, [0, 1, 0])?.san, "Nf3");
+    assert.equal(useStudioStore.getState().activeBoardId, board.id);
+    assert.equal(useStudioStore.getState().boards.length, 2);
+    assert.equal(useStudioStore.getState().pendingVariationMerge, null);
+    assert.equal(useStudioStore.getState().statusMessage, "King's Pawn added: 1 new line, 1 conflict kept");
+  });
+});

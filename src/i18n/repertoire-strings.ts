@@ -49,6 +49,18 @@ export const REPERTOIRE_STRING_KEYS = [
   "variation.preview",
   "variation.capped",
   "variation.add",
+  "variation.mergeTitle",
+  "variation.mergeConflict",
+  "variation.keepMine",
+  "variation.useBook",
+  "variation.mergeConfirm",
+  "variation.mergeCancel",
+  "variation.mergeSummary",
+  "variation.newLines.one",
+  "variation.newLines.other",
+  "variation.keptConflicts.one",
+  "variation.keptConflicts.other",
+  "variation.mergeBoardChanged",
 ] as const;
 
 export type RepertoireStringKey = (typeof REPERTOIRE_STRING_KEYS)[number];
@@ -99,6 +111,18 @@ const EN: Record<RepertoireStringKey, string> = {
   "variation.preview": "~{lines} lines, ~{moves} moves of yours",
   "variation.capped": "The repertoire reached the move limit. Some continuations were omitted.",
   "variation.add": "Add to repertoire",
+  "variation.mergeTitle": "Resolve repertoire conflicts",
+  "variation.mergeConflict": "Move {number}: your repertoire plays {mine}, the book suggests {book}",
+  "variation.keepMine": "Keep mine",
+  "variation.useBook": "Use the book move",
+  "variation.mergeConfirm": "Confirm",
+  "variation.mergeCancel": "Cancel",
+  "variation.mergeSummary": "{title} added: {lines}, {conflicts}",
+  "variation.newLines.one": "{count} new line",
+  "variation.newLines.other": "{count} new lines",
+  "variation.keptConflicts.one": "{count} conflict kept",
+  "variation.keptConflicts.other": "{count} conflicts kept",
+  "variation.mergeBoardChanged": "The marked repertoire board changed. Add the variation again.",
 };
 
 const PT_BR: Record<RepertoireStringKey, string> = {
@@ -147,6 +171,18 @@ const PT_BR: Record<RepertoireStringKey, string> = {
   "variation.preview": "~{lines} linhas, ~{moves} lances seus",
   "variation.capped": "O repertório atingiu o limite de lances. Algumas continuações foram omitidas.",
   "variation.add": "Adicionar ao repertório",
+  "variation.mergeTitle": "Resolver conflitos no repertório",
+  "variation.mergeConflict": "Lance {number}: seu repertório joga {mine}, o livro sugere {book}",
+  "variation.keepMine": "Manter o meu",
+  "variation.useBook": "Usar o do livro",
+  "variation.mergeConfirm": "Confirmar",
+  "variation.mergeCancel": "Cancelar",
+  "variation.mergeSummary": "{title} adicionada: {lines}, {conflicts}",
+  "variation.newLines.one": "{count} linha nova",
+  "variation.newLines.other": "{count} linhas novas",
+  "variation.keptConflicts.one": "{count} conflito mantido",
+  "variation.keptConflicts.other": "{count} conflitos mantidos",
+  "variation.mergeBoardChanged": "O tabuleiro marcado como repertório mudou. Adicione a variante novamente.",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;

@@ -1,4 +1,5 @@
 import type { Scope } from "@/src/chess/repertoire-scope";
+import type { VariationMergeConflict, VariationMergeDecisions } from "@/src/chess/repertoire-merge";
 import type { SiteLocale } from "@/src/i18n/locale";
 import type { BoardTheme } from "@/src/chess/board-themes";
 import type { PieceSet } from "@/src/chess/piece-sets";
@@ -376,7 +377,17 @@ export type StudioState = {
   hydrateMistakeExercises: () => Promise<void>;
   renameActive: (title: string) => void;
   renameBoard: (id: string, title: string) => void;
-  addVariationToRepertoire: (tree: GameTree, color: BoardOrientation, title: string) => void;
+  pendingVariationMerge: {
+    boardId: string;
+    repertoire: GameTree;
+    book: GameTree;
+    color: BoardOrientation;
+    title: string;
+    conflicts: VariationMergeConflict[];
+  } | null;
+  addVariationToRepertoire: (tree: GameTree, color: BoardOrientation, title: string) => BoardSession | null;
+  resolveVariationMerge: (decisions: VariationMergeDecisions) => BoardSession | null;
+  cancelVariationMerge: () => void;
   setBoardRepertoire: (boardId: string, color: BoardOrientation | null) => void;
   trainDeviationLine: (event: DeviationEvent, color: BoardOrientation) => void;
   addGapToRepertoire: (event: DeviationEvent, color: BoardOrientation) => void;
