@@ -11,12 +11,14 @@ import { useActiveBoard } from "@/src/store/hooks";
 import { selectRepertoireBoard } from "@/src/store/slices/selectors";
 import type { BoardOrientation } from "@/src/store/slices/types";
 import { useStudioStore } from "@/src/store/studio-store";
+import { AddVariationDialog } from "./repertoire/AddVariationDialog";
 import { Button } from "./ui/Button";
 import { Badge, Segmented } from "./ui/Controls";
 
 export function RepertoirePanel() {
   // SIG-857: shared active-board selector instead of the inline find.
   const board = useActiveBoard();
+  const [addingVariation, setAddingVariation] = useState(false);
   const whiteBoard = useStudioStore((state) => selectRepertoireBoard(state, "white"));
   const blackBoard = useStudioStore((state) => selectRepertoireBoard(state, "black"));
   const [missingSelection, setMissingSelection] = useState<{
@@ -108,6 +110,9 @@ export function RepertoirePanel() {
           ]}
           onChange={openRepertoire}
         />
+        <Button variant="secondary" size="sm" onClick={() => setAddingVariation(true)}>
+          {tRepertoire(locale, "variation.title")}
+        </Button>
         <span className="flex gap-2">
           {training ? (
             <>
@@ -136,6 +141,9 @@ export function RepertoirePanel() {
           )}
         </span>
       </div>
+      {addingVariation && (
+        <AddVariationDialog defaultColor={board.repertoireColor ?? "white"} onClose={() => setAddingVariation(false)} />
+      )}
       {(!board.repertoireColor || missingColor) && (
         <div className="space-y-2 border-b border-studio-border-subtle px-3 py-2 text-dense text-studio-muted">
           {!board.repertoireColor && <p>{tPanels(locale, "repertoire.unmarked")}</p>}

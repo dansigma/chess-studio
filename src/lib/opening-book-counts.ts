@@ -21,16 +21,19 @@ async function download(file: string): Promise<CountsBook | null> {
 }
 
 /** Loads the optional counts book on demand, sharing the download across callers; null when absent or failed (retried after RETRY_MS). */
-export async function loadCountsBook(): Promise<CountsBook | null> {
+export async function loadCountsBook({ retry = false }: { retry?: boolean } = {}): Promise<CountsBook | null> {
   const file = manifest.countsFile;
   if (!file || loaded) {
     return loaded;
   }
+  if (loading) {
+    return loading;
+  }
   const now = Date.now();
-  if (failedAt !== null && now - failedAt < RETRY_MS) {
+  if (!retry && failedAt !== null && now - failedAt < RETRY_MS) {
     return null;
   }
-  loading ??= download(file).then((book) => {
+  loading = download(file).then((book) => {
     loaded = book;
     failedAt = book ? null : now;
     loading = null;

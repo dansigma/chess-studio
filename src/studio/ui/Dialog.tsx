@@ -14,6 +14,7 @@ export function Dialog({
   footer,
   hint,
   width = "w-[28rem]",
+  fullScreenOnMobile = false,
   children,
 }: {
   title: ReactNode;
@@ -21,6 +22,7 @@ export function Dialog({
   footer?: ReactNode;
   hint?: ReactNode;
   width?: string;
+  fullScreenOnMobile?: boolean;
   children: ReactNode;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -46,7 +48,7 @@ export function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-[1100] flex items-center justify-center bg-studio-scrim p-4"
+      className={`fixed inset-0 z-[1100] flex items-center justify-center bg-studio-scrim ${fullScreenOnMobile ? "md:p-4" : "p-4"}`}
       onClick={onClose}
     >
       <div
@@ -54,7 +56,7 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`${width} flex max-h-[calc(100dvh-2rem)] max-w-full flex-col animate-[studio-dialog-in_160ms_ease-out] rounded-xl border border-studio-border-strong bg-studio-elevated shadow-2xl`}
+        className={`${width} flex max-w-full flex-col animate-[studio-dialog-in_160ms_ease-out] ${fullScreenOnMobile ? "h-dvh md:h-auto md:max-h-[calc(100dvh-2rem)] md:rounded-xl md:border" : "max-h-[calc(100dvh-2rem)] rounded-xl border"} border-studio-border-strong bg-studio-elevated shadow-2xl`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between gap-3 px-4 pb-1 pt-3.5">
