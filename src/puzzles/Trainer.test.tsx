@@ -425,3 +425,23 @@ test("speaker button toggles puzzleSound independently of moveSound and plays di
 });
 
 
+test("a mode reload clears the wrong-move shake so the fresh board does not shake (SIG-1422)", async () => {
+  ctl.catalog = [UNDERPROMO_PUZZLE];
+  const { rerender } = render(<PuzzleTrainer />);
+  await waitFor(() => {
+    assert.equal(screen.getByTestId("trainer-board").getAttribute("data-position"), UNDERPROMO_PUZZLE.fen);
+  });
+  act(() => {
+    ctl.boardOptions.onPieceDrop?.({ sourceSquare: "e7", targetSquare: "f8" });
+  });
+  fireEvent.click(within(screen.getByTestId("promotion-picker")).getByRole("button", { name: "Promote to Queen" }));
+  assert.match(screen.getByTestId("puzzle-board-frame").style.animation, /puzzle-shake/);
+
+  ctl.search = "mode=streak";
+  ctl.catalog = [CATALOG_3PLY];
+  rerender(<PuzzleTrainer />);
+  await waitFor(() => {
+    assert.equal(screen.getByTestId("trainer-board").getAttribute("data-position"), CATALOG_3PLY.fen);
+  });
+  assert.equal(screen.getByTestId("puzzle-board-frame").style.animation, "");
+});

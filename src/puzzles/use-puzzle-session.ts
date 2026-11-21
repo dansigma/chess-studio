@@ -484,6 +484,8 @@ export function usePuzzleSession({
           setHintLevel(0);
           setReveal(false);
           setMiss(null);
+          setWrongTick(0);
+          setCorrectTick(0);
           setLoadError(false);
           return;
         }
@@ -546,6 +548,8 @@ export function usePuzzleSession({
         setHintLevel(0);
         setReveal(false);
         setMiss(null);
+        setWrongTick(0);
+        setCorrectTick(0);
         setLoadError(false);
       } catch (error) {
         console.error("Failed to load puzzle progress.", error);

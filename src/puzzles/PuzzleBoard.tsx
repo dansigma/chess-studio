@@ -136,7 +136,7 @@ export function PuzzleBoard({
       <div
         className="relative size-[min(100cqw,100cqh,520px)] lg:size-[min(100cqw,100cqh)] overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong"
         style={
-          wrongTick > 0
+          wrongTick > 0 && status === "failed"
             ? { animation: `${wrongTick % 2 === 1 ? "puzzle-shake" : "puzzle-shake-alt"} 300ms ease-out` }
             : undefined
         }
