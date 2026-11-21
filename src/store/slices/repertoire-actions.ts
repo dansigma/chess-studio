@@ -16,7 +16,7 @@ import type { BoardOrientation, StudioState } from "./types";
 
 export type RepertoireActionsSlice = Pick<
   StudioState,
-  "trainDeviationLine" | "addGapToRepertoire"
+  "trainDeviationLine" | "addGapToRepertoire" | "addVariationToRepertoire"
 >;
 
 function parseUci(playedUci: string): { from: string; to: string; promotion?: string } | null {
@@ -35,6 +35,19 @@ export const createRepertoireActionsSlice: StateCreator<
   [],
   RepertoireActionsSlice
 > = (set, get) => ({
+  // SIG-1434 replaces the new-board behavior with a merge into the marked repertoire.
+  addVariationToRepertoire: (tree, color, title) => {
+    get().newBoard();
+    set((state) => ({
+      boards: withActive(state.boards, state.activeBoardId, (board) => ({
+        ...board,
+        tree,
+        orientation: color,
+        title,
+        dirty: true,
+      })),
+    }));
+  },
   trainDeviationLine: (event: DeviationEvent, color: BoardOrientation) => {
     if (event.kind !== "user_deviation" || !event.repertoireMoves[0]) {
       return;

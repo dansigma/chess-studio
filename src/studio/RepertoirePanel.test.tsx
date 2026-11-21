@@ -322,3 +322,13 @@ for (const [locale, feedback, hint] of [
     assert.equal(screen.queryByRole("button", { name: hint }), null);
   });
 }
+
+test("opens Add variation with the active repertoire color selected", async () => {
+  const [board] = useStudioStore.getState().boards;
+  useStudioStore.setState({ boards: [{ ...board, repertoireColor: "black" }] });
+  render(<RepertoirePanel />);
+  fireEvent.click(screen.getByRole("button", { name: "Add variation" }));
+  const dialog = screen.getByRole("dialog", { name: "Add variation" });
+  assert.equal(within(dialog).getByRole("radio", { name: "Black" }).getAttribute("aria-checked"), "true");
+  await within(dialog).findByRole("button", { name: "Sicilian Defense" });
+});

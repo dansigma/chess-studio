@@ -14,7 +14,7 @@ test("returns null without fetching when the manifest omits countsFile", async (
   assert.equal(fetch.mock.callCount(), 0);
 });
 
-test("shares the counts download and retries after the failure window", async (t) => {
+test("shares downloads, retries after the failure window, and supports immediate retry", async (t) => {
   manifest.countsFile = "opening-book-counts-v1.bin.gz";
   let now = 1000;
   t.mock.method(Date, "now", () => now);
@@ -27,10 +27,15 @@ test("shares the counts download and retries after the failure window", async (t
   assert.equal(fetch.mock.callCount(), 1);
 
   now += 5 * 60_000;
-  const [first, second] = await Promise.all([loadCountsBook(), loadCountsBook()]);
+  fetch.mock.mockImplementationOnce(async () => new Response(null, { status: 503 }));
+  assert.equal(await loadCountsBook(), null);
+  assert.equal(await loadCountsBook(), null);
+  assert.equal(fetch.mock.callCount(), 2);
+
+  const [first, second] = await Promise.all([loadCountsBook({ retry: true }), loadCountsBook()]);
   assert.equal(first, second);
   assert.deepEqual(first?.positionFor(0n), { total: 100, moves: [{ uci: "e2e4", games: 40 }] });
   assert.equal(await loadCountsBook(), first);
-  assert.equal(fetch.mock.callCount(), 2);
-  assert.equal(fetch.mock.calls[1].arguments[0], "/book/opening-book-counts-v1.bin.gz");
+  assert.equal(fetch.mock.callCount(), 3);
+  assert.equal(fetch.mock.calls[2].arguments[0], "/book/opening-book-counts-v1.bin.gz");
 });
