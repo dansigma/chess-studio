@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { getDueRepertoireMoves, repertoireMoves } from "@/src/chess/repertoire";
+import { trainingColor } from "@/src/chess/training";
 import { getFenAt, getNodeAt } from "@/src/chess/tree";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -26,9 +27,10 @@ export function RepertoirePanel() {
   const fen = getFenAt(board.tree, board.path);
   const side = sideFromFen(fen);
 
+  const color = trainingColor(board);
   const dueMoves = useMemo(
-    () => getDueRepertoireMoves(board.tree, repertoireProgress),
-    [board.tree, repertoireProgress]
+    () => getDueRepertoireMoves(board.tree, repertoireProgress, color),
+    [board.tree, repertoireProgress, color]
   );
   const dueCount = dueMoves.length;
 
@@ -47,7 +49,7 @@ export function RepertoirePanel() {
           {training ? (
             <>
               {drillDueOnly ? (
-                <Button variant="primary" size="sm" onClick={startDueDrill}>
+                <Button variant="primary" size="sm" disabled={dueCount === 0} onClick={startDueDrill}>
                   {tPanels(locale, "repertoire.drillDue")}
                 </Button>
               ) : (
