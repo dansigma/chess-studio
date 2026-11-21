@@ -1,3 +1,5 @@
+import { validateFen } from "chess.js";
+import { OTHER_LINES, TRAINING_DEPTHS, type Scope } from "@/src/chess/repertoire-scope";
 import { DEFAULT_SITE_LOCALE, siteLocaleFromLanguage, isSiteLocale } from "@/src/i18n/locale";
 import { isBoardTheme } from "@/src/chess/board-themes";
 import { isPieceSet } from "@/src/chess/piece-sets";
@@ -25,6 +27,7 @@ import type { StudioSettings, StudioState } from "./types";
 export const SETTINGS_KEY = "studio-clone-settings";
 
 export const DEFAULT_SETTINGS: StudioSettings = {
+  trainingScope: {},
   showCoordinates: true,
   showEvalBar: true,
   boardTheme: "studio",
@@ -46,6 +49,27 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   locale: DEFAULT_SITE_LOCALE,
 };
 
+function readScope(value: unknown): Scope | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const scope: Scope = {};
+  if ("variationFen" in value && typeof value.variationFen === "string" &&
+    (value.variationFen === OTHER_LINES || validateFen(`${value.variationFen} 0 1`).ok)) {
+    scope.variationFen = value.variationFen;
+  }
+  if ("maxMove" in value) {
+    const maxMove = TRAINING_DEPTHS.find((depth) => depth === value.maxMove);
+    if (maxMove !== undefined) scope.maxMove = maxMove;
+  }
+  return Object.keys(scope).length ? scope : undefined;
+}
+
+function readTrainingScope(value: unknown): StudioSettings["trainingScope"] {
+  if (!value || typeof value !== "object") return {};
+  const white = readScope("white" in value ? value.white : undefined);
+  const black = readScope("black" in value ? value.black : undefined);
+  return { ...(white && { white }), ...(black && { black }) };
+}
+
 export function loadLocalSettings(): StudioSettings {
   if (typeof window === "undefined") {
     return DEFAULT_SETTINGS;
@@ -57,6 +81,7 @@ export function loadLocalSettings(): StudioSettings {
     }
     const parsed = JSON.parse(raw) as Partial<StudioSettings>;
     return {
+      trainingScope: readTrainingScope(parsed.trainingScope),
       showCoordinates:
         typeof parsed.showCoordinates === "boolean"
           ? parsed.showCoordinates
@@ -115,6 +140,7 @@ export function loadLocalSettings(): StudioSettings {
 
 export type SettingsSlice = Pick<
   StudioState,
+  | "setTrainingScope"
   | "toggleCoordinates"
   | "toggleMoveSound"
   | "togglePuzzleSound"
@@ -143,7 +169,16 @@ export type SettingsSlice = Pick<
 // SIG-944: settings state/actions used to live inline in studio-store.ts. The
 // store still owns the `settings` field itself (it spreads this slice alongside
 // the others); this module owns every action that mutates it.
-export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlice> = (set) => ({
+export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlice> = (set, get) => ({
+  setTrainingScope: (color, scope) => {
+    get().stopTraining();
+    set((state) => ({
+      settings: {
+        ...state.settings,
+        trainingScope: { ...state.settings.trainingScope, [color]: readScope(scope) ?? {} },
+      },
+    }));
+  },
   toggleCoordinates: () => {
     set((state) => ({
       settings: {

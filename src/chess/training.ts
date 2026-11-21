@@ -1,3 +1,4 @@
+import type { RepertoireScopeFilter } from "./repertoire-scope";
 import { sideFromFen } from "./move-notation";
 import { getDueRepertoireMoves, repertoireMoves, type SpacedRepetitionItem } from "./repertoire";
 import { getFenAt, getNodeAt, type GameTree, type Path } from "./tree";
@@ -7,8 +8,8 @@ export type TrainingAttempt =
   | { kind: "refused" }
   | { kind: "complete" };
 
-export function trainingAttempt(tree: GameTree, path: Path, uci: string): TrainingAttempt {
-  const moves = repertoireMoves(tree, path);
+export function trainingAttempt(tree: GameTree, path: Path, uci: string, filter?: RepertoireScopeFilter): TrainingAttempt {
+  const moves = repertoireMoves(tree, path, filter);
   if (moves.length === 0) {
     return { kind: "complete" };
   }
@@ -33,13 +34,14 @@ export function pickOpponentReply(
   path: Path,
   progress: Record<string, SpacedRepetitionItem>,
   rng: () => number = Math.random,
+  filter?: RepertoireScopeFilter,
 ): Path | null {
   const userColor = sideFromFen(getFenAt(tree, path)) === "w" ? "b" : "w";
   const now = new Date();
   let bestScore = -1;
   let bestPaths: Path[] = [];
 
-  for (const move of repertoireMoves(tree, path)) {
+  for (const move of repertoireMoves(tree, path, filter)) {
     const node = getNodeAt(tree, move.path);
     if (!node) {
       continue;
@@ -49,6 +51,7 @@ export function pickOpponentReply(
       progress,
       userColor,
       now,
+      filter && ((path, fen) => filter([...move.path, ...path], fen)),
     ).length;
     if (score > bestScore) {
       bestScore = score;

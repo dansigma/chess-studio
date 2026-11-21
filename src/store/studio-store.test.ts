@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { START_FEN, createEmptyTree, getFenAt } from "../chess/tree.ts";
+import { START_FEN, createEmptyTree, fenKey, getFenAt } from "../chess/tree.ts";
 import { importPgn } from "../chess/pgn.ts";
 import { repertoireMoveKey, scheduleReview } from "../chess/repertoire.ts";
 import { loadLocalBookmarks, saveLocalBookmarks, type PlayerBookmark } from "../lib/player-bookmarks.ts";
@@ -574,6 +574,42 @@ test("SIG-923: store spaced repetition drill engine updates progress and complet
   assert.equal(state.statusMessage, "No reviews due.");
 });
 
+
+test("SIG-1435: free replies and due review use the chosen branch and depth", (t) => {
+  resetStore();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { tree } = importPgn(`[SetUp "1"]
+[FEN "${START_FEN.replace(/ 1$/, " 9")}"]
+
+9. e4 e5 (9... c5 10. Nf3 d6 11. d4) 10. Bc4 Nc6 11. d3 *`);
+  const store = useStudioStore.getState();
+  const board = store.active();
+  useStudioStore.setState({
+    boards: [{ ...board, tree, path: [0, 0], repertoireColor: "white" }],
+  });
+  store.setTrainingScope("white", { variationFen: fenKey(getFenAt(tree, [0, 1])), maxMove: 10 });
+
+  store.startTraining();
+  assert.deepEqual(store.active().path, []);
+  assert.equal(store.makeUciMove("e2", "e4"), true);
+  t.mock.timers.tick(400);
+  assert.deepEqual(store.active().path, [0, 1]);
+  assert.equal(store.makeUciMove("g1", "f3"), true);
+  t.mock.timers.tick(400);
+  assert.deepEqual(store.active().path, [0, 1, 0, 0]);
+  assert.equal(useStudioStore.getState().statusMessage, "Line complete.");
+  assert.equal(store.makeUciMove("d2", "d4"), false);
+
+  store.stopTraining();
+  useStudioStore.setState({ repertoireProgress: {} });
+  store.startDueDrill();
+  assert.deepEqual(useStudioStore.getState().dueDrill?.queue.map(({ uci }) => uci), ["e2e4", "g1f3"]);
+  assert.equal(store.makeUciMove("e2", "e4"), true);
+  store.skipDueReplay();
+  assert.deepEqual(store.active().path, [0, 1]);
+  assert.equal(store.makeUciMove("g1", "f3"), true);
+  assert.equal(useStudioStore.getState().dueDrill, null);
+});
 
 test("boardPreview shows a localized starting position for a board with no moves", () => {
   const board = emptyBoard("Board", "preview-test");

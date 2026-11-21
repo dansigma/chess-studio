@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { getDueRepertoireMoves, repertoireMoves } from "@/src/chess/repertoire";
+import { OTHER_LINES, TRAINING_DEPTHS, repertoireCatalogIndex, repertoireVariations, scopeFilter, type Scope } from "@/src/chess/repertoire-scope";
+import { loadCatalog, type CatalogEntry } from "@/src/lib/openings-catalog";
+import { localizeOpeningName } from "@/src/lib/opening-names";
 import { trainingColor } from "@/src/chess/training";
 import { fenKey, getFenAt, getNodeAt } from "@/src/chess/tree";
 import { useActiveBoard } from "@/src/store/hooks";
@@ -38,27 +41,71 @@ export function RepertoirePanel() {
   const startTraining = useStudioStore((state) => state.startTraining);
   const startDueDrill = useStudioStore((state) => state.startDueDrill);
   const stopTraining = useStudioStore((state) => state.stopTraining);
-  const moves = repertoireMoves(board.tree, board.path);
+  const scopes = useStudioStore((state) => state.settings.trainingScope);
+  const setTrainingScope = useStudioStore((state) => state.setTrainingScope);
+  const trainingUserColor = useStudioStore((state) => state.trainingUserColor);
+  const trainingCatalogPositions = useStudioStore((state) => state.trainingCatalogPositions);
+  const [catalog, setCatalog] = useState<readonly CatalogEntry[]>();
+  useEffect(() => {
+    let active = true;
+    void loadCatalog().then((entries) => {
+      if (active) setCatalog(entries);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+  const catalogPositions = useMemo(
+    () => catalog && repertoireCatalogIndex(catalog),
+    [catalog],
+  );
   const fen = getFenAt(board.tree, board.path);
   const side = sideFromFen(fen);
   const miss = trainingMiss?.fenKey === fenKey(fen) ? trainingMiss : null;
 
   const color = trainingColor(board);
-  const dueMoves = useMemo(
-    () => getDueRepertoireMoves(board.tree, repertoireProgress, color),
-    [board.tree, repertoireProgress, color]
+  const scopeColor = color === "w" ? "white" : "black";
+  const scope = scopes[scopeColor];
+  const filter = useMemo(() => scopeFilter(board.tree, scope, catalogPositions), [board.tree, catalogPositions, scope]);
+  const moves = repertoireMoves(board.tree, board.path, training && !drillDueOnly
+    ? scopeFilter(board.tree, scopes[trainingUserColor === "w" ? "white" : "black"], trainingCatalogPositions)
+    : undefined);
+  const dueCount = useMemo(
+    () => getDueRepertoireMoves(board.tree, repertoireProgress, color, undefined, filter).length,
+    [board.tree, repertoireProgress, color, filter],
   );
-  const dueCount = dueMoves.length;
   const whiteTree = whiteBoard?.tree;
   const blackTree = blackBoard?.tree;
   const whiteDue = useMemo(
-    () => whiteTree ? getDueRepertoireMoves(whiteTree, repertoireProgress, "w").length : 0,
-    [whiteTree, repertoireProgress],
+    () => whiteTree ? getDueRepertoireMoves(whiteTree, repertoireProgress, "w", undefined,
+      scopeFilter(whiteTree, scopes.white, catalogPositions)).length : 0,
+    [whiteTree, repertoireProgress, scopes.white, catalogPositions],
   );
   const blackDue = useMemo(
-    () => blackTree ? getDueRepertoireMoves(blackTree, repertoireProgress, "b").length : 0,
-    [blackTree, repertoireProgress],
+    () => blackTree ? getDueRepertoireMoves(blackTree, repertoireProgress, "b", undefined,
+      scopeFilter(blackTree, scopes.black, catalogPositions)).length : 0,
+    [blackTree, repertoireProgress, scopes.black, catalogPositions],
   );
+  const variationFen = scope?.variationFen;
+  const maxMove = scope?.maxMove;
+  const variations = useMemo(
+    () => catalog ? repertoireVariations(board.tree, catalog, variationFen) : [],
+    [board.tree, catalog, variationFen],
+  );
+  const variationCounts = useMemo(() => variations.map(({ id }) =>
+    getDueRepertoireMoves(board.tree, repertoireProgress, color, undefined,
+      scopeFilter(board.tree, { variationFen: id, maxMove }, catalogPositions)).length,
+  ), [board.tree, repertoireProgress, color, maxMove, catalogPositions, variations]);
+  const otherMissing = variationFen === OTHER_LINES && !variations.some(({ id }) => id === OTHER_LINES);
+  const otherCatalogPositions = variationFen === OTHER_LINES ? catalogPositions : undefined;
+  const unavailable = variationFen === OTHER_LINES && !otherCatalogPositions;
+
+  function dueLabel(count: number) {
+    return tPanels(locale, count === 1 ? "repertoire.due.one" : "repertoire.due.other", { count });
+  }
+
+  function changeScope(patch: Scope) {
+    setTrainingScope(scopeColor, { ...scope, ...patch });
+  }
+
   const missingColor = missingSelection?.boardId === board.id &&
     !(missingSelection.color === "white" ? whiteBoard : blackBoard)
     ? missingSelection.color
@@ -95,9 +142,7 @@ export function RepertoirePanel() {
         <div className="flex items-center gap-2">
           <span className="text-caption uppercase tracking-wide text-studio-faint">{tPanels(locale, "repertoire.title")}</span>
           <Badge tone={dueCount > 0 ? "accent" : "neutral"}>
-            {dueCount === 1
-              ? tPanels(locale, "repertoire.due.one", { count: dueCount })
-              : tPanels(locale, "repertoire.due.other", { count: dueCount })}
+            {dueLabel(dueCount)}
           </Badge>
         </div>
         <Segmented<BoardOrientation>
@@ -117,11 +162,11 @@ export function RepertoirePanel() {
           {training ? (
             <>
               {drillDueOnly ? (
-                <Button variant="primary" size="sm" disabled={dueCount === 0} onClick={startDueDrill}>
+                <Button variant="primary" size="sm" disabled={unavailable || dueCount === 0} onClick={() => startDueDrill(otherCatalogPositions)}>
                   {tPanels(locale, "repertoire.drillDue")}
                 </Button>
               ) : (
-                <Button variant="primary" size="sm" onClick={startTraining}>
+                <Button variant="primary" size="sm" disabled={unavailable} onClick={() => startTraining(otherCatalogPositions)}>
                   {tPanels(locale, "repertoire.trainAgain")}
                 </Button>
               )}
@@ -131,10 +176,10 @@ export function RepertoirePanel() {
             </>
           ) : (
             <>
-              <Button variant="secondary" size="sm" onClick={startTraining}>
+              <Button variant="secondary" size="sm" disabled={unavailable} onClick={() => startTraining(otherCatalogPositions)}>
                 {tPanels(locale, "repertoire.train")}
               </Button>
-              <Button variant="primary" size="sm" disabled={dueCount === 0} onClick={startDueDrill}>
+              <Button variant="primary" size="sm" disabled={unavailable || dueCount === 0} onClick={() => startDueDrill(otherCatalogPositions)}>
                 {tPanels(locale, "repertoire.drillDue")}
               </Button>
             </>
@@ -144,6 +189,40 @@ export function RepertoirePanel() {
       {addingVariation && (
         <AddVariationDialog defaultColor={board.repertoireColor ?? "white"} onClose={() => setAddingVariation(false)} />
       )}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-studio-border-subtle px-3 py-2 text-dense">
+        <label className="flex min-w-0 items-center gap-2">
+          <span className="text-studio-muted">{tPanels(locale, "repertoire.variation")}</span>
+          <select
+            className="min-w-0 rounded-lg border border-studio-border bg-studio-elevated px-2 py-1 text-studio-fg"
+            value={variationFen && (variations.some(({ id }) => id === variationFen) || otherMissing)
+              ? variationFen
+              : ""}
+            onChange={(event) => changeScope({ variationFen: event.target.value || undefined })}
+          >
+            <option value="">{tPanels(locale, "repertoire.allVariations")}</option>
+            {otherMissing && <option value={OTHER_LINES}>{tPanels(locale, "repertoire.otherLines")} ({dueLabel(0)})</option>}
+            {variations.map(({ id, name, eco }, index) => (
+              <option key={id} value={id}>
+                {id === OTHER_LINES ? tPanels(locale, "repertoire.otherLines") : localizeOpeningName(name, locale, eco)}
+                {" ("}{dueLabel(variationCounts[index])}{")"}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="flex items-center gap-2">
+          <span className="text-studio-muted">{tPanels(locale, "repertoire.upToMove")}</span>
+          <Segmented
+            compact
+            ariaLabel={tPanels(locale, "repertoire.upToMove")}
+            value={maxMove ? String(maxMove) : "all"}
+            options={[
+              ...TRAINING_DEPTHS.map((depth) => ({ value: String(depth), label: String(depth) })),
+              { value: "all", label: tPanels(locale, "repertoire.allMoves") },
+            ]}
+            onChange={(value) => changeScope({ maxMove: TRAINING_DEPTHS.find((depth) => String(depth) === value) })}
+          />
+        </div>
+      </div>
       {(!board.repertoireColor || missingColor) && (
         <div className="space-y-2 border-b border-studio-border-subtle px-3 py-2 text-dense text-studio-muted">
           {!board.repertoireColor && <p>{tPanels(locale, "repertoire.unmarked")}</p>}

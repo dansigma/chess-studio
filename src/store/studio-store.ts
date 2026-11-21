@@ -262,6 +262,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       setupMode: false,
       training: false,
       trainingStart: null,
+      trainingCatalogPositions: undefined,
       dueDrill: null,
       trainingMiss: null,
       trainingUserColor: "w",

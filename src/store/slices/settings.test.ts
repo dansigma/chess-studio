@@ -322,3 +322,27 @@ test("puzzleSound defaults to on, toggles independently of moveSound, and persis
   storage.delete(SETTINGS_KEY);
   resetSettings();
 });
+
+test("round-trips training scope by color and ignores malformed stored fields", async () => {
+  resetSettings();
+  const variationFen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq -";
+  const store = useStudioStore.getState();
+  store.setTrainingScope("white", { variationFen, maxMove: 10 });
+  store.setTrainingScope("black", { maxMove: 20 });
+  const settings = useStudioStore.getState().settings;
+  const { persistSettings } = await import("../studio-store.ts");
+  await persistSettings(settings);
+  resetSettings();
+  store.hydrateLocalSettings();
+  assert.deepEqual(useStudioStore.getState().settings.trainingScope, {
+    white: { variationFen, maxMove: 10 },
+    black: { maxMove: 20 },
+  });
+
+  storage.set(SETTINGS_KEY, JSON.stringify({
+    trainingScope: { white: { variationFen: "garbage", maxMove: 15 }, black: { maxMove: "20" } },
+  }));
+  store.hydrateLocalSettings();
+  assert.deepEqual(useStudioStore.getState().settings.trainingScope, { white: { maxMove: 15 } });
+  storage.delete(SETTINGS_KEY);
+});
