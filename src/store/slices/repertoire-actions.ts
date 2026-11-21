@@ -5,18 +5,22 @@
 // it. Both fail closed (status hint, no crash) when the side has no marked
 // repertoire board or the event kind does not apply.
 import { Chess } from "chess.js";
-import type { StateCreator } from "zustand";
+import type { StateCreator, StoreApi } from "zustand";
 import { addOpponentMove, findPathToPosition, withMoveDue } from "@/src/chess/repertoire-actions";
 import type { DeviationEvent } from "@/src/chess/repertoire-deviation";
+import { applyMerge, planMerge, type VariationMergeDecisions } from "@/src/chess/repertoire-merge";
+import { getNodeAt, pathAlongLine, type GameTree } from "@/src/chess/tree";
+import { tPanels } from "@/src/i18n/studio-panel-strings";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { saveRepertoireProgress } from "@/src/lib/repertoire-progress";
 import { withActive } from "./board-helpers";
 import { selectRepertoireBoard } from "./selectors";
-import type { BoardOrientation, StudioState } from "./types";
+import type { BoardOrientation, BoardSession, StudioState } from "./types";
 
 export type RepertoireActionsSlice = Pick<
   StudioState,
   "trainDeviationLine" | "addGapToRepertoire" | "addVariationToRepertoire"
+  | "pendingVariationMerge" | "resolveVariationMerge" | "cancelVariationMerge"
 >;
 
 function parseUci(playedUci: string): { from: string; to: string; promotion?: string } | null {
@@ -29,25 +33,78 @@ function parseUci(playedUci: string): { from: string; to: string; promotion?: st
   return { from, to, promotion };
 }
 
+function finishMerge(
+  set: StoreApi<StudioState>["setState"],
+  get: StoreApi<StudioState>["getState"],
+  board: BoardSession,
+  book: GameTree,
+  color: BoardOrientation,
+  title: string,
+  decisions: VariationMergeDecisions,
+) {
+  const { tree, addedLines, keptConflicts } = applyMerge(board.tree, book, color, decisions);
+  // Promoting a continuation can change the indices of the current path.
+  const ucis = board.path.map((_, index) => getNodeAt(board.tree, board.path.slice(0, index + 1))?.uci ?? "");
+  const { locale } = get().settings;
+  const lines = tRepertoire(locale, addedLines === 1 ? "variation.newLines.one" : "variation.newLines.other", { count: addedLines });
+  const conflicts = tRepertoire(locale, keptConflicts === 1 ? "variation.keptConflicts.one" : "variation.keptConflicts.other", { count: keptConflicts });
+  get().setActiveBoard(board.id);
+  set((state) => ({
+    pendingVariationMerge: null,
+    statusMessage: tRepertoire(locale, "variation.mergeSummary", { title, lines, conflicts }),
+    boards: withActive(state.boards, board.id, (active) => ({
+      ...active,
+      tree,
+      path: pathAlongLine(tree, [], ucis) ?? [],
+      dirty: active.dirty || tree !== board.tree,
+    })),
+  }));
+  return get().active();
+}
+
 export const createRepertoireActionsSlice: StateCreator<
   StudioState,
   [],
   [],
   RepertoireActionsSlice
 > = (set, get) => ({
-  // SIG-1434 replaces the new-board behavior with a merge into the marked repertoire.
-  addVariationToRepertoire: (tree, color, title) => {
-    get().newBoard();
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        tree,
-        orientation: color,
-        title,
-        dirty: true,
-      })),
-    }));
+  pendingVariationMerge: null,
+  addVariationToRepertoire: (book, color, title) => {
+    const board = selectRepertoireBoard(get(), color);
+    if (!board) {
+      get().newBoard();
+      const { id, orientation } = get().active();
+      get().renameBoard(id, tPanels(get().settings.locale, `repertoire.boardTitle.${color}`));
+      get().setBoardRepertoire(id, color);
+      if (orientation !== color) get().flip();
+      return finishMerge(set, get, get().active(), book, color, title, {});
+    }
+    const { conflicts } = planMerge(board.tree, book, color);
+    if (conflicts.length) {
+      set({ pendingVariationMerge: { boardId: board.id, repertoire: board.tree, book, color, title, conflicts } });
+      return null;
+    }
+    return finishMerge(set, get, board, book, color, title, {});
   },
+  resolveVariationMerge: (decisions) => {
+    const pending = get().pendingVariationMerge;
+    if (!pending) return null;
+
+    const { boardId, repertoire, book, color, title } = pending;
+    const board = selectRepertoireBoard(get(), color);
+    if (board?.id !== boardId) {
+      set({
+        pendingVariationMerge: null,
+        statusMessage: tRepertoire(get().settings.locale, "variation.mergeBoardChanged"),
+      });
+      return null;
+    }
+    if (board.tree !== repertoire) {
+      return get().addVariationToRepertoire(book, color, title);
+    }
+    return finishMerge(set, get, board, book, color, title, decisions);
+  },
+  cancelVariationMerge: () => set({ pendingVariationMerge: null }),
   trainDeviationLine: (event: DeviationEvent, color: BoardOrientation) => {
     if (event.kind !== "user_deviation" || !event.repertoireMoves[0]) {
       return;

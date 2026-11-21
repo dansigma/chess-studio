@@ -3,6 +3,7 @@ import { after, afterEach, before, beforeEach, mock, test } from "node:test";
 import { setupDom, teardownDom } from "@/src/test-utils/dom";
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { Chess } from "chess.js";
+import { importPgn } from "@/src/chess/pgn";
 import { bookKey } from "@/src/chess/opening-book";
 import { decodeCountsBook, encodeCountsBook, type CountsBook } from "@/src/chess/opening-book-counts-format";
 import { encodeMove } from "@/src/chess/opening-book-format";
@@ -40,6 +41,8 @@ mock.module("react-chessboard", {
     Chessboard: ({ options }: { options: { position: string } }) => <span data-fen={options.position} />,
   },
 });
+const openBoardPanel = mock.fn();
+mock.module("../dock-api", { namedExports: { openBoardPanel } });
 const { AddVariationDialog } = await import("./AddVariationDialog.tsx");
 
 before(() => setupDom());
@@ -47,14 +50,16 @@ after(() => teardownDom());
 afterEach(() => cleanup());
 beforeEach(() => {
   loadCountsBook.mock.resetCalls();
+  openBoardPanel.mock.resetCalls();
   useStudioStore.setState({
     settings: { ...DEFAULT_SETTINGS, locale: "en" },
     boards: [emptyBoard("Repertoire", "repertoire")],
     activeBoardId: "repertoire",
+    pendingVariationMerge: null,
   });
 });
 
-test("searches the catalog, shows the final board and moves, and adds the generated tree in a new board", async () => {
+test("searches the catalog, shows the final board and moves, and creates a marked board when the chosen color has none", async () => {
   const onClose = mock.fn();
   const view = render(<AddVariationDialog defaultColor="white" onClose={onClose} />);
   const add = view.getByRole("button", { name: "Add to repertoire" });
@@ -81,9 +86,10 @@ test("searches the catalog, shows the final board and moves, and adds the genera
   assert.equal(store.boards.length, 2);
   assert.equal(store.boards[0].title, "Repertoire");
   const created = store.active();
-  assert.equal(created.title, "King's Pawn Game — Black");
+  assert.equal(created.title, "Black repertoire");
   assert.equal(created.orientation, "black");
-  assert.equal(created.repertoireColor, null);
+  assert.equal(created.repertoireColor, "black");
+  assert.deepEqual(openBoardPanel.mock.calls[0].arguments, [created.id, created.title]);
   assert.deepEqual(created.tree.children[0].children.map((node) => node.uci), ["e7e5"]);
   assert.equal(onClose.mock.callCount(), 1);
 });
@@ -107,3 +113,37 @@ test("browses translated families, variations, and subvariations and can retry a
   assert.deepEqual(loadCountsBook.mock.calls[1].arguments, [{ retry: true }]);
   assert.equal(add.hasAttribute("disabled"), false);
 });
+
+for (const action of ["cancel", "keep", "use book"] as const) {
+  test(`handles repertoire conflicts when the user chooses to ${action}`, async () => {
+    const { tree } = importPgn("1. d4 d5 *");
+    useStudioStore.setState({
+      boards: [{ ...emptyBoard("Repertoire", "repertoire"), tree, repertoireColor: "white" }],
+    });
+    const onClose = mock.fn();
+    const view = render(<AddVariationDialog defaultColor="white" onClose={onClose} />);
+    await view.findByRole("button", { name: "B00 King's Pawn Game" });
+    fireEvent.click(view.getByRole("button", { name: "B00 King's Pawn Game" }));
+    await view.findByText("~2 lines, ~2 moves of yours");
+    fireEvent.click(view.getByRole("button", { name: "Add to repertoire" }));
+
+    assert.ok(view.getByRole("dialog", { name: "Resolve repertoire conflicts" }));
+    assert.ok(view.getByRole("group", { name: "Move 1: your repertoire plays d4, the book suggests e4" }));
+    assert.equal((view.getByRole("radio", { name: "Keep mine" }) as HTMLInputElement).checked, true);
+    assert.equal(openBoardPanel.mock.callCount(), 0);
+    if (action === "cancel") {
+      fireEvent.click(view.getByRole("button", { name: "Cancel" }));
+      assert.equal(openBoardPanel.mock.callCount(), 0);
+    } else {
+      if (action === "use book") fireEvent.click(view.getByRole("radio", { name: "Use the book move" }));
+      fireEvent.click(view.getByRole("button", { name: "Confirm" }));
+      assert.deepEqual(openBoardPanel.mock.calls[0].arguments, ["repertoire", "Repertoire"]);
+    }
+
+    const store = useStudioStore.getState();
+    assert.equal(store.pendingVariationMerge, null);
+    assert.equal(store.boards.length, 1);
+    assert.deepEqual(store.active().tree.children.map(({ san }) => san), action === "use book" ? ["e4", "d4"] : ["d4"]);
+    assert.equal(onClose.mock.callCount(), 1);
+  });
+}

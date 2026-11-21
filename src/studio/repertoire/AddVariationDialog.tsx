@@ -8,13 +8,15 @@ import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-the
 import type { CountsBook } from "@/src/chess/opening-book-counts-format";
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { buildVariationBook, VARIATION_LEVELS, type VariationBookOptions } from "@/src/chess/variation-book";
+import type { VariationMergeDecisions } from "@/src/chess/repertoire-merge";
+import { fenKey } from "@/src/chess/tree";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { tPanels } from "@/src/i18n/studio-panel-strings";
 import { loadCountsBook } from "@/src/lib/opening-book-counts";
 import { localizeOpeningName } from "@/src/lib/opening-names";
 import { catalogTree, loadCatalog, searchCatalog, type CatalogEntry, type CatalogNode } from "@/src/lib/openings-catalog";
-import type { BoardOrientation } from "@/src/store/slices/types";
+import type { BoardOrientation, BoardSession, StudioState } from "@/src/store/slices/types";
 import { useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "../dock-api";
 import { Button } from "../ui/Button";
@@ -126,8 +128,66 @@ function LinePreview({ line, color, locale }: { line: CatalogEntry; color: Board
   );
 }
 
+function VariationConflictDialog({
+  pending,
+  locale,
+  onComplete,
+  onCancel,
+}: {
+  pending: NonNullable<StudioState["pendingVariationMerge"]>;
+  locale: SiteLocale;
+  onComplete: (board: BoardSession | null) => void;
+  onCancel: () => void;
+}) {
+  const groupId = useId();
+  const [selection, setSelection] = useState<{ pending: typeof pending; decisions: VariationMergeDecisions }>();
+  const decisions = selection?.pending === pending ? selection.decisions : {};
+
+  return createPortal(
+    <Dialog
+      title={tRepertoire(locale, "variation.mergeTitle")}
+      onClose={onCancel}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel}>{tRepertoire(locale, "variation.mergeCancel")}</Button>
+          <Button variant="primary" onClick={() => onComplete(useStudioStore.getState().resolveVariationMerge(decisions))}>
+            {tRepertoire(locale, "variation.mergeConfirm")}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        {pending.conflicts.map(({ fen, moveNumber, mineSan, bookSan }, index) => {
+          const key = fenKey(fen);
+          return (
+            <fieldset key={key} className="rounded border border-studio-border px-3 pb-2">
+              <legend className="px-1 text-studio-fg">
+                {tRepertoire(locale, "variation.mergeConflict", { number: moveNumber, mine: mineSan, book: bookSan })}
+              </legend>
+              {(["mine", "book"] as const).map((choice) => (
+                <label key={choice} className="flex cursor-pointer items-center gap-2 py-1">
+                  <input
+                    type="radio"
+                    name={`${groupId}-${index}`}
+                    className="accent-studio-accent"
+                    checked={(decisions[key] ?? "mine") === choice}
+                    onChange={() => setSelection({ pending, decisions: { ...decisions, [key]: choice } })}
+                  />
+                  {tRepertoire(locale, choice === "mine" ? "variation.keepMine" : "variation.useBook")}
+                </label>
+              ))}
+            </fieldset>
+          );
+        })}
+      </div>
+    </Dialog>,
+    document.body,
+  );
+}
+
 export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: BoardOrientation; onClose: () => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
+  const pending = useStudioStore((state) => state.pendingVariationMerge);
   const levelName = useId();
   const [entries, setEntries] = useState<readonly CatalogEntry[] | null>();
   const [counts, setCounts] = useState<CountsBook | null>();
@@ -166,15 +226,26 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
 
   function addVariation() {
     if (!selected || !preview) return;
-    const store = useStudioStore.getState();
-    store.addVariationToRepertoire(
-      preview.tree,
-      color,
-      `${lineName(selected, locale)} — ${tPanels(locale, `repertoire.color.${color}`)}`,
+    finish(useStudioStore.getState().addVariationToRepertoire(preview.tree, color, lineName(selected, locale)));
+  }
+
+  function finish(board: BoardSession | null) {
+    if (board) openBoardPanel(board.id, board.title);
+    if (!useStudioStore.getState().pendingVariationMerge) onClose();
+  }
+
+  if (pending) {
+    return (
+      <VariationConflictDialog
+        pending={pending}
+        locale={locale}
+        onComplete={finish}
+        onCancel={() => {
+          useStudioStore.getState().cancelVariationMerge();
+          onClose();
+        }}
+      />
     );
-    const board = useStudioStore.getState().active();
-    openBoardPanel(board.id, board.title);
-    onClose();
   }
 
   return createPortal(

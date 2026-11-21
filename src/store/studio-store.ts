@@ -271,6 +271,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       mistakeExercises: {},
       // SIG-1187: a signed-out session never carries a pending chooser.
       variationChoice: null,
+      pendingVariationMerge: null,
       // SIG-1209: a signed-out session never carries a retry.
       retry: INACTIVE_RETRY,
     } satisfies SessionResetPayload;
