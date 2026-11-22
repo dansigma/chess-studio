@@ -228,7 +228,7 @@ test("SIG-1293: leaving the studio view stops the search; returning resumes it",
   }
 });
 
-test("SIG-1399: idle EnginePanel renders static placeholder bars with no animate-pulse, and pulses only while loading or running", async () => {
+test("SIG-1399: EnginePanel pulses only while loading or running", async () => {
   seedBoard();
   useStudioStore.setState({ workspaceView: "studio" });
   try {
