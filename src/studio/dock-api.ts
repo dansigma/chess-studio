@@ -195,9 +195,7 @@ export function persistExplorerSource(panelId: string, source: ExplorerSource): 
 }
 
 // SIG-907: ids closed programmatically via closeBoardPanel (sidebar close,
-// last-panel reseed) so the dock→store remove handler can skip them and avoid
-// a closeBoard echo. Board ids are unique per session, so a stale entry can
-// never collide with a future board.
+// reconciliation) so the dock→store remove handler can skip the closeBoard echo.
 const programmaticBoardCloses = new Set<string>();
 
 export function consumeProgrammaticBoardClose(boardId: string): boolean {
@@ -351,18 +349,32 @@ export function openBoardPanel(boardId: string, title?: string): void {
   });
 }
 
-// SIG-1247: the active board must always have a dock tab. A restored layout
-// (or an import applied before the dock was ready) can leave the active board
-// without a `board:*` panel; add it with its own title.
-export function ensureActiveBoardPanel(): void {
-  if (!dockApi) {
+// Keep the store's board selection across layout restores and panel repairs.
+export function reconcileBoardPanels(): void {
+  const api = dockApi;
+  if (!api) {
     return;
   }
   const state = useStudioStore.getState();
-  const active = state.active();
-  if (!dockApi.getPanel(boardPanelId(active.id))) {
-    openBoardPanel(active.id, boardTitle(state.settings.locale, active.title));
+  const titles = dedupedBoardTitles(state.settings.locale, state.boards);
+  // Add missing boards before pruning so an old tab can anchor the board group.
+  for (const [id, title] of titles) {
+    const panel = api.getPanel(boardPanelId(id));
+    if (!panel) {
+      openBoardPanel(id, title);
+    } else if (panel.title !== title) {
+      panel.setTitle(title);
+    }
   }
+  if (state.boardsHydrated) {
+    for (const panel of [...api.panels]) {
+      const id = boardIdFromPanelId(panel.id);
+      if (id && !titles.has(id)) {
+        closeBoardPanel(id);
+      }
+    }
+  }
+  api.getPanel(boardPanelId(state.active().id))?.api.setActive();
 }
 
 export function closeBoardPanel(boardId: string): void {
@@ -371,7 +383,11 @@ export function closeBoardPanel(boardId: string): void {
     return;
   }
   programmaticBoardCloses.add(boardId);
-  panel.api.close();
+  try {
+    panel.api.close();
+  } finally {
+    programmaticBoardCloses.delete(boardId);
+  }
 }
 
 export function openStudioPanel(id: StudioPanelId): void {

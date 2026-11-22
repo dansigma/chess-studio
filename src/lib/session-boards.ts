@@ -50,10 +50,8 @@ export type RemoteBoardRow = {
  * stay in Supabase but are not restored, unless this browser's snapshot still
  * has them open (closed elsewhere, reopened here).
  *
- * The active board is resolved from the snapshot by identity, including the
- * case where a clean local board was replaced by its remote row (local `id`
- * differs from `remoteId`) — that mismatch used to fall through to the first
- * (most recently updated) remote board.
+ * A matching remote row keeps the local session id so its dock tab and
+ * the snapshot’s active board still point to the same game.
  */
 export function mergeSessionBoards(
   local: SessionSnapshot | null,
@@ -71,12 +69,13 @@ export function mergeSessionBoards(
   const seenLocalIds = new Set<string>();
   const merged: BoardSession[] = [];
   for (const row of rows) {
-    if (row.closed_at && !localByRemote.has(row.id)) {
+    const localBoard = localByRemote.get(row.id);
+    if (row.closed_at && !localBoard) {
       continue;
     }
     const imported = importPgn(row.pgn);
     const session: BoardSession = {
-      id: row.id,
+      id: localBoard?.id ?? row.id,
       remoteId: row.id,
       title: row.title,
       tree: imported.tree,
@@ -90,7 +89,6 @@ export function mergeSessionBoards(
       dirty: false,
       preview: false,
     };
-    const localBoard = localByRemote.get(row.id);
     if (localBoard?.dirty) {
       merged.push(localBoard);
       seenLocalIds.add(localBoard.id);

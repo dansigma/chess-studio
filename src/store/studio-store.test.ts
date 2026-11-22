@@ -377,6 +377,25 @@ test("SIG-857: initial activeBoardId matches the placeholder board id", () => {
   assert.equal(selectActiveBoard(initial), initialBoard, "selector resolves the initial board");
 });
 
+test("SIG-1444: switching between games and an empty board selects each board's tree", () => {
+  const first = { ...emptyBoard("First game", "first"), ...importPgn("1. e4 e5") };
+  const second = { ...emptyBoard("Second game", "second"), ...importPgn("1. d4 d5") };
+  const empty = emptyBoard("Empty board", "empty");
+  const previous = useStudioStore.getState();
+  useStudioStore.setState({ boards: [first, second, empty], activeBoardId: first.id });
+  try {
+    for (const board of [second, empty, first, second]) {
+      useStudioStore.getState().setActiveBoard(board.id);
+      const active = selectActiveBoard(useStudioStore.getState());
+      assert.equal(active.id, board.id);
+      assert.equal(active.tree, board.tree);
+      assert.deepEqual(active.path, board.path);
+    }
+  } finally {
+    useStudioStore.setState(previous);
+  }
+});
+
 test("SIG-857: selectActiveBoard falls back to boards[0] on a stale id", () => {
   resetStore();
   const state = useStudioStore.getState();

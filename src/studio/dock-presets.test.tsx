@@ -2,7 +2,8 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
 import { createDockview, type DockviewApi } from "dockview-core";
-import { DOCK_PRESET_SEEDS } from "./dock-api.ts";
+import { DOCK_PRESET_SEEDS, reconcileBoardPanels, registerStudioDock } from "./dock-api.ts";
+import { emptyBoard, useStudioStore } from "../store/studio-store.ts";
 import {
   DOCK_LAYOUT_VERSION,
   DOCK_PRESET_IDS,
@@ -118,4 +119,47 @@ test("remapBoardPanels maps saved board ids onto the open boards, never inventin
     Object.keys(one.dock.panels).filter((id) => id.startsWith("board:")),
     ["board:z1"],
   );
+});
+
+test("SIG-1444: a restored dock reconciles its board tabs with hydrated sessions", () => {
+  const { api: saved } = seeded("essential");
+  saved.addPanel({
+    id: "board:second",
+    component: "board",
+    title: "Old title",
+    position: { referencePanel: "board:b1" },
+  });
+  const boardGroup = saved.getPanel("board:second")?.group.id;
+  assert.ok(boardGroup);
+  const api = makeApi();
+  api.fromJSON(saved.toJSON());
+  const previous = useStudioStore.getState();
+  registerStudioDock(api);
+
+  try {
+    useStudioStore.setState({
+      boards: [emptyBoard("Game", "first"), emptyBoard("Game", "second")],
+      activeBoardId: "first",
+      boardsHydrated: false,
+    });
+    reconcileBoardPanels();
+    assert.ok(api.getPanel("board:b1"), "keep the restored tab while boards are loading");
+
+    // A later remote restore can reintroduce stale tabs after hydration.
+    useStudioStore.setState({ boardsHydrated: true });
+    api.fromJSON(saved.toJSON());
+    reconcileBoardPanels();
+
+    assert.equal(api.getPanel("board:b1"), undefined);
+    assert.equal(api.getPanel("board:first")?.title, "Game");
+    assert.equal(api.getPanel("board:second")?.title, "Game · 2");
+    assert.equal(api.getPanel("board:first")?.group.id, boardGroup);
+    assert.equal(api.getPanel("board:second")?.group.id, boardGroup);
+    assert.equal(api.activePanel?.id, "board:first");
+  } finally {
+    registerStudioDock(null);
+    useStudioStore.setState(previous);
+    api.dispose();
+    saved.dispose();
+  }
 });
