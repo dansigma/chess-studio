@@ -109,3 +109,24 @@ test("SIG-1299: Total row shares the rows' grid, scroller and cell structure", a
   assert.equal(totalBar.tagName, rowBar.tagName);
   assert.equal(totalBar.className, rowBar.className);
 });
+
+test("SIG-1443: the opening header is translated only when the site language is Portuguese", async () => {
+  const opening = { eco: "D31", name: "Queen's Gambit Declined: Charousek Variation" };
+  const explorer = { fen: "x", source: "masters", white: 1, draws: 0, black: 0, opening, games: [], moves: [] } as never;
+  const settings = useStudioStore.getState().settings;
+  try {
+    for (const [locale, expected] of [
+      ["pt-br", "Gambito da Dama Recusado: Variante Charousek"],
+      ["en", "Queen's Gambit Declined: Charousek Variation"],
+    ] as const) {
+      useStudioStore.setState({ settings: { ...settings, locale }, databaseSource: "masters", explorer, explorerLoading: false, explorerError: null });
+      await act(async () => {
+        render(<ExplorerPanel />);
+      });
+      assert.ok(screen.getByText(expected));
+      cleanup();
+    }
+  } finally {
+    useStudioStore.setState({ settings });
+  }
+});
