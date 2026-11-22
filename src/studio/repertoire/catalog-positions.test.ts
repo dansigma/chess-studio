@@ -68,3 +68,12 @@ test("builds the real catalog position index quickly", (context) => {
   assert.ok(index.matches.get(key)?.length);
   assert.ok((cpuMs ?? elapsed) < 500, "Index exceeded the 500 ms budget");
 });
+
+test("chess.js still exposes the private methods the fast index path uses", () => {
+  // If this fails after a chess.js upgrade, the index silently falls back to
+  // the public API (correct but ~4x slower): update catalogMove in catalog-positions.ts.
+  const chess = new Chess() as unknown as Record<string, unknown>;
+  for (const method of ["_moves", "_moveToSan", "_makeMove"]) {
+    assert.equal(typeof chess[method], "function", `chess.js ${method} is missing`);
+  }
+});

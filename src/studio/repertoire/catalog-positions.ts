@@ -14,7 +14,26 @@ function squareOffset(square: string) {
   return (8 - Number(square[1])) * 16 + square.charCodeAt(0) - "a".charCodeAt(0);
 }
 
+type ChessInternals = {
+  _moves?: unknown;
+  _moveToSan?: unknown;
+  _makeMove?: unknown;
+};
+
+// The fast path relies on chess.js private methods (about 4x faster than the
+// public move()). If an upgrade renames them, fall back to the public API.
+function hasInternals(chess: Chess) {
+  const internals = chess as unknown as ChessInternals;
+  return typeof internals._moves === "function"
+    && typeof internals._moveToSan === "function"
+    && typeof internals._makeMove === "function";
+}
+
 function catalogMove(chess: Chess, uci: string) {
+  if (!hasInternals(chess)) {
+    const move = playUci(chess, uci);
+    return { san: move.san, after: move.after };
+  }
   const from = uci.slice(0, 2) as Square;
   const source = squareOffset(from);
   const target = squareOffset(uci.slice(2, 4));
