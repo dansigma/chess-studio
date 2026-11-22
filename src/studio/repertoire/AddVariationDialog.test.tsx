@@ -165,10 +165,10 @@ test("browses translated families, variations, and subvariations and can retry a
   const view = render(<AddVariationDialog defaultColor="black" onClose={() => {}} />);
   const add = view.getByRole("button", { name: "Adicionar ao repertório" });
   const family = await view.findByRole("button", { name: "Defesa Siciliana" });
-  assert.equal(view.queryByText("Delayed Variation"), null);
+  assert.equal(view.queryByText("Variante Atrasada"), null);
   fireEvent.click(family);
-  fireEvent.click(view.getByRole("button", { name: "Delayed Variation" }));
-  fireEvent.click(view.getByRole("button", { name: "B20 Defesa Siciliana: Delayed Variation, Example Line" }));
+  fireEvent.click(view.getByRole("button", { name: "Variante Atrasada" }));
+  fireEvent.click(view.getByRole("button", { name: "B20 Defesa Siciliana: Variante Atrasada, Linha Example" }));
   assert.ok(view.getByRole("img", { name: "Posição final" }));
   assert.ok(view.getByText("1. e4 c5 2. Nf3"));
   assert.ok(await view.findByText("Livro de aberturas indisponível"));

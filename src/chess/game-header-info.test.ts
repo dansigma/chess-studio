@@ -147,3 +147,10 @@ for (const [name, headers, expected] of SOURCE_TABLE) {
 test("sourceFor: generic label is localized", () => {
   assert.equal(gameHeaderInfo({ Link: "https://example.org/g/1" }, "pt-br").source?.label, "Ver original");
 });
+
+test("localizes full opening names with or without an ECO code in PT-BR", () => {
+  assert.equal(gameHeaderInfo({ Opening: "French Defense: Winawer Variation", ECO: "C11" }, "pt-br").openingName,
+    "Defesa Francesa: Variante Winawer");
+  assert.equal(gameHeaderInfo({ Opening: "Semi-Slav Defense Moscow Variation" }, "pt-br").openingName,
+    "Defesa Semi-Eslava Variante Moscou");
+});
