@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, beforeEach, mock, test } from "node:test";
 import { setupDom, teardownDom } from "@/src/test-utils/dom";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { Chess } from "chess.js";
 import { importPgn } from "@/src/chess/pgn";
 import { bookKey } from "@/src/chess/opening-book";
@@ -23,6 +23,15 @@ const delayed = line("B20", "Sicilian Defense: Delayed Variation, Example Line",
   ["e2e4", "c7c5", "g1f3"], "1. e4 c5 2. Nf3");
 const afterE5 = line("C20", "King's Pawn Game", ["e2e4", "e7e5"], "1. e4 e5");
 
+const jobavaName = "Rapport-Jobava System";
+const jobavaMoves = ["d2d4", "d7d5", "b1c3", "g8f6", "c1f4"];
+const jobavaSan = "1. d4 d5 2. Nc3 Nf6 3. Bf4";
+const jobava = line("D01", jobavaName, jobavaMoves, jobavaSan);
+const jobavaE6 = line("D01", jobavaName, [...jobavaMoves, "e7e6"], `${jobavaSan} e6`);
+const jobavaG6 = line("D01", jobavaName, [...jobavaMoves, "g7g6"], `${jobavaSan} g6`);
+const jobavaWithE6 = line("D01", `${jobavaName}, with e6`,
+  ["d2d4", "d7d5", "b1c3", "e7e6", "c1f4"], "1. d4 d5 2. Nc3 e6 3. Bf4");
+
 const book = decodeCountsBook(encodeCountsBook([
   { key: bookKey(kingsPawn.fen), move: encodeMove("e7e5"), count: 45, total: 100 },
   { key: bookKey(kingsPawn.fen), move: encodeMove("c7c5"), count: 25, total: 100 },
@@ -34,7 +43,7 @@ const book = decodeCountsBook(encodeCountsBook([
 const loadCountsBook = mock.fn(async (): Promise<CountsBook | null> => book);
 mock.module("@/src/lib/opening-book-counts", { namedExports: { loadCountsBook } });
 mock.module("@/src/lib/openings-catalog", {
-  namedExports: { ...catalog, loadCatalog: async () => [kingsPawn, sicilian, delayed] },
+  namedExports: { ...catalog, loadCatalog: async () => [kingsPawn, sicilian, delayed, jobava, jobavaE6, jobavaG6, jobavaWithE6] },
 });
 mock.module("react-chessboard", {
   namedExports: {
@@ -97,6 +106,27 @@ test("searches the catalog, shows the final board and moves, and creates a marke
   assert.deepEqual(openBoardPanel.mock.calls[0].arguments, [created.id, created.title]);
   assert.deepEqual(created.tree.children[0].children.map((node) => node.uci), ["e7e5"]);
   assert.equal(onClose.mock.callCount(), 1);
+});
+
+test("groups same-name search results and previews the selected continuation", async () => {
+  const view = render(<AddVariationDialog defaultColor="white" onClose={() => {}} />);
+  fireEvent.change(view.getByRole("textbox", { name: "Search by opening name or ECO" }), { target: { value: "Jobava" } });
+
+  const group = within(await view.findByRole("group", { name: jobavaName }));
+  assert.equal(group.getAllByText(jobavaName).length, 1);
+  assert.equal(group.getAllByText("D01").length, 1);
+  assert.deepEqual(group.getAllByRole("button").map((row) => row.textContent), [jobavaSan, "3... e6", "3... g6"]);
+  assert.ok(view.getByRole("button", { name: `D01 ${jobavaName}, with e6` }));
+
+  const main = group.getByRole("button", { name: `${jobavaName} — ${jobavaSan}` });
+  const g6 = group.getByRole("button", { name: `${jobavaName} — 3... g6` });
+  fireEvent.click(main);
+  const preview = view.getByRole("img", { name: "Final position" });
+  assert.equal(preview.firstElementChild?.getAttribute("data-fen"), jobava.fen);
+  fireEvent.click(g6);
+  assert.equal(main.getAttribute("aria-pressed"), "false");
+  assert.equal(g6.getAttribute("aria-pressed"), "true");
+  assert.equal(preview.firstElementChild?.getAttribute("data-fen"), jobavaG6.fen);
 });
 
 test("browses translated families, variations, and subvariations and can retry an unavailable book", async () => {

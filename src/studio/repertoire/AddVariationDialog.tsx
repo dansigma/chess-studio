@@ -1,6 +1,5 @@
 "use client";
 
-import { Chess } from "chess.js";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import { createPortal } from "react-dom";
@@ -14,7 +13,6 @@ import type { SiteLocale } from "@/src/i18n/locale";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { tPanels } from "@/src/i18n/studio-panel-strings";
 import { loadCountsBook } from "@/src/lib/opening-book-counts";
-import { localizeOpeningName } from "@/src/lib/opening-names";
 import { catalogTree, loadCatalog, searchCatalog, type CatalogEntry, type CatalogNode } from "@/src/lib/openings-catalog";
 import type { BoardOrientation, BoardSession, StudioState } from "@/src/store/slices/types";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -23,22 +21,11 @@ import { Button } from "../ui/Button";
 import { SearchInput, Segmented } from "../ui/Controls";
 import { Dialog } from "../ui/Dialog";
 import { EcoBadge } from "../ui/EcoBadge";
+import { groupSearchResults, lineMovesFrom, lineName, type SearchGroup } from "./group-search-results";
 
 type Level = VariationBookOptions["level"];
 const LEVELS = Object.keys(VARIATION_LEVELS) as Level[];
 const COLORS = ["white", "black"] as const;
-
-function lineName(line: CatalogEntry, locale: SiteLocale) {
-  return localizeOpeningName(line.name, locale, line.eco);
-}
-
-function lineMoves(line: CatalogEntry) {
-  const chess = new Chess();
-  return line.uci.map((uci, index) => {
-    const { san } = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
-    return index % 2 === 0 ? `${index / 2 + 1}. ${san}` : san;
-  }).join(" ");
-}
 
 type LinePickerProps = {
   locale: SiteLocale;
@@ -46,23 +33,60 @@ type LinePickerProps = {
   onSelect: (line: CatalogEntry) => void;
 };
 
-function LineOption({ line, alternate, locale, selected, onSelect }: LinePickerProps & {
+function LineOption({ line, alternate, continuation, locale, selected, onSelect }: LinePickerProps & {
   line: CatalogEntry;
   alternate?: boolean;
+  continuation?: { moves: string; showEco: boolean };
 }) {
   return (
     <button
       type="button"
       aria-pressed={selected === line}
+      aria-label={continuation
+        ? `${continuation.showEco ? `${line.eco} ` : ""}${lineName(line, locale)} — ${continuation.moves}`
+        : undefined}
       onClick={() => onSelect(line)}
       className="flex w-full items-start gap-2 rounded px-2 py-1.5 text-left hover:bg-studio-hover-subtle aria-pressed:bg-studio-accent-soft aria-pressed:text-studio-accent-text"
     >
-      <EcoBadge code={line.eco} />
-      <span>
-        {lineName(line, locale)}
-        {alternate && <span className="block text-caption">{lineMoves(line)}</span>}
-      </span>
+      {(!continuation || continuation.showEco) && <EcoBadge code={line.eco} />}
+      {continuation ? <span>{continuation.moves}</span> : (
+        <span>
+          {lineName(line, locale)}
+          {alternate && <span className="block text-caption">{lineMovesFrom(line)}</span>}
+        </span>
+      )}
     </button>
+  );
+}
+
+function SearchResultGroup({
+  group: { name, lines, prefixLength },
+  ...picker
+}: LinePickerProps & { group: SearchGroup<CatalogEntry> }) {
+  const first = lines[0];
+  if (lines.length === 1) return <LineOption line={first} {...picker} />;
+
+  const showRowEco = lines.some((line) => line.eco !== first.eco);
+  return (
+    <div role="group" aria-label={name}>
+      <p className="flex items-start gap-2 px-2 py-1.5 font-medium">
+        {!showRowEco && <EcoBadge code={first.eco} />}
+        {name}
+      </p>
+      <div className="ml-2 border-l border-studio-border pl-1">
+        {lines.map((line) => (
+          <LineOption
+            key={`${line.eco} ${line.uci.join(" ")}`}
+            line={line}
+            continuation={{
+              moves: lineMovesFrom(line, line.uci.length === prefixLength ? 0 : prefixLength),
+              showEco: showRowEco,
+            }}
+            {...picker}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -100,7 +124,7 @@ function LinePreview({ line, color, locale }: { line: CatalogEntry; color: Board
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const theme = boardSquareStyles(boardTheme);
-  const moves = useMemo(() => lineMoves(line), [line]);
+  const moves = useMemo(() => lineMovesFrom(line), [line]);
 
   return (
     <div className="space-y-2">
@@ -213,7 +237,9 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
   const families = useMemo(() => entries ? catalogTree(entries, locale) : [], [entries, locale]);
   const searching = query.trim().length > 0;
   const results = useMemo(
-    () => entries && searching ? searchCatalog(entries, query, locale).slice(0, 100) : [],
+    () => entries && searching
+      ? groupSearchResults(searchCatalog(entries, query, locale).slice(0, 100), locale)
+      : [],
     [entries, searching, query, locale],
   );
   const preview = useMemo(
@@ -272,7 +298,7 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
             {entries === null && <p role="alert" className="p-2">{tRepertoire(locale, "variation.catalogUnavailable")}</p>}
             {entries && searching && results.length === 0 && <p className="p-2">{tRepertoire(locale, "variation.noResults")}</p>}
             {searching
-              ? results.map((line) => <LineOption key={line.uci.join(" ")} line={line} {...picker} />)
+              ? results.map((group) => <SearchResultGroup key={group.name} group={group} {...picker} />)
               : families.map((node) => <CatalogBranch key={node.name} node={node} {...picker} />)}
           </div>
         </div>
