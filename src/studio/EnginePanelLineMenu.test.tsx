@@ -51,7 +51,7 @@ function emitSnapshot(overrides: Partial<EngineInfo> = {}): void {
   }
 }
 
-function emitLines(pvs: string[][]): void {
+function emitLines(pvs: string[][], bestScoreCp = 30): void {
   const sans: Record<string, string> = {
     e2e4: "e4",
     e7e5: "e5",
@@ -63,7 +63,7 @@ function emitLines(pvs: string[][]): void {
     lines: pvs.map((pvUci, index) => ({
       multipv: index + 1,
       depth: 20,
-      scoreCp: 30 - index * 10,
+      scoreCp: bestScoreCp - index * 10,
       mate: null,
       pvUci,
       pvSan: pvUci.map((uci) => sans[uci] ?? "e4"),
@@ -123,7 +123,7 @@ beforeEach(() => {
   cleanup();
 });
 
-test("right-click context menu inserts the snapshotted PV, not the refreshed one", async () => {
+test("right-click context menu inserts the snapshotted PV and evaluation", async () => {
   seedBoard();
   try {
     render(<EnginePanel />);
@@ -154,7 +154,7 @@ test("right-click context menu inserts the snapshotted PV, not the refreshed one
 
     // Engine refresh replaces the line at the same multipv before the click.
     await act(async () => {
-      emitLines([["d2d4", "d7d5"]]);
+      emitLines([["d2d4", "d7d5"]], -5);
     });
 
     await act(async () => {
@@ -166,6 +166,7 @@ test("right-click context menu inserts the snapshotted PV, not the refreshed one
     assert.ok(board, "active board exists");
     assert.equal(board!.tree.children.length, 1, "exactly one variation inserted");
     assert.equal(board!.tree.children[0]?.uci, "e2e4", "inserted the right-clicked PV");
+    assert.equal(board!.tree.children[0]?.children[0]?.children[0]?.comment, "+0.30");
   } finally {
     cleanup();
   }
@@ -198,6 +199,16 @@ test("single control row: status in the row, settings popover, outlined secondar
     assert.equal(chips.length, 2, "one score chip per line");
     assert.match(chips[0]!.className, /bg-studio-win|bg-studio-loss/u);
     assert.doesNotMatch(chips[1]!.className, /bg-studio-win|bg-studio-loss/u);
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: /d5/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: tPanels("en", "engine.insertLine") }));
+    assert.equal(useStudioStore.getState().active().tree.children[0]?.children[0]?.comment, "+0.20");
+
+    fireEvent.click(screen.getByRole("button", { name: tPanels("en", "engine.insertLines") }));
+    assert.deepEqual(
+      useStudioStore.getState().active().tree.children.map((node) => node.children[0]?.comment),
+      ["+0.20", "+0.30"],
+    );
   } finally {
     cleanup();
   }

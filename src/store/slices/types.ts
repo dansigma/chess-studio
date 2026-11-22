@@ -110,6 +110,11 @@ export type BoardSession = {
   liveSource?: { roundId: string; gameId: string };
 };
 
+export type EngineLineInsert = {
+  pvUci: string[];
+  evalLabel?: string;
+};
+
 export type EnginePreview = {
   fen: string;
   lastMove: string;
@@ -268,7 +273,7 @@ export type StudioState = {
   setActiveBoard: (id: string) => void;
   makeUciMove: (from: string, to: string, promotion?: string) => boolean;
   playUciSequence: (ucis: string[]) => void;
-  insertEngineLines: (fen: string, pvUcisList: string[][]) => void;
+  insertEngineLines: (fen: string, lines: (string[] | EngineLineInsert)[]) => void;
   setEnginePreview: (preview: EnginePreview | null) => void;
   setEngineEval: (value: EngineEval | null) => void;
   putEvalCache: (fen: string, value: CachedEval) => void;

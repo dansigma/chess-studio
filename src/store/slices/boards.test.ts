@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createEmptyTree, playMove } from "../../chess/tree.ts";
+import { exportPgn, importPgn } from "../../chess/pgn.ts";
+import { createEmptyTree, getNodeAt, playMove } from "../../chess/tree.ts";
 import { useStudioStore } from "../studio-store.ts";
 import { emptyBoard } from "./board-helpers.ts";
 import type { BoardSession } from "./types.ts";
@@ -8,6 +9,68 @@ import type { BoardSession } from "./types.ts";
 const MOVE_E4 = { san: "e4", uci: "e2e4", fen: "fen-e4", from: "e2", to: "e4" };
 const MOVE_D4 = { san: "d4", uci: "d2d4", fen: "fen-d4", from: "d2", to: "d4" };
 const MOVE_E5 = { san: "e5", uci: "e7e5", fen: "fen-e5", from: "e7", to: "e5" };
+
+describe("engine line evaluation comments", () => {
+  function seed(pgn: string) {
+    const { tree, headers } = importPgn(pgn);
+    const board = { ...emptyBoard("Engine", "engine-board"), tree, headers, dirty: false };
+    useStudioStore.setState({ boards: [board], activeBoardId: board.id, training: false });
+    return useStudioStore.getState();
+  }
+
+  it("comments the last legal move of a variation and round-trips it through PGN", () => {
+    const state = seed("1. d4 *");
+    state.insertEngineLines(state.fen(), [{ pvUci: ["e2e4", "e7e5", "e2e3"], evalLabel: "-0.05" }]);
+
+    const { tree, headers } = state.active();
+    assert.equal(getNodeAt(tree, [1])?.comment, undefined);
+    assert.equal(getNodeAt(tree, [1, 0])?.comment, "-0.05");
+    const pgn = exportPgn(tree, headers);
+    assert.match(pgn, /\(1\. e4 e5 \{-0\.05\}\)/u);
+    assert.equal(getNodeAt(importPgn(pgn).tree, [1, 0])?.comment, "-0.05");
+  });
+
+  it("adds a comment to an existing line and marks the board dirty", () => {
+    const state = seed("1. e4 e5 *");
+    state.insertEngineLines(state.fen(), [{ pvUci: ["e2e4", "e7e5"], evalLabel: "+1.20" }]);
+
+    assert.equal(getNodeAt(state.active().tree, [0, 0])?.comment, "+1.20");
+    assert.equal(state.active().dirty, true);
+    assert.equal(useStudioStore.getState().statusMessage, "Inserted 1 line.");
+  });
+
+  it("keeps an existing tip comment and reports that the line is already in notation", () => {
+    const state = seed("1. e4 e5 {Existing comment} *");
+    const tree = state.active().tree;
+    state.insertEngineLines(state.fen(), [{ pvUci: ["e2e4", "e7e5"], evalLabel: "-0.05" }]);
+
+    assert.equal(getNodeAt(state.active().tree, [0, 0])?.comment, "Existing comment");
+    assert.equal(state.active().tree, tree);
+    assert.equal(state.active().dirty, false);
+    assert.equal(useStudioStore.getState().statusMessage, "Already in notation.");
+  });
+
+  it("accepts unlabeled lines from Game Review and Retry without adding comments", () => {
+    const state = seed("*");
+    state.insertEngineLines(state.fen(), [["e2e4", "e7e5"]]);
+
+    const tip = getNodeAt(state.active().tree, [0, 0]);
+    assert.equal(tip?.uci, "e7e5");
+    assert.equal(tip.comment, undefined);
+  });
+
+  it("comments each line's tip with its own evaluation", () => {
+    const state = seed("*");
+    state.insertEngineLines(state.fen(), [
+      { pvUci: ["e2e4", "e7e5"], evalLabel: "M3" },
+      { pvUci: ["e2e4", "c7c5"], evalLabel: "-M2" },
+    ]);
+
+    assert.equal(getNodeAt(state.active().tree, [0, 0])?.comment, "M3");
+    assert.equal(getNodeAt(state.active().tree, [0, 1])?.comment, "-M2");
+    assert.equal(useStudioStore.getState().statusMessage, "Inserted 2 lines.");
+  });
+});
 
 // Regression coverage for SIG-916: the debounced auto-save in StudioShell
 // persists every board with dirty: true, not just the active board. These

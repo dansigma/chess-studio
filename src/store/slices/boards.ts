@@ -14,8 +14,10 @@ import {
   goForwardN,
   goStart,
   insertLine,
+  pathAlongLine,
   pathsEqual,
   playMove,
+  setNodeComment,
 } from "@/src/chess/tree";
 import {
   getDueRepertoireMoves,
@@ -527,7 +529,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
     soundForAdvance(get, previous);
   },
-  insertEngineLines: (fen, pvUcisList) => {
+  insertEngineLines: (fen, lines) => {
     if (get().training) {
       return;
     }
@@ -539,7 +541,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     const board = get().active();
     let merged = board.tree;
     let inserted = 0;
-    for (const pvUcis of pvUcisList) {
+    for (const line of lines) {
+      const { pvUci, evalLabel } = Array.isArray(line) ? { pvUci: line } : line;
       const chess = new Chess(fen);
       const moves: {
         san: string;
@@ -548,7 +551,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
         from: string;
         to: string;
       }[] = [];
-      for (const uci of pvUcis) {
+      for (const uci of pvUci) {
         const from = uci.slice(0, 2);
         const to = uci.slice(2, 4);
         const promotion = uci.length > 4 ? uci[4] : undefined;
@@ -568,8 +571,19 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       if (moves.length === 0) {
         continue;
       }
-      merged = insertLine(merged, board.path, moves);
-      inserted += 1;
+      const previous = merged;
+      const ucis = moves.map((move) => move.uci);
+      let tip = pathAlongLine(merged, board.path, ucis);
+      if (!tip) {
+        merged = insertLine(merged, board.path, moves);
+        tip = pathAlongLine(merged, board.path, ucis);
+      }
+      if (evalLabel && tip && !getNodeAt(merged, tip)?.comment) {
+        merged = setNodeComment(merged, tip, evalLabel);
+      }
+      if (merged !== previous) {
+        inserted += 1;
+      }
     }
     if (inserted === 0) {
       set({ statusMessage: "Already in notation." });

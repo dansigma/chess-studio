@@ -338,7 +338,7 @@ export function EnginePanel() {
           onClick={() =>
             insertEngineLines(
               fen,
-              lines.map((line) => line.pvUci),
+              lines.map((line) => ({ pvUci: line.pvUci, evalLabel: formatScore(line, side) })),
             )
           }
         >
@@ -482,6 +482,7 @@ export function EnginePanel() {
                   y: event.clientY,
                   multipv: line.multipv,
                   pvUci: [...line.pvUci],
+                  evalLabel: formatScore(line, side),
                 });
               }}
             >
@@ -567,6 +568,7 @@ export function EnginePanel() {
                             y: event.clientY,
                             multipv: line.multipv,
                             pvUci: [...line.pvUci],
+                            evalLabel: formatScore(line, side),
                           });
                         }}
                       >
