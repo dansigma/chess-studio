@@ -64,7 +64,7 @@ test("clicking the item inserts exactly the snapshotted variation and closes", a
     closed += 1;
   };
   try {
-    render(<EngineLineContextMenu menu={menuFor(snapshot)} fen={fen} locale="en" onClose={onClose} />);
+    render(<EngineLineContextMenu menu={{ ...menuFor(snapshot), evalLabel: "-M2" }} fen={fen} locale="en" onClose={onClose} />);
     const item = screen.getByRole("menuitem", { name: tPanels("en", "engine.insertLine") });
     await act(async () => {
       fireEvent.click(item);
@@ -74,6 +74,7 @@ test("clicking the item inserts exactly the snapshotted variation and closes", a
     assert.ok(board, "active board exists");
     assert.equal(board!.tree.children.length, 1, "only one variation inserted");
     assert.equal(board!.tree.children[0]?.children.length, 1, "PV chained past the shared prefix");
+    assert.equal(board!.tree.children[0]?.children[0]?.children[0]?.comment, "-M2");
     assert.equal(closed, 1, "menu closes after insert");
   } finally {
     cleanup();
@@ -151,8 +152,11 @@ test("first item is focused on open", async () => {
   }
 });
 
-test("resolveEngineLineInsert returns the single snapped line, null when empty", () => {
-  assert.deepEqual(resolveEngineLineInsert(menuFor(["e2e4", "e7e5"])), [["e2e4", "e7e5"]]);
+test("resolveEngineLineInsert returns the single snapped line with its evaluation, null when empty", () => {
+  assert.deepEqual(
+    resolveEngineLineInsert({ ...menuFor(["e2e4", "e7e5"]), evalLabel: "-0.05" }),
+    [{ pvUci: ["e2e4", "e7e5"], evalLabel: "-0.05" }],
+  );
   assert.equal(resolveEngineLineInsert(menuFor([])), null);
 });
 

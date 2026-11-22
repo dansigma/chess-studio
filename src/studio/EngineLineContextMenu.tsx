@@ -3,21 +3,21 @@
 import { useEffect, useRef } from "react";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import type { EngineLineInsert } from "@/src/store/slices/types";
 import { useStudioStore } from "@/src/store/studio-store";
 import { MenuItem, MenuSurface } from "./ui/Menu";
 
-export type EngineLineMenuState = {
+export type EngineLineMenuState = EngineLineInsert & {
   x: number;
   y: number;
   multipv: number;
-  pvUci: string[];
 };
 
-export function resolveEngineLineInsert(menu: EngineLineMenuState): string[][] | null {
+export function resolveEngineLineInsert(menu: EngineLineMenuState): EngineLineInsert[] | null {
   if (menu.pvUci.length === 0) {
     return null;
   }
-  return [[...menu.pvUci]];
+  return [{ pvUci: [...menu.pvUci], evalLabel: menu.evalLabel }];
 }
 
 export function clampEngineMenuPosition(
