@@ -6,7 +6,10 @@ import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ExplorerPanel } from "./ExplorerPanel";
-import { useStudioStore } from "@/src/store/studio-store";
+import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
+import { importPgn } from "@/src/chess/pgn";
+import { getFenAt } from "@/src/chess/tree";
+import type { ExplorerResponse } from "@/src/lib/explorer-types";
 
 before(() => {
   setupDom();
@@ -112,7 +115,8 @@ test("SIG-1299: Total row shares the rows' grid, scroller and cell structure", a
 
 test("SIG-1443: the opening header is translated only when the site language is Portuguese", async () => {
   const opening = { eco: "D31", name: "Queen's Gambit Declined: Charousek Variation" };
-  const explorer = { fen: "x", source: "masters", white: 1, draws: 0, black: 0, opening, games: [], moves: [] } as never;
+  const { tree, path } = selectActiveBoard(useStudioStore.getState());
+  const explorer: ExplorerResponse = { fen: getFenAt(tree, path), source: "masters", white: 1, draws: 0, black: 0, opening, games: [], moves: [] };
   const settings = useStudioStore.getState().settings;
   try {
     for (const [locale, expected] of [
@@ -128,5 +132,43 @@ test("SIG-1443: the opening header is translated only when the site language is 
     }
   } finally {
     useStudioStore.setState({ settings });
+  }
+});
+
+test("SIG-1447: falls back to the active line and gives an exact source opening priority", async () => {
+  const before = useStudioStore.getState();
+  const board = selectActiveBoard(before);
+  const { tree } = importPgn("1. d4 d5 2. Nc3 Nf6 3. Bf4 e6 4. Nb5");
+  const path = Array<number>(7).fill(0);
+  const explorer: ExplorerResponse = {
+    fen: getFenAt(tree, path), source: "masters", white: 0, draws: 0, black: 0,
+    opening: null, games: [], moves: [],
+  };
+  const setPath = (path: number[]) => {
+    useStudioStore.setState({
+      boards: before.boards.map((candidate) => candidate.id === board.id ? { ...board, tree, path } : candidate),
+    });
+  };
+  try {
+    setPath(path);
+    useStudioStore.setState({
+      explorer, explorerLoading: false, explorerError: null, databaseSource: "masters",
+      settings: { ...before.settings, locale: "pt-br" },
+    });
+    render(<ExplorerPanel />);
+    assert.ok(await screen.findByText("Sistema Rapport-Jobava"));
+    assert.ok(screen.getByText("D01"));
+
+    await act(async () => {
+      useStudioStore.setState({ explorer: { ...explorer, opening: { eco: "A00", name: "Source opening" } } });
+    });
+    assert.ok(screen.getByText("Source opening"));
+    assert.ok(screen.getByText("A00"));
+
+    await act(async () => setPath([]));
+    assert.ok(screen.getByText("Sem nome de abertura"));
+  } finally {
+    cleanup();
+    useStudioStore.setState({ boards: before.boards, settings: before.settings });
   }
 });

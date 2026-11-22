@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { explorerSourceTitle, fileExplorerSource, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
+import { fenKey } from "@/src/chess/tree";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { formatGameCount, formatInteger } from "@/src/i18n/format.ts";
 import { useStudioStore } from "@/src/store/studio-store";
-import { useActiveFen } from "@/src/store/hooks";
+import { useActiveLineFens } from "@/src/store/hooks";
 import { ExplorerFiltersBar } from "./ExplorerFiltersBar";
 import { Badge } from "./ui/Controls";
 import { ResultBar } from "./ui/ResultBar";
@@ -18,6 +19,8 @@ import { openExplorerPanel, persistExplorerSource } from "./dock-api";
 import { useExplorerData } from "./use-explorer-data";
 import { EXPLORER_COMPACT_MAX_HEIGHT, usePanelSize } from "./use-panel-size";
 import { localizeOpeningName } from "@/src/lib/opening-names";
+import { indexCatalogOpenings, resolveLineOpening } from "@/src/lib/line-opening";
+import { loadCatalog } from "@/src/lib/openings-catalog";
 
 const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(170px,220px)] items-center gap-3 px-3";
 
@@ -118,7 +121,21 @@ function ExplorerChrome({
   onDuplicate: () => void;
 }) {
   const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
-  const openingName = explorer?.opening ? localizeOpeningName(explorer.opening.name, locale, explorer.opening.eco) : null;
+  const lineFens = useActiveLineFens();
+  const activeFen = lineFens[lineFens.length - 1];
+  const [openingIndex, setOpeningIndex] = useState<ReturnType<typeof indexCatalogOpenings>>();
+  useEffect(() => {
+    let active = true;
+    void loadCatalog().then((entries) => {
+      if (active) setOpeningIndex(indexCatalogOpenings(entries));
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+  // The move list can retain a previous response while a new position loads.
+  const exactOpening = explorer?.opening && explorer.source === effectiveSource
+    && fenKey(explorer.fen) === fenKey(activeFen) ? explorer.opening : null;
+  const opening = exactOpening ?? (openingIndex ? resolveLineOpening(lineFens, openingIndex) : null);
+  const openingName = opening ? localizeOpeningName(opening.name, locale, opening.eco) : undefined;
   // SIG-1211: the Chess.com source has no global database — it indexes the
   // games of the Chess.com player loaded via search, so name that player in
   // the selector and explain the empty state when none is loaded.
@@ -138,7 +155,6 @@ function ExplorerChrome({
   const setExplorerHover = useStudioStore((state) => state.setExplorerHover);
   const rootRef = useRef<HTMLDivElement>(null);
   const compactHeader = usePanelSize(rootRef).height < EXPLORER_COMPACT_MAX_HEIGHT;
-  const activeFen = useActiveFen();
   // SIG-1194: hovering a move previews its arrow on the board.
   const showHoverArrow = (uci: string) =>
     setExplorerHover({ fen: activeFen, from: uci.slice(0, 2), to: uci.slice(2, 4) });
@@ -164,10 +180,10 @@ function ExplorerChrome({
             badge, name in its tooltip) so the move list keeps its rows. */}
         {compactHeader ? null : (
         <div className="flex h-8 items-center gap-2 px-3">
-          {explorer?.opening ? (
+          {opening ? (
             <>
-              <Badge tone="accent">{explorer.opening.eco}</Badge>
-              <span className="min-w-0 flex-1 truncate font-semibold" title={openingName ?? undefined}>
+              <Badge tone="accent">{opening.eco}</Badge>
+              <span className="min-w-0 flex-1 truncate font-semibold" title={openingName}>
                 {openingName}
               </span>
             </>
@@ -186,9 +202,9 @@ function ExplorerChrome({
         </div>
         )}
         <div className="flex h-[31px] items-center gap-1 pl-2 pr-1.5">
-          {compactHeader && explorer?.opening ? (
-            <span title={openingName ?? undefined} className="shrink-0">
-              <Badge tone="accent">{explorer.opening.eco}</Badge>
+          {compactHeader && opening ? (
+            <span title={openingName} className="shrink-0">
+              <Badge tone="accent">{opening.eco}</Badge>
             </span>
           ) : null}
           <select

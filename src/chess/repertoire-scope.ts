@@ -1,5 +1,8 @@
+import { indexCatalogOpenings as repertoireCatalogIndex } from "../lib/line-opening";
 import type { CatalogEntry } from "../lib/openings-catalog";
 import { fenKey, getFenAt, type GameTree, type Path, type TreeNode } from "./tree";
+
+export { repertoireCatalogIndex };
 
 export const TRAINING_DEPTHS = [10, 15, 20] as const;
 export const OTHER_LINES = "other";
@@ -12,22 +15,6 @@ export type Scope = {
 export type RepertoireScopeFilter = (path: Path, parentFen: string) => boolean;
 
 type Variation = { id: string; name: string; eco: string; path: Path };
-const catalogIndexes = new WeakMap<readonly CatalogEntry[], ReadonlyMap<string, CatalogEntry>>();
-
-export function repertoireCatalogIndex(catalog: readonly CatalogEntry[]) {
-  const cached = catalogIndexes.get(catalog);
-  if (cached) return cached;
-  const index = new Map<string, CatalogEntry>();
-  for (const entry of catalog) {
-    const key = fenKey(entry.fen);
-    if ((index.get(key)?.uci.length ?? -1) < entry.uci.length) {
-      index.set(key, entry);
-    }
-  }
-  catalogIndexes.set(catalog, index);
-  return index;
-}
-
 export function repertoireVariations(
   tree: GameTree,
   catalog: readonly CatalogEntry[],
