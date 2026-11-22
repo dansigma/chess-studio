@@ -81,7 +81,7 @@ test("searches the catalog, shows the final board and moves, and creates a marke
 
   fireEvent.change(view.getByRole("textbox", { name: "Search by opening name or ECO" }), { target: { value: "B00" } });
   assert.equal(view.queryByText("Sicilian Defense"), null);
-  fireEvent.click(view.getByRole("button", { name: "B00 King's Pawn Game" }));
+  assert.equal(view.getByRole("button", { name: "B00 King's Pawn Game" }).getAttribute("aria-pressed"), "true");
   const previewBoard = view.getByRole("img", { name: "Final position" }).firstElementChild;
   assert.equal(previewBoard?.getAttribute("data-fen"), kingsPawn.fen);
   assert.equal(previewBoard?.getAttribute("data-show-notation"), "false");
@@ -108,9 +108,10 @@ test("searches the catalog, shows the final board and moves, and creates a marke
   assert.equal(onClose.mock.callCount(), 1);
 });
 
-test("groups same-name search results and previews the selected continuation", async () => {
+test("auto-selects the main line after the catalog loads and keeps a clicked continuation until the search changes", async () => {
   const view = render(<AddVariationDialog defaultColor="white" onClose={() => {}} />);
-  fireEvent.change(view.getByRole("textbox", { name: "Search by opening name or ECO" }), { target: { value: "Jobava" } });
+  const search = view.getByRole("textbox", { name: "Search by opening name or ECO" });
+  fireEvent.change(search, { target: { value: "Jobava" } });
 
   const group = within(await view.findByRole("group", { name: jobavaName }));
   assert.equal(group.getAllByText(jobavaName).length, 1);
@@ -120,13 +121,32 @@ test("groups same-name search results and previews the selected continuation", a
 
   const main = group.getByRole("button", { name: `${jobavaName} — ${jobavaSan}` });
   const g6 = group.getByRole("button", { name: `${jobavaName} — 3... g6` });
-  fireEvent.click(main);
+  assert.equal(main.getAttribute("aria-pressed"), "true");
   const preview = view.getByRole("img", { name: "Final position" });
   assert.equal(preview.firstElementChild?.getAttribute("data-fen"), jobava.fen);
   fireEvent.click(g6);
   assert.equal(main.getAttribute("aria-pressed"), "false");
   assert.equal(g6.getAttribute("aria-pressed"), "true");
   assert.equal(preview.firstElementChild?.getAttribute("data-fen"), jobavaG6.fen);
+
+  fireEvent.click(view.getByRole("radio", { name: "Intermediate" }));
+  assert.equal(g6.getAttribute("aria-pressed"), "true");
+  assert.equal(preview.firstElementChild?.getAttribute("data-fen"), jobavaG6.fen);
+
+  fireEvent.change(search, { target: { value: "D01" } });
+  assert.equal(main.getAttribute("aria-pressed"), "true");
+  assert.equal(preview.firstElementChild?.getAttribute("data-fen"), jobava.fen);
+
+  fireEvent.click(g6);
+  fireEvent.change(search, { target: { value: "" } });
+  assert.equal(view.queryByRole("group", { name: jobavaName }), null);
+  assert.equal(preview.firstElementChild?.getAttribute("data-fen"), jobavaG6.fen);
+
+  const add = view.getByRole("button", { name: "Add to repertoire" });
+  assert.equal(add.hasAttribute("disabled"), false);
+  fireEvent.change(search, { target: { value: "no matching opening" } });
+  assert.equal(view.queryByRole("img", { name: "Final position" }), null);
+  assert.equal(add.hasAttribute("disabled"), true);
 });
 
 test("browses translated families, variations, and subvariations and can retry an unavailable book", async () => {
