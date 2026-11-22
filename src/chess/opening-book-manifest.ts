@@ -6,6 +6,7 @@ export const OPENING_BOOK_MANIFEST = {
   "version": 4,
   "format": 1,
   "file": "opening-book-v4.bin.gz",
+  "countsFile": "opening-book-counts-lumbra-v5.bin.gz",
   "profile": "union",
   "builtAt": "2026-11-07T11:23:21.130Z",
   "months": [

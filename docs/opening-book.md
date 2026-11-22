@@ -139,6 +139,29 @@ in the same directory, and pass `--counts` to `union-books.mjs`. The union sums 
 move's count across inputs that retained it and each position total across inputs
 that retained the position.
 
+### Counts file (Lumbra only)
+
+To support repertoire variation addition without recalculating theory reviews, a dedicated
+move counts companion was generated from Lumbra's GigaBase alone (masters profile, Elo 2100+,
+at least 5 distinct players per move) and published without rebuilding the theory book:
+
+- **Source:** Lumbra's GigaBase "OTB Complete" release of 2026-11-11 (CC BY-NC 4.0).
+- **Command:**
+  ```bash
+  node scripts/opening-book/build-book.mjs lumbra/LumbrasGigabase_OTB_Complete.pgn \
+    --profile masters --min-elo 2100 --out-dir out-masters --version 5 --counts \
+    --tmp-dir out-masters/tmp --min-games-read 11900000 \
+    --license "Lumbra's GigaBase (CC BY-NC 4.0)" \
+    --attribution "Includes games from Lumbra's GigaBase (lumbrasgigabase.com), CC BY-NC 4.0"
+  ```
+- **Stats:** 13,450,696 games read, 4,228,557 kept, 32,138 duplicates; 73,900 positions, 162,544 moves.
+- **Companion file:** `opening-book-counts-lumbra-v5.bin.gz` (1,167,715 bytes gzipped, 1,275,790 bytes raw).
+- **SHA-256:** `450473959315db8beb367e7913b874c599b8b313e6ca710a77741480675659a2`.
+
+The theory book remains `opening-book-v4.bin.gz` (version 4) so existing game reviews are not invalidated.
+Lichess and correspondence move counts will be incorporated in a subsequent update requiring a full rebuild
+of all three sources with `--counts` and a new union.
+
 ### Upload and deploy
 
 The object key is `book/<file>` in the engine bucket. Files are versioned and immutable: never overwrite a
