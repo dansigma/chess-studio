@@ -4,7 +4,7 @@ import { Chess } from "chess.js";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import { createPortal } from "react-dom";
-import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
+import { boardSquareStyles } from "@/src/chess/board-themes";
 import type { CountsBook } from "@/src/chess/opening-book-counts-format";
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { buildVariationBook, VARIATION_LEVELS, type VariationBookOptions } from "@/src/chess/variation-book";
@@ -99,7 +99,6 @@ function LinePreview({ line, color, locale }: { line: CatalogEntry; color: Board
   const id = useId().replace(/[^A-Za-z0-9_-]/g, "");
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
-  const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const theme = boardSquareStyles(boardTheme);
   const moves = useMemo(() => lineMoves(line), [line]);
 
@@ -108,18 +107,17 @@ function LinePreview({ line, color, locale }: { line: CatalogEntry; color: Board
       <p className="flex items-start gap-2 font-medium text-studio-fg">
         <EcoBadge code={line.eco} /> {lineName(line, locale)}
       </p>
-      <div className="aspect-square w-full max-w-40 overflow-hidden rounded-lg" role="img" aria-label={tRepertoire(locale, "variation.position")}>
+      <div className="aspect-square w-full max-w-[22rem] overflow-hidden rounded-lg" role="img" aria-label={tRepertoire(locale, "variation.position")}>
         <Chessboard options={{
           id: `variation-preview-${id}`,
           position: line.fen,
           boardOrientation: color,
-          showNotation: showCoordinates,
+          showNotation: false,
           showAnimations: false,
           allowDragging: false,
           allowDrawingArrows: false,
           lightSquareStyle: theme.light,
           darkSquareStyle: theme.dark,
-          ...boardCoordinateOptions(boardTheme),
           pieces: piecesForSet(pieceSet),
         }} />
       </div>
@@ -252,7 +250,7 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
     <Dialog
       title={tRepertoire(locale, "variation.title")}
       onClose={onClose}
-      width="w-full md:w-[48rem]"
+      width="w-full md:w-[60rem]"
       fullScreenOnMobile
       footer={
         <Button variant="primary" disabled={!preview} onClick={addVariation}>
@@ -260,7 +258,7 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
         </Button>
       }
     >
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
         <div className="min-w-0 space-y-2">
           <SearchInput
             value={query}
@@ -269,7 +267,7 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
             placeholder={tRepertoire(locale, "variation.search")}
             clearLabel={tRepertoire(locale, "variation.clear")}
           />
-          <div className="max-h-[35dvh] overflow-y-auto rounded border border-studio-border md:max-h-[28rem]">
+          <div className="max-h-[35dvh] overflow-y-auto rounded border border-studio-border md:max-h-[36rem]">
             {entries === undefined && <p role="status" className="p-2">{tRepertoire(locale, "variation.catalogLoading")}</p>}
             {entries === null && <p role="alert" className="p-2">{tRepertoire(locale, "variation.catalogUnavailable")}</p>}
             {entries && searching && results.length === 0 && <p className="p-2">{tRepertoire(locale, "variation.noResults")}</p>}

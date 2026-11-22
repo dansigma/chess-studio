@@ -38,7 +38,9 @@ mock.module("@/src/lib/openings-catalog", {
 });
 mock.module("react-chessboard", {
   namedExports: {
-    Chessboard: ({ options }: { options: { position: string } }) => <span data-fen={options.position} />,
+    Chessboard: ({ options }: { options: { position: string; showNotation?: boolean } }) => (
+      <span data-fen={options.position} data-show-notation={options.showNotation} />
+    ),
   },
 });
 const openBoardPanel = mock.fn();
@@ -60,6 +62,7 @@ beforeEach(() => {
 });
 
 test("searches the catalog, shows the final board and moves, and creates a marked board when the chosen color has none", async () => {
+  useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en", showCoordinates: true } });
   const onClose = mock.fn();
   const view = render(<AddVariationDialog defaultColor="white" onClose={onClose} />);
   const add = view.getByRole("button", { name: "Add to repertoire" });
@@ -70,7 +73,9 @@ test("searches the catalog, shows the final board and moves, and creates a marke
   fireEvent.change(view.getByRole("textbox", { name: "Search by opening name or ECO" }), { target: { value: "B00" } });
   assert.equal(view.queryByText("Sicilian Defense"), null);
   fireEvent.click(view.getByRole("button", { name: "B00 King's Pawn Game" }));
-  assert.equal(view.getByRole("img", { name: "Final position" }).firstElementChild?.getAttribute("data-fen"), kingsPawn.fen);
+  const previewBoard = view.getByRole("img", { name: "Final position" }).firstElementChild;
+  assert.equal(previewBoard?.getAttribute("data-fen"), kingsPawn.fen);
+  assert.equal(previewBoard?.getAttribute("data-show-notation"), "false");
   assert.ok(view.getByText("1. e4"));
   assert.ok(await view.findByText("~2 lines, ~2 moves of yours"));
 
