@@ -395,20 +395,25 @@ test("sign-in uploads local databases once, skips duplicates, and keeps rejected
 });
 
 test("account Library downloads every page and keeps databases above the new quota", async () => {
-  const ranges: Array<[number, number]> = [];
+  const ranges: Array<[string, number, number]> = [];
   const rows = Array.from({ length: 11 }, (_, i) => ({
     id: `remote-${i}`, name: `Database ${i}`, folder_id: null, game_count: i === 0 ? 25_000 : 0,
   }));
+  let databaseId: string;
   const readGames = {
-    eq: () => readGames,
+    eq: (column: string, value: string) => {
+      if (column === "database_id") databaseId = value;
+      return readGames;
+    },
     order: (column: string) => {
       assert.equal(column, "id");
       return readGames;
     },
     range: (start: number, end: number) => {
-      ranges.push([start, end]);
+      ranges.push([databaseId, start, end]);
+      const count = databaseId === "remote-0" ? Math.max(0, Math.min(end + 1, 25_000) - start) : 0;
       return {
-        data: Array.from({ length: end - start + 1 }, (_, i) => makePgnGame(start + i)),
+        data: Array.from({ length: count }, (_, i) => makePgnGame(start + i)),
         error: null,
       };
     },
@@ -428,8 +433,10 @@ test("account Library downloads every page and keeps databases above the new quo
   assert.equal(files.databases.length, 11);
   assert.equal(files.databases[0].games.length, 25_000);
   assert.equal(new Set(files.databases[0].games.map(({ id }) => id)).size, 25_000);
-  assert.equal(ranges.length, 25);
-  assert.deepEqual(ranges.at(-1), [24_000, 24_999]);
+  assert.deepEqual(ranges, [
+    ...Array.from({ length: 26 }, (_, i) => ["remote-0", i * 1000, i * 1000 + 999]),
+    ...rows.slice(1).map(({ id }) => [id, 0, 999]),
+  ]);
 });
 
 test("sign-in joins an in-flight first upload and an append queues one game write", async () => {
