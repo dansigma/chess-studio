@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test, { describe } from "node:test";
 import catalog from "../data/openings-catalog.json" with { type: "json" };
 import { PT_BR_FAMILIES } from "./opening-names.ts";
-import { translateFamily, translateOpeningPart } from "./opening-names-pt-br.ts";
+import {
+  findEnglishGenericSurvivors,
+  translateFamily,
+  translateOpeningPart,
+} from "./opening-names-pt-br.ts";
 
 describe("translateOpeningPart", () => {
   test("SIG-1441 spec examples", () => {
@@ -19,6 +23,7 @@ describe("translateOpeningPart", () => {
   test("head word moves to the front", () => {
     assert.equal(translateOpeningPart("Main Line"), "Linha Principal");
     assert.equal(translateOpeningPart("Haag Gambit"), "Gambito Haag");
+    assert.equal(translateOpeningPart("Accelerated Dragon"), "Dragão Acelerado");
   });
 
   test("modifiers bound after the head follow it", () => {
@@ -37,6 +42,22 @@ describe("translateOpeningPart", () => {
     assert.equal(translateOpeningPart("Najdorf Variation"), "Variante Najdorf");
     assert.equal(translateOpeningPart("Mar del Plata Gambit"), "Gambito Mar del Plata");
     assert.equal(translateOpeningPart("Zilbermints-Hartlaub Gambit"), "Gambito Zilbermints-Hartlaub");
+  });
+
+  test("whole catalog translates without surviving English generic words", () => {
+    let parts = 0;
+    for (const { name } of catalog) {
+      const colon = name.indexOf(":");
+      if (colon === -1) continue;
+      for (const raw of name.slice(colon + 1).split(",")) {
+        const part = raw.trim();
+        if (!part) continue;
+        parts++;
+        const survivors = findEnglishGenericSurvivors(translateOpeningPart(part));
+        assert.deepEqual(survivors, [], `generic English survived in "${part}"`);
+      }
+    }
+    assert.ok(parts > 2000, `expected the full catalog, got ${parts} parts`);
   });
 });
 
