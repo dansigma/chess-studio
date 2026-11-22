@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { getFenAt, getLastMove } from "@/src/chess/tree";
 import {
   selectActiveBoard,
@@ -28,6 +29,22 @@ export function useActiveFen(): string {
     const board = selectActiveBoard(state);
     return getFenAt(board.tree, board.path);
   });
+}
+
+export function useActiveLineFens(): readonly string[] {
+  const line = useStudioStore((state) => {
+    const { tree, path } = selectActiveBoard(state);
+    const fens = [tree.startFen];
+    let children = tree.children;
+    for (const index of path) {
+      const node = children[index];
+      if (!node) break;
+      fens.push(node.fen);
+      children = node.children;
+    }
+    return fens.join("\n");
+  });
+  return useMemo(() => line.split("\n"), [line]);
 }
 
 export function useBoardFen(): string {
