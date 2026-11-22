@@ -19,6 +19,7 @@ type FakeOptions = {
   failChunkAt?: number;
   failChunkWith?: { message: string; code?: string };
   failSwap?: boolean;
+  failIndexWith?: string;
   failSwapWith?: { message: string; code?: string };
   failCreateDbWith?: { message: string; code?: string };
   promotedCount?: number;
@@ -139,7 +140,10 @@ function buildFakeSupabase(options: FakeOptions = {}) {
       }
       if (table === "position_stats") {
         return {
-          delete: () => ({ eq: () => { calls.push({ op: "clear-stats" }); return finish({}); } }),
+          delete: () => ({ eq: () => {
+            calls.push({ op: "clear-stats" });
+            return finish({ error: options.failIndexWith ? { message: options.failIndexWith } : null });
+          } }),
           insert: (rows: unknown) => {
             void rows;
             return finish({});
@@ -473,4 +477,55 @@ test("sign-in joins an in-flight first upload and an append queues one game writ
   assert.deepEqual(writes.map(({ p_operation, p_game_id }) => [p_operation, p_game_id]), [
     ["insert", database.games[1].id],
   ]);
+});
+
+test("remote Library paging follows the actual rows even when game_count is zero", async () => {
+  const { loadRemoteFiles } = await import("./user-files.ts");
+  const ranges: number[][] = [];
+  const pageError = new Error("could not read second page");
+  let failSecondPage = false;
+  const query = {
+    select: () => query,
+    eq: () => query,
+    order: () => query,
+    range: async (start: number, end: number) => {
+      ranges.push([start, end]);
+      if (start && failSecondPage) return { error: pageError };
+      const count = start === 0 ? 1000 : 1;
+      return { data: Array.from({ length: count }, (_, index) => makePgnGame(start + index)), error: null };
+    },
+  };
+  (globalThis as { __sig1037Fake?: unknown }).__sig1037Fake = {
+    from: (table: string) => {
+      if (table === "games") return query;
+      if (table === "user_folders") {
+        return { select: () => ({ eq: async () => ({ data: [], error: null }) }) };
+      }
+      return {
+        select: () => ({ eq: () => ({ eq: async () => ({
+          data: [{ id: "remote", name: "Library", game_count: 0, folder_id: null }],
+          error: null,
+        }) }) }),
+      };
+    },
+  };
+  const files = await loadRemoteFiles("user-1");
+  assert.equal(files.databases[0].games.length, 1001);
+  assert.deepEqual(ranges, [[0, 999], [1000, 1999]]);
+  failSecondPage = true;
+  await assert.rejects(loadRemoteFiles("user-1"), pageError);
+});
+
+test("sign-in names the database that stayed local after an index failure", async () => {
+  const { useStudioStore } = await import("@/src/store/studio-store");
+  installFakeSupabase({ failIndexWith: "Position index unavailable" });
+  const database = { ...databaseWithGames(1), id: "index-failure", name: "My repertoire", remoteId: null };
+  useStudioStore.setState({
+    files: { folders: [], databases: [database] },
+    filesHydrated: true,
+    user: { id: "user-1", email: null },
+  });
+  await useStudioStore.getState().uploadLocalDatabases({ folders: [], databases: [] });
+  assert.equal(useStudioStore.getState().files.databases[0].remoteId, null);
+  assert.match(useStudioStore.getState().statusMessage ?? "", /My repertoire \(Position index unavailable\)/);
 });

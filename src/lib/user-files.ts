@@ -97,13 +97,13 @@ function decodeLocalFiles(raw: string): FilesLibrary {
 
 type FilesCache = {
   read: () => Promise<FilesLibrary | undefined>;
-  write: (library: FilesLibrary) => Promise<void>;
+  write: (library: FilesLibrary, isCurrent: () => boolean) => Promise<void>;
 };
 
 async function withFilesCache<T>(
   mode: IDBTransactionMode,
-  request: (store: IDBObjectStore) => IDBRequest<T>,
-): Promise<T> {
+  request: (store: IDBObjectStore) => IDBRequest<T> | undefined,
+): Promise<T | undefined> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
     const open = window.indexedDB.open("studio-library", 1);
     let blocked = false;
@@ -122,10 +122,10 @@ async function withFilesCache<T>(
     };
   });
   try {
-    return await new Promise<T>((resolve, reject) => {
+    return await new Promise<T | undefined>((resolve, reject) => {
       const transaction = db.transaction("files", mode);
       const result = request(transaction.objectStore("files"));
-      transaction.oncomplete = () => resolve(result.result);
+      transaction.oncomplete = () => resolve(result?.result);
       transaction.onabort = () => reject(transaction.error);
     });
   } finally {
@@ -135,14 +135,20 @@ async function withFilesCache<T>(
 
 const indexedFilesCache: FilesCache = {
   read: () => withFilesCache("readonly", (store) => store.get(FILES_KEY)),
-  write: (library) => withFilesCache("readwrite", (store) => store.put(library, FILES_KEY)).then(() => undefined),
+  write: (library, isCurrent) =>
+    withFilesCache("readwrite", (store) => {
+      if (isCurrent()) return store.put(library, FILES_KEY);
+    }).then(() => undefined),
 };
 
-// Serialize hydration, migration, and saves so a slow operation cannot restore
-// an older snapshot after a newer write or a session reset.
+// Serialize hydration, migration, and saves within a session.
+let cacheGeneration = 0;
 let pendingCacheOperation: Promise<unknown> = Promise.resolve();
-function queueCacheOperation<T>(operation: () => Promise<T>): Promise<T> {
-  const next = pendingCacheOperation.then(operation, operation);
+let pendingCacheClear: Promise<boolean> = Promise.resolve(true);
+function queueCacheOperation<T>(operation: (isCurrent: () => boolean) => Promise<T>): Promise<T> {
+  const generation = cacheGeneration;
+  const run = () => operation(() => generation === cacheGeneration);
+  const next = pendingCacheOperation.then(run, run);
   pendingCacheOperation = next;
   return next;
 }
@@ -151,13 +157,33 @@ function removeLegacyFiles() {
   try {
     window.localStorage.removeItem(FILES_KEY);
   } catch {
-    // IndexedDB already committed the snapshot.
+    // Legacy storage may be disabled.
   }
 }
 
+export function clearLocalFiles(): Promise<boolean> {
+  // Skip queued writes and invalidate writes still opening IndexedDB. Any put
+  // already issued has a readwrite transaction that IndexedDB orders before
+  // the delete. New operations wait for the delete to commit.
+  cacheGeneration++;
+  if (typeof window !== "undefined") removeLegacyFiles();
+  pendingCacheClear = pendingCacheClear.then(async () => {
+    try {
+      if (typeof window !== "undefined" && window.indexedDB) {
+        await withFilesCache("readwrite", (store) => store.delete(FILES_KEY));
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  pendingCacheOperation = pendingCacheClear;
+  return pendingCacheClear;
+}
+
 export function loadLocalFiles(cache: FilesCache = indexedFilesCache): Promise<FilesLibrary> {
-  return queueCacheOperation(async () => {
-    if (typeof window === "undefined") {
+  return queueCacheOperation(async (isCurrent) => {
+    if (typeof window === "undefined" || !isCurrent()) {
       return EMPTY_FILES;
     }
     let raw: string | null = null;
@@ -171,29 +197,30 @@ export function loadLocalFiles(cache: FilesCache = indexedFilesCache): Promise<F
       if (cache === indexedFilesCache && !window.indexedDB) {
         return legacy;
       }
+      const snapshot = await cache.read();
+      if (!isCurrent()) return EMPTY_FILES;
       if (raw) {
-        await cache.write(legacy);
-        removeLegacyFiles();
-      } else {
-        return (await cache.read()) ?? EMPTY_FILES;
+        if (snapshot === undefined) await cache.write(legacy, isCurrent);
+        if (isCurrent()) removeLegacyFiles();
       }
+      return isCurrent() ? snapshot ?? legacy : EMPTY_FILES;
     } catch {
       // Retain the legacy snapshot if the migration could not commit.
     }
-    return legacy;
+    return isCurrent() ? legacy : EMPTY_FILES;
   });
 }
 
 /** Returns false when the browser refused the write; never throws. */
 export function saveLocalFiles(library: FilesLibrary): Promise<boolean> {
-  return queueCacheOperation(async () => {
-    if (typeof window === "undefined") {
+  return queueCacheOperation(async (isCurrent) => {
+    if (typeof window === "undefined" || !isCurrent()) {
       return true;
     }
     try {
       if (window.indexedDB) {
-        await indexedFilesCache.write(library);
-        removeLegacyFiles();
+        await indexedFilesCache.write(library, isCurrent);
+        if (isCurrent()) removeLegacyFiles();
         return true;
       }
     } catch (error) {
@@ -201,6 +228,7 @@ export function saveLocalFiles(library: FilesLibrary): Promise<boolean> {
         return false;
       }
     }
+    if (!isCurrent()) return true;
     try {
       window.localStorage.setItem(FILES_KEY, JSON.stringify(library));
       return true;
@@ -562,7 +590,7 @@ export async function loadRemoteFiles(userId: string): Promise<FilesLibrary> {
 
   const { data: databases, error } = await supabase
     .from("game_databases")
-    .select("id, name, game_count, folder_id")
+    .select("id, name, folder_id")
     .eq("user_id", userId)
     .eq("kind", "personal");
   if (error) {
@@ -573,7 +601,7 @@ export async function loadRemoteFiles(userId: string): Promise<FilesLibrary> {
     // The Supabase API caps each response at 1,000 rows.
     const pageSize = 1000;
     const games: FileGame[] = [];
-    for (let offset = 0; offset < row.game_count; offset += pageSize) {
+    for (let offset = 0; ; offset += pageSize) {
       const { data: page, error: gamesError } = await supabase
         .from("games")
         .select("id, white, black, event, result, pgn")

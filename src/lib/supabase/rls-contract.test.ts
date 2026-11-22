@@ -894,3 +894,14 @@ describe("SIG-1416 personal Library quotas", () => {
     assert.doesNotMatch(migration, /to (anon|public|service_role)/);
   });
 });
+
+it("enforces the ten-database quota on all owned rows and ownership or kind changes", () => {
+  const migration = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261120000200_owned_database_quota.sql"),
+    "utf8",
+  );
+  assert.match(migration, /if new\.user_id is not null then\s+perform pg_catalog\.pg_advisory_xact_lock\(pg_catalog\.hashtextextended\(new\.user_id::text, 0\)\);/);
+  assert.match(migration, /where user_id = new\.user_id and id <> new\.id;/);
+  assert.match(migration, /if owned >= 10 then\s+raise exception using\s+errcode = 'P0001',\s+message = 'quota_databases'/);
+  assert.match(migration, /before insert or update of kind, user_id on public\.game_databases\s+for each row execute function public\.check_personal_database_quota\(\);/);
+});

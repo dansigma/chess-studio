@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
+import { clearLocalFiles } from "@/src/lib/user-files";
 import { accountInitials } from "@/src/lib/account-initials";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -11,7 +12,12 @@ import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu
 /** Signs out of Supabase in the browser, clears the store user, then the server session. */
 export async function signOutEverywhere(): Promise<void> {
   await createBrowserSupabase()?.auth.signOut();
-  useStudioStore.getState().setUser(null);
+  const state = useStudioStore.getState();
+  const cleared = await (state.setUser(null) ?? clearLocalFiles());
+  if (!cleared) {
+    state.setStatus(tStudioChrome(state.settings.locale, "chrome.account.signOutStorageFailed"));
+    return;
+  }
   const { signOut } = await import("@/app/login/actions");
   await signOut();
 }

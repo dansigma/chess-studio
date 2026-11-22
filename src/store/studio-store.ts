@@ -8,7 +8,7 @@ import { saveLocalBookmarks } from "@/src/lib/player-bookmarks";
 import { clearGuestBoards } from "@/src/lib/guest-boards";
 import { purgeUserLocalCaches } from "@/src/lib/local-cache";
 import { resetCourseProgressState } from "@/src/courses/store";
-import { EMPTY_FILES, saveLocalFiles } from "@/src/lib/user-files";
+import { clearLocalFiles, EMPTY_FILES } from "@/src/lib/user-files";
 // SIG-857 Phase C: slice modules own types, selectors, board helpers, and
 // settings defaults. The store composes them into the single create() below
 // so all 30+ existing `@/src/store/studio-store` import paths keep working.
@@ -86,6 +86,8 @@ export {
 } from "./slices/selectors";
 export { DEFAULT_SETTINGS, SETTINGS_KEY, loadLocalSettings } from "./slices/settings";
 export { emptyBoard, newId, withActive, analysisFen } from "./slices/board-helpers";
+
+let sessionFilesClear: Promise<boolean> | undefined;
 
 const CLOSED_SETTINGS_DIALOG: SettingsDialogState = { open: false, section: null };
 
@@ -201,8 +203,10 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const nextId = user?.id ?? null;
     set({ user });
     if (previousId !== null && previousId !== nextId) {
-      get().resetSessionState();
+      return get().resetSessionState();
     }
+    // The browser auth listener may have reset the session before AccountMenu.
+    if (nextId === null) return sessionFilesClear;
   },
   resetSessionState: () => {
     // SIG-886: the course/puzzle local caches are per-account data — purge
@@ -216,7 +220,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     get().hydrateSavedLayouts([]);
     clearGuestBoards();
     resetCourseProgressState();
-    void saveLocalFiles(EMPTY_FILES);
+    const filesClear = sessionFilesClear = clearLocalFiles();
     saveLocalBookmarks([]);
     const board = emptyBoard();
     const sessionReset = {
@@ -278,6 +282,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     } satisfies SessionResetPayload;
     get().exitRetry({ restorePath: false });
     set(sessionReset);
+    return filesClear;
   },
 }));
 

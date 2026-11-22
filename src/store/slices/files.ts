@@ -392,8 +392,9 @@ function createFilesHydration(set: FilesSet, get: FilesGet): Pick<
             uploadedDatabases.push(database);
           }
           indexFailed ||= Boolean(result.indexError);
-          if (result.error) {
-            failures.push(`${database.name} (${localizedSaveError(result.error, get().settings.locale)})`);
+          const failure = result.error ?? (result.uploaded ? undefined : result.indexError);
+          if (failure) {
+            failures.push(`${database.name} (${localizedSaveError(failure, get().settings.locale)})`);
           }
         }
         if (currentUser() && (count || indexFailed || failures.length)) {
