@@ -45,7 +45,7 @@ export function groupSearchResults<T extends CatalogLine>(results: readonly T[],
   });
 }
 
-export function lineMovesFrom(line: CatalogLine, start = 0, notation?: readonly string[]) {
+export function lineMovesFrom(line: Pick<CatalogLine, "uci">, start = 0, notation?: readonly string[]) {
   const sans = notation ?? (() => {
     const chess = new Chess();
     return line.uci.map((uci) =>

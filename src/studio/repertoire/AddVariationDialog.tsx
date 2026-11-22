@@ -5,6 +5,7 @@ import { Chess } from "chess.js";
 import { Chessboard, type ChessboardOptions } from "react-chessboard";
 import { createPortal } from "react-dom";
 import { boardSquareStyles } from "@/src/chess/board-themes";
+import { bookKey } from "@/src/chess/opening-book";
 import type { CountsBook } from "@/src/chess/opening-book-counts-format";
 import { piecesForSet } from "@/src/chess/piece-sets";
 import { buildVariationBook, VARIATION_LEVELS, type VariationBookOptions } from "@/src/chess/variation-book";
@@ -130,8 +131,10 @@ function CatalogBranch({ node, ...picker }: LinePickerProps & { node: CatalogNod
   );
 }
 
-function LinePreview({ line, fen, color, locale, onMove }: {
+function LinePreview({ line, title, moves, fen, color, locale, onMove }: {
   line: CatalogEntry | null;
+  title: string | null;
+  moves: string | null;
   fen: string;
   color: BoardOrientation;
   locale: SiteLocale;
@@ -141,7 +144,6 @@ function LinePreview({ line, fen, color, locale, onMove }: {
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const theme = boardSquareStyles(boardTheme);
-  const moves = useMemo(() => line ? lineMovesFrom(line) : null, [line]);
   const [promotion, setPromotion] = useState<{ fen: string; line: CatalogEntry | null; uci: string } | null>(null);
   const pendingPromotion = promotion?.fen === fen && promotion.line === line ? promotion : null;
   if (promotion && !pendingPromotion) setPromotion(null);
@@ -165,9 +167,9 @@ function LinePreview({ line, fen, color, locale, onMove }: {
 
   return (
     <div className="space-y-2">
-      {line && (
+      {title && (
         <p className="flex items-start gap-2 font-medium text-studio-fg">
-          <EcoBadge code={line.eco} /> {lineName(line, locale)}
+          {line && <EcoBadge code={line.eco} />} {title}
         </p>
       )}
       <div className="aspect-square w-full max-w-[22rem] overflow-hidden rounded-lg" role="img" aria-label={tRepertoire(locale, line ? "variation.position" : "variation.boardPosition")}>
@@ -324,10 +326,18 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
       ? tRepertoire(locale, "variation.currentPosition")
       : lineMovesFrom(line, ply, positionIndex.notation.get(line));
   } : undefined;
+  const startUci = selected?.uci ?? (exploring ? anchor : null);
+  const moves = useMemo(() => startUci ? lineMovesFrom({ uci: startUci }) : null, [startUci]);
+  const namedLine = selected ?? positionName;
+  const title = namedLine ? lineName(namedLine, locale) : moves;
+  // The book builder counts the played prefix even if the position has no games.
+  const missingAnchorGames = Boolean(counts && exploring && !selected && !counts.positionFor(bookKey(fen))?.moves.length);
   const preview = useMemo(
-    () => counts && selected ? buildVariationBook(counts, { startUci: selected.uci, color, level }) : null,
-    [counts, selected, color, level],
+    () => counts && startUci && !missingAnchorGames ? buildVariationBook(counts, { startUci, color, level }) : null,
+    [counts, startUci, missingAnchorGames, color, level],
   );
+  const noBookGames = missingAnchorGames || (!selected && preview !== null && (preview.userMoves === 0 || preview.lines === 0));
+  const canAdd = Boolean(preview && !noBookGames);
   const picker = { locale, selected, onSelect: setSelected };
 
   function playMove(uci: string) {
@@ -346,8 +356,8 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
   }
 
   function addVariation() {
-    if (!selected || !preview) return;
-    finish(useStudioStore.getState().addVariationToRepertoire(preview.tree, color, lineName(selected, locale)));
+    if (!canAdd || !preview || !title) return;
+    finish(useStudioStore.getState().addVariationToRepertoire(preview.tree, color, title));
   }
 
   function finish(board: BoardSession | null) {
@@ -376,7 +386,7 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
       width="w-full md:w-[60rem]"
       fullScreenOnMobile
       footer={
-        <Button variant="primary" disabled={!preview} onClick={addVariation}>
+        <Button variant="primary" disabled={!canAdd} onClick={addVariation}>
           {tRepertoire(locale, "variation.add")}
         </Button>
       }
@@ -409,7 +419,7 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
           </div>
         </div>
         <div className="min-w-0 space-y-3">
-          <LinePreview line={selected} fen={fen} color={color} locale={locale} onMove={playMove} />
+          <LinePreview line={selected} title={title} moves={moves} fen={fen} color={color} locale={locale} onMove={playMove} />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" disabled={!selected && !exploring} onClick={undoMove}>
               {tRepertoire(locale, "variation.undoMove")}
@@ -449,7 +459,8 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
           <div role="status" aria-busy={counts === undefined}>
             {counts === undefined && tRepertoire(locale, "variation.bookLoading")}
             {counts === null && tRepertoire(locale, "variation.bookUnavailable")}
-            {preview && (
+            {noBookGames && tRepertoire(locale, "variation.noBookGames")}
+            {preview && !noBookGames && (
               <>
                 <p className="font-medium text-studio-fg">{tRepertoire(locale, "variation.preview", { lines: preview.lines, moves: preview.userMoves })}</p>
                 {preview.capped && <p className="text-caption">{tRepertoire(locale, "variation.capped")}</p>}

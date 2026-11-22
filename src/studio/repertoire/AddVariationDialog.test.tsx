@@ -26,6 +26,8 @@ const transposed = line("A04", "Réti Opening",
 const queensPawn = line("D02", "Queen's Pawn Game",
   ["d2d4", "d7d5", "g1f3"], "1. d4 d5 2. Nf3");
 const afterE5 = line("C20", "King's Pawn Game", ["e2e4", "e7e5"], "1. e4 e5");
+const afterA3E5 = new Chess();
+afterA3E5.loadPgn("1. a3 e5");
 
 const jobavaName = "Rapport-Jobava System";
 const jobavaMoves = ["d2d4", "d7d5", "b1c3", "g8f6", "c1f4"];
@@ -42,6 +44,7 @@ const book = decodeCountsBook(encodeCountsBook([
   { key: bookKey(kingsPawn.fen), move: encodeMove("e7e6"), count: 15, total: 100 },
   { key: bookKey(afterE5.fen), move: encodeMove("g1f3"), count: 50, total: 100 },
   { key: bookKey(afterE5.fen), move: encodeMove("f1c4"), count: 25, total: 100 },
+  { key: bookKey(afterA3E5.fen()), move: encodeMove("g1f3"), count: 50, total: 100 },
 ], { maxPly: 40 }));
 
 const loadCountsBook = mock.fn(async (): Promise<CountsBook | null> => book);
@@ -184,6 +187,63 @@ function play(sourceSquare: string, targetSquare: string, accepted = true) {
   });
 }
 
+test("adds an off-catalog line using the deepest catalogued name and the chosen level", async () => {
+  const view = render(<AddVariationDialog defaultColor="white" onClose={() => {}} />);
+  await view.findByRole("button", { name: "B00 King's Pawn Game" });
+  play("e2", "e4");
+  assert.ok(view.getByText("~2 lines, ~2 moves of yours"));
+  fireEvent.click(view.getByRole("radio", { name: "Intermediate" }));
+  assert.ok(view.getByText("~3 lines, ~2 moves of yours"));
+  play("e7", "e5");
+
+  assert.ok(view.getByText("No catalogued variation from here"));
+  assert.ok(view.getByText("You are at: King's Pawn Game"));
+  const board = view.getByRole("img", { name: "Board position" });
+  assert.equal(board.previousElementSibling?.textContent?.trim(), "King's Pawn Game");
+  assert.equal(board.nextElementSibling?.textContent, "1. e4 e5");
+  assert.ok(view.getByText("~1 lines, ~2 moves of yours"));
+
+  const add = view.getByRole("button", { name: "Add to repertoire" });
+  assert.equal(add.hasAttribute("disabled"), false);
+  fireEvent.click(add);
+  const store = useStudioStore.getState();
+  assert.match(store.statusMessage ?? "", /King's Pawn Game/);
+  const [e4] = store.active().tree.children;
+  assert.equal(e4.uci, "e2e4");
+  assert.deepEqual(e4.children.map(({ uci }) => uci), ["e7e5"]);
+  assert.deepEqual(e4.children[0].children.map(({ uci }) => uci), ["g1f3"]);
+});
+
+test("uses the played moves as the title when no position on the path is catalogued", async () => {
+  const view = render(<AddVariationDialog defaultColor="white" onClose={() => {}} />);
+  await view.findByRole("button", { name: "B00 King's Pawn Game" });
+  play("a2", "a3");
+  play("e7", "e5");
+
+  assert.equal(view.queryByText(/You are at/), null);
+  const board = view.getByRole("img", { name: "Board position" });
+  assert.equal(board.previousElementSibling?.textContent?.trim(), "1. a3 e5");
+  assert.equal(board.nextElementSibling?.textContent, "1. a3 e5");
+  const add = view.getByRole("button", { name: "Add to repertoire" });
+  assert.equal(add.hasAttribute("disabled"), false);
+  fireEvent.click(add);
+  const store = useStudioStore.getState();
+  assert.match(store.statusMessage ?? "", /1\. a3 e5/);
+  assert.equal(store.active().tree.children[0].uci, "a2a3");
+});
+
+test("adds the selected catalog row in preference to the played moves", async () => {
+  const view = render(<AddVariationDialog defaultColor="white" onClose={() => {}} />);
+  await view.findByRole("button", { name: "B00 King's Pawn Game" });
+  play("e2", "e4");
+  fireEvent.click(view.getByRole("button", { name: "Sicilian Defense — 1... c5" }));
+  fireEvent.click(view.getByRole("button", { name: "Add to repertoire" }));
+
+  const store = useStudioStore.getState();
+  assert.match(store.statusMessage ?? "", /Sicilian Defense/);
+  assert.deepEqual(store.active().tree.children[0].children.map(({ uci }) => uci), ["c7c5"]);
+});
+
 test("plays legal moves, filters catalog lines, and keeps the list anchored when selecting", async () => {
   const view = render(<AddVariationDialog defaultColor="white" onClose={() => {}} />);
   await view.findByRole("button", { name: "B00 King's Pawn Game" });
@@ -203,7 +263,7 @@ test("plays legal moves, filters catalog lines, and keeps the list anchored when
   assert.ok(view.getByText("You are at: King's Pawn Game"));
   assert.equal(view.queryByText(jobavaName), null);
   assert.ok(view.getByRole("button", { name: "King's Pawn Game — (current position)" }));
-  assert.equal(add.hasAttribute("disabled"), true);
+  assert.equal(add.hasAttribute("disabled"), false);
 
   const row = view.getByRole("button", { name: "Sicilian Defense — 1... c5" });
   fireEvent.click(row);
@@ -231,6 +291,8 @@ test("plays legal moves, filters catalog lines, and keeps the list anchored when
   assert.equal(reset.hasAttribute("disabled"), true);
   play("a2", "a3");
   assert.ok(view.getByText("No catalogued variation from here"));
+  assert.ok(view.getByText("No book games from this position"));
+  assert.equal(add.hasAttribute("disabled"), true);
   assert.equal(view.queryByText(/You are at/), null);
 });
 
