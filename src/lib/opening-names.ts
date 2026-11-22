@@ -34,8 +34,10 @@ export function resolveOpeningName(eco: string, fallbackName: string, locale: Si
 // SIG-1304: family-level PT-BR names keyed by a normalised English family
 // (lowercase, accents stripped, "defence" → "defense", curly → straight
 // apostrophes). Only the family before ":" is translated; the variation
-// suffix stays as the book spelled it.
-const PT_BR_FAMILIES: Record<string, string> = {
+// suffix stays as the book spelled it. SIG-1441 seeds the standalone PT-BR
+// glossary from this table and keeps its values identical, so it is exported
+// for the glossary tests.
+export const PT_BR_FAMILIES: Record<string, string> = {
   "sicilian defense": "Defesa Siciliana",
   "french defense": "Defesa Francesa",
   "caro-kann defense": "Defesa Caro-Kann",
