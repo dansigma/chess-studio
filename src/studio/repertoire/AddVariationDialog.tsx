@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
-import { Chessboard } from "react-chessboard";
+import { Chess } from "chess.js";
+import { Chessboard, type ChessboardOptions } from "react-chessboard";
 import { createPortal } from "react-dom";
 import { boardSquareStyles } from "@/src/chess/board-themes";
 import type { CountsBook } from "@/src/chess/opening-book-counts-format";
@@ -21,11 +22,18 @@ import { Button } from "../ui/Button";
 import { SearchInput, Segmented } from "../ui/Controls";
 import { Dialog } from "../ui/Dialog";
 import { EcoBadge } from "../ui/EcoBadge";
+import { catalogPositionIndex, replayCatalogPath } from "./catalog-positions";
 import { groupSearchResults, lineMovesFrom, lineName, type SearchGroup } from "./group-search-results";
 
 type Level = VariationBookOptions["level"];
 const LEVELS = Object.keys(VARIATION_LEVELS) as Level[];
 const COLORS = ["white", "black"] as const;
+const PROMOTIONS = {
+  q: "panels.board.promoteQueen",
+  r: "panels.board.promoteRook",
+  b: "panels.board.promoteBishop",
+  n: "panels.board.promoteKnight",
+} as const;
 
 type LinePickerProps = {
   locale: SiteLocale;
@@ -61,10 +69,11 @@ function LineOption({ line, alternate, continuation, locale, selected, onSelect 
 
 function SearchResultGroup({
   group: { name, lines, prefixLength },
+  positionMoves,
   ...picker
-}: LinePickerProps & { group: SearchGroup<CatalogEntry> }) {
+}: LinePickerProps & { group: SearchGroup<CatalogEntry>; positionMoves?: (line: CatalogEntry) => string }) {
   const first = lines[0];
-  if (lines.length === 1) return <LineOption line={first} {...picker} />;
+  if (lines.length === 1 && !positionMoves) return <LineOption line={first} {...picker} />;
 
   const showRowEco = lines.some((line) => line.eco !== first.eco);
   return (
@@ -79,7 +88,9 @@ function SearchResultGroup({
             key={`${line.eco} ${line.uci.join(" ")}`}
             line={line}
             continuation={{
-              moves: lineMovesFrom(line, line.uci.length === prefixLength ? 0 : prefixLength),
+              moves: positionMoves
+                ? positionMoves(line)
+                : lineMovesFrom(line, line.uci.length === prefixLength ? 0 : prefixLength),
               showEco: showRowEco,
             }}
             {...picker}
@@ -119,33 +130,75 @@ function CatalogBranch({ node, ...picker }: LinePickerProps & { node: CatalogNod
   );
 }
 
-function LinePreview({ line, color, locale }: { line: CatalogEntry; color: BoardOrientation; locale: SiteLocale }) {
+function LinePreview({ line, fen, color, locale, onMove }: {
+  line: CatalogEntry | null;
+  fen: string;
+  color: BoardOrientation;
+  locale: SiteLocale;
+  onMove: (uci: string) => void;
+}) {
   const id = useId().replace(/[^A-Za-z0-9_-]/g, "");
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const theme = boardSquareStyles(boardTheme);
-  const moves = useMemo(() => lineMovesFrom(line), [line]);
+  const moves = useMemo(() => line ? lineMovesFrom(line) : null, [line]);
+  const [promotion, setPromotion] = useState<{ fen: string; line: CatalogEntry | null; uci: string } | null>(null);
+  const pendingPromotion = promotion?.fen === fen && promotion.line === line ? promotion : null;
+  if (promotion && !pendingPromotion) setPromotion(null);
+
+  const turn = fen.split(" ")[1];
+  const onPieceDrop: NonNullable<ChessboardOptions["onPieceDrop"]> = ({ sourceSquare, targetSquare }) => {
+    if (!targetSquare || pendingPromotion) return false;
+    const chess = new Chess(fen);
+    try {
+      const move = chess.move({ from: sourceSquare, to: targetSquare, promotion: "q" });
+      if (move.promotion) {
+        setPromotion({ fen, line, uci: move.lan.slice(0, 4) });
+        return false;
+      }
+      onMove(move.lan);
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   return (
     <div className="space-y-2">
-      <p className="flex items-start gap-2 font-medium text-studio-fg">
-        <EcoBadge code={line.eco} /> {lineName(line, locale)}
-      </p>
-      <div className="aspect-square w-full max-w-[22rem] overflow-hidden rounded-lg" role="img" aria-label={tRepertoire(locale, "variation.position")}>
+      {line && (
+        <p className="flex items-start gap-2 font-medium text-studio-fg">
+          <EcoBadge code={line.eco} /> {lineName(line, locale)}
+        </p>
+      )}
+      <div className="aspect-square w-full max-w-[22rem] overflow-hidden rounded-lg" role="img" aria-label={tRepertoire(locale, line ? "variation.position" : "variation.boardPosition")}>
         <Chessboard options={{
           id: `variation-preview-${id}`,
-          position: line.fen,
+          position: fen,
           boardOrientation: color,
           showNotation: false,
           showAnimations: false,
-          allowDragging: false,
+          canDragPiece: ({ piece }) => !pendingPromotion && piece.pieceType[0] === turn,
+          onPieceDrop,
           allowDrawingArrows: false,
           lightSquareStyle: theme.light,
           darkSquareStyle: theme.dark,
           pieces: piecesForSet(pieceSet),
         }} />
       </div>
-      <p className="text-dense tabular-nums">{moves}</p>
+      {pendingPromotion && (
+        <div role="group" aria-label={tPanels(locale, "panels.board.promoteDialog")} className="flex flex-wrap gap-2">
+          {Object.entries(PROMOTIONS).map(([piece, label]) => (
+            <Button key={piece} size="sm" onClick={() => {
+              setPromotion(null);
+              onMove(pendingPromotion.uci + piece);
+            }}>
+              {tPanels(locale, label)}
+            </Button>
+          ))}
+          <Button size="sm" onClick={() => setPromotion(null)}>{tRepertoire(locale, "variation.mergeCancel")}</Button>
+        </div>
+      )}
+      {moves && <p className="text-dense tabular-nums">{moves}</p>}
     </div>
   );
 }
@@ -215,6 +268,7 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
   const [counts, setCounts] = useState<CountsBook | null>();
   const [bookAttempt, setBookAttempt] = useState(0);
   const [query, setQuery] = useState("");
+  const [anchor, setAnchor] = useState<string[]>([]);
   const [selected, setSelected] = useState<CatalogEntry | null>(null);
   const [color, setColor] = useState(defaultColor);
   const [level, setLevel] = useState<Level>("beginner");
@@ -236,22 +290,60 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
 
   const families = useMemo(() => entries ? catalogTree(entries, locale) : [], [entries, locale]);
   const searching = query.trim().length > 0;
-  const results = useMemo(
-    () => entries && searching
-      ? groupSearchResults(searchCatalog(entries, query, locale).slice(0, 100), locale)
-      : [],
-    [entries, searching, query, locale],
-  );
-  const [previousResults, setPreviousResults] = useState(results);
-  if (results !== previousResults) {
-    setPreviousResults(results);
-    if (searching) setSelected(results[0]?.lines[0] ?? null);
+  const exploring = anchor.length > 0;
+  const path = useMemo(() => replayCatalogPath(anchor), [anchor]);
+  const positionIndex = entries && exploring ? catalogPositionIndex(entries) : null;
+  const positionKey = path.keys.at(-1);
+  const positionPlies = useMemo(() => {
+    if (!positionIndex || !positionKey) return null;
+    return new Map(positionIndex.matches.get(positionKey)?.map(({ line, ply }) => [line, ply]));
+  }, [positionIndex, positionKey]);
+  const positionName = positionIndex?.deepestEnding(path.keys);
+  const results = useMemo(() => {
+    if (!entries) return [];
+    if (positionPlies) {
+      const lines = [...positionPlies.keys()];
+      return groupSearchResults(
+        searching ? searchCatalog(lines, query, locale) : lines,
+        locale,
+        (line) => positionPlies.get(line)!,
+      );
+    }
+    return searching ? groupSearchResults(searchCatalog(entries, query, locale).slice(0, 100), locale) : [];
+  }, [entries, searching, query, locale, positionPlies]);
+  const [previousResults, setPreviousResults] = useState({ results, anchor });
+  if (results !== previousResults.results || anchor !== previousResults.anchor) {
+    setPreviousResults({ results, anchor });
+    // Text search may select a preview. Board navigation always shows the anchor.
+    if (searching && anchor === previousResults.anchor) setSelected(results[0]?.lines[0] ?? null);
   }
+  const fen = selected?.fen ?? path.fen;
+  const positionMoves = positionPlies && positionIndex ? (line: CatalogEntry) => {
+    const ply = positionPlies.get(line)!;
+    return ply === line.uci.length
+      ? tRepertoire(locale, "variation.currentPosition")
+      : lineMovesFrom(line, ply, positionIndex.notation.get(line));
+  } : undefined;
   const preview = useMemo(
     () => counts && selected ? buildVariationBook(counts, { startUci: selected.uci, color, level }) : null,
     [counts, selected, color, level],
   );
   const picker = { locale, selected, onSelect: setSelected };
+
+  function playMove(uci: string) {
+    setAnchor([...(selected?.uci ?? anchor), uci]);
+    setSelected(null);
+  }
+
+  function undoMove() {
+    if (selected) setSelected(null);
+    else setAnchor(anchor.slice(0, -1));
+  }
+
+  function startOver() {
+    if (exploring) setAnchor([]);
+    setSelected(null);
+  }
 
   function addVariation() {
     if (!selected || !preview) return;
@@ -298,17 +390,34 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
             placeholder={tRepertoire(locale, "variation.search")}
             clearLabel={tRepertoire(locale, "variation.clear")}
           />
+          {positionName && (
+            <p className="font-medium text-studio-fg">
+              {tRepertoire(locale, "variation.youAreAt", { name: lineName(positionName, locale) })}
+            </p>
+          )}
           <div className="max-h-[35dvh] overflow-y-auto rounded border border-studio-border md:max-h-[36rem]">
             {entries === undefined && <p role="status" className="p-2">{tRepertoire(locale, "variation.catalogLoading")}</p>}
             {entries === null && <p role="alert" className="p-2">{tRepertoire(locale, "variation.catalogUnavailable")}</p>}
-            {entries && searching && results.length === 0 && <p className="p-2">{tRepertoire(locale, "variation.noResults")}</p>}
-            {searching
-              ? results.map((group) => <SearchResultGroup key={group.name} group={group} {...picker} />)
+            {entries && (searching || exploring) && results.length === 0 && (
+              <p className="p-2">
+                {tRepertoire(locale, positionPlies?.size === 0 ? "variation.noContinuation" : "variation.noResults")}
+              </p>
+            )}
+            {searching || exploring
+              ? results.map((group) => <SearchResultGroup key={group.name} group={group} positionMoves={positionMoves} {...picker} />)
               : families.map((node) => <CatalogBranch key={node.name} node={node} {...picker} />)}
           </div>
         </div>
         <div className="min-w-0 space-y-3">
-          {selected && <LinePreview line={selected} color={color} locale={locale} />}
+          <LinePreview line={selected} fen={fen} color={color} locale={locale} onMove={playMove} />
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" disabled={!selected && !exploring} onClick={undoMove}>
+              {tRepertoire(locale, "variation.undoMove")}
+            </Button>
+            <Button size="sm" disabled={!selected && !exploring} onClick={startOver}>
+              {tRepertoire(locale, "variation.startOver")}
+            </Button>
+          </div>
           <Segmented
             ariaLabel={tPanels(locale, "repertoire.colorSwitch")}
             value={color}
