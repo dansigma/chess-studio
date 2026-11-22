@@ -51,14 +51,13 @@ import {
 import {
   boardIdFromPanelId,
   boardPanelId,
-  ensureActiveBoardPanel,
   boardTitle,
   dedupedBoardTitles,
-  closeBoardPanel,
   consumeProgrammaticBoardClose,
   explorerTitleForSource,
   firstBoardPanel,
   openBoardPanel,
+  reconcileBoardPanels,
   panelTitleForId,
   playerExplorerTitle,
   playerGamesTitle,
@@ -157,11 +156,9 @@ const studioTheme = {
   dndPanelOverlay: "group" as const,
 };
 
-// SIG-907: board panels carry their session id in dockview params
-// (`params: { boardId }` at addPanel time); the prop re-renders that session
-// independent of the global active board.
-function BoardDockPanel(props: IDockviewPanelProps<{ boardId?: string }>) {
-  const boardId = props.params?.boardId;
+// Use the same session id for rendering and tab activation.
+function BoardDockPanel(props: IDockviewPanelProps) {
+  const boardId = boardIdFromPanelId(props.api.id) ?? undefined;
   return <BoardPanel boardId={boardId} />;
 }
 
@@ -316,11 +313,12 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
     const database = state.files.databases.find((item) => item.id === state.activeFileDatabaseId);
     return database?.name ?? panelTitleForId(state.settings.locale, "fileGames");
   });
-  // SIG-907: hydration gate — restore places verbatim until remote boards
-  // settle, then prunes orphan `board:*` panels whose sessions never arrived.
+  // Keep restored tabs until board hydration can confirm their sessions.
   const boardsHydrated = useStudioStore((state) => state.boardsHydrated);
+  const boardIds = useStudioStore((state) => state.boards.map((board) => board.id).join("|"));
   const apiRef = useRef<DockviewApi | null>(null);
   const suppressSaves = useRef(0);
+  const updatingDock = useRef(false);
   const suppressTimers = useRef<number[]>([]);
   const saveTimer = useRef<number | null>(null);
   const layoutSubscription = useRef<{ dispose: () => void } | null>(null);
@@ -349,27 +347,14 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
     markPanelsEnsured();
   }
 
-  // SIG-1316: after a preset / saved layout is placed, every open board gets
-  // a tab in the board group (never an empty board), and board / static tab
-  // titles are re-synced (a saved layout may carry titles from another
-  // locale or board name).
-  function syncAfterApply(api: DockviewApi): void {
-    const state = useStudioStore.getState();
-    const titles = dedupedBoardTitles(state.settings.locale, state.boards);
-    for (const board of state.boards) {
-      if (!api.getPanel(boardPanelId(board.id))) {
-        openBoardPanel(board.id, titles.get(board.id));
-      }
-    }
-    for (const [id, title] of titles) {
-      api.getPanel(boardPanelId(id))?.setTitle(title);
-    }
+  // A saved layout may carry static titles from another locale.
+  function syncStaticTitles(api: DockviewApi): void {
+    const { locale } = useStudioStore.getState().settings;
     for (const panel of api.panels) {
       if (panel.id in STATIC_TITLE_IDS) {
-        panel.setTitle(panelTitleForId(state.settings.locale, panel.id as StudioPanelId));
+        panel.setTitle(panelTitleForId(locale, panel.id as StudioPanelId));
       }
     }
-    api.getPanel(boardPanelId(state.activeBoardId))?.api.setActive();
   }
 
   function disposePanelSubscriptions(): void {
@@ -381,9 +366,12 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
 
   function runWithoutSave(fn: () => void): void {
     suppressSaves.current += 1;
+    const wasUpdating = updatingDock.current;
+    updatingDock.current = true;
     try {
       fn();
     } finally {
+      updatingDock.current = wasUpdating;
       // SIG-856: keep the id so the timer can be cleared on unmount instead
       // of decrementing the counter on a dead dock.
       const id = window.setTimeout(() => {
@@ -516,34 +504,11 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
     }
   }, [locale, boardTitles, explorerTitles, fileGamesTitle, playerKey, playerName]);
 
-  // SIG-907: hydration-gated orphan prune. Restore places verbatim (remote
-  // boards may not have hydrated yet); once boardsHydrated flips, close any
-  // `board:*` panel whose session never arrived. Uses the programmatic path
-  // so the remove→close handler skips the echo, then reseeds when pruning
-  // emptied the dock so the store is never stranded without a board view.
   useEffect(() => {
-    const api = apiRef.current;
-    if (!api || !boardsHydrated) {
-      return;
+    if (apiRef.current) {
+      runWithoutSave(reconcileBoardPanels);
     }
-    const state = useStudioStore.getState();
-    const known = new Set(state.boards.map((board) => board.id));
-    let pruned = false;
-    for (const panel of [...api.panels]) {
-      const boardId = boardIdFromPanelId(panel.id);
-      if (boardId && !known.has(boardId)) {
-        closeBoardPanel(boardId);
-        pruned = true;
-      }
-    }
-    if (pruned && !firstBoardPanel(api)) {
-      const next = useStudioStore.getState();
-      const active = selectActiveBoard(next);
-      runWithoutSave(() => {
-        openBoardPanel(active.id, boardTitle(next.settings.locale, active.title));
-      });
-    }
-  }, [boardsHydrated]);
+  }, [boardsHydrated, boardIds]);
 
   useEffect(() => {
     return () => {
@@ -584,7 +549,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
           markPanelsEnsured();
         }
         placePlayers(api);
-        ensureActiveBoardPanel();
+        reconcileBoardPanels();
       });
     });
     setDockSnapshotReader(() =>
@@ -604,8 +569,8 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
           seedFor(api);
         }
         placePlayers(api);
-        ensureActiveBoardPanel();
-        syncAfterApply(api);
+        reconcileBoardPanels();
+        syncStaticTitles(api);
         markPanelsEnsured();
         return;
       }
@@ -623,7 +588,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
       } else {
         ensureMissingPanels(api);
       }
-      ensureActiveBoardPanel();
+      reconcileBoardPanels();
     });
     if (pendingLayout) {
       // The applied layout becomes the persisted current layout.
@@ -643,6 +608,10 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
     // store is never stranded without a board view.
     panelSubscriptions.current = [
       api.onDidActivePanelChange(({ panel }) => {
+        // Restoring or repairing the dock can temporarily activate other tabs.
+        if (updatingDock.current) {
+          return;
+        }
         const boardId = panel ? boardIdFromPanelId(panel.id) : null;
         if (!boardId) {
           return;
@@ -661,7 +630,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
         if (!boardId) {
           return;
         }
-        if (consumeProgrammaticBoardClose(boardId)) {
+        if (consumeProgrammaticBoardClose(boardId) || updatingDock.current) {
           return;
         }
         const state = useStudioStore.getState();

@@ -162,7 +162,7 @@ describe("SIG-1186 boot merge", () => {
     repertoire_color: null,
   });
 
-  it("prefers the saved active board when its local id differs from the remote id", () => {
+  it("keeps clean saved board ids and the active id when remote ids differ", () => {
     const local = {
       boards: [
         seedBoard("local-a", { remoteId: "remote-a", title: "A", dirty: false }),
@@ -171,18 +171,20 @@ describe("SIG-1186 boot merge", () => {
       activeBoardId: "local-a",
     };
     // Rows arrive ordered by updated_at desc: B is newer than A.
-    const merged = mergeSessionBoards(local, [row("remote-b", "B"), row("remote-a", "A")]);
+    const merged = mergeSessionBoards(local, [
+      row("remote-b", "B"),
+      { ...row("remote-a", "Saved A"), pgn: '[Event "Study"]\n\n1. e4 e5', current_node_path: [0, 0] },
+    ]);
     assert.ok(merged, "rows merge into a session");
     assert.deepEqual(
       merged.boards.map((board) => board.id),
-      ["remote-b", "remote-a"],
-      "clean local boards are replaced by their remote rows",
+      ["local-b", "local-a"],
     );
-    assert.equal(
-      merged.activeBoardId,
-      "remote-a",
-      "the saved active board wins by remoteId, not the newest remote",
-    );
+    assert.equal(merged.activeBoardId, "local-a");
+    assert.equal(merged.boards[1].remoteId, "remote-a");
+    assert.equal(merged.boards[1].title, "Saved A");
+    assert.equal(merged.boards[1].headers.Event, "Study");
+    assert.deepEqual(merged.boards[1].path, [0, 0]);
   });
 
   it("keeps a dirty local board and its id as the active board", () => {
@@ -204,7 +206,7 @@ describe("SIG-1186 boot merge", () => {
     const closed = { ...row("remote-b", "B"), closed_at: "2026-11-01T00:00:00Z" };
     const merged = mergeSessionBoards(local, [row("remote-a", "A"), closed]);
     assert.ok(merged);
-    assert.deepEqual(merged.boards.map((board) => board.id), ["remote-a"]);
+    assert.deepEqual(merged.boards.map((board) => board.id), ["local-a"]);
     assert.equal(mergeSessionBoards(null, [closed]), null, "all rows closed leaves the placeholder");
   });
 
@@ -216,7 +218,7 @@ describe("SIG-1186 boot merge", () => {
     const closedElsewhere = { ...row("remote-a", "A"), closed_at: "2026-11-01T00:00:00Z" };
     const merged = mergeSessionBoards(local, [closedElsewhere]);
     assert.ok(merged);
-    assert.deepEqual(merged.boards.map((board) => board.id), ["remote-a"]);
+    assert.deepEqual(merged.boards.map((board) => board.id), ["local-a"]);
   });
 
   it("keeps the snapshot when the remote read fails", () => {
