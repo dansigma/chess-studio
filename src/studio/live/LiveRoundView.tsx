@@ -16,6 +16,7 @@ import { LiveGamesTable, orderedGames } from "./LiveGamesTable";
 import { enqueueLiveRequest, useLiveStore } from "./live-store";
 import { useLiveRound, useLiveRoundInfo } from "./use-live";
 import { pickRoundForTour, useLiveTour } from "./use-live-tour";
+import { localizeOpeningName } from "@/src/lib/opening-names";
 
 const SKELETON_ROWS = 8;
 /** SIG-1313: boards opened for a round that has none open (boards 1, 2 and 3, in board order). */
@@ -60,7 +61,7 @@ function FollowedHeader({ game, locale }: { game: LiveGame | undefined; locale: 
           <span className="min-w-0 truncate text-studio-fg" title={tLive(locale, "live.round.opening")} data-live-opening="">
             {game.eco ? <span className="font-semibold tabular-nums">{game.eco}</span> : null}
             {game.eco && game.opening ? " · " : null}
-            {game.opening}
+            {game.opening ? localizeOpeningName(game.opening, locale, game.eco) : null}
           </span>
         ) : (
           <span className="min-w-0 truncate text-studio-fg tabular-nums" data-live-followed-summary="">

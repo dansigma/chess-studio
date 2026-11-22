@@ -17,6 +17,7 @@ import { isExplorerPanelId } from "./dock-layout";
 import { openExplorerPanel, persistExplorerSource } from "./dock-api";
 import { useExplorerData } from "./use-explorer-data";
 import { EXPLORER_COMPACT_MAX_HEIGHT, usePanelSize } from "./use-panel-size";
+import { localizeOpeningName } from "@/src/lib/opening-names";
 
 const ROW_GRID = "grid grid-cols-[64px_minmax(0,1fr)_minmax(170px,220px)] items-center gap-3 px-3";
 
@@ -117,6 +118,7 @@ function ExplorerChrome({
   onDuplicate: () => void;
 }) {
   const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
+  const openingName = explorer?.opening ? localizeOpeningName(explorer.opening.name, locale, explorer.opening.eco) : null;
   // SIG-1211: the Chess.com source has no global database — it indexes the
   // games of the Chess.com player loaded via search, so name that player in
   // the selector and explain the empty state when none is loaded.
@@ -165,8 +167,8 @@ function ExplorerChrome({
           {explorer?.opening ? (
             <>
               <Badge tone="accent">{explorer.opening.eco}</Badge>
-              <span className="min-w-0 flex-1 truncate font-semibold" title={explorer.opening.name}>
-                {explorer.opening.name}
+              <span className="min-w-0 flex-1 truncate font-semibold" title={openingName ?? undefined}>
+                {openingName}
               </span>
             </>
           ) : (
@@ -185,7 +187,7 @@ function ExplorerChrome({
         )}
         <div className="flex h-[31px] items-center gap-1 pl-2 pr-1.5">
           {compactHeader && explorer?.opening ? (
-            <span title={explorer.opening.name} className="shrink-0">
+            <span title={openingName ?? undefined} className="shrink-0">
               <Badge tone="accent">{explorer.opening.eco}</Badge>
             </span>
           ) : null}

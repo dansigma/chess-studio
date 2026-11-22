@@ -31,6 +31,7 @@ import {
   startPathForPosition,
 } from "./library-preview-model";
 import { useLibraryStore } from "./library-store";
+import { localizeOpeningName } from "@/src/lib/opening-names";
 
 type Loaded = { requestId: string; pgn: string; game: ImportedGame };
 type Failed = { requestId: string; message: string };
@@ -248,7 +249,7 @@ export function GamePreview({
   // One display form for the result everywhere: the list's ResultMark uses
   // the caption mark (½-½), so the preview must not show the raw PGN token.
   const resultMark = winner === null ? "*" : (resultCaptionForWinner(winner, locale)?.mark ?? result);
-  const displayOpening = [eco, opening].filter(Boolean).join(" · ") || headers.Opening || headers.ECO || null;
+  const displayOpening = [eco, opening && localizeOpeningName(opening, locale, eco)].filter(Boolean).join(" · ") || headers.Opening || headers.ECO || null;
 
   const openGameInStudio = () => {
     openListedGame({

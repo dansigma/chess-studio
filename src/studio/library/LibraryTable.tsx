@@ -19,6 +19,7 @@ import { LibraryPartialNotice } from "./LibraryPartialNotice";
 import { openLibraryGame, trainLibraryGame } from "./open-library-game";
 import type { LibraryGamesState } from "./use-library-games";
 import { nearEnd, useVirtualRows } from "./use-virtual-rows";
+import { localizeOpeningName } from "@/src/lib/opening-names";
 
 export { openLibraryGame, trainLibraryGame } from "./open-library-game";
 
@@ -89,12 +90,14 @@ function Cell({ item, column, locale }: { item: LibraryGameItem; column: Library
           {cellText(item, column)}
         </div>
       );
-    case "opening":
+    case "opening": {
+      const opening = item.opening ? localizeOpeningName(item.opening, locale, item.eco) : null;
       return (
-        <div role="gridcell" className={`${base} text-studio-muted`} title={item.opening ?? undefined}>
-          {cellText(item, column)}
+        <div role="gridcell" className={`${base} text-studio-muted`} title={opening ?? undefined}>
+          {opening ?? "—"}
         </div>
       );
+    }
     case "source": {
       const label = sourceLabel(item, locale);
       return (
