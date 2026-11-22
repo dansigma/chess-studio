@@ -3,8 +3,7 @@
 // tokens translate — the trailing head word ("Variation", "Gambit", ...) moves
 // to the front, adjectives agree with the head's gender, hyphenated prefixes
 // keep their structure ("Anti-Moscow" → "Anti-Moscou") and unknown tokens
-// (usually person names) pass through verbatim. SIG-1442 wires this into
-// display and search; localizeOpeningName is deliberately untouched here.
+// (usually person names) pass through verbatim.
 import glossaryJson from "../data/opening-names-pt-br.json" with { type: "json" };
 
 /** One glossary row: the PT-BR rendering plus optional agreement data. */
@@ -35,8 +34,7 @@ const OVERRIDES = glossary.overrides;
 const TERMS_LOWER = new Map(Object.entries(TERMS).map(([word, entry]) => [word.toLowerCase(), entry]));
 const PLACES_LOWER = new Map(Object.entries(PLACES).map(([word, entry]) => [word.toLowerCase(), entry]));
 
-// Same normalisation as normalizeFamily in opening-names.ts: the families map
-// is keyed by lowercase accent-stripped English with straight apostrophes.
+// The families map is keyed by lowercase accent-stripped English with straight apostrophes.
 function normaliseFamily(value: string): string {
   return value
     .normalize("NFD")
@@ -50,14 +48,16 @@ function normaliseFamily(value: string): string {
 
 /** PT-BR family name from the glossary, or the English family verbatim. */
 export function translateFamily(family: string): string {
-  return FAMILIES[normaliseFamily(family)] ?? family;
+  const key = normaliseFamily(family);
+  return Object.hasOwn(FAMILIES, key) ? FAMILIES[key] : family;
 }
 
 type Word = Readonly<{ text: string; entry: PtBrGlossaryEntry | null }>;
 type Token = Readonly<{ text: string; words: readonly Word[] }>;
 
 function lookupWord(word: string): PtBrGlossaryEntry | null {
-  return TERMS[word] ?? PLACES[word] ?? TERMS_LOWER.get(word.toLowerCase()) ?? PLACES_LOWER.get(word.toLowerCase()) ?? null;
+  const key = word.toLowerCase();
+  return TERMS_LOWER.get(key) ?? PLACES_LOWER.get(key) ?? null;
 }
 
 // Possessive person names ("From's Gambit" → "Gambito From") resolve through
@@ -113,10 +113,9 @@ function findHeadIndex(tokens: readonly Token[]): number {
 /** PT-BR variation part: override first, else token rules. Unknown parts pass through. */
 export function translateOpeningPart(part: string): string {
   const key = part.trim().replace(/[’‘]/g, "'");
-  const override = OVERRIDES[key];
-  if (override) return override;
-  const tokens = key.split(/\s+/).filter(Boolean).map(resolveToken);
-  if (tokens.length === 0) return key;
+  if (Object.hasOwn(OVERRIDES, key)) return OVERRIDES[key];
+  const tokens = part.trim().split(/\s+/).filter(Boolean).map(resolveToken);
+  if (!tokens.some((token) => token.words.some((word) => word.entry))) return part;
   const headIndex = findHeadIndex(tokens);
   const headGender = headIndex === -1 ? null : tokens[headIndex].words[0]?.entry?.gender ?? null;
   const pieces: string[] = [];

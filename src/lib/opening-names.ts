@@ -1,8 +1,8 @@
 // SIG-964: PT-BR opening family names keyed by ECO code. Pure data + lookup —
-// no UI, no book access. Bare ECO lookup first; `ECO|English name` composite
-// wins when one code covers two families (A13 = English + Reti in-book).
-// Unknown ECOs fall back to the English book name verbatim.
+// no UI, no book access. An exact `ECO|English name` composite can distinguish
+// openings that share a code (A13 = English + Reti in-book).
 import type { SiteLocale } from "../i18n/locale.ts";
+import { translateFamily, translateOpeningPart } from "./opening-names-pt-br.ts";
 
 export const PT_BR_OPENING_NAMES: Record<string, string> = {
   C41: "Defesa Philidor",
@@ -22,21 +22,22 @@ export const PT_BR_OPENING_NAMES: Record<string, string> = {
   D02: "Sistema Londres",
 };
 
-/** PT-BR book name when mapped, else the English fallback verbatim. EN always returns the fallback. */
+/** Localize the book name, using a bare ECO label for unmapped names without a variation suffix. */
 export function resolveOpeningName(eco: string, fallbackName: string, locale: SiteLocale): string {
   if (locale !== "pt-br") {
     return fallbackName;
   }
   const code = eco.trim().toUpperCase();
-  return PT_BR_OPENING_NAMES[`${code}|${fallbackName}`] ?? PT_BR_OPENING_NAMES[code] ?? fallbackName;
+  const localized = localizeOpeningName(fallbackName, locale, code);
+  return localized === fallbackName && !fallbackName.includes(":")
+    ? PT_BR_OPENING_NAMES[code] ?? fallbackName
+    : localized;
 }
 
 // SIG-1304: family-level PT-BR names keyed by a normalised English family
 // (lowercase, accents stripped, "defence" → "defense", curly → straight
-// apostrophes). Only the family before ":" is translated; the variation
-// suffix stays as the book spelled it. SIG-1441 seeds the standalone PT-BR
-// glossary from this table and keeps its values identical, so it is exported
-// for the glossary tests.
+// apostrophes). The glossary tests verify that these original translations
+// are preserved.
 export const PT_BR_FAMILIES: Record<string, string> = {
   "sicilian defense": "Defesa Siciliana",
   "french defense": "Defesa Francesa",
@@ -103,26 +104,14 @@ export const PT_BR_FAMILIES: Record<string, string> = {
   "bird opening": "Abertura Bird",
 };
 
-function normaliseFamily(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[’‘`´]/g, "'")
-    .replace(/\bdefence\b/g, "defense")
-    .replace(/\s+/g, " ")
-    .trim();
+/** Translate the comma-separated parts of a variation or subvariation label. */
+export function translateOpeningParts(label: string): string {
+  const parts = label.split(",").map((part) => part.trim());
+  const translated = parts.map(translateOpeningPart);
+  return translated.every((part, index) => part === parts[index]) ? label : translated.join(", ");
 }
 
-const FAMILY_KEYS_LONGEST_FIRST = Object.keys(PT_BR_FAMILIES).sort((a, b) => b.length - a.length);
-
-/**
- * Display-only PT-BR translation of an English opening name. Translates the
- * family before the first ":" and keeps the variation suffix verbatim; names
- * without a colon also match a known family followed by a space (Chess.com
- * style). Unknown names, and every non-pt-br locale, return `name` unchanged.
- * An optional ECO only helps via the exact `ECO|name` composite entries.
- */
+/** Localize a display name using the PT-BR glossary and exact ECO overrides. */
 export function localizeOpeningName(name: string, locale: SiteLocale, eco?: string | null): string {
   if (locale !== "pt-br") {
     return name;
@@ -133,22 +122,30 @@ export function localizeOpeningName(name: string, locale: SiteLocale, eco?: stri
       return composite;
     }
   }
+
   const colon = name.indexOf(":");
-  const family = colon === -1 ? name : name.slice(0, colon);
-  const suffix = colon === -1 ? "" : name.slice(colon);
-  const exact = PT_BR_FAMILIES[normaliseFamily(family)];
-  if (exact) {
-    return `${exact}${suffix}`;
+  if (colon !== -1) {
+    const family = name.slice(0, colon).trim();
+    const suffix = name.slice(colon + 1).trim();
+    const translatedFamily = translateFamily(family);
+    const translatedSuffix = translateOpeningParts(suffix);
+    return translatedFamily === family && translatedSuffix === suffix
+      ? name
+      : `${translatedFamily}: ${translatedSuffix}`;
   }
-  if (colon === -1) {
-    const normalised = normaliseFamily(name);
-    for (const key of FAMILY_KEYS_LONGEST_FIRST) {
-      if (normalised.startsWith(`${key} `)) {
-        // Normalisation only strips combining marks / swaps spellings of equal
-        // length except "defence"→"defense" (same length), so slicing the
-        // original by the key's length is safe.
-        return `${PT_BR_FAMILIES[key]}${name.slice(key.length)}`;
-      }
+
+  const family = translateFamily(name);
+  if (family !== name) {
+    return family;
+  }
+
+  // Chess.com omits the colon. Try the longest family prefix first, slicing at
+  // word boundaries in the original so normalization cannot shift the suffix.
+  for (const { index, 0: space } of Array.from(name.matchAll(/\s+(?=\S)/g)).reverse()) {
+    const prefix = name.slice(0, index);
+    const translated = translateFamily(prefix);
+    if (translated !== prefix) {
+      return `${translated}${space}${translateOpeningParts(name.slice(index + space.length))}`;
     }
   }
   return name;

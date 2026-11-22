@@ -5,7 +5,7 @@ import { tPanels } from "../i18n/studio-panel-strings.ts";
 import type { SiteLocale } from "../i18n/locale.ts";
 import type { ExplorerSpeed } from "../lib/explorer-filters.ts";
 import { chesscomOpeningNameFromUrl } from "../lib/players/chesscom-opening.ts";
-import { resolveOpeningName } from "../lib/opening-names.ts";
+import { localizeOpeningName, resolveOpeningName } from "../lib/opening-names.ts";
 
 export type GameResult = "1-0" | "0-1" | "½-½";
 export type SourceKind = "chesscom" | "lichess" | "other";
@@ -216,7 +216,9 @@ export function gameHeaderInfo(headers: Record<string, string>, locale: SiteLoca
   const ecoRaw = real(headers.ECO)?.toUpperCase();
   const eco = ecoRaw && /^[A-E]\d{2}$/.test(ecoRaw) ? ecoRaw : null;
   const named = real(headers.Opening) ?? chesscomOpeningNameFromUrl(real(headers.ECOUrl));
-  const openingName = eco ? resolveOpeningName(eco, named ?? "", locale) || null : named;
+  const openingName = eco
+    ? resolveOpeningName(eco, named ?? "", locale) || null
+    : named && localizeOpeningName(named, locale);
   return {
     source,
     event,

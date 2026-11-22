@@ -124,7 +124,7 @@ function CatalogBranch({ node, ...picker }: LinePickerProps & { node: CatalogNod
           {node.entries.map((line) => (
             <LineOption key={line.uci.join(" ")} line={line} alternate={node.entries.length > 1} {...picker} />
           ))}
-          {node.children.map((child) => <CatalogBranch key={child.name} node={child} {...picker} />)}
+          {node.children.map((child) => <CatalogBranch key={child.sourceName} node={child} {...picker} />)}
         </div>
       )}
     </div>
@@ -296,23 +296,25 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
   const path = useMemo(() => replayCatalogPath(anchor), [anchor]);
   const positionIndex = entries && exploring ? catalogPositionIndex(entries) : null;
   const positionKey = path.keys.at(-1);
-  const positionPlies = useMemo(() => {
+  const position = useMemo(() => {
     if (!positionIndex || !positionKey) return null;
-    return new Map(positionIndex.matches.get(positionKey)?.map(({ line, ply }) => [line, ply]));
+    const plies = new Map(positionIndex.matches.get(positionKey)?.map(({ line, ply }) => [line, ply]));
+    return { plies, lines: [...plies.keys()] };
   }, [positionIndex, positionKey]);
+  const positionPlies = position?.plies;
   const positionName = positionIndex?.deepestEnding(path.keys);
   const results = useMemo(() => {
     if (!entries) return [];
-    if (positionPlies) {
-      const lines = [...positionPlies.keys()];
+    if (position) {
+      const { lines, plies } = position;
       return groupSearchResults(
         searching ? searchCatalog(lines, query, locale) : lines,
         locale,
-        (line) => positionPlies.get(line)!,
+        (line) => plies.get(line)!,
       );
     }
     return searching ? groupSearchResults(searchCatalog(entries, query, locale).slice(0, 100), locale) : [];
-  }, [entries, searching, query, locale, positionPlies]);
+  }, [entries, searching, query, locale, position]);
   const [previousResults, setPreviousResults] = useState({ results, anchor });
   if (results !== previousResults.results || anchor !== previousResults.anchor) {
     setPreviousResults({ results, anchor });
@@ -415,7 +417,7 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
             )}
             {searching || exploring
               ? results.map((group) => <SearchResultGroup key={group.name} group={group} positionMoves={positionMoves} {...picker} />)
-              : families.map((node) => <CatalogBranch key={node.name} node={node} {...picker} />)}
+              : families.map((node) => <CatalogBranch key={node.sourceName} node={node} {...picker} />)}
           </div>
         </div>
         <div className="min-w-0 space-y-3">

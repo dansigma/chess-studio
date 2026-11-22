@@ -15,21 +15,21 @@ test("loadCatalog shares its promise and exposes the end position of each line",
   assert.equal(sicilian.side, "w");
 });
 
-test("catalogTree groups and localizes families while retaining alternate lines and suffixes", async () => {
+test("catalogTree groups and localizes each level while retaining alternate lines and suffixes", async () => {
   const entries = await loadCatalog();
   const tree = catalogTree(entries, "pt-br");
   const sicilian = tree.find(({ name }) => name === "Defesa Siciliana");
   assert.ok(sicilian);
-  const najdorf = sicilian.children.find(({ name }) => name === "Najdorf Variation");
+  const najdorf = sicilian.children.find(({ name }) => name === "Variante Najdorf");
   assert.ok(najdorf);
   assert.equal(najdorf.line.eco, "B90");
-  const englishAttack = najdorf.children.find(({ name }) => name === "English Attack");
+  const englishAttack = najdorf.children.find(({ name }) => name === "Ataque Inglês");
   assert.ok(englishAttack);
   assert.ok(englishAttack.entries.length > 1);
   assert.equal(englishAttack.uci.at(-1), "c1e3");
   assert.equal(englishAttack.fen, englishAttack.line.fen);
   assert.equal(englishAttack.side, "b");
-  assert.ok(najdorf.children.some(({ name }) => name === "English Attack, Anti-English"));
+  assert.ok(najdorf.children.some(({ name }) => name === "Ataque Inglês, Anti-Inglês"));
 
   const onlySubvariation = catalogTree([englishAttack.line]);
   assert.deepEqual(onlySubvariation[0].entries, []);
@@ -52,4 +52,36 @@ test("searchCatalog ranks a name prefix ahead of a word match", async () => {
   const results = searchCatalog(entries, "Italian", "en");
   assert.equal(results[0]?.name, "Italian Game");
   assert.ok(results.some(({ name }) => !name.startsWith("Italian")));
+});
+
+test("searchCatalog finds the same Moscow lines in English and Portuguese", async () => {
+  const entries = await loadCatalog();
+  const expected = entries.filter(({ name }) => name.includes("Moscow"))
+    .sort((a, b) => a.uci.length - b.uci.length);
+  for (const locale of ["en", "pt-br"] as const) {
+    assert.deepEqual(searchCatalog(entries, "Moscou", locale), expected);
+    assert.deepEqual(searchCatalog(entries, "Moscow", locale), expected);
+  }
+});
+
+test("searchCatalog ignores generic words in both languages without changing the ranking", async () => {
+  const entries = await loadCatalog();
+  for (const locale of ["en", "pt-br"] as const) {
+    const reti = searchCatalog(entries, "reti", locale);
+    assert.ok(reti.length > 0);
+    assert.deepEqual(searchCatalog(entries, "abertura reti", locale), reti);
+    assert.deepEqual(searchCatalog(entries, "reti opening", locale), reti);
+
+    const moscow = searchCatalog(entries, "moscow", locale);
+    assert.deepEqual(searchCatalog(entries, "defence gambito ataque variante de moscow linha", locale), moscow);
+    assert.deepEqual(searchCatalog(entries, "moscow defense gambit attack variation game system line", locale), moscow);
+  }
+});
+
+test("searchCatalog matches the original names for a query of only generic words", async () => {
+  const entries = await loadCatalog();
+  const results = searchCatalog(entries, "defesa", "pt-br");
+  assert.ok(results.some(({ name }) => name === "Sicilian Defense"));
+  assert.ok(results.some(({ name }) => name === "Semi-Slav Defense: Moscow Variation"));
+  assert.ok(!results.some(({ name }) => name === "Reti Opening"));
 });
