@@ -242,6 +242,11 @@ export function AddVariationDialog({ defaultColor, onClose }: { defaultColor: Bo
       : [],
     [entries, searching, query, locale],
   );
+  const [previousResults, setPreviousResults] = useState(results);
+  if (results !== previousResults) {
+    setPreviousResults(results);
+    if (searching) setSelected(results[0]?.lines[0] ?? null);
+  }
   const preview = useMemo(
     () => counts && selected ? buildVariationBook(counts, { startUci: selected.uci, color, level }) : null,
     [counts, selected, color, level],
