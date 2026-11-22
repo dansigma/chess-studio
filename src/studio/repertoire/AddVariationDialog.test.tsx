@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, beforeEach, mock, test } from "node:test";
 import { setupDom, teardownDom } from "@/src/test-utils/dom";
-import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, within } from "@testing-library/react";
 import { Chess } from "chess.js";
 import { importPgn } from "@/src/chess/pgn";
 import { bookKey } from "@/src/chess/opening-book";
@@ -21,6 +21,10 @@ const kingsPawn = line("B00", "King's Pawn Game", ["e2e4"], "1. e4");
 const sicilian = line("B20", "Sicilian Defense", ["e2e4", "c7c5"], "1. e4 c5");
 const delayed = line("B20", "Sicilian Defense: Delayed Variation, Example Line",
   ["e2e4", "c7c5", "g1f3"], "1. e4 c5 2. Nf3");
+const transposed = line("A04", "Réti Opening",
+  ["g1f3", "d7d5", "d2d4", "g8f6"], "1. Nf3 d5 2. d4 Nf6");
+const queensPawn = line("D02", "Queen's Pawn Game",
+  ["d2d4", "d7d5", "g1f3"], "1. d4 d5 2. Nf3");
 const afterE5 = line("C20", "King's Pawn Game", ["e2e4", "e7e5"], "1. e4 e5");
 
 const jobavaName = "Rapport-Jobava System";
@@ -43,13 +47,16 @@ const book = decodeCountsBook(encodeCountsBook([
 const loadCountsBook = mock.fn(async (): Promise<CountsBook | null> => book);
 mock.module("@/src/lib/opening-book-counts", { namedExports: { loadCountsBook } });
 mock.module("@/src/lib/openings-catalog", {
-  namedExports: { ...catalog, loadCatalog: async () => [kingsPawn, sicilian, delayed, jobava, jobavaE6, jobavaG6, jobavaWithE6] },
+  namedExports: { ...catalog, loadCatalog: async () => [kingsPawn, sicilian, delayed, jobava, jobavaE6, jobavaG6, jobavaWithE6, transposed, queensPawn] },
 });
+type Options = import("react-chessboard").ChessboardOptions;
+let boardOptions: Options;
 mock.module("react-chessboard", {
   namedExports: {
-    Chessboard: ({ options }: { options: { position: string; showNotation?: boolean } }) => (
-      <span data-fen={options.position} data-show-notation={options.showNotation} />
-    ),
+    Chessboard: ({ options }: { options: Options }) => {
+      boardOptions = options;
+      return <span data-fen={options.position} data-show-notation={options.showNotation} />;
+    },
   },
 });
 const openBoardPanel = mock.fn();
@@ -167,6 +174,100 @@ test("browses translated families, variations, and subvariations and can retry a
   assert.ok(await view.findByText("~1 linhas, ~1 lances seus"));
   assert.deepEqual(loadCountsBook.mock.calls[1].arguments, [{ retry: true }]);
   assert.equal(add.hasAttribute("disabled"), false);
+});
+
+function play(sourceSquare: string, targetSquare: string, accepted = true) {
+  act(() => {
+    assert.equal(boardOptions.onPieceDrop?.({
+      sourceSquare, targetSquare, piece: { isSparePiece: false, pieceType: "wP", position: sourceSquare },
+    }), accepted);
+  });
+}
+
+test("plays legal moves, filters catalog lines, and keeps the list anchored when selecting", async () => {
+  const view = render(<AddVariationDialog defaultColor="white" onClose={() => {}} />);
+  await view.findByRole("button", { name: "B00 King's Pawn Game" });
+  const undo = view.getByRole("button", { name: "Undo move" });
+  const reset = view.getByRole("button", { name: "Start over" });
+  const add = view.getByRole("button", { name: "Add to repertoire" });
+  assert.equal(boardOptions.position, new Chess().fen());
+  assert.equal(undo.hasAttribute("disabled"), true);
+  assert.equal(reset.hasAttribute("disabled"), true);
+  assert.equal(view.queryByText(/You are at/), null);
+  assert.equal(boardOptions.canDragPiece?.({ piece: { pieceType: "wP" }, square: "e2", isSparePiece: false }), true);
+  assert.equal(boardOptions.canDragPiece?.({ piece: { pieceType: "bP" }, square: "e7", isSparePiece: false }), false);
+  play("e7", "e5", false);
+  play("e2", "e5", false);
+  play("e2", "e4");
+  assert.equal(boardOptions.position, kingsPawn.fen);
+  assert.ok(view.getByText("You are at: King's Pawn Game"));
+  assert.equal(view.queryByText(jobavaName), null);
+  assert.ok(view.getByRole("button", { name: "King's Pawn Game — (current position)" }));
+  assert.equal(add.hasAttribute("disabled"), true);
+
+  const row = view.getByRole("button", { name: "Sicilian Defense — 1... c5" });
+  fireEvent.click(row);
+  assert.equal(boardOptions.position, sicilian.fen);
+  assert.equal(row.getAttribute("aria-pressed"), "true");
+  assert.ok(view.getByRole("button", { name: "Sicilian Defense: Delayed Variation, Example Line — 1... c5 2. Nf3" }));
+  assert.ok(view.getByText("You are at: King's Pawn Game"));
+  assert.equal(add.hasAttribute("disabled"), false);
+  fireEvent.click(undo);
+  assert.equal(boardOptions.position, kingsPawn.fen);
+  assert.equal(row.getAttribute("aria-pressed"), "false");
+
+  fireEvent.click(row);
+  play("g1", "f3");
+  assert.equal(boardOptions.position, delayed.fen);
+  assert.ok(view.getByText("You are at: Sicilian Defense: Delayed Variation, Example Line"));
+  assert.ok(view.getByRole("button", { name: "Sicilian Defense: Delayed Variation, Example Line — (current position)" }));
+  assert.equal(view.queryByRole("button", { name: "Sicilian Defense — 1... c5" }), null);
+  assert.equal(add.hasAttribute("disabled"), true);
+  fireEvent.click(undo);
+  assert.equal(boardOptions.position, sicilian.fen);
+  fireEvent.click(reset);
+  assert.equal(boardOptions.position, new Chess().fen());
+  assert.equal(undo.hasAttribute("disabled"), true);
+  assert.equal(reset.hasAttribute("disabled"), true);
+  play("a2", "a3");
+  assert.ok(view.getByText("No catalogued variation from here"));
+  assert.equal(view.queryByText(/You are at/), null);
+});
+
+test("finds transpositions and combines text search with the board anchor", async () => {
+  const view = render(<AddVariationDialog defaultColor="black" onClose={() => {}} />);
+  await view.findByRole("button", { name: "B00 King's Pawn Game" });
+  play("g1", "f3");
+  play("d7", "d5");
+  play("d2", "d4");
+  assert.ok(view.getByText("You are at: Queen's Pawn Game"));
+  assert.ok(view.getByRole("button", { name: "Queen's Pawn Game — (current position)" }));
+  const search = view.getByRole("textbox", { name: "Search by opening name or ECO" });
+  fireEvent.change(search, { target: { value: "B00" } });
+  assert.ok(view.getByText("No variations found"));
+  fireEvent.change(search, { target: { value: "A04" } });
+  const row = view.getByRole("button", { name: "Réti Opening — 2... Nf6" });
+  assert.equal(row.getAttribute("aria-pressed"), "true");
+  assert.equal(boardOptions.position, transposed.fen);
+  play("c2", "c4");
+  assert.ok(view.getByText("No catalogued variation from here"));
+  assert.equal(view.queryByRole("img", { name: "Final position" }), null);
+  fireEvent.click(view.getByRole("button", { name: "Undo move" }));
+  assert.equal(view.getByRole("button", { name: "Réti Opening — (current position)" }).getAttribute("aria-pressed"), "false");
+  assert.equal(boardOptions.position, transposed.fen);
+});
+
+test("supports underpromotion when exploring beyond the catalog", async () => {
+  const view = render(<AddVariationDialog defaultColor="white" onClose={() => {}} />);
+  await view.findByRole("button", { name: "B00 King's Pawn Game" });
+  for (const uci of ["a2a4", "h7h5", "a4a5", "h5h4", "a5a6", "h4h3", "a6b7", "h3g2"]) {
+    play(uci.slice(0, 2), uci.slice(2, 4));
+  }
+  play("b7", "a8", false);
+  const promotion = within(view.getByRole("group", { name: "Choose promotion piece" }));
+  fireEvent.click(promotion.getByRole("button", { name: "Knight" }));
+  assert.match(String(boardOptions.position), /^Nnbqkbnr\//);
+  assert.ok(view.getByText("No catalogued variation from here"));
 });
 
 for (const action of ["cancel", "keep", "use book"] as const) {

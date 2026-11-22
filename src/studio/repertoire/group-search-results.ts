@@ -13,7 +13,7 @@ export type SearchGroup<T extends CatalogLine> = {
   prefixLength: number;
 };
 
-export function groupSearchResults<T extends CatalogLine>(results: readonly T[], locale: SiteLocale): SearchGroup<T>[] {
+export function groupSearchResults<T extends CatalogLine>(results: readonly T[], locale: SiteLocale, startPly?: (line: T) => number): SearchGroup<T>[] {
   const byName = new Map<string, T[]>();
   for (const line of results) {
     const name = lineName(line, locale);
@@ -24,6 +24,11 @@ export function groupSearchResults<T extends CatalogLine>(results: readonly T[],
 
   return Array.from(byName, ([name, lines]) => {
     const first = lines[0];
+    if (startPly) {
+      lines.sort((a, b) => Number(b.uci.length === startPly(b)) - Number(a.uci.length === startPly(a)));
+      return { name, lines, prefixLength: 0 };
+    }
+
     let prefixLength = first.uci.length;
     for (const line of lines.slice(1)) {
       let ply = 0;
@@ -40,12 +45,16 @@ export function groupSearchResults<T extends CatalogLine>(results: readonly T[],
   });
 }
 
-export function lineMovesFrom(line: CatalogLine, start = 0) {
-  const chess = new Chess();
+export function lineMovesFrom(line: CatalogLine, start = 0, notation?: readonly string[]) {
+  const sans = notation ?? (() => {
+    const chess = new Chess();
+    return line.uci.map((uci) =>
+      chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] }).san
+    );
+  })();
   const moves: string[] = [];
-  for (const [index, uci] of line.uci.entries()) {
-    const { san } = chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] });
-    if (index < start) continue;
+  for (let index = start; index < sans.length; index++) {
+    const san = sans[index];
 
     const number = Math.floor(index / 2) + 1;
     if (index % 2 === 0) moves.push(`${number}. ${san}`);
