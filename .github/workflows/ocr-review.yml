@@ -53,6 +53,7 @@ jobs:
       - name: Run OpenCodeReview
         uses: alibaba/open-code-review@v1.14.1
         with:
+          pr_number: ${{ github.event.pull_request.number || github.event.inputs.pr || github.event.issue.number }}
           llm_url: https://opencode.ai/inference/go/v1
           llm_auth_token: ${{ secrets.OCR_LLM_AUTH_TOKEN }}
           llm_model: deepseek-v4.1-flash
