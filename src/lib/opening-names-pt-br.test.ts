@@ -16,8 +16,29 @@ describe("translateOpeningPart", () => {
     assert.equal(translateOpeningPart("Anti-Moscow Gambit"), "Gambito Anti-Moscou");
     assert.equal(translateOpeningPart("Grob Gambit Declined"), "Gambito Grob Recusado");
     assert.equal(translateOpeningPart("Fool's Mate"), "Mate do Louco");
-    assert.equal(translateOpeningPart("Fried Liver Attack"), "Ataque Fígado Frito");
+    assert.equal(translateOpeningPart("Fried Liver Attack"), "Ataque Fegatello");
+    assert.equal(translateOpeningPart("Anti-Fried Liver Defense"), "Defesa Anti-Fegatello");
     assert.equal(translateOpeningPart("Poisoned Pawn Variation"), "Variante do Peão Envenenado");
+  });
+
+  test("exchange lines use 'das Trocas'", () => {
+    assert.equal(translateOpeningPart("Exchange Variation"), "Variante das Trocas");
+    assert.equal(translateOpeningPart("Exchange Line"), "Linha das Trocas");
+    assert.equal(translateOpeningPart("Modern Exchange Variation"), "Variante Moderna das Trocas");
+    assert.equal(translateOpeningPart("Makogonov Exchange Variation"), "Variante Makogonov das Trocas");
+    assert.equal(translateOpeningPart("Delayed Exchange Variation"), "Variante Atrasada das Trocas");
+  });
+
+  test("animal and nickname openings omit articles unless established in PT-BR", () => {
+    assert.equal(translateFamily("Kangaroo Defense"), "Defesa Canguru");
+    assert.equal(translateFamily("Elephant Gambit"), "Gambito Elefante");
+    assert.equal(translateFamily("Hippopotamus Defense"), "Defesa Hipopótamo");
+    assert.equal(translateOpeningPart("Dragon Variation"), "Variante do Dragão");
+  });
+
+  test("person names like Short are not translated as adjectives", () => {
+    assert.equal(translateOpeningPart("Short Variation"), "Variante Short");
+    assert.equal(translateOpeningPart("Short Attack"), "Ataque Short");
   });
 
   test("head word moves to the front", () => {

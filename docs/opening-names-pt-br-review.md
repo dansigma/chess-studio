@@ -4,7 +4,7 @@ Gerado por `scripts/openings/pt-br-glossary-report.mjs` a partir de `src/data/op
 **Não editar à mão** — regenere com `node scripts/openings/pt-br-glossary-report.mjs`.
 
 - Famílias: 149 (ausentes no glossário: 0)
-- Partes de variação únicas: 2113 (com genérico em inglês: 0; com nomes próprios mantidos: 1609)
+- Partes de variação únicas: 2113 (com genérico em inglês: 0; com nomes próprios mantidos: 1610)
 
 ## Problemas (bloqueiam o script)
 
@@ -22,7 +22,7 @@ Nenhum — todas as famílias estão no glossário e nenhum genérico em inglês
 | Buckley Attack | Ataque Buckley | nomes mantidos: Buckley |
 | Cambridge Gambit | Gambito Cambridge | nomes mantidos: Cambridge |
 | Everglades Variation | Variante Everglades | nomes mantidos: Everglades |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Fianchetto Variation | Variante Fianqueto | — |
 | Flohr Variation | Variante Flohr | nomes mantidos: Flohr |
 | Four Pawns Attack | Ataque dos Quatro Peões | override |
@@ -156,8 +156,8 @@ _(sem partes de variação)_
 | Benoni-Indian Defense | Defesa Benoni-Índia | — |
 | Benoni-Staunton Gambit | Gambito Benoni-Staunton | nomes mantidos: Benoni-Staunton |
 | Classical Variation | Variante Clássica | — |
-| Cormorant Gambit | Gambito do Corvo-marinho | override; nomes mantidos: Cormorant |
-| Czech Benoni Defense | Defesa do Benoni Checo | override; nomes mantidos: Benoni |
+| Cormorant Gambit | Gambito Corvo-marinho | override; nomes mantidos: Cormorant |
+| Czech Benoni Defense | Defesa Benoni Tcheca | override; nomes mantidos: Benoni |
 | Czerniak Defense | Defesa Czerniak | nomes mantidos: Czerniak |
 | Fianchetto Variation | Variante Fianqueto | — |
 | Four Pawns Attack | Ataque dos Quatro Peões | override |
@@ -165,7 +165,7 @@ _(sem partes de variação)_
 | French Benoni | Benoni Francês | override; nomes mantidos: Benoni |
 | Full Line | Linha Plena | — |
 | Hastings Defense | Defesa Hastings | — |
-| Hawk Variation | Variante do Gavião | override; nomes mantidos: Hawk |
+| Hawk Variation | Variante Gavião | override; nomes mantidos: Hawk |
 | Hromádka System | Sistema Hromádka | nomes mantidos: Hromádka |
 | King's Indian System | Sistema Índia do Rei | override |
 | King's Pawn Line | Linha do Peão do Rei | override |
@@ -181,7 +181,7 @@ _(sem partes de variação)_
 | Schlenker Defense | Defesa Schlenker | nomes mantidos: Schlenker |
 | Schmid Variation | Variante Schmid | nomes mantidos: Schmid |
 | Semi-Benoni | Semi-Benoni | — |
-| Snail Variation | Variante do Caramujo | override; nomes mantidos: Snail |
+| Snail Variation | Variante Caramujo | override; nomes mantidos: Snail |
 | Snake Variation | Variante da Serpente | override; nomes mantidos: Snake |
 | Taimanov Variation | Variante Taimanov | nomes mantidos: Taimanov |
 | Tal Line | Linha Tal | nomes mantidos: Tal |
@@ -343,7 +343,7 @@ _(sem partes de variação)_
 
 | Inglês | PT-BR | Observações |
 | --- | --- | --- |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Grünfeld Variation | Variante Grünfeld | nomes mantidos: Grünfeld |
 | Haiti Variation | Variante Haiti | nomes mantidos: Haiti |
 | Monticelli Trap | Armadilha Monticelli | nomes mantidos: Monticelli |
@@ -397,8 +397,8 @@ _(sem partes de variação)_
 | Endgame Offer | Oferta de Final | override; nomes mantidos: Endgame, Offer |
 | Endgame Variation | Variante do Final | override; nomes mantidos: Endgame |
 | Euwe Attack | Ataque Euwe | nomes mantidos: Euwe |
-| Exchange Line | Linha da Troca | override |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Line | Linha das Trocas | override |
+| Exchange Variation | Variante das Trocas | override |
 | Fianchetto Defense | Defesa Fianqueto | — |
 | Fianchetto Gambit | Gambito Fianqueto | — |
 | Finnish Variation | Variante Finlandesa | — |
@@ -446,7 +446,7 @@ _(sem partes de variação)_
 | Scorpion-Grob Gambit | Gambito Escorpião-Grob | — |
 | Scorpion-Horus Gambit | Gambito Escorpião-Horus | — |
 | Seirawan Variation | Variante Seirawan | nomes mantidos: Seirawan |
-| Short Variation | Variante Curta | — |
+| Short Variation | Variante Short | nomes mantidos: Short |
 | Smyslov Variation | Variante Smyslov | nomes mantidos: Smyslov |
 | Spassky Variation | Variante Spassky | nomes mantidos: Spassky |
 | Spike Variation | Variante Spike | nomes mantidos: Spike |
@@ -494,7 +494,7 @@ _(sem partes de variação)_
 | --- | --- | --- |
 | Berger Variation | Variante Berger | nomes mantidos: Berger |
 | Charousek Variation | Variante Charousek | nomes mantidos: Charousek |
-| Crocodile Variation | Variante do Crocodilo | override; nomes mantidos: Crocodile |
+| Crocodile Variation | Variante Crocodilo | override; nomes mantidos: Crocodile |
 | Halasz-McDonnell Gambit | Gambito Halasz-McDonnell | nomes mantidos: Halasz-McDonnell |
 | Hall Variation | Variante Hall | nomes mantidos: Hall |
 | Kieseritzky Variation | Variante Kieseritzky | nomes mantidos: Kieseritzky |
@@ -531,7 +531,7 @@ _(sem partes de variação)_
 | --- | --- | --- |
 | Classical Defense | Defesa Clássica | — |
 
-### Czech Defense → Defesa Checa
+### Czech Defense → Defesa Tcheca
 
 _(sem partes de variação)_
 
@@ -598,7 +598,7 @@ _(sem partes de variação)_
 | Huisl Variation | Variante Huisl | nomes mantidos: Huisl |
 | Ilyin-Zhenevsky Variation | Variante Ilyin-Zhenevsky | nomes mantidos: Ilyin-Zhenevsky |
 | Janzen-Korchnoi Gambit | Gambito Janzen-Korchnoi | nomes mantidos: Janzen-Korchnoi |
-| Kingfisher Gambit | Gambito do Martim-pescador | override; nomes mantidos: Kingfisher |
+| Kingfisher Gambit | Gambito Martim-pescador | override; nomes mantidos: Kingfisher |
 | Korchnoi Attack | Ataque Korchnoi | nomes mantidos: Korchnoi |
 | Krause Variation | Variante Krause | nomes mantidos: Krause |
 | Krejcik Gambit | Gambito Krejcik | nomes mantidos: Krejcik |
@@ -635,7 +635,7 @@ _(sem partes de variação)_
 
 _(sem partes de variação)_
 
-### Elephant Gambit → Gambito do Elefante
+### Elephant Gambit → Gambito Elefante
 
 | Inglês | PT-BR | Observações |
 | --- | --- | --- |
@@ -678,7 +678,7 @@ _(sem partes de variação)_
 | Bradley Beach Variation | Variante Bradley Beach | nomes mantidos: Bradley, Beach |
 | Bremen-Hort Variation | Variante Bremen-Hort | — |
 | Carls-Bremen System | Sistema Carls-Bremen | — |
-| Caro-Kann Defensive System | Sistema Caro-Kann Defensive | nomes mantidos: Caro-Kann, Defensive |
+| Caro-Kann Defensive System | Sistema Defensivo Caro-Kann | override; nomes mantidos: Caro-Kann, Defensive |
 | Catalan Defense | Defesa Catalã | — |
 | Catalan Defense Accepted | Defesa Catalã Aceita | — |
 | Chabanon Gambit | Gambito Chabanon | nomes mantidos: Chabanon |
@@ -690,7 +690,7 @@ _(sem partes de variação)_
 | Duchamp Variation | Variante Duchamp | nomes mantidos: Duchamp |
 | Early b3 | b3 Precoce | override; nomes mantidos: Early |
 | Erbenheimer Gambit | Gambito Erbenheimer | nomes mantidos: Erbenheimer |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Ferenc Gambit | Gambito Ferenc | nomes mantidos: Ferenc |
 | Fianchetto Line | Linha Fianqueto | — |
 | Fianchetto Variation | Variante Fianqueto | — |
@@ -705,8 +705,8 @@ _(sem partes de variação)_
 | Great Snake Variation | Variante da Grande Serpente | override; nomes mantidos: Snake |
 | Grünfeld Formation | Formação Grünfeld | nomes mantidos: Grünfeld |
 | Hedgehog | Ouriço | — |
-| Hedgehog Defense | Defesa do Ouriço | override |
-| Hedgehog System | Sistema do Ouriço | override |
+| Hedgehog Defense | Defesa Ouriço | override |
+| Hedgehog System | Sistema Ouriço | override |
 | Hickmann Gambit | Gambito Hickmann | nomes mantidos: Hickmann |
 | Hungarian Attack | Ataque Húngaro | — |
 | Jaenisch Gambit | Gambito Jaenisch | nomes mantidos: Jaenisch |
@@ -740,7 +740,7 @@ _(sem partes de variação)_
 | Nimzowitsch-Flohr Variation | Variante Nimzowitsch-Flohr | nomes mantidos: Nimzowitsch-Flohr |
 | Normal Variation | Variante Normal | — |
 | Old Indian Formation | Formação Índia Antiga | override |
-| Porcupine Variation | Variante do Porco-Espinho | override; nomes mantidos: Porcupine |
+| Porcupine Variation | Variante Porco-Espinho | override; nomes mantidos: Porcupine |
 | Prickly Pawn Pass System | Sistema do Peão Passado Espinhoso | override; nomes mantidos: Prickly, Pass |
 | Queen's Indian Formation | Formação Índia da Dama | override |
 | Queen's Indian Variation | Variante Índia da Dama | override |
@@ -796,7 +796,7 @@ _(sem partes de variação)_
 | Felbecker Gambit | Gambito Felbecker | nomes mantidos: Felbecker |
 | Hartlaub-Charlick Gambit | Gambito Hartlaub-Charlick | nomes mantidos: Hartlaub-Charlick |
 | Main Line | Linha Principal | — |
-| Mosquito Gambit | Gambito do Mosquito | override; nomes mantidos: Mosquito |
+| Mosquito Gambit | Gambito Mosquito | override; nomes mantidos: Mosquito |
 | Soller Gambit | Gambito Soller | nomes mantidos: Soller |
 | Soller Gambit Deferred | Gambito Soller Adiado | nomes mantidos: Soller |
 | Stockholm Variation | Variante Estocolmo | — |
@@ -817,7 +817,7 @@ _(sem partes de variação)_
 
 | Inglês | PT-BR | Observações |
 | --- | --- | --- |
-| Hippopotamus Attack | Ataque do Hipopótamo | override; nomes mantidos: Hippopotamus |
+| Hippopotamus Attack | Ataque Hipopótamo | override; nomes mantidos: Hippopotamus |
 | Shy Attack | Ataque Tímido | override; nomes mantidos: Shy |
 
 ### Four Knights Game → Jogo dos Quatro Cavalos
@@ -843,7 +843,7 @@ _(sem partes de variação)_
 | Marshall Gambit | Gambito Marshall | nomes mantidos: Marshall |
 | Marshall Variation | Variante Marshall | nomes mantidos: Marshall |
 | Maróczy Variation | Variante Maróczy | nomes mantidos: Maróczy |
-| Metger Unpin | Metger Unpin | nomes mantidos: Metger, Unpin |
+| Metger Unpin | Descravada Metger | override; nomes mantidos: Metger, Unpin |
 | Modern Defense | Defesa Moderna | — |
 | Naroditsky Variation | Variante Naroditsky | nomes mantidos: Naroditsky |
 | Nimzowitsch Variation | Variante Nimzowitsch | nomes mantidos: Nimzowitsch |
@@ -900,7 +900,7 @@ _(sem partes de variação)_
 | Classical | Clássico | — |
 | Classical Variation | Variante Clássica | — |
 | Closed Variation | Variante Fechada | — |
-| Delayed Exchange Variation | Variante Atrasada da Troca | — |
+| Delayed Exchange Variation | Variante Atrasada das Trocas | — |
 | Diemer-Duhm Gambit | Gambito Diemer-Duhm | nomes mantidos: Diemer-Duhm |
 | Diemer-Duhm Gambit Accepted | Gambito Diemer-Duhm Aceito | nomes mantidos: Diemer-Duhm |
 | Dr. Olland Variation | Variante Dr. Olland | nomes mantidos: Dr., Olland |
@@ -910,7 +910,7 @@ _(sem partes de variação)_
 | Ellis Gambit | Gambito Ellis | nomes mantidos: Ellis |
 | Euwe Variation | Variante Euwe | nomes mantidos: Euwe |
 | Euwe-Keres Line | Linha Euwe-Keres | nomes mantidos: Euwe-Keres |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Extended Bishop Swap | Troca de Bispos Estendida | override; nomes mantidos: Extended, Swap |
 | Fingerslip Variation | Variante Fingerslip | nomes mantidos: Fingerslip |
 | Fort Knox Variation | Variante Fort Knox | nomes mantidos: Fort, Knox |
@@ -992,7 +992,7 @@ _(sem partes de variação)_
 | Smyslov Variation | Variante Smyslov | nomes mantidos: Smyslov |
 | Spielmann Variation | Variante Spielmann | nomes mantidos: Spielmann |
 | St. George Defense | Defesa São Jorge | override; nomes mantidos: St., George |
-| St. George Gambit | Gambito St. George | nomes mantidos: St., George |
+| St. George Gambit | Gambito São Jorge | override; nomes mantidos: St., George |
 | Stahlberg Variation | Variante Stahlberg | nomes mantidos: Stahlberg |
 | Steiner Variation | Variante Steiner | nomes mantidos: Steiner |
 | Steinitz Attack | Ataque Steinitz | nomes mantidos: Steinitz |
@@ -1068,7 +1068,7 @@ _(sem partes de variação)_
 | Capablanca Variation | Variante Capablanca | nomes mantidos: Capablanca |
 | Classical Variation | Variante Clássica | — |
 | Counterthrust Variation | Variante Contra-golpe | — |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Flohr Defense | Defesa Flohr | nomes mantidos: Flohr |
 | Flohr Variation | Variante Flohr | nomes mantidos: Flohr |
 | Gibbon Gambit | Gambito Gibbon | nomes mantidos: Gibbon |
@@ -1083,7 +1083,7 @@ _(sem partes de variação)_
 | Lundin Variation | Variante Lundin | nomes mantidos: Lundin |
 | Lutikov Variation | Variante Lutikov | nomes mantidos: Lutikov |
 | Makogonov Variation | Variante Makogonov | nomes mantidos: Makogonov |
-| Modern Exchange Variation | Variante Moderna da Troca | override |
+| Modern Exchange Variation | Variante Moderna das Trocas | override |
 | Murrey Attack | Ataque Murrey | nomes mantidos: Murrey |
 | Nadanian Attack | Ataque Nadanian | nomes mantidos: Nadanian |
 | Opocensky Variation | Variante Opocensky | nomes mantidos: Opocensky |
@@ -1097,7 +1097,7 @@ _(sem partes de variação)_
 | Russian Variation | Variante Russa | — |
 | Seville Variation | Variante Sevilha | — |
 | Simagin's Improved Variation | Variante Simagin Melhorada | nomes mantidos: Simagin's |
-| Simagin's Lesser Variation | Variante Simagin Lesser | nomes mantidos: Simagin's, Lesser |
+| Simagin's Lesser Variation | Variante Simagin Menor | override; nomes mantidos: Simagin's, Lesser |
 | Smyslov Defense | Defesa Smyslov | nomes mantidos: Smyslov |
 | Smyslov Variation | Variante Smyslov | nomes mantidos: Smyslov |
 | Sokolsky Variation | Variante Sokolsky | nomes mantidos: Sokolsky |
@@ -1113,7 +1113,7 @@ _(sem partes de variação)_
 
 _(sem partes de variação)_
 
-### Hippopotamus Defense → Defesa do Hipopótamo
+### Hippopotamus Defense → Defesa Hipopótamo
 
 _(sem partes de variação)_
 
@@ -1168,7 +1168,7 @@ _(sem partes de variação)_
 | Budapest Gambit | Gambito Budapeste | — |
 | Budapest Gambit Accepted | Gambito Budapeste Aceito | — |
 | Colle System | Sistema Colle | nomes mantidos: Colle |
-| Czech-Indian | Checo-Índio | — |
+| Czech-Indian | Tcheco-Índio | — |
 | Devin Gambit | Gambito Devin | nomes mantidos: Devin |
 | Dzindzi-Indian Defense | Defesa Dzindzi-Índia | — |
 | Döry Indian | Döry Índio | nomes mantidos: Döry |
@@ -1221,7 +1221,7 @@ _(sem partes de variação)_
 | Anderssen Attack | Ataque Anderssen | nomes mantidos: Anderssen |
 | Anderssen Defense | Defesa Anderssen | nomes mantidos: Anderssen |
 | Anderssen Variation | Variante Anderssen | nomes mantidos: Anderssen |
-| Anti-Fried Liver Defense | Defesa Anti-Fígado Frito | override; nomes mantidos: Liver |
+| Anti-Fried Liver Defense | Defesa Anti-Fegatello | override; nomes mantidos: Liver |
 | Berger Variation | Variante Berger | nomes mantidos: Berger |
 | Bernstein Variation | Variante Bernstein | nomes mantidos: Bernstein |
 | Bird's Attack | Ataque Bird | nomes mantidos: Bird's |
@@ -1254,7 +1254,7 @@ _(sem partes de variação)_
 | Fontaine Countergambit | Contragambito Fontaine | nomes mantidos: Fontaine |
 | Fraser Attack | Ataque Fraser | nomes mantidos: Fraser |
 | Fraser-Mortimer Attack | Ataque Fraser-Mortimer | nomes mantidos: Fraser-Mortimer |
-| Fried Liver Attack | Ataque Fígado Frito | override; nomes mantidos: Fried, Liver |
+| Fried Liver Attack | Ataque Fegatello | override; nomes mantidos: Fried, Liver |
 | Fritz | Fritz | nomes mantidos: Fritz |
 | Fritz Variation | Variante Fritz | nomes mantidos: Fritz |
 | Ghulam-Kassim Variation | Variante Ghulam-Kassim | nomes mantidos: Ghulam-Kassim |
@@ -1361,12 +1361,12 @@ _(sem partes de variação)_
 | with d5 | com d5 | — |
 | with h6 | com h6 | — |
 
-### Kangaroo Defense → Defesa do Canguru
+### Kangaroo Defense → Defesa Canguru
 
 | Inglês | PT-BR | Observações |
 | --- | --- | --- |
 | Keres Defense | Defesa Keres | nomes mantidos: Keres |
-| Transpositional Variation | Variante Transpositional | nomes mantidos: Transpositional |
+| Transpositional Variation | Variante Transposicional | override; nomes mantidos: Transpositional |
 
 ### King's Gambit → Gambito do Rei
 
@@ -1418,7 +1418,7 @@ _(sem partes de variação)_
 | Dodo Variation | Variante Dodo | nomes mantidos: Dodo |
 | Double Muzio Gambit | Gambito Muzio Duplo | override; nomes mantidos: Muzio |
 | Eisenberg Variation | Variante Eisenberg | nomes mantidos: Eisenberg |
-| First Jaenisch Variation | Variante First Jaenisch | nomes mantidos: First, Jaenisch |
+| First Jaenisch Variation | Primeira Variante Jaenisch | override; nomes mantidos: First, Jaenisch |
 | Fischer Defense | Defesa Fischer | nomes mantidos: Fischer |
 | Fraser Variation | Variante Fraser | nomes mantidos: Fraser |
 | From's Defense | Defesa From | nomes mantidos: From's |
@@ -1493,7 +1493,7 @@ _(sem partes de variação)_
 | Traditional Variation | Variante Tradicional | — |
 | Tumbleweed | Tumbleweed | nomes mantidos: Tumbleweed |
 | Urusov Attack | Ataque Urusov | nomes mantidos: Urusov |
-| Viennese Variation | Variante Viennese | nomes mantidos: Viennese |
+| Viennese Variation | Variante Vienense | — |
 | Villemson Gambit | Gambito Villemson | nomes mantidos: Villemson |
 | Wagenbach Defense | Defesa Wagenbach | nomes mantidos: Wagenbach |
 | Weiss Defense | Defesa Weiss | nomes mantidos: Weiss |
@@ -1619,8 +1619,8 @@ _(sem partes de variação)_
 | Double Fianchetto | Fianqueto Duplo | — |
 | Double Fianchetto Attack | Ataque Duplo Fianqueto | — |
 | Dynamic Attack | Ataque Dinâmico | — |
-| Exchange Line | Linha da Troca | override |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Line | Linha das Trocas | override |
+| Exchange Variation | Variante das Trocas | override |
 | Fianchetto Variation | Variante Fianqueto | — |
 | Flexible Defense | Defesa Flexível | — |
 | Florentine Gambit | Gambito Florentino | — |
@@ -1643,7 +1643,7 @@ _(sem partes de variação)_
 | Kramer Variation | Variante Kramer | nomes mantidos: Kramer |
 | Larsen Defense | Defesa Larsen | nomes mantidos: Larsen |
 | Larsen Variation | Variante Larsen | nomes mantidos: Larsen |
-| Lesser Simagin (Spassky) | Lesser Simagin (Spassky) | nomes mantidos: Lesser, Simagin |
+| Lesser Simagin (Spassky) | Simagin Menor (Spassky) | override; nomes mantidos: Lesser, Simagin |
 | Long Variation | Variante Longa | — |
 | Main Line | Linha Principal | — |
 | Makogonov Variation | Variante Makogonov | nomes mantidos: Makogonov |
@@ -1663,7 +1663,7 @@ _(sem partes de variação)_
 | Positional Defense | Defesa Posicional | — |
 | Pterodactyl Variation | Variante Pterodáctilo | — |
 | Queenside Storm Line | Linha de Tempestade na Ala da Dama | override; nomes mantidos: Queenside, Storm |
-| Rare Defenses | Defesas Rara | — |
+| Rare Defenses | Defesas Raras | override |
 | Rare Line | Linha Rara | — |
 | Ruban Variation | Variante Ruban | nomes mantidos: Ruban |
 | Santasiere Variation | Variante Santasiere | nomes mantidos: Santasiere |
@@ -1732,7 +1732,7 @@ _(sem partes de variação)_
 | Radisch Gambit | Gambito Radisch | nomes mantidos: Radisch |
 | Schulze-Müller Gambit | Gambito Schulze-Müller | nomes mantidos: Schulze-Müller |
 | Tayler Opening | Abertura Tayler | nomes mantidos: Tayler |
-| Tortoise Opening | Abertura da Tartaruga | override; nomes mantidos: Tortoise |
+| Tortoise Opening | Abertura Tartaruga | override; nomes mantidos: Tortoise |
 | Wayward Queen Attack | Ataque da Dama Desgarrada | override; nomes mantidos: Wayward |
 | Weber Gambit | Gambito Weber | nomes mantidos: Weber |
 
@@ -1863,7 +1863,7 @@ _(sem partes de variação)_
 | Geller's System | Sistema Geller | nomes mantidos: Geller's |
 | Gurgenidze Defense | Defesa Gurgenidze | nomes mantidos: Gurgenidze |
 | Kotov Variation | Variante Kotov | nomes mantidos: Kotov |
-| Lizard Defense | Defesa do Lagarto | override; nomes mantidos: Lizard |
+| Lizard Defense | Defesa Lagarto | override; nomes mantidos: Lizard |
 | Masur Gambit | Gambito Masur | nomes mantidos: Masur |
 | Mittenberger Gambit | Gambito Mittenberger | nomes mantidos: Mittenberger |
 | Modern Pterodactyl | Pterodáctilo Moderno | — |
@@ -1901,13 +1901,13 @@ _(sem partes de variação)_
 | Inglês | PT-BR | Observações |
 | --- | --- | --- |
 | Classical Variation | Variante Clássica | — |
-| Delayed Exchange Variation | Variante Atrasada da Troca | — |
-| Exchange Variation | Variante da Troca | override |
+| Delayed Exchange Variation | Variante Atrasada das Trocas | — |
+| Exchange Variation | Variante das Trocas | override |
 | Goglidze Attack | Ataque Goglidze | nomes mantidos: Goglidze |
 | Modern Defense | Defesa Moderna | — |
 | Original Defense | Defesa Original | — |
 | Polgar Variation | Variante Polgar | nomes mantidos: Polgar |
-| Ultra-Delayed Exchange Variation | Variante Ultra-Atrasada da Troca | — |
+| Ultra-Delayed Exchange Variation | Variante Ultra-Atrasada das Trocas | — |
 | with Nf3 | com Nf3 | — |
 | with g3 | com g3 | — |
 
@@ -1931,8 +1931,8 @@ _(sem partes de variação)_
 | Dilworth Gambit | Gambito Dilworth | nomes mantidos: Dilworth |
 | English Hybrid | Híbrido Inglês | override |
 | Euwe Variation | Variante Euwe | nomes mantidos: Euwe |
-| Exchange Line | Linha da Troca | override |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Line | Linha das Trocas | override |
+| Exchange Variation | Variante das Trocas | override |
 | Fischer Variation | Variante Fischer | nomes mantidos: Fischer |
 | Gligoric System | Sistema Gligoric | nomes mantidos: Gligoric |
 | Hübner Variation | Variante Hübner | nomes mantidos: Hübner |
@@ -1967,7 +1967,7 @@ _(sem partes de variação)_
 | Simagin Variation | Variante Simagin | nomes mantidos: Simagin |
 | Smyslov Variation | Variante Smyslov | nomes mantidos: Smyslov |
 | Spielmann Variation | Variante Spielmann | nomes mantidos: Spielmann |
-| St. Petersburg Variation | Variante St. Petersburgo | nomes mantidos: St. |
+| St. Petersburg Variation | Variante São Petersburgo | override; nomes mantidos: St. |
 | Stahlberg Variation | Variante Stahlberg | nomes mantidos: Stahlberg |
 | Steiner Variation | Variante Steiner | nomes mantidos: Steiner |
 | Sämisch Deferred | Sämisch Adiado | nomes mantidos: Sämisch |
@@ -2011,7 +2011,7 @@ _(sem partes de variação)_
 | El Columpio Defense | Defesa El Columpio | nomes mantidos: El, Columpio |
 | El Columpio Gambit | Gambito El Columpio | nomes mantidos: El, Columpio |
 | Erben Gambit | Gambito Erben | nomes mantidos: Erben |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Franco-Nimzowitsch Variation | Variante Franco-Nimzowitsch | nomes mantidos: Franco-Nimzowitsch |
 | French Connection | Conexão Francesa | — |
 | Hammer Gambit | Gambito Hammer | nomes mantidos: Hammer |
@@ -2044,7 +2044,7 @@ _(sem partes de variação)_
 | Inglês | PT-BR | Observações |
 | --- | --- | --- |
 | Aged Gibbon Gambit | Gambito Aged Gibbon | nomes mantidos: Aged, Gibbon |
-| Czech Variation | Variante Checa | — |
+| Czech Variation | Variante Tcheca | — |
 | Duz-Khotimirsky Variation | Variante Duz-Khotimirsky | nomes mantidos: Duz-Khotimirsky |
 | Fianchetto Variation | Variante Fianqueto | — |
 | Grinberg Gambit | Gambito Grinberg | nomes mantidos: Grinberg |
@@ -2130,7 +2130,7 @@ _(sem partes de variação)_
 | Boden Variation | Variante Boden | nomes mantidos: Boden |
 | Delayed Bishop Sacrifice | Sacrifício do Bispo Adiado | override |
 | Delmar Variation | Variante Delmar | nomes mantidos: Delmar |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Forcing Line | Linha Forçada | — |
 | Hanham | Hanham | nomes mantidos: Hanham |
 | Hanham Variation | Variante Hanham | nomes mantidos: Hanham |
@@ -2175,7 +2175,7 @@ _(sem partes de variação)_
 | Chigorin Line | Linha Chigorin | nomes mantidos: Chigorin |
 | Chinese Variation | Variante Chinesa | — |
 | Classical Variation | Variante Clássica | — |
-| Czech Defense | Defesa Checa | — |
+| Czech Defense | Defesa Tcheca | — |
 | Dragon Formation | Formação do Dragão | override |
 | Inner Doll Defense | Defesa Inner Doll | nomes mantidos: Inner, Doll |
 | Kholmov System | Sistema Kholmov | nomes mantidos: Kholmov |
@@ -2204,7 +2204,7 @@ _(sem partes de variação)_
 | Birmingham Gambit | Gambito Birmingham | nomes mantidos: Birmingham |
 | Bugayev Advance Variation | Variante do Avanço Bugayev | override; nomes mantidos: Bugayev |
 | Bugayev Attack | Ataque Bugayev | nomes mantidos: Bugayev |
-| Czech Defense | Defesa Checa | — |
+| Czech Defense | Defesa Tcheca | — |
 | Dutch Defense | Defesa Holandesa | — |
 | German Defense | Defesa Alemã | — |
 | Grigorian Variation | Variante Grigorian | nomes mantidos: Grigorian |
@@ -2287,7 +2287,7 @@ _(sem partes de variação)_
 | Rhamphorhynchus | Rhamphorhynchus | nomes mantidos: Rhamphorhynchus |
 | Sicilian | Siciliano | — |
 | Siroccopteryx | Siroccopteryx | nomes mantidos: Siroccopteryx |
-| Unpin | Desaparada | override; nomes mantidos: Unpin |
+| Unpin | Descravada | override; nomes mantidos: Unpin |
 | Western | Ocidental | — |
 
 ### Queen's Gambit → Gambito da Dama
@@ -2311,7 +2311,7 @@ _(sem partes de variação)_
 | Classical | Clássico | — |
 | Classical Defense | Defesa Clássica | — |
 | Development Variation | Variante de Desenvolvimento | override |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Flohr Variation | Variante Flohr | nomes mantidos: Flohr |
 | Furman Variation | Variante Furman | nomes mantidos: Furman |
 | Godes Variation | Variante Godes | nomes mantidos: Godes |
@@ -2384,7 +2384,7 @@ _(sem partes de variação)_
 | Classical Variation | Variante Clássica | — |
 | Costa's Line | Linha Costa | nomes mantidos: Costa's |
 | Endgame Variation | Variante do Final | override; nomes mantidos: Endgame |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Fianchetto Defense | Defesa Fianqueto | — |
 | Fianchetto Variation | Variante Fianqueto | — |
 | Flohr Line | Linha Flohr | nomes mantidos: Flohr |
@@ -2405,7 +2405,7 @@ _(sem partes de variação)_
 | Lazard Gambit | Gambito Lazard | nomes mantidos: Lazard |
 | Levenfish Variation | Variante Levenfish | nomes mantidos: Levenfish |
 | Main Line | Linha Principal | — |
-| Makogonov Exchange Variation | Variante Makogonov da Troca | override; nomes mantidos: Makogonov |
+| Makogonov Exchange Variation | Variante Makogonov das Trocas | override; nomes mantidos: Makogonov |
 | Manhattan Variation | Variante Manhattan | nomes mantidos: Manhattan |
 | Mar del Plata Gambit | Gambito Mar del Plata | nomes mantidos: Mar, Plata |
 | Marshall Defense | Defesa Marshall | nomes mantidos: Marshall |
@@ -2486,7 +2486,7 @@ _(sem partes de variação)_
 | Euwe Variation | Variante Euwe | nomes mantidos: Euwe |
 | Farago Defense | Defesa Farago | nomes mantidos: Farago |
 | Fianchetto Variation | Variante Fianqueto | — |
-| Hedgehog Variation | Variante do Ouriço | override |
+| Hedgehog Variation | Variante Ouriço | override |
 | Intermezzo Line | Linha Intermezzo | nomes mantidos: Intermezzo |
 | Kasparov Attack | Ataque Kasparov | nomes mantidos: Kasparov |
 | Kasparov Variation | Variante Kasparov | nomes mantidos: Kasparov |
@@ -2511,7 +2511,7 @@ _(sem partes de variação)_
 | Romanishin Attack | Ataque Romanishin | nomes mantidos: Romanishin |
 | Rubinstein Variation | Variante Rubinstein | nomes mantidos: Rubinstein |
 | Spassky System | Sistema Spassky | nomes mantidos: Spassky |
-| Spassky System3 | Spassky System3 | nomes mantidos: Spassky |
+| Spassky System3 | Sistema Spassky 3 | override; nomes mantidos: Spassky |
 | Sämisch Variation | Variante Sämisch | nomes mantidos: Sämisch |
 | Taimanov Gambit | Gambito Taimanov | nomes mantidos: Taimanov |
 | Timman's Line | Linha Timman | nomes mantidos: Timman's |
@@ -2595,7 +2595,7 @@ _(sem partes de variação)_
 
 _(sem partes de variação)_
 
-### Rat Defense → Defesa do Rato
+### Rat Defense → Defesa Rato
 
 | Inglês | PT-BR | Observações |
 | --- | --- | --- |
@@ -2702,7 +2702,7 @@ _(sem partes de variação)_
 | Dyckhoff Variation | Variante Dyckhoff | nomes mantidos: Dyckhoff |
 | Ekstrom Variation | Variante Ekstrom | nomes mantidos: Ekstrom |
 | Exchange | Troca | override |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Fianchetto Defense | Defesa Fianqueto | — |
 | Fianchetto Defense Deferred | Defesa Fianqueto Adiada | — |
 | Fianchetto Variation | Variante Fianqueto | — |
@@ -2718,7 +2718,7 @@ _(sem partes de variação)_
 | Harding Countergambit | Contragambito Harding | nomes mantidos: Harding |
 | Harding Gambit | Gambito Harding | nomes mantidos: Harding |
 | Harksen Gambit | Gambito Harksen | nomes mantidos: Harksen |
-| Hedgehog Variation | Variante do Ouriço | override |
+| Hedgehog Variation | Variante Ouriço | override |
 | Howell Attack | Ataque Howell | nomes mantidos: Howell |
 | Improved Steinitz Defense | Defesa Steinitz Melhorada | override; nomes mantidos: Steinitz |
 | Italian Variation | Variante Italiana | — |
@@ -2760,7 +2760,7 @@ _(sem partes de variação)_
 | Møller Variation | Variante Møller | nomes mantidos: Møller |
 | Nenarokov Variation | Variante Nenarokov | nomes mantidos: Nenarokov |
 | Neo-Arkhangelsk Variation | Variante Neo-Arkhangelsk | — |
-| Nightingale Gambit | Gambito do Rouxinol | override; nomes mantidos: Nightingale |
+| Nightingale Gambit | Gambito Rouxinol | override; nomes mantidos: Nightingale |
 | Nimzowitsch Attack | Ataque Nimzowitsch | nomes mantidos: Nimzowitsch |
 | Noah's Ark Trap | Armadilha Arca de Noé | override; nomes mantidos: Noah's, Ark |
 | Normal Variation | Variante Normal | — |
@@ -2793,7 +2793,7 @@ _(sem partes de variação)_
 | Schliemann Defense Deferred | Defesa Schliemann Adiada | nomes mantidos: Schliemann |
 | Schönemann Attack | Ataque Schönemann | nomes mantidos: Schönemann |
 | Semi-Duras Variation | Variante Semi-Duras | — |
-| Short Attack | Ataque Curto | — |
+| Short Attack | Ataque Short | nomes mantidos: Short |
 | Showalter Variation | Variante Showalter | nomes mantidos: Showalter |
 | Siesta Variation | Variante Siesta | nomes mantidos: Siesta |
 | Skipworth Gambit | Gambito Skipworth | nomes mantidos: Skipworth |
@@ -2802,7 +2802,7 @@ _(sem partes de variação)_
 | Spanish Countergambit | Contragambito Espanhol | — |
 | Spanish Wing Gambit | Gambito da Ala Espanhola | override |
 | Spassky Variation | Variante Spassky | nomes mantidos: Spassky |
-| St. Petersburg Variation | Variante St. Petersburgo | nomes mantidos: St. |
+| St. Petersburg Variation | Variante São Petersburgo | override; nomes mantidos: St. |
 | Steiner Variation | Variante Steiner | nomes mantidos: Steiner |
 | Steinitz Defense | Defesa Steinitz | nomes mantidos: Steinitz |
 | Steinitz Defense Deferred | Defesa Steinitz Adiada | nomes mantidos: Steinitz |
@@ -2840,7 +2840,7 @@ _(sem partes de variação)_
 | Capablanca Variation | Variante Capablanca | nomes mantidos: Capablanca |
 | Gurevich System | Sistema Gurevich | nomes mantidos: Gurevich |
 | Keres Variation | Variante Keres | nomes mantidos: Keres |
-| London Defensive System | Sistema Londres Defensive | nomes mantidos: Defensive |
+| London Defensive System | Sistema Defensivo Londres | override; nomes mantidos: Defensive |
 | Michel Gambit | Gambito Michel | nomes mantidos: Michel |
 | Navara Gambit | Gambito Navara | nomes mantidos: Navara |
 | New York System | Sistema Nova Iorque | override; nomes mantidos: York |
@@ -3091,7 +3091,7 @@ _(sem partes de variação)_
 | Endgame Variation | Variante do Final | override; nomes mantidos: Endgame |
 | English Attack | Ataque Inglês | — |
 | Euwe Attack | Ataque Euwe | nomes mantidos: Euwe |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Fianchetto Defense | Defesa Fianqueto | — |
 | Fianchetto Variation | Variante Fianqueto | — |
 | Finegold Defense | Defesa Finegold | nomes mantidos: Finegold |
@@ -3119,7 +3119,7 @@ _(sem partes de variação)_
 | Gurgenidze Variation | Variante Gurgenidze | nomes mantidos: Gurgenidze |
 | Haag Gambit | Gambito Haag | nomes mantidos: Haag |
 | Halasz Gambit | Gambito Halasz | nomes mantidos: Halasz |
-| Hedgehog Variation | Variante do Ouriço | override |
+| Hedgehog Variation | Variante Ouriço | override |
 | Heidenfeld Variation | Variante Heidenfeld | nomes mantidos: Heidenfeld |
 | Hungarian Dragon | Dragão Húngaro | — |
 | Hyperaccelerated Dragon | Dragão Hiperacelerado | override |
@@ -3173,7 +3173,7 @@ _(sem partes de variação)_
 | Modern Line | Linha Moderna | — |
 | Modern Variation | Variante Moderna | — |
 | Modern Variations | Variações Modernas | override |
-| Mongoose Variation | Variante do Mangusto | override; nomes mantidos: Mongoose |
+| Mongoose Variation | Variante Mangusto | override; nomes mantidos: Mongoose |
 | Morphy Defense | Defesa Morphy | nomes mantidos: Morphy |
 | Morphy Defense Deferred | Defesa Morphy Adiada | nomes mantidos: Morphy |
 | Morphy Gambit | Gambito Morphy | nomes mantidos: Morphy |
@@ -3209,7 +3209,7 @@ _(sem partes de variação)_
 | Pin Defense | Defesa Cravada | — |
 | Pin Variation | Variante Cravada | — |
 | Podebrady Variation | Variante Podebrady | — |
-| Poisoned Pawn Accepted | Poisoned Peão Aceito | nomes mantidos: Poisoned |
+| Poisoned Pawn Accepted | Peão Envenenado Aceito | override; nomes mantidos: Poisoned |
 | Poisoned Pawn Variation | Variante do Peão Envenenado | override; nomes mantidos: Poisoned |
 | Polish Gambit | Gambito Polonês | — |
 | Polugaevsky Variation | Variante Polugaevsky | nomes mantidos: Polugaevsky |
@@ -3219,7 +3219,7 @@ _(sem partes de variação)_
 | Prins Gambit | Gambito Prins | nomes mantidos: Prins |
 | Prins Variation | Variante Prins | nomes mantidos: Prins |
 | Push Variation | Variante do Empurrão | override; nomes mantidos: Push |
-| Queen Fianchetto Variation | Variante Dama Fianqueto | — |
+| Queen Fianchetto Variation | Variante do Fianqueto da Dama | override |
 | Quiet System | Sistema Quieto | — |
 | Quinteros Variation | Variante Quinteros | nomes mantidos: Quinteros |
 | Rauzer Attack | Ataque Rauzer | nomes mantidos: Rauzer |
@@ -3320,10 +3320,10 @@ _(sem partes de variação)_
 | Carlsbad Variation | Variante Carlsbad | — |
 | Chebanenko Variation | Variante Chebanenko | nomes mantidos: Chebanenko |
 | Classical System | Sistema Clássico | — |
-| Czech Variation | Variante Checa | — |
+| Czech Variation | Variante Tcheca | — |
 | Diemer Gambit | Gambito Diemer | nomes mantidos: Diemer |
 | Dutch Variation | Variante Holandesa | — |
-| Exchange Variation | Variante da Troca | override |
+| Exchange Variation | Variante das Trocas | override |
 | Fazekas Gambit | Gambito Fazekas | nomes mantidos: Fazekas |
 | Geller Gambit | Gambito Geller | nomes mantidos: Geller |
 | Krause Attack | Ataque Krause | nomes mantidos: Krause |
@@ -3380,7 +3380,7 @@ _(sem partes de variação)_
 | Advance Variation | Variante do Avanço | override |
 | Bogoljubow Variation | Variante Bogoljubow | nomes mantidos: Bogoljubow |
 | Carlsbad Variation | Variante Carlsbad | — |
-| Central Break | Central Break | nomes mantidos: Break |
+| Central Break | Ruptura Central | override; nomes mantidos: Break |
 | Chandler Variation | Variante Chandler | nomes mantidos: Chandler |
 | Classical Tarrasch Gambit | Gambito Tarrasch Clássico | override; nomes mantidos: Tarrasch |
 | Classical Variation | Variante Clássica | — |
@@ -3520,7 +3520,7 @@ _(sem partes de variação)_
 | Falkbeer Variation | Variante Falkbeer | nomes mantidos: Falkbeer |
 | Frankenstein-Dracula Variation | Variante Frankenstein-Dracula | nomes mantidos: Frankenstein-Dracula |
 | Fyfe Gambit | Gambito Fyfe | nomes mantidos: Fyfe |
-| Giraffe Attack | Ataque da Girafa | override; nomes mantidos: Giraffe |
+| Giraffe Attack | Ataque Girafa | override; nomes mantidos: Giraffe |
 | Hamppe-Meitner Variation | Variante Hamppe-Meitner | nomes mantidos: Hamppe-Meitner |
 | Hamppe-Muzio | Hamppe-Muzio | nomes mantidos: Hamppe-Muzio |
 | Hamppe-Muzio Gambit | Gambito Hamppe-Muzio | nomes mantidos: Hamppe-Muzio |
@@ -3549,7 +3549,7 @@ _(sem partes de variação)_
 | Wurzburger Trap | Armadilha Wurzburger | nomes mantidos: Wurzburger |
 | Zhuravlev Countergambit | Contragambito Zhuravlev | nomes mantidos: Zhuravlev |
 
-### Vulture Defense → Defesa do Abutre
+### Vulture Defense → Defesa Abutre
 
 _(sem partes de variação)_
 
@@ -3568,7 +3568,7 @@ _(sem partes de variação)_
 | Inglês | PT-BR | Observações |
 | --- | --- | --- |
 | Cologne Gambit | Gambito Colônia | — |
-| Crab Variation | Variante do Caranguejo | override; nomes mantidos: Crab |
+| Crab Variation | Variante Caranguejo | override; nomes mantidos: Crab |
 | Meadow Hay Trap | Armadilha Meadow Hay | nomes mantidos: Meadow, Hay |
 | Symmetric Variation | Variante Simétrica | — |
 | Ware Gambit | Gambito Ware | nomes mantidos: Ware |
