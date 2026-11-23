@@ -279,6 +279,15 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
       </ul>
     );
   }
+  if (!loading && items.length === 0 && hasMore) {
+    return (
+      <div className="p-2">
+        <button type="button" className="text-studio-accent" onClick={loadMore} disabled={loadingMore}>
+          {tLibrary(locale, loadingMore ? "library.loadingMore" : "library.loadMore")}
+        </button>
+      </div>
+    );
+  }
   if (!loading && items.length === 0) {
     const noSources = filters.sources.length === 0 || (failed.length > 0 && failed.length >= filters.sources.length);
     return (

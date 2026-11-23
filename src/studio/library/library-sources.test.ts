@@ -67,7 +67,7 @@ describe("registerLibraryAdapters", () => {
     const { registerLibraryAdapters } = await import("./library-sources");
     const { getLibrarySource } = await import("@/src/lib/library/sources");
     const ids = registerLibraryAdapters([{ id: "db1", name: "Mine", folderId: null, games: [] } as never]);
-    assert.deepEqual(ids, ["my-games", "masters", "file:db1"]);
+    assert.deepEqual(ids, ["my-games", "masters", "xadrez-digital", "file:db1"]);
     for (const id of ids) {
       assert.ok(getLibrarySource(id), `${id} is registered`);
     }

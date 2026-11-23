@@ -1,8 +1,7 @@
 // queryLibrary: queries the selected sources in parallel, merges by the
 // current sort and returns one page plus an opaque cursor.
-// Cursor = base64 JSON of one offset per source; each source is asked for
-// `limit` items from its own offset, the merged head is returned, and each
-// offset advances by the number of items that source contributed.
+// Cursor = base64 JSON of source offsets or opaque cursors. A null entry
+// marks an exhausted source.
 import { getLibrarySource } from "./sources";
 import { compareLibraryItems } from "./sort";
 import type {
@@ -13,7 +12,7 @@ import type {
   LibrarySourceId,
 } from "./types";
 
-type Offsets = Partial<Record<LibrarySourceId, number>>;
+type Offsets = Partial<Record<LibrarySourceId, number | string | null>>;
 
 export function encodeLibraryCursor(offsets: Offsets): string {
   const bytes = new TextEncoder().encode(JSON.stringify(offsets));
@@ -32,7 +31,7 @@ export function decodeLibraryCursor(cursor: string | null): Offsets {
     }
     const out: Offsets = {};
     for (const [id, value] of Object.entries(parsed)) {
-      if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
+      if (value === null || typeof value === "string" || (typeof value === "number" && Number.isInteger(value) && value >= 0)) {
         out[id as LibrarySourceId] = value;
       }
     }
@@ -57,7 +56,7 @@ export async function queryLibrary(
     return { items: [], nextCursor: null, total: null, sourceErrors };
   }
   const offsets = decodeLibraryCursor(cursor);
-  const ids = [...new Set(filters.sources)];
+  const ids = [...new Set(filters.sources)].filter((id) => offsets[id] !== null);
 
   const settled = await Promise.all(
     ids.map(async (id) => {
@@ -95,12 +94,15 @@ export async function queryLibrary(
   }
   const next: Offsets = { ...offsets };
   let hasMore = false;
-  let total: number | null = pages.length > 0 ? 0 : null;
+  let total: number | null = pages.length > 0 && !Object.values(offsets).includes(null) ? 0 : null;
   for (const { id, page } of pages) {
     const used = contributed.get(id) ?? 0;
-    next[id] = (offsets[id] ?? 0) + used;
-    if (used < page.items.length || page.nextCursor !== null) {
-      hasMore = true;
+    if (page.cursorAfter) {
+      next[id] = page.cursorAfter(used);
+      hasMore ||= next[id] !== null;
+    } else {
+      next[id] = Number(offsets[id] ?? 0) + used;
+      hasMore ||= used < page.items.length || page.nextCursor !== null;
     }
     total = total === null || page.total === null ? null : total + page.total;
   }

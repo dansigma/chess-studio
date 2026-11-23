@@ -518,7 +518,7 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
     const renaming = database !== undefined && renamingId === database.id;
     // Curated/Lichess have no row: Masters' tooltip says which database is really in use.
     const outsideLibrary =
-      id === MASTERS_SOURCE_ID && referenceSource !== "masters" && !referenceSource.startsWith("file:");
+      id === MASTERS_SOURCE_ID && (referenceSource === "curated" || referenceSource === "lichess" || referenceSource === "chesscom");
     const referenceLabel = outsideLibrary
       ? `${t("library.sources.reference.other", { name: explorerSourceTitle(referenceSource, databases, locale) })}. ${t("library.sources.reference.use")}`
       : t("library.sources.reference.use");
@@ -812,7 +812,7 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
   const renamingFolder = renamingFolderId ? folders.find((item) => item.id === renamingFolderId) : undefined;
   const deletingDb = deletingId ? databases.find((item) => item.id === deletingId) : undefined;
   const movingDb = movingId ? databases.find((item) => item.id === movingId) : undefined;
-  const mastersId = ids.find((id) => id === MASTERS_SOURCE_ID);
+  const publicIds = ids.filter((id) => id === MASTERS_SOURCE_ID || id === "xadrez-digital");
   const tree = buildFolderTree(folders, databases, "");
   const railLabel = t("library.sources.barLabel");
 
@@ -1002,7 +1002,7 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
           <h3 className="px-2 pb-0.5 pt-1 text-caption font-semibold uppercase tracking-wide text-studio-faint">
             {t("library.sources.group.public")}
           </h3>
-          {mastersId ? sourceRow(mastersId) : null}
+          {publicIds.map((id) => sourceRow(id))}
         </section>
         <section role="group" aria-label={t("library.sources.group.myGames")} className="flex flex-col gap-0.5">
           <h3 className="px-2 pb-0.5 pt-1 text-caption font-semibold uppercase tracking-wide text-studio-faint">
