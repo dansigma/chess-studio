@@ -84,9 +84,13 @@ type FilesGet = Parameters<StateCreator<StudioState, [], [], FilesSlice>>[1];
 
 const STORAGE_FULL_MESSAGE = "Saved in this session only: browser storage is full";
 
+// Set when the stored Library could not be read: writing would replace a
+// snapshot this page never saw, so changes stay in this session only.
+let localWritesBlocked = false;
+
 function cacheFiles(set: FilesSet, get: FilesGet, files: FilesLibrary) {
   // Hydration saves the session changes together with the stored snapshot.
-  if (!get().filesHydrated) return;
+  if (!get().filesHydrated || localWritesBlocked) return;
 
   void saveLocalFiles(files).then((stored) => {
     if (!stored && get().files === files) {
@@ -324,6 +328,7 @@ function createFilesHydration(set: FilesSet, get: FilesGet): Pick<
         .then(({ stored, failed }) => {
           const state = get();
           if (state.filesHydrated) return;
+          localWritesBlocked = failed;
 
           const hasSessionFiles = state.files.folders.length > 0 || state.files.databases.length > 0;
           const files = hasSessionFiles ? {

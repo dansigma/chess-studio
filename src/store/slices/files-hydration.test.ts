@@ -50,7 +50,7 @@ test("early Library changes survive a shared hydration and are written once afte
   assert.deepEqual(writes, [state.files]);
 });
 
-test("a rejected read retains session databases, reports the failure and finishes hydration", async () => {
+test("a rejected read retains session databases, reports the failure, finishes hydration and never overwrites storage", async () => {
   const { promise, reject } = Promise.withResolvers<realUserFiles.FilesLibrary>();
   pendingRead = promise;
   writes.length = 0;
@@ -67,8 +67,11 @@ test("a rejected read retains session databases, reports the failure and finishe
 
   const state = useStudioStore.getState();
   assert.equal(state.filesHydrated, true);
-  assert.equal(state.statusMessage, "Não foi possível carregar sua biblioteca local.");
+  assert.equal(state.statusMessage, "Não foi possível carregar sua biblioteca local. As alterações ficam só nesta sessão.");
   assert.equal(state.files.databases[0]?.id, databaseId);
   assert.equal(state.activeFileGameId, null);
-  assert.deepEqual(writes, [state.files]);
+  // The stored snapshot was never read, so neither the merge nor a later change may replace it.
+  useStudioStore.getState().createFileFolder("After the failed read");
+  assert.equal(useStudioStore.getState().files.folders.length, 1);
+  assert.deepEqual(writes, []);
 });
