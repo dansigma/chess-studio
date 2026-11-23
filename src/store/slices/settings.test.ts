@@ -346,3 +346,23 @@ test("round-trips training scope by color and ignores malformed stored fields", 
   assert.deepEqual(useStudioStore.getState().settings.trainingScope, { white: { maxMove: 15 } });
   storage.delete(SETTINGS_KEY);
 });
+
+test("Base Xadrez Digital and shared Explorer settings retain their own valid ratings and years", () => {
+  resetSettings();
+  actions().setExplorerFilters({ minRating: 1800 }, "xadrez-digital");
+  actions().setExplorerFilters({ minRating: 2700 }, "lichess");
+  assert.equal(useStudioStore.getState().settings.xdExplorerFilters.minRating, 0);
+  assert.equal(useStudioStore.getState().settings.explorerFilters.minRating, 0);
+
+  actions().setExplorerFilters({ minRating: 2700, sinceYear: 2010 }, "xadrez-digital");
+  actions().setExplorerFilters({ minRating: 1800, sinceYear: 2000 }, "lichess");
+  const { settings } = useStudioStore.getState();
+  storage.set(SETTINGS_KEY, JSON.stringify(settings));
+  try {
+    actions().hydrateLocalSettings();
+    assert.deepEqual(useStudioStore.getState().settings.xdExplorerFilters, settings.xdExplorerFilters);
+    assert.deepEqual(useStudioStore.getState().settings.explorerFilters, settings.explorerFilters);
+  } finally {
+    storage.delete(SETTINGS_KEY);
+  }
+});
