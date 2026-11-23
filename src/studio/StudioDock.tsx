@@ -12,6 +12,7 @@ import {
 } from "dockview-react";
 import type { IDockviewPanelProps, SerializedDockview } from "dockview-core";
 import { BoardPanel } from "./BoardPanel";
+import { textSizeAttr } from "./text-size";
 import { EnginePanel } from "./EnginePanel";
 import { EvalGraphPanel } from "./EvalGraphPanel";
 import { ReviewPanel } from "./ReviewPanel";
@@ -268,6 +269,7 @@ function ensurePlayerPanels(api: DockviewReadyEvent["api"], title: string) {
 }
 
 export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
+  const textSize = useStudioStore((state) => state.settings.textSize);
   const containerRef = useRef<HTMLDivElement>(null);
   const locale = useStudioStore((state) => state.settings.locale);
   // SIG-907: per-board title signature so every `board:*` tab tracks its own
@@ -683,7 +685,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
   }, [visible]);
 
   return (
-    <div ref={containerRef} className="h-full w-full">
+    <div ref={containerRef} className="h-full w-full" data-text-size={textSizeAttr(textSize)}>
       <DockviewReact
         key={`${layoutNonce}-${DOCK_LAYOUT_VERSION}`}
         className="h-full w-full"

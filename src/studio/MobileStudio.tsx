@@ -21,6 +21,7 @@ import { boardTitle } from "./dock-api";
 import { tMobile } from "@/src/i18n/mobile-strings.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { textSizeAttr } from "./text-size";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { LiveView } from "./live/LiveView";
 import { useLiveStore } from "./live/live-store";
@@ -57,6 +58,7 @@ export function MobileStudio({
   onShowFileGames?: () => void;
 }) {
   const locale = useStudioStore((state) => state.settings.locale);
+  const textSize = useStudioStore((state) => state.settings.textSize);
   const boards = useStudioStore((state) => state.boards);
   const activeBoard = useStudioStore(selectActiveBoard);
   const workspaceView = useStudioStore((state) => state.workspaceView);
@@ -182,7 +184,7 @@ export function MobileStudio({
         <BoardPanel />
       </div>
       <MobileMoveStrip />
-      <div data-mobile-panel-area="" id="mobile-panel-area" className="min-h-0 flex-1 overflow-auto">
+      <div data-mobile-panel-area="" data-text-size={textSizeAttr(textSize)} id="mobile-panel-area" className="min-h-0 flex-1 overflow-auto">
         {activeTab === "moves" ? <NotationPanel /> : null}
         {activeTab === "engine" ? <EnginePanel /> : null}
         {activeTab === "review" ? <ReviewPanel /> : null}

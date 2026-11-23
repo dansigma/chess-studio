@@ -248,6 +248,18 @@ html[data-color-scheme="light"] {
   --font-mono: var(--font-geist-mono);
 }
 
+/* SIG-1461: text size for dock / mobile panel lists only; menus, dialogs and
+   the board live outside these containers and keep the global tokens. */
+[data-text-size="small"] {
+  --text-caption: 10px;
+  --text-dense: 11px;
+}
+
+[data-text-size="large"] {
+  --text-caption: 12px;
+  --text-dense: 14px;
+}
+
 html,
 body {
   height: 100%;

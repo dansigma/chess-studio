@@ -7,6 +7,7 @@ import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS } from "@/src/chess/move-notation";
 import { SITE_LOCALES, SITE_LOCALE_LABELS } from "@/src/i18n/locale";
 import { NOTATION_DENSITY_IDS } from "./notation-density";
+import { TEXT_SIZE_IDS } from "./text-size";
 import { ENGINE_BUILDS, ENGINE_BUILD_INFO } from "@/src/engine/stockfish-client";
 import { COLOR_SCHEME_IDS } from "./color-scheme";
 import { Dialog } from "./ui/Dialog";
@@ -117,6 +118,7 @@ export function SettingsDialog({
   const setPieceSet = useStudioStore((state) => state.setPieceSet);
   const setMoveNotation = useStudioStore((state) => state.setMoveNotation);
   const setNotationDensity = useStudioStore((state) => state.setNotationDensity);
+  const setTextSize = useStudioStore((state) => state.setTextSize);
   const toggleClockTimes = useStudioStore((state) => state.toggleClockTimes);
   const setLocale = useStudioStore((state) => state.setLocale);
   const toggleCoordinates = useStudioStore((state) => state.toggleCoordinates);
@@ -184,6 +186,15 @@ export function SettingsDialog({
             value={settings.pieceSet}
             options={PIECE_SET_IDS.map((id) => ({ id, label: PIECE_SETS[id].label }))}
             onChange={setPieceSet}
+          />
+          <SelectRow
+            label={tStudioChrome(locale, "chrome.settings.textSize")}
+            value={settings.textSize}
+            options={TEXT_SIZE_IDS.map((id) => ({
+              id,
+              label: tStudioChrome(locale, `chrome.settings.textSize.${id}`),
+            }))}
+            onChange={setTextSize}
           />
         </Section>
         <Section title={tStudioChrome(locale, "chrome.settings.board")}>
