@@ -416,3 +416,22 @@ test("Base Xadrez Digital and shared Explorer settings retain their own valid ra
     storage.delete(SETTINGS_KEY);
   }
 });
+
+test("autoQueen defaults to off, ignores invalid values and toggles", () => {
+  resetSettings();
+  try {
+    for (const existing of [{}, { autoQueen: "true" }]) {
+      storage.set(SETTINGS_KEY, JSON.stringify(existing));
+      actions().hydrateLocalSettings();
+      assert.equal(useStudioStore.getState().settings.autoQueen, false);
+    }
+    storage.set(SETTINGS_KEY, JSON.stringify({ autoQueen: true }));
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.autoQueen, true);
+    actions().toggleAutoQueen();
+    assert.equal(useStudioStore.getState().settings.autoQueen, false);
+  } finally {
+    storage.delete(SETTINGS_KEY);
+    resetSettings();
+  }
+});

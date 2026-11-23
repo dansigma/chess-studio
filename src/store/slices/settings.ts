@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   showCoordinates: true,
   showEvalBar: true,
   showMaterialBalance: false,
+  autoQueen: false,
   boardTheme: "studio",
   pieceSet: "classic",
   moveNotation: "english",
@@ -101,6 +102,8 @@ export function loadLocalSettings(): StudioSettings {
         typeof parsed.showMaterialBalance === "boolean"
           ? parsed.showMaterialBalance
           : DEFAULT_SETTINGS.showMaterialBalance,
+      autoQueen:
+        typeof parsed.autoQueen === "boolean" ? parsed.autoQueen : DEFAULT_SETTINGS.autoQueen,
       pieceSet: isPieceSet(parsed.pieceSet) ? parsed.pieceSet : DEFAULT_SETTINGS.pieceSet,
       moveNotation: isMoveNotation(parsed.moveNotation)
         ? parsed.moveNotation
@@ -160,6 +163,7 @@ export type SettingsSlice = Pick<
   | "toggleEngineSparkline"
   | "toggleEvalBar"
   | "toggleMaterialBalance"
+  | "toggleAutoQueen"
   | "toggleGamePreview"
   | "pinPreviewBoard"
   | "setBoardTheme"
@@ -229,6 +233,11 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
   toggleMaterialBalance: () => {
     set((state) => ({
       settings: { ...state.settings, showMaterialBalance: !state.settings.showMaterialBalance },
+    }));
+  },
+  toggleAutoQueen: () => {
+    set((state) => ({
+      settings: { ...state.settings, autoQueen: !state.settings.autoQueen },
     }));
   },
   toggleEvalBar: () => {

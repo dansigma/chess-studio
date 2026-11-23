@@ -156,6 +156,7 @@ export type StudioSettings = {
   showCoordinates: boolean;
   showEvalBar: boolean;
   showMaterialBalance: boolean;
+  autoQueen: boolean;
   boardTheme: BoardTheme;
   pieceSet: PieceSet;
   moveNotation: MoveNotation;
@@ -298,6 +299,7 @@ export type StudioState = {
   toggleEngineSparkline: () => void;
   toggleEvalBar: () => void;
   toggleMaterialBalance: () => void;
+  toggleAutoQueen: () => void;
   toggleGamePreview: () => void;
   pinPreviewBoard: (id: string) => void;
   setBoardTheme: (theme: BoardTheme) => void;
