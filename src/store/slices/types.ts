@@ -176,6 +176,7 @@ export type StudioSettings = {
   sidebarCollapsed: boolean;
   sidebarWidth: number;
   explorerFilters: ExplorerFilters;
+  xdExplorerFilters: ExplorerFilters;
   moveSound: boolean;
   puzzleSound: boolean;
   /** SIG-1196: 40px eval sparkline under the engine control row. */
@@ -321,7 +322,7 @@ export type StudioState = {
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   setDatabaseSource: (source: ExplorerSource) => void;
-  setExplorerFilters: (patch: Partial<ExplorerFilters>) => void;
+  setExplorerFilters: (patch: Partial<ExplorerFilters>, source?: ExplorerSource) => void;
   importPgnText: (pgn: string, title?: string) => void;
   openListedGame: (args: {
     title: string;
