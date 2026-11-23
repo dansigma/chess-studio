@@ -46,7 +46,7 @@ function Chip({
   );
 }
 
-function sourceFilters(source: ExplorerSource) {
+function sourceFilters(source: ExplorerSource): { speed: boolean; rating: boolean; ratingThresholds: readonly number[] } {
   const personal = fileDatabaseId(source) != null;
   const speed = source === "lichess" || source === "chesscom";
   const xd = source === "xadrez-digital";
@@ -72,7 +72,6 @@ export function ExplorerFiltersBar({
   const [open, setOpen] = useState(false);
   const available = sourceFilters(source);
   const count = activeExplorerFilterCount(filters, available);
-  const allRatingsLabel = tPanels(locale, source === "xadrez-digital" ? "explorer.filter.xdAll" : "explorer.filter.all");
   const buttonRef = useRef<HTMLButtonElement>(null);
   const summary = yearRangeSummary(filters.sinceYear, filters.untilYear);
   const label =
@@ -132,7 +131,7 @@ export function ExplorerFiltersBar({
                 {available.ratingThresholds.map((rating) => (
                   <Chip
                     key={rating}
-                    label={rating === 0 ? allRatingsLabel : `${rating}+`}
+                    label={rating === 0 ? tPanels(locale, "explorer.filter.all") : `${rating}+`}
                     active={filters.minRating === rating}
                     onClick={() => onChange({ minRating: rating })}
                   />

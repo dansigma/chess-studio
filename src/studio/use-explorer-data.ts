@@ -98,9 +98,6 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
     // debounce in {error: null, loading: false, explorer: null} and flashes
     // the false "No games" before "Loading explorer…".
     setLoading(true);
-    if (xd && includeGames) {
-      setExplorer((previous) => previous?.games.length ? { ...previous, games: [] } : previous);
-    }
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       const request = xd

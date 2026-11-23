@@ -56,7 +56,9 @@ export async function fetchXdExplorer(
   if (minRating > 0) query.set("minRating", String(minRating));
   if (sinceYear != null) query.set("minYear", String(sinceYear));
   if (untilYear != null) query.set("maxYear", String(untilYear));
-  const requestLimit = query.size > 1 ? FILTERED_PAGE_REQUEST_LIMIT : 1;
+  // Filters apply to the games list only; the tree above stays unfiltered.
+  const filtered = minRating > 0 || sinceYear != null || untilYear != null;
+  const requestLimit = filtered ? FILTERED_PAGE_REQUEST_LIMIT : 1;
 
   for (let request = 0; request < requestLimit; request++) {
     const response = await fetchXdDatabase(`games?${query}`, signal, fetchImpl);
