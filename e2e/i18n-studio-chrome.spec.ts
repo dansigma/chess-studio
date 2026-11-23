@@ -53,7 +53,32 @@ test("studio chrome renders Portuguese with the pt-br locale stored", async ({ p
   await expect(dialog.getByText("Aparência")).toBeVisible();
   await expect(dialog.getByText("Idioma do site")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Concluir" })).toBeVisible();
+  const materialToggle = dialog.getByRole("switch", { name: "Mostrar saldo de material" });
+  await expect(materialToggle).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByRole("group", { name: "Capturas das brancas" })).toHaveCount(0);
+  await materialToggle.click();
   await page.keyboard.press("Escape");
+
+  const whiteCaptures = page.getByRole("group", { name: "Capturas das brancas" });
+  const blackCaptures = page.getByRole("group", { name: "Capturas das pretas" });
+  await expect(whiteCaptures).toBeVisible();
+  await expect(blackCaptures).toBeVisible();
+  await expect(whiteCaptures).toBeEmpty();
+
+  const board = page.locator("[data-board-image]");
+  for (const square of ["e2", "e4", "d7", "d5", "e4", "d5"]) {
+    await board.locator(`[data-square="${square}"]`).click();
+  }
+  await expect(whiteCaptures.getByRole("img", { name: "Peão ×1" })).toBeVisible();
+  await expect(whiteCaptures).toHaveText("+1");
+  await expect(blackCaptures).toBeEmpty();
+
+  await menubar.getByRole("button", { name: "Ver", exact: true }).click();
+  await page.getByRole("menuitem", { name: /Virar tabuleiro/ }).click();
+  await expect(board).toHaveAttribute("data-orientation", "black");
+  const flippedBoard = await board.boundingBox();
+  const flippedWhiteCaptures = await whiteCaptures.boundingBox();
+  expect(flippedWhiteCaptures!.y).toBeLessThan(flippedBoard!.y);
 });
 
 test("switching back to English through Settings restores English chrome", async ({
@@ -72,6 +97,7 @@ test("switching back to English through Settings restores English chrome", async
   const languageRow = dialog.locator("div", { hasText: "Idioma do site" }).last();
   await languageRow.locator("select").selectOption("en");
 
+  await expect(dialog.getByRole("switch", { name: "Show material balance" })).toBeVisible();
   await expect(page.getByRole("button", { name: "File", exact: true })).toBeVisible();
   await expect(menubarEn.getByRole("button", { name: "Arquivo", exact: true })).toHaveCount(0);
 });

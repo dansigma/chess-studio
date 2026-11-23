@@ -9,8 +9,8 @@ export type XdTree = {
   moves: (Omit<TreeMove, "code"> & { uci: string })[];
 };
 
-export async function fetchXdDatabase(path: string, signal?: AbortSignal, fetchImpl: typeof fetch = fetch) {
-  const response = await fetchImpl(`/api/xd-database/${path}`, { signal });
+export async function fetchXdDatabase(path: string, signal?: AbortSignal, fetchImpl: typeof fetch = fetch, priority?: "low") {
+  const response = await fetchImpl(`/api/xd-database/${path}`, { signal, priority });
   if (!response.ok) throw new Error(`Base Xadrez Digital (HTTP ${response.status})`);
   return response;
 }

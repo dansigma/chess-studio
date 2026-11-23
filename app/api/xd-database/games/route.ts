@@ -35,6 +35,12 @@ export async function GET(request: Request) {
     const position = await reader.position(positionRequest.key);
     if (!position || cursor >= position.total) return Response.json({ games: [], nextCursor: null });
 
+    const firstPageSize = Math.min(PAGE_SIZE, position.total);
+    if (!filtered && !query.has("cursor") && position.gameIds.length >= firstPageSize) {
+      const games = (await reader.gamesById(position.gameIds.slice(0, firstPageSize))).map(gameHeaders);
+      return Response.json({ games, nextCursor: firstPageSize < position.total ? firstPageSize : null });
+    }
+
     let playerIds: Set<number> | undefined;
     if (player) {
       const entry = await reader.playerById(player);
