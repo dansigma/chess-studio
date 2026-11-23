@@ -3,7 +3,7 @@
 // de-duplication, tree counts and results, the minimum-games cut, top games,
 // the game store round trip, the player index and byte-identical output.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -101,8 +101,11 @@ describe("xd-database build", () => {
   it("orders top games by average rating, then the newest", async () => {
     const start = await reader.position(bookKey(new Chess().fen()));
     const games = await reader.gamesById(start.gameIds);
-    const ratings = games.map(({ game }) => ((game.whiteElo ?? 0) + (game.blackElo ?? 0)) / 2);
-    assert.deepEqual([...ratings].sort((a, b) => b - a), ratings);
+    const keys = games.map(({ game }) => ({ rating: ((game.whiteElo ?? 0) + (game.blackElo ?? 0)) / 2, date: game.date ?? "" }));
+    for (let i = 1; i < keys.length; i += 1) {
+      const [prev, next] = [keys[i - 1], keys[i]];
+      assert.ok(prev.rating > next.rating || (prev.rating === next.rating && prev.date >= next.date), `out of order at ${i}`);
+    }
   });
 
   it("drops positions reached by fewer games than the minimum", async () => {
@@ -158,6 +161,9 @@ describe("xd-database build", () => {
       buildDatabase(sources(corpus()), { ...BASE, outDir: join(root, "c"), workers: 1, minGamesRead: 1000 }),
       /fewer than --min-games-read/,
     );
+    for (const name of ["games.bin", "tree.bin", "manifest.json"]) {
+      assert.ok(!existsSync(join(root, "c", "v1", name)), name);
+    }
   });
 });
 

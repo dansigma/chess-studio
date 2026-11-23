@@ -262,7 +262,8 @@ export function aggregateBucket({ tmpDir, bucket, workers, minGames, topGames, p
       }
       if (result === 0) move.white += 1;
       else if (result === 1) move.draws += 1;
-      else move.black += 1;
+      else if (result === 2) move.black += 1;
+      else throw new Error(`bucket ${bucket}: bad result code ${result}`);
       if (rating > 0) {
         move.ratingSum += rating;
         move.rated += 1;

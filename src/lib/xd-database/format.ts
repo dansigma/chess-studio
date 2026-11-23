@@ -381,8 +381,16 @@ export function encodeTreeIndex(index: { maxPly: number; firstKeys: bigint[]; of
     writer.u64(key);
     writer.u64(index.offsets[i]);
   });
-  writer.u64(index.offsets[index.firstKeys.length] ?? 0);
+  writer.u64(endOffset(index));
   return writer.result();
+}
+
+function endOffset(index: { firstKeys: readonly unknown[]; offsets: readonly number[] }): number {
+  const end = index.offsets[index.firstKeys.length];
+  if (end === undefined) {
+    throw new Error("page index: the end offset is missing");
+  }
+  return end;
 }
 
 export function decodeTreeIndex(bytes: Uint8Array): TreeIndex {
@@ -412,7 +420,7 @@ export function encodePlayersIndex(index: { playerCount: number; firstKeys: stri
     writer.raw(encoded);
     writer.u64(index.offsets[i]);
   });
-  writer.u64(index.offsets[index.firstKeys.length] ?? 0);
+  writer.u64(endOffset(index));
   return writer.result();
 }
 
@@ -425,6 +433,9 @@ export function decodePlayersIndex(bytes: Uint8Array): PlayersIndex {
   const offsets: number[] = [];
   for (let i = 0; i < pageCount; i += 1) {
     const length = reader.u16();
+    if (reader.offset + length > reader.bytes.length) {
+      throw new Error("players index: truncated data");
+    }
     firstKeys.push(new TextDecoder().decode(reader.bytes.subarray(reader.offset, reader.offset + length)));
     reader.offset += length;
     offsets.push(reader.offset64());

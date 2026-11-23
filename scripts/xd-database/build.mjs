@@ -305,6 +305,7 @@ class Pool {
 
   fail(error) {
     this.failure ??= error;
+    this.inflight = 0;
     for (const state of this.workers) {
       for (const pending of state.pending.splice(0)) {
         pending.reject(error);
@@ -458,6 +459,8 @@ export async function buildDatabase(sources, options) {
       await pool.sendGames(batch);
     }
     if (stats.read < o.minGamesRead) {
+      store.close();
+      rmSync(dir, { recursive: true, force: true });
       throw new Error(`read ${stats.read} games, fewer than --min-games-read ${o.minGamesRead}: no output written`);
     }
     store.close();
