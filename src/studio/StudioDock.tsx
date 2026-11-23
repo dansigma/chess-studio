@@ -524,7 +524,12 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
   }, [boardsHydrated, boardIds]);
 
   useEffect(() => {
+    const container = containerRef.current;
     return () => {
+      // Dockview keeps its instance across Strict Mode effect replays.
+      if (container?.isConnected) {
+        return;
+      }
       layoutSubscription.current?.dispose();
       disposePanelSubscriptions();
       apiRef.current = null;
