@@ -15,6 +15,8 @@ export type EngineSlice = Pick<
   StudioState,
   | "enginePreview"
   | "engineEval"
+  | "engineToggleRequest"
+  | "requestEngineToggle"
   | "evalByFen"
   | "threat"
   | "showThreat"
@@ -32,6 +34,8 @@ export type EngineSlice = Pick<
 export const createEngineSlice: StateCreator<StudioState, [], [], EngineSlice> = (set, get) => ({
   enginePreview: null,
   engineEval: null,
+  engineToggleRequest: 0,
+  requestEngineToggle: () => set((state) => ({ engineToggleRequest: state.engineToggleRequest + 1 })),
   evalByFen: {},
   threat: null,
   showThreat: false,

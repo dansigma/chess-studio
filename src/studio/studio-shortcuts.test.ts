@@ -266,3 +266,50 @@ test("Ctrl+Z undoes edits outside text fields and both redo chords reapply them"
     assert.equal(store().active().tree.startComment, "test comment");
   }
 });
+
+test("E requests an engine toggle and M leaves the variation (SIG-1459)", () => {
+  const { deps } = makeDeps();
+  const before = useStudioStore.getState().engineToggleRequest;
+  const e = makeKeyEvent("e");
+  handleStudioShellKey(e, deps);
+  assert.equal(e.defaultPrevented, true);
+  assert.equal(useStudioStore.getState().engineToggleRequest, before + 1);
+  handleStudioShellKey(makeKeyEvent("e", { ctrlKey: true }), deps);
+  handleStudioShellKey(makeKeyEvent("E", { shiftKey: true }), deps);
+  assert.equal(useStudioStore.getState().engineToggleRequest, before + 1);
+
+  // Main line: M does nothing.
+  useStudioStore.getState().goPath([0, 0]);
+  const mainM = makeKeyEvent("m");
+  handleStudioShellKey(mainM, deps);
+  assert.deepEqual(useStudioStore.getState().active().path, [0, 0]);
+
+  // Variation 1.d4 off the start: M returns to 1.e4.
+  const { tree, path } = (() => {
+    const b = useStudioStore.getState().active();
+    return playMove(b.tree, [], { san: "d4", uci: "d2d4", fen: "fen-d4", from: "d2", to: "d4" });
+  })();
+  useStudioStore.setState((s) => ({
+    boards: s.boards.map((b) => ({ ...b, tree, path })),
+  }));
+  assert.deepEqual(useStudioStore.getState().active().path, [1]);
+  handleStudioShellKey(makeKeyEvent("m"), deps);
+  assert.deepEqual(useStudioStore.getState().active().path, [0]);
+});
+
+test("E and M ignore editable targets and dialogs (SIG-1459)", () => {
+  const { deps } = makeDeps();
+  const before = useStudioStore.getState().engineToggleRequest;
+  const input = document.createElement("input");
+  document.body.appendChild(input);
+  const ev = makeKeyEvent("e");
+  Object.defineProperty(ev, "target", { value: input });
+  handleStudioShellKey(ev, deps);
+  assert.equal(ev.defaultPrevented, false);
+  const dialog = document.createElement("div");
+  dialog.setAttribute("role", "dialog");
+  dialog.setAttribute("aria-modal", "true");
+  document.body.appendChild(dialog);
+  handleStudioShellKey(makeKeyEvent("e"), deps);
+  assert.equal(useStudioStore.getState().engineToggleRequest, before);
+});
