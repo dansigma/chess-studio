@@ -10,7 +10,11 @@ import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu
 
 /** Clears the local Library before ending the browser and server sessions. */
 export async function signOutEverywhere(): Promise<void> {
-  await clearSessionFilesBeforeSignOut();
+  try {
+    await clearSessionFilesBeforeSignOut();
+  } catch {
+    // A storage failure must not block the sign-out below.
+  }
   try {
     await createBrowserSupabase()?.auth.signOut();
   } finally {

@@ -625,12 +625,15 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
   showFileDatabase: (id) => set({ activeFileDatabaseId: id }),
   openPgnSource: (name, pgn) => {
     const id = get().importFileDatabase(name, pgn);
+    // importFileDatabase reports which quota (databases or games) was hit;
+    // importPgnText below clears the status, so keep that message.
+    const quotaMessage = id ? null : get().statusMessage;
     get().importPgnText(pgn, name);
     if (get().statusMessage === "Could not open that PGN.") {
       return;
     }
     if (!id) {
-      set({ statusMessage: tLibrary(get().settings.locale, "library.quota.databases") });
+      set({ statusMessage: quotaMessage });
       return;
     }
     const database = get().files.databases.find((item) => item.id === id);
