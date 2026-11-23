@@ -1,3 +1,4 @@
+import { leaveVariation } from "@/src/chess/tree";
 import { useStudioStore } from "@/src/store/studio-store";
 
 export function isEditableTarget(target: EventTarget | null): boolean {
@@ -117,6 +118,21 @@ export function handleStudioShellKey(
   if (!ctrl && !event.altKey && !event.shiftKey && key === "f" && chromeFocus) {
     event.preventDefault();
     deps.flip();
+    return;
+  }
+  // SIG-1459: bare E starts/pauses the engine, bare M leaves the variation.
+  if (!ctrl && !event.altKey && !event.shiftKey && key === "e" && chromeFocus) {
+    event.preventDefault();
+    useStudioStore.getState().requestEngineToggle();
+    return;
+  }
+  if (!ctrl && !event.altKey && !event.shiftKey && key === "m" && chromeFocus) {
+    event.preventDefault();
+    const state = useStudioStore.getState();
+    const target = leaveVariation(state.active().path);
+    if (target) {
+      state.goPath(target);
+    }
     return;
   }
   if (ctrl && event.shiftKey && key === "a" && chromeFocus) {

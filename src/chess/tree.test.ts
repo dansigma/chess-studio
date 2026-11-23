@@ -26,6 +26,7 @@ import {
   makeMainline,
   moveNumberForPath,
   pathsEqual,
+  leaveVariation,
   playMove,
   plyColor,
   promoteVariation,
@@ -358,4 +359,13 @@ test("plyColor and moveNumberForPath derive turn info from the start FEN", () =>
   assert.equal(moveNumberForPath(START_FEN, 1), 1);
   assert.equal(moveNumberForPath(START_FEN, 2), 1);
   assert.equal(moveNumberForPath(START_FEN, 3), 2);
+});
+
+test("leaveVariation jumps to the parent-line move or does nothing on the main line", () => {
+  assert.equal(leaveVariation([]), null);
+  assert.equal(leaveVariation([0, 0, 0]), null);
+  assert.deepEqual(leaveVariation([0, 1]), [0, 0]);
+  assert.deepEqual(leaveVariation([0, 1, 0, 0]), [0, 0]);
+  assert.deepEqual(leaveVariation([0, 1, 0, 2, 0]), [0, 1, 0, 0]);
+  assert.deepEqual(leaveVariation([1]), [0]);
 });

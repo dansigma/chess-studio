@@ -39,6 +39,9 @@ export const SHORTCUT_ENTRIES: readonly ShortcutEntry[] = [
   { group: "editing", action: "chrome.edit.makeMainline", chords: [["Ctrl", "Shift", "↑"]] },
   { group: "editing", action: "chrome.edit.deleteVariation", chords: [["Ctrl", "Del"]] },
   { group: "editing", action: "chrome.edit.deleteAfter", chords: [["Del"]] },
+  // SIG-1459: bare E / M in StudioShell `onKey`.
+  { group: "navigation", action: "chrome.shortcuts.action.leaveVariation", chords: [["M"]] },
+  { group: "panels", action: "chrome.shortcuts.action.toggleEngine", chords: [["E"]] },
   // Board — StudioShell `onKey` file/view bindings; F is the bare-key alias of
   // Ctrl+F (SIG-1192). Right-click / long-press opens BoardContextMenu.
   { group: "board", action: "chrome.view.flip", chords: [["Ctrl", "F"], ["F"]] },
