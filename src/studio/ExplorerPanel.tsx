@@ -4,7 +4,7 @@ import { tLibrary } from "@/src/i18n/library-strings";
 import { LibraryLoadingStatus } from "./library/LibraryLoadingStatus";
 import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
-import { explorerSourceTitle, fileExplorerSource, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
+import { explorerSourceTitle, fileExplorerSource, isExplorerSource, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { fenKey } from "@/src/chess/tree";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
@@ -35,16 +35,7 @@ const EMPTY_STATE_ALTERNATES: readonly ExplorerSource[] = ["lichess", "masters",
  * are `file:<id>` with a non-empty whitespace-free id.
  */
 export function parseExplorerSource(value: unknown): ExplorerSource | null {
-  if (value === "curated" || value === "masters" || value === "lichess" || value === "chesscom") {
-    return value;
-  }
-  if (typeof value === "string" && value.startsWith("file:")) {
-    const suffix = value.slice("file:".length);
-    if (suffix.length > 0 && !/\s/.test(suffix)) {
-      return value as ExplorerSource;
-    }
-  }
-  return null;
+  return isExplorerSource(value) ? value : null;
 }
 
 export function ExplorerPanel({ source, panelId }: { source?: ExplorerSource; panelId?: string }) {
@@ -165,11 +156,12 @@ function ExplorerChrome({
   const clearHoverArrow = () => setExplorerHover(null);
   useEffect(() => () => setExplorerHover(null), [setExplorerHover]);
   const side = explorer ? sideFromFen(explorer.fen) : "w";
-  const totalGames = explorer ? explorer.white + explorer.draws + explorer.black : 0;
+  const totalGames = explorer ? (explorer.total ?? explorer.white + explorer.draws + explorer.black) : 0;
   const hasMoves = (explorer?.moves.length ?? 0) > 0;
   const knownSources = new Set<ExplorerSource>([
     "curated",
     "masters",
+    "xadrez-digital",
     "lichess",
     "chesscom",
     ...databases.map((database) => fileExplorerSource(database.id)),
@@ -224,6 +216,7 @@ function ExplorerChrome({
           >
             <option value="curated">{tPanels(locale, "explorer.source.curated")}</option>
             <option value="masters">{tPanels(locale, "explorer.source.masters")}</option>
+            <option value="xadrez-digital">{tPanels(locale, "explorer.source.xadrez-digital")}</option>
             <option value="lichess">{tPanels(locale, "explorer.source.lichess")}</option>
             <option value="chesscom">
               {chesscomPlayer
@@ -241,7 +234,9 @@ function ExplorerChrome({
             )}
             {!libraryLoading && !knownSources.has(effectiveSource) ? <option value={effectiveSource}>{tPanels(locale, "explorer.source.personal")}</option> : null}
           </select>
-          <ExplorerFiltersBar source={effectiveSource} filters={filters} onChange={setExplorerFilters} />
+          {effectiveSource !== "xadrez-digital" && (
+            <ExplorerFiltersBar source={effectiveSource} filters={filters} onChange={setExplorerFilters} />
+          )}
           <IconButton label={tPanels(locale, "explorer.splitView")} size="sm" onClick={onDuplicate}>
             <Plus size={15} />
           </IconButton>
