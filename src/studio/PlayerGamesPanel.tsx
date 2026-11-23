@@ -1,102 +1,26 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { formatYearMonth } from "@/src/lib/game-date";
-import type { PlayerGame, PlayerGamesResponse } from "@/src/lib/player-types";
+import type { PlayerGame } from "@/src/lib/player-types";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { tPrep } from "@/src/i18n/prep-strings";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { openBoardPanel } from "./dock-api";
 import { openPlayerDossier } from "./library/dossier/open-player-dossier";
 import { GameOpenRow } from "./GameOpenRow";
+import { filterPlayerGames } from "@/src/lib/player-stats";
+import { useLegacyPlayerGames } from "./use-player-games";
 import { ResultMark } from "./ResultMark";
 import { PlayerCell, outcomeFor } from "./ui/PlayerCell";
 
 export function PlayerGamesPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
-  const prepLocale = locale;
   const player = useStudioStore((state) => state.playerProfile);
-  const games = useStudioStore((state) => state.playerGames);
-  const loading = useStudioStore((state) => state.playerGamesLoading);
-  const notice = useStudioStore((state) => state.playerGamesNotice);
+  const { games, loading, notice } = useLegacyPlayerGames(player);
   const color = useStudioStore((state) => state.playerColorFilter);
   const result = useStudioStore((state) => state.playerResultFilter);
-  const setPlayerGames = useStudioStore((state) => state.setPlayerGames);
-  const setPlayerGamesLoading = useStudioStore((state) => state.setPlayerGamesLoading);
-  const importPlayerGame = useStudioStore((state) => state.importPlayerGame);
-  const setStatus = useStudioStore((state) => state.setStatus);
-  const playerId = player?.id ?? null;
-  const playerSource = player?.source;
-  const playerUsername = player?.username;
-  const playerDisplayName = player?.displayName;
-  const playerSubtitle = player?.subtitle;
-
-  useEffect(() => {
-    if (!playerId || !playerSource || !playerUsername) {
-      return;
-    }
-    const controller = new AbortController();
-    setPlayerGamesLoading(true);
-    const params = new URLSearchParams({
-      source: playerSource,
-      username: playerUsername,
-      displayName: playerDisplayName ?? playerUsername,
-      subtitle: playerSubtitle ?? "",
-    });
-    void fetch(`/api/players/games?${params.toString()}`, { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error("Could not load games");
-        }
-        return (await response.json()) as PlayerGamesResponse;
-      })
-      .then((payload) => {
-        setPlayerGames(payload.games, payload.notice ?? null);
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-        setPlayerGames([], tPanels(useStudioStore.getState().settings.locale, "players.loadError"));
-      });
-    return () => controller.abort();
-  }, [
-    playerId,
-    playerSource,
-    playerUsername,
-    playerDisplayName,
-    playerSubtitle,
-    setPlayerGames,
-    setPlayerGamesLoading,
-  ]);
-
-  const visible = useMemo(() => {
-    return games.filter((game) => {
-      if (color !== "all" && game.color !== color) {
-        return false;
-      }
-      if (result !== "all" && game.playerResult !== result) {
-        return false;
-      }
-      return true;
-    });
-  }, [games, color, result]);
-
-  function openGame(game: PlayerGame, openInNewBoard = false) {
-    if (!game.pgn && !game.moves) {
-      setStatus(tPanels(locale, "players.noPgn"));
-      return;
-    }
-    importPlayerGame(game, { openInNewBoard });
-    setStatus(null);
-    // SIG-911: the import activates a board session in the store, so reveal
-    // its `board:*` panel too — otherwise the game sits on an invisible board
-    // and notation navigation looks frozen. Unconditional: it covers the
-    // preview board on a plain click and the new board opened via
-    // double-click/Shift+Enter.
-    const active = selectActiveBoard(useStudioStore.getState());
-    openBoardPanel(active.id, active.title);
-  }
+  const visible = useMemo(() => filterPlayerGames(games, color, result), [games, color, result]);
 
   const countString =
     visible.length === 1
@@ -117,13 +41,13 @@ export function PlayerGamesPanel() {
         <span className="truncate">{tPanels(locale, "players.gamesTitle", { name: player.displayName })}</span>
         <span className="flex items-center gap-2">
           {notice ? tPanels(locale, "players.countNote", { count: countString }) : countString}
-          {playerSource === "lichess" || playerSource === "chesscom" ? (
+          {player.source === "lichess" || player.source === "chesscom" ? (
             <button
               type="button"
               onClick={() => openPlayerDossier(player)}
               className="shrink-0 font-medium text-studio-accent-text hover:underline"
             >
-              {tPrep(prepLocale, "prep.prepareAgainst")}
+              {tPrep(locale, "prep.prepareAgainst")}
             </button>
           ) : null}
         </span>
@@ -133,35 +57,63 @@ export function PlayerGamesPanel() {
           {notice}
         </div>
       ) : null}
-      <div className="grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_56px] gap-x-3 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
-        <span>{tPanels(locale, "games.column.result")}</span>
-        <span>{tPanels(locale, "games.column.white")}</span>
-        <span>{tPanels(locale, "games.column.black")}</span>
-        <span>{tPanels(locale, "games.column.date")}</span>
-      </div>
       <div className="min-h-0 flex-1 overflow-auto" aria-busy={loading || undefined}>
         {loading ? (
           <div className="px-3 py-4 text-studio-faint" role="status">
             {tPanels(locale, "players.loading")}
           </div>
         ) : null}
+        <PlayerGameRows games={visible} />
         {!loading && visible.length === 0 ? (
           <div className="px-3 py-4 text-studio-faint">{tPanels(locale, "players.empty")}</div>
         ) : null}
-        {visible.map((game) => (
-          <GameOpenRow
-            key={game.id}
-            className="grid w-full grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_56px] items-center gap-x-3 px-3 py-1.5 text-left hover:bg-studio-hover"
-            onOpen={() => openGame(game)}
-            onOpenNew={() => openGame(game, true)}
-          >
-            <ResultMark winner={game.winner} />
-            <PlayerCell name={game.whiteName} rating={game.whiteRating ?? null} outcome={outcomeFor(game.winner, "white")} />
-            <PlayerCell name={game.blackName} rating={game.blackRating ?? null} outcome={outcomeFor(game.winner, "black")} />
-            <span className="truncate tabular-nums text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
-          </GameOpenRow>
-        ))}
       </div>
     </div>
+  );
+}
+
+export function PlayerGameRows({ games }: { games: PlayerGame[] }) {
+  const locale = useStudioStore((state) => state.settings.locale);
+  const importPlayerGame = useStudioStore((state) => state.importPlayerGame);
+  const setStatus = useStudioStore((state) => state.setStatus);
+
+  function openGame(game: PlayerGame, openInNewBoard = false) {
+    if (!game.pgn && !game.moves) {
+      setStatus(tPanels(locale, "players.noPgn"));
+      return;
+    }
+    importPlayerGame(game, { openInNewBoard });
+    setStatus(null);
+    // SIG-911: the import activates a board session in the store, so reveal
+    // its `board:*` panel too — otherwise the game sits on an invisible board
+    // and notation navigation looks frozen. Unconditional: it covers the
+    // preview board on a plain click and the new board opened via
+    // double-click/Shift+Enter.
+    const active = selectActiveBoard(useStudioStore.getState());
+    openBoardPanel(active.id, active.title);
+  }
+
+  return (
+    <>
+      <div className="grid grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_50px] gap-x-2 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint">
+        <span className="truncate">{tPanels(locale, "games.column.result")}</span>
+        <span className="truncate">{tPanels(locale, "games.column.white")}</span>
+        <span className="truncate">{tPanels(locale, "games.column.black")}</span>
+        <span className="truncate">{tPanels(locale, "games.column.date")}</span>
+      </div>
+      {games.map((game) => (
+        <GameOpenRow
+          key={game.id}
+          className="grid w-full grid-cols-[24px_minmax(0,1fr)_minmax(0,1fr)_50px] items-center gap-x-2 px-3 py-1.5 text-left hover:bg-studio-hover"
+          onOpen={() => openGame(game)}
+          onOpenNew={() => openGame(game, true)}
+        >
+          <ResultMark winner={game.winner} />
+          <PlayerCell name={game.whiteName} rating={game.whiteRating ?? null} outcome={outcomeFor(game.winner, "white")} />
+          <PlayerCell name={game.blackName} rating={game.blackRating ?? null} outcome={outcomeFor(game.winner, "black")} />
+          <span className="truncate tabular-nums text-studio-faint">{formatYearMonth(game.year, game.month)}</span>
+        </GameOpenRow>
+      ))}
+    </>
   );
 }

@@ -6,7 +6,7 @@ import { BOARD_THEME_IDS, BOARD_THEMES } from "@/src/chess/board-themes";
 import { PIECE_SET_IDS, PIECE_SETS } from "@/src/chess/piece-sets";
 import { MOVE_NOTATION_IDS } from "@/src/chess/move-notation";
 import { COLOR_SCHEME_IDS } from "@/src/studio/color-scheme";
-import { OPEN_PANEL_ITEMS, openBoardPanel, openExplorerPanel, openStudioPanel } from "./dock-api";
+import { OPEN_PANEL_ITEMS, openBoardPanel, openExplorerPanel, openPlayerPanel, openStudioPanel } from "./dock-api";
 import { useLiveStore } from "./live/live-store";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 import { LayoutsSubmenu } from "./LayoutsMenu";
@@ -140,6 +140,7 @@ export function ViewMenuItems({
               label={tStudioChrome(locale, "chrome.view.explorer")}
               onClick={run(() => openExplorerPanel())}
             />
+            <Item label={tStudioChrome(locale, "chrome.view.player")} onClick={run(() => openPlayerPanel())} />
             {OPEN_PANEL_ITEMS.filter((item) => item.id !== "explorer").map((item) => (
               <Item key={item.id} label={tStudioChrome(locale, `chrome.view.panel.${item.id}` as StudioChromeStringKey)} onClick={run(() => openStudioPanel(item.id))} />
             ))}
@@ -158,6 +159,7 @@ export function ViewMenuItems({
                 (seeded from the sidebar-driven global source); the bare panel stays
                 for the default single-explorer flow. */}
             <Item label={tStudioChrome(locale, "chrome.view.explorer")} onClick={run(() => openExplorerPanel())} />
+            <Item label={tStudioChrome(locale, "chrome.view.player")} onClick={run(() => openPlayerPanel())} />
             {OPEN_PANEL_ITEMS.filter((item) => item.id !== "explorer").map((item) => (
               <Item key={item.id} label={tStudioChrome(locale, `chrome.view.panel.${item.id}` as StudioChromeStringKey)} onClick={run(() => openStudioPanel(item.id))} />
             ))}

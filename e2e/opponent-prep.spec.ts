@@ -67,3 +67,47 @@ test("the search clear button has a 24x24 minimum hit target", async ({ page }) 
   expect(box!.width).toBeGreaterThanOrEqual(24);
   expect(box!.height).toBeGreaterThanOrEqual(24);
 });
+
+test("two Studio player panels follow the board and restore their independent filters", async ({ page }) => {
+  const other = { ...PLAYER, id: "lichess:other", username: "Other", displayName: "Other" };
+  await page.route("**/api/players/search*", async (route) => {
+    const query = new URL(route.request().url()).searchParams.get("q");
+    await route.fulfill({ json: { players: query === "Other" ? [other] : [PLAYER] } });
+  });
+  await page.route("**/api/players/games*", async (route) => {
+    const username = new URL(route.request().url()).searchParams.get("username");
+    const isOther = username === other.username;
+    await route.fulfill({ json: { games: [{
+      id: username, moves: isOther ? "d4 d5" : "e4 e5", playerResult: "win", color: "white",
+      winner: "white", whiteName: username, blackName: isOther ? "Other opponent" : "First opponent",
+      year: 2025, month: 6, playedAt: 1,
+    }] } });
+  });
+  await page.goto("/studio");
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Open panel" }).hover();
+  await page.getByRole("menuitem", { name: "Player", exact: true }).filter({ visible: true }).click();
+  await page.getByRole("textbox", { name: "Search for a player…" }).fill("DrNyk");
+  await page.getByRole("button", { name: /DrNykterstein Lichess/ }).click();
+
+  const first = page.locator(".dv-groupview", { has: page.getByRole("tab", { name: PLAYER.displayName, exact: true }) });
+  await first.getByRole("button", { name: "Compare with another player" }).click();
+  await page.getByRole("textbox", { name: "Search for a player…" }).fill("Other");
+  await page.getByRole("button", { name: /Other Lichess/ }).click();
+  const second = page.locator(".dv-groupview", { has: page.getByRole("tab", { name: other.displayName, exact: true }) });
+
+  await first.getByRole("button", { name: "White", exact: true }).click();
+  await first.getByRole("button", { name: "Won", exact: true }).click();
+  await expect(second.getByRole("button", { name: "White", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(second.getByRole("button", { name: "Won", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(second.getByText("Other opponent")).toBeVisible();
+
+  await page.reload();
+  await expect(first.getByRole("button", { name: "White", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(first.getByRole("button", { name: "Won", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(second.getByRole("button", { name: "Won", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(first.getByText("First opponent")).toBeVisible();
+  await first.getByRole("button", { name: /^e4\b/ }).click();
+  await expect(first.getByText("First opponent")).toBeVisible();
+  await expect(second.getByText("No games reached this position.")).toBeVisible();
+});
