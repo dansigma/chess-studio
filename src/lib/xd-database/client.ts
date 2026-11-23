@@ -19,7 +19,8 @@ export async function searchXdPlayers(query: string, signal: AbortSignal, fetchI
   const q = query.trim();
   if (!q || q.length > 120) return [];
   const response = await fetchXdDatabase(`players?${new URLSearchParams({ q })}`, signal, fetchImpl);
-  const { players }: { players: { id: string; name: string }[] } = await response.json();
+  const { players }: { players: { id: string; name: string; count: number; firstYear: number | null; lastYear: number | null }[] } =
+    await response.json();
   return players;
 }
 

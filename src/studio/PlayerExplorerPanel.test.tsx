@@ -93,3 +93,30 @@ test("SIG-1455: a locked comparison panel keeps its position while the board mov
   // The player's own moves only: after 1.e4 the unlocked panel has no row.
   assert.equal(view.queryByRole("button", { name: /^e4/ }), null);
 });
+
+test("a Base Xadrez Digital panel loads the lines and notes the 200 most recent games", async (t) => {
+  useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } });
+  const urls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string) => {
+    urls.push(input);
+    return Response.json({
+      total: 1234,
+      games: Array.from({ length: 200 }, (_, i) => ({
+        id: i, white: i === 0 ? "Lima, Lucas" : "Outro", black: "Rival", whiteElo: 2500, blackElo: 2400,
+        result: "1-0", date: "2024.05.06", event: "Open", eco: "B00", moves: "e4 e5", color: "white", playerResult: "win",
+      })),
+    });
+  });
+  t.after(() => {
+    useStudioStore.setState({ settings: DEFAULT_SETTINGS });
+    cleanup();
+  });
+  const xd: PlayerHit = {
+    id: "xadrez-digital:3-7", source: "xadrez-digital", username: "3-7", displayName: "Lima, Lucas", subtitle: "Base Xadrez Digital",
+  };
+  const view = render(<ComparisonPlayerPanel panelId="player:xd" params={{ player: xd, color: "all", result: "all" }} />);
+  await view.findByText("Últimas 200 de 1.234 partidas");
+  assert.deepEqual(urls, ["/api/xd-database/players/3-7/lines"]);
+  assert.ok(view.getByText("Lima, Lucas"));
+  assert.ok(view.getAllByText("e4").length > 0);
+});

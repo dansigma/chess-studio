@@ -26,6 +26,8 @@ const ORIGIN_KEYS: Record<PlayerSource, LibraryStringKey> = {
   studio: "library.dossier.origin.local",
   lichess: "library.dossier.origin.lichess",
   chesscom: "library.dossier.origin.chesscom",
+  // Base Xadrez Digital players are not listed in the Library (SIG-1468).
+  "xadrez-digital": "library.dossier.origin.local",
 };
 
 function gameYear(game: PlayerGame): number | null {

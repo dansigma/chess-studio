@@ -99,7 +99,7 @@ export function ComparisonPlayerPanel({ panelId, params }: { panelId: string; pa
 
 function FindPlayer({ onSelect }: { onSelect: (player: PlayerHit) => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
-  const { query, setQuery, hits, loading, searching } = usePlayerSearch();
+  const { query, setQuery, hits, loading, searching, failedSources } = usePlayerSearch({ includeXd: true });
   const placeholder = tPanels(locale, "players.searchPlaceholder");
   return (
     <div className="flex h-full flex-col bg-studio-panel p-2 text-body text-studio-fg">
@@ -112,6 +112,13 @@ function FindPlayer({ onSelect }: { onSelect: (player: PlayerHit) => void }) {
       />
       <div className="min-h-0 overflow-auto" aria-busy={loading || undefined}>
         {loading ? <p role="status" className="p-2 text-studio-faint">{tStudioChrome(locale, "chrome.players.searching")}</p> : null}
+        {failedSources.length > 0 ? (
+          <p role="status" className="p-2 text-caption text-studio-warning-fg">
+            {tPanels(locale, "players.searchUnavailable", {
+              source: failedSources.map((source) => tPanels(locale, `explorer.source.${source}` as "explorer.source.xadrez-digital")).join(", "),
+            })}
+          </p>
+        ) : null}
         {hits.map((hit) => (
           <button
             key={hit.id}
@@ -199,11 +206,13 @@ function PlayerPositionView({
               : tPanels(locale, "players.count.other", { count: reached.length })}
           </span>
           <PositionLockButton position={position} locale={locale} />
-          <BookmarkStar
-            active={bookmarked}
-            title={tSidebar(locale, bookmarked ? "sidebar.player.removeBookmark" : "sidebar.player.bookmark")}
-            onClick={() => togglePlayerBookmark(player)}
-          />
+          {player.source === "xadrez-digital" ? null : (
+            <BookmarkStar
+              active={bookmarked}
+              title={tSidebar(locale, bookmarked ? "sidebar.player.removeBookmark" : "sidebar.player.bookmark")}
+              onClick={() => togglePlayerBookmark(player)}
+            />
+          )}
         </span>
       </div>
       <div className="border-b border-studio-border-subtle px-2 py-1.5">

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { tPanels } from "@/src/i18n/studio-panel-strings";
 import type { PlayerGame, PlayerGamesResponse, PlayerHit } from "@/src/lib/player-types";
+import { loadXdPlayerGames } from "@/src/lib/xd-database/players";
+import { formatInteger } from "@/src/i18n/format";
 import { useStudioStore } from "@/src/store/studio-store";
 
 const requests = new Map<string, { promise: Promise<PlayerGamesResponse>; expiresAt: number }>();
@@ -20,10 +22,12 @@ export function loadStudioPlayerGames(player: PlayerHit, userId: string | null =
 
   const { source, username, displayName, subtitle } = player;
   const query = new URLSearchParams({ source, username, displayName, subtitle });
-  const promise = fetch(`/api/players/games?${query}`).then(async (response) => {
-    if (!response.ok) throw new Error("Could not load games");
-    return (await response.json()) as PlayerGamesResponse;
-  });
+  const promise = source === "xadrez-digital"
+    ? loadXdPlayerGames(player)
+    : fetch(`/api/players/games?${query}`).then(async (response) => {
+      if (!response.ok) throw new Error("Could not load games");
+      return (await response.json()) as PlayerGamesResponse;
+    });
   const entry = { promise, expiresAt: Infinity };
   requests.set(key, entry);
   void promise.then(
@@ -66,7 +70,12 @@ export function usePlayerGames(player: PlayerHit | null) {
     loading: Boolean(id && !current),
     notice: current && !current.payload
       ? tPanels(locale, "players.loadError")
-      : current?.payload?.notice ?? null,
+      : current?.payload?.total !== undefined && current.payload.total > current.payload.games.length
+        ? tPanels(locale, "players.xd.recent", {
+          shown: formatInteger(locale, current.payload.games.length),
+          total: formatInteger(locale, current.payload.total),
+        })
+        : current?.payload?.notice ?? null,
   };
 }
 

@@ -72,6 +72,9 @@ export function useExplorerData(
     // sets it again. The last-good payload stays so the panel can keep it
     // behind the error banner instead of blanking to "No games".
     if (!enabled) {
+      // Parked (e.g. unlocked): drop any loading flag a cancelled run left on.
+      setLoading(false);
+      setXdGamesLoading(false);
       return;
     }
     setError(null);

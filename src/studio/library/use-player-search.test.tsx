@@ -72,3 +72,30 @@ test("a short query returns no hits", () => {
   act(() => result.current.setQuery("c"));
   assert.deepEqual(result.current.hits, []);
 });
+
+test("includeXd adds Base Xadrez Digital hits and survives an XD failure", async () => {
+  serverHits = [{ id: "lichess:lima", source: "lichess", username: "lima", displayName: "lima", subtitle: "x" }];
+  let xdDown = false;
+  globalThis.fetch = (async (input: string) => {
+    if (String(input).startsWith("/api/xd-database/players")) {
+      if (xdDown) return new Response("{}", { status: 503 });
+      return Response.json({ players: [{ id: "3-7", name: "Lima, Lucas", count: 1234, firstYear: 2003, lastYear: 2025 }] });
+    }
+    return Response.json({ players: serverHits });
+  }) as typeof fetch;
+  const settings = useStudioStore.getState().settings;
+  useStudioStore.setState({ settings: { ...settings, locale: "pt-br" } });
+  const { result, rerender } = renderHook(() => usePlayerSearch({ includeXd: true }));
+  act(() => result.current.setQuery("lima"));
+  await waitFor(() => assert.equal(result.current.hits.length, 2), { timeout: 2000 });
+  assert.deepEqual(result.current.hits.map((hit) => hit.id), ["lichess:lima", "xadrez-digital:3-7"]);
+  assert.equal(result.current.hits[1].subtitle, "Base Xadrez Digital · 1.234 partidas · 2003–2025");
+  assert.deepEqual(result.current.failedSources, []);
+
+  xdDown = true;
+  act(() => result.current.setQuery("limas"));
+  await waitFor(() => assert.deepEqual(result.current.failedSources, ["xadrez-digital"]), { timeout: 2000 });
+  assert.deepEqual(result.current.hits.map((hit) => hit.id), ["lichess:lima"]);
+  rerender();
+  useStudioStore.setState({ settings });
+});

@@ -135,7 +135,8 @@ function ExplorerChrome({
   const lineFens = position.locked
     ? [...activeLineFens.slice(0, Math.max(0, activeLineFens.findIndex((fen) => fenKey(fen) === fenKey(position.fen)))), position.fen]
     : activeLineFens;
-  const activeFen = position.fen;
+  // Unlocked: the board's own line end, as before SIG-1455.
+  const activeFen = position.locked ? position.fen : activeLineFens[activeLineFens.length - 1];
   const [openingIndex, setOpeningIndex] = useState<ReturnType<typeof indexCatalogOpenings>>();
   useEffect(() => {
     let active = true;
@@ -253,12 +254,13 @@ function ExplorerChrome({
             )}
             {!libraryLoading && !knownSources.has(effectiveSource) ? <option value={effectiveSource}>{tPanels(locale, "explorer.source.personal")}</option> : null}
           </select>
+          {/* SIG-1455: before the filters so their popover keeps its anchor. */}
+          <PositionLockButton position={position} locale={locale} />
           <ExplorerFiltersBar
             source={effectiveSource}
             filters={filters}
             onChange={(patch) => setExplorerFilters(patch, effectiveSource)}
           />
-          <PositionLockButton position={position} locale={locale} />
           <IconButton label={tPanels(locale, "explorer.splitView")} size="sm" onClick={onDuplicate}>
             <Plus size={15} />
           </IconButton>
