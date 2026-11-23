@@ -38,5 +38,6 @@ test("publishes XD moves while games are pending across the shell and a second p
 
   await act(async () => games.resolve(Response.json({ games: [{ id: 42, date: null }], nextCursor: null })));
   assert.equal(result.current.shell.gamesLoading, false);
-  assert.equal(result.current.shell.explorer?.games[0].id, "42");
+  const rows = result.current.shell.explorer?.games as { id: string }[] | undefined;
+  assert.equal(rows?.[0].id, "42");
 });
