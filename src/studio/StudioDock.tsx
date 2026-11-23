@@ -65,6 +65,7 @@ import {
   type StudioPanelId,
 } from "./dock-api";
 import { explorerGamesTitle } from "@/src/lib/explorer-types";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import {
   currentDockLayoutEpoch,
   DOCK_LAYOUT_VERSION,
