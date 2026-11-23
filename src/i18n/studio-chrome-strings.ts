@@ -682,7 +682,7 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.shortcuts.gesture.moveMenu": "Botão direito ou toque longo em um lance",
   "chrome.shortcuts.action.boardMenu": "Menu do tabuleiro",
   "chrome.shortcuts.action.moveMenu": "Menu do lance",
-  "chrome.shortcuts.action.toggleEngine": "Iniciar ou pausar o motor",
+  "chrome.shortcuts.action.toggleEngine": "Iniciar ou pausar a engine",
   "chrome.shortcuts.action.leaveVariation": "Sair da variante",
 };
 
