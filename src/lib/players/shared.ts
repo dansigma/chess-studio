@@ -59,7 +59,7 @@ export function playerResult(
   return null;
 }
 
-export function isSource(value: string): value is PlayerSource {
+export function isSource(value: string): value is Exclude<PlayerSource, "xadrez-digital"> {
   return value === "lichess" || value === "chesscom" || value === "studio";
 }
 

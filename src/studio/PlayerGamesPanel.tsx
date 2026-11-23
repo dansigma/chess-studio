@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { formatYearMonth } from "@/src/lib/game-date";
 import type { PlayerGame } from "@/src/lib/player-types";
+import { loadXdGamePgn } from "@/src/lib/xd-database/client";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { tPrep } from "@/src/i18n/prep-strings";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
@@ -78,10 +79,22 @@ export function PlayerGameRows({ games }: { games: PlayerGame[] }) {
   const setStatus = useStudioStore((state) => state.setStatus);
 
   function openGame(game: PlayerGame, openInNewBoard = false) {
+    if (game.xdId !== undefined) {
+      // Base Xadrez Digital lines are cut at 50 plies: open the full game.
+      void loadXdGamePgn(String(game.xdId)).then(
+        (pgn) => showGame({ ...game, pgn, moves: undefined }, openInNewBoard),
+        () => setStatus(tPanels(locale, "players.noPgn")),
+      );
+      return;
+    }
     if (!game.pgn && !game.moves) {
       setStatus(tPanels(locale, "players.noPgn"));
       return;
     }
+    showGame(game, openInNewBoard);
+  }
+
+  function showGame(game: PlayerGame, openInNewBoard: boolean) {
     importPlayerGame(game, { openInNewBoard });
     setStatus(null);
     // SIG-911: the import activates a board session in the store, so reveal

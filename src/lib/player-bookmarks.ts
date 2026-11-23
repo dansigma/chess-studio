@@ -114,7 +114,8 @@ export async function persistRemoteBookmark(
   userId: string,
 ): Promise<void> {
   const supabase = createBrowserSupabase();
-  if (!supabase) {
+  // Base Xadrez Digital players are not bookmarkable yet (SIG-1468).
+  if (!supabase || bookmark.source === "xadrez-digital") {
     return;
   }
   await supabase.from("player_bookmarks").upsert(
@@ -135,7 +136,7 @@ export async function deleteRemoteBookmark(
   userId: string,
 ): Promise<void> {
   const supabase = createBrowserSupabase();
-  if (!supabase) {
+  if (!supabase || player.source === "xadrez-digital") {
     return;
   }
   await supabase

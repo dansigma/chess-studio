@@ -48,6 +48,32 @@ export function gameHeaders({ id, game }: { id: number; game: GameRecord }): { i
   return { id, ...headers };
 }
 
+/** Games a player's lines are built from: the newest ones, cut to the tree's depth. */
+export const LINES_GAMES = 200;
+export const LINES_PLIES = 50;
+
+export async function playerLines(
+  reader: XdDatabaseReader,
+  player: { start: number; count: number },
+) {
+  const postings = await reader.playerGameIds(player, 0, LINES_GAMES);
+  const loaded = postings.length ? await reader.gamesById(postings.map((row) => row.id)) : [];
+  const byId = new Map(loaded.map((row) => [row.id, row.game]));
+  const games = postings.flatMap(({ id, color }) => {
+    const game = byId.get(id);
+    if (!game) return [];
+    const { moves, white, black, whiteElo, blackElo, result, date, event, eco } = game;
+    const playerResult = result === "1/2-1/2"
+      ? "draw" as const
+      : (result === "1-0") === (color === "white") ? "win" as const : "loss" as const;
+    return [{
+      id, white, black, whiteElo, blackElo, result, date, event, eco, color, playerResult,
+      moves: moves.split(" ").slice(0, LINES_PLIES).join(" "),
+    }];
+  });
+  return { total: player.count, games };
+}
+
 export async function serve(
   request: Request,
   load: (reader: XdDatabaseReader) => Promise<Response>,
