@@ -38,7 +38,7 @@ test("v2 manifest (no sources) credits only Lichess, CC0, no CC BY-SA claim", ()
 
 test("the deployed manifest renders", () => {
   const rows = creditRows("en");
-  assert.deepEqual(rows.map((r) => r.id), ["engine", "explorer", "book", "catalog", "puzzles"]);
+  assert.deepEqual(rows.map((r) => r.id), ["engine", "explorer", "book", "catalog", "puzzles", "xd-database"]);
 });
 
 test("v3-shaped manifest lists all sources and the CC BY-SA statement", () => {
@@ -120,6 +120,19 @@ test("the opening catalog credits the Lichess dataset under CC0 in both locales"
     assert.deepEqual(links(row.segments), {
       "Lichess Chess Openings": "https://github.com/lichess-org/chess-openings",
       CC0: "https://creativecommons.org/publicdomain/zero/1.0/",
+    });
+  }
+});
+
+test("Base Xadrez Digital credits the commercial license and broadcast material", () => {
+  for (const locale of ["en", "pt-br"] as const) {
+    const row = creditRows(locale).find(({ id }) => id === "xd-database");
+    assert.ok(row);
+    assert.equal(row.label, "Base Xadrez Digital");
+    assert.match(text(row.segments), /commercial license|licença comercial/);
+    assert.deepEqual(links(row.segments), {
+      "Lichess Broadcast": "https://database.lichess.org/#broadcasts",
+      "CC BY-SA 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
     });
   }
 });

@@ -3,12 +3,19 @@
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { explorerSourceTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
+import { loadXdGamePgn } from "@/src/lib/xd-database/client";
 import { formatYearMonth } from "@/src/lib/game-date";
 import { openBoardPanel } from "./dock-api";
 import { LibraryLoadingStatus } from "./library/LibraryLoadingStatus";
 import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
 import { PlayerCell, outcomeFor } from "./ui/PlayerCell";
+
+async function loadMastersPgn(id: string): Promise<string> {
+  const response = await fetch(`/api/masters-pgn?id=${encodeURIComponent(id)}`);
+  if (!response.ok) throw new Error("not found");
+  return response.text();
+}
 
 export function GamesPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
@@ -48,15 +55,12 @@ export function GamesPanel() {
         revealActiveBoard();
         return;
       }
-      if (source !== "masters") {
+      const gameSource = explorer?.source ?? source;
+      if (gameSource !== "masters" && gameSource !== "xadrez-digital") {
         setStatus(tPanels(locale, "games.noPgn"));
         return;
       }
-      const response = await fetch(`/api/masters-pgn?id=${encodeURIComponent(game.id)}`);
-      if (!response.ok) {
-        throw new Error("not found");
-      }
-      const pgn = await response.text();
+      const pgn = gameSource === "xadrez-digital" ? await loadXdGamePgn(game.id) : await loadMastersPgn(game.id);
       openListedGame({
         pgn,
         title: `${game.whiteName} vs ${game.blackName}`,

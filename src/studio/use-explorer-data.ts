@@ -10,6 +10,7 @@ import {
   type ExplorerSource,
 } from "@/src/lib/explorer-types";
 import { lookupChesscomExplorer, lookupFilesExplorer } from "@/src/lib/files-explorer";
+import { fetchXdExplorer } from "@/src/lib/xd-database/explorer";
 import { lookupCuratedIndex } from "@/src/lib/offline-explorer";
 
 export type ExplorerData = {
@@ -28,7 +29,7 @@ export type ExplorerData = {
  * `lookupFilesExplorer` with the empty-payload fallback, `chesscom` via
  * `lookupChesscomExplorer`, last-good payload kept on error.
  */
-export function useExplorerData(source: ExplorerSource, retrySignal = 0): ExplorerData {
+export function useExplorerData(source: ExplorerSource, retrySignal = 0, includeGames = false): ExplorerData {
   const fen = useActiveFen();
   const explorerFilters = useStudioStore((state) => state.settings.explorerFilters);
   const playerProfile = useStudioStore((state) => state.playerProfile);
@@ -96,14 +97,16 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0): Explor
     // debounce in {error: null, loading: false, explorer: null} and flashes
     // the false "No games" before "Loading explorer…".
     setLoading(true);
+    const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      void fetch(`/api/explorer?fen=${encodeURIComponent(fen)}&source=${source}${filterQuery}`)
-        .then(async (response) => {
-          if (!response.ok) {
-            throw new Error("explorer failed");
-          }
-          return (await response.json()) as ExplorerResponse;
-        })
+      const request = source === "xadrez-digital"
+        ? fetchXdExplorer(fen, { includeGames, signal: controller.signal })
+        : fetch(`/api/explorer?fen=${encodeURIComponent(fen)}&source=${source}${filterQuery}`, { signal: controller.signal })
+          .then(async (response) => {
+            if (!response.ok) throw new Error("explorer failed");
+            return (await response.json()) as ExplorerResponse;
+          });
+      void request
         .then((payload) => {
           if (!cancelled) {
             setExplorer(payload);
@@ -122,9 +125,10 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0): Explor
     }, 160);
     return () => {
       cancelled = true;
+      controller.abort();
       window.clearTimeout(timer);
     };
-  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, retrySignal]);
+  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, retrySignal, includeGames]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   return { explorer, loading, error };

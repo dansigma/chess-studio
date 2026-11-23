@@ -322,7 +322,7 @@ export function LibraryPlaceholderList({ games }: { games: LibraryGamesState }) 
       </ul>
     );
   }
-  if (!loading && items.length === 0) {
+  if (!loading && items.length === 0 && !games.hasMore) {
     const noSources = filters.sources.length === 0 || (failed.length > 0 && failed.length >= filters.sources.length);
     return (
       <div className="flex flex-col items-start gap-2 p-4 text-sm text-studio-muted">

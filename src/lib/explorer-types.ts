@@ -1,4 +1,4 @@
-export type CloudExplorerSource = "masters" | "lichess" | "chesscom";
+export type CloudExplorerSource = "masters" | "lichess" | "chesscom" | "xadrez-digital";
 
 export type ExplorerSource = CloudExplorerSource | "curated" | `file:${string}`;
 
@@ -31,6 +31,7 @@ export type ExplorerGameRow = {
 export type ExplorerResponse = {
   source: ExplorerSource;
   fen: string;
+  total?: number;
   white: number;
   draws: number;
   black: number;
@@ -41,11 +42,11 @@ export type ExplorerResponse = {
 };
 
 export function isCloudExplorerSource(source: ExplorerSource): source is CloudExplorerSource {
-  return source === "masters" || source === "lichess" || source === "chesscom";
+  return source === "masters" || source === "lichess" || source === "chesscom" || source === "xadrez-digital";
 }
 
 export function isExplorerSource(value: unknown): value is ExplorerSource {
-  if (value === "curated" || value === "masters" || value === "lichess" || value === "chesscom") {
+  if (value === "curated" || value === "masters" || value === "lichess" || value === "chesscom" || value === "xadrez-digital") {
     return true;
   }
   if (typeof value === "string" && value.startsWith("file:")) {
@@ -142,6 +143,9 @@ export function isExplorerResponse(value: unknown): value is ExplorerResponse {
   ) {
     return false;
   }
+  if (value.total !== undefined && (typeof value.total !== "number" || !Number.isSafeInteger(value.total) || value.total < 0)) {
+    return false;
+  }
   if (!Array.isArray(value.moves) || !Array.isArray(value.games)) {
     return false;
   }
@@ -171,8 +175,8 @@ export function explorerSourceTitle(
   if (source === "curated") {
     return tPanels(locale, "explorer.source.curated");
   }
-  if (source === "masters") {
-    return tPanels(locale, "explorer.source.masters");
+  if (source === "masters" || source === "xadrez-digital") {
+    return tPanels(locale, `explorer.source.${source}`);
   }
   if (source === "lichess") {
     return tPanels(locale, "explorer.source.lichess");
@@ -196,8 +200,8 @@ export function explorerGamesTitle(
   if (source === "curated") {
     return tPanels(locale, "games.source.curated");
   }
-  if (source === "masters") {
-    return tPanels(locale, "games.source.masters");
+  if (source === "masters" || source === "xadrez-digital") {
+    return tPanels(locale, `games.source.${source}`);
   }
   if (source === "lichess") {
     return tPanels(locale, "games.source.lichess");

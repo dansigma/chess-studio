@@ -90,7 +90,7 @@ export function StudioShell() {
   // SIG-908: the shell owns the legacy bare `explorer` panel feed — the hook
   // does the fetch and the mirror below keeps the global store fields (read
   // by ExplorerPanel-as-bare + GamesPanel) in sync.
-  const legacyExplorer = useExplorerData(source, explorerRetry);
+  const legacyExplorer = useExplorerData(source, explorerRetry, true);
   const status = useStudioStore((state) => state.statusMessage);
   const locale = useStudioStore((state) => state.settings.locale);
   const dirtyRevision = useStudioStore((state) =>

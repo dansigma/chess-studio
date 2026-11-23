@@ -7,7 +7,7 @@ import type { SiteLocale } from "@/src/i18n/locale";
 /** A piece of text, optionally a link. */
 export type CreditSegment = string | { text: string; href: string };
 
-export type CreditRow = { id: "engine" | "explorer" | "book" | "catalog" | "puzzles"; label: string; segments: CreditSegment[] };
+export type CreditRow = { id: "engine" | "explorer" | "book" | "catalog" | "puzzles" | "xd-database"; label: string; segments: CreditSegment[] };
 
 export const LICENSE_URLS = {
   cc0: "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -179,6 +179,8 @@ type Copy = {
   modified: string;
   offeredBefore: string;
   puzzlesAfter: string;
+  xdDatabaseBefore: string;
+  xdDatabaseAfter: string;
   /** "{a}, {b} and {c}" */
   lastJoin: string;
 };
@@ -200,6 +202,8 @@ const COPY: Record<SiteLocale, Copy> = {
     modified: " The material was modified: games were filtered and aggregated into position and move statistics.",
     offeredBefore: " Our book is offered under ",
     puzzlesAfter: " puzzle database (",
+    xdDatabaseBefore: "Over-the-board games used under a commercial license held by Xadrez Digital. Broadcast games from ",
+    xdDatabaseAfter: " were filtered and indexed. The broadcast material is offered under ",
     lastJoin: " and ",
   },
   "pt-br": {
@@ -218,6 +222,8 @@ const COPY: Record<SiteLocale, Copy> = {
     modified: " O material foi modificado: as partidas foram filtradas e agregadas em estatísticas de posições e lances.",
     offeredBefore: " Nosso livro é oferecido sob ",
     puzzlesAfter: " (base de exercícios, ",
+    xdDatabaseBefore: "Partidas presenciais usadas sob licença comercial do Xadrez Digital. As partidas transmitidas pelo ",
+    xdDatabaseAfter: " foram filtradas e indexadas. O material das transmissões é oferecido sob ",
     lastJoin: " e ",
   },
 };
@@ -309,6 +315,17 @@ export function creditRows(locale: SiteLocale, manifest: BookManifestLike = OPEN
         copy.puzzlesAfter,
         { text: "CC0", href: LICENSE_URLS.cc0 },
         ").",
+      ],
+    },
+    {
+      id: "xd-database",
+      label: "Base Xadrez Digital",
+      segments: [
+        copy.xdDatabaseBefore,
+        { text: "Lichess Broadcast", href: "https://database.lichess.org/#broadcasts" },
+        copy.xdDatabaseAfter,
+        { text: "CC BY-SA 4.0", href: LICENSE_URLS.ccBySa },
+        ".",
       ],
     },
   ];

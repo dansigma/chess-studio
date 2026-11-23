@@ -119,3 +119,15 @@ test("curated source is recognized by parser, guards, and titles", () => {
   };
   assert.equal(isExplorerResponse(curatedResponse), true);
 });
+
+test("Base Xadrez Digital is a cloud source with localized titles and a valid total", () => {
+  const source = "xadrez-digital";
+  assert.equal(parseExplorerSource(source), source);
+  assert.equal(isCloudExplorerSource(source), true);
+  for (const locale of ["en", "pt-br"] as const) {
+    assert.equal(explorerSourceTitle(source, [], locale), "Base Xadrez Digital");
+    assert.equal(explorerGamesTitle(source, [], locale), "Base Xadrez Digital");
+  }
+  assert.equal(isExplorerResponse({ ...valid, source, total: 23 }), true);
+  assert.equal(isExplorerResponse({ ...valid, source, total: "23" }), false);
+});

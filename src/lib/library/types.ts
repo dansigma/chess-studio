@@ -2,7 +2,7 @@
 // keep it exactly in sync with the Linear spec.
 import type { LibraryOverview } from "./overview";
 
-export type LibrarySourceId = "my-games" | "masters" | `file:${string}`;
+export type LibrarySourceId = "my-games" | "masters" | "xadrez-digital" | `file:${string}`;
 
 export type LibraryResult = "1-0" | "0-1" | "1/2-1/2" | "*";
 
@@ -98,6 +98,8 @@ export type LibrarySourceCapabilities = {
 export type LibraryPage = {
   items: LibraryGameItem[];
   nextCursor: string | null;
+  /** Resume after the prefix selected by the multi-source merge. */
+  cursorAfter?: (used: number) => string | null;
   total: number | null; // null when unknown
 };
 

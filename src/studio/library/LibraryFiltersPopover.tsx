@@ -6,6 +6,7 @@ import { Chessboard } from "react-chessboard";
 import { X } from "lucide-react";
 import { tLibrary, type LibraryStringKey } from "@/src/i18n/library-strings";
 import { suggestLibraryPlayers } from "@/src/lib/library/file-source";
+import { searchXdPlayers } from "@/src/lib/xd-database/client";
 import type { LibraryFilterState } from "@/src/lib/library/types";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Segmented, Tooltip } from "../ui/Controls";
@@ -152,6 +153,7 @@ export function LibraryFiltersPopover({ selectedSources, triggerRef }: LibraryFi
               placeholder={t("library.filtersPopover.playerPlaceholder")}
               delay={LIBRARY_FILTERS_FIELD_DEBOUNCE_MS}
               suggest={(text) => suggestLibraryPlayers(filters.sources, text)}
+              includeXdPlayers={filters.sources.includes("xadrez-digital")}
               suggestionsLabel={t("library.filtersPopover.playerSuggestions")}
               onCommit={(value) => setFilter("player", value)}
             />
@@ -404,6 +406,7 @@ function DebouncedText({
   sanitize,
   inputMode,
   suggest,
+  includeXdPlayers = false,
   suggestionsLabel,
   onCommit,
 }: {
@@ -418,6 +421,7 @@ function DebouncedText({
   inputMode?: "numeric";
   /** Turns the input into a combobox listing these suggestions for the typed text. */
   suggest?: (text: string) => string[];
+  includeXdPlayers?: boolean;
   suggestionsLabel?: string;
   onCommit: (value: string) => void;
 }) {
@@ -459,7 +463,28 @@ function DebouncedText({
     },
     [],
   );
-  const suggestions = useMemo(() => (suggest && open ? suggest(text) : []), [suggest, open, text]);
+  const [xdMatches, setXdMatches] = useState<{ query: string; names: string[] }>();
+  useEffect(() => {
+    if (!includeXdPlayers || !open || !text.trim()) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void searchXdPlayers(text, controller.signal).then((players) => {
+        if (!controller.signal.aborted) setXdMatches({ query: text, names: players.map(({ name }) => name) });
+      }).catch(() => {
+        // Suggestions are optional. Keep the local suggestions and allow typing a name.
+      });
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [delay, includeXdPlayers, open, text]);
+
+  const suggestions = useMemo(() => {
+    if (!open) return [];
+    const remote = includeXdPlayers && xdMatches?.query === text ? xdMatches.names : [];
+    return [...new Set([...remote, ...(suggest?.(text) ?? [])])].slice(0, 8);
+  }, [includeXdPlayers, open, suggest, text, xdMatches]);
   const showList = open && suggestions.length > 0;
   const schedule = (next: string) => {
     if (timer.current) {
@@ -494,7 +519,7 @@ function DebouncedText({
       event.preventDefault();
       const step = event.key === "ArrowDown" ? 1 : -1;
       setActive((index) => (index + step + suggestions.length) % suggestions.length);
-    } else if (event.key === "Enter" && showList && active >= 0) {
+    } else if (event.key === "Enter" && showList && active >= 0 && active < suggestions.length) {
       event.preventDefault();
       pick(suggestions[active]);
     } else if (event.key === "Escape" && showList) {
@@ -521,7 +546,7 @@ function DebouncedText({
               "aria-autocomplete": "list" as const,
               "aria-expanded": showList,
               "aria-controls": listId,
-              "aria-activedescendant": showList && active >= 0 ? `${listId}-${active}` : undefined,
+              "aria-activedescendant": showList && active >= 0 && active < suggestions.length ? `${listId}-${active}` : undefined,
               autoComplete: "off",
             }
           : {})}

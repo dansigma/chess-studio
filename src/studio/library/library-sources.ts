@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { fileSourceId, syncFileSources } from "@/src/lib/library/file-source";
 import { createMyGamesSource } from "@/src/lib/library/my-games-source";
 import { MASTERS_SOURCE_ID, mastersSource } from "@/src/lib/library/masters-source";
+import { xdDatabaseSource } from "@/src/lib/library/xd-database-source";
 import { getLibrarySource, registerLibrarySource } from "@/src/lib/library/sources";
 import type { LibrarySourceId } from "@/src/lib/library/types";
 import { getDescendantFolderIds, type FileDatabase, type FileFolder } from "@/src/lib/user-files";
@@ -49,8 +50,11 @@ export function registerLibraryAdapters(databases: FileDatabase[]): LibrarySourc
   if (!getLibrarySource(MASTERS_SOURCE_ID)) {
     registerLibrarySource(mastersSource);
   }
+  if (!getLibrarySource(xdDatabaseSource.id)) {
+    registerLibrarySource(xdDatabaseSource);
+  }
   syncFileSources(databases);
-  return ["my-games", MASTERS_SOURCE_ID, ...databases.map((database) => fileSourceId(database.id))];
+  return ["my-games", MASTERS_SOURCE_ID, xdDatabaseSource.id, ...databases.map((database) => fileSourceId(database.id))];
 }
 
 /** File sources inside a folder (and its subfolders), restricted to `available`. */

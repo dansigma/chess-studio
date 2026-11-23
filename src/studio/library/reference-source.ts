@@ -3,8 +3,8 @@ import type { LibrarySourceId } from "@/src/lib/library/types";
 
 /** Library card id -> the Explorer source it would feed; My Games can't be an Explorer source. */
 export function libraryToExplorerSource(id: LibrarySourceId): ExplorerSource | null {
-  if (id === "masters") {
-    return "masters";
+  if (id === "masters" || id === "xadrez-digital") {
+    return id;
   }
   if (id.startsWith("file:")) {
     const databaseId = id.slice("file:".length);
