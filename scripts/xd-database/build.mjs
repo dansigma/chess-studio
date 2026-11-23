@@ -3,7 +3,7 @@
 // player index) from PGN. Formats: src/lib/xd-database/format.ts. Runbook:
 // docs/xd-database.md.
 //
-//   node scripts/xd-database/build.mjs source/otb.pgn [more.pgn ...] --out-dir out --version 1
+//   node scripts/xd-database/build.mjs source/otb.pgn [more.pgn ...] --out-dir out --version 2
 //
 // Inputs are .pgn, .pgn.zst, .pgn.gz or `-` (stdin), read in order and
 // de-duplicated together. Games pass the masters profile (profiles.mjs): both
@@ -22,6 +22,8 @@ import { deflateRawSync } from "node:zlib";
 import {
   ByteWriter,
   GAMES_PER_BLOCK,
+  GAME_ID_MASK,
+  PLAYER_BLACK_BIT,
   XD_FORMAT_VERSION,
   compareUtf8,
   encodeGamesIndex,
@@ -36,7 +38,7 @@ import { HashSet64 } from "../opening-book/hashset.mjs";
 import { readGames, sanTokens } from "../opening-book/pgn.mjs";
 import { normalizePlayer } from "../opening-book/players.mjs";
 import { profileRejection } from "../opening-book/profiles.mjs";
-import { partFile } from "./worker.mjs";
+import { partFile, positionPartFile } from "./worker.mjs";
 
 const USAGE =
   "usage: node scripts/xd-database/build.mjs <input.pgn[.zst|.gz] | -> ... --out-dir DIR --version N\n" +
@@ -406,6 +408,7 @@ export async function buildDatabase(sources, options) {
               const whiteFide = fideId(h.WhiteFideId);
               const blackFide = fideId(h.BlackFideId);
               const id = store.count;
+              if (id > GAME_ID_MASK) throw new Error("xd-database: too many games");
               store.add({
                 white: h.White ?? "?",
                 black: h.Black ?? "?",
@@ -430,7 +433,8 @@ export async function buildDatabase(sources, options) {
                 id,
                 sans: sans.slice(0, o.maxPly),
                 result: RESULT_CODE[h.Result],
-                rating: whiteElo && blackElo ? Math.round((whiteElo + blackElo) / 2) : 0,
+                whiteElo: whiteElo ?? 0,
+                blackElo: blackElo ?? 0,
                 year: Math.floor(date / 10000),
               });
               if (batch.length >= 500) {
@@ -490,33 +494,64 @@ export async function buildDatabase(sources, options) {
         }
       }),
     );
-    const treeFd = openSync(join(dir, "tree.bin"), "w");
+    let postingsBase = 0;
+    for (const result of results) {
+      result.postingsBase = postingsBase;
+      postingsBase += result.postingsBytes;
+    }
+    nextBucket = 0;
+    await Promise.all(
+      pool.workers.map(async (_, w) => {
+        while (nextBucket < buckets) {
+          const result = results[nextBucket++];
+          const finalized = await pool.request(w, {
+            type: "finalize",
+            tmpDir,
+            bucket: result.bucket,
+            pages: result.pages,
+            postingsBase: result.postingsBase,
+          });
+          result.pages = finalized.pages;
+        }
+      }),
+    );
     const firstKeys = [];
     const offsets = [];
     const tree = { positions: 0, droppedPositions: 0, moves: 0, gameRefs: 0, byPly: {} };
     let offset = 0;
-    for (let bucket = 0; bucket < buckets; bucket += 1) {
-      const result = results[bucket];
-      const part = partFile(tmpDir, bucket);
-      if (result.pages.length > 0) {
-        writeSync(treeFd, readFileSync(part));
+    const treeFd = openSync(join(dir, "tree.bin"), "w");
+    try {
+      const postingsFd = openSync(join(dir, "position-games.bin"), "w");
+      try {
+        for (const result of results) {
+          const part = partFile(tmpDir, result.bucket);
+          const postings = positionPartFile(tmpDir, result.bucket);
+          writeSync(treeFd, readFileSync(part));
+          for await (const chunk of createReadStream(postings)) {
+            writeSync(postingsFd, chunk);
+          }
+          rmSync(part);
+          rmSync(postings);
+          for (const page of result.pages) {
+            firstKeys.push((BigInt(page.firstHi) << 32n) | BigInt(page.firstLo));
+            offsets.push(offset);
+            offset += page.bytes;
+          }
+          tree.positions += result.stats.positions;
+          tree.droppedPositions += result.stats.dropped;
+          tree.moves += result.stats.moves;
+          tree.gameRefs += result.stats.gameRefs;
+          for (const [ply, count] of Object.entries(result.stats.byPly)) {
+            tree.byPly[ply] = (tree.byPly[ply] ?? 0) + count;
+          }
+        }
+      } finally {
+        closeSync(postingsFd);
       }
-      rmSync(part, { force: true });
-      for (const page of result.pages) {
-        firstKeys.push((BigInt(page.firstHi) << 32n) | BigInt(page.firstLo));
-        offsets.push(offset);
-        offset += page.bytes;
-      }
-      tree.positions += result.stats.positions;
-      tree.droppedPositions += result.stats.dropped;
-      tree.moves += result.stats.moves;
-      tree.gameRefs += result.stats.gameRefs;
-      for (const [ply, count] of Object.entries(result.stats.byPly)) {
-        tree.byPly[ply] = (tree.byPly[ply] ?? 0) + count;
-      }
+    } finally {
+      closeSync(treeFd);
     }
     offsets.push(offset);
-    closeSync(treeFd);
     writeFileSync(join(dir, "tree.idx"), encodeTreeIndex({ maxPly: o.maxPly, firstKeys, offsets }));
     writeFileSync(join(dir, "games.idx"), encodeGamesIndex({ gamesPerBlock: GAMES_PER_BLOCK, gameCount: store.count, offsets: store.offsets }));
     log(`phase 2 done: ${tree.positions} positions, ${firstKeys.length} pages`);
@@ -524,7 +559,7 @@ export async function buildDatabase(sources, options) {
     const playerStats = writePlayers(dir, players, gameWhite.view(), gameBlack.view(), gameDate.view(), o.pageBytes);
 
     const files = {};
-    for (const name of ["games.bin", "games.idx", "tree.bin", "tree.idx", "players.bin", "players.idx", "player-games.bin"]) {
+    for (const name of ["games.bin", "games.idx", "tree.bin", "tree.idx", "players.bin", "players.idx", "player-games.bin", "position-games.bin"]) {
       const file = join(dir, name);
       files[name] = { bytes: statSync(file).size, sha256: await sha256Stream(file) };
     }
@@ -590,18 +625,16 @@ export function writePlayers(dir, players, white, black, dates, pageBytes) {
   const fill = start.slice(0, players.names.length);
   const postings = new Uint32Array(refs);
   for (let id = 0; id < games; id += 1) {
-    for (const p of [white[id], black[id]]) {
-      if (p !== NO_PLAYER) {
-        postings[fill[merge[p]]++] = id;
-      }
-    }
+    if (white[id] !== NO_PLAYER) postings[fill[merge[white[id]]]++] = id;
+    if (black[id] !== NO_PLAYER) postings[fill[merge[black[id]]]++] = id | PLAYER_BLACK_BIT;
   }
   const first = new Uint32Array(players.names.length);
   const last = new Uint32Array(players.names.length);
   for (let p = 0; p < players.names.length; p += 1) {
     const slice = postings.subarray(start[p], start[p + 1]);
-    slice.sort((a, b) => dates[b] - dates[a] || b - a);
-    for (const id of slice) {
+    slice.sort((a, b) => dates[b & GAME_ID_MASK] - dates[a & GAME_ID_MASK] || (b & GAME_ID_MASK) - (a & GAME_ID_MASK));
+    for (const posting of slice) {
+      const id = posting & GAME_ID_MASK;
       const year = Math.floor(dates[id] / 10000);
       if (year > 0) {
         first[p] = first[p] === 0 ? year : Math.min(first[p], year);
