@@ -22,7 +22,9 @@
 //   players.idx  "XDPI", u32 format version, u32 page count, u32 player count, then
 //                per page: u16 byte length + UTF-8 first search key, u64 byte
 //                offset into players.bin; then a final u64 offset.
-//   player-games.bin  u32 game ids. A player's games are `count` ids starting at id
+//   position-games.bin  Per-position entries: u32 game id, u16 white Elo,
+//                u16 black Elo, u16 year, u8 result (0/1/2), u8 reserved.
+//   player-games.bin  u32 game ids with bit 31 set for Black. A player's games are `count` ids starting at id
 //                index `start` (byte offset start * 4), newest first.
 //   manifest.json     Versions, sizes, SHA-256 checksums and build stats.
 //
@@ -31,6 +33,7 @@
 //
 // Tree position record:
 //   u64 key
+//   u64 byte offset into position-games.bin
 //   varint total             games that reached the position (each game counted once)
 //   varint move count, then per move:
 //     u16 move code          encodeMove (from | to << 6 | promotion << 12)
@@ -47,7 +50,15 @@
 //   varint start, varint count   slice of player-games.bin
 //   varint first year, varint last year (0: unknown)
 
-export const XD_FORMAT_VERSION = 1;
+export const XD_FORMAT_VERSION = 2;
+export const POSITION_GAME_BYTES = 12;
+export const PLAYER_BLACK_BIT = 0x80000000;
+export const GAME_ID_MASK = PLAYER_BLACK_BIT - 1;
+export const GAME_RESULTS = ["1-0", "1/2-1/2", "0-1"] as const;
+export function averageGameRating(whiteElo: number, blackElo: number): number {
+  return whiteElo && blackElo ? Math.round((whiteElo + blackElo) / 2) : 0;
+}
+
 export const GAMES_MAGIC = "XDGI";
 export const TREE_MAGIC = "XDTI";
 export const PLAYERS_MAGIC = "XDPI";
@@ -118,6 +129,7 @@ export type TreeMove = {
 export type TreePosition = {
   key: bigint;
   total: number;
+  gamesOffset: number;
   moves: TreeMove[];
   gameIds: number[];
 };
@@ -469,6 +481,7 @@ export function pageFor<K>(index: PageIndex<K>, key: K): { page: number; start: 
 
 export function writeTreePosition(writer: ByteWriter, position: TreePosition): void {
   writer.u64(position.key);
+  writer.u64(position.gamesOffset);
   writer.varint(position.total);
   writer.varint(position.moves.length);
   for (const move of position.moves) {
@@ -487,6 +500,7 @@ export function writeTreePosition(writer: ByteWriter, position: TreePosition): v
 
 export function readTreePosition(reader: ByteReader): TreePosition {
   const key = reader.u64();
+  const gamesOffset = reader.offset64();
   const total = reader.varint();
   const moveCount = reader.varint();
   const moves: TreeMove[] = [];
@@ -505,7 +519,7 @@ export function readTreePosition(reader: ByteReader): TreePosition {
   for (let i = 0; i < gameCount; i += 1) {
     gameIds.push(reader.varint());
   }
-  return { key, total, moves, gameIds };
+  return { key, gamesOffset, total, moves, gameIds };
 }
 
 /** Every position of an inflated tree page. */

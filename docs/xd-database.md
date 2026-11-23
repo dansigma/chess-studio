@@ -8,7 +8,8 @@ reads from R2 with range requests. The source collection is not named in the UI,
 - Builder: `scripts/xd-database/build.mjs` (SIG-1449)
 - Formats and reader: `src/lib/xd-database/format.ts`, `src/lib/xd-database/reader.ts`
 - Checks and queries: `scripts/xd-database/inspect.mjs`
-- API (SIG-1450), Studio source (SIG-1451), monthly runbook (SIG-1452): to follow
+- API: `app/api/xd-database/` (SIG-1450)
+- Studio source (SIG-1451), monthly runbook (SIG-1452): to follow
 
 ## What a build contains
 
@@ -16,8 +17,9 @@ reads from R2 with range requests. The source collection is not named in the UI,
 |---|---|---|
 | `games.bin` + `games.idx` | Every kept game: headers and SAN moves, 256 games per deflate-raw block | game id → one range read |
 | `tree.bin` + `tree.idx` | Every position up to ply 50 (move 25) reached by at least 2 games: total games; per next move white wins, draws, black wins, average rating and last year; the ids of the 50 strongest games | position key → one range read (pages of ~16 KB) |
+| `position-games.bin` | Every game at every kept position, in top-game order. Each 12-byte entry stores game id, both ratings, year and result | position byte offset and entry cursor → one bounded range read |
 | `players.bin` + `players.idx` | Player directory sorted by search key (lowercase, no accents): name, FIDE id, game count, years | name prefix → one or a few range reads |
-| `player-games.bin` | Each player's game ids, newest first | one range read per page of games |
+| `player-games.bin` | Each player's game ids, newest first, with bit 31 indicating Black | one range read per page of games |
 | `manifest.json` | Rules, stats, sizes and SHA-256 of every file | |
 
 The `.idx` files are small (the tree index is about 16 bytes per 16 KB page) and are meant to stay cached in the
@@ -39,17 +41,40 @@ Worker. Position keys are the app's position hash (`bookKey`), so a FEN from the
   A name-only spelling whose normalized name belongs to exactly one FIDE id is merged into it. The newest spelling
   is the display name.
 
+## API
+
+All paths below are under `/api/xd-database`. The manifest in
+`src/lib/xd-database/manifest.ts` sets the immutable R2 release prefix and the
+edge cache version. The API reads format v2.
+
+| Path | Response |
+|---|---|
+| `tree?fen=` | `{ opening, total, moves }`, with UCI, white wins, draws, black wins, average rating and last year per move |
+| `games?fen=&cursor=` | `{ games, nextCursor }` in strongest-first order, 20 headers per page |
+| `game/:id` | PGN with the stored tags and numbered SAN |
+| `players?q=` | `{ players }`, matching a case- and accent-insensitive name prefix |
+| `players/:id/games?cursor=` | `{ games, nextCursor }` in newest-first order, 20 headers per page |
+
+For position games, use the optional `player` directory id, `color=white|black`
+(with `player`), `minRating` and `maxRating` (rounded game-average Elo),
+`minYear` and `maxYear`, and `result=1-0|1/2-1/2|0-1`. Bounds are inclusive.
+Follow `nextCursor` until it is null. A filtered page can return fewer than 20
+games while still having a continuation cursor. Player ids and cursors apply to
+the current release. Positions absent from the tree return empty lists.
+
 ## Build
 
 Needs Node 22.18+ (TypeScript imports), `npm ci`, 7-Zip, and for the full release about 8 cores, 32 GB of RAM and
-about 10 GB of free disk on top of the PGN (temp records are about 20 bytes per position, 4.1 GB for the
-2026-11 release, deleted at the end, plus 1.1 GB of output).
+about 10 GB of free disk on top of the PGN. Format v2 uses 24-byte temporary
+records (about 5 GB for the 2026-11 release). Expect about 115 million
+entries × 12 bytes, or 1.4 GB, for `position-games.bin` in addition to the game,
+tree and player files.
 
 ```bash
-7z x LumbrasGigabase_OTB_Complete.7z          # one .pgn file (12.3 GB for 2026-11)
-NODE_OPTIONS=--max-old-space-size=12288 node scripts/xd-database/build.mjs LumbrasGigabase_OTB_Complete.pgn \
-  --out-dir out --tmp-dir tmp --version 1 --workers 7 --release 2026-11-11 --min-games-read 13000000 \
-  > out/build-v1.json 2> out/build-v1.log
+7z x otb.7z          # one .pgn file (12.3 GB for 2026-11)
+NODE_OPTIONS=--max-old-space-size=12288 node scripts/xd-database/build.mjs otb.pgn \
+  --out-dir out --tmp-dir tmp --version 2 --workers 7 --release 2026-11-11 --min-games-read 13000000 \
+  > out/build-v2.json 2> out/build-v2.log
 ```
 
 Output goes to `out/v<version>/`. Progress is logged to stderr every 30 seconds; the manifest is printed to
@@ -59,20 +84,23 @@ fails without output.
 The main thread reads and filters the PGN and writes the game store and player data; `--workers` threads replay
 the games with chess.js (the slow part, about 130 µs per ply; a memo skips chess.js for repeated opening moves)
 and write position records into `2^--bucket-bits` bucket files by key range. Each bucket is then sorted and folded
-into tree pages by a worker, and the parts are concatenated in key order. The output does not depend on the
+into tree pages and postings by a worker. Once the sizes of the posting parts are
+known, workers set the absolute posting offsets and compress the tree pages.
+The parts are concatenated in key order. The output does not depend on the
 number of workers (the tests check it byte for byte).
 
 ### Check
 
 ```bash
-node scripts/xd-database/inspect.mjs out/v1                     # stats, file sizes and checksums, start position
-node scripts/xd-database/inspect.mjs out/v1 --check 5000        # replays 5000 stored games against the tree
-node scripts/xd-database/inspect.mjs out/v1 --fen "<FEN>"       # one position
-node scripts/xd-database/inspect.mjs out/v1 --game 123          # one game
-node scripts/xd-database/inspect.mjs out/v1 --player carlsen    # player search
+node scripts/xd-database/inspect.mjs out/v2                     # stats, file sizes and checksums, start position
+node scripts/xd-database/inspect.mjs out/v2 --check 5000        # replays 5000 stored games against the tree
+node scripts/xd-database/inspect.mjs out/v2 --fen "<FEN>"       # one position
+node scripts/xd-database/inspect.mjs out/v2 --game 123          # one game
+node scripts/xd-database/inspect.mjs out/v2 --player carlsen    # player search
 ```
 
-`--check` must end with `0 errors`.
+`--check` must end with `0 errors`. It verifies the position-game ranges, top ids,
+and the membership and metadata of replayed games at the positions they reach.
 
 ## Measured builds
 

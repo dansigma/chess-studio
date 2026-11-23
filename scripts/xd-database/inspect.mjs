@@ -1,11 +1,11 @@
 // scripts/xd-database/inspect.mjs
 // SIG-1449: checks and queries a built database folder.
 //
-//   node scripts/xd-database/inspect.mjs out/v1                      manifest summary
-//   node scripts/xd-database/inspect.mjs out/v1 --fen "<FEN>"        tree entry of a position
-//   node scripts/xd-database/inspect.mjs out/v1 --game 123           one game
-//   node scripts/xd-database/inspect.mjs out/v1 --player carlsen     player search
-//   node scripts/xd-database/inspect.mjs out/v1 --check 2000         replays 2000 games spread over
+//   node scripts/xd-database/inspect.mjs out/v2                      manifest summary
+//   node scripts/xd-database/inspect.mjs out/v2 --fen "<FEN>"        tree entry of a position
+//   node scripts/xd-database/inspect.mjs out/v2 --game 123           one game
+//   node scripts/xd-database/inspect.mjs out/v2 --player carlsen     player search
+//   node scripts/xd-database/inspect.mjs out/v2 --check 2000         replays 2000 games spread over
 //       the store and checks that every position they reach up to the max ply is in the tree with the
 //       move played (or is below the minimum games), and that the counts add up. Exit code 1 on any error.
 import { readFileSync } from "node:fs";
@@ -14,6 +14,7 @@ import { pathToFileURL } from "node:url";
 import { Chess } from "chess.js";
 import { bookKey } from "../../src/chess/opening-book.ts";
 import { decodeMove, encodeMove } from "../../src/chess/opening-book-format.ts";
+import { POSITION_GAME_BYTES, averageGameRating } from "../../src/lib/xd-database/format.ts";
 import { XdDatabaseReader } from "../../src/lib/xd-database/reader.ts";
 import { localSource } from "./local-source.mjs";
 
@@ -43,6 +44,7 @@ export async function checkSample(reader, sample, manifest) {
   }
   const errors = [];
   let positions = 0;
+  const sampled = new Map();
   for (const { id, game } of await reader.gamesById(ids)) {
     const board = new Chess();
     const sans = game.moves.split(" ");
@@ -53,7 +55,11 @@ export async function checkSample(reader, sample, manifest) {
         // A repeated position is counted once per game; skip it.
       } else {
         seen.add(key);
-        const position = await reader.position(key);
+        const previous = sampled.get(key);
+        const position = previous ? previous.position : await reader.position(key);
+        const replay = previous ?? { position, games: new Map() };
+        if (!previous) sampled.set(key, replay);
+        replay.games.set(id, game);
         positions += 1;
         let code = 0;
         if (ply < Math.min(sans.length, maxPly)) {
@@ -65,10 +71,7 @@ export async function checkSample(reader, sample, manifest) {
           }
           board.undo();
         }
-        if (!position) {
-          // Allowed only when the position may be below the minimum: we cannot tell without the full
-          // count, but its parent move must then count fewer than minGames games.
-        } else {
+        if (position) {
           const sum = position.moves.reduce((s, m) => s + m.white + m.draws + m.black, 0);
           if (sum > position.total) {
             errors.push(`game ${id} ply ${ply}: moves count ${sum} > total ${position.total}`);
@@ -90,6 +93,52 @@ export async function checkSample(reader, sample, manifest) {
         }
       }
     }
+  }
+  for (const [key, { position, games }] of sampled) {
+    if (!position) {
+      if (games.size >= minGames) errors.push(`position ${key}: missing with ${games.size} replayed games`);
+      continue;
+    }
+    if (games.size > position.total || (ids.length === count && games.size !== position.total)) {
+      errors.push(`position ${key}: ${games.size} replayed games, total ${position.total}`);
+    }
+    const fileSize = manifest?.files?.["position-games.bin"]?.bytes;
+    if (position.gamesOffset % POSITION_GAME_BYTES !== 0 ||
+        (fileSize !== undefined && position.gamesOffset + position.total * POSITION_GAME_BYTES > fileSize)) {
+      errors.push(`position ${position.key}: invalid position-game range`);
+      continue;
+    }
+    let previous;
+    try {
+      for (let offset = 0; offset < position.total; offset += 8192) {
+        const rows = await reader.positionGames(position, offset, 8192);
+        for (const [i, row] of rows.entries()) {
+          const rating = averageGameRating(row.whiteElo, row.blackElo);
+          if (row.id >= count || (previous &&
+              (previous.rating < rating || (previous.rating === rating &&
+                (previous.year < row.year || (previous.year === row.year && previous.id >= row.id)))))) {
+            errors.push(`position ${position.key}: invalid posting order or id at entry ${offset + i}`);
+            break;
+          }
+          previous = { ...row, rating };
+          const topId = position.gameIds[offset + i];
+          if (topId !== undefined && topId !== row.id) {
+            errors.push(`position ${position.key}: top game ${topId} does not match posting ${row.id}`);
+          }
+          const game = games.get(row.id);
+          if (game) {
+            if (row.whiteElo !== (game.whiteElo ?? 0) || row.blackElo !== (game.blackElo ?? 0) ||
+                row.result !== game.result || row.year !== (Number(game.date?.slice(0, 4)) || 0)) {
+              errors.push(`position ${position.key}: metadata differs for game ${row.id}`);
+            }
+            games.delete(row.id);
+          }
+        }
+      }
+    } catch (error) {
+      errors.push(`position ${position.key}: ${error.message}`);
+    }
+    for (const id of games.keys()) errors.push(`position ${position.key}: missing game ${id}`);
   }
   return { checked: ids.length, positions, errors };
 }
@@ -127,7 +176,7 @@ export async function run(argv, out = (line) => process.stdout.write(`${line}\n`
   if (flag === "--player" && value) {
     for (const player of await reader.searchPlayers(value, 20)) {
       const ids = await reader.playerGameIds(player, 0, 3);
-      out(`${player.name} (FIDE ${player.fideId || "-"}): ${player.count} games, ${player.firstYear}-${player.lastYear}, newest ids ${ids.join(", ")}`);
+      out(`${player.name} (FIDE ${player.fideId || "-"}): ${player.count} games, ${player.firstYear}-${player.lastYear}, newest ids ${ids.map(({ id }) => id).join(", ")}`);
     }
     return 0;
   }

@@ -62,7 +62,7 @@ function sources(...texts) {
   return texts.map((text) => linesOf(Readable.from([text])));
 }
 
-const BASE = { version: 1, buildDate: "2026-11-23T00:00:00.000Z", release: "test", pageBytes: 64, bucketBits: 2 };
+const BASE = { version: 2, buildDate: "2026-11-23T00:00:00.000Z", release: "test", pageBytes: 64, bucketBits: 2 };
 
 describe("xd-database build", () => {
   let root;
@@ -72,7 +72,7 @@ describe("xd-database build", () => {
   before(async () => {
     root = mkdtempSync(join(tmpdir(), "xd-build-"));
     manifest = await buildDatabase(sources(corpus(), DUPLICATE), { ...BASE, outDir: join(root, "a"), workers: 2 });
-    reader = new XdDatabaseReader(localSource(join(root, "a", "v1")));
+    reader = new XdDatabaseReader(localSource(join(root, "a", "v2")));
   });
 
   after(() => rmSync(root, { recursive: true, force: true }));
@@ -133,13 +133,38 @@ describe("xd-database build", () => {
     assert.equal(carlsen.firstYear, 2023);
     assert.equal(carlsen.lastYear, 2025);
     const ids = await reader.playerGameIds(carlsen, 0, 10);
-    const years = (await reader.gamesById(ids)).map(({ game }) => game.date);
+    const years = (await reader.gamesById(ids.map(({ id }) => id))).map(({ game }) => game.date);
     assert.deepEqual(years, ["2025.03.03", "2024.05.02", "2023.01.20"]);
+    assert.deepEqual(ids, [{ id: 2, color: "white" }, { id: 1, color: "black" }, { id: 0, color: "white" }]);
     assert.deepEqual(await reader.playerGameIds(carlsen, 1, 1), [ids[1]]);
+    assert.equal((await reader.playerById(carlsen.id)).fideId, carlsen.fideId);
     const nak = await reader.searchPlayers("naka");
     assert.equal(nak.length, 1);
     assert.equal(nak[0].count, 2);
     assert.deepEqual(await reader.searchPlayers("zzz"), []);
+  });
+
+  it("stores every position game in top-game order with filter metadata", async () => {
+    const start = await reader.positionByFen(new Chess().fen());
+    const rows = await reader.positionGames(start, 0, start.total + 1);
+    assert.equal(rows.length, 8);
+    assert.deepEqual(rows.map(({ id }) => id), start.gameIds);
+    assert.deepEqual(rows[0], { id: 2, whiteElo: 2850, blackElo: 2780, year: 2025, result: "0-1" });
+    const ruy = await reader.positionByFen(fenAfter("e4 e5 Nf3"));
+    assert.deepEqual((await reader.positionGames(ruy, 1, 10)).map(({ id }) => id), [1, 0]);
+    assert.equal(manifest.formatVersion, 2);
+  });
+
+  it("rejects indexes written in format version 1", async () => {
+    const source = localSource(join(root, "a", "v2"));
+    const v1 = new XdDatabaseReader(async (file, range) => {
+      const bytes = await source(file, range);
+      if (file.endsWith(".idx")) new DataView(bytes.buffer, bytes.byteOffset).setUint32(4, 1, true);
+      return bytes;
+    });
+    await assert.rejects(v1.positionByFen(new Chess().fen()), /format version 1, expected 2/);
+    await assert.rejects(v1.game(0), /format version 1, expected 2/);
+    await assert.rejects(v1.searchPlayers("carlsen"), /format version 1, expected 2/);
   });
 
   it("passes its own sample check", async () => {
@@ -153,7 +178,7 @@ describe("xd-database build", () => {
     for (const [name, file] of Object.entries(manifest.files)) {
       assert.equal(other.files[name].sha256, file.sha256, name);
     }
-    assert.deepEqual(readFileSync(join(root, "a", "v1", "tree.bin")), readFileSync(join(root, "b", "v1", "tree.bin")));
+    assert.deepEqual(readFileSync(join(root, "a", "v2", "tree.bin")), readFileSync(join(root, "b", "v2", "tree.bin")));
   });
 
   it("fails without output when fewer games than --min-games-read were read", async () => {
@@ -162,7 +187,7 @@ describe("xd-database build", () => {
       /fewer than --min-games-read/,
     );
     for (const name of ["games.bin", "tree.bin", "manifest.json"]) {
-      assert.ok(!existsSync(join(root, "c", "v1", name)), name);
+      assert.ok(!existsSync(join(root, "c", "v2", name)), name);
     }
   });
 });

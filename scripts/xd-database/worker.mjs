@@ -2,15 +2,16 @@
 // SIG-1449: worker thread of the database build (build.mjs).
 //
 // Phase 1 ("games"): replays the first `maxPly` moves of each game with chess.js
-// and writes one 20-byte record per position the game reached (each position
+// and writes one 24-byte record per position the game reached (each position
 // once per game) into a bucket file chosen by the top bits of the position key:
 //
 //   u32 key lo, u32 key hi, u32 game id, u16 move code (0: no move recorded
 //   here: the game ended or reached maxPly), u8 result (0 white, 1 draw,
-//   2 black), u8 ply, u16 average rating, u16 year
+//   2 black), u8 ply, u16 white Elo, u16 black Elo, u16 year, u16 padding
 //
 // Phase 2 ("aggregate"): reads one bucket from every worker, sorts it by key,
-// folds it into tree positions and writes deflated tree pages to a part file.
+// folds it into tree positions and writes tree pages and position-game postings to part files.
+// Finalization fixes the global posting offsets and compresses the pages.
 // Buckets cover disjoint, increasing key ranges, so concatenating the parts in
 // bucket order gives a file sorted by key.
 import { appendFileSync, existsSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -19,10 +20,19 @@ import { parentPort } from "node:worker_threads";
 import { deflateRawSync } from "node:zlib";
 import { Chess } from "chess.js";
 import { encodeMove } from "../../src/chess/opening-book-format.ts";
-import { ByteWriter, writeTreePosition } from "../../src/lib/xd-database/format.ts";
+import { ByteReader, ByteWriter, averageGameRating, readTreePosition, writeTreePosition } from "../../src/lib/xd-database/format.ts";
 import { positionKeyParts } from "./position-key.mjs";
 
-export const RECORD_BYTES = 20;
+const KEY_LO = 0;
+const KEY_HI = KEY_LO + 4;
+const GAME_ID = KEY_HI + 4;
+const MOVE_CODE = GAME_ID + 4;
+const RESULT = MOVE_CODE + 2;
+const PLY = RESULT + 1;
+const WHITE_ELO = PLY + 1;
+const BLACK_ELO = WHITE_ELO + 2;
+const YEAR = BLACK_ELO + 2;
+export const RECORD_BYTES = YEAR + 4; // Pad to 4-byte alignment.
 const FLUSH_BYTES = 1 << 18;
 
 /** Bucket of a key: its top `bits` bits. */
@@ -38,6 +48,10 @@ export function partFile(tmpDir, bucket) {
   return join(tmpDir, `tree-b${String(bucket).padStart(4, "0")}.part`);
 }
 
+export function positionPartFile(tmpDir, bucket) {
+  return join(tmpDir, `position-games-b${String(bucket).padStart(4, "0")}.part`);
+}
+
 /** Phase 1 state: one pending buffer per bucket. */
 export class RecordWriter {
   constructor({ tmpDir, worker, bucketBits }) {
@@ -50,7 +64,7 @@ export class RecordWriter {
     this.records = 0;
   }
 
-  add(hi, lo, gameId, code, result, ply, rating, year) {
+  add(hi, lo, gameId, code, result, ply, whiteElo, blackElo, year) {
     const bucket = bucketOf(hi, this.bucketBits);
     let buffer = this.buffers[bucket];
     if (this.lengths[bucket] + RECORD_BYTES > buffer.length) {
@@ -58,14 +72,15 @@ export class RecordWriter {
       buffer = this.buffers[bucket];
     }
     const at = this.lengths[bucket];
-    buffer.writeUInt32LE(lo, at);
-    buffer.writeUInt32LE(hi, at + 4);
-    buffer.writeUInt32LE(gameId, at + 8);
-    buffer.writeUInt16LE(code, at + 12);
-    buffer.writeUInt8(result, at + 14);
-    buffer.writeUInt8(ply, at + 15);
-    buffer.writeUInt16LE(rating, at + 16);
-    buffer.writeUInt16LE(year, at + 18);
+    buffer.writeUInt32LE(lo, at + KEY_LO);
+    buffer.writeUInt32LE(hi, at + KEY_HI);
+    buffer.writeUInt32LE(gameId, at + GAME_ID);
+    buffer.writeUInt16LE(code, at + MOVE_CODE);
+    buffer.writeUInt8(result, at + RESULT);
+    buffer.writeUInt8(ply, at + PLY);
+    buffer.writeUInt16LE(whiteElo, at + WHITE_ELO);
+    buffer.writeUInt16LE(blackElo, at + BLACK_ELO);
+    buffer.writeUInt16LE(year, at + YEAR);
     this.lengths[bucket] = at + RECORD_BYTES;
     this.records += 1;
   }
@@ -154,7 +169,7 @@ export function replayInto(writer, game, maxPly, memo = (defaultMemo ??= new Mov
     seen.add(keyText);
     if (ply >= limit) {
       if (fresh) {
-        writer.add(key[0], key[1], game.id, 0, game.result, ply, game.rating, game.year);
+        writer.add(key[0], key[1], game.id, 0, game.result, ply, game.whiteElo, game.blackElo, game.year);
       }
       return "ok";
     }
@@ -163,12 +178,12 @@ export function replayInto(writer, game, maxPly, memo = (defaultMemo ??= new Mov
     const next = memo.play(fen, fen, game.sans[ply]);
     if (!next) {
       if (fresh) {
-        writer.add(key[0], key[1], game.id, 0, game.result, ply, game.rating, game.year);
+        writer.add(key[0], key[1], game.id, 0, game.result, ply, game.whiteElo, game.blackElo, game.year);
       }
       return "illegal";
     }
     if (fresh) {
-      writer.add(key[0], key[1], game.id, next.code, game.result, ply, game.rating, game.year);
+      writer.add(key[0], key[1], game.id, next.code, game.result, ply, game.whiteElo, game.blackElo, game.year);
     }
     fen = next.fen;
     ply += 1;
@@ -199,8 +214,11 @@ export function aggregateBucket({ tmpDir, bucket, workers, minGames, topGames, p
   const count = total / RECORD_BYTES;
   const u32 = new Uint32Array(bytes.buffer, 0, total / 4);
   const u16 = new Uint16Array(bytes.buffer, 0, total / 2);
-  const lo = (i) => u32[i * 5];
-  const hi = (i) => u32[i * 5 + 1];
+  const read32 = (i, field) => u32[(i * RECORD_BYTES + field) / 4];
+  const read16 = (i, field) => u16[(i * RECORD_BYTES + field) / 2];
+  const read8 = (i, field) => bytes[i * RECORD_BYTES + field];
+  const lo = (i) => read32(i, KEY_LO);
+  const hi = (i) => read32(i, KEY_HI);
   const order = new Uint32Array(count);
   for (let i = 0; i < count; i += 1) {
     order[i] = i;
@@ -209,6 +227,17 @@ export function aggregateBucket({ tmpDir, bucket, workers, minGames, topGames, p
 
   const out = partFile(tmpDir, bucket);
   writeFileSync(out, new Uint8Array(0));
+  const postingsFile = positionPartFile(tmpDir, bucket);
+  writeFileSync(postingsFile, new Uint8Array(0));
+  let postingsBytes = 0;
+  const postings = new ByteWriter();
+  const flushPostings = () => {
+    if (postings.length > 0) {
+      appendFileSync(postingsFile, postings.bytes.subarray(0, postings.length));
+      postingsBytes += postings.length;
+      postings.length = 0;
+    }
+  };
   const pages = [];
   const stats = { records: count, positions: 0, dropped: 0, moves: 0, gameRefs: 0, byPly: {} };
   let page = new ByteWriter();
@@ -217,9 +246,8 @@ export function aggregateBucket({ tmpDir, bucket, workers, minGames, topGames, p
     if (page.length === 0) {
       return;
     }
-    const compressed = deflateRawSync(page.result());
-    appendFileSync(out, compressed);
-    pages.push({ firstHi: pageFirst[0], firstLo: pageFirst[1], bytes: compressed.length });
+    appendFileSync(out, page.bytes.subarray(0, page.length));
+    pages.push({ firstHi: pageFirst[0], firstLo: pageFirst[1], bytes: page.length });
     page = new ByteWriter();
     pageFirst = null;
   };
@@ -244,14 +272,16 @@ export function aggregateBucket({ tmpDir, bucket, workers, minGames, topGames, p
     let minPly = 255;
     for (let k = start; k < end; k += 1) {
       const r = order[k];
-      const gameId = u32[r * 5 + 2];
-      const code = u16[r * 10 + 6];
-      const result = bytes[r * RECORD_BYTES + 14];
-      const ply = bytes[r * RECORD_BYTES + 15];
-      const rating = u16[r * 10 + 8];
-      const year = u16[r * 10 + 9];
+      const gameId = read32(r, GAME_ID);
+      const code = read16(r, MOVE_CODE);
+      const result = read8(r, RESULT);
+      const ply = read8(r, PLY);
+      const whiteElo = read16(r, WHITE_ELO);
+      const blackElo = read16(r, BLACK_ELO);
+      const rating = averageGameRating(whiteElo, blackElo);
+      const year = read16(r, YEAR);
       minPly = Math.min(minPly, ply);
-      refs.push({ gameId, rating, year });
+      refs.push({ gameId, rating, year, whiteElo, blackElo, result });
       if (code === 0) {
         continue;
       }
@@ -285,7 +315,17 @@ export function aggregateBucket({ tmpDir, bucket, workers, minGames, topGames, p
     if (pageFirst === null) {
       pageFirst = [keyHi, keyLo];
     }
-    writeTreePosition(page, { key: (BigInt(keyHi) << 32n) | BigInt(keyLo), total: games, moves: sortedMoves, gameIds });
+    const gamesOffset = postingsBytes + postings.length;
+    for (const ref of refs) {
+      postings.u32(ref.gameId);
+      postings.u16(ref.whiteElo);
+      postings.u16(ref.blackElo);
+      postings.u16(ref.year);
+      postings.u8(ref.result);
+      postings.u8(0);
+      if (postings.length >= FLUSH_BYTES) flushPostings();
+    }
+    writeTreePosition(page, { key: (BigInt(keyHi) << 32n) | BigInt(keyLo), total: games, gamesOffset, moves: sortedMoves, gameIds });
     stats.positions += 1;
     stats.moves += sortedMoves.length;
     stats.gameRefs += gameIds.length;
@@ -296,12 +336,35 @@ export function aggregateBucket({ tmpDir, bucket, workers, minGames, topGames, p
     start = end;
   }
   flushPage();
+  flushPostings();
   if (deleteInputs) {
     for (const file of files) {
       rmSync(file);
     }
   }
-  return { bucket, pages, stats };
+  return { bucket, pages, stats, postingsBytes };
+}
+
+function finalizeBucket({ tmpDir, bucket, pages, postingsBase }) {
+  const file = partFile(tmpDir, bucket);
+  const raw = readFileSync(file);
+  writeFileSync(file, "");
+  let offset = 0;
+  for (const page of pages) {
+    const bytes = raw.subarray(offset, offset + page.bytes);
+    offset += page.bytes;
+    const reader = new ByteReader(bytes);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    while (!reader.done) {
+      const offsetField = reader.offset + 8; // The key precedes the postings offset.
+      const position = readTreePosition(reader);
+      view.setBigUint64(offsetField, BigInt(position.gamesOffset + postingsBase), true);
+    }
+    const compressed = deflateRawSync(bytes);
+    appendFileSync(file, compressed);
+    page.bytes = compressed.length;
+  }
+  return pages;
 }
 
 if (parentPort) {
@@ -327,6 +390,8 @@ if (parentPort) {
         parentPort.postMessage({ type: "flushed", records: writer.records, ...counts });
       } else if (message.type === "aggregate") {
         parentPort.postMessage({ type: "aggregated", ...aggregateBucket(message) });
+      } else if (message.type === "finalize") {
+        parentPort.postMessage({ type: "finalized", pages: finalizeBucket(message) });
       }
     } catch (error) {
       parentPort.postMessage({ type: "error", message: error instanceof Error ? error.stack ?? error.message : String(error) });
