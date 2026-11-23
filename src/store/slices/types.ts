@@ -271,6 +271,8 @@ export type StudioState = {
   setActiveBoard: (id: string) => void;
   makeUciMove: (from: string, to: string, promotion?: string) => boolean;
   playUciSequence: (ucis: string[]) => void;
+  /** SIG-1463: pastes SAN moves from text at the cursor (one undo step). */
+  pasteMoves: (text: string) => void;
   insertEngineLines: (fen: string, lines: (string[] | EngineLineInsert)[]) => void;
   setEnginePreview: (preview: EnginePreview | null) => void;
   setEngineEval: (value: EngineEval | null) => void;

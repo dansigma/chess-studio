@@ -25,6 +25,8 @@ export interface StudioShellShortcutDeps {
   flip: () => void;
   back: () => void;
   forward: () => void;
+  /** SIG-1463: Ctrl+V outside editable targets pastes clipboard moves. */
+  pasteMoves: () => void;
 }
 
 /**
@@ -89,6 +91,13 @@ export function handleStudioShellKey(
   if (ctrl && key === "p") {
     event.preventDefault();
     deps.print();
+    return;
+  }
+
+  // SIG-1463: native paste is untouched in inputs (guard above).
+  if (ctrl && !event.shiftKey && !event.altKey && key === "v") {
+    event.preventDefault();
+    deps.pasteMoves();
     return;
   }
 
