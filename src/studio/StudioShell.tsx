@@ -59,6 +59,7 @@ import { LayoutDialogs } from "./LayoutDialogs";
 import { Button } from "./ui/Button";
 import { BrandLockup } from "./ui/BrandLockup";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { pasteMovesFromClipboard } from "./paste-moves";
 import { handleStudioShellKey } from "./studio-shortcuts";
 
 export function StudioShell() {
@@ -488,6 +489,7 @@ export function StudioShell() {
     function onKey(event: KeyboardEvent) {
       handleStudioShellKey(event, {
         openFile: () => fileRef.current?.click(),
+        pasteMoves: () => void pasteMovesFromClipboard(),
         save: () => {
           void saveActiveBoard();
         },

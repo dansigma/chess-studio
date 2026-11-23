@@ -78,6 +78,7 @@ const EXPECTED_BINDINGS: ReadonlyArray<{ action: StudioChromeStringKey; chord: s
   { action: "chrome.edit.undo", chord: "Ctrl+Z" },
   { action: "chrome.edit.redo", chord: "Ctrl+Y" },
   { action: "chrome.edit.redo", chord: "Ctrl+Shift+Z" },
+  { action: "chrome.file.pasteMoves", chord: "Ctrl+V" },
   { action: "chrome.edit.textAfter", chord: "Ctrl+A" },
   { action: "chrome.edit.textBefore", chord: "Ctrl+Shift+A" },
   { action: "chrome.edit.promote", chord: "Ctrl+↑" },

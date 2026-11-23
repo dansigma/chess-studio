@@ -11,6 +11,7 @@ import { closeBoardPanel, openBoardPanel, openStudioPanel } from "./dock-api";
 import { MenuDivider as Divider, MenuItem as Item } from "./ui/Menu";
 import { downloadTextFile } from "@/src/lib/download-file";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
+import { pasteMovesFromClipboard } from "./paste-moves";
 import { saveActiveBoard, saveActiveBoardAs, suggestedActivePgnFilename } from "./save-board";
 
 // SIG-857: file-menu subscriptions live here so the closed MenuBar root does
@@ -166,6 +167,14 @@ export function FileMenuItems({
       <Item label={tStudioChrome(locale, "chrome.file.newBoard")} shortcut="Ctrl+N" onClick={run(handleNewBoard)} />
       <Item label={tStudioChrome(locale, "chrome.file.openPgn")} shortcut="Ctrl+O" onClick={run(onOpenPgn)} />
       <Item label={tStudioChrome(locale, "chrome.file.openClipboard")} onClick={() => void openClipboard()} />
+      <Item
+        label={tStudioChrome(locale, "chrome.file.pasteMoves")}
+        shortcut="Ctrl+V"
+        onClick={() => {
+          close();
+          void pasteMovesFromClipboard();
+        }}
+      />
       <Divider />
       <Item label={tStudioChrome(locale, "chrome.file.save")} shortcut="Ctrl+S" onClick={saveBoard} />
       <Item label={tStudioChrome(locale, "chrome.file.saveAs")} shortcut="Ctrl+Shift+S" onClick={saveBoardAs} />

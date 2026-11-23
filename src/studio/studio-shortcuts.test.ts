@@ -47,6 +47,7 @@ function makeDeps() {
     newBoard: 0,
     print: 0,
     toggleLibrary: 0,
+    pasteMoves: 0,
   };
   const deps: StudioShellShortcutDeps = {
     openFile: () => {
@@ -71,6 +72,9 @@ function makeDeps() {
     flip: () => useStudioStore.getState().flip(),
     back: () => useStudioStore.getState().back(),
     forward: () => useStudioStore.getState().forward(),
+    pasteMoves: () => {
+      calls.pasteMoves += 1;
+    },
   };
   return { calls, deps };
 }
@@ -312,4 +316,20 @@ test("E and M ignore editable targets and dialogs (SIG-1459)", () => {
   document.body.appendChild(dialog);
   handleStudioShellKey(makeKeyEvent("e"), deps);
   assert.equal(useStudioStore.getState().engineToggleRequest, before);
+});
+
+test("Ctrl+V pastes moves in studio view but keeps native paste in inputs", () => {
+  const { calls, deps } = makeDeps();
+  const ev = makeKeyEvent("v", { ctrlKey: true });
+  handleStudioShellKey(ev, deps);
+  assert.equal(ev.defaultPrevented, true);
+  assert.equal(calls.pasteMoves, 1);
+
+  const input = document.createElement("input");
+  document.body.appendChild(input);
+  const inputEv = makeKeyEvent("v", { ctrlKey: true });
+  Object.defineProperty(inputEv, "target", { value: input });
+  handleStudioShellKey(inputEv, deps);
+  assert.equal(inputEv.defaultPrevented, false);
+  assert.equal(calls.pasteMoves, 1);
 });
