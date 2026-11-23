@@ -13,7 +13,7 @@ import { clearLocalFiles, EMPTY_FILES } from "@/src/lib/user-files";
 // settings defaults. The store composes them into the single create() below
 // so all 30+ existing `@/src/store/studio-store` import paths keep working.
 import { emptyBoard } from "./slices/board-helpers";
-import { createFilesSlice } from "./slices/files";
+import { createFilesSlice, unblockLocalWrites } from "./slices/files";
 import { createBoardsSlice } from "./slices/boards";
 import { INACTIVE_RETRY, createRetrySlice } from "./slices/retry";
 import { createEngineSlice } from "./slices/engine";
@@ -234,6 +234,8 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     // Always clear again: a save may have landed after an earlier pre-sign-out
     // clear. A signed-out reset is remembered so sign-out can await it.
     const filesClear = clearLocalFiles();
+    // The previous account's snapshot is gone; the new session may write again.
+    unblockLocalWrites();
     if (!get().user) {
       sessionFilesClear = filesClear;
     }

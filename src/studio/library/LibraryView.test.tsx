@@ -223,3 +223,13 @@ test("mobile: Escape in a Sources-sheet menu or dialog closes only that layer, n
   fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
   assert.equal(sheet(), null);
 });
+
+test("the placeholder list shows the Library loading status, not an empty state, before the local Library loads", () => {
+  useStudioStore.setState({ filesHydrated: false });
+  try {
+    render(<LibraryPlaceholderList games={{ ...base, retry: () => {} }} />);
+    assert.match(screen.getByRole("status").textContent ?? "", /Loading your Library/i);
+  } finally {
+    useStudioStore.setState({ filesHydrated: true });
+  }
+});

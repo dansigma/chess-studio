@@ -88,6 +88,11 @@ const STORAGE_FULL_MESSAGE = "Saved in this session only: browser storage is ful
 // snapshot this page never saw, so changes stay in this session only.
 let localWritesBlocked = false;
 
+/** A session reset clears the stored Library, so writing to it is safe again. */
+export function unblockLocalWrites(): void {
+  localWritesBlocked = false;
+}
+
 function cacheFiles(set: FilesSet, get: FilesGet, files: FilesLibrary) {
   // Hydration saves the session changes together with the stored snapshot.
   if (!get().filesHydrated || localWritesBlocked) return;

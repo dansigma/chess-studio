@@ -25,6 +25,7 @@ import { LibraryTable } from "./LibraryTable";
 import { LibraryPartialNotice } from "./LibraryPartialNotice";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 import { LibraryPreview } from "./LibraryPreview";
+import { LibraryLoadingStatus } from "./LibraryLoadingStatus";
 import { LibraryPlayers } from "./LibraryPlayers";
 import { useLibraryDrop } from "./use-library-import";
 import { LibraryImportWidget } from "./LibraryImportWidget";
@@ -294,8 +295,13 @@ export function LibraryPlaceholderList({ games }: { games: LibraryGamesState }) 
   const resetFilters = useLibraryStore((s) => s.resetFilters);
   const selectedKey = useLibraryStore((s) => s.selectedKey);
   const selectGame = useLibraryStore((s) => s.selectGame);
+  const filesHydrated = useStudioStore((state) => state.filesHydrated);
   const { items, loading, error, sourceErrors } = games;
   const failed = Object.keys(sourceErrors);
+
+  if (!filesHydrated && items.length === 0) {
+    return <LibraryLoadingStatus />;
+  }
 
   if (error && items.length === 0) {
     return (

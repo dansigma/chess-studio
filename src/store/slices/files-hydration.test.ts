@@ -75,3 +75,16 @@ test("a rejected read retains session databases, reports the failure, finishes h
   assert.equal(useStudioStore.getState().files.folders.length, 1);
   assert.deepEqual(writes, []);
 });
+
+test("a session reset after a failed read lets the next session save locally again", () => {
+  writes.length = 0;
+  // The previous test left local writes blocked by a failed read.
+  useStudioStore.getState().createFileFolder("Still blocked");
+  assert.deepEqual(writes, []);
+
+  useStudioStore.getState().resetSessionState();
+  useStudioStore.getState().createFileFolder("After reset");
+  const saved: realUserFiles.FilesLibrary[] = writes;
+  assert.equal(saved.length, 1);
+  assert.deepEqual(saved[0].folders.map(({ name }) => name), ["After reset"]);
+});
