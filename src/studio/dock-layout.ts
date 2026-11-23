@@ -348,9 +348,12 @@ export function sanitizeDockLayout(
     typeof dock.activeGroup === "string" && groupIds.includes(dock.activeGroup)
       ? dock.activeGroup
       : groupIds[0];
+  const grid: Record<string, unknown> = { ...dock.grid, root: branch };
+  // Dockview stores restored dimensions alongside this transient marker.
+  delete grid.maximizedNode;
   const next: SanitizedDock = {
     ...dock,
-    grid: { ...dock.grid, root: branch },
+    grid,
     panels,
   };
   if (activeGroup) {

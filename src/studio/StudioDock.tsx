@@ -10,7 +10,7 @@ import {
   type DockviewReadyEvent,
   type IDockviewPanelHeaderProps,
 } from "dockview-react";
-import type { IDockviewHeaderActionsProps, IDockviewPanelProps, SerializedDockview } from "dockview-core";
+import type { IDockviewPanelProps, SerializedDockview } from "dockview-core";
 import { BoardPanel } from "./BoardPanel";
 import { EnginePanel } from "./EnginePanel";
 import { EvalGraphPanel } from "./EvalGraphPanel";
@@ -37,7 +37,6 @@ import {
   Lightbulb,
   Library,
   ListOrdered,
-  Plus,
   Search,
   UserSearch,
   Users,
@@ -66,7 +65,6 @@ import {
   type StudioPanelId,
 } from "./dock-api";
 import { explorerGamesTitle } from "@/src/lib/explorer-types";
-import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import {
   currentDockLayoutEpoch,
   DOCK_LAYOUT_VERSION,
@@ -87,6 +85,8 @@ import {
 import { parsePlayerPanelParams } from "./player-panel-params";
 import { parseExplorerSource } from "./ExplorerPanel";
 import { ChessboardIcon } from "./ui/ChessboardIcon";
+import { GroupHeaderActions } from "./GroupHeaderActions";
+import { handleDockRestoreKey, readNormalDockSnapshot } from "./dock-maximize";
 
 const TAB_ICONS: Record<string, LucideIcon> = {
   engine: Cpu,
@@ -115,37 +115,6 @@ function StudioTab(props: IDockviewPanelHeaderProps) {
     <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
       {Icon ? <Icon aria-hidden="true" className="dv-tab-context-icon ml-0.5 shrink-0 transition-opacity" size={13} /> : null}
       <DockviewDefaultTab {...props} />
-    </div>
-  );
-}
-
-// SIG-915: browser-style "+" action on the board tab group — opens a new
-// empty session as a tab in the same group. Rendered only when the group
-// hosts at least one `board:*` panel; per-tab close is the default
-// DockviewDefaultTab close action (handled by onDidRemovePanel → closeBoard).
-function BoardGroupHeaderActions(props: IDockviewHeaderActionsProps) {
-  const locale = useStudioStore((state) => state.settings.locale);
-  const isBoardGroup = props.panels.some((panel) => isBoardPanelId(panel.id));
-  if (!isBoardGroup) {
-    return null;
-  }
-  function handleNewBoard(): void {
-    useStudioStore.getState().newBoard();
-    const state = useStudioStore.getState();
-    const active = selectActiveBoard(state);
-    openBoardPanel(active.id, boardTitle(state.settings.locale, active.title));
-  }
-  return (
-    <div className="flex h-full items-center pr-1">
-      <button
-        type="button"
-        title={tPanels(locale, "panels.board.newBoardHint", { shortcut: "Ctrl+N" })}
-        aria-label={tPanels(locale, "panels.board.newBoard")}
-        onClick={handleNewBoard}
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-studio-fg hover:bg-studio-hover-strong"
-      >
-        <Plus aria-hidden="true" size={15} />
-      </button>
     </div>
   );
 }
@@ -527,7 +496,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
   useEffect(() => {
     const container = containerRef.current;
     return () => {
-      // Dockview keeps its instance across Strict Mode effect replays.
+      // Dockview keeps its instance across effect replays on a mounted element.
       if (container?.isConnected) {
         return;
       }
@@ -571,9 +540,12 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
         reconcileBoardPanels();
       });
     });
-    setDockSnapshotReader(() =>
-      sanitizeDockLayout({ version: DOCK_LAYOUT_VERSION, dock: api.toJSON() }),
-    );
+    setDockSnapshotReader(() => {
+      if (api.hasMaximizedGroup()) {
+        api.exitMaximizedGroup();
+      }
+      return readNormalDockSnapshot(api);
+    });
     const pendingLayout = takePendingDockLayout();
     const saved = pendingLayout ? null : (takeQueuedDockLayout() ?? readStoredDockLayout());
     runWithoutSave(() => {
@@ -674,7 +646,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
     applyGroupMinimums(api);
     layoutSubscription.current = api.onDidLayoutChange(() => {
       applyGroupMinimums(api);
-      if (suppressSaves.current > 0) {
+      if (suppressSaves.current > 0 || api.hasMaximizedGroup()) {
         return;
       }
       if (saveTimer.current !== null) {
@@ -686,10 +658,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
         if (epoch !== currentDockLayoutEpoch()) {
           return;
         }
-        const snapshot = sanitizeDockLayout({
-          version: DOCK_LAYOUT_VERSION,
-          dock: api.toJSON(),
-        });
+        const snapshot = readNormalDockSnapshot(api);
         if (!snapshot) {
           return;
         }
@@ -697,6 +666,20 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
       }, 400);
     });
   }
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+    function restoreOnEscape(event: KeyboardEvent) {
+      const api = apiRef.current;
+      if (api) {
+        handleDockRestoreKey(event, api);
+      }
+    }
+    window.addEventListener("keydown", restoreOnEscape, true);
+    return () => window.removeEventListener("keydown", restoreOnEscape, true);
+  }, [visible]);
 
   // SIG-1273: the dock stays mounted while the Library is shown (display:none
   // measures 0×0), so relayout against the real size when it comes back.
@@ -721,7 +704,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
         theme={studioTheme}
         components={components}
         defaultTabComponent={StudioTab}
-        rightHeaderActionsComponent={BoardGroupHeaderActions}
+        rightHeaderActionsComponent={GroupHeaderActions}
         onReady={onReady}
       />
     </div>

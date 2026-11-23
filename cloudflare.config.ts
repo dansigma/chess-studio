@@ -25,6 +25,9 @@ export default defineConfig({
     env: {
       ASSETS: bindings.assets(),
       ENGINE: bindings.r2({ name: "chess-studio-engine" }),
+      // SIG-1470: Base Xadrez Digital files, in a bucket with the ENAM location
+      // hint (closest R2 region to Brazil). ENGINE stays in EEUR for Stockfish.
+      XD_DATABASE: bindings.r2({ name: "chess-studio-xd" }),
       // Data cache do ISR (courses revalidate=60) — ver vite.config.ts.
       VINEXT_KV_CACHE: bindings.kv({ id: "2abf45b38f9943b792848ec48562282d" }),
       // Edge-enforced rate limits (ver src/lib/rate-limit.ts): per-location

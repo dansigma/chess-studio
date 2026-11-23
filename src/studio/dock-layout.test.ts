@@ -68,6 +68,30 @@ test("player panels are removed and a player-only group is dropped", () => {
   assert.equal("floatingGroups" in snapshot.dock, false);
 });
 
+test("a serialized maximize marker is discarded without changing panel sizes", () => {
+  const snapshot = sanitizeDockLayout({
+    version: DOCK_LAYOUT_VERSION,
+    dock: {
+      grid: {
+        root: {
+          type: "branch",
+          data: [
+            { type: "leaf", size: 520, data: { id: "g-board", views: [board.id] } },
+            { type: "leaf", size: 280, data: { id: "g-note", views: [notation.id] } },
+          ],
+        },
+        maximizedNode: { location: [1] },
+      },
+      panels: { [board.id]: board, [notation.id]: notation },
+    },
+  });
+
+  assert.ok(snapshot);
+  const grid = snapshot.dock.grid as { root: { data: Array<{ size: number }> } };
+  assert.equal("maximizedNode" in grid, false);
+  assert.deepEqual(grid.root.data.map((leaf) => leaf.size), [520, 280]);
+});
+
 test("a closed studio panel stays closed", () => {
   const snapshot = sanitizeDockLayout({
     version: DOCK_LAYOUT_VERSION,

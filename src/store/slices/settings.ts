@@ -20,6 +20,7 @@ import {
 } from "@/src/engine/stockfish-client";
 import {
   DEFAULT_EXPLORER_FILTERS,
+  XD_RATING_THRESHOLDS,
   readExplorerFilters,
 } from "@/src/lib/explorer-filters";
 import type { StudioSettings, StudioState } from "./types";
@@ -43,6 +44,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   sidebarCollapsed: false,
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   explorerFilters: DEFAULT_EXPLORER_FILTERS,
+  xdExplorerFilters: DEFAULT_EXPLORER_FILTERS,
   moveSound: false,
   puzzleSound: true,
   engineSparkline: true,
@@ -127,6 +129,7 @@ export function loadLocalSettings(): StudioSettings {
           ? clampSidebarWidth(parsed.sidebarWidth)
           : DEFAULT_SETTINGS.sidebarWidth,
       explorerFilters: readExplorerFilters(parsed.explorerFilters),
+      xdExplorerFilters: readExplorerFilters(parsed.xdExplorerFilters, XD_RATING_THRESHOLDS),
       moveSound: typeof parsed.moveSound === "boolean" ? parsed.moveSound : DEFAULT_SETTINGS.moveSound,
       puzzleSound: typeof parsed.puzzleSound === "boolean" ? parsed.puzzleSound : DEFAULT_SETTINGS.puzzleSound,
       engineSparkline:
@@ -295,13 +298,16 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
         sidebarWidth: clampSidebarWidth(sidebarWidth),
       },
     })),
-  setExplorerFilters: (patch) =>
+  setExplorerFilters: (patch, source) => {
+    const xd = source === "xadrez-digital";
+    const key = xd ? "xdExplorerFilters" : "explorerFilters";
     set((state) => ({
       settings: {
         ...state.settings,
-        explorerFilters: { ...state.settings.explorerFilters, ...patch },
+        [key]: readExplorerFilters({ ...state.settings[key], ...patch }, xd ? XD_RATING_THRESHOLDS : undefined),
       },
-    })),
+    }));
+  },
   hydrateLocalSettings: () => {
     set({ settings: loadLocalSettings() });
   },

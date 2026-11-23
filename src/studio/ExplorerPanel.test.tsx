@@ -172,3 +172,40 @@ test("SIG-1447: falls back to the active line and gives an exact source opening 
     useStudioStore.setState({ boards: before.boards, settings: before.settings });
   }
 });
+
+test("Base Xadrez Digital shows rating and year filters and explains the unfiltered move totals", () => {
+  const { settings } = useStudioStore.getState();
+  const note = "Percentages cover all games; filters apply to the games list";
+  const { tree, path } = selectActiveBoard(useStudioStore.getState());
+  const explorer: ExplorerResponse = {
+    source: "xadrez-digital", fen: getFenAt(tree, path), opening: null, white: 3, draws: 1, black: 1,
+    games: [],
+    moves: [{ san: "e4", uci: "e2e4", games: 5, white: 3, draws: 1, black: 1, averageRating: 2450 }],
+  };
+  try {
+    useStudioStore.setState({ databaseSource: "xadrez-digital", explorer, explorerLoading: false, explorerError: null });
+    render(<ExplorerPanel />);
+    assert.equal(screen.queryByText(note), null);
+    fireEvent.click(screen.getByRole("button", { name: "Filters" }));
+    assert.ok(screen.getByRole("dialog", { name: "Filters" }));
+    assert.ok(screen.getByRole("textbox", { name: "From" }));
+    assert.ok(screen.getByRole("textbox", { name: "To" }));
+    assert.equal(screen.queryByText("Speed"), null);
+    assert.equal(screen.queryByRole("button", { name: "1800+" }), null);
+    for (const name of ["All", "2300+", "2500+", "2700+"]) {
+      assert.ok(screen.getByRole("button", { name }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "2700+" }));
+    assert.ok(screen.getByText(note));
+    assert.match(screen.getByTestId("explorer-total-row").textContent ?? "", /5/);
+    const source = screen.getByRole("combobox", { name: "Explorer source" });
+    fireEvent.change(source, { target: { value: "lichess" } });
+    assert.equal(screen.queryByText(note), null);
+    assert.equal(screen.getByRole("button", { name: "All" }).getAttribute("aria-pressed"), "true");
+    fireEvent.change(source, { target: { value: "xadrez-digital" } });
+    assert.equal(screen.getByRole("button", { name: "2700+" }).getAttribute("aria-pressed"), "true");
+  } finally {
+    cleanup();
+    useStudioStore.setState({ settings });
+  }
+});
