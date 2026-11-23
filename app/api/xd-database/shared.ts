@@ -1,0 +1,96 @@
+import { env } from "cloudflare:workers";
+import { isExplorerFen } from "@/src/lib/request-validation";
+import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
+import { tooManyRequests } from "@/src/lib/rate-limit-response";
+import { XD_DATABASE_PREFIX, XD_DATABASE_VERSION } from "@/src/lib/xd-database/manifest";
+import { treeKeyOfFen, XdDatabaseReader } from "@/src/lib/xd-database/reader";
+
+type Bucket = {
+  get(key: string, options?: { range: { offset: number; length: number } }):
+    Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>;
+};
+
+const readers = new WeakMap<Bucket, XdDatabaseReader>();
+const limiter = createRouteLimiter({ limit: 60, windowMs: 60_000, bindingName: "RL_60_MIN" });
+const PUBLIC_CACHE = "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400";
+const FILTERED_CACHE = "public, max-age=30, s-maxage=60";
+
+export const PAGE_SIZE = 20;
+export type IdParams = { params: Promise<{ id: string }> };
+
+export function error(message: string, status = 400): Response {
+  return Response.json({ error: message }, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+export function positionQuery(query: URLSearchParams) {
+  const fen = query.get("fen");
+  if (!isExplorerFen(fen)) return null;
+  const key = treeKeyOfFen(fen);
+  return key === null ? null : { fen, key };
+}
+
+export function unsignedInteger(value: string): number {
+  if (!/^\d{1,16}$/.test(value)) return NaN;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : NaN;
+}
+
+export function pageCursor(query: URLSearchParams): number {
+  return unsignedInteger(query.get("cursor") ?? "0");
+}
+
+export function gameHeaders({ id, game: { moves: _moves, ...headers } }: Awaited<ReturnType<XdDatabaseReader["gamesById"]>>[number]) {
+  return { id, ...headers };
+}
+
+export async function serve(
+  request: Request,
+  load: (reader: XdDatabaseReader) => Promise<Response>,
+  filtered = false,
+): Promise<Response> {
+  const edge = (globalThis.caches as (CacheStorage & { default?: Cache }) | undefined)?.default;
+  const url = new URL(request.url);
+  url.searchParams.set("__xd_version", String(XD_DATABASE_VERSION));
+  url.searchParams.sort();
+  const key = url.href;
+  try {
+    const cached = await edge?.match(key);
+    if (cached) return cached;
+  } catch {
+    // The edge cache is optional. Serve from R2 when it is unavailable.
+  }
+
+  const verdict = await limiter.checkAsync(rateLimitKey("xd-database", clientIp(request.headers)));
+  if (!verdict.ok) return tooManyRequests(verdict);
+  const bucket = (env as unknown as { ENGINE?: Bucket }).ENGINE;
+  if (!bucket) return error("Database unavailable", 503);
+
+  let reader = readers.get(bucket);
+  if (!reader) {
+    reader = new XdDatabaseReader(async (file, range) => {
+      const object = await bucket.get(`${XD_DATABASE_PREFIX}${file}`, range && {
+        range: { offset: range.start, length: range.end - range.start },
+      });
+      if (!object) throw new Error(`Missing database file ${file}`);
+      return new Uint8Array(await object.arrayBuffer());
+    });
+    readers.set(bucket, reader);
+  }
+
+  let response: Response;
+  try {
+    response = await load(reader);
+  } catch (cause) {
+    console.error("[xd-database] read failed", cause);
+    return error("Database unavailable", 503);
+  }
+  if (!response.ok) return response;
+  response.headers.set("Cache-Control", filtered ? FILTERED_CACHE : PUBLIC_CACHE);
+  response.headers.set("X-XD-Database-Version", String(XD_DATABASE_VERSION));
+  try {
+    await edge?.put(key, response.clone());
+  } catch {
+    // The successful response can still be returned.
+  }
+  return response;
+}
