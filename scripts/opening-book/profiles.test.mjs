@@ -115,6 +115,8 @@ describe("masters: Lumbra's GigaBase Source tag", () => {
   it("keeps LichessBroadcast games although Site or Event contain lichess.org", () => {
     assert.equal(profileRejection("masters", { ...MASTER, Source: "LichessBroadcast", Site: "https://lichess.org/broadcast/tata-steel-masters-2024/round-5/AbCdEfGh" }, {}), null);
     assert.equal(profileRejection("masters", { ...MASTER, Source: "LichessBroadcast", Site: "lichess.org", Event: "Lichess Broadcast: Candidates" }, {}), null);
+    // The GigaBase 2026-11 release tags its relayed games "LichessBroadcastAPI".
+    assert.equal(profileRejection("masters", { ...MASTER, Source: "LichessBroadcastAPI", Site: "lichess.org", Event: "Lichess Broadcast: Candidates" }, {}), null);
   });
   it("keeps a lichess.org/broadcast URL in Site or Event even without a Source tag, but not other lichess.org games", () => {
     assert.equal(profileRejection("masters", { ...MASTER, Site: "https://lichess.org/broadcast/candidates-2024/round-1/xyz" }, {}), null);
