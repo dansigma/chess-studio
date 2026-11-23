@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 import { teardownDom } from "../test-utils/dom.ts";
 
-let onBrowserSignOut: () => void;
+let onBrowserSignOut: () => unknown;
 let onServerSignOut: () => void;
 mock.module("@/src/lib/supabase/client", {
   namedExports: { createBrowserSupabase: () => ({ auth: { signOut: async () => onBrowserSignOut() } }) },
@@ -21,6 +21,7 @@ test("sign-out commits the Library deletion before redirecting and invalidates o
   let releaseSave: () => void = () => {};
   let finishDelete: () => void = () => {};
   let opening = 0;
+  let deletes = 0;
   Object.defineProperty(window, "indexedDB", { configurable: true, value: { open() {} } });
   t.after(() => Reflect.deleteProperty(window, "indexedDB"));
   t.mock.method(window.indexedDB, "open", () => {
@@ -37,11 +38,18 @@ test("sign-out commits the Library deletion before redirecting and invalidates o
               get: () => ({ result: snapshot }),
               delete: () => {
                 deleting = true;
-                finishDelete = () => {
+                const finish = () => {
                   snapshot = undefined;
                   transaction.oncomplete();
                 };
-                deleteStarted.resolve();
+                // The test holds the first (pre-sign-out) delete open; the
+                // session reset's second delete completes on its own.
+                if (++deletes === 1) {
+                  finishDelete = finish;
+                  deleteStarted.resolve();
+                } else {
+                  setImmediate(finish);
+                }
                 return {};
               },
             }),
@@ -122,4 +130,51 @@ test("sign-out retries a failed session clear and still redirects when storage f
 
   assert.deepEqual(calls, ["browser", "server"]);
   assert.equal(attempts, 2);
+});
+
+test("sign-out clears again a Library save that lands after the first clear", async (t) => {
+  t.after(teardownDom);
+  let snapshot: unknown;
+  Object.defineProperty(window, "indexedDB", {
+    configurable: true,
+    value: {
+      open() {
+        const request = {
+          onsuccess: () => {},
+          result: {
+            close() {},
+            transaction() {
+              const transaction = {
+                oncomplete: () => {},
+                objectStore: () => ({
+                  put: (value: unknown) => { snapshot = value; return {}; },
+                  get: () => ({ result: snapshot }),
+                  delete: () => { snapshot = undefined; return {}; },
+                }),
+              };
+              setImmediate(() => transaction.oncomplete());
+              return transaction;
+            },
+          },
+        };
+        queueMicrotask(() => request.onsuccess());
+        return request;
+      },
+    },
+  });
+  t.after(() => Reflect.deleteProperty(window, "indexedDB"));
+
+  const { saveLocalFiles } = await import("@/src/lib/user-files");
+  const { useStudioStore } = await import("@/src/store/studio-store");
+  const { signOutEverywhere } = await import("./AccountMenu");
+  const lateLibrary = { folders: [{ id: "late", name: "Late", parentId: null }], databases: [] };
+  useStudioStore.getState().setUser({ id: "late-save-account", email: null });
+  // e.g. an account upload finishing while the browser sign-out request is in flight
+  onBrowserSignOut = () => saveLocalFiles(lateLibrary);
+  let snapshotAtRedirect: unknown = "not redirected";
+  onServerSignOut = () => { snapshotAtRedirect = snapshot; };
+
+  await signOutEverywhere();
+
+  assert.equal(snapshotAtRedirect, undefined);
 });

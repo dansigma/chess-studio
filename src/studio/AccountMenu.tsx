@@ -14,7 +14,8 @@ export async function signOutEverywhere(): Promise<void> {
   try {
     await createBrowserSupabase()?.auth.signOut();
   } finally {
-    useStudioStore.getState().setUser(null);
+    // The reset clears the Library again; finish it before the redirect.
+    await useStudioStore.getState().setUser(null);
     const { signOut } = await import("@/app/login/actions");
     await signOut();
   }

@@ -231,11 +231,12 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     get().hydrateSavedLayouts([]);
     clearGuestBoards();
     resetCourseProgressState();
-    // An account switch clears the previous account's files. Its replacement
-    // session still needs a fresh clear when that account later signs out.
-    const filesClear = get().user
-      ? clearLocalFiles()
-      : (sessionFilesClear ??= clearLocalFiles());
+    // Always clear again: a save may have landed after an earlier pre-sign-out
+    // clear. A signed-out reset is remembered so sign-out can await it.
+    const filesClear = clearLocalFiles();
+    if (!get().user) {
+      sessionFilesClear = filesClear;
+    }
     saveLocalBookmarks([]);
     const board = emptyBoard();
     const sessionReset = {
