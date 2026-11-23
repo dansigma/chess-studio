@@ -24,6 +24,7 @@ import type { EngineBuild } from "@/src/engine/stockfish-client";
 import type { ExplorerResponse, ExplorerSource } from "@/src/lib/explorer-types";
 import type { ExplorerFilters } from "@/src/lib/explorer-filters";
 import type { NotationDensity } from "@/src/studio/notation-density";
+import type { TextSize } from "@/src/studio/text-size";
 import type { DockPresetId } from "@/src/studio/dock-layout";
 import type { SavedDockLayout } from "@/src/studio/dock-layouts";
 import type { RetryState, RetryTarget } from "@/src/chess/retry";
@@ -160,6 +161,7 @@ export type StudioSettings = {
   pieceSet: PieceSet;
   moveNotation: MoveNotation;
   notationDensity: NotationDensity;
+  textSize: TextSize;
   showClockTimes: boolean;
   colorScheme: ColorScheme;
   gamePreviewEnabled: boolean;
@@ -306,6 +308,7 @@ export type StudioState = {
   setPieceSet: (set: PieceSet) => void;
   setMoveNotation: (notation: MoveNotation) => void;
   setNotationDensity: (density: NotationDensity) => void;
+  setTextSize: (size: TextSize) => void;
   toggleClockTimes: () => void;
   setLocale: (locale: SiteLocale) => void;
   toggleNotationDensity: () => void;

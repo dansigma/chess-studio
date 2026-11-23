@@ -23,6 +23,7 @@ import {
   XD_RATING_THRESHOLDS,
   readExplorerFilters,
 } from "@/src/lib/explorer-filters";
+import { isTextSize } from "@/src/studio/text-size";
 import type { StudioSettings, StudioState } from "./types";
 
 export const SETTINGS_KEY = "studio-clone-settings";
@@ -36,6 +37,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   pieceSet: "classic",
   moveNotation: "english",
   notationDensity: "normal",
+  textSize: "default",
   showClockTimes: false,
   colorScheme: "dark",
   gamePreviewEnabled: true,
@@ -108,6 +110,7 @@ export function loadLocalSettings(): StudioSettings {
       notationDensity: isNotationDensity(parsed.notationDensity)
         ? parsed.notationDensity
         : DEFAULT_SETTINGS.notationDensity,
+      textSize: isTextSize(parsed.textSize) ? parsed.textSize : DEFAULT_SETTINGS.textSize,
       showClockTimes:
         typeof parsed.showClockTimes === "boolean"
           ? parsed.showClockTimes
@@ -166,6 +169,7 @@ export type SettingsSlice = Pick<
   | "setPieceSet"
   | "setMoveNotation"
   | "setNotationDensity"
+  | "setTextSize"
   | "toggleClockTimes"
   | "setLocale"
   | "toggleNotationDensity"
@@ -268,6 +272,9 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
   },
   setNotationDensity: (notationDensity) => {
     set((state) => ({ settings: { ...state.settings, notationDensity } }));
+  },
+  setTextSize: (textSize) => {
+    set((state) => ({ settings: { ...state.settings, textSize } }));
   },
   toggleClockTimes: () => {
     set((state) => ({
