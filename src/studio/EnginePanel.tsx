@@ -208,6 +208,37 @@ export function EnginePanel() {
         : tPanels(locale, "engine.status.lineNoNps", { depth: display.depth, target: depthTarget });
   const running = info.running && !paused;
   const live = inStudio && !info.failed && (running || (started && !paused && !info.ready));
+  const togglePlay = (): void => {
+    if (info.running && !paused) {
+      setPaused(true);
+      return;
+    }
+    if (!started) {
+      setStarted(true);
+      setPaused(false);
+      return;
+    }
+    if (paused) {
+      setPaused(false);
+      return;
+    }
+    setRunId((value) => value + 1);
+  };
+  // SIG-1459: the E shortcut bumps `engineToggleRequest`. Only a change seen
+  // while mounted counts, so a request made with no panel open is dropped.
+  const toggleRequest = useStudioStore((state) => state.engineToggleRequest);
+  const seenToggleRequest = useRef(toggleRequest);
+  const togglePlayRef = useRef(togglePlay);
+  useEffect(() => {
+    togglePlayRef.current = togglePlay;
+  });
+  useEffect(() => {
+    if (seenToggleRequest.current === toggleRequest) {
+      return;
+    }
+    seenToggleRequest.current = toggleRequest;
+    togglePlayRef.current();
+  }, [toggleRequest]);
   const placeholderLines = live ? Math.max(0, multiPv - lines.length) : 0;
 
   if (retryActive) {
@@ -232,22 +263,7 @@ export function EnginePanel() {
           size="sm"
           label={paused || !info.running ? tPanels(locale, "engine.start") : tPanels(locale, "engine.pause")}
           active={running}
-          onClick={() => {
-            if (info.running && !paused) {
-              setPaused(true);
-              return;
-            }
-            if (!started) {
-              setStarted(true);
-              setPaused(false);
-              return;
-            }
-            if (paused) {
-              setPaused(false);
-              return;
-            }
-            setRunId((value) => value + 1);
-          }}
+          onClick={togglePlay}
         >
           {paused || !info.running ? <Play size={13} fill="currentColor" /> : <Pause size={13} fill="currentColor" />}
         </IconButton>
