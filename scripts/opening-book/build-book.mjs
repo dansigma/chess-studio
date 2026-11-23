@@ -224,7 +224,7 @@ export function countGame(store, tokens, maxPly) {
  * Computed BEFORE the moves are replayed, so a duplicate (the overlap between
  * collections is large) costs no chess.js work.
  */
-function dedupeHash(headers, tokens) {
+export function dedupeHash(headers, tokens) {
   const round = headers.Round && headers.Round !== "?" && headers.Round !== "-" ? headers.Round : "";
   const moves = tokens.map((token) => token.replace(/[+#!?]/g, "")).join(" ");
   return hash64(`${normalizePlayer(headers.White)}|${normalizePlayer(headers.Black)}|${headers.Date ?? ""}|${round}|${moves}`);

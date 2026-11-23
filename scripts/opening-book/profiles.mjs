@@ -35,7 +35,7 @@ export const EXCLUDED_SOURCES = new Set(["LichessEliteDatabase"]);
  * their Site/Event can contain "lichess.org". Recognized by `[Source]`, or by a
  * lichess.org/broadcast URL in Site or Event.
  */
-export const BROADCAST_SOURCES = new Set(["LichessBroadcast"]);
+export const BROADCAST_SOURCES = new Set(["LichessBroadcast", "LichessBroadcastAPI"]);
 export const BROADCAST_URL_PATTERN = /lichess\.org\/broadcast/i;
 
 /** Site or Event naming a correspondence organisation or format. */
