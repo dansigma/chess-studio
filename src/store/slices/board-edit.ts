@@ -2,7 +2,6 @@ import { Chess } from "chess.js";
 import type { StateCreator } from "zustand";
 import {
   START_FEN,
-  cloneTree,
   continuationsAt,
   createEmptyTree,
   deleteAfter,
@@ -18,7 +17,6 @@ import {
   setNodeCommentBefore,
   setNodeMarks,
   setNodeNags,
-  type GameTree,
 } from "@/src/chess/tree";
 import {
   exportPgn,
@@ -39,7 +37,8 @@ import {
 import { isLegalSetupFen } from "@/src/chess/setup-fen";
 import { applyNullMoveFen, NULL_MOVE_SAN, NULL_MOVE_UCI } from "@/src/chess/null-move";
 import { emptyBoard, withActive, analysisFen } from "./board-helpers";
-import type { BoardSession, CutUndo, StudioState } from "./types";
+import { editBoard, stepBoardHistory } from "./board-history";
+import type { BoardSession, StudioState } from "./types";
 
 // SIG-944: board-editing/import/setup actions used to live inline in
 // studio-store.ts. They all rewrite the active board's tree/path/headers, so
@@ -85,17 +84,6 @@ export type BoardEditSlice = Pick<
   | "openSharedPosition"
   | "setBoardRepertoire"
 >;
-
-function cutUndoFor(board: BoardSession, cutTree: GameTree): CutUndo {
-  return {
-    boardId: board.id,
-    // cloneTree keeps the snapshot detached from later edits, exactly like the
-    // review-annotate undo in this slice.
-    tree: cloneTree(board.tree),
-    path: [...board.path],
-    cutTree,
-  };
-}
 
 export const initialBoardEditState = {
   setupMode: false,
@@ -238,21 +226,20 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
     });
   },
   applyLiveMerge: (boardId, tree, path, result) => {
-    set((state) => ({
-      boards: state.boards.map((board) => {
-        if (board.id !== boardId) {
-          return board;
-        }
-        return {
-          ...board,
-          tree,
-          path,
-          headers: result ? { ...board.headers, Result: result } : board.headers,
-          reviewAnnotateUndo: undefined,
-          dirty: true,
-        };
-      }),
-    }));
+    set((state) => {
+      const board = state.boards.find((item) => item.id === boardId);
+      if (!board) return {};
+      return editBoard(state, (item) => ({
+        ...item,
+        tree,
+        path,
+        headers: result && result !== item.headers.Result
+          ? { ...item.headers, Result: result }
+          : item.headers,
+        reviewAnnotateUndo: undefined,
+        dirty: true,
+      }), board);
+    });
   },
   importPlayerGame: (game, options) => {
     const headers: GameHeaders = {
@@ -305,31 +292,27 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         return {};
       }
       const tree = deleteAfter(board.tree, board.path);
+      const edit = editBoard(state, (active) => ({
+        ...active,
+        tree,
+        dirty: true,
+      }));
       return {
-        boards: withActive(state.boards, state.activeBoardId, (active) => ({
-          ...active,
-          tree,
-          dirty: true,
-        })),
-        // SIG-1384: keep the pre-cut line (and selection) for the Desfazer toast.
-        pendingCutUndo: cutUndoFor(board, tree),
+        ...edit,
+        pendingCutUndo: edit.boardHistories ? { boardId: board.id, cutTree: tree } : null,
       };
     });
   },
   promoteVariation: () => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        const next = promoteVariation(board.tree, board.path);
-        return { ...board, tree: next.tree, path: next.path, dirty: true };
-      }),
+    set((state) => editBoard(state, (board) => {
+      const next = promoteVariation(board.tree, board.path);
+      return { ...board, tree: next.tree, path: next.path, dirty: true };
     }));
   },
   makeMainline: () => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        const next = makeMainline(board.tree, board.path);
-        return { ...board, tree: next.tree, path: next.path, dirty: true };
-      }),
+    set((state) => editBoard(state, (board) => {
+      const next = makeMainline(board.tree, board.path);
+      return { ...board, tree: next.tree, path: next.path, dirty: true };
     }));
   },
   deleteVariation: () => {
@@ -343,15 +326,15 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
       if (next.tree === board.tree) {
         return {};
       }
+      const edit = editBoard(state, (active) => ({
+        ...active,
+        tree: next.tree,
+        path: next.path,
+        dirty: true,
+      }));
       return {
-        boards: withActive(state.boards, state.activeBoardId, (active) => ({
-          ...active,
-          tree: next.tree,
-          path: next.path,
-          dirty: true,
-        })),
-        // SIG-1384: same undo entry as pruneAfter, so both cut paths behave alike.
-        pendingCutUndo: cutUndoFor(board, next.tree),
+        ...edit,
+        pendingCutUndo: edit.boardHistories ? { boardId: board.id, cutTree: next.tree } : null,
       };
     });
   },
@@ -361,19 +344,11 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
       if (!pending) {
         return {};
       }
-      const board = state.boards.find((item) => item.id === pending.boardId);
-      // A newer edit already moved the tree on: restoring would clobber it.
-      if (!board || board.tree !== pending.cutTree) {
+      const board = state.active();
+      if (board.id !== pending.boardId || board.tree !== pending.cutTree) {
         return { pendingCutUndo: null };
       }
-      return {
-        pendingCutUndo: null,
-        boards: state.boards.map((item) =>
-          item.id === pending.boardId
-            ? { ...item, tree: pending.tree, path: [...pending.path], dirty: true }
-            : item,
-        ),
-      };
+      return stepBoardHistory(state, "undo", board);
     });
   },
   dismissCutUndo: () => {
@@ -382,26 +357,22 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
     }
   },
   setMoveComment: (comment) => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        tree: setNodeComment(board.tree, board.path, comment),
-        dirty: true,
-      })),
-    }));
+    set((state) => editBoard(state, (board) => ({
+      ...board,
+      tree: setNodeComment(board.tree, board.path, comment),
+      dirty: true,
+    })));
   },
   setMoveCommentBefore: (comment) => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        if (board.path.length === 0) {
-          return board;
-        }
-        return {
-          ...board,
-          tree: setNodeCommentBefore(board.tree, board.path, comment),
-          dirty: true,
-        };
-      }),
+    set((state) => editBoard(state, (board) => {
+      if (board.path.length === 0) {
+        return board;
+      }
+      return {
+        ...board,
+        tree: setNodeCommentBefore(board.tree, board.path, comment),
+        dirty: true,
+      };
     }));
   },
   insertNullMove: () => {
@@ -421,7 +392,7 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
       });
       set((state) => ({
         threat: null,
-        boards: withActive(state.boards, state.activeBoardId, (active) => ({
+        ...editBoard(state, (active) => ({
           ...active,
           tree: next.tree,
           path: next.path,
@@ -436,50 +407,44 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
     }
   },
   clearBoardMarks: () => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        if (marksAreEmpty(getMarksAt(board.tree, board.path))) {
-          return board;
-        }
-        return {
-          ...board,
-          tree: setNodeMarks(board.tree, board.path, undefined),
-          dirty: true,
-        };
-      }),
+    set((state) => editBoard(state, (board) => {
+      if (marksAreEmpty(getMarksAt(board.tree, board.path))) {
+        return board;
+      }
+      return {
+        ...board,
+        tree: setNodeMarks(board.tree, board.path, undefined),
+        dirty: true,
+      };
     }));
   },
   toggleMoveNag: (nag, path) => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        const target = path ?? board.path;
-        const node = getNodeAt(board.tree, target);
-        if (!node) {
-          return board;
-        }
-        return {
-          ...board,
-          path: target,
-          tree: setNodeNags(board.tree, target, toggleNag(node.nags, nag)),
-          dirty: true,
-        };
-      }),
+    set((state) => editBoard(state, (board) => {
+      const target = path ?? board.path;
+      const node = getNodeAt(board.tree, target);
+      if (!node) {
+        return board;
+      }
+      return {
+        ...board,
+        path: target,
+        tree: setNodeNags(board.tree, target, toggleNag(node.nags, nag)),
+        dirty: true,
+      };
     }));
   },
   clearMoveNags: (path) => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        const target = path ?? board.path;
-        if (!getNodeAt(board.tree, target)) {
-          return board;
-        }
-        return {
-          ...board,
-          path: target,
-          tree: setNodeNags(board.tree, target, undefined),
-          dirty: true,
-        };
-      }),
+    set((state) => editBoard(state, (board) => {
+      const target = path ?? board.path;
+      if (!getNodeAt(board.tree, target)) {
+        return board;
+      }
+      return {
+        ...board,
+        path: target,
+        tree: setNodeNags(board.tree, target, undefined),
+        dirty: true,
+      };
     }));
   },
   // SIG-968: bulk-applies pure review edits (NAGs + "[Chess Studio review]"
@@ -490,83 +455,75 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
     if (edits.length === 0) {
       return;
     }
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        let tree = board.tree;
-        for (const edit of edits) {
-          if (edit.nags !== undefined) {
-            tree = setNodeNags(tree, edit.path, edit.nags);
-          }
-          if (edit.comment !== undefined) {
-            // setNodeComment no-ops to undefined on empty, which strips a
-            // review block whose options produced no lines (evals + best-move
-            // off with no user text) — the intended re-annotate cleanup.
-            tree = setNodeComment(tree, edit.path, edit.comment);
-          }
+    set((state) => editBoard(state, (board) => {
+      let tree = board.tree;
+      for (const edit of edits) {
+        if (edit.nags !== undefined) {
+          tree = setNodeNags(tree, edit.path, edit.nags);
         }
-        if (tree === board.tree) {
-          return board;
+        if (edit.comment !== undefined) {
+          // setNodeComment no-ops to undefined on empty, which strips a
+          // review block whose options produced no lines (evals + best-move
+          // off with no user text) — the intended re-annotate cleanup.
+          tree = setNodeComment(tree, edit.path, edit.comment);
         }
-        return {
-          ...board,
-          tree,
-          // One level only: each annotate overwrites the prior snapshot, so
-          // undo always restores the tree as it was right before the latest
-          // annotate. cloneTree keeps the snapshot detached from later edits.
-          reviewAnnotateUndo: cloneTree(board.tree),
-          dirty: true,
-        };
-      }),
+      }
+      if (tree === board.tree) {
+        return board;
+      }
+      return {
+        ...board,
+        tree,
+        // One level only: each annotate overwrites the prior snapshot, so
+        // undo always restores the tree as it was right before the latest
+        // annotate. Later edits leave the snapshot immutable.
+        reviewAnnotateUndo: board.tree,
+        dirty: true,
+      };
     }));
   },
   undoReviewAnnotations: () => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        if (!board.reviewAnnotateUndo) {
-          return board;
-        }
-        return {
-          ...board,
-          tree: board.reviewAnnotateUndo,
-          // Consumed: a second undo is a no-op until the next annotate.
-          reviewAnnotateUndo: undefined,
-          dirty: true,
-        };
-      }),
+    set((state) => editBoard(state, (board) => {
+      if (!board.reviewAnnotateUndo) {
+        return board;
+      }
+      return {
+        ...board,
+        tree: board.reviewAnnotateUndo,
+        // Consumed: a second undo is a no-op until the next annotate.
+        reviewAnnotateUndo: undefined,
+        dirty: true,
+      };
     }));
   },
   toggleBoardSquareMark: (square, color) => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        const current = getMarksAt(board.tree, board.path) ?? emptyMarks();
-        return {
-          ...board,
-          tree: setNodeMarks(board.tree, board.path, toggleSquareMark(current, square, color)),
-          dirty: true,
-        };
-      }),
+    set((state) => editBoard(state, (board) => {
+      const current = getMarksAt(board.tree, board.path) ?? emptyMarks();
+      return {
+        ...board,
+        tree: setNodeMarks(board.tree, board.path, toggleSquareMark(current, square, color)),
+        dirty: true,
+      };
     }));
   },
   toggleBoardArrowMark: (from, to, color) => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => {
-        const current = getMarksAt(board.tree, board.path) ?? emptyMarks();
-        return {
-          ...board,
-          tree: setNodeMarks(board.tree, board.path, toggleArrowMark(current, from, to, color)),
-          dirty: true,
-        };
-      }),
+    set((state) => editBoard(state, (board) => {
+      const current = getMarksAt(board.tree, board.path) ?? emptyMarks();
+      return {
+        ...board,
+        tree: setNodeMarks(board.tree, board.path, toggleArrowMark(current, from, to, color)),
+        dirty: true,
+      };
     }));
   },
   setHeaders: (headers) => {
-    set((state) => ({
-      boards: withActive(state.boards, state.activeBoardId, (board) => ({
-        ...board,
-        headers,
-        title: titleFromHeaders(headers),
-        dirty: true,
-      })),
+    set((state) => editBoard(state, (board) => {
+      const entries = Object.entries(headers);
+      if (entries.length === Object.keys(board.headers).length &&
+          entries.every(([key, value]) => board.headers[key] === value)) {
+        return board;
+      }
+      return { ...board, headers, title: titleFromHeaders(headers), dirty: true };
     }));
   },
   renameActive: (title) => {

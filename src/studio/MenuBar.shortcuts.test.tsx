@@ -47,3 +47,28 @@ test("Help menu offers Shortcuts and gestures above About and opens the dialog f
   assert.equal(useStudioStore.getState().shortcutsOpen, true);
   assert.equal(useStudioStore.getState().aboutOpen, false);
 });
+
+test("Edit menu enables Undo and Redo only when the active board can use them", () => {
+  const store = () => useStudioStore.getState();
+  act(() => store().newBoard());
+  render(<MenuBar onOpenPgn={() => {}} />);
+  const edit = screen.getByRole("button", { name: "Editar" });
+  const undo = () => screen.getByRole<HTMLButtonElement>("menuitem", { name: /^Desfazer/ });
+  const redo = () => screen.getByRole<HTMLButtonElement>("menuitem", { name: /^Refazer/ });
+
+  fireEvent.click(edit);
+  assert.equal(undo().disabled, true);
+  assert.equal(redo().disabled, true);
+
+  act(() => store().setMoveComment("test"));
+  assert.equal(undo().disabled, false);
+  assert.equal(redo().disabled, true);
+  fireEvent.click(undo());
+  assert.equal(store().active().tree.startComment, undefined);
+
+  fireEvent.click(edit);
+  assert.equal(undo().disabled, true);
+  assert.equal(redo().disabled, false);
+  fireEvent.click(redo());
+  assert.equal(store().active().tree.startComment, "test");
+});

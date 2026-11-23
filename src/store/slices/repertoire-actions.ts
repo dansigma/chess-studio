@@ -13,6 +13,7 @@ import { getNodeAt, pathAlongLine, type GameTree } from "@/src/chess/tree";
 import { tPanels } from "@/src/i18n/studio-panel-strings";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { saveRepertoireProgress } from "@/src/lib/repertoire-progress";
+import { editBoard } from "./board-history";
 import { withActive } from "./board-helpers";
 import { selectRepertoireBoard } from "./selectors";
 import type { BoardOrientation, BoardSession, StudioState } from "./types";
@@ -52,7 +53,7 @@ function finishMerge(
   set((state) => ({
     pendingVariationMerge: null,
     statusMessage: tRepertoire(locale, "variation.mergeSummary", { title, lines, conflicts }),
-    boards: withActive(state.boards, board.id, (active) => ({
+    ...editBoard(state, (active) => ({
       ...active,
       tree,
       path: pathAlongLine(tree, [], ucis) ?? [],
@@ -183,7 +184,7 @@ export const createRepertoireActionsSlice: StateCreator<
     get().setActiveBoard(board.id);
     set((state) => ({
       statusMessage: tRepertoire(locale, "repertoire.deviation.gapAdded"),
-      boards: withActive(state.boards, state.activeBoardId, (active) => ({
+      ...editBoard(state, (active) => ({
         ...active,
         tree: added.tree,
         path: [...added.path],
