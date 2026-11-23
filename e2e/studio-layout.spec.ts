@@ -50,6 +50,34 @@ test.describe("studio layout: tight panel gaps and resize cursors", () => {
     expect(overflow).toBeLessThanOrEqual(1);
   });
 
+  test("maximizing a group is temporary and Escape restores its size", async ({ page }) => {
+    await page.goto("/studio");
+    const board = page.locator("[data-board-image]");
+    const notationTab = page.getByRole("tab", { name: "Notation" });
+    const notationGroup = page.locator(".dv-groupview", { has: notationTab });
+    await expect(board).toBeVisible();
+    await expect(notationGroup).toBeVisible();
+
+    const before = (await notationGroup.boundingBox())!;
+    const maximize = notationGroup.getByRole("button", { name: "Maximize" });
+    const restore = notationGroup.getByRole("button", { name: "Restore" });
+    await maximize.click();
+    await expect(restore).toBeVisible();
+    await expect(board).toBeHidden();
+    expect((await notationGroup.boundingBox())!.width).toBeGreaterThan(before.width);
+
+    await page.keyboard.press("Escape");
+    await expect(maximize).toBeVisible();
+    await expect(board).toBeVisible();
+    await expect.poll(() => notationGroup.boundingBox()).toEqual(before);
+
+    await maximize.click();
+    await expect(restore).toBeVisible();
+    await page.reload();
+    await expect(board).toBeVisible();
+    await expect(maximize).toBeVisible();
+  });
+
   test("both horizontal dividers compute cursor col-resize", async ({ page }) => {
     await page.goto("/studio");
     const board = page.locator("[data-board-image]");
