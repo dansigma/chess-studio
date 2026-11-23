@@ -66,6 +66,7 @@ export function NotationPanel() {
 
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const notationDensity = useStudioStore((state) => state.settings.notationDensity);
+  const showClockTimes = useStudioStore((state) => state.settings.showClockTimes);
   const compact = notationDensity === "compact";
   // SIG-857: single shared path-key subscription — Line rows receive it as a
   // prop instead of each subscribing with an inline find.
@@ -202,6 +203,7 @@ export function NotationPanel() {
               collapsed={collapsed}
               currentPath={currentPath}
               style={moveNotation}
+              showClockTimes={showClockTimes}
               goPath={goPath}
               onToggleCollapse={handleToggleCollapse}
               onAnnotate={handleAnnotate}
@@ -216,6 +218,7 @@ export function NotationPanel() {
                 collapsed={collapsed}
                 currentPath={currentPath}
                 style={moveNotation}
+                showClockTimes={showClockTimes}
                 density={notationDensity}
                 goPath={goPath}
                 onToggleCollapse={handleToggleCollapse}

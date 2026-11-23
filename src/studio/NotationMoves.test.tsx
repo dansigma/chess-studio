@@ -153,3 +153,38 @@ test("SIG-1219: reviewed moves carry their tier badge and a screen-reader tier n
     useReviewLabelsStore.setState({ boardId: null, labels: new Map() });
   }
 });
+
+for (const density of ["normal", "compact", "table"] as const) {
+  test(`clock display is optional for mainline and variation moves in ${density} notation`, () => {
+    const { tree } = importPgn(
+      "1. e4 $1 {[%clk 1:59:58]} (1. d4 {[%clk 0:09:57.2]} d5 {[%clk 0:00:00]}) e5 *",
+    );
+    const props = {
+      nodes: tree.children,
+      startFen: tree.startFen,
+      collapsed: new Set<string>(),
+      currentPath: "",
+      style: "english" as const,
+      goPath: noop,
+      onToggleCollapse: noop,
+      onAnnotate: noop,
+    };
+    function notation(showClockTimes: boolean) {
+      return density === "table"
+        ? <TableMainline {...props} showClockTimes={showClockTimes} />
+        : <Line {...props} parentPath={[]} density={density} showClockTimes={showClockTimes} />;
+    }
+
+    const { rerender } = render(notation(false));
+    moveButton("e4!");
+    moveButton("d4");
+    moveButton("d5");
+    moveButton("e5");
+
+    rerender(notation(true));
+    moveButton("e4! 1:59:58");
+    moveButton("d4 9:58");
+    moveButton("d5 0:00");
+    moveButton("e5");
+  });
+}
