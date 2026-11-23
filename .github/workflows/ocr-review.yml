@@ -11,8 +11,13 @@ on:
         description: Pull request number
         required: true
 
+# Concurrency is decided before the job's `if`, so an ordinary PR comment would
+# join the PR's group and cancel a running review even though its own run is
+# then skipped. Only a comment that passes the job's issue_comment conditions
+# (keep the two in sync) shares the PR group; any other comment gets a group of
+# its own. `format(...)` is never empty, so the `&& ||` pair acts as a ternary.
 concurrency:
-  group: ocr-${{ github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr || github.run_id }}
+  group: ocr-${{ (github.event_name == 'issue_comment' && !(github.event.issue.pull_request != null && github.event.comment.user.type != 'Bot' && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) && (startsWith(github.event.comment.body, '/open-code-review') || startsWith(github.event.comment.body, '@open-code-review')))) && format('comment-{0}', github.run_id) || (github.event.pull_request.number || github.event.issue.number || github.event.inputs.pr || github.run_id) }}
   cancel-in-progress: true
 
 permissions:
