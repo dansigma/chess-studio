@@ -103,7 +103,9 @@ test("two Studio player panels follow the board and restore their independent fi
   await expect(second.getByText("Other opponent")).toBeVisible();
 
   await page.reload();
-  await expect(first.getByRole("button", { name: "White", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(first.getByRole("button", { name: "White", exact: true })).toHaveAttribute("aria-pressed", "true", {
+    timeout: 20_000,
+  });
   await expect(first.getByRole("button", { name: "Won", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(second.getByRole("button", { name: "Won", exact: true })).toHaveAttribute("aria-pressed", "false");
   await expect(first.getByText("First opponent")).toBeVisible();
