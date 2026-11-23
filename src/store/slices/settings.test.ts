@@ -346,3 +346,26 @@ test("round-trips training scope by color and ignores malformed stored fields", 
   assert.deepEqual(useStudioStore.getState().settings.trainingScope, { white: { maxMove: 15 } });
   storage.delete(SETTINGS_KEY);
 });
+
+test("showClockTimes defaults off and persists as a local notation setting", async () => {
+  try {
+    for (const stored of [{}, { showClockTimes: "true" }]) {
+      storage.set(SETTINGS_KEY, JSON.stringify(stored));
+      actions().hydrateLocalSettings();
+      assert.equal(useStudioStore.getState().settings.showClockTimes, false);
+    }
+
+    const { persistSettings } = await import("../studio-store.ts");
+    for (const enabled of [true, false]) {
+      actions().toggleClockTimes();
+      assert.equal(useStudioStore.getState().settings.showClockTimes, enabled);
+      await persistSettings(useStudioStore.getState().settings);
+      resetSettings();
+      actions().hydrateLocalSettings();
+      assert.equal(useStudioStore.getState().settings.showClockTimes, enabled);
+    }
+  } finally {
+    storage.delete(SETTINGS_KEY);
+    resetSettings();
+  }
+});

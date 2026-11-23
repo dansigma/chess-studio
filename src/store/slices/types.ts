@@ -166,6 +166,7 @@ export type StudioSettings = {
   pieceSet: PieceSet;
   moveNotation: MoveNotation;
   notationDensity: NotationDensity;
+  showClockTimes: boolean;
   colorScheme: ColorScheme;
   gamePreviewEnabled: boolean;
   engineDepth: number;
@@ -305,6 +306,7 @@ export type StudioState = {
   setPieceSet: (set: PieceSet) => void;
   setMoveNotation: (notation: MoveNotation) => void;
   setNotationDensity: (density: NotationDensity) => void;
+  toggleClockTimes: () => void;
   setLocale: (locale: SiteLocale) => void;
   toggleNotationDensity: () => void;
   setColorScheme: (scheme: ColorScheme) => void;

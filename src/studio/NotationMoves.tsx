@@ -12,6 +12,7 @@ import { pathKey } from "./notation-format";
 import { useReviewTier } from "@/src/store/review-labels";
 import { useStudioStore } from "@/src/store/studio-store";
 import { tierName } from "@/src/chess/review-strings";
+import { formatDisplayClock } from "./live/live-clock";
 import { TierBadge } from "./review/TierBadge";
 
 /**
@@ -69,6 +70,8 @@ const MoveToken = memo(function MoveToken({
   san,
   color,
   nags,
+  clockMs,
+  showClockTimes,
   path,
   active,
   style,
@@ -81,6 +84,8 @@ const MoveToken = memo(function MoveToken({
   san: string;
   color: "w" | "b";
   nags?: number[];
+  clockMs?: number;
+  showClockTimes: boolean;
   /** SIG-1219: `pathKey` of the move; looks up its Game Review tier badge. */
   path: string;
   active: boolean;
@@ -117,6 +122,11 @@ const MoveToken = memo(function MoveToken({
       >
         {formatSan(san, style, color)}
         {suffix}
+        {showClockTimes && clockMs !== undefined ? (
+          <span className="whitespace-nowrap text-caption font-normal tabular-nums text-studio-faint">
+            {" "}{formatDisplayClock(clockMs)}
+          </span>
+        ) : null}
         {tier ? (
           <>
             {/* SIG-1219: same height as the 20px text line, so rows keep their density. */}
@@ -201,6 +211,7 @@ type LineProps = {
   currentPath: string;
   style: MoveNotation;
   density?: NotationDensity;
+  showClockTimes?: boolean;
   goPath: (path: Path) => void;
   onToggleCollapse: (key: string) => void;
   onAnnotate: (path: Path, event: React.MouseEvent) => void;
@@ -232,7 +243,10 @@ function Variations({
   forceBlock?: boolean;
   props: Omit<LineProps, "nodes" | "parentPath" | "continuation" | "depth">;
 }) {
-  const { startFen, collapsed, currentPath, style, density = "normal", goPath, onToggleCollapse, onAnnotate, locale = "en" } = props;
+  const {
+    startFen, collapsed, currentPath, style, density = "normal", showClockTimes = false,
+    goPath, onToggleCollapse, onAnnotate, locale = "en",
+  } = props;
   const containerClass = forceBlock ? variationClass(1, "normal") : variationClass(depth, density);
   const inline = !forceBlock && (density === "compact" || depth >= INLINE_FROM_DEPTH);
   const collapseKey = pathKey(parent);
@@ -254,6 +268,8 @@ function Variations({
               san={variation.san}
               color={color}
               nags={variation.nags}
+              clockMs={variation.clockMs}
+              showClockTimes={showClockTimes}
               path={pathKey(variationPath)}
               active={currentPath === pathKey(variationPath)}
               style={style}
@@ -271,6 +287,7 @@ function Variations({
                 collapsed={collapsed}
                 currentPath={currentPath}
                 style={style}
+                showClockTimes={showClockTimes}
                 density={forceBlock && density === "table" ? "normal" : density}
                 goPath={goPath}
                 onToggleCollapse={onToggleCollapse}
@@ -295,6 +312,7 @@ export const Line = memo(function Line({
   currentPath,
   style,
   density = "normal",
+  showClockTimes = false,
   goPath,
   onToggleCollapse,
   onAnnotate,
@@ -347,6 +365,8 @@ export const Line = memo(function Line({
         san={node.san}
         color={color}
         nags={node.nags}
+        clockMs={node.clockMs}
+        showClockTimes={showClockTimes}
         path={pathKey(nodePath)}
         active={currentPath === pathKey(nodePath)}
         style={style}
@@ -391,7 +411,7 @@ export const Line = memo(function Line({
             number={number}
             color={color}
             depth={childDepth}
-            props={{ startFen, collapsed, currentPath, style, density, goPath, onToggleCollapse, onAnnotate, locale }}
+            props={{ startFen, collapsed, currentPath, style, density, showClockTimes, goPath, onToggleCollapse, onAnnotate, locale }}
           />,
         );
       }
@@ -417,6 +437,7 @@ export const TableMainline = memo(function TableMainline({
   collapsed,
   currentPath,
   style,
+  showClockTimes = false,
   goPath,
   onToggleCollapse,
   onAnnotate,
@@ -478,6 +499,8 @@ export const TableMainline = memo(function TableMainline({
         san={node.san}
         color={color}
         nags={node.nags}
+        clockMs={node.clockMs}
+        showClockTimes={showClockTimes}
         path={pathKey(nodePath)}
         active={currentPath === pathKey(nodePath)}
         style={style}
@@ -512,7 +535,7 @@ export const TableMainline = memo(function TableMainline({
               color={color}
               depth={1}
               forceBlock
-              props={{ startFen, collapsed, currentPath, style, density: "table", goPath, onToggleCollapse, onAnnotate, locale }}
+              props={{ startFen, collapsed, currentPath, style, density: "table", showClockTimes, goPath, onToggleCollapse, onAnnotate, locale }}
             />
           ),
         );
