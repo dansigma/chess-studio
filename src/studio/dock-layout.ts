@@ -1,3 +1,5 @@
+import { parsePlayerPanelParams } from "./player-panel-params";
+
 const STUDIO_PANELS = new Set([
   "notation",
   "repertoire",
@@ -36,8 +38,12 @@ export function isExplorerPanelId(id: string): boolean {
   return suffix.length > 0 && !/\s/.test(suffix);
 }
 
+export function isPlayerPanelId(id: string): boolean {
+  return /^player:[^\s]+$/.test(id);
+}
+
 function isAllowedPanelId(id: string): boolean {
-  return STUDIO_PANELS.has(id) || isBoardPanelId(id) || isExplorerPanelId(id);
+  return STUDIO_PANELS.has(id) || isBoardPanelId(id) || isExplorerPanelId(id) || isPlayerPanelId(id) || id === "player-explorer";
 }
 
 export const DOCK_LAYOUT_VERSION = "board-tabs-1";
@@ -283,7 +289,11 @@ export function sanitizeDockLayout(
         continue;
       }
     }
-    if (typeof panel.contentComponent === "string") {
+    if (isPlayerPanelId(id)) {
+      if (panel.contentComponent !== "player") continue;
+    } else if (id === "player-explorer") {
+      if (panel.contentComponent !== "playerExplorer" || !parsePlayerPanelParams(panel.params).player) continue;
+    } else if (typeof panel.contentComponent === "string") {
       const expected = isBoardPanelId(id) || isExplorerPanelId(id) ? id.slice(0, id.indexOf(":")) : id;
       if (panel.contentComponent !== expected) {
         continue;
@@ -321,7 +331,9 @@ export function sanitizeDockLayout(
   const panels: Record<string, unknown> = {};
   for (const [id, panel] of Object.entries(dock.panels)) {
     if (referenced.has(id) && isRecord(panel)) {
-      panels[id] = panel;
+      panels[id] = isPlayerPanelId(id) || id === "player-explorer"
+        ? { ...panel, params: parsePlayerPanelParams(panel.params) }
+        : panel;
     }
   }
   if (Object.keys(panels).length === 0) {

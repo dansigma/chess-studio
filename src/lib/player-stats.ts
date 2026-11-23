@@ -1,15 +1,25 @@
 import { Chess } from "chess.js";
 import { sanMovesFromPgn } from "@/src/chess/pgn-clean";
 import type { ExplorerMoveRow } from "@/src/lib/explorer-types";
-import type { PlayerGame } from "@/src/lib/player-types";
+import type { PlayerColorFilter, PlayerGame, PlayerResultFilter } from "@/src/lib/player-types";
 
 export type IndexedHit = {
   san: string;
   uci: string;
   playerResult: PlayerGame["playerResult"];
+  playerMoved: boolean;
 };
 
-export type PlayerPositionIndex = Map<string, IndexedHit[]>;
+export type PlayerPositionIndex = {
+  moves: Map<string, IndexedHit[]>;
+  games: Map<string, Map<string, PlayerGame>>;
+};
+
+export function filterPlayerGames(games: PlayerGame[], color: PlayerColorFilter, result: PlayerResultFilter) {
+  return games.filter((game) =>
+    (color === "all" || game.color === color) && (result === "all" || game.playerResult === result),
+  );
+}
 
 export function normalizeFen(fen: string): string {
   return fen.split(" ").slice(0, 4).join(" ");
@@ -26,11 +36,31 @@ function sansForGame(game: PlayerGame): string[] {
 }
 
 export function buildPlayerIndex(games: PlayerGame[]): PlayerPositionIndex {
-  const index: PlayerPositionIndex = new Map();
+  const index: PlayerPositionIndex = { moves: new Map(), games: new Map() };
   const chess = new Chess();
+
+  function recordPosition(fen: string, game: PlayerGame) {
+    let reached = index.games.get(fen);
+    if (!reached) {
+      reached = new Map();
+      index.games.set(fen, reached);
+    }
+    reached.set(game.id, game);
+  }
+
   for (const game of games) {
     chess.reset();
-    for (const san of sansForGame(game)) {
+    const startFen = game.pgn?.match(/^\s*\[FEN "([^"]+)"\]/m)?.[1];
+    if (startFen) {
+      try {
+        chess.load(startFen);
+      } catch {
+        continue;
+      }
+    }
+    const sans = sansForGame(game);
+    if (game.pgn?.trim() || sans.length > 0) recordPosition(normalizeFen(chess.fen()), game);
+    for (const san of sans) {
       const fen = normalizeFen(chess.fen());
       let played;
       try {
@@ -38,18 +68,16 @@ export function buildPlayerIndex(games: PlayerGame[]): PlayerPositionIndex {
       } catch {
         break;
       }
-      const uci = `${played.from}${played.to}${played.promotion ?? ""}`;
-      const hits = index.get(fen);
       const hit: IndexedHit = {
         san: played.san,
-        uci,
+        uci: `${played.from}${played.to}${played.promotion ?? ""}`,
         playerResult: game.playerResult,
+        playerMoved: played.color === (game.color === "white" ? "w" : "b"),
       };
-      if (hits) {
-        hits.push(hit);
-      } else {
-        index.set(fen, [hit]);
-      }
+      const hits = index.moves.get(fen);
+      if (hits) hits.push(hit);
+      else index.moves.set(fen, [hit]);
+      recordPosition(normalizeFen(chess.fen()), game);
     }
   }
   return index;
@@ -58,13 +86,15 @@ export function buildPlayerIndex(games: PlayerGame[]): PlayerPositionIndex {
 export function playerMoveStatsFromIndex(
   index: PlayerPositionIndex,
   fen: string,
+  playerMovesOnly = false,
 ): ExplorerMoveRow[] {
-  const hits = index.get(normalizeFen(fen)) ?? [];
+  const hits = index.moves.get(normalizeFen(fen)) ?? [];
   const moves = new Map<
     string,
     { san: string; uci: string; white: number; draws: number; black: number }
   >();
   for (const hit of hits) {
+    if (playerMovesOnly && !hit.playerMoved) continue;
     const current = moves.get(hit.uci) ?? {
       san: hit.san,
       uci: hit.uci,
@@ -96,4 +126,11 @@ export function playerMoveStatsFromIndex(
 
 export function playerMoveStats(games: PlayerGame[], fen: string): ExplorerMoveRow[] {
   return playerMoveStatsFromIndex(buildPlayerIndex(games), fen);
+}
+
+export function playerGamesFromIndex(index: PlayerPositionIndex, fen: string): PlayerGame[] {
+  function date(game: PlayerGame): number {
+    return game.playedAt ?? (game.year ? Date.UTC(game.year, (game.month ?? 1) - 1) : -Infinity);
+  }
+  return [...(index.games.get(normalizeFen(fen))?.values() ?? [])].sort((a, b) => (date(b) - date(a)) || 0);
 }
