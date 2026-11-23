@@ -12,6 +12,7 @@ import { clearLocalFiles, EMPTY_FILES } from "@/src/lib/user-files";
 // SIG-857 Phase C: slice modules own types, selectors, board helpers, and
 // settings defaults. The store composes them into the single create() below
 // so all 30+ existing `@/src/store/studio-store` import paths keep working.
+import { pruneBoardHistories } from "./slices/board-history";
 import { emptyBoard } from "./slices/board-helpers";
 import { createFilesSlice, unblockLocalWrites } from "./slices/files";
 import { createBoardsSlice } from "./slices/boards";
@@ -257,6 +258,7 @@ export const useStudioStore = create<StudioState>((set, get) => ({
       statusMessage: null,
       // SIG-1384: signing out drops any pending cut undo with the session.
       pendingCutUndo: null,
+      boardHistories: new Map(),
       aboutOpen: false,
       shortcutsOpen: false,
       saveAsOpen: false,
@@ -318,10 +320,15 @@ useStudioStore.subscribe((state) => {
   }
 });
 
+useStudioStore.subscribe((state, previous) => {
+  if (state.boards === previous.boards || state.boardHistories.size === 0) return;
+  const boardHistories = pruneBoardHistories(state);
+  if (boardHistories !== state.boardHistories) useStudioStore.setState({ boardHistories });
+});
+
 // SIG-1384: the Desfazer toast only lives while the active board still holds
-// the tree the cut produced. Every tree write is immutable, so any newer edit,
-// board switch or board close drops the snapshot instead of letting undo
-// clobber it. (Navigation alone keeps the same tree and the toast alive.)
+// the tree the cut produced. Board replacement, a switch or a close drops
+// the toast. Navigation alone keeps the same tree and the toast alive.
 useStudioStore.subscribe((state) => {
   const pending = state.pendingCutUndo;
   if (!pending) {

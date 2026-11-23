@@ -3,7 +3,6 @@
 // Every entry mirrors a real binding: the global keydown handler in
 // StudioShell.tsx, the toolbar buttons in NotationToolbar.tsx (same bindings),
 // and the touch/mouse gestures in BoardPanel.tsx / MobileMoveStrip.tsx.
-// Menu-only shortcut hints that have no handler (e.g. Ctrl+Z) are NOT listed.
 // Key labels match the shortcut hints the menus already show ("Ctrl", "Del",
 // "←") and stay untranslated, same as the menu `shortcut` props.
 import type { StudioChromeStringKey } from "@/src/i18n/studio-chrome-strings";
@@ -31,6 +30,8 @@ export const SHORTCUT_ENTRIES: readonly ShortcutEntry[] = [
   { group: "navigation", action: "chrome.moves.next", gesture: "chrome.shortcuts.gesture.swipeLeft" },
   { group: "navigation", action: "chrome.moves.previous", gesture: "chrome.shortcuts.gesture.swipeRight" },
   // Editing — StudioShell `onKey` + the Edit menu / NotationToolbar bindings.
+  { group: "editing", action: "chrome.edit.undo", chords: [["Ctrl", "Z"]] },
+  { group: "editing", action: "chrome.edit.redo", chords: [["Ctrl", "Y"], ["Ctrl", "Shift", "Z"]] },
   { group: "editing", action: "chrome.edit.textAfter", chords: [["Ctrl", "A"]] },
   { group: "editing", action: "chrome.edit.textBefore", chords: [["Ctrl", "Shift", "A"]] },
   { group: "editing", action: "chrome.edit.promote", chords: [["Ctrl", "↑"]] },

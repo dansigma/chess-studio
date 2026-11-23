@@ -241,3 +241,28 @@ test("existing guards: editable target and [data-promotion-open] block shortcuts
   assert.equal(promoEv.defaultPrevented, false);
   assert.deepEqual(useStudioStore.getState().active().path, []);
 });
+
+test("Ctrl+Z undoes edits outside text fields and both redo chords reapply them", () => {
+  const { deps } = makeDeps();
+  const store = () => useStudioStore.getState();
+  store().setMoveComment("test comment");
+
+  for (const element of [document.createElement("input"), document.createElement("textarea")]) {
+    const event = makeKeyEvent("z", { ctrlKey: true });
+    Object.defineProperty(event, "target", { value: element });
+    handleStudioShellKey(event, deps);
+    assert.equal(event.defaultPrevented, false);
+    assert.equal(store().active().tree.startComment, "test comment");
+  }
+
+  for (const redo of [makeKeyEvent("y", { ctrlKey: true }), makeKeyEvent("Z", { ctrlKey: true, shiftKey: true })]) {
+    const undo = makeKeyEvent("z", { ctrlKey: true });
+    handleStudioShellKey(undo, deps);
+    assert.equal(undo.defaultPrevented, true);
+    assert.equal(store().active().tree.startComment, undefined);
+
+    handleStudioShellKey(redo, deps);
+    assert.equal(redo.defaultPrevented, true);
+    assert.equal(store().active().tree.startComment, "test comment");
+  }
+});

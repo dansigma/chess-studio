@@ -43,21 +43,27 @@ import {
 } from "@/src/lib/mistake-exercises-store";
 import { playMoveSound, shouldPlayMoveSound } from "@/src/chess/move-sound";
 import { emptyBoard, newId, nextActiveBoardId, withActive } from "./board-helpers";
+import { canStepBoardHistory, editBoard, stepBoardHistory } from "./board-history";
 import { selectActiveBoard } from "./selectors";
 import type { BoardSession, StudioState } from "./types";
 
-// The bulk-playback flag suppresses per-move sounds while playUciSequence
-// replays many moves, then plays a single advance sound at the end.
-let suppressMoveSound = false;
+function playBoardMove(board: BoardSession, from: string, to: string, promotion?: string) {
+  const chess = new Chess(getFenAt(board.tree, board.path));
+  const move = chess.move({ from, to, promotion });
+  return playMove(board.tree, board.path, {
+    san: move.san,
+    uci: `${move.from}${move.to}${move.promotion ?? ""}`,
+    fen: chess.fen(),
+    from: move.from,
+    to: move.to,
+  });
+}
 
 function soundForAdvance(
   get: () => StudioState,
   previous: number[],
   next?: number[],
 ): void {
-  if (suppressMoveSound) {
-    return;
-  }
   const state = get();
   if (
     shouldPlayMoveSound(state.settings.moveSound, previous, next ?? state.active().path)
@@ -264,6 +270,7 @@ export type BoardsSlice = Pick<
   | "hydrateRepertoire"
   | "setMistakeExercises"
   | "hydrateMistakeExercises"
+  | "boardHistories"
   | "undo"
   | "redo"
   | "setBoardsHydrated"
@@ -299,6 +306,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
   get,
 ) => ({
   ...initialBoardsState,
+  boardHistories: new Map(),
   active: () => {
     return selectActiveBoard(get());
   },
@@ -475,26 +483,13 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     }
     const board = get().active();
     const previous = board.path;
-    const chess = new Chess(getFenAt(board.tree, previous));
     try {
-      const move = chess.move({ from, to, promotion });
-      const next = playMove(board.tree, previous, {
-        san: move.san,
-        uci: `${move.from}${move.to}${move.promotion ?? ""}`,
-        fen: chess.fen(),
-        from: move.from,
-        to: move.to,
-      });
+      const next = playBoardMove(board, from, to, promotion);
       set((state) => ({
         threat: null,
         // SIG-1187: the cursor left the pending choice — see back().
         variationChoice: null,
-        boards: withActive(state.boards, state.activeBoardId, (active) => ({
-          ...active,
-          tree: next.tree,
-          path: next.path,
-          dirty: true,
-        })),
+        ...editBoard(state, (active) => ({ ...active, ...next, dirty: true })),
       }));
       soundForAdvance(get, previous);
       return true;
@@ -509,25 +504,25 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     if (get().training || get().retry.active) {
       return;
     }
-    const previous = get().active().path;
-    // SIG-906: clear the threat arrow; the toggle stays on so useThreat
-    // recomputes for the new FEN.
-    set({ enginePreview: null, threat: null });
-    suppressMoveSound = true;
-    try {
-      for (const uci of ucis) {
-        const from = uci.slice(0, 2);
-        const to = uci.slice(2, 4);
-        const promotion = uci.length > 4 ? uci[4] : undefined;
-        const ok = get().makeUciMove(from, to, promotion);
-        if (!ok) {
-          break;
-        }
+    const board = get().active();
+    let next = board;
+    let failed = false;
+    for (const uci of ucis) {
+      try {
+        const move = playBoardMove(next, uci.slice(0, 2), uci.slice(2, 4), uci[4]);
+        next = { ...next, ...move, dirty: true };
+      } catch {
+        failed = true;
+        break;
       }
-    } finally {
-      suppressMoveSound = false;
     }
-    soundForAdvance(get, previous);
+    set((state) => ({
+      enginePreview: null,
+      threat: null,
+      ...(next !== board ? { variationChoice: null, ...editBoard(state, () => next, board) } : {}),
+      ...(failed ? { statusMessage: "That move could not be applied." } : {}),
+    }));
+    soundForAdvance(get, board.path);
   },
   insertEngineLines: (fen, lines) => {
     if (get().training) {
@@ -592,7 +587,7 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     const tree = merged;
     set((state) => ({
       statusMessage: `Inserted ${inserted} line${inserted === 1 ? "" : "s"}.`,
-      boards: withActive(state.boards, state.activeBoardId, (active) => ({
+      ...editBoard(state, (active) => ({
         ...active,
         tree,
         dirty: true,
@@ -869,8 +864,12 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
     set({ mistakeExercises: exercises });
   },
   setBoardsHydrated: () => set({ boardsHydrated: true }),
-  undo: () => get().back(),
-  redo: () => get().forward(),
+  undo: () => {
+    set((state) => canStepBoardHistory(state, "undo") ? stepBoardHistory(state, "undo") : state);
+  },
+  redo: () => {
+    set((state) => canStepBoardHistory(state, "redo") ? stepBoardHistory(state, "redo") : state);
+  },
   hydrateRemoteBoard: (board) => {
     set((state) => {
       const exists = state.boards.some((item) => item.remoteId === board.remoteId);

@@ -1,3 +1,4 @@
+import type { BoardHistories } from "./board-history";
 import type { Scope } from "@/src/chess/repertoire-scope";
 import type { VariationMergeConflict, VariationMergeDecisions } from "@/src/chess/repertoire-merge";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -73,17 +74,9 @@ export type RetrySession =
       queue: RetryTarget[];
     });
 
-/**
- * SIG-1384: the one-level undo behind the Desfazer toast for a destructive cut
- * (`Delete` / `Ctrl+Delete`). `tree`/`path` are the board state just before the
- * cut; `cutTree` is the tree the cut produced, so any later edit (every tree
- * write is immutable) or board switch can invalidate the pending undo instead
- * of letting it clobber newer work.
- */
+/** Identifies the cut the toast can undo while its history entry is current. */
 export type CutUndo = {
   boardId: string;
-  tree: GameTree;
-  path: Path;
   cutTree: GameTree;
 };
 
@@ -291,6 +284,7 @@ export type StudioState = {
   cancelVariationChoice: () => void;
   toStart: () => void;
   toEnd: () => void;
+  boardHistories: BoardHistories;
   undo: () => void;
   redo: () => void;
   flip: () => void;
