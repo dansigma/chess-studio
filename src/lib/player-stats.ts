@@ -132,5 +132,5 @@ export function playerGamesFromIndex(index: PlayerPositionIndex, fen: string): P
   function date(game: PlayerGame): number {
     return game.playedAt ?? (game.year ? Date.UTC(game.year, (game.month ?? 1) - 1) : -Infinity);
   }
-  return [...(index.games.get(normalizeFen(fen))?.values() ?? [])].sort((a, b) => date(b) - date(a));
+  return [...(index.games.get(normalizeFen(fen))?.values() ?? [])].sort((a, b) => (date(b) - date(a)) || 0);
 }
