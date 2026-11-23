@@ -62,7 +62,7 @@ before(async () => {
   ]));
   host.__CF_ENV = {
     RL_60_MIN: { limit: async () => ({ success: true }) },
-    ENGINE: {
+    XD_DATABASE: {
       async get(key: string, options?: { range: { offset: number; length: number } }) {
         const range = options?.range;
         reads.push({ key, range });
