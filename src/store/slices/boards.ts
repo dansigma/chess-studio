@@ -29,6 +29,8 @@ import {
 import { persistBoardClose } from "@/src/lib/close-board-persistence";
 import { pickOpponentReply, trainingAttempt, trainingColor } from "@/src/chess/training";
 import { sideFromFen } from "@/src/chess/move-notation";
+import { parseMovesFromText } from "@/src/chess/parse-moves";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { tRepertoire } from "@/src/i18n/repertoire-strings";
 import { tPanels } from "@/src/i18n/studio-panel-strings";
 import {
@@ -253,6 +255,7 @@ export type BoardsSlice = Pick<
   | "setActiveBoard"
   | "makeUciMove"
   | "playUciSequence"
+  | "pasteMoves"
   | "insertEngineLines"
   | "goPath"
   | "back"
@@ -521,6 +524,37 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       threat: null,
       ...(next !== board ? { variationChoice: null, ...editBoard(state, () => next, board) } : {}),
       ...(failed ? { statusMessage: "That move could not be applied." } : {}),
+    }));
+    soundForAdvance(get, board.path);
+  },
+  pasteMoves: (text) => {
+    if (get().training || get().retry.active || get().setupMode) {
+      return;
+    }
+    const locale = get().settings.locale;
+    const board = get().active();
+    const parsed = parseMovesFromText(text, getFenAt(board.tree, board.path));
+    if (parsed.moves.length === 0) {
+      set({
+        statusMessage: tStudioChrome(locale, parsed.fullPgn ? "chrome.paste.fullPgn" : "chrome.paste.noMoves"),
+      });
+      return;
+    }
+    const count = parsed.moves.length;
+    set((state) => ({
+      enginePreview: null,
+      threat: null,
+      variationChoice: null,
+      ...editBoard(state, (current) => {
+        // Same fold as `insertLine` (reuses existing nodes), keeping the tip.
+        let tree = current.tree;
+        let path = current.path;
+        for (const move of parsed.moves) {
+          ({ tree, path } = playMove(tree, path, move));
+        }
+        return { ...current, tree, path, dirty: true };
+      }, board),
+      statusMessage: tStudioChrome(locale, count === 1 ? "chrome.paste.done.one" : "chrome.paste.done.other", { count }),
     }));
     soundForAdvance(get, board.path);
   },

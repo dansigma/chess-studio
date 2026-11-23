@@ -435,3 +435,29 @@ test("autoQueen defaults to off, ignores invalid values and toggles", () => {
     resetSettings();
   }
 });
+
+test("textSize defaults to default, persists valid values and rejects invalid ones", () => {
+  // SIG-1461
+  assert.equal(DEFAULT_SETTINGS.textSize, "default");
+
+  storage.delete(SETTINGS_KEY);
+  resetSettings();
+  actions().hydrateLocalSettings();
+  assert.equal(useStudioStore.getState().settings.textSize, "default");
+
+  for (const persisted of ["small", "large", "default"]) {
+    storage.set(SETTINGS_KEY, JSON.stringify({ textSize: persisted }));
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.textSize, persisted);
+  }
+
+  storage.set(SETTINGS_KEY, JSON.stringify({ textSize: "huge" }));
+  actions().hydrateLocalSettings();
+  assert.equal(useStudioStore.getState().settings.textSize, "default");
+
+  actions().setTextSize("large");
+  assert.equal(useStudioStore.getState().settings.textSize, "large");
+
+  storage.delete(SETTINGS_KEY);
+  resetSettings();
+});

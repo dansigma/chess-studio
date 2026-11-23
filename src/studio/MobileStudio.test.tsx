@@ -347,3 +347,19 @@ test("choosing a game in the Games sheet from Library returns to the board", () 
   assert.equal(closed, 1);
   assert.equal(useStudioStore.getState().workspaceView, "studio");
 });
+
+test("panel area carries data-text-size for small/large and none for default (SIG-1461)", () => {
+  render(<MobileStudio onOpenPgn={() => {}} />);
+  const area = () => document.querySelector("[data-mobile-panel-area]");
+  assert.equal(area()?.hasAttribute("data-text-size"), false);
+  for (const size of ["small", "large"] as const) {
+    act(() => {
+      useStudioStore.getState().setTextSize(size);
+    });
+    assert.equal(area()?.getAttribute("data-text-size"), size);
+  }
+  act(() => {
+    useStudioStore.getState().setTextSize("default");
+  });
+  assert.equal(area()?.hasAttribute("data-text-size"), false);
+});

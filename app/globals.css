@@ -236,16 +236,34 @@ html[data-color-scheme="light"] {
   --color-studio-tier-blunder-fg: var(--studio-tier-blunder-fg);
   --color-studio-tier-forced: var(--studio-tier-forced);
   --color-studio-tier-forced-fg: var(--studio-tier-forced-fg);
-  --text-caption: 11px;
-  --text-caption--line-height: 1.4;
-  --text-dense: 12px;
-  --text-dense--line-height: 1.45;
   --text-body: 13px;
   --text-body--line-height: 1.45;
   --text-title: 16px;
   --text-title--line-height: 1.3;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* SIG-1461: these two tokens live in a non-inline @theme so the text-caption /
+   text-dense utilities read var(--text-*) and [data-text-size] can override them
+   (inside `@theme inline` they compile to fixed px values). */
+@theme {
+  --text-caption: 11px;
+  --text-caption--line-height: 1.4;
+  --text-dense: 12px;
+  --text-dense--line-height: 1.45;
+}
+
+/* SIG-1461: text size for dock / mobile panel lists only; menus, dialogs and
+   the board live outside these containers and keep the global tokens. */
+[data-text-size="small"] {
+  --text-caption: 10px;
+  --text-dense: 11px;
+}
+
+[data-text-size="large"] {
+  --text-caption: 12px;
+  --text-dense: 14px;
 }
 
 html,

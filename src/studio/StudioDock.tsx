@@ -12,6 +12,7 @@ import {
 } from "dockview-react";
 import type { IDockviewPanelProps, SerializedDockview } from "dockview-core";
 import { BoardPanel } from "./BoardPanel";
+import { textSizeAttr } from "./text-size";
 import { EnginePanel } from "./EnginePanel";
 import { EvalGraphPanel } from "./EvalGraphPanel";
 import { ReviewPanel } from "./ReviewPanel";
@@ -24,7 +25,7 @@ import { PositionSearchPanel } from "./PositionSearchPanel";
 import { MyStatsPanel } from "./MyStatsPanel";
 import { OpponentPrepPanel } from "./OpponentPrepPanel";
 import { RepertoirePanel } from "./RepertoirePanel";
-import { PlayerExplorerPanel } from "./PlayerExplorerPanel";
+import { ComparisonPlayerPanel, PlayerExplorerPanel } from "./PlayerExplorerPanel";
 import { PlayerGamesPanel } from "./PlayerGamesPanel";
 import {
   BookOpen,
@@ -65,11 +66,13 @@ import {
   type StudioPanelId,
 } from "./dock-api";
 import { explorerGamesTitle } from "@/src/lib/explorer-types";
+import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import {
   currentDockLayoutEpoch,
   DOCK_LAYOUT_VERSION,
   isBoardPanelId,
   isExplorerPanelId,
+  isPlayerPanelId,
   markPanelsEnsured,
   panelsEnsured,
   readStoredDockLayout,
@@ -81,6 +84,7 @@ import {
   type DockLayoutSnapshot,
   type DockPresetId,
 } from "./dock-layout";
+import { parsePlayerPanelParams } from "./player-panel-params";
 import { parseExplorerSource } from "./ExplorerPanel";
 import { ChessboardIcon } from "./ui/ChessboardIcon";
 import { GroupHeaderActions } from "./GroupHeaderActions";
@@ -108,7 +112,7 @@ function StudioTab(props: IDockviewPanelHeaderProps) {
   // SIG-908: same for `explorer:<uid>` panels.
   const Icon =
     TAB_ICONS[props.api.id] ??
-    (isBoardPanelId(props.api.id) ? ChessboardIcon : isExplorerPanelId(props.api.id) ? BookOpen : undefined);
+    (isBoardPanelId(props.api.id) ? ChessboardIcon : isExplorerPanelId(props.api.id) ? BookOpen : isPlayerPanelId(props.api.id) ? UserSearch : undefined);
   return (
     <div className="flex h-full min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
       {Icon ? <Icon aria-hidden="true" className="dv-tab-context-icon ml-0.5 shrink-0 transition-opacity" size={13} /> : null}
@@ -158,7 +162,8 @@ const components = {
   positionSearch: () => <PositionSearchPanel />,
   myStats: () => <MyStatsPanel />,
   opponentPrep: () => <OpponentPrepPanel />,
-  playerExplorer: () => <PlayerExplorerPanel />,
+  playerExplorer: (props: IDockviewPanelProps) => <PlayerExplorerPanel params={props.params} />,
+  player: (props: IDockviewPanelProps) => <ComparisonPlayerPanel panelId={props.api.id} params={props.params} />,
   playerGames: () => <PlayerGamesPanel />,
 };
 
@@ -239,7 +244,9 @@ function ensureRepertoirePanel(api: DockviewReadyEvent["api"]): void {
 }
 
 function ensurePlayerPanels(api: DockviewReadyEvent["api"], title: string) {
-  const locale = useStudioStore.getState().settings.locale;
+  const { settings: { locale }, playerProfile, playerColorFilter, playerResultFilter } = useStudioStore.getState();
+  const params = { player: playerProfile, color: playerColorFilter, result: playerResultFilter };
+  const reference = api.getPanel("notation") ?? api.panels.find((panel) => isBoardPanelId(panel.id));
   const explorerTitle = playerExplorerTitle(locale, title);
   const gamesTitle = playerGamesTitle(locale, title);
   const explorer = api.getPanel("player-explorer");
@@ -248,9 +255,11 @@ function ensurePlayerPanels(api: DockviewReadyEvent["api"], title: string) {
       id: "player-explorer",
       component: "playerExplorer",
       title: explorerTitle,
-      position: { referencePanel: "notation" },
+      params,
+      position: reference ? { referencePanel: reference.id } : undefined,
     });
   } else {
+    explorer.api.updateParameters(params);
     explorer.setTitle(explorerTitle);
   }
   const games = api.getPanel("player-games");
@@ -259,7 +268,7 @@ function ensurePlayerPanels(api: DockviewReadyEvent["api"], title: string) {
       id: "player-games",
       component: "playerGames",
       title: gamesTitle,
-      position: { referencePanel: "notation" },
+      position: { referencePanel: "player-explorer" },
     });
   } else {
     games.setTitle(gamesTitle);
@@ -268,6 +277,7 @@ function ensurePlayerPanels(api: DockviewReadyEvent["api"], title: string) {
 }
 
 export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
+  const textSize = useStudioStore((state) => state.settings.textSize);
   const containerRef = useRef<HTMLDivElement>(null);
   const locale = useStudioStore((state) => state.settings.locale);
   // SIG-907: per-board title signature so every `board:*` tab tracks its own
@@ -442,8 +452,15 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
         panel.setTitle(explorerTitleForSource(source, state.files.databases, locale));
         continue;
       }
+      if (isPlayerPanelId(id)) {
+        // Restored params are on the panel before the API sees a parameter update.
+        const { player } = parsePlayerPanelParams(panel.toJSON().params);
+        panel.setTitle(player?.displayName ?? tPanels(locale, "panels.player"));
+        continue;
+      }
       if (id === "player-explorer") {
-        const name = state.playerProfile?.displayName;
+        const { player } = parsePlayerPanelParams(panel.toJSON().params);
+        const name = (state.playerProfile ?? player)?.displayName;
         if (name) {
           panel.setTitle(playerExplorerTitle(locale, name));
         }
@@ -683,7 +700,7 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
   }, [visible]);
 
   return (
-    <div ref={containerRef} className="h-full w-full">
+    <div ref={containerRef} className="h-full w-full" data-text-size={textSizeAttr(textSize)}>
       <DockviewReact
         key={`${layoutNonce}-${DOCK_LAYOUT_VERSION}`}
         className="h-full w-full"

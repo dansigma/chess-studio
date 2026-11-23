@@ -36,8 +36,8 @@ test("studio panel interpolated strings render whole sentences with vars", () =>
   assert.equal(tPanels("pt-br", "games.source.curated"), "Selecionados");
   assert.equal(tPanels("en", "explorer.column.split"), "White · Draws · Black");
   assert.equal(tPanels("pt-br", "explorer.column.split"), "Brancas · Empates · Pretas");
-  assert.equal(tPanels("en", "players.column.split"), "White · Draws · Black");
-  assert.equal(tPanels("pt-br", "players.column.split"), "Brancas · Empates · Pretas");
+  assert.equal(tPanels("en", "players.column.split"), "Wins · Draws · Losses");
+  assert.equal(tPanels("pt-br", "players.column.split"), "Vitórias · Empates · Derrotas");
   assert.equal(tPanels("en", "panels.playerGames", { title: "Magnus" }), "Magnus — games");
   assert.equal(tPanels("pt-br", "panels.playerGames", { title: "Magnus" }), "Magnus — partidas");
   assert.equal(tPanels("en", "panels.playerExplorer", { title: "Magnus" }), "Magnus");

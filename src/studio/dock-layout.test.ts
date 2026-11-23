@@ -412,3 +412,30 @@ test("a saved layout keeps the retired opponentPrep panel so it can redirect", (
   assert.equal(root.root.data[0]?.data.activeView, "opponentPrep");
   assert.deepEqual(Object.keys(snapshot.dock.panels).sort(), ["board:b1", "opponentPrep"]);
 });
+
+test("player panels restore independent selections and normalize invalid params", () => {
+  const player = { id: "lichess:one", source: "lichess", username: "one", displayName: "One", subtitle: "Lichess" };
+  const other = { ...player, id: "chesscom:two", source: "chesscom", username: "two", displayName: "Two" };
+  const panel = (id: string, params: unknown, contentComponent = "player") => ({ id, contentComponent, params });
+  const panels = {
+    "player:a": panel("player:a", { player, color: "white", result: "win" }),
+    "player:b": panel("player:b", { player: other, color: "black", result: "draw" }),
+    "player:c": panel("player:c", { player: { ...player, source: "unknown" }, color: false, result: "invalid" }),
+    "player:bad": panel("player:bad", {}, "explorer"),
+    "player:": panel("player:", {}),
+    "player-explorer": panel("player-explorer", { player }, "playerExplorer"),
+  };
+  const snapshot = sanitizeDockLayout({
+    version: DOCK_LAYOUT_VERSION,
+    dock: {
+      grid: { root: { type: "leaf", data: { id: "g1", views: Object.keys(panels) } } },
+      panels,
+    },
+  });
+  assert.deepEqual(snapshot?.dock.panels, {
+    "player:a": panels["player:a"],
+    "player:b": panels["player:b"],
+    "player:c": panel("player:c", { player: null, color: "all", result: "all" }),
+    "player-explorer": panel("player-explorer", { player, color: "all", result: "all" }, "playerExplorer"),
+  });
+});

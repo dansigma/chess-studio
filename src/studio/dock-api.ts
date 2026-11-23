@@ -7,9 +7,11 @@ import {
   DOCK_LAYOUT_VERSION,
   isBoardPanelId,
   isExplorerPanelId,
+  isPlayerPanelId,
   sanitizeDockLayout,
   type DockPresetId,
 } from "./dock-layout";
+import { parsePlayerPanelParams, type PlayerPanelParams } from "./player-panel-params";
 import { explorerSourceTitle, type ExplorerSource } from "@/src/lib/explorer-types";
 
 export type StudioPanelId =
@@ -183,6 +185,42 @@ export function persistExplorerSource(panelId: string, source: ExplorerSource): 
   }
   panel.api.updateParameters({ ...panel.api.getParameters(), source });
   panel.setTitle(explorerTitleForSource(source, useStudioStore.getState().files.databases, currentLocale()));
+  persistCurrentDockLayout();
+}
+
+export function openPlayerPanel(referenceId?: string, current?: PlayerPanelParams): void {
+  const api = dockApi;
+  if (!api) return;
+  const sibling = (referenceId ? api.getPanel(referenceId) : undefined)
+    ?? api.panels.find((panel) => isPlayerPanelId(panel.id) || panel.id === "player-explorer");
+  const notation = api.getPanel("notation");
+  const board = firstBoardPanel(api);
+  if (sibling?.id === "player-explorer" && current) {
+    sibling.api.updateParameters(current);
+  }
+  api.addPanel({
+    id: `player:${crypto.randomUUID()}`,
+    component: "player",
+    title: tPanels(currentLocale(), "panels.player"),
+    params: parsePlayerPanelParams(null),
+    position: sibling
+      ? { referencePanel: sibling.id, direction: "right" }
+      : notation
+        ? { referencePanel: notation.id }
+        : board && { referencePanel: board.id, direction: "right" },
+  });
+  persistCurrentDockLayout();
+}
+
+export function updatePlayerPanel(panelId: string, params: PlayerPanelParams): void {
+  const panel = dockApi?.getPanel(panelId);
+  if (!panel) return;
+  panel.api.updateParameters(params);
+  panel.setTitle(params.player?.displayName ?? tPanels(currentLocale(), "panels.player"));
+  persistCurrentDockLayout();
+}
+
+function persistCurrentDockLayout(): void {
   if (!dockApi) {
     return;
   }
