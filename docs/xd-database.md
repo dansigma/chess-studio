@@ -166,29 +166,16 @@ node scripts/xd-database/inspect.mjs "out/v${version}" --check 5000
 node scripts/xd-database/compare.mjs "out/v${previous}" "out/v${version}" --sample 200
 ```
 
-Upload every file to the `chess-studio-engine` bucket (binding `ENGINE`) under
-`xd-database/v<version>/`. Authenticate Wrangler and configure the AWS CLI with R2 credentials for the
-bucket. Set `XD_R2_ENDPOINT` to the account's R2 S3 endpoint. The upload helper runs
-`npx wrangler r2 object put <bucket>/<key> --file <file> --content-type <type> --remote` for files up to
-Wrangler's 300 MiB limit and uses `aws s3 cp` for larger objects such as `games.bin`. It sets
-`application/json` for `manifest.json` and `application/octet-stream` for the binary files.
-See [Cloudflare's R2 upload guide](https://developers.cloudflare.com/r2/objects/upload-objects/).
+Upload the version to the `chess-studio-engine` bucket (binding `ENGINE`) under `xd-database/v<version>/` with
+`scripts/xd-database/upload.sh`. It uses the R2 S3 API through the AWS CLI (multipart, so files over Wrangler's
+300 MiB limit such as `games.bin` work), needs an R2 API token with Object Read & Write on the bucket, sends only
+the files listed in `manifest.json` (refusing a manifest of another version), checks each upload's size, and
+sends `manifest.json` last: a prefix that has a manifest is complete.
 
 ```bash
 export XD_R2_ENDPOINT="https://<account-id>.r2.cloudflarestorage.com"
+export AWS_ACCESS_KEY_ID=<r2 access key id> AWS_SECRET_ACCESS_KEY=<r2 secret access key>
 scripts/xd-database/upload.sh "out/v${version}" "$version"
-
-for file in "out/v${version}/"*; do
-  name=${file##*/}
-  local_bytes=$(stat -c %s -- "$file")
-  remote_bytes=$(aws s3api head-object --bucket chess-studio-engine --key "xd-database/v${version}/$name" \
-    --endpoint-url "$XD_R2_ENDPOINT" --query ContentLength --output text)
-  if [[ $local_bytes != "$remote_bytes" ]]; then
-    printf '%s: expected %s bytes, found %s\n' "$name" "$local_bytes" "$remote_bytes" >&2
-    exit 1
-  fi
-  printf '%s: verified %s bytes\n' "$name" "$remote_bytes"
-done
 ```
 
 ### Deploy and smoke test
@@ -218,8 +205,7 @@ including its manifest, then verify the prefix is empty.
 
 ```bash
 stale=1  # Example only. Confirm this version is inactive and older than the three retained versions.
-file=games.bin  # Repeat for every object under xd-database/v${stale}/.
-npx wrangler r2 object delete "chess-studio-engine/xd-database/v${stale}/$file" --remote
+aws s3 rm "s3://chess-studio-engine/xd-database/v${stale}/" --recursive --endpoint-url "$XD_R2_ENDPOINT"
 ```
 
 A scheduled automatic monthly build can follow as a separate issue.
