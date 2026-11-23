@@ -65,7 +65,7 @@ export async function serve(
 
   const verdict = await limiter.checkAsync(rateLimitKey("xd-database", clientIp(request.headers)));
   if (!verdict.ok) return tooManyRequests(verdict);
-  const bucket = (env as unknown as { ENGINE?: Bucket }).ENGINE;
+  const bucket = (env as unknown as { XD_DATABASE?: Bucket }).XD_DATABASE;
   if (!bucket) return error("Database unavailable", 503);
 
   let reader = readers.get(bucket);

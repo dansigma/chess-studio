@@ -166,7 +166,7 @@ node scripts/xd-database/inspect.mjs "out/v${version}" --check 5000
 node scripts/xd-database/compare.mjs "out/v${previous}" "out/v${version}" --sample 200
 ```
 
-Upload the version to the `chess-studio-engine` bucket (binding `ENGINE`) under `xd-database/v<version>/` with
+Upload the version to the `chess-studio-xd` bucket (binding `XD_DATABASE`, location hint ENAM) under `xd-database/v<version>/` with
 `scripts/xd-database/upload.sh`. It uses the R2 S3 API through the AWS CLI (multipart, so files over Wrangler's
 300 MiB limit such as `games.bin` work), needs an R2 API token with Object Read & Write on the bucket, sends only
 the files listed in `manifest.json` (refusing a manifest of another version), checks each upload's size, and
@@ -205,7 +205,7 @@ including its manifest, then verify the prefix is empty.
 
 ```bash
 stale=1  # Example only. Confirm this version is inactive and older than the three retained versions.
-aws s3 rm "s3://chess-studio-engine/xd-database/v${stale}/" --recursive --endpoint-url "$XD_R2_ENDPOINT"
+aws s3 rm "s3://chess-studio-xd/xd-database/v${stale}/" --recursive --endpoint-url "$XD_R2_ENDPOINT"
 ```
 
 A scheduled automatic monthly build can follow as a separate issue.
