@@ -52,11 +52,13 @@ test("toggles flip the matching settings field", () => {
   actions().toggleMoveSound();
   actions().toggleEvalBar();
   actions().toggleSidebar();
+  actions().toggleClockTimes();
   const settings = useStudioStore.getState().settings;
   assert.equal(settings.showCoordinates, !DEFAULT_SETTINGS.showCoordinates);
   assert.equal(settings.moveSound, !DEFAULT_SETTINGS.moveSound);
   assert.equal(settings.showEvalBar, !DEFAULT_SETTINGS.showEvalBar);
   assert.equal(settings.sidebarCollapsed, !DEFAULT_SETTINGS.sidebarCollapsed);
+  assert.equal(settings.showClockTimes, !DEFAULT_SETTINGS.showClockTimes);
 });
 
 test("toggleNotationDensity flips compact/normal", () => {
