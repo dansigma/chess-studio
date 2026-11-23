@@ -1,6 +1,6 @@
 import type { MistakeCounts } from "./my-games/review-queue";
 
-export type PlayerSource = "lichess" | "chesscom" | "studio";
+export type PlayerSource = "lichess" | "chesscom" | "studio" | "xadrez-digital";
 
 export type PlayerColorFilter = "all" | "white" | "black";
 
@@ -35,6 +35,8 @@ export type PlayerGame = {
   opening: string | null;
   pgn?: string;
   moves?: string;
+  /** Base Xadrez Digital games: the database game id (`moves` is cut short; the full PGN is fetched on open). */
+  xdId?: number;
   timeClass?: string | null;
   // SIG-1048: rated flag for the opening-tree `ratedOnly` filter.
   // Null = unknown (rows imported before the rated migration).
@@ -60,6 +62,8 @@ export type PlayerGamesResponse = {
   player: PlayerHit;
   games: PlayerGame[];
   truncated: boolean;
+  /** Base Xadrez Digital only: the player's whole game count (`games` holds the newest ones). */
+  total?: number;
   notice?: string;
   // SIG-1210: some upstream months were skipped or cut short (same flag name
   // as the player-search route's `partial`).

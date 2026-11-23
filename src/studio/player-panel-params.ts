@@ -16,7 +16,7 @@ export function parsePlayerPanelParams(value: unknown): PlayerPanelParams {
   const { player, color, result } = record(value);
   const { id, source, username, displayName, subtitle, title, inDatabases } = record(player);
   const validPlayer = typeof id === "string" && id.trim() &&
-    (source === "lichess" || source === "chesscom" || source === "studio") &&
+    (source === "lichess" || source === "chesscom" || source === "studio" || source === "xadrez-digital") &&
     typeof username === "string" && username.trim() &&
     typeof displayName === "string" && displayName.trim() && typeof subtitle === "string";
   return {
