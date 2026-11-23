@@ -44,7 +44,7 @@ test("browse Base Xadrez Digital moves and open a database game", async ({ page 
   await page.route("**/api/xd-database/game/42", (route) =>
     route.fulfill({ body: PGN, contentType: "application/x-chess-pgn" }));
 
-  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.setViewportSize({ width: 1920, height: 1000 });
   await page.goto("/studio");
   await page.getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("menuitem", { name: "Layouts", exact: true }).press("Enter");
@@ -75,8 +75,10 @@ test("browse Base Xadrez Digital moves and open a database game", async ({ page 
 
   await page.getByRole("button", { name: "Library", exact: true }).first().click();
   await page.getByTestId("library-source-card").filter({ hasText: "Base Xadrez Digital" }).click();
+  await expect(page.getByText("Summary not available for public databases", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Load more", exact: true }).click();
   const row = page.getByTestId("library-row").filter({ hasText: "Sample White" });
+  await expect(row.getByRole("gridcell", { name: "Center Game", exact: true })).toBeVisible();
   const pgnResponse = page.waitForResponse("**/api/xd-database/game/42");
   await row.dblclick();
   expect((await pgnResponse).ok()).toBe(true);

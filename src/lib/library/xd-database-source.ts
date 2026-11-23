@@ -1,6 +1,7 @@
 import { DEFAULT_POSITION } from "chess.js";
 import { DEFAULT_SITE_LOCALE, isSiteLocale } from "../../i18n/locale.ts";
 import { tPanels } from "../../i18n/studio-panel-strings.ts";
+import { loadCatalog } from "../openings-catalog.ts";
 import {
   fetchXdDatabase, loadXdGamePgn, searchXdPlayers, XD_DATABASE_SOURCE, xdGameDate,
   type XdGameHeader, type XdGamePage,
@@ -9,7 +10,24 @@ import { playerSearchKey } from "../xd-database/format.ts";
 import { compareLibraryItems } from "./sort.ts";
 import type { LibraryGameItem, LibrarySourceAdapter } from "./types.ts";
 
-function mapGame(game: XdGameHeader): LibraryGameItem {
+let openingNames: Promise<ReadonlyMap<string, string> | undefined> | undefined;
+
+function loadOpeningNames() {
+  return (openingNames ??= loadCatalog().then((entries) => {
+    const names = new Map<string, string>();
+    for (const { eco, name } of entries) {
+      const current = names.get(eco);
+      if (current === undefined || name.length < current.length) names.set(eco, name);
+    }
+    return names;
+  }).catch(() => {
+    // Keep the game list usable if the catalog chunk fails to load.
+    openingNames = undefined;
+    return undefined;
+  }));
+}
+
+function mapGame(game: XdGameHeader, names: ReadonlyMap<string, string> | undefined): LibraryGameItem {
   return {
     key: `${XD_DATABASE_SOURCE}:${game.id}`,
     sourceId: XD_DATABASE_SOURCE,
@@ -20,7 +38,7 @@ function mapGame(game: XdGameHeader): LibraryGameItem {
     blackElo: game.blackElo,
     result: game.result,
     eco: game.eco,
-    opening: null,
+    opening: names?.get(game.eco?.trim().toUpperCase() ?? "") ?? null,
     plyCount: null,
     event: game.event,
     date: xdGameDate(game.date),
@@ -61,7 +79,8 @@ export function createXdDatabaseSource(fetchImpl?: typeof fetch): LibrarySourceA
       query.set("cursor", pageCursor);
       const response = await fetchXdDatabase(`games?${query}`, signal, fetchImpl);
       const { games, nextCursor }: XdGamePage = await response.json();
-      const sorted = games.map(mapGame).sort((a, b) => compareLibraryItems(filters.sort, a, b));
+      const names = games.some(({ eco }) => eco) ? await loadOpeningNames() : undefined;
+      const sorted = games.map((game) => mapGame(game, names)).sort((a, b) => compareLibraryItems(filters.sort, a, b));
       const offset = Number(consumed);
       const items = sorted.slice(offset, offset + limit);
       const cursorAfter = (used: number) => offset + used < sorted.length
