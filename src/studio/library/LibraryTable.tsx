@@ -1,5 +1,6 @@
 "use client";
 
+import { LibraryLoadingStatus } from "./LibraryLoadingStatus";
 import { useEffect, useMemo, useRef, type KeyboardEvent, type RefObject } from "react";
 import { ArrowDown, ArrowUp, ExternalLink, GraduationCap } from "lucide-react";
 import type { SiteLocale } from "@/src/i18n/locale";
@@ -190,6 +191,7 @@ export function LibraryTable({ games }: { games: LibraryGamesState }) {
 }
 
 function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRef: RefObject<HTMLDivElement | null> }) {
+  const filesHydrated = useStudioStore((state) => state.filesHydrated);
   const locale = useStudioStore((state) => state.settings.locale);
   const filters = useLibraryStore((s) => s.filters);
   const selectedKey = useLibraryStore((s) => s.selectedKey);
@@ -252,6 +254,10 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
       selectGame(item.key);
       rows.scrollToIndex(next);
     }
+  }
+
+  if (!filesHydrated && items.length === 0) {
+    return <LibraryLoadingStatus />;
   }
 
   if (error && items.length === 0) {

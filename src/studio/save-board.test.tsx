@@ -39,6 +39,7 @@ function seedBoard(title = "Carlsen / Nepo: Game 1"): void {
     user: null,
     statusMessage: null,
     saveAsOpen: false,
+    filesHydrated: true,
     settings: { ...DEFAULT_SETTINGS, locale: "en" },
   });
 }

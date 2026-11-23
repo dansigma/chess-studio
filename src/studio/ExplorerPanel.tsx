@@ -1,5 +1,7 @@
 "use client";
 
+import { tLibrary } from "@/src/i18n/library-strings";
+import { LibraryLoadingStatus } from "./library/LibraryLoadingStatus";
 import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { explorerSourceTitle, fileExplorerSource, type ExplorerResponse, type ExplorerSource } from "@/src/lib/explorer-types";
@@ -120,6 +122,8 @@ function ExplorerChrome({
   onSourceChange: (source: ExplorerSource) => void;
   onDuplicate: () => void;
 }) {
+  const filesHydrated = useStudioStore((state) => state.filesHydrated);
+  const libraryLoading = !filesHydrated && effectiveSource.startsWith("file:");
   const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
   const lineFens = useActiveLineFens();
   const activeFen = lineFens[lineFens.length - 1];
@@ -226,12 +230,16 @@ function ExplorerChrome({
                 ? `${tPanels(locale, "explorer.source.chesscom")} · ${chesscomPlayer}`
                 : tPanels(locale, "explorer.source.chesscom")}
             </option>
-            {databases.map((database) => (
+            {filesHydrated ? databases.map((database) => (
               <option key={database.id} value={fileExplorerSource(database.id)}>
                 {database.name}
               </option>
-            ))}
-            {knownSources.has(effectiveSource) ? null : <option value={effectiveSource}>{tPanels(locale, "explorer.source.personal")}</option>}
+            )) : (
+              <option disabled value={libraryLoading ? effectiveSource : ""}>
+                {tLibrary(locale, "library.sync.loading")}
+              </option>
+            )}
+            {!libraryLoading && !knownSources.has(effectiveSource) ? <option value={effectiveSource}>{tPanels(locale, "explorer.source.personal")}</option> : null}
           </select>
           <ExplorerFiltersBar source={effectiveSource} filters={filters} onChange={setExplorerFilters} />
           <IconButton label={tPanels(locale, "explorer.splitView")} size="sm" onClick={onDuplicate}>
@@ -244,12 +252,12 @@ function ExplorerChrome({
           </span>
         ) : null}
       </div>
-      {explorer?.notice ? (
+      {!libraryLoading && explorer?.notice ? (
         <div className="border-b border-studio-border-subtle bg-studio-warning-bg px-3 py-2 text-caption text-studio-warning-fg">
           {explorer.notice}
         </div>
       ) : null}
-      {error ? (
+      {!libraryLoading && error ? (
         <div className="border-b border-studio-border-subtle bg-studio-warning-bg px-3 py-2 text-caption text-studio-warning-fg">
           {tPanels(locale, "explorer.error")}{" "}
           <button type="button" className="underline" onClick={onRetry}>
@@ -259,9 +267,10 @@ function ExplorerChrome({
       ) : null}
       <div
         className={`min-h-0 flex-1 overflow-auto transition-opacity ${loading && hasMoves ? "opacity-60" : ""}`}
-        aria-busy={loading || undefined}
+        aria-busy={libraryLoading || loading || undefined}
       >
-        {hasMoves ? (
+        {libraryLoading ? <LibraryLoadingStatus /> : null}
+        {!libraryLoading && hasMoves ? (
           <div
             className={`${ROW_GRID} sticky top-0 z-[1] border-b border-studio-border-subtle bg-studio-panel py-1 text-[10px] uppercase tracking-wider text-studio-faint`}
           >
@@ -275,10 +284,10 @@ function ExplorerChrome({
             </span>
           </div>
         ) : null}
-        {loading && !explorer ? (
+        {!libraryLoading && loading && !explorer ? (
           <div className="px-3 py-4 text-dense text-studio-faint" role="status">{tPanels(locale, "explorer.loadingLabel")}</div>
         ) : null}
-        {!loading && !error && !hasMoves ? (
+        {!libraryLoading && !loading && !error && !hasMoves ? (
           <div className="flex flex-col items-start gap-2 px-3 py-4 text-dense text-studio-faint">
             <p>
               {tPanels(locale, chesscomNeedsPlayer ? "explorer.chesscom.needPlayer" : "explorer.empty")}
@@ -296,7 +305,7 @@ function ExplorerChrome({
             ) : null}
           </div>
         ) : null}
-        {explorer?.moves.map((row) => {
+        {!libraryLoading && explorer?.moves.map((row) => {
           const share = totalGames > 0 ? (row.games / totalGames) * 100 : 0;
           const rowGames = formatInteger(locale, row.games);
           return (

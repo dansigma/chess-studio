@@ -43,7 +43,6 @@ import {
   syncRemoteDockLayout,
   useStudioStore,
 } from "@/src/store/studio-store";
-import { tLibrary } from "@/src/i18n/library-strings";
 import { syncAccountLibrary } from "./library/sync-account-library";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
@@ -524,12 +523,6 @@ export function StudioShell() {
     sharedFenApplied.current = true;
     void applyStudioEntryImport(window.location.search);
   }, [filesHydrated, importReady]);
-
-  if (!filesHydrated) {
-    return <div role="status" className="flex h-dvh items-center justify-center bg-studio-bg text-studio-muted">
-      {tLibrary(locale, "library.sync.loading")}
-    </div>;
-  }
 
   return (
     <>

@@ -5,6 +5,7 @@ import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { explorerSourceTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
 import { formatYearMonth } from "@/src/lib/game-date";
 import { openBoardPanel } from "./dock-api";
+import { LibraryLoadingStatus } from "./library/LibraryLoadingStatus";
 import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
 import { PlayerCell, outcomeFor } from "./ui/PlayerCell";
@@ -16,6 +17,7 @@ export function GamesPanel() {
   const openListedGame = useStudioStore((state) => state.openListedGame);
   const setStatus = useStudioStore((state) => state.setStatus);
   const source = useStudioStore((state) => state.databaseSource);
+  const filesHydrated = useStudioStore((state) => state.filesHydrated);
   const databases = useStudioStore((state) => state.files.databases);
   const setActivity = useStudioStore((state) => state.setActivity);
 
@@ -77,6 +79,8 @@ export function GamesPanel() {
     const active = selectActiveBoard(useStudioStore.getState());
     openBoardPanel(active.id, active.title);
   }
+
+  if (!filesHydrated && source.startsWith("file:")) return <LibraryLoadingStatus />;
 
   return (
     <div className="flex h-full flex-col bg-studio-panel text-dense text-studio-fg">

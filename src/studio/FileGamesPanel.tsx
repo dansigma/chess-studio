@@ -1,5 +1,6 @@
 "use client";
 
+import { LibraryLoadingStatus } from "./library/LibraryLoadingStatus";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { openBoardPanel } from "./dock-api";
@@ -16,9 +17,12 @@ export function FileGamesPanel({
   const locale = useStudioStore((state) => state.settings.locale);
   const databaseId = useStudioStore((state) => state.activeFileDatabaseId);
   const gameId = useStudioStore((state) => state.activeFileGameId);
+  const filesHydrated = useStudioStore((state) => state.filesHydrated);
   const databases = useStudioStore((state) => state.files.databases);
   const openFileGame = useStudioStore((state) => state.openFileGame);
   const database = selectFileDatabase(databases, databaseId);
+
+  if (!filesHydrated) return <LibraryLoadingStatus />;
 
   if (!database) {
     return (

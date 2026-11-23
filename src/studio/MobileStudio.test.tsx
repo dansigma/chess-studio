@@ -38,6 +38,7 @@ beforeEach(() => {
     useStudioStore.setState({
       workspaceView: "studio",
       user: null,
+      filesHydrated: true,
       settings: { ...DEFAULT_SETTINGS, locale: "en" },
     });
     const store = useStudioStore.getState();
@@ -147,6 +148,7 @@ test("multi-game PGN BottomSheet lists games and closes on selection", () => {
 1. d4 d5 0-1`;
 
   act(() => {
+    useStudioStore.setState({ filesHydrated: false });
     useStudioStore.getState().openPgnSource("Club Match", multiPgn);
   });
 
@@ -163,6 +165,8 @@ test("multi-game PGN BottomSheet lists games and closes on selection", () => {
 
   const sheet = document.querySelector("[data-mobile-menu-sheet]") as HTMLElement;
   assert.ok(sheet, "fileGames BottomSheet should render");
+  assert.equal(within(sheet).getByRole("status").textContent, "Loading your Library…");
+  act(() => useStudioStore.setState({ filesHydrated: true }));
   const secondGame = within(sheet).getByText(/Gamma.*Delta|Game 2/);
   fireEvent.click(secondGame);
   assert.equal(closed, 1);

@@ -352,7 +352,7 @@ test("append to a 1,000-game cloud database sends one game write and metadata ch
 
 test("sign-in uploads local databases once, skips duplicates, and keeps rejected databases local", async () => {
   const { useStudioStore } = await import("@/src/store/studio-store");
-  const { loadLocalFiles, saveLocalFiles } = await import("./user-files.ts");
+  const { EMPTY_FILES, loadLocalFiles, saveLocalFiles } = await import("./user-files.ts");
   const { calls } = installFakeSupabase({
     failChunkAt: 2,
     failChunkWith: { message: "quota_games", code: "P0001" },
@@ -378,6 +378,7 @@ test("sign-in uploads local databases once, skips duplicates, and keeps rejected
   };
   try {
     await saveLocalFiles(local);
+    useStudioStore.setState({ files: EMPTY_FILES, filesHydrated: false });
     useStudioStore.getState().setUser({ id: "user-1", email: null });
     await useStudioStore.getState().uploadLocalDatabases(remote);
 

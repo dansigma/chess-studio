@@ -1,5 +1,6 @@
 "use client";
 
+import { LibraryLoadingStatus } from "./LibraryLoadingStatus";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { Folder } from "lucide-react";
 import { tLibrary } from "@/src/i18n/library-strings";
@@ -36,11 +37,13 @@ export function folderScope(folders: FileFolder[], folderId: string | null): Set
 
 /** Fetches the account's folders and files and merges them in; a no-op when signed out. */
 export async function refreshFromAccount(): Promise<void> {
-  const { user, mergeRemoteFiles, setStatus, settings } = useStudioStore.getState();
+  const { user, hydrateLocalFiles, mergeRemoteFiles, setStatus, settings } = useStudioStore.getState();
   if (!user) {
     return;
   }
   try {
+    await hydrateLocalFiles();
+    if (useStudioStore.getState().user?.id !== user.id) return;
     const remote = await loadRemoteFiles(user.id);
     if (useStudioStore.getState().user?.id === user.id) {
       mergeRemoteFiles(remote);
@@ -138,31 +141,34 @@ export function FolderMoveDialog({
 }) {
   const locale = useStudioStore((s) => s.settings.locale);
   const files = useStudioStore((s) => s.files);
+  const filesHydrated = useStudioStore((s) => s.filesHydrated);
   const options = buildFolderTree(files.folders, [], "").folderOptions;
   const rowClass =
     "flex w-full items-center gap-2 rounded py-1.5 pr-2 text-left text-body text-studio-fg hover:bg-studio-hover disabled:cursor-not-allowed disabled:opacity-40";
   return (
     <Dialog title={title} onClose={onClose} width="w-[24rem]">
       <p className="mb-2 text-caption text-studio-muted">{tLibrary(locale, "library.folders.destination")}</p>
-      <div className="max-h-72 space-y-0.5 overflow-y-auto rounded-md border border-studio-border bg-studio-base p-1">
-        <button type="button" disabled={noneDisabled} className={`${rowClass} pl-2`} onClick={() => onPick(null)}>
-          <Folder size={14} className="shrink-0 text-studio-faint" />
-          <span className="font-medium">{noneLabel}</span>
-        </button>
-        {options.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            disabled={isDisabled(option.id)}
-            style={{ paddingLeft: `${(option.depth + 1) * 16}px` }}
-            className={rowClass}
-            onClick={() => onPick(option.id)}
-          >
+      {!filesHydrated ? <LibraryLoadingStatus /> : (
+        <div className="max-h-72 space-y-0.5 overflow-y-auto rounded-md border border-studio-border bg-studio-base p-1">
+          <button type="button" disabled={noneDisabled} className={`${rowClass} pl-2`} onClick={() => onPick(null)}>
             <Folder size={14} className="shrink-0 text-studio-faint" />
-            <span className="truncate">{option.name}</span>
+            <span className="font-medium">{noneLabel}</span>
           </button>
-        ))}
-      </div>
+          {options.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              disabled={isDisabled(option.id)}
+              style={{ paddingLeft: `${(option.depth + 1) * 16}px` }}
+              className={rowClass}
+              onClick={() => onPick(option.id)}
+            >
+              <Folder size={14} className="shrink-0 text-studio-faint" />
+              <span className="truncate">{option.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </Dialog>
   );
 }

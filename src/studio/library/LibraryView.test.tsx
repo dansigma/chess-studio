@@ -4,13 +4,17 @@ import { setupDom, teardownDom } from "../../test-utils/dom.ts";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { LibraryView, LibraryPlaceholderList } from "./LibraryView";
 import type { LibraryGamesState } from "./use-library-games";
+import { useStudioStore } from "@/src/store/studio-store";
 import { useLibraryStore } from "./library-store";
 import { clampLibrarySplit } from "./library-layout";
 import { clearLibrarySources, registerLibrarySource } from "@/src/lib/library/sources";
 import { emptyOverview } from "@/src/lib/library/overview";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 
-before(() => setupDom());
+before(() => {
+  setupDom();
+  useStudioStore.setState({ filesHydrated: true });
+});
 const realMatchMedia = window.matchMedia;
 function setPhone(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -218,4 +222,14 @@ test("mobile: Escape in a Sources-sheet menu or dialog closes only that layer, n
   // With nothing on top, Escape closes the sheet.
   fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
   assert.equal(sheet(), null);
+});
+
+test("the placeholder list shows the Library loading status, not an empty state, before the local Library loads", () => {
+  useStudioStore.setState({ filesHydrated: false });
+  try {
+    render(<LibraryPlaceholderList games={{ ...base, retry: () => {} }} />);
+    assert.match(screen.getByRole("status").textContent ?? "", /Loading your Library/i);
+  } finally {
+    useStudioStore.setState({ filesHydrated: true });
+  }
 });

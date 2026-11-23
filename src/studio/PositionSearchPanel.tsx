@@ -1,5 +1,6 @@
 "use client";
 
+import { LibraryLoadingStatus } from "./library/LibraryLoadingStatus";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { searchFilesForPosition, type FilePositionHit } from "@/src/lib/files-explorer";
@@ -25,6 +26,7 @@ function resultLabel(winner: "white" | "black" | "draw" | null): string | null {
 export function PositionSearchPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
   const fen = useActiveFen();
+  const filesHydrated = useStudioStore((state) => state.filesHydrated);
   const databases = useStudioStore((state) => state.files.databases);
   const openFileGame = useStudioStore((state) => state.openFileGame);
   const [debouncedFen, setDebouncedFen] = useState(fen);
@@ -54,6 +56,8 @@ export function PositionSearchPanel() {
      one debounce in loading:false and flashes "Not in any file" before
      "Searching files…". */
   useEffect(() => {
+    if (!filesHydrated) return;
+
     // SIG-864 pattern: loading starts synchronously so the panel never
     // flashes the empty state before the debounced lookup runs.
     setLoading(true);
@@ -72,12 +76,12 @@ export function PositionSearchPanel() {
       window.clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fen, librarySignature, retryTick]);
+  }, [fen, filesHydrated, librarySignature, retryTick]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const total = hits.reduce((sum, hit) => sum + hit.games.length, 0);
   const stale = fen !== debouncedFen;
-  const showLoading = loading || stale;
+  const showLoading = !filesHydrated || loading || stale;
   const side = fen.split(" ")[1] === "b"
     ? tPanels(locale, "search.blackToMove")
     : tPanels(locale, "search.whiteToMove");
@@ -105,7 +109,7 @@ export function PositionSearchPanel() {
         </IconButton>
       </div>
       <div className="min-h-0 flex-1 overflow-auto" aria-busy={showLoading || undefined}>
-        {showLoading ? (
+        {!filesHydrated ? <LibraryLoadingStatus /> : showLoading ? (
           <div className="px-3 py-4 text-studio-faint" role="status">
             {tPanels(locale, "search.loading")}
           </div>

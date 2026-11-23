@@ -84,7 +84,19 @@ type FilesGet = Parameters<StateCreator<StudioState, [], [], FilesSlice>>[1];
 
 const STORAGE_FULL_MESSAGE = "Saved in this session only: browser storage is full";
 
+// Set when the stored Library could not be read: writing would replace a
+// snapshot this page never saw, so changes stay in this session only.
+let localWritesBlocked = false;
+
+/** A session reset clears the stored Library, so writing to it is safe again. */
+export function unblockLocalWrites(): void {
+  localWritesBlocked = false;
+}
+
 function cacheFiles(set: FilesSet, get: FilesGet, files: FilesLibrary) {
+  // Hydration saves the session changes together with the stored snapshot.
+  if (!get().filesHydrated || localWritesBlocked) return;
+
   void saveLocalFiles(files).then((stored) => {
     if (!stored && get().files === files) {
       const status = get().statusMessage;
@@ -295,6 +307,14 @@ export const initialFilesState = {
   bookmarks: loadLocalBookmarks(),
 };
 
+function mergeById<T extends { id: string }>(stored: T[], current: T[]): T[] {
+  const entries = new Map(stored.map((entry) => [entry.id, entry]));
+  for (const entry of current) {
+    entries.set(entry.id, entry);
+  }
+  return [...entries.values()];
+}
+
 function createFilesHydration(set: FilesSet, get: FilesGet): Pick<
   FilesSlice, "hydrateLocalFiles" | "uploadLocalDatabases"
 > {
@@ -305,11 +325,35 @@ function createFilesHydration(set: FilesSet, get: FilesGet): Pick<
       if (get().filesHydrated) {
         return Promise.resolve();
       }
-      localHydration ??= loadLocalFiles().then((files) => {
-        if (!get().filesHydrated) {
-          set({ files, filesHydrated: true });
-        }
-      });
+      localHydration ??= loadLocalFiles()
+        .then(
+          (stored) => ({ stored, failed: false }),
+          () => ({ stored: EMPTY_FILES, failed: true }),
+        )
+        .then(({ stored, failed }) => {
+          const state = get();
+          if (state.filesHydrated) return;
+          localWritesBlocked = failed;
+
+          const hasSessionFiles = state.files.folders.length > 0 || state.files.databases.length > 0;
+          const files = hasSessionFiles ? {
+            folders: mergeById(stored.folders, state.files.folders),
+            databases: mergeById(stored.databases, state.files.databases),
+          } : stored;
+          const activeDatabase = files.databases.find(({ id }) => id === state.activeFileDatabaseId);
+          const activeGame = activeDatabase?.games.find(({ id }) => id === state.activeFileGameId);
+          set({
+            files,
+            filesHydrated: true,
+            activeFileDatabaseId: activeDatabase?.id ?? null,
+            activeFileGameId: activeGame?.id ?? null,
+            ...(failed ? { statusMessage: tLibrary(state.settings.locale, "library.sync.localLoadFailed") } : {}),
+          });
+          if (hasSessionFiles && get().files === files) {
+            cacheFiles(set, get, files);
+          }
+        })
+        .finally(() => { localHydration = undefined; });
       return localHydration;
     },
     uploadLocalDatabases: async (remote) => {

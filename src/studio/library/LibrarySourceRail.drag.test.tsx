@@ -64,6 +64,7 @@ function seed(rows: Row[], folderId: string | null = null) {
     statusMessage: null,
     settings: { ...s.settings, locale: "en" },
     databaseSource: "masters",
+    filesHydrated: true,
     files: {
       ...s.files,
       folders: [

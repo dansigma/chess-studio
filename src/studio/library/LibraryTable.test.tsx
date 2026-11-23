@@ -16,7 +16,7 @@ afterEach(() => {
   cleanup();
   clearLibrarySources();
   useLibraryStore.setState({ filters: DEFAULT_LIBRARY_FILTERS, selectedKey: null });
-  useStudioStore.setState({ training: false, trainingStart: null, workspaceView: "library" });
+  useStudioStore.setState({ filesHydrated: true, training: false, trainingStart: null, workspaceView: "library" });
 });
 
 function item(n: number): LibraryGameItem {
