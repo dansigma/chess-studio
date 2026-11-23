@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_POSITION } from "chess.js";
+import { localizeOpeningName } from "../opening-names.ts";
 import { createXdDatabaseSource } from "./xd-database-source.ts";
 import { queryLibrary } from "./query.ts";
 import { registerLibrarySource, unregisterLibrarySource } from "./sources.ts";
@@ -39,9 +40,23 @@ test("passes position and game filters to the API, resolving a player directory 
   assert.deepEqual(page.items, [{
     key: "xadrez-digital:33", sourceId: "xadrez-digital", gameId: "33",
     white: "Nora", black: "Álvaro", whiteElo: 2400, blackElo: 2400, result: "1/2-1/2",
-    date: "2024-05", eco: "B90", event: "Open", opening: null, plyCount: null,
+    date: "2024-05", eco: "B90", event: "Open", opening: "Sicilian Defense: Najdorf Variation", plyCount: null,
   }]);
   assert.equal(page.nextCursor, null);
+});
+
+test("uses the shortest catalog name for an ECO code and leaves missing or unknown codes unnamed", async () => {
+  const source = createXdDatabaseSource(async () => Response.json({
+    games: [
+      { id: 1, date: "2025", eco: " b90 " },
+      { id: 2, date: "2024", eco: null },
+      { id: 3, date: "2023", eco: "Z99" },
+    ],
+    nextCursor: null,
+  }));
+  const { items } = await source.list(filters, null, 50, signal);
+  assert.deepEqual(items.map(({ opening }) => opening), ["Sicilian Defense: Najdorf Variation", null, null]);
+  assert.equal(localizeOpeningName(items[0].opening!, "pt-br", items[0].eco), "Defesa Siciliana: Variante Najdorf");
 });
 
 test("Library carries server cursors across empty pages and retains unconsumed rows", async () => {

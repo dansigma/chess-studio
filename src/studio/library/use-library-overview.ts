@@ -5,11 +5,12 @@ import { fileDatabaseOverview } from "@/src/lib/library/file-source";
 import { MASTERS_SOURCE_ID } from "@/src/lib/library/masters-source";
 import { emptyOverview, mergeOverviews, type LibraryOverview } from "@/src/lib/library/overview";
 import { getLibrarySource } from "@/src/lib/library/sources";
+import { XD_DATABASE_SOURCE } from "@/src/lib/xd-database/client";
 import { useStudioStore } from "@/src/store/studio-store";
 import { useLibraryStore } from "./library-store";
 
 export type LibraryOverviewState =
-  | { kind: "unavailable" } // only Masters (or nothing summarizable) is selected
+  | { kind: "unavailable" } // no summarizable sources are selected
   | { kind: "loading" }
   | { kind: "failed" } // only My Games is selected and it failed
   | { kind: "ready"; overview: LibraryOverview; myGamesFailed: boolean };
@@ -81,7 +82,7 @@ export function useLibraryOverview(): LibraryOverviewState {
   }, [selected, databases]);
 
   return useMemo((): LibraryOverviewState => {
-    const summarizable = selected.filter((id) => id !== MASTERS_SOURCE_ID);
+    const summarizable = selected.filter((id) => id !== MASTERS_SOURCE_ID && id !== XD_DATABASE_SOURCE);
     if (summarizable.length === 0) {
       return { kind: "unavailable" };
     }
