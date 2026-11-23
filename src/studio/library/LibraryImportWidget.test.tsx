@@ -42,14 +42,14 @@ test("each file shows its state, progress and a Cancel button; no close while ac
 
 test("finished states, over-limit and unreadable counts, and the close button", async () => {
   await show([
-    entry({ id: "1", name: "a.pgn", state: "done", imported: 5000, overLimit: 1240, unreadable: 3 }),
+    entry({ id: "1", name: "a.pgn", state: "done", imported: 25000, overLimit: 1240, unreadable: 3 }),
     entry({ id: "2", name: "b.pgn", state: "failed", error: "database-limit" }),
     entry({ id: "3", name: "c.pgn", state: "cancelled" }),
   ]);
   const text = screen.getByTestId("library-import-widget").textContent ?? "";
-  assert.match(text, /5,000 imported, 1,240 over the 5,000-per-database limit/);
+  assert.match(text, /25,000 imported, 1,240 over the 25,000-per-database limit/);
   assert.match(text, /3 could not be read/);
-  assert.match(text, /50-database limit reached\. Delete a database to import another\./);
+  assert.match(text, /10-database limit reached\. Delete a database to import another\./);
   assert.match(text, /Cancelled/);
   assert.equal(screen.queryByRole("button", { name: "Cancel" }), null);
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Close" })); });
@@ -59,12 +59,12 @@ test("finished states, over-limit and unreadable counts, and the close button", 
 test("pt-BR strings and number formatting", async () => {
   useStudioStore.setState({ settings: { ...useStudioStore.getState().settings, locale: "pt-br" } });
   await show([
-    entry({ id: "1", name: "a.pgn", state: "done", imported: 5000, overLimit: 1240 }),
+    entry({ id: "1", name: "a.pgn", state: "done", imported: 25000, overLimit: 1240 }),
     entry({ id: "2", name: "b.pgn", state: "failed", error: "database-limit" }),
   ]);
   const text = screen.getByTestId("library-import-widget").textContent ?? "";
-  assert.match(text, /5\.000 importadas, 1\.240 acima do limite de 5\.000 por base/);
-  assert.match(text, /Limite de 50 bases atingido\. Exclua uma base para importar outra\./);
+  assert.match(text, /25\.000 importadas, 1\.240 acima do limite de 25\.000 por base/);
+  assert.match(text, /Limite de 10 bases atingido\. Exclua uma base para importar outra\./);
 });
 
 test("isCleanlyFinished: only when every file finished with nothing to report", () => {
@@ -92,7 +92,7 @@ test("a cleanly finished import closes itself; one with something to report stay
     assert.equal(screen.queryByTestId("library-import-widget"), null);
     cleanup();
     timers.length = 0;
-    await show([entry({ name: "big", state: "done", imported: 5000, overLimit: 12 })]);
+    await show([entry({ name: "big", state: "done", imported: 25000, overLimit: 12 })]);
     assert.equal(timers.some((t) => t.ms === AUTO_DISMISS_MS), false);
     assert.ok(screen.getByTestId("library-import-widget"));
   } finally {

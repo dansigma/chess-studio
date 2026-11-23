@@ -7,6 +7,7 @@ import {
   FOLDER_CYCLE_MESSAGE,
   getDescendantFolderIds,
   isDescendantFolder,
+  databaseSaveErrorMessage,
   loadRemoteFiles,
   type FileFolder,
 } from "@/src/lib/user-files";
@@ -39,9 +40,19 @@ export async function refreshFromAccount(): Promise<void> {
   if (!user) {
     return;
   }
-  const remote = await loadRemoteFiles(user.id);
-  mergeRemoteFiles(remote);
-  setStatus(tLibrary(settings.locale, "library.folders.refreshed"));
+  try {
+    const remote = await loadRemoteFiles(user.id);
+    if (useStudioStore.getState().user?.id === user.id) {
+      mergeRemoteFiles(remote);
+      setStatus(tLibrary(settings.locale, "library.folders.refreshed"));
+    }
+  } catch (error) {
+    if (useStudioStore.getState().user?.id === user.id) {
+      setStatus(tLibrary(settings.locale, "library.sync.loadFailed", {
+        reason: databaseSaveErrorMessage(error) ?? "",
+      }));
+    }
+  }
 }
 
 /** Where a fixed menu opens: under its trigger (`y`), or above it (`top`) when there is no room below. */

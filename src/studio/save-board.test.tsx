@@ -254,7 +254,7 @@ test("Add to database saves the active PGN to the selected Library database", as
   assert.equal(second.games[1].pgn, pgn);
   assert.match(pgn, /\{Try two lines\}.*\(1\. d4\)/);
   assert.equal(databaseToPgn(second), `${second.games[0].pgn.trim()}\n\n${pgn.trim()}\n`);
-  assert.deepEqual(loadLocalFiles().databases, [first, second]);
+  assert.deepEqual((await loadLocalFiles()).databases, [first, second]);
   assert.equal(useStudioStore.getState().statusMessage, "Added to Second");
 });
 

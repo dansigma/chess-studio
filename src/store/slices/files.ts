@@ -1,3 +1,4 @@
+import { tLibrary } from "@/src/i18n/library-strings";
 import type { StateCreator } from "zustand";
 import { fenKey, mainlinePathForFen } from "@/src/chess/tree";
 import { parsePgnCollection } from "@/src/chess/pgn-games";
@@ -18,17 +19,21 @@ import { fileDatabaseId } from "@/src/lib/explorer-types";
 import { dropFilesExplorerIndex } from "@/src/lib/files-explorer";
 import {
   canMoveFolder,
+  databaseSaveErrorMessage,
+  EMPTY_FILES,
+  FOLDER_CYCLE_MESSAGE,
+  MAX_DATABASES,
+  MAX_GAMES_PER_DATABASE,
   deleteRemoteDatabase,
   deleteRemoteFolder,
   deleteRemoteGame,
   insertRemoteGame,
   updateRemoteGame,
-  MAX_DATABASES,
-  MAX_GAMES_PER_DATABASE,
   MAX_GAME_PGN_BYTES,
   getDescendantFolderIds,
   libraryFromPgn,
   loadLocalFiles,
+  localizedSaveError,
   persistRemoteDatabase,
   persistRemoteDatabaseName,
   persistRemoteDatabaseFolder,
@@ -36,6 +41,7 @@ import {
   saveLocalFiles,
   type FileDatabase,
   type FileFolder,
+  type FilesLibrary,
 } from "@/src/lib/user-files";
 import { emptyBoard, newId, withActive } from "./board-helpers";
 import type { BoardSession, StudioState } from "./types";
@@ -45,6 +51,9 @@ import type { BoardSession, StudioState } from "./types";
 export type FilesSlice = Pick<
   StudioState,
   | "files"
+  | "filesHydrated"
+  | "hydrateLocalFiles"
+  | "uploadLocalDatabases"
   | "filesQuery"
   | "activeFileDatabaseId"
   | "activeFileGameId"
@@ -75,87 +84,110 @@ type FilesGet = Parameters<StateCreator<StudioState, [], [], FilesSlice>>[1];
 
 const STORAGE_FULL_MESSAGE = "Saved in this session only: browser storage is full";
 
+function cacheFiles(set: FilesSet, get: FilesGet, files: FilesLibrary) {
+  void saveLocalFiles(files).then((stored) => {
+    if (!stored && get().files === files) {
+      const status = get().statusMessage;
+      set({ statusMessage: status ? `${status} · ${STORAGE_FULL_MESSAGE}` : STORAGE_FULL_MESSAGE });
+    }
+  });
+}
+
+type DatabaseSyncResult = { uploaded: boolean; error?: string; indexError?: string };
 // Serialize writes per database, including edits made while its initial upload is running.
-const remoteWrites = new Map<string, Promise<void>>();
+const remoteWrites = new Map<string, Promise<DatabaseSyncResult>>();
+const databaseUploads = new Map<string, Promise<DatabaseSyncResult>>();
 const incompleteSyncs = new Map<string, FileDatabase["games"]>();
 
-function queueRemoteWrite(set: FilesSet, get: FilesGet, id: string, write: () => Promise<void>) {
-  const userId = get().user?.id;
-  if (!userId) {
-    return;
-  }
-  const next = (remoteWrites.get(id) ?? Promise.resolve())
-    .then(async () => {
-      if (get().user?.id === userId) {
-        await write();
-      }
-    })
-    .catch((error: unknown) => {
-      set({ statusMessage: error instanceof Error ? error.message : String(error) });
-    })
+function queueRemoteWrite(
+  get: FilesGet,
+  key: string,
+  userId: string,
+  write: () => Promise<DatabaseSyncResult>,
+): Promise<DatabaseSyncResult> {
+  const next = (remoteWrites.get(key) ?? Promise.resolve())
+    .then(() => get().user?.id === userId ? write() : { uploaded: false })
+    .catch((error: unknown) => ({
+      uploaded: false,
+      error: databaseSaveErrorMessage(error) ?? databaseSaveErrorMessage({}),
+    }))
     .finally(() => {
-      if (remoteWrites.get(id) === next) {
-        remoteWrites.delete(id);
+      if (remoteWrites.get(key) === next) {
+        remoteWrites.delete(key);
       }
     });
-  remoteWrites.set(id, next);
+  remoteWrites.set(key, next);
+  return next;
 }
 
 function syncRemoteDatabase(
   set: FilesSet,
   get: FilesGet,
   database: FileDatabase,
-  previousGames: FileDatabase["games"] = [],
-) {
+  previousGames?: FileDatabase["games"],
+): Promise<DatabaseSyncResult> {
   const userId = get().user?.id;
   if (!userId) {
-    return;
+    return Promise.resolve({ uploaded: false });
   }
-  queueRemoteWrite(set, get, database.id, async () => {
+  const key = `${userId}:${database.id}`;
+  const pending = databaseUploads.get(key);
+  // Sign-in can join an upload already in flight. Edits still queue their delta.
+  if (!database.remoteId && !previousGames && pending) {
+    return pending;
+  }
+  const sync = queueRemoteWrite(get, key, userId, async () => {
     const current = get().files.databases.find((item) => item.id === database.id);
     if (!current) {
-      return;
+      return { uploaded: false };
     }
     const remoteId = current.remoteId;
     if (!remoteId) {
-      const result = await persistRemoteDatabase(database, userId);
-      if (result.saveError || result.indexError) {
-        set({ statusMessage: result.saveError ?? result.indexError });
+      const result = await persistRemoteDatabase({ ...current, games: database.games }, userId);
+      if (get().user?.id !== userId) {
+        return { uploaded: false };
       }
-      if (!result.remoteId) {
-        return;
+      const uploadedId = result.remoteId;
+      if (!uploadedId) {
+        return {
+          uploaded: false,
+          error: result.saveError ?? (result.indexError ? undefined : databaseSaveErrorMessage({})),
+          indexError: result.indexError ?? undefined,
+        };
       }
       if (!get().files.databases.some((item) => item.id === database.id)) {
-        await deleteRemoteDatabase(result.remoteId);
-        return;
+        await deleteRemoteDatabase(uploadedId);
+        return { uploaded: false };
       }
       set((state) => {
         const files = {
           ...state.files,
           databases: state.files.databases.map((item) =>
-            item.id === database.id ? { ...item, remoteId: result.remoteId } : item,
+            item.id === database.id ? { ...item, remoteId: uploadedId } : item,
           ),
         };
-        saveLocalFiles(files);
+        cacheFiles(set, get, files);
         return { files };
       });
-      return;
+      return { uploaded: true, indexError: result.indexError ?? undefined };
+    }
+    if (!previousGames) {
+      return { uploaded: false };
     }
     const synced = new Map(
-      (incompleteSyncs.get(database.id) ?? previousGames).map((game) => [game.id, game]),
+      (incompleteSyncs.get(key) ?? previousGames).map((game) => [game.id, game]),
     );
     const desired = new Map(database.games.map((game) => [game.id, game]));
     const knownIds = [...synced.keys()];
-    const reportFailure = (message: string) => {
-      incompleteSyncs.set(database.id, [...synced.values()]);
-      set({ statusMessage: message });
+    const reportFailure = (error: string) => {
+      incompleteSyncs.set(key, [...synced.values()]);
+      return { uploaded: false, error };
     };
     for (const [id, game] of synced) {
       if (!desired.has(id)) {
         const error = await deleteRemoteGame(remoteId, game, knownIds);
         if (error) {
-          reportFailure(error);
-          return;
+          return reportFailure(error);
         }
         synced.delete(id);
       }
@@ -169,28 +201,52 @@ function syncRemoteDatabase(
         ? await updateRemoteGame(remoteId, game, previous, knownIds)
         : await insertRemoteGame(remoteId, game);
       if (error) {
-        reportFailure(error);
-        return;
+        return reportFailure(error);
       }
       synced.set(id, game);
     }
-    incompleteSyncs.delete(database.id);
+    incompleteSyncs.delete(key);
+    return { uploaded: false };
   });
+  if (!database.remoteId && !pending) {
+    databaseUploads.set(key, sync);
+    void sync.then(() => databaseUploads.delete(key));
+  }
+  return sync;
 }
 
 function syncDatabaseMetadata(
   set: FilesSet,
   get: FilesGet,
   id: string,
-  write: (remoteId: string) => Promise<string | null>,
+  write: (remoteId: string) => Promise<string | null | void>,
 ) {
-  queueRemoteWrite(set, get, id, async () => {
+  const userId = get().user?.id;
+  if (!userId) {
+    return;
+  }
+  void queueRemoteWrite(get, `${userId}:${id}`, userId, async () => {
     const remoteId = get().files.databases.find((item) => item.id === id)?.remoteId;
-    if (remoteId) {
-      const error = await write(remoteId);
-      if (error) {
-        set({ statusMessage: error });
-      }
+    const error = remoteId ? await write(remoteId) : undefined;
+    return { uploaded: false, error: error ?? undefined };
+  }).then(({ error }) => {
+    if (error && get().user?.id === userId) {
+      set({ statusMessage: localizedSaveError(error, get().settings.locale) });
+    }
+  });
+}
+
+function syncAndReport(
+  set: FilesSet,
+  get: FilesGet,
+  database: FileDatabase,
+  indexMessage: string,
+  previousGames?: FileDatabase["games"],
+) {
+  const userId = get().user?.id;
+  void syncRemoteDatabase(set, get, database, previousGames).then(({ error, indexError }) => {
+    if (get().user?.id === userId && (error || indexError)) {
+      set({ statusMessage: error ? localizedSaveError(error, get().settings.locale) : indexMessage });
     }
   });
 }
@@ -201,12 +257,20 @@ function addImportedDatabase(
   get: FilesGet,
   database: FileDatabase,
 ): string {
+  if (get().files.databases.length >= MAX_DATABASES) {
+    set({ statusMessage: tLibrary(get().settings.locale, "library.quota.databases") });
+    return "";
+  }
+  if (database.games.length > MAX_GAMES_PER_DATABASE) {
+    set({ statusMessage: tLibrary(get().settings.locale, "library.quota.games") });
+    return "";
+  }
   set((state) => {
     const files = {
       ...state.files,
       databases: [...state.files.databases, database],
     };
-    const stored = saveLocalFiles(files);
+    cacheFiles(set, get, files);
     const imported =
       database.games.length === 0
         ? "No games found in that PGN"
@@ -215,26 +279,143 @@ function addImportedDatabase(
       files,
       activeFileDatabaseId: database.id,
       activeFileGameId: null,
-      statusMessage: stored ? imported : `${imported} · ${STORAGE_FULL_MESSAGE}`,
+      statusMessage: imported,
     };
   });
-  syncRemoteDatabase(set, get, database);
+  syncAndReport(set, get, database, "Games imported, but the position index could not be saved.");
   return database.id;
 }
 
 export const initialFilesState = {
-  files: loadLocalFiles(),
+  files: EMPTY_FILES,
+  filesHydrated: false,
   filesQuery: "",
   activeFileDatabaseId: null,
   activeFileGameId: null,
   bookmarks: loadLocalBookmarks(),
 };
 
+function createFilesHydration(set: FilesSet, get: FilesGet): Pick<
+  FilesSlice, "hydrateLocalFiles" | "uploadLocalDatabases"
+> {
+  let localHydration: Promise<void> | undefined;
+  const uploadingUsers = new Set<string>();
+  return {
+    hydrateLocalFiles: () => {
+      if (get().filesHydrated) {
+        return Promise.resolve();
+      }
+      localHydration ??= loadLocalFiles().then((files) => {
+        if (!get().filesHydrated) {
+          set({ files, filesHydrated: true });
+        }
+      });
+      return localHydration;
+    },
+    uploadLocalDatabases: async (remote) => {
+      const user = get().user;
+      if (!user || uploadingUsers.has(user.id)) {
+        return;
+      }
+      uploadingUsers.add(user.id);
+      const currentUser = () => get().user?.id === user.id;
+      try {
+        await get().hydrateLocalFiles();
+        if (!currentUser()) {
+          return;
+        }
+        get().mergeRemoteFiles(remote);
+        const uploadedDatabases = [...remote.databases];
+        const folderIds = new Set(remote.folders.map((folder) => folder.id));
+        const savedFolders = new Map<string, Promise<string | null>>();
+        const ensureFolder = (id: string | null, ancestors: string[] = []): Promise<string | null> => {
+          if (!id || folderIds.has(id)) {
+            return Promise.resolve(null);
+          }
+          if (ancestors.includes(id)) {
+            return Promise.resolve(FOLDER_CYCLE_MESSAGE);
+          }
+          const pending = savedFolders.get(id);
+          if (pending) {
+            return pending;
+          }
+          const folder = get().files.folders.find((item) => item.id === id);
+          if (!folder) {
+            return Promise.resolve(null);
+          }
+          const save = Promise.resolve().then(async () => {
+            const parentError = await ensureFolder(folder.parentId, [...ancestors, id]);
+            if (!currentUser() || parentError) {
+              return parentError;
+            }
+            return persistRemoteFolder(folder, user.id);
+          });
+          savedFolders.set(id, save);
+          return save;
+        };
+
+        let count = 0;
+        let indexFailed = false;
+        const failures: string[] = [];
+        for (const { id } of get().files.databases.filter((item) => !item.remoteId)) {
+          if (!currentUser()) {
+            return;
+          }
+          const database = get().files.databases.find((item) => item.id === id && !item.remoteId);
+          if (!database) {
+            continue;
+          }
+          const gameIds = new Set(database.games.map(({ id }) => id));
+          if (uploadedDatabases.some((item) => {
+            if (item.name !== database.name) {
+              return false;
+            }
+            const uploadedIds = new Set(item.games.map(({ id }) => id));
+            return uploadedIds.size === gameIds.size && [...gameIds].every((id) => uploadedIds.has(id));
+          })) {
+            continue;
+          }
+          let result: DatabaseSyncResult;
+          try {
+            const folderError = await ensureFolder(database.folderId);
+            result = folderError
+              ? { uploaded: false, error: databaseSaveErrorMessage({ message: folderError }) }
+              : currentUser() ? await syncRemoteDatabase(set, get, database) : { uploaded: false };
+          } catch (error) {
+            result = { uploaded: false, error: databaseSaveErrorMessage(error) ?? databaseSaveErrorMessage({}) };
+          }
+          if (result.uploaded) {
+            count++;
+            uploadedDatabases.push(database);
+          }
+          indexFailed ||= Boolean(result.indexError);
+          const failure = result.error ?? (result.uploaded ? undefined : result.indexError);
+          if (failure) {
+            failures.push(`${database.name} (${localizedSaveError(failure, get().settings.locale)})`);
+          }
+        }
+        if (currentUser() && (count || indexFailed || failures.length)) {
+          const locale = get().settings.locale;
+          set({ statusMessage: [
+            count && tLibrary(locale, "library.sync.uploaded", { count }),
+            indexFailed && tLibrary(locale, "library.sync.indexFailed"),
+            failures.length && tLibrary(locale, "library.sync.failed", { databases: failures.join(", ") }),
+            get().statusMessage?.includes(STORAGE_FULL_MESSAGE) && STORAGE_FULL_MESSAGE,
+          ].filter(Boolean).join(" · ") });
+        }
+      } finally {
+        uploadingUsers.delete(user.id);
+      }
+    },
+  };
+}
+
 export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
   set,
   get,
 ) => ({
   ...initialFilesState,
+  ...createFilesHydration(set, get),
   setFilesQuery: (filesQuery) => set({ filesQuery }),
   createFileFolder: (name, parentId = null) => {
     const folder: FileFolder = {
@@ -244,7 +425,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     };
     set((state) => {
       const files = { ...state.files, folders: [...state.files.folders, folder] };
-      saveLocalFiles(files);
+      cacheFiles(set, get, files);
       return { files };
     });
     const user = get().user;
@@ -271,7 +452,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         return folder;
       });
       const files = { ...state.files, folders };
-      saveLocalFiles(files);
+      cacheFiles(set, get, files);
       return { files };
     });
     const user = get().user;
@@ -301,7 +482,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         return {};
       }
       const files = { ...state.files, databases };
-      saveLocalFiles(files);
+      cacheFiles(set, get, files);
       return { files };
     });
     if (found) {
@@ -323,7 +504,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         return folder;
       });
       const files = { ...state.files, folders };
-      saveLocalFiles(files);
+      cacheFiles(set, get, files);
       return { files };
     });
     const user = get().user;
@@ -347,15 +528,20 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         return database;
       });
       const files = { ...state.files, databases };
-      saveLocalFiles(files);
+      cacheFiles(set, get, files);
       return { files };
     });
     if (updatedDatabase) {
       syncDatabaseMetadata(set, get, id, (remoteId) => persistRemoteDatabaseFolder(remoteId, targetFolderId));
     }
   },
-  importFileDatabase: (name, pgn, folderId = null) =>
-    addImportedDatabase(set, get, libraryFromPgn(name.trim() || "Database", pgn, folderId)),
+  importFileDatabase: (name, pgn, folderId = null) => {
+    if (get().files.databases.length >= MAX_DATABASES) {
+      set({ statusMessage: tLibrary(get().settings.locale, "library.quota.databases") });
+      return "";
+    }
+    return addImportedDatabase(set, get, libraryFromPgn(name.trim() || "Database", pgn, folderId));
+  },
   importParsedDatabase: (name, games, folderId = null) =>
     addImportedDatabase(
       set,
@@ -401,15 +587,18 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         : [...state.files.databases, updated],
     };
     dropFilesExplorerIndex(updated.id);
-    const stored = saveLocalFiles(files);
-    const message = tStudioChrome(locale, "chrome.addToDatabase.added", { name });
-    set({ files, statusMessage: stored ? message : `${message} · ${STORAGE_FULL_MESSAGE}` });
-    syncRemoteDatabase(set, get, updated, target?.games);
+    set({ files, statusMessage: tStudioChrome(locale, "chrome.addToDatabase.added", { name }) });
+    cacheFiles(set, get, files);
+    syncAndReport(set, get, updated, "Game saved locally, but the position index could not be saved.", target?.games);
     return true;
   },
   replaceFileDatabaseGames: (id, games) => {
     const target = get().files.databases.find((item) => item.id === id);
     if (!target) {
+      return false;
+    }
+    if (games.length > MAX_GAMES_PER_DATABASE) {
+      set({ statusMessage: tLibrary(get().settings.locale, "library.quota.games") });
       return false;
     }
     const updated: FileDatabase = { ...target, games };
@@ -419,7 +608,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         ...state.files,
         databases: state.files.databases.map((item) => (item.id === id ? updated : item)),
       };
-      const stored = saveLocalFiles(files);
+      cacheFiles(set, get, files);
       const message = `${updated.name}: ${games.length} game${games.length === 1 ? "" : "s"}`;
       return {
         files,
@@ -427,20 +616,27 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
           state.activeFileDatabaseId === id && !games.some((game) => game.id === state.activeFileGameId)
             ? null
             : state.activeFileGameId,
-        statusMessage: stored ? message : `${message} · ${STORAGE_FULL_MESSAGE}`,
+        statusMessage: message,
       };
     });
-    syncRemoteDatabase(set, get, updated, target.games);
+    syncAndReport(set, get, updated, "Games saved, but the position index could not be saved.", target.games);
     return true;
   },
   showFileDatabase: (id) => set({ activeFileDatabaseId: id }),
   openPgnSource: (name, pgn) => {
-    get().importFileDatabase(name, pgn);
+    const id = get().importFileDatabase(name, pgn);
+    // importFileDatabase reports which quota (databases or games) was hit;
+    // importPgnText below clears the status, so keep that message.
+    const quotaMessage = id ? null : get().statusMessage;
     get().importPgnText(pgn, name);
     if (get().statusMessage === "Could not open that PGN.") {
       return;
     }
-    const database = get().files.databases.find((item) => item.id === get().activeFileDatabaseId);
+    if (!id) {
+      set({ statusMessage: quotaMessage });
+      return;
+    }
+    const database = get().files.databases.find((item) => item.id === id);
     const count = database?.games.length ?? 0;
     if (count > 0) {
       set({ statusMessage: `Opened ${count} game${count === 1 ? "" : "s"}` });
@@ -531,7 +727,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
             : database,
         ),
       };
-      saveLocalFiles(files);
+      cacheFiles(set, get, files);
       return { files };
     });
     const user = get().user;
@@ -549,7 +745,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         ...state.files,
         databases: state.files.databases.filter((item) => item.id !== id),
       };
-      saveLocalFiles(files);
+      cacheFiles(set, get, files);
       const selectedId = fileDatabaseId(state.databaseSource);
       return {
         files,
@@ -558,10 +754,19 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         databaseSource: selectedId === id ? "masters" : state.databaseSource,
       };
     });
-    incompleteSyncs.delete(id);
-    if (target?.remoteId) {
+    const userId = get().user?.id;
+    if (userId && target?.remoteId) {
       const remoteId = target.remoteId;
-      queueRemoteWrite(set, get, id, () => deleteRemoteDatabase(remoteId));
+      const key = `${userId}:${id}`;
+      void queueRemoteWrite(get, key, userId, async () => {
+        incompleteSyncs.delete(key);
+        await deleteRemoteDatabase(remoteId);
+        return { uploaded: false };
+      }).then(({ error }) => {
+        if (error && get().user?.id === userId) {
+          set({ statusMessage: localizedSaveError(error, get().settings.locale) });
+        }
+      });
     }
   },
   mergeRemoteFiles: (payload) => {
@@ -579,14 +784,28 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         (item) => !existingFolderIds.has(item.id),
       );
 
-      if (extraDatabases.length === 0 && extraFolders.length === 0) {
+      const remoteById = new Map(remote.databases.map((item) => [item.remoteId, item]));
+      const databases = state.files.databases.map((item) => {
+        // Older clients only fetched the first 1,000 games from the account.
+        const complete = item.remoteId ? remoteById.get(item.remoteId) : undefined;
+        if (item.games.length === 1000 && complete && complete.games.length > item.games.length) {
+          const remoteGameIds = new Set(complete.games.map((game) => game.id));
+          if (item.games.every((game) => remoteGameIds.has(game.id))) {
+            dropFilesExplorerIndex(item.id);
+            return { ...item, games: complete.games };
+          }
+        }
+        return item;
+      });
+      if (!extraDatabases.length && !extraFolders.length &&
+          databases.every((item, index) => item === state.files.databases[index])) {
         return {};
       }
       const files = {
         folders: [...state.files.folders, ...extraFolders],
-        databases: [...state.files.databases, ...extraDatabases],
+        databases: [...databases, ...extraDatabases],
       };
-      saveLocalFiles(files);
+      cacheFiles(set, get, files);
       return { files };
     });
   },

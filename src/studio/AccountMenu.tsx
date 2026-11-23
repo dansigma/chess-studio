@@ -4,16 +4,25 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
 import { accountInitials } from "@/src/lib/account-initials";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
-import { useStudioStore } from "@/src/store/studio-store";
+import { clearSessionFilesBeforeSignOut, useStudioStore } from "@/src/store/studio-store";
 import { Button } from "./ui/Button";
 import { MenuDivider as Divider, MenuItem as Item, MenuSurface } from "./ui/Menu";
 
-/** Signs out of Supabase in the browser, clears the store user, then the server session. */
+/** Clears the local Library before ending the browser and server sessions. */
 export async function signOutEverywhere(): Promise<void> {
-  await createBrowserSupabase()?.auth.signOut();
-  useStudioStore.getState().setUser(null);
-  const { signOut } = await import("@/app/login/actions");
-  await signOut();
+  try {
+    await clearSessionFilesBeforeSignOut();
+  } catch {
+    // A storage failure must not block the sign-out below.
+  }
+  try {
+    await createBrowserSupabase()?.auth.signOut();
+  } finally {
+    // The reset clears the Library again; finish it before the redirect.
+    await useStudioStore.getState().setUser(null);
+    const { signOut } = await import("@/app/login/actions");
+    await signOut();
+  }
 }
 
 /**

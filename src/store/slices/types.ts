@@ -245,6 +245,9 @@ export type StudioState = {
   playerColorFilter: PlayerColorFilter;
   playerResultFilter: PlayerResultFilter;
   files: FilesLibrary;
+  filesHydrated: boolean;
+  hydrateLocalFiles: () => Promise<void>;
+  uploadLocalDatabases: (remote: FilesLibrary) => Promise<void>;
   filesQuery: string;
   activeFileDatabaseId: string | null;
   activeFileGameId: string | null;
@@ -445,8 +448,8 @@ export type StudioState = {
   setSetupMode: (open: boolean) => void;
   applySetupFen: (fen: string) => boolean;
   openSharedPosition: (fen: string) => void;
-  setUser: (user: UserInfo | null) => void;
-  resetSessionState: () => void;
+  setUser: (user: UserInfo | null) => Promise<boolean> | undefined;
+  resetSessionState: () => Promise<boolean>;
   hydrateSettings: (settings: Partial<StudioSettings>) => void;
   hydrateLocalSettings: () => void;
   hydrateRemoteBoard: (board: BoardSession) => void;

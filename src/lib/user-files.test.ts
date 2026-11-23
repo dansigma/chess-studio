@@ -86,7 +86,7 @@ test("folderWriteErrorMessage maps the folder_cycle database error", () => {
   assert.equal(folderWriteErrorMessage(null), null);
 });
 
-test("localFiles roundtrip preserves parentId and migrates legacy entries", () => {
+test("localFiles roundtrip preserves parentId and migrates legacy entries", async () => {
   const storage = new Map<string, string>();
   (globalThis as { window?: unknown }).window = {
     localStorage: {
@@ -106,19 +106,19 @@ test("localFiles roundtrip preserves parentId and migrates legacy entries", () =
     ],
   };
 
-  saveLocalFiles(sample);
-  const loaded = loadLocalFiles();
+  await saveLocalFiles(sample);
+  const loaded = await loadLocalFiles();
   assert.deepEqual(loaded, sample);
 
   // Legacy data without parentId
   storage.set(
-    "chess-studio:user-files",
+    "studio-clone-files",
     JSON.stringify({
       folders: [{ id: "legacy", name: "Legacy" }],
       databases: [],
     }),
   );
-  const legacyLoaded = loadLocalFiles();
+  const legacyLoaded = await loadLocalFiles();
   assert.equal(legacyLoaded.folders[0].parentId, null);
 });
 
@@ -198,4 +198,25 @@ test("store actions: folder creation, renaming, moving, and cascading deletion",
   const updatedNajdorf = useStudioStore.getState().files.databases.find((d) => d.id === najdorf.id);
   assert.ok(updatedNajdorf);
   assert.equal(updatedNajdorf.folderId, null);
+});
+
+test("an existing IndexedDB snapshot takes precedence over leftover legacy storage", async (t) => {
+  const legacyKey = "studio-clone-files";
+  const storage = new Map([[legacyKey, JSON.stringify({ folders: [], databases: [] })]]);
+  const previousWindow = globalThis.window;
+  (globalThis as { window?: unknown }).window = {
+    localStorage: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      removeItem: (key: string) => storage.delete(key),
+    },
+  };
+  try {
+    const snapshot: FilesLibrary = { folders: [{ id: "current", name: "Current", parentId: null }], databases: [] };
+    const write = t.mock.fn(async () => {});
+    assert.deepEqual(await loadLocalFiles({ read: async () => snapshot, write }), snapshot);
+    assert.equal(write.mock.callCount(), 0);
+    assert.equal(storage.has(legacyKey), false);
+  } finally {
+    globalThis.window = previousWindow;
+  }
 });

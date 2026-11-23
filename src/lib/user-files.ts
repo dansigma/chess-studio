@@ -1,4 +1,6 @@
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
+import type { SiteLocale } from "@/src/i18n/locale";
+import { tLibrary } from "@/src/i18n/library-strings";
 import { importPgn } from "@/src/chess/pgn";
 import type { GameTree } from "@/src/chess/tree";
 import { parsePgnCollection, type ParsedFileGame } from "@/src/chess/pgn-games";
@@ -50,15 +52,8 @@ function readGame(value: unknown): FileGame | null {
   };
 }
 
-export function loadLocalFiles(): FilesLibrary {
-  if (typeof window === "undefined") {
-    return EMPTY_FILES;
-  }
+function decodeLocalFiles(raw: string): FilesLibrary {
   try {
-    const raw = window.localStorage.getItem(FILES_KEY);
-    if (!raw) {
-      return EMPTY_FILES;
-    }
     const parsed = JSON.parse(raw) as unknown;
     if (!isRecord(parsed) || !Array.isArray(parsed.folders) || !Array.isArray(parsed.databases)) {
       return EMPTY_FILES;
@@ -101,17 +96,147 @@ export function loadLocalFiles(): FilesLibrary {
   }
 }
 
-/** Returns false when the browser refused the write (quota full, storage blocked); never throws. */
-export function saveLocalFiles(library: FilesLibrary): boolean {
-  if (typeof window === "undefined") {
-    return true;
-  }
+type FilesCache = {
+  read: () => Promise<FilesLibrary | undefined>;
+  write: (library: FilesLibrary, isCurrent: () => boolean) => Promise<void>;
+};
+
+async function withFilesCache<T>(
+  mode: IDBTransactionMode,
+  request: (store: IDBObjectStore) => IDBRequest<T> | undefined,
+): Promise<T | undefined> {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const open = window.indexedDB.open("studio-library", 1);
+    let blocked = false;
+    open.onupgradeneeded = () => open.result.createObjectStore("files");
+    open.onblocked = () => {
+      blocked = true;
+      reject(new Error("Library storage is blocked"));
+    };
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      if (blocked) {
+        open.result.close();
+      } else {
+        resolve(open.result);
+      }
+    };
+  });
   try {
-    window.localStorage.setItem(FILES_KEY, JSON.stringify(library));
-    return true;
-  } catch {
-    return false;
+    return await new Promise<T | undefined>((resolve, reject) => {
+      const transaction = db.transaction("files", mode);
+      const result = request(transaction.objectStore("files"));
+      transaction.oncomplete = () => resolve(result?.result);
+      transaction.onabort = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
   }
+}
+
+const indexedFilesCache: FilesCache = {
+  read: () => withFilesCache("readonly", (store) => store.get(FILES_KEY)),
+  write: (library, isCurrent) =>
+    withFilesCache("readwrite", (store) => {
+      if (isCurrent()) return store.put(library, FILES_KEY);
+    }).then(() => undefined),
+};
+
+// Serialize hydration, migration, and saves within a session.
+let cacheGeneration = 0;
+let pendingCacheOperation: Promise<unknown> = Promise.resolve();
+let pendingCacheClear: Promise<boolean> = Promise.resolve(true);
+function queueCacheOperation<T>(operation: (isCurrent: () => boolean) => Promise<T>): Promise<T> {
+  const generation = cacheGeneration;
+  const run = () => operation(() => generation === cacheGeneration);
+  const next = pendingCacheOperation.then(run, run);
+  pendingCacheOperation = next;
+  return next;
+}
+
+function removeLegacyFiles() {
+  try {
+    window.localStorage.removeItem(FILES_KEY);
+  } catch {
+    // Legacy storage may be disabled.
+  }
+}
+
+export function clearLocalFiles(): Promise<boolean> {
+  // Skip queued writes and invalidate writes still opening IndexedDB. Any put
+  // already issued has a readwrite transaction that IndexedDB orders before
+  // the delete. New operations wait for the delete to commit.
+  cacheGeneration++;
+  if (typeof window !== "undefined") removeLegacyFiles();
+  pendingCacheClear = pendingCacheClear.then(async () => {
+    try {
+      if (typeof window !== "undefined" && window.indexedDB) {
+        await withFilesCache("readwrite", (store) => store.delete(FILES_KEY));
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  pendingCacheOperation = pendingCacheClear;
+  return pendingCacheClear;
+}
+
+export function loadLocalFiles(cache: FilesCache = indexedFilesCache): Promise<FilesLibrary> {
+  return queueCacheOperation(async (isCurrent) => {
+    if (typeof window === "undefined" || !isCurrent()) {
+      return EMPTY_FILES;
+    }
+    let raw: string | null = null;
+    try {
+      raw = window.localStorage.getItem(FILES_KEY);
+    } catch {
+      // IndexedDB may still be available.
+    }
+    const legacy = raw ? decodeLocalFiles(raw) : EMPTY_FILES;
+    try {
+      if (cache === indexedFilesCache && !window.indexedDB) {
+        return legacy;
+      }
+      const snapshot = await cache.read();
+      if (!isCurrent()) return EMPTY_FILES;
+      if (raw) {
+        if (snapshot === undefined) await cache.write(legacy, isCurrent);
+        if (isCurrent()) removeLegacyFiles();
+      }
+      return isCurrent() ? snapshot ?? legacy : EMPTY_FILES;
+    } catch {
+      // Retain the legacy snapshot if the migration could not commit.
+    }
+    return isCurrent() ? legacy : EMPTY_FILES;
+  });
+}
+
+/** Returns false when the browser refused the write; never throws. */
+export function saveLocalFiles(library: FilesLibrary): Promise<boolean> {
+  return queueCacheOperation(async (isCurrent) => {
+    if (typeof window === "undefined" || !isCurrent()) {
+      return true;
+    }
+    try {
+      if (window.indexedDB) {
+        await indexedFilesCache.write(library, isCurrent);
+        if (isCurrent()) removeLegacyFiles();
+        return true;
+      }
+    } catch (error) {
+      if (!(error instanceof DOMException) || !["SecurityError", "InvalidStateError"].includes(error.name)) {
+        return false;
+      }
+    }
+    if (!isCurrent()) return true;
+    try {
+      window.localStorage.setItem(FILES_KEY, JSON.stringify(library));
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function libraryFromPgn(name: string, pgn: string, folderId: string | null): FileDatabase {
@@ -128,8 +253,8 @@ export function libraryFromPgn(name: string, pgn: string, folderId: string | nul
 
 export const MAX_GAME_PGN_BYTES = 1_000_000;
 /** Account limits, enforced by the server when signed in and by the client always. */
-export const MAX_GAMES_PER_DATABASE = 5000;
-export const MAX_DATABASES = 50;
+export const MAX_GAMES_PER_DATABASE = 25_000;
+export const MAX_DATABASES = 10;
 
 export type SaveErrorCode =
   | "pgn_too_large"
@@ -142,21 +267,34 @@ export type SaveErrorCode =
 export const GAME_PGN_TOO_LARGE_MESSAGE = "One game is larger than 1 MB and was not saved.";
 export const BOARD_PGN_TOO_LARGE_MESSAGE = "One board is larger than 2 MB and was not saved.";
 export const LAYOUT_TOO_LARGE_MESSAGE = "The layout is larger than 256 KB and was not saved.";
-export const TOO_MANY_GAMES_MESSAGE = `This database holds more than ${MAX_GAMES_PER_DATABASE.toLocaleString("en-US")} games. Remove some games and try again.`;
-export const TOO_MANY_DATABASES_MESSAGE = `You can keep up to ${MAX_DATABASES} personal databases. Delete one to add another.`;
+export const TOO_MANY_GAMES_MESSAGE = tLibrary("en", "library.quota.games");
+export const TOO_MANY_DATABASES_MESSAGE = tLibrary("en", "library.quota.databases");
 
-export function databaseSaveErrorMessage(error: { message?: string; code?: string } | null): string | null {
+export function localizedSaveError(message: string, locale: SiteLocale): string {
+  if (message === TOO_MANY_GAMES_MESSAGE) {
+    return tLibrary(locale, "library.quota.games");
+  }
+  if (message === TOO_MANY_DATABASES_MESSAGE) {
+    return tLibrary(locale, "library.quota.databases");
+  }
+  return message;
+}
+
+type DatabaseSaveError = { message?: string; code?: string };
+export function databaseSaveErrorMessage(error: DatabaseSaveError): string;
+export function databaseSaveErrorMessage(error: unknown): string | null;
+export function databaseSaveErrorMessage(error: unknown): string | null {
   if (!error) {
     return null;
   }
-  const message = error.message ?? "";
+  const message = isRecord(error) && typeof error.message === "string" ? error.message : "";
   if (message.includes("quota_games")) {
     return TOO_MANY_GAMES_MESSAGE;
   }
   if (message.includes("quota_databases")) {
     return TOO_MANY_DATABASES_MESSAGE;
   }
-  if (error.code === "23514") {
+  if (isRecord(error) && error.code === "23514") {
     if (message.includes("games_pgn_size")) {
       return GAME_PGN_TOO_LARGE_MESSAGE;
     }
@@ -447,11 +585,14 @@ export async function loadRemoteFiles(userId: string): Promise<FilesLibrary> {
   if (!supabase) {
     return EMPTY_FILES;
   }
-  const { data: folderRows } = await supabase
+  const { data: folderRows, error: folderError } = await supabase
     .from("user_folders")
     .select("id, name, parent_id")
     .eq("user_id", userId);
 
+  if (folderError) {
+    throw folderError;
+  }
   const folders: FileFolder[] = (folderRows ?? []).map((row) => ({
     id: row.id,
     name: row.name,
@@ -460,11 +601,11 @@ export async function loadRemoteFiles(userId: string): Promise<FilesLibrary> {
 
   const { data: databases, error } = await supabase
     .from("game_databases")
-    .select("id, name, game_count, folder_id")
+    .select("id, name, folder_id")
     .eq("user_id", userId)
     .eq("kind", "personal");
-  if (error || !databases) {
-    return { folders, databases: [] };
+  if (error) {
+    throw error;
   }
   const result: FileDatabase[] = [];
   for (const row of databases) {
@@ -472,15 +613,15 @@ export async function loadRemoteFiles(userId: string): Promise<FilesLibrary> {
     const pageSize = 1000;
     const games: FileGame[] = [];
     for (let offset = 0; ; offset += pageSize) {
-      const { data: page } = await supabase
+      const { data: page, error: gamesError } = await supabase
         .from("games")
         .select("id, white, black, event, result, pgn")
         .eq("database_id", row.id)
         .eq("pending", false)
         .order("id")
         .range(offset, offset + pageSize - 1);
-      if (!page) {
-        break;
+      if (gamesError) {
+        throw gamesError;
       }
       for (const game of page) {
         games.push({

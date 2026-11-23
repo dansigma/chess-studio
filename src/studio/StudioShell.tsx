@@ -43,7 +43,8 @@ import {
   syncRemoteDockLayout,
   useStudioStore,
 } from "@/src/store/studio-store";
-import { loadRemoteFiles } from "@/src/lib/user-files";
+import { tLibrary } from "@/src/i18n/library-strings";
+import { syncAccountLibrary } from "./library/sync-account-library";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
 import { applyStudioEntryImport, entryImportReady } from "@/src/studio/entry-import";
@@ -172,6 +173,21 @@ export function StudioShell() {
   const forward = useStudioStore((state) => state.forward);
   const flip = useStudioStore((state) => state.flip);
   const user = useStudioStore((state) => state.user);
+  const userId = user?.id;
+  const filesHydrated = useStudioStore((state) => state.filesHydrated);
+
+  useEffect(() => {
+    void useStudioStore.getState().hydrateLocalFiles();
+  }, []);
+
+  useEffect(() => {
+    if (!userId || !filesHydrated) {
+      return;
+    }
+    let cancelled = false;
+    void syncAccountLibrary(userId, () => cancelled);
+    return () => { cancelled = true; };
+  }, [filesHydrated, userId]);
   // SIG-1043: below 768 px the studio renders the separate single-column
   // mobile layout instead of the desktop dock. Called unconditionally; only
   // the render branch below differs. StudioDock is never mounted on mobile,
@@ -287,14 +303,6 @@ export function StudioShell() {
       const merged = mergeSessionBoards(local, boardsError ? null : boardsData);
       if (merged) {
         useStudioStore.setState({ boards: merged.boards, activeBoardId: merged.activeBoardId });
-      }
-      const remoteFiles = await loadRemoteFiles(user.id);
-      if (cancelled) {
-        return;
-      }
-      useStudioStore.getState().mergeRemoteFiles(remoteFiles);
-      if (cancelled) {
-        return;
       }
       await useStudioStore.getState().hydrateRemoteBookmarks();
       if (cancelled) {
@@ -510,12 +518,18 @@ export function StudioShell() {
   // have settled; earlier, the restore replaces `boards` and drops the new one.
   const importReady = entryImportReady({ authResolved: authResolved || !createBrowserSupabase(), hasUser: Boolean(user), restoreSettled });
   useEffect(() => {
-    if (!importReady || sharedFenApplied.current) {
+    if (!filesHydrated || !importReady || sharedFenApplied.current) {
       return;
     }
     sharedFenApplied.current = true;
     void applyStudioEntryImport(window.location.search);
-  }, [importReady]);
+  }, [filesHydrated, importReady]);
+
+  if (!filesHydrated) {
+    return <div role="status" className="flex h-dvh items-center justify-center bg-studio-bg text-studio-muted">
+      {tLibrary(locale, "library.sync.loading")}
+    </div>;
+  }
 
   return (
     <>
