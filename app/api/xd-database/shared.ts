@@ -3,6 +3,7 @@ import { isExplorerFen } from "@/src/lib/request-validation";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 import { tooManyRequests } from "@/src/lib/rate-limit-response";
 import { XD_DATABASE_PREFIX, XD_DATABASE_VERSION } from "@/src/lib/xd-database/manifest";
+import type { GameRecord } from "@/src/lib/xd-database/format";
 import { treeKeyOfFen, XdDatabaseReader } from "@/src/lib/xd-database/reader";
 
 type Bucket = {
@@ -39,7 +40,9 @@ export function pageCursor(query: URLSearchParams): number {
   return unsignedInteger(query.get("cursor") ?? "0");
 }
 
-export function gameHeaders({ id, game: { moves: _moves, ...headers } }: Awaited<ReturnType<XdDatabaseReader["gamesById"]>>[number]) {
+export function gameHeaders({ id, game }: { id: number; game: GameRecord }): { id: number } & Omit<GameRecord, "moves"> {
+  const headers: Omit<GameRecord, "moves"> & { moves?: string } = { ...game };
+  delete headers.moves;
   return { id, ...headers };
 }
 
