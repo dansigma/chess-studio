@@ -89,6 +89,14 @@ export { emptyBoard, newId, withActive, analysisFen } from "./slices/board-helpe
 
 let sessionFilesClear: Promise<boolean> | undefined;
 
+export async function clearSessionFilesBeforeSignOut(): Promise<void> {
+  const previousClear = sessionFilesClear;
+  if (!(await previousClear) && sessionFilesClear === previousClear) {
+    sessionFilesClear = clearLocalFiles();
+  }
+  await sessionFilesClear;
+}
+
 const CLOSED_SETTINGS_DIALOG: SettingsDialogState = { open: false, section: null };
 
 function withWorkspaceView(
@@ -202,10 +210,13 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     const previousId = get().user?.id ?? null;
     const nextId = user?.id ?? null;
     set({ user });
+    if (nextId !== null && nextId !== previousId) {
+      sessionFilesClear = undefined;
+    }
     if (previousId !== null && previousId !== nextId) {
       return get().resetSessionState();
     }
-    // The browser auth listener may have reset the session before AccountMenu.
+    // The browser auth listener may have already reset the signed-out session.
     if (nextId === null) return sessionFilesClear;
   },
   resetSessionState: () => {
@@ -220,7 +231,11 @@ export const useStudioStore = create<StudioState>((set, get) => ({
     get().hydrateSavedLayouts([]);
     clearGuestBoards();
     resetCourseProgressState();
-    const filesClear = sessionFilesClear = clearLocalFiles();
+    // An account switch clears the previous account's files. Its replacement
+    // session still needs a fresh clear when that account later signs out.
+    const filesClear = get().user
+      ? clearLocalFiles()
+      : (sessionFilesClear ??= clearLocalFiles());
     saveLocalBookmarks([]);
     const board = emptyBoard();
     const sessionReset = {

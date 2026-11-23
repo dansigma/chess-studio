@@ -44,7 +44,7 @@ import {
   useStudioStore,
 } from "@/src/store/studio-store";
 import { tLibrary } from "@/src/i18n/library-strings";
-import { databaseSaveErrorMessage, loadRemoteFiles } from "@/src/lib/user-files";
+import { syncAccountLibrary } from "./library/sync-account-library";
 import { preparePrintFallback, printActiveBoard } from "./print-board";
 import { PRINT_SHEET_ID } from "@/src/chess/print-sheet";
 import { applyStudioEntryImport, entryImportReady } from "@/src/studio/entry-import";
@@ -185,18 +185,7 @@ export function StudioShell() {
       return;
     }
     let cancelled = false;
-    void loadRemoteFiles(userId).then(async (remote) => {
-      if (!cancelled && useStudioStore.getState().user?.id === userId) {
-        await useStudioStore.getState().uploadLocalDatabases(remote);
-      }
-    }).catch((error) => {
-      const state = useStudioStore.getState();
-      if (!cancelled && state.user?.id === userId) {
-        state.setStatus(tLibrary(state.settings.locale, "library.sync.loadFailed", {
-          reason: databaseSaveErrorMessage(error) ?? "",
-        }));
-      }
-    });
+    void syncAccountLibrary(userId, () => cancelled);
     return () => { cancelled = true; };
   }, [filesHydrated, userId]);
   // SIG-1043: below 768 px the studio renders the separate single-column

@@ -1,4 +1,5 @@
 import { createBrowserSupabase } from "@/src/lib/supabase/client";
+import type { SiteLocale } from "@/src/i18n/locale";
 import { tLibrary } from "@/src/i18n/library-strings";
 import { importPgn } from "@/src/chess/pgn";
 import type { GameTree } from "@/src/chess/tree";
@@ -268,6 +269,16 @@ export const BOARD_PGN_TOO_LARGE_MESSAGE = "One board is larger than 2 MB and wa
 export const LAYOUT_TOO_LARGE_MESSAGE = "The layout is larger than 256 KB and was not saved.";
 export const TOO_MANY_GAMES_MESSAGE = tLibrary("en", "library.quota.games");
 export const TOO_MANY_DATABASES_MESSAGE = tLibrary("en", "library.quota.databases");
+
+export function localizedSaveError(message: string, locale: SiteLocale): string {
+  if (message === TOO_MANY_GAMES_MESSAGE) {
+    return tLibrary(locale, "library.quota.games");
+  }
+  if (message === TOO_MANY_DATABASES_MESSAGE) {
+    return tLibrary(locale, "library.quota.databases");
+  }
+  return message;
+}
 
 type DatabaseSaveError = { message?: string; code?: string };
 export function databaseSaveErrorMessage(error: DatabaseSaveError): string;

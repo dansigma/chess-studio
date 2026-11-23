@@ -24,8 +24,6 @@ import {
   FOLDER_CYCLE_MESSAGE,
   MAX_DATABASES,
   MAX_GAMES_PER_DATABASE,
-  TOO_MANY_DATABASES_MESSAGE,
-  TOO_MANY_GAMES_MESSAGE,
   deleteRemoteDatabase,
   deleteRemoteFolder,
   deleteRemoteGame,
@@ -35,6 +33,7 @@ import {
   getDescendantFolderIds,
   libraryFromPgn,
   loadLocalFiles,
+  localizedSaveError,
   persistRemoteDatabase,
   persistRemoteDatabaseName,
   persistRemoteDatabaseFolder,
@@ -84,16 +83,6 @@ type FilesSet = Parameters<StateCreator<StudioState, [], [], FilesSlice>>[0];
 type FilesGet = Parameters<StateCreator<StudioState, [], [], FilesSlice>>[1];
 
 const STORAGE_FULL_MESSAGE = "Saved in this session only: browser storage is full";
-
-function localizedSaveError(message: string, locale: StudioState["settings"]["locale"]): string {
-  if (message === TOO_MANY_GAMES_MESSAGE) {
-    return tLibrary(locale, "library.quota.games");
-  }
-  if (message === TOO_MANY_DATABASES_MESSAGE) {
-    return tLibrary(locale, "library.quota.databases");
-  }
-  return message;
-}
 
 function cacheFiles(set: FilesSet, get: FilesGet, files: FilesLibrary) {
   void saveLocalFiles(files).then((stored) => {
@@ -373,9 +362,17 @@ function createFilesHydration(set: FilesSet, get: FilesGet): Pick<
             return;
           }
           const database = get().files.databases.find((item) => item.id === id && !item.remoteId);
-          if (!database || uploadedDatabases.some((item) =>
-            item.name === database.name && item.games.length === database.games.length
-          )) {
+          if (!database) {
+            continue;
+          }
+          const gameIds = new Set(database.games.map(({ id }) => id));
+          if (uploadedDatabases.some((item) => {
+            if (item.name !== database.name) {
+              return false;
+            }
+            const uploadedIds = new Set(item.games.map(({ id }) => id));
+            return uploadedIds.size === gameIds.size && [...gameIds].every((id) => uploadedIds.has(id));
+          })) {
             continue;
           }
           let result: DatabaseSyncResult;

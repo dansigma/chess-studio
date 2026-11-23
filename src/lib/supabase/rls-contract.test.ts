@@ -900,8 +900,10 @@ it("enforces the ten-database quota on all owned rows and ownership or kind chan
     join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261120000200_owned_database_quota.sql"),
     "utf8",
   );
-  assert.match(migration, /if new\.user_id is not null then\s+perform pg_catalog\.pg_advisory_xact_lock\(pg_catalog\.hashtextextended\(new\.user_id::text, 0\)\);/);
-  assert.match(migration, /where user_id = new\.user_id and id <> new\.id;/);
+  assert.match(migration, /security invoker\s+set search_path = ''/);
+  assert.match(migration, /if tg_op = 'UPDATE' and old\.user_id is distinct from new\.user_id then\s+previous_lock := pg_catalog\.hashtextextended\(old\.user_id::text, 0\);/);
+  assert.match(migration, /pg_advisory_xact_lock\(least\(previous_lock, current_lock\)\);\s+perform pg_catalog\.pg_advisory_xact_lock\(greatest\(previous_lock, current_lock\)\);/);
+  assert.match(migration, /if tg_op = 'INSERT' then\s+select count\(\*\) into owned\s+from public\.game_databases\s+where user_id = new\.user_id;\s+else\s+select count\(\*\) into owned\s+from public\.game_databases\s+where user_id = new\.user_id and id <> new\.id;/);
   assert.match(migration, /if owned >= 10 then\s+raise exception using\s+errcode = 'P0001',\s+message = 'quota_databases'/);
   assert.match(migration, /before insert or update of kind, user_id on public\.game_databases\s+for each row execute function public\.check_personal_database_quota\(\);/);
 });

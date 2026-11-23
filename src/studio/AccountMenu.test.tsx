@@ -66,7 +66,11 @@ test("sign-out commits the Library deletion before redirecting and invalidates o
   const { useStudioStore } = await import("@/src/store/studio-store");
   const { signOutEverywhere } = await import("./AccountMenu");
   // Supabase can notify the shell before its signOut promise resolves.
-  onBrowserSignOut = () => { void useStudioStore.getState().setUser(null); };
+  let browserSignedOut = false;
+  onBrowserSignOut = () => {
+    browserSignedOut = true;
+    void useStudioStore.getState().setUser(null);
+  };
   useStudioStore.setState({ user: { id: "previous-account", email: null } });
   const slowSave = saveLocalFiles(oldLibrary);
   const queuedSave = saveLocalFiles(oldLibrary);
@@ -83,13 +87,39 @@ test("sign-out commits the Library deletion before redirecting and invalidates o
       deleteStarted.promise,
       signingOut.then(() => assert.fail("redirected before deleting the Library")),
     ]);
+    assert.equal(browserSignedOut, false);
     assert.equal(redirected, false);
     finishDelete();
     await signingOut;
     assert.equal(redirected, true);
   } finally {
     releaseSave();
+    finishDelete();
     await Promise.allSettled([slowSave, queuedSave, signingOut]);
   }
   assert.deepEqual(await loadLocalFiles(), EMPTY_FILES);
+});
+
+test("sign-out retries a failed session clear and still redirects when storage fails", async (t) => {
+  t.after(teardownDom);
+  let attempts = 0;
+  Object.defineProperty(window, "indexedDB", {
+    configurable: true,
+    value: { open() { attempts++; throw new Error("Storage unavailable"); } },
+  });
+  t.after(() => Reflect.deleteProperty(window, "indexedDB"));
+
+  const { useStudioStore } = await import("@/src/store/studio-store");
+  const { signOutEverywhere } = await import("./AccountMenu");
+  const { setUser } = useStudioStore.getState();
+  setUser({ id: "second-account", email: null });
+  assert.equal(await setUser(null), false);
+  const calls: string[] = [];
+  onBrowserSignOut = () => { calls.push("browser"); };
+  onServerSignOut = () => { calls.push("server"); };
+
+  await signOutEverywhere();
+
+  assert.deepEqual(calls, ["browser", "server"]);
+  assert.equal(attempts, 2);
 });
