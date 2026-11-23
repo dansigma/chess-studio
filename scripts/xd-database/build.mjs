@@ -167,6 +167,15 @@ class U32List {
 const NO_PLAYER = 0xffffffff;
 
 /**
+ * A flat copy of a string. Header values are V8 "sliced strings" that keep the
+ * whole chunk of PGN text they were cut from alive (about 15 KB per name); kept
+ * for a million players, that exhausted the heap on the full release.
+ */
+export function detach(text) {
+  return Buffer.from(text, "utf8").toString("utf8");
+}
+
+/**
  * Player identities: the FIDE id when the game gives one, otherwise the
  * normalized name ("surname, f"). A name-only identity whose normalized name
  * belongs to exactly one FIDE identity is merged into it at the end.
@@ -181,7 +190,8 @@ class PlayerRegistry {
   }
 
   identify(name, fide, date) {
-    const normalized = normalizePlayer(name);
+    // normalizePlayer may return a slice of `name` (nothing to change): detach it as well.
+    const normalized = detach(normalizePlayer(name));
     if (normalized === "" && fide === null) {
       return NO_PLAYER;
     }
@@ -190,13 +200,15 @@ class PlayerRegistry {
     if (index === undefined) {
       index = this.names.length;
       this.ids.set(key, index);
-      this.names.push(name);
+      this.names.push(detach(name));
       this.nameDates.push(date);
       this.fide.push(fide ?? 0);
       this.normalized.push(normalized);
     } else if (date >= this.nameDates[index]) {
       // The newest spelling wins (federations fix names over time).
-      this.names[index] = name;
+      if (this.names[index] !== name) {
+        this.names[index] = detach(name);
+      }
       this.nameDates[index] = date;
     }
     return index;
@@ -430,7 +442,8 @@ export async function buildDatabase(sources, options) {
         }
         if (Date.now() - lastLog > 30_000) {
           lastLog = Date.now();
-          log(`read ${stats.read.toLocaleString("en")} games, kept ${stats.kept.toLocaleString("en")} (${Math.round((Date.now() - started) / 1000)} s)`);
+          const heap = Math.round(process.memoryUsage().heapUsed / 2 ** 20);
+          log(`read ${stats.read.toLocaleString("en")} games, kept ${stats.kept.toLocaleString("en")}, ${players.names.length.toLocaleString("en")} players, heap ${heap} MiB (${Math.round((Date.now() - started) / 1000)} s)`);
         }
         if (stats.kept >= o.maxGames) {
           break reading;
