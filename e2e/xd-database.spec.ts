@@ -28,8 +28,9 @@ test("browse Base Xadrez Digital moves and open a database game", async ({ page 
     source: "masters", fen: chess.fen(), opening: null, white: 0, draws: 0, black: 0, moves: [], games: [],
   } }));
   await page.route("**/api/xd-database/games?*", (route) => {
-    const cursor = new URL(route.request().url()).searchParams.get("cursor");
-    if (cursor === "0") {
+    const query = new URL(route.request().url()).searchParams;
+    const cursor = query.get("cursor");
+    if (cursor === "0" || (query.get("minRating") === "2300" && !cursor)) {
       return route.fulfill({ json: { games: [], nextCursor: 5000 } });
     }
     return route.fulfill({ json: {
@@ -51,6 +52,19 @@ test("browse Base Xadrez Digital moves and open a database game", async ({ page 
   const source = page.getByRole("combobox", { name: "Explorer source" });
   const explorer = page.getByRole("tabpanel").filter({ has: source });
   await source.selectOption({ label: "Base Xadrez Digital" });
+
+  await explorer.getByRole("button", { name: "Filters", exact: true }).click();
+  const filters = explorer.getByRole("dialog", { name: "Filters" });
+  const scannedGames = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname.endsWith("/xd-database/games")
+      && url.searchParams.get("minRating") === "2300"
+      && url.searchParams.get("cursor") === "5000";
+  });
+  await filters.getByRole("button", { name: "2300+" }).click();
+  expect((await scannedGames).ok()).toBe(true);
+  await explorer.getByRole("button", { name: "Close filters", exact: true }).click();
+  await expect(explorer.getByText("Percentages cover all games; filters apply to the games list")).toBeVisible();
 
   await explorer.getByRole("button", { name: /^e4\b/ }).click();
   await expect(explorer.getByTitle("Database Opening", { exact: true })).toBeVisible();

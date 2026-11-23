@@ -4,6 +4,8 @@ export type ExplorerSpeed = (typeof EXPLORER_SPEEDS)[number];
 
 export const RATING_THRESHOLDS = [0, 1600, 1800, 2000, 2200, 2500] as const;
 
+export const XD_RATING_THRESHOLDS = [0, 2300, 2500, 2700] as const;
+
 export type ExplorerFilters = {
   speeds: ExplorerSpeed[];
   minRating: number;
@@ -44,12 +46,15 @@ export function toggleExplorerSpeed(filters: ExplorerFilters, speed: ExplorerSpe
   return { ...filters, speeds: next.length === 0 ? [...EXPLORER_SPEEDS] : next };
 }
 
-export function readExplorerFilters(value: unknown): ExplorerFilters {
+export function readExplorerFilters(
+  value: unknown,
+  ratingThresholds: readonly number[] = RATING_THRESHOLDS,
+): ExplorerFilters {
   if (typeof value !== "object" || value === null) {
     return DEFAULT_EXPLORER_FILTERS;
   }
   const record = value as Record<string, unknown>;
-  const minRating = RATING_THRESHOLDS.find((item) => item === record.minRating) ?? 0;
+  const minRating = ratingThresholds.find((item) => item === record.minRating) ?? 0;
   return {
     speeds: Array.isArray(record.speeds) ? normalizeSpeeds(record.speeds.filter((item) => typeof item === "string")) : [...EXPLORER_SPEEDS],
     minRating,

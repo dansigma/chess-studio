@@ -5,6 +5,7 @@ import { SlidersHorizontal } from "lucide-react";
 import {
   EXPLORER_SPEEDS,
   RATING_THRESHOLDS,
+  XD_RATING_THRESHOLDS,
   activeExplorerFilterCount,
   toggleExplorerSpeed,
   type ExplorerFilters,
@@ -45,10 +46,11 @@ function Chip({
   );
 }
 
-function sourceFilters(source: ExplorerSource): { speed: boolean; rating: boolean } {
+function sourceFilters(source: ExplorerSource): { speed: boolean; rating: boolean; ratingThresholds: readonly number[] } {
   const personal = fileDatabaseId(source) != null;
   const speed = source === "lichess" || source === "chesscom";
-  return { speed, rating: speed || personal };
+  const xd = source === "xadrez-digital";
+  return { speed, rating: speed || personal || xd, ratingThresholds: xd ? XD_RATING_THRESHOLDS : RATING_THRESHOLDS };
 }
 
 /**
@@ -126,7 +128,7 @@ export function ExplorerFiltersBar({
             ) : null}
             {available.rating ? (
               <FilterGroup title={tPanels(locale, "explorer.filters.rating")}>
-                {RATING_THRESHOLDS.map((rating) => (
+                {available.ratingThresholds.map((rating) => (
                   <Chip
                     key={rating}
                     label={rating === 0 ? tPanels(locale, "explorer.filter.all") : `${rating}+`}
