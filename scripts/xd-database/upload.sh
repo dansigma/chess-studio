@@ -25,7 +25,18 @@ if [[ $manifest_version != "$version" ]]; then
   echo "manifest.json is version $manifest_version, not $version" >&2
   exit 1
 fi
-mapfile -t names < <(node -e 'console.log(Object.keys(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).files).join("\n"))' "$dir/manifest.json")
+listing=$(node -e 'console.log(Object.keys(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).files).join("\n"))' "$dir/manifest.json")
+mapfile -t names <<< "$listing"
+if [[ ${#names[@]} -eq 0 || -z ${names[0]} ]]; then
+  echo "manifest.json lists no files" >&2
+  exit 1
+fi
+# Versions are immutable: never write into a prefix that already has objects.
+existing=$(aws s3api list-objects-v2 --bucket "$bucket" --prefix "$prefix/" --max-keys 1 --endpoint-url "$XD_R2_ENDPOINT" --query KeyCount --output text)
+if [[ $existing != 0 ]]; then
+  echo "s3://$bucket/$prefix/ already has objects; pick a new version (or empty the prefix first)" >&2
+  exit 1
+fi
 
 upload() {
   local name=$1 content_type=$2 file="$dir/$1"
