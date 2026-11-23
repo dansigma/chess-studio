@@ -156,15 +156,16 @@ export function playMove(
   path: Path,
   move: Pick<TreeNode, "san" | "uci" | "fen" | "from" | "to">,
 ): { tree: GameTree; path: Path } {
-  const next = cloneTree(tree);
-  const siblings = childrenAt(next, path);
-  if (!siblings) {
+  const current = childrenAt(tree, path);
+  if (!current) {
     return { tree, path };
   }
-  const existing = siblings.findIndex((child) => child.uci === move.uci);
+  const existing = current.findIndex((child) => child.uci === move.uci);
   if (existing >= 0) {
-    return { tree: next, path: [...path, existing] };
+    return { tree, path: [...path, existing] };
   }
+  const next = cloneTree(tree);
+  const siblings = childrenAt(next, path)!;
   const node: TreeNode = {
     id: newNodeId(),
     san: move.san,
@@ -317,16 +318,14 @@ export function setNodeComment(
   path: Path,
   comment: string,
 ): GameTree {
-  const next = cloneTree(tree);
+  const value = comment.trim() || undefined;
   if (path.length === 0) {
-    next.startComment = comment.trim() || undefined;
-    return next;
+    return tree.startComment === value ? tree : { ...tree, startComment: value };
   }
-  const node = getNodeAt(next, path);
-  if (!node) {
-    return tree;
-  }
-  node.comment = comment.trim() || undefined;
+  const node = getNodeAt(tree, path);
+  if (!node || node.comment === value) return tree;
+  const next = cloneTree(tree);
+  getNodeAt(next, path)!.comment = value;
   return next;
 }
 
@@ -335,25 +334,19 @@ export function setNodeCommentBefore(
   path: Path,
   comment: string,
 ): GameTree {
-  if (path.length === 0) {
-    return tree;
-  }
+  const value = comment.trim() || undefined;
+  const node = getNodeAt(tree, path);
+  if (!node || node.commentBefore === value) return tree;
   const next = cloneTree(tree);
-  const node = getNodeAt(next, path);
-  if (!node) {
-    return tree;
-  }
-  node.commentBefore = comment.trim() || undefined;
+  getNodeAt(next, path)!.commentBefore = value;
   return next;
 }
 
 export function setNodeNags(tree: GameTree, path: Path, nags: number[] | undefined): GameTree {
+  const node = getNodeAt(tree, path);
+  if (!node || pathsEqual(node.nags ?? [], nags ?? [])) return tree;
   const next = cloneTree(tree);
-  const node = getNodeAt(next, path);
-  if (!node) {
-    return tree;
-  }
-  node.nags = nags && nags.length > 0 ? nags : undefined;
+  getNodeAt(next, path)!.nags = nags?.length ? nags : undefined;
   return next;
 }
 

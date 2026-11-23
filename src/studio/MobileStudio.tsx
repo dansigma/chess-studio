@@ -3,6 +3,7 @@
 import { useState, type CSSProperties } from "react";
 import { ArrowLeft, Check, ChevronDown, Copy, Link2, Menu, Radio } from "lucide-react";
 import { BoardPanel } from "./BoardPanel";
+import { MATERIAL_STRIPS_HEIGHT } from "./MaterialBoardLayout";
 import { BoardsSidebar } from "./BoardsSidebar";
 import { BookmarksSidebar } from "./BookmarksSidebar";
 import { EnginePanel } from "./EnginePanel";
@@ -57,6 +58,7 @@ export function MobileStudio({
   onShowFileGames?: () => void;
 }) {
   const locale = useStudioStore((state) => state.settings.locale);
+  const showMaterialBalance = useStudioStore((state) => state.settings.showMaterialBalance);
   const boards = useStudioStore((state) => state.boards);
   const activeBoard = useStudioStore(selectActiveBoard);
   const workspaceView = useStudioStore((state) => state.workspaceView);
@@ -178,8 +180,13 @@ export function MobileStudio({
         </div>
       ) : (
         <>
-      <div className="aspect-square w-full shrink-0 bg-studio-panel [container-type:size]">
-        <BoardPanel />
+      <div className="w-full shrink-0 bg-studio-panel [container-type:inline-size]">
+        <div
+          className="aspect-square w-full"
+          style={showMaterialBalance ? { height: `calc(100cqw + ${MATERIAL_STRIPS_HEIGHT})` } : undefined}
+        >
+          <BoardPanel />
+        </div>
       </div>
       <MobileMoveStrip />
       <div data-mobile-panel-area="" id="mobile-panel-area" className="min-h-0 flex-1 overflow-auto">

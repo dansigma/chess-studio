@@ -1,6 +1,7 @@
 "use client";
 
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
+import { canStepBoardHistory } from "@/src/store/slices/board-history";
 import { getMarksAt } from "@/src/chess/tree";
 import { marksAreEmpty } from "@/src/chess/marks";
 import { MenuDivider as Divider, MenuItem as Item } from "./ui/Menu";
@@ -18,6 +19,8 @@ export function EditMenuItems({ run }: { run: (action: () => void) => () => void
   const setupMode = useStudioStore((state) => state.setupMode);
   const undo = useStudioStore((state) => state.undo);
   const redo = useStudioStore((state) => state.redo);
+  const canUndo = useStudioStore((state) => canStepBoardHistory(state, "undo"));
+  const canRedo = useStudioStore((state) => canStepBoardHistory(state, "redo"));
   const pruneAfter = useStudioStore((state) => state.pruneAfter);
   const promoteVariation = useStudioStore((state) => state.promoteVariation);
   const makeMainline = useStudioStore((state) => state.makeMainline);
@@ -34,8 +37,8 @@ export function EditMenuItems({ run }: { run: (action: () => void) => () => void
 
   return (
     <>
-      <Item label={tStudioChrome(locale, "chrome.edit.undo")} shortcut="Ctrl+Z" onClick={run(undo)} />
-      <Item label={tStudioChrome(locale, "chrome.edit.redo")} shortcut="Ctrl+Y" onClick={run(redo)} />
+      <Item label={tStudioChrome(locale, "chrome.edit.undo")} shortcut="Ctrl+Z" disabled={!canUndo} onClick={run(undo)} />
+      <Item label={tStudioChrome(locale, "chrome.edit.redo")} shortcut="Ctrl+Y" disabled={!canRedo} onClick={run(redo)} />
       <Divider />
       <Item label={tStudioChrome(locale, "chrome.edit.setupBoard")} onClick={run(() => useStudioStore.getState().setSetupMode(true))} />
       <Item label={tStudioChrome(locale, "chrome.edit.gameInfo")} onClick={run(() => setNotationEditor("headers"))} />

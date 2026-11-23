@@ -86,7 +86,7 @@ export function LibrarySummary() {
         {header(
           sourceCount === 0
             ? tLibrary(locale, "library.summary.empty")
-            : tLibrary(locale, "library.overview.unavailableMasters"),
+            : tLibrary(locale, "library.overview.unavailablePublic"),
         )}
       </div>
     );

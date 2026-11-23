@@ -118,7 +118,9 @@ test("bad FENs, cursors and filters return 400", async () => {
 });
 
 test("position games page in strongest-first order and return only headers", async () => {
+  const beforeFirst = reads.length;
   const first = await (await games(request("games", { fen: start }))).json();
+  assert.ok(!reads.slice(beforeFirst).some(({ key }) => key.endsWith("/position-games.bin")));
   assert.equal(first.games.length, 20);
   assert.equal(first.games[0].id, 0);
   assert.equal(first.games[0].white, playerName);
@@ -196,7 +198,7 @@ test("edge cache keys use the manifest version and cached hits skip the limiter"
   Object.defineProperty(globalThis, "caches", {
     configurable: true,
     value: { default: {
-      match: async (key: string) => cached.get(key),
+      match: async (key: string) => cached.get(key)?.clone(),
       put: async (key: string, response: Response) => { cached.set(key, response); },
     } },
   });
@@ -205,7 +207,13 @@ test("edge cache keys use the manifest version and cached hits skip the limiter"
   try {
     const lookup = request("tree", { fen: start });
     assert.equal((await tree(lookup)).status, 200);
-    assert.equal(new URL([...cached.keys()][0]).searchParams.get("__xd_version"), String(XD_DATABASE_VERSION));
+    assert.ok([...cached.keys()].some((key) => new URL(key).searchParams.get("__xd_version") === String(XD_DATABASE_VERSION)));
+    const beforeGames = reads.length;
+    assert.equal((await games(request("games", { fen: start }))).status, 200);
+    assert.ok(!reads.slice(beforeGames).some(({ key }) => key.endsWith("/tree.bin")));
+    const beforeGame = reads.length;
+    assert.equal((await game(request("game/0"), idParams("0"))).status, 200);
+    assert.ok(!reads.slice(beforeGame).some(({ key }) => key.endsWith("/games.bin")));
     env.RL_60_MIN = { limit: async () => ({ success: false }) };
     assert.equal((await tree(lookup)).status, 200);
     assert.equal((await tree(request("tree", { fen: fen("d4") }))).status, 429);

@@ -36,6 +36,7 @@ export function SetupBoardPanel() {
       boardTheme={settings.boardTheme}
       pieceSet={settings.pieceSet}
       showCoordinates={settings.showCoordinates}
+      showMaterialBalance={settings.showMaterialBalance}
       boardId={`setup-${board.id}`}
       toolbarStart={
         <Button size="sm" variant="primary" disabled={Boolean(error)} onClick={() => applySetupFen(fen)}>

@@ -117,8 +117,10 @@ export function SettingsDialog({
   const setPieceSet = useStudioStore((state) => state.setPieceSet);
   const setMoveNotation = useStudioStore((state) => state.setMoveNotation);
   const setNotationDensity = useStudioStore((state) => state.setNotationDensity);
+  const toggleClockTimes = useStudioStore((state) => state.toggleClockTimes);
   const setLocale = useStudioStore((state) => state.setLocale);
   const toggleCoordinates = useStudioStore((state) => state.toggleCoordinates);
+  const toggleMaterialBalance = useStudioStore((state) => state.toggleMaterialBalance);
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
   const toggleMoveSound = useStudioStore((state) => state.toggleMoveSound);
   const togglePuzzleSound = useStudioStore((state) => state.togglePuzzleSound);
@@ -192,6 +194,13 @@ export function SettingsDialog({
           <Row label={tStudioChrome(locale, "chrome.settings.showEvalBar")}>
             <Toggle label={tStudioChrome(locale, "chrome.settings.showEvalBar")} checked={settings.showEvalBar} onChange={toggleEvalBar} />
           </Row>
+          <Row label={tStudioChrome(locale, "chrome.settings.showMaterialBalance")}>
+            <Toggle
+              label={tStudioChrome(locale, "chrome.settings.showMaterialBalance")}
+              checked={settings.showMaterialBalance}
+              onChange={toggleMaterialBalance}
+            />
+          </Row>
           <Row label={tStudioChrome(locale, "chrome.settings.moveSound")}>
             <Toggle label={tStudioChrome(locale, "chrome.settings.moveSound")} checked={settings.moveSound} onChange={toggleMoveSound} />
           </Row>
@@ -231,6 +240,13 @@ export function SettingsDialog({
             options={NOTATION_DENSITY_IDS.map((id) => ({ id, label: tStudioChrome(locale, `chrome.settings.density.${id}`) }))}
             onChange={setNotationDensity}
           />
+          <Row label={tStudioChrome(locale, "chrome.settings.showClockTimes")}>
+            <Toggle
+              label={tStudioChrome(locale, "chrome.settings.showClockTimes")}
+              checked={settings.showClockTimes}
+              onChange={toggleClockTimes}
+            />
+          </Row>
         </Section>
         <Section title={tStudioChrome(locale, "chrome.settings.gameReview")}>
           <Row label={tStudioChrome(locale, "chrome.settings.savedReviews")}>

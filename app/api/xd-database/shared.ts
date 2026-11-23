@@ -6,12 +6,14 @@ import { XD_DATABASE_PREFIX, XD_DATABASE_VERSION } from "@/src/lib/xd-database/m
 import type { GameRecord } from "@/src/lib/xd-database/format";
 import { treeKeyOfFen, XdDatabaseReader } from "@/src/lib/xd-database/reader";
 
+import { cacheXdRanges, xdEdgeCache } from "./range-cache";
+
 type Bucket = {
   get(key: string, options?: { range: { offset: number; length: number } }):
     Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>;
 };
 
-const readers = new WeakMap<Bucket, XdDatabaseReader>();
+const readers = new WeakMap<Bucket, { origin: string; reader: XdDatabaseReader }>();
 const limiter = createRouteLimiter({ limit: 60, windowMs: 60_000, bindingName: "RL_60_MIN" });
 const PUBLIC_CACHE = "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400";
 const FILTERED_CACHE = "public, max-age=30, s-maxage=60";
@@ -51,7 +53,7 @@ export async function serve(
   load: (reader: XdDatabaseReader) => Promise<Response>,
   filtered = false,
 ): Promise<Response> {
-  const edge = (globalThis.caches as (CacheStorage & { default?: Cache }) | undefined)?.default;
+  const edge = xdEdgeCache();
   const url = new URL(request.url);
   url.searchParams.set("__xd_version", String(XD_DATABASE_VERSION));
   url.searchParams.sort();
@@ -68,21 +70,22 @@ export async function serve(
   const bucket = (env as unknown as { XD_DATABASE?: Bucket }).XD_DATABASE;
   if (!bucket) return error("Database unavailable", 503);
 
-  let reader = readers.get(bucket);
-  if (!reader) {
-    reader = new XdDatabaseReader(async (file, range) => {
+  let entry = readers.get(bucket);
+  if (entry?.origin !== url.origin) {
+    const reader = new XdDatabaseReader(cacheXdRanges(url.origin, async (file, range) => {
       const object = await bucket.get(`${XD_DATABASE_PREFIX}${file}`, range && {
         range: { offset: range.start, length: range.end - range.start },
       });
       if (!object) throw new Error(`Missing database file ${file}`);
       return new Uint8Array(await object.arrayBuffer());
-    });
-    readers.set(bucket, reader);
+    }));
+    entry = { origin: url.origin, reader };
+    readers.set(bucket, entry);
   }
 
   let response: Response;
   try {
-    response = await load(reader);
+    response = await load(entry.reader);
   } catch (cause) {
     console.error("[xd-database] read failed", cause);
     return error("Database unavailable", 503);

@@ -204,17 +204,21 @@ test("with a search or filters it summarizes the filtered set, and goes back wit
   assert.match(text("library-summary"), /Partidas\s*1/);
 });
 
-test("Masters is excluded; Masters alone shows the unavailable message", () => {
-  select(["masters", "file:d2"]);
-  const { unmount } = render(<LibrarySummary />);
-  assert.match(text("library-summary"), /Games\s*1/);
-  unmount();
-  select(["masters"]);
+test("public databases are excluded from a file summary", () => {
+  select(["masters", "xadrez-digital", "file:d2"]);
   render(<LibrarySummary />);
-  assert.ok(screen.getByText("Summary not available for Masters"));
-  act(() => useStudioStore.setState((s) => ({ settings: { ...s.settings, locale: "pt-br" } })));
-  assert.ok(screen.getByText("Resumo indisponível para Masters"));
+  assert.match(text("library-summary"), /Games\s*1/);
 });
+
+for (const sources of [["masters"], ["xadrez-digital"], ["masters", "xadrez-digital"]]) {
+  test(`shows the localized public database message for ${sources.join(" + ")}`, () => {
+    select(sources);
+    render(<LibrarySummary />);
+    assert.ok(screen.getByText("Summary not available for public databases"));
+    act(() => useStudioStore.setState((s) => ({ settings: { ...s.settings, locale: "pt-br" } })));
+    assert.ok(screen.getByText("Resumo indisponível para bases públicas"));
+  });
+}
 
 test("an empty selection shows only the title and the empty line", () => {
   select([]);
@@ -239,6 +243,14 @@ test("My Games: skeleton while loading, then merged with files", async () => {
   assert.equal(screen.queryByTestId("library-summary-skeleton"), null);
   assert.match(text("library-summary"), /Games\s*2/);
   assert.match(text("library-summary"), /Players\s*3/);
+});
+
+test("Base Xadrez Digital with My Games shows the My Games summary", async () => {
+  registerLibrarySource(myGames(Promise.resolve(overviewFromItems([row({ white: "Me", black: "Opponent" })]))));
+  select(["xadrez-digital", "my-games"]);
+  render(<LibrarySummary />);
+  await flush();
+  assert.match(text("library-summary-tiles"), /Games\s*1/);
 });
 
 test("My Games failure: file numbers plus a note; alone, just the note", async () => {
