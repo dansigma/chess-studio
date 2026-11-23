@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Chess, type Square } from "chess.js";
 import { Chessboard, type SquareRenderer } from "react-chessboard";
+import { shouldAutoQueen } from "./promotion";
 import { useActiveBoardId } from "@/src/store/hooks";
 import { useReviewLabels } from "@/src/store/review-labels";
 import { tierName } from "@/src/chess/review-strings";
@@ -105,6 +106,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showEvalBar = useStudioStore((state) => state.settings.showEvalBar);
   const showMaterialBalance = useStudioStore((state) => state.settings.showMaterialBalance);
+  const autoQueen = useStudioStore((state) => state.settings.autoQueen);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const flip = useStudioStore((state) => state.flip);
@@ -136,6 +138,25 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const [boardMenu, setBoardMenu] = useState<BoardMenuState | null>(null);
   const pending = useRef<PendingDraw | null>(null);
   const promotionRef = useRef<HTMLDivElement>(null);
+  // SIG-1464: Alt held forces the picker even with auto-queen on. The
+  // react-chessboard handlers do not expose the event, so track it globally.
+  const altHeldRef = useRef(false);
+  useEffect(() => {
+    const track = (event: KeyboardEvent) => {
+      altHeldRef.current = event.altKey;
+    };
+    const clear = () => {
+      altHeldRef.current = false;
+    };
+    window.addEventListener("keydown", track);
+    window.addEventListener("keyup", track);
+    window.addEventListener("blur", clear);
+    return () => {
+      window.removeEventListener("keydown", track);
+      window.removeEventListener("keyup", track);
+      window.removeEventListener("blur", clear);
+    };
+  }, []);
   useDialogFocus(promotionRef, promotion !== null);
   // SIG-1109: board swipe/long-press stream. Touch events only fire on
   // touch devices, so desktop mouse behavior is untouched. A horizontal
@@ -401,6 +422,11 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
     }
     ensureActive();
     if (legal.some((move) => Boolean(move.promotion))) {
+      if (shouldAutoQueen(autoQueen, altHeldRef.current)) {
+        const ok = makeUciMove(from, to, "q");
+        setSelected(null);
+        return ok;
+      }
       setPromotion({ from, to });
       setSelected(null);
       return false;

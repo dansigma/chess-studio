@@ -123,6 +123,7 @@ export function SettingsDialog({
   const setLocale = useStudioStore((state) => state.setLocale);
   const toggleCoordinates = useStudioStore((state) => state.toggleCoordinates);
   const toggleMaterialBalance = useStudioStore((state) => state.toggleMaterialBalance);
+  const toggleAutoQueen = useStudioStore((state) => state.toggleAutoQueen);
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
   const toggleMoveSound = useStudioStore((state) => state.toggleMoveSound);
   const togglePuzzleSound = useStudioStore((state) => state.togglePuzzleSound);
@@ -210,6 +211,13 @@ export function SettingsDialog({
               label={tStudioChrome(locale, "chrome.settings.showMaterialBalance")}
               checked={settings.showMaterialBalance}
               onChange={toggleMaterialBalance}
+            />
+          </Row>
+          <Row label={tStudioChrome(locale, "chrome.settings.autoQueen")}>
+            <Toggle
+              label={tStudioChrome(locale, "chrome.settings.autoQueen")}
+              checked={settings.autoQueen}
+              onChange={toggleAutoQueen}
             />
           </Row>
           <Row label={tStudioChrome(locale, "chrome.settings.moveSound")}>
