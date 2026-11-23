@@ -31,7 +31,8 @@ export type ExplorerData = {
  */
 export function useExplorerData(source: ExplorerSource, retrySignal = 0, includeGames = false): ExplorerData {
   const fen = useActiveFen();
-  const explorerFilters = useStudioStore((state) => state.settings.explorerFilters);
+  const xd = source === "xadrez-digital";
+  const explorerFilters = useStudioStore((state) => xd ? state.settings.xdExplorerFilters : state.settings.explorerFilters);
   const playerProfile = useStudioStore((state) => state.playerProfile);
   const playerGames = useStudioStore((state) => state.playerGames);
   // SIG-857: primitive signature — the old `state.files` object re-rendered
@@ -99,8 +100,8 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
     setLoading(true);
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      const request = source === "xadrez-digital"
-        ? fetchXdExplorer(fen, { includeGames, signal: controller.signal })
+      const request = xd
+        ? fetchXdExplorer(fen, { ...explorerFilters, includeGames, signal: controller.signal })
         : fetch(`/api/explorer?fen=${encodeURIComponent(fen)}&source=${source}${filterQuery}`, { signal: controller.signal })
           .then(async (response) => {
             if (!response.ok) throw new Error("explorer failed");
@@ -128,7 +129,7 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, retrySignal, includeGames]);
+  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, retrySignal, includeGames, xd]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   return { explorer, loading, error };

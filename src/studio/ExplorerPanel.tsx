@@ -9,6 +9,7 @@ import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { fenKey } from "@/src/chess/tree";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { activeExplorerFilterCount } from "@/src/lib/explorer-filters";
 import { formatGameCount, formatInteger } from "@/src/i18n/format.ts";
 import { useStudioStore } from "@/src/store/studio-store";
 import { useActiveLineFens } from "@/src/store/hooks";
@@ -145,7 +146,9 @@ function ExplorerChrome({
     EMPTY_STATE_ALTERNATES.find((candidate) => candidate !== effectiveSource) ?? null;
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
-  const filters = useStudioStore((state) => state.settings.explorerFilters);
+  const xd = effectiveSource === "xadrez-digital";
+  const filters = useStudioStore((state) => xd ? state.settings.xdExplorerFilters : state.settings.explorerFilters);
+  const showXdFilterNote = xd && activeExplorerFilterCount(filters, { speed: false, rating: true }) > 0;
   const setExplorerFilters = useStudioStore((state) => state.setExplorerFilters);
   const setExplorerHover = useStudioStore((state) => state.setExplorerHover);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -234,9 +237,11 @@ function ExplorerChrome({
             )}
             {!libraryLoading && !knownSources.has(effectiveSource) ? <option value={effectiveSource}>{tPanels(locale, "explorer.source.personal")}</option> : null}
           </select>
-          {effectiveSource !== "xadrez-digital" && (
-            <ExplorerFiltersBar source={effectiveSource} filters={filters} onChange={setExplorerFilters} />
-          )}
+          <ExplorerFiltersBar
+            source={effectiveSource}
+            filters={filters}
+            onChange={(patch) => setExplorerFilters(patch, effectiveSource)}
+          />
           <IconButton label={tPanels(locale, "explorer.splitView")} size="sm" onClick={onDuplicate}>
             <Plus size={15} />
           </IconButton>
@@ -361,6 +366,11 @@ function ExplorerChrome({
           </div>
         ) : null}
       </div>
+      {showXdFilterNote && explorer?.source === effectiveSource && hasMoves ? (
+        <p className="shrink-0 border-t border-studio-border-subtle px-3 py-1.5 text-caption text-studio-faint">
+          {tPanels(locale, "explorer.filters.xdGamesOnly")}
+        </p>
+      ) : null}
     </div>
   );
 }
