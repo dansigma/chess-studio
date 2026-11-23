@@ -20,6 +20,8 @@ import { IconButton } from "./ui/Button";
 import { isExplorerPanelId } from "./dock-layout";
 import { openExplorerPanel, persistExplorerSource } from "./dock-api";
 import { useExplorerData } from "./use-explorer-data";
+import { lockedExplorerData, useLockablePosition, type LockablePosition } from "./use-lockable-position";
+import { PositionLockButton } from "./PositionLockButton";
 import { EXPLORER_COMPACT_MAX_HEIGHT, usePanelSize } from "./use-panel-size";
 import { localizeOpeningName } from "@/src/lib/opening-names";
 import { indexCatalogOpenings, resolveLineOpening } from "@/src/lib/line-opening";
@@ -54,9 +56,11 @@ function DynamicExplorerPanel({ initialSource, panelId }: { initialSource?: Expl
   const globalSource = useStudioStore((state) => state.databaseSource);
   const validated = parseExplorerSource(initialSource) ?? parseExplorerSource(globalSource) ?? "masters";
   const [retryTick, setRetryTick] = useState(0);
-  const { explorer, loading, error } = useExplorerData(validated, retryTick);
+  const position = useLockablePosition();
+  const { explorer, loading, error } = useExplorerData(validated, retryTick, false, position.locked ? position.fen : null);
   return (
     <ExplorerChrome
+      position={position}
       effectiveSource={validated}
       databases={databases}
       explorer={explorer}
@@ -81,14 +85,20 @@ function BareExplorerPanel() {
   const source = useStudioStore((state) => state.databaseSource);
   const databases = useStudioStore((state) => state.files.databases);
   const setDatabaseSource = useStudioStore((state) => state.setDatabaseSource);
+  // SIG-1455: the shared feed always follows the board, so a locked bare
+  // panel runs its own query for the locked FEN until it is unlocked.
+  const position = useLockablePosition();
+  const [retryTick, setRetryTick] = useState(0);
+  const own = useExplorerData(source, retryTick, false, position.fen, position.locked);
   return (
     <ExplorerChrome
+      position={position}
       effectiveSource={source}
       databases={databases}
-      explorer={explorer}
-      loading={loading}
-      error={error}
-      onRetry={retryExplorer}
+      explorer={position.locked ? lockedExplorerData(own.explorer, explorer, position.fen) : explorer}
+      loading={position.locked ? own.loading : loading}
+      error={position.locked ? own.error : error}
+      onRetry={position.locked ? () => setRetryTick((count) => count + 1) : retryExplorer}
       onSourceChange={setDatabaseSource}
       onDuplicate={() => openExplorerPanel(source)}
     />
@@ -96,6 +106,7 @@ function BareExplorerPanel() {
 }
 
 function ExplorerChrome({
+  position,
   effectiveSource,
   databases,
   explorer,
@@ -105,6 +116,7 @@ function ExplorerChrome({
   onSourceChange,
   onDuplicate,
 }: {
+  position: LockablePosition;
   effectiveSource: ExplorerSource;
   databases: Array<{ id: string; name: string }>;
   explorer: ExplorerResponse | null;
@@ -117,8 +129,13 @@ function ExplorerChrome({
   const filesHydrated = useStudioStore((state) => state.filesHydrated);
   const libraryLoading = !filesHydrated && effectiveSource.startsWith("file:");
   const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
-  const lineFens = useActiveLineFens();
-  const activeFen = lineFens[lineFens.length - 1];
+  const activeLineFens = useActiveLineFens();
+  // SIG-1455: a locked panel names the opening of the locked position; the
+  // board's line only applies while following it.
+  const lineFens = position.locked
+    ? [...activeLineFens.slice(0, Math.max(0, activeLineFens.findIndex((fen) => fenKey(fen) === fenKey(position.fen)))), position.fen]
+    : activeLineFens;
+  const activeFen = position.fen;
   const [openingIndex, setOpeningIndex] = useState<ReturnType<typeof indexCatalogOpenings>>();
   useEffect(() => {
     let active = true;
@@ -144,7 +161,6 @@ function ExplorerChrome({
   // never needs a loaded Chess.com player).
   const alternateSource =
     EMPTY_STATE_ALTERNATES.find((candidate) => candidate !== effectiveSource) ?? null;
-  const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const xd = effectiveSource === "xadrez-digital";
   const filters = useStudioStore((state) => xd ? state.settings.xdExplorerFilters : state.settings.explorerFilters);
@@ -242,6 +258,7 @@ function ExplorerChrome({
             filters={filters}
             onChange={(patch) => setExplorerFilters(patch, effectiveSource)}
           />
+          <PositionLockButton position={position} locale={locale} />
           <IconButton label={tPanels(locale, "explorer.splitView")} size="sm" onClick={onDuplicate}>
             <Plus size={15} />
           </IconButton>
@@ -311,8 +328,11 @@ function ExplorerChrome({
           return (
             <button
               key={row.uci}
-              title={tPanels(locale, "explorer.rowGames", { count: rowGames })}
-              className={`${ROW_GRID} relative w-full py-1.5 text-left hover:bg-studio-hover`}
+              title={position.canPlay
+                ? tPanels(locale, "explorer.rowGames", { count: rowGames })
+                : tPanels(locale, "position.lockedOutside")}
+              disabled={!position.canPlay}
+              className={`${ROW_GRID} relative w-full py-1.5 text-left hover:bg-studio-hover disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent`}
               onMouseEnter={() => showHoverArrow(row.uci)}
               onFocus={() => showHoverArrow(row.uci)}
               onMouseLeave={clearHoverArrow}
@@ -322,7 +342,7 @@ function ExplorerChrome({
                 const from = row.uci.slice(0, 2);
                 const to = row.uci.slice(2, 4);
                 const promotion = row.uci[4];
-                makeUciMove(from, to, promotion);
+                position.playUci(from, to, promotion);
               }}
             >
               {/* SIG-1194: the row's share as a faint background fill. */}

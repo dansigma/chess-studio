@@ -6,7 +6,6 @@ import { bookmarkKey } from "@/src/lib/player-bookmarks";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { formatGameCount } from "@/src/i18n/format.ts";
 import { playerMoveStatsFromIndex, buildPlayerIndex, filterPlayerGames, playerGamesFromIndex } from "@/src/lib/player-stats";
-import { useActiveFen } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { formatSan, sideFromFen } from "@/src/chess/move-notation";
 import { BookmarkStar } from "./PlayerHitRow";
@@ -19,6 +18,8 @@ import { PlayerGameRows } from "./PlayerGamesPanel";
 import { usePlayerSearch } from "./library/use-player-search";
 import { useLegacyPlayerGames, usePlayerGames } from "./use-player-games";
 import { ResultBar } from "./ui/ResultBar";
+import { useLockablePosition } from "./use-lockable-position";
+import { PositionLockButton } from "./PositionLockButton";
 
 function Chip({
   active,
@@ -143,10 +144,10 @@ function PlayerPositionView({
   setColor: (color: PlayerColorFilter) => void;
   setResult: (result: PlayerResultFilter) => void;
 }) {
-  const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const locale = useStudioStore((state) => state.settings.locale);
-  const fen = useActiveFen();
+  const position = useLockablePosition();
+  const fen = position.fen;
   const side = sideFromFen(fen);
   const togglePlayerBookmark = useStudioStore((state) => state.togglePlayerBookmark);
   const bookmarked = useStudioStore((state) =>
@@ -197,6 +198,7 @@ function PlayerPositionView({
               ? tPanels(locale, "players.count.one", { count: reached.length })
               : tPanels(locale, "players.count.other", { count: reached.length })}
           </span>
+          <PositionLockButton position={position} locale={locale} />
           <BookmarkStar
             active={bookmarked}
             title={tSidebar(locale, bookmarked ? "sidebar.player.removeBookmark" : "sidebar.player.bookmark")}
@@ -234,12 +236,14 @@ function PlayerPositionView({
           return (
             <button
               key={row.uci}
-              className="grid w-full grid-cols-[minmax(34px,1fr)_minmax(34px,1fr)_minmax(60px,2fr)] items-center gap-3 px-3 py-1.5 text-left hover:bg-studio-hover"
+              disabled={!position.canPlay}
+              title={position.canPlay ? undefined : tPanels(locale, "position.lockedOutside")}
+              className="grid w-full grid-cols-[minmax(34px,1fr)_minmax(34px,1fr)_minmax(60px,2fr)] items-center gap-3 px-3 py-1.5 text-left hover:bg-studio-hover disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent"
               onClick={() => {
                 const from = row.uci.slice(0, 2);
                 const to = row.uci.slice(2, 4);
                 const promotion = row.uci[4];
-                makeUciMove(from, to, promotion);
+                position.playUci(from, to, promotion);
               }}
             >
               <span className="font-medium">{formatSan(row.san, moveNotation, side)}</span>

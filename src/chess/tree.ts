@@ -110,6 +110,36 @@ export function mainlinePathForFen(tree: GameTree, targetFen: string): Path {
   return [];
 }
 
+/**
+ * SIG-1455: path of a node anywhere in the tree (variations included) whose
+ * position equals `targetFen`. Tries `preferred` first, then searches
+ * depth-first, mainline before sidelines. `null` when the position is not a
+ * node of this game.
+ */
+export function findPathForFen(tree: GameTree, targetFen: string, preferred?: Path): Path | null {
+  const target = fenKey(targetFen);
+  if (preferred && fenKey(getFenAt(tree, preferred)) === target && (preferred.length === 0 || getNodeAt(tree, preferred))) {
+    return preferred;
+  }
+  if (fenKey(tree.startFen) === target) {
+    return [];
+  }
+  const stack: Array<{ nodes: TreeNode[]; path: Path }> = [{ nodes: tree.children, path: [] }];
+  while (stack.length > 0) {
+    const { nodes, path } = stack.pop()!;
+    for (let index = 0; index < nodes.length; index += 1) {
+      if (fenKey(nodes[index].fen) === target) {
+        return [...path, index];
+      }
+    }
+    // Push sidelines first so the mainline child is searched first.
+    for (let index = nodes.length - 1; index >= 0; index -= 1) {
+      stack.push({ nodes: nodes[index].children, path: [...path, index] });
+    }
+  }
+  return null;
+}
+
 export function getLastMove(
   tree: GameTree,
   path: Path,
