@@ -346,3 +346,28 @@ test("round-trips training scope by color and ignores malformed stored fields", 
   assert.deepEqual(useStudioStore.getState().settings.trainingScope, { white: { maxMove: 15 } });
   storage.delete(SETTINGS_KEY);
 });
+
+test("material balance defaults to off and persists both toggle states", async () => {
+  const { persistSettings } = await import("../studio-store.ts");
+  resetSettings();
+  try {
+    for (const existing of [{}, { showMaterialBalance: "true" }]) {
+      storage.set(SETTINGS_KEY, JSON.stringify(existing));
+      actions().hydrateLocalSettings();
+      assert.equal(useStudioStore.getState().settings.showMaterialBalance, false);
+    }
+
+    for (const enabled of [true, false]) {
+      actions().toggleMaterialBalance();
+      const { settings } = useStudioStore.getState();
+      assert.equal(settings.showMaterialBalance, enabled);
+      await persistSettings(settings);
+      resetSettings();
+      actions().hydrateLocalSettings();
+      assert.equal(useStudioStore.getState().settings.showMaterialBalance, enabled);
+    }
+  } finally {
+    storage.delete(SETTINGS_KEY);
+    resetSettings();
+  }
+});

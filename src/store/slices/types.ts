@@ -162,6 +162,7 @@ export type StudioSettings = {
   trainingScope: Partial<Record<BoardOrientation, Scope>>;
   showCoordinates: boolean;
   showEvalBar: boolean;
+  showMaterialBalance: boolean;
   boardTheme: BoardTheme;
   pieceSet: PieceSet;
   moveNotation: MoveNotation;
@@ -299,6 +300,7 @@ export type StudioState = {
   togglePuzzleSound: () => void;
   toggleEngineSparkline: () => void;
   toggleEvalBar: () => void;
+  toggleMaterialBalance: () => void;
   toggleGamePreview: () => void;
   pinPreviewBoard: (id: string) => void;
   setBoardTheme: (theme: BoardTheme) => void;
