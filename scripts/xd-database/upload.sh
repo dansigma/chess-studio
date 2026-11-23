@@ -16,7 +16,7 @@ fi
 
 dir=$1
 version=$2
-bucket=${XD_R2_BUCKET:-chess-studio-engine}
+bucket=${XD_R2_BUCKET:-chess-studio-xd}
 prefix="xd-database/v$version"
 export AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-auto}
 

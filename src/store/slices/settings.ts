@@ -36,6 +36,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   pieceSet: "classic",
   moveNotation: "english",
   notationDensity: "normal",
+  showClockTimes: false,
   colorScheme: "dark",
   gamePreviewEnabled: true,
   engineDepth: 30,
@@ -107,6 +108,10 @@ export function loadLocalSettings(): StudioSettings {
       notationDensity: isNotationDensity(parsed.notationDensity)
         ? parsed.notationDensity
         : DEFAULT_SETTINGS.notationDensity,
+      showClockTimes:
+        typeof parsed.showClockTimes === "boolean"
+          ? parsed.showClockTimes
+          : DEFAULT_SETTINGS.showClockTimes,
       colorScheme: isColorScheme(parsed.colorScheme)
         ? parsed.colorScheme
         : DEFAULT_SETTINGS.colorScheme,
@@ -161,6 +166,7 @@ export type SettingsSlice = Pick<
   | "setPieceSet"
   | "setMoveNotation"
   | "setNotationDensity"
+  | "toggleClockTimes"
   | "setLocale"
   | "toggleNotationDensity"
   | "setColorScheme"
@@ -262,6 +268,11 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
   },
   setNotationDensity: (notationDensity) => {
     set((state) => ({ settings: { ...state.settings, notationDensity } }));
+  },
+  toggleClockTimes: () => {
+    set((state) => ({
+      settings: { ...state.settings, showClockTimes: !state.settings.showClockTimes },
+    }));
   },
   setLocale: (locale) => {
     set((state) => ({ settings: { ...state.settings, locale } }));

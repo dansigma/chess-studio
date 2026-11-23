@@ -52,11 +52,13 @@ test("toggles flip the matching settings field", () => {
   actions().toggleMoveSound();
   actions().toggleEvalBar();
   actions().toggleSidebar();
+  actions().toggleClockTimes();
   const settings = useStudioStore.getState().settings;
   assert.equal(settings.showCoordinates, !DEFAULT_SETTINGS.showCoordinates);
   assert.equal(settings.moveSound, !DEFAULT_SETTINGS.moveSound);
   assert.equal(settings.showEvalBar, !DEFAULT_SETTINGS.showEvalBar);
   assert.equal(settings.sidebarCollapsed, !DEFAULT_SETTINGS.sidebarCollapsed);
+  assert.equal(settings.showClockTimes, !DEFAULT_SETTINGS.showClockTimes);
 });
 
 test("toggleNotationDensity flips compact/normal", () => {
@@ -365,6 +367,29 @@ test("material balance defaults to off and persists both toggle states", async (
       resetSettings();
       actions().hydrateLocalSettings();
       assert.equal(useStudioStore.getState().settings.showMaterialBalance, enabled);
+    }
+  } finally {
+    storage.delete(SETTINGS_KEY);
+    resetSettings();
+  }
+});
+
+test("showClockTimes defaults off and persists as a local notation setting", async () => {
+  try {
+    for (const stored of [{}, { showClockTimes: "true" }]) {
+      storage.set(SETTINGS_KEY, JSON.stringify(stored));
+      actions().hydrateLocalSettings();
+      assert.equal(useStudioStore.getState().settings.showClockTimes, false);
+    }
+
+    const { persistSettings } = await import("../studio-store.ts");
+    for (const enabled of [true, false]) {
+      actions().toggleClockTimes();
+      assert.equal(useStudioStore.getState().settings.showClockTimes, enabled);
+      await persistSettings(useStudioStore.getState().settings);
+      resetSettings();
+      actions().hydrateLocalSettings();
+      assert.equal(useStudioStore.getState().settings.showClockTimes, enabled);
     }
   } finally {
     storage.delete(SETTINGS_KEY);
