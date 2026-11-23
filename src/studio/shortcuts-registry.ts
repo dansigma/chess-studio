@@ -32,6 +32,7 @@ export const SHORTCUT_ENTRIES: readonly ShortcutEntry[] = [
   // Editing — StudioShell `onKey` + the Edit menu / NotationToolbar bindings.
   { group: "editing", action: "chrome.edit.undo", chords: [["Ctrl", "Z"]] },
   { group: "editing", action: "chrome.edit.redo", chords: [["Ctrl", "Y"], ["Ctrl", "Shift", "Z"]] },
+  { group: "editing", action: "chrome.file.pasteMoves", chords: [["Ctrl", "V"]] },
   { group: "editing", action: "chrome.edit.textAfter", chords: [["Ctrl", "A"]] },
   { group: "editing", action: "chrome.edit.textBefore", chords: [["Ctrl", "Shift", "A"]] },
   { group: "editing", action: "chrome.edit.promote", chords: [["Ctrl", "↑"]] },
