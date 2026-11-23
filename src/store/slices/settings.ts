@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   trainingScope: {},
   showCoordinates: true,
   showEvalBar: true,
+  showMaterialBalance: false,
   boardTheme: "studio",
   pieceSet: "classic",
   moveNotation: "english",
@@ -98,6 +99,10 @@ export function loadLocalSettings(): StudioSettings {
       boardTheme: isBoardTheme(parsed.boardTheme)
         ? parsed.boardTheme
         : DEFAULT_SETTINGS.boardTheme,
+      showMaterialBalance:
+        typeof parsed.showMaterialBalance === "boolean"
+          ? parsed.showMaterialBalance
+          : DEFAULT_SETTINGS.showMaterialBalance,
       pieceSet: isPieceSet(parsed.pieceSet) ? parsed.pieceSet : DEFAULT_SETTINGS.pieceSet,
       moveNotation: isMoveNotation(parsed.moveNotation)
         ? parsed.moveNotation
@@ -157,6 +162,7 @@ export type SettingsSlice = Pick<
   | "togglePuzzleSound"
   | "toggleEngineSparkline"
   | "toggleEvalBar"
+  | "toggleMaterialBalance"
   | "toggleGamePreview"
   | "pinPreviewBoard"
   | "setBoardTheme"
@@ -222,6 +228,11 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
         ...state.settings,
         engineSparkline: !state.settings.engineSparkline,
       },
+    }));
+  },
+  toggleMaterialBalance: () => {
+    set((state) => ({
+      settings: { ...state.settings, showMaterialBalance: !state.settings.showMaterialBalance },
     }));
   },
   toggleEvalBar: () => {

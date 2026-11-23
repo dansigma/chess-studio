@@ -91,7 +91,7 @@ test("playMove reuses an existing UCI instead of duplicating", () => {
   const first = playMove(tree, [], MOVE_E4);
   const second = playMove(first.tree, [], MOVE_E4);
   assert.deepEqual(second.path, [0]);
-  assert.equal(second.tree.children.length, 1);
+  assert.equal(second.tree, first.tree);
 });
 
 test("playMove on an invalid path returns the input unchanged", () => {

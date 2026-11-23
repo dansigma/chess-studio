@@ -122,6 +122,7 @@ export function SettingsDialog({
   const toggleClockTimes = useStudioStore((state) => state.toggleClockTimes);
   const setLocale = useStudioStore((state) => state.setLocale);
   const toggleCoordinates = useStudioStore((state) => state.toggleCoordinates);
+  const toggleMaterialBalance = useStudioStore((state) => state.toggleMaterialBalance);
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
   const toggleMoveSound = useStudioStore((state) => state.toggleMoveSound);
   const togglePuzzleSound = useStudioStore((state) => state.togglePuzzleSound);
@@ -203,6 +204,13 @@ export function SettingsDialog({
           </Row>
           <Row label={tStudioChrome(locale, "chrome.settings.showEvalBar")}>
             <Toggle label={tStudioChrome(locale, "chrome.settings.showEvalBar")} checked={settings.showEvalBar} onChange={toggleEvalBar} />
+          </Row>
+          <Row label={tStudioChrome(locale, "chrome.settings.showMaterialBalance")}>
+            <Toggle
+              label={tStudioChrome(locale, "chrome.settings.showMaterialBalance")}
+              checked={settings.showMaterialBalance}
+              onChange={toggleMaterialBalance}
+            />
           </Row>
           <Row label={tStudioChrome(locale, "chrome.settings.moveSound")}>
             <Toggle label={tStudioChrome(locale, "chrome.settings.moveSound")} checked={settings.moveSound} onChange={toggleMoveSound} />

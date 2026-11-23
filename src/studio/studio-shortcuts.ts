@@ -93,6 +93,16 @@ export function handleStudioShellKey(
   }
 
   const chromeFocus = !isEditableTarget(document.activeElement);
+  if (chromeFocus && ctrl && !event.altKey && (key === "z" || (key === "y" && !event.shiftKey))) {
+    event.preventDefault();
+    const state = useStudioStore.getState();
+    if (key === "z" && !event.shiftKey) {
+      state.undo();
+    } else {
+      state.redo();
+    }
+    return;
+  }
   // SIG-1192: bare F flips too (Lichess muscle memory). Ctrl+F stays for
   // ChessBase parity; this alias adds a key, it does not move one.
   if (!ctrl && !event.altKey && !event.shiftKey && key === "f" && chromeFocus) {

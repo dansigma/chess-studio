@@ -155,6 +155,7 @@ export function StudioShell() {
   // chooser covers desktop and mobile entry points.
   const variationChoice = useStudioStore((state) => state.variationChoice);
   const setExplorer = useStudioStore((state) => state.setExplorer);
+  const setExplorerGamesLoading = useStudioStore((state) => state.setExplorerGamesLoading);
   const setExplorerLoading = useStudioStore((state) => state.setExplorerLoading);
   const setExplorerError = useStudioStore((state) => state.setExplorerError);
   const setUser = useStudioStore((state) => state.setUser);
@@ -474,6 +475,10 @@ export function StudioShell() {
   useEffect(() => {
     setExplorerLoading(legacyExplorer.loading);
   }, [legacyExplorer.loading, setExplorerLoading]);
+
+  useEffect(() => {
+    setExplorerGamesLoading(legacyExplorer.gamesLoading);
+  }, [legacyExplorer.gamesLoading, setExplorerGamesLoading]);
 
   useEffect(() => {
     setExplorerError(legacyExplorer.error);

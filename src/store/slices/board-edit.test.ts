@@ -388,3 +388,121 @@ describe("SIG-944 board-edit slice", () => {
     assert.equal(store().active().dirty, false, "an empty annotate is a no-op");
   });
 });
+
+describe("SIG-1462 game edit history", () => {
+  const store = () => useStudioStore.getState();
+
+  it("undoes a deleted variation with its selection and redoes the cut after navigation", () => {
+    resetBoard();
+    store().importPgnText("1. e4 e5 (1... c5) 2. Nf3 *");
+    store().goPath([0, 1]);
+    const original = store().active().tree;
+
+    store().deleteVariation();
+    const cut = store().active();
+    assert.equal(cut.tree.children[0].children.length, 1);
+    store().undo();
+    assert.equal(store().pendingCutUndo, null);
+    assert.equal(store().active().tree, original);
+    assert.deepEqual(store().active().path, [0, 1]);
+
+    store().toStart();
+    store().redo();
+    assert.equal(store().active().tree, cut.tree);
+    assert.deepEqual(store().active().path, cut.path);
+    assert.equal(store().active().dirty, true);
+    store().undo();
+    assert.deepEqual(store().active().path, [0, 1]);
+  });
+
+  it("keeps redo through navigation and no-op edits, then clears it on a new edit", () => {
+    resetBoard();
+    store().importPgnText("1. e4 *");
+    store().toStart();
+    const original = store().active().tree;
+    assert.equal(store().makeUciMove("e2", "e4"), true);
+    store().undo();
+    assert.equal(store().active().tree, original);
+    assert.deepEqual(store().active().path, [0]);
+
+    store().makeUciMove("d7", "d5");
+    store().undo();
+    store().setMoveComment("  ");
+    store().redo();
+    assert.equal(store().lastMove()?.to, "d5");
+
+    store().undo();
+    store().setMoveComment("new comment");
+    const edited = store().active().tree;
+    store().redo();
+    assert.equal(store().active().tree, edited);
+    assert.equal(getNodeAt(edited, [0])?.comment, "new comment");
+  });
+
+  it("keeps separate undo and redo stacks for each board and drops them on replacement", () => {
+    const first = resetBoard();
+    store().makeUciMove("e2", "e4");
+    store().undo();
+
+    store().newBoard();
+    const second = store().active().id;
+    store().makeUciMove("d2", "d4");
+    store().redo();
+    assert.equal(store().lastMove()?.to, "d4");
+
+    store().setActiveBoard(first);
+    store().redo();
+    assert.equal(store().lastMove()?.to, "e4");
+    store().setActiveBoard(second);
+    store().undo();
+    assert.deepEqual(store().active().path, []);
+    store().importPgnText("1. Nf3 *");
+    store().redo();
+    assert.equal(store().lastMove()?.to, "f3");
+  });
+
+  it("reapplies a cut undone from its toast", () => {
+    resetBoard();
+    store().importPgnText("1. e4 e5 *");
+    store().toStart();
+    const original = store().active().tree;
+    store().pruneAfter();
+    store().undoCut();
+    assert.equal(store().active().tree, original);
+    store().redo();
+    assert.equal(store().active().tree.children.length, 0);
+  });
+
+  it("retains the most recent 100 edits", () => {
+    resetBoard();
+    for (let index = 1; index <= 101; index += 1) {
+      store().setMoveComment(`comment ${index}`);
+    }
+    for (let index = 0; index < 101; index += 1) {
+      store().undo();
+    }
+    assert.equal(store().active().tree.startComment, "comment 1");
+    for (let index = 0; index < 101; index += 1) {
+      store().redo();
+    }
+    assert.equal(store().active().tree.startComment, "comment 101");
+  });
+
+  it("records a played sequence and an engine insertion as one edit each", () => {
+    resetBoard();
+    const empty = store().active().tree;
+    store().playUciSequence(["e2e4", "e7e5"]);
+    const played = store().active();
+    store().insertEngineLines(store().fen(), [["g1f3", "b8c6"], ["f1c4"]]);
+    const inserted = store().active();
+    assert.notEqual(inserted.tree, played.tree);
+    store().undo();
+    assert.equal(store().active().tree, played.tree);
+    store().undo();
+    assert.equal(store().active().tree, empty);
+    store().redo();
+    store().redo();
+    assert.equal(store().active().tree, inserted.tree);
+    assert.deepEqual(store().active().path, played.path);
+  });
+});
