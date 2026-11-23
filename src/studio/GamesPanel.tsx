@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { explorerSourceTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
 import { loadXdGamePgn } from "@/src/lib/xd-database/client";
 import { formatYearMonth } from "@/src/lib/game-date";
 import { openBoardPanel } from "./dock-api";
+import { useExplorerData } from "./use-explorer-data";
+import { lockedExplorerData, useLockablePosition } from "./use-lockable-position";
+import { PositionLockButton } from "./PositionLockButton";
 import { LibraryLoadingStatus } from "./library/LibraryLoadingStatus";
 import { GameOpenRow } from "./GameOpenRow";
 import { ResultMark } from "./ResultMark";
@@ -19,16 +23,25 @@ async function loadMastersPgn(id: string): Promise<string> {
 
 export function GamesPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
-  const explorer = useStudioStore((state) => state.explorer);
-  const loading = useStudioStore((state) => state.explorerGamesLoading);
-  const explorerError = useStudioStore((state) => state.explorerError);
-  const retryExplorer = useStudioStore((state) => state.retryExplorer);
+  const sharedExplorer = useStudioStore((state) => state.explorer);
+  const sharedLoading = useStudioStore((state) => state.explorerGamesLoading);
+  const sharedError = useStudioStore((state) => state.explorerError);
+  const sharedRetry = useStudioStore((state) => state.retryExplorer);
   const openListedGame = useStudioStore((state) => state.openListedGame);
   const setStatus = useStudioStore((state) => state.setStatus);
   const source = useStudioStore((state) => state.databaseSource);
   const filesHydrated = useStudioStore((state) => state.filesHydrated);
   const databases = useStudioStore((state) => state.files.databases);
   const setActivity = useStudioStore((state) => state.setActivity);
+  // SIG-1455: the shared feed always follows the board, so a locked Games
+  // panel runs its own query for the locked FEN until it is unlocked.
+  const position = useLockablePosition();
+  const [retryTick, setRetryTick] = useState(0);
+  const own = useExplorerData(source, retryTick, true, position.fen, position.locked);
+  const explorer = position.locked ? lockedExplorerData(own.explorer, sharedExplorer, position.fen) : sharedExplorer;
+  const loading = position.locked ? own.gamesLoading : sharedLoading;
+  const explorerError = position.locked ? own.error : sharedError;
+  const retryExplorer = position.locked ? () => setRetryTick((count) => count + 1) : sharedRetry;
 
   // SIG-1192: masters/online rows carry no event name, so the column is
   // only shown when at least one listed game has one (curated, personal).
@@ -96,9 +109,12 @@ export function GamesPanel() {
       <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-caption text-studio-faint">
         {/* SIG-1192: name the source, not the tab ("Games · Games" before). */}
         <span>{tPanels(locale, "games.title", { name: explorerSourceTitle(source, databases, locale) })}</span>
-        <span>{games.length === 1
-          ? tPanels(locale, "games.shown.one", { count: games.length })
-          : tPanels(locale, "games.shown.other", { count: games.length })}</span>
+        <span className="flex items-center gap-1">
+          {games.length === 1
+            ? tPanels(locale, "games.shown.one", { count: games.length })
+            : tPanels(locale, "games.shown.other", { count: games.length })}
+          <PositionLockButton position={position} locale={locale} />
+        </span>
       </div>
       <div className={`grid ${gridCols} gap-x-3 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint`}>
         <span>{tPanels(locale, "games.column.result")}</span>

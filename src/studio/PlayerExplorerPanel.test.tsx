@@ -71,6 +71,29 @@ test("changing a comparison panel's filters affects only its own position games"
   ]);
 });
 
+test("SIG-1455: a locked comparison panel keeps its position while the board moves", async (t) => {
+  const initial = useStudioStore.getState();
+  useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en" } });
+  t.mock.method(globalThis, "fetch", async () => Response.json({ games: [
+    { id: "g1", moves: "e4 e5", color: "white", playerResult: "win", whiteName: "Pat", blackName: "Opp one" },
+  ] }));
+  const params: PlayerPanelParams = { player: player("Pat"), color: "all", result: "all" };
+  const view = render(<ComparisonPlayerPanel panelId="player:a" params={params} />);
+  t.after(() => {
+    cleanup();
+    useStudioStore.setState({ boards: initial.boards });
+  });
+  await view.findByText("Opp one");
+  fireEvent.click(view.getByRole("button", { name: "Lock position" }));
+  assert.ok(view.getByRole("button", { name: "Locked at the starting position — click to unlock" }));
+  assert.equal(useStudioStore.getState().makeUciMove("e2", "e4"), true);
+  await view.findByText("Opp one");
+  assert.ok(view.getByRole("button", { name: /^e4/ }));
+  fireEvent.click(view.getByRole("button", { name: /Locked at/ }));
+  // The player's own moves only: after 1.e4 the unlocked panel has no row.
+  assert.equal(view.queryByRole("button", { name: /^e4/ }), null);
+});
+
 test("a Base Xadrez Digital panel loads the lines and notes the 200 most recent games", async (t) => {
   useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } });
   const urls: string[] = [];

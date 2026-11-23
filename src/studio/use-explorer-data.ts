@@ -30,8 +30,17 @@ export type ExplorerData = {
  * `lookupFilesExplorer` with the empty-payload fallback, `chesscom` via
  * `lookupChesscomExplorer`, last-good payload kept on error.
  */
-export function useExplorerData(source: ExplorerSource, retrySignal = 0, includeGames = false): ExplorerData {
-  const fen = useActiveFen();
+export function useExplorerData(
+  source: ExplorerSource,
+  retrySignal = 0,
+  includeGames = false,
+  /** SIG-1455: a locked position; the board is ignored while it is set. */
+  fenOverride: string | null = null,
+  /** `false` parks the hook: no lookup, no fetch (an unlocked Games panel reads the shared feed). */
+  enabled = true,
+): ExplorerData {
+  const activeFen = useActiveFen();
+  const fen = fenOverride ?? activeFen;
   const xd = source === "xadrez-digital";
   const explorerFilters = useStudioStore((state) => xd ? state.settings.xdExplorerFilters : state.settings.explorerFilters);
   const playerProfile = useStudioStore((state) => source === "chesscom" ? state.playerProfile : null);
@@ -62,6 +71,12 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
     // A new search clears the previous failure; only the network .catch below
     // sets it again. The last-good payload stays so the panel can keep it
     // behind the error banner instead of blanking to "No games".
+    if (!enabled) {
+      // Parked (e.g. unlocked): drop any loading flag a cancelled run left on.
+      setLoading(false);
+      setXdGamesLoading(false);
+      return;
+    }
     setError(null);
     const fileId = fileDatabaseId(source);
     if (fileId) {
@@ -168,7 +183,7 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, retrySignal, includeGames, xd]);
+  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, retrySignal, includeGames, xd, enabled]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   return { explorer, loading, gamesLoading: xd ? xdGamesLoading : loading, error };
