@@ -87,6 +87,8 @@ const EXPECTED_BINDINGS: ReadonlyArray<{ action: StudioChromeStringKey; chord: s
   { action: "chrome.edit.deleteAfter", chord: "Del" },
   { action: "chrome.view.flip", chord: "Ctrl+F" },
   { action: "chrome.view.flip", chord: "F" },
+  { action: "chrome.shortcuts.action.leaveVariation", chord: "M" },
+  { action: "chrome.shortcuts.action.toggleEngine", chord: "E" },
   { action: "chrome.file.save", chord: "Ctrl+S" },
   { action: "chrome.file.saveAs", chord: "Ctrl+Shift+S" },
   { action: "chrome.file.openPgn", chord: "Ctrl+O" },

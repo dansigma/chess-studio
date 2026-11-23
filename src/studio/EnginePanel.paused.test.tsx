@@ -98,3 +98,20 @@ test("shows placeholders while loading and for missing lines while running", () 
   assert.equal(view.container.querySelectorAll(placeholder).length, 1);
   assert.equal(view.queryByText(pausedHint), null);
 });
+
+test("the E-shortcut toggle request starts and pauses a mounted panel (SIG-1459)", () => {
+  const view = render(<EnginePanel />);
+  assert.ok(view.getByRole("button", { name: "Start engine" }));
+  act(() => useStudioStore.getState().requestEngineToggle());
+  emitLine();
+  assert.ok(view.getByRole("button", { name: "Pause engine" }));
+  act(() => useStudioStore.getState().requestEngineToggle());
+  assert.ok(view.getByRole("button", { name: "Start engine" }));
+});
+
+test("a toggle request made before the panel mounts is ignored (SIG-1459)", () => {
+  act(() => useStudioStore.getState().requestEngineToggle());
+  const view = render(<EnginePanel />);
+  assert.ok(view.getByRole("button", { name: "Start engine" }));
+  assert.ok(view.getByText(pausedHint));
+});

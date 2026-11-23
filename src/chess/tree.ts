@@ -211,6 +211,20 @@ export function goForward(tree: GameTree, path: Path): Path {
   return [...path, 0];
 }
 
+/**
+ * SIG-1459: the parent-line move where the variation containing `path`
+ * starts (the sibling at child index 0 of the branching position), or null
+ * on the main line.
+ */
+export function leaveVariation(path: Path): Path | null {
+  for (let k = path.length - 1; k >= 0; k -= 1) {
+    if (path[k] !== 0) {
+      return [...path.slice(0, k), 0];
+    }
+  }
+  return null;
+}
+
 export function goStart(): Path {
   return [];
 }

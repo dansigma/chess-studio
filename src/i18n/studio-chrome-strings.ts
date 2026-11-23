@@ -163,6 +163,7 @@ export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.settings.showCoordinates",
   "chrome.settings.showEvalBar",
   "chrome.settings.showMaterialBalance",
+  "chrome.settings.autoQueen",
   "chrome.settings.moveSound",
   "chrome.settings.puzzleSound",
   "chrome.settings.gamePreview",
@@ -242,6 +243,8 @@ export const STUDIO_CHROME_STRING_KEYS = [
   "chrome.shortcuts.gesture.moveMenu",
   "chrome.shortcuts.action.boardMenu",
   "chrome.shortcuts.action.moveMenu",
+  "chrome.shortcuts.action.toggleEngine",
+  "chrome.shortcuts.action.leaveVariation",
 ] as const;
 
 export type StudioChromeStringKey = (typeof STUDIO_CHROME_STRING_KEYS)[number];
@@ -398,6 +401,7 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.settings.showCoordinates": "Show coordinates",
   "chrome.settings.showEvalBar": "Show evaluation bar",
   "chrome.settings.showMaterialBalance": "Show material balance",
+  "chrome.settings.autoQueen": "Always promote to queen (hold Alt for other pieces)",
   "chrome.settings.moveSound": "Move sound",
   "chrome.settings.puzzleSound": "Puzzle sounds",
   "chrome.settings.gamePreview": "Game preview mode",
@@ -479,6 +483,8 @@ const EN: Record<StudioChromeStringKey, string> = {
   "chrome.shortcuts.gesture.moveMenu": "Right-click or long-press on a move",
   "chrome.shortcuts.action.boardMenu": "Board menu",
   "chrome.shortcuts.action.moveMenu": "Move menu",
+  "chrome.shortcuts.action.toggleEngine": "Start or pause the engine",
+  "chrome.shortcuts.action.leaveVariation": "Leave the variation",
 };
 
 const PT_BR: Record<StudioChromeStringKey, string> = {
@@ -633,6 +639,7 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.settings.showCoordinates": "Mostrar coordenadas",
   "chrome.settings.showEvalBar": "Mostrar barra de avaliação",
   "chrome.settings.showMaterialBalance": "Mostrar saldo de material",
+  "chrome.settings.autoQueen": "Promover sempre para dama (Alt para outras peças)",
   "chrome.settings.moveSound": "Som de lance",
   "chrome.settings.puzzleSound": "Som nos puzzles",
   "chrome.settings.gamePreview": "Modo de prévia de partidas",
@@ -714,6 +721,8 @@ const PT_BR: Record<StudioChromeStringKey, string> = {
   "chrome.shortcuts.gesture.moveMenu": "Botão direito ou toque longo em um lance",
   "chrome.shortcuts.action.boardMenu": "Menu do tabuleiro",
   "chrome.shortcuts.action.moveMenu": "Menu do lance",
+  "chrome.shortcuts.action.toggleEngine": "Iniciar ou pausar a engine",
+  "chrome.shortcuts.action.leaveVariation": "Sair da variante",
 };
 
 export const TABLES = { en: EN, "pt-br": PT_BR } as const;
