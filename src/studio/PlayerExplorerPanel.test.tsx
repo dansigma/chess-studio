@@ -59,8 +59,8 @@ test("changing a comparison panel's filters affects only its own position games"
   const second = within(view.getByRole("region", { name: "player:b" }));
   await first.findByText("First win");
   await second.findByText("Second draw");
-  fireEvent.click(first.getByRole("button", { name: "White", exact: true }));
-  fireEvent.click(second.getByRole("button", { name: "Draw", exact: true }));
+  fireEvent.click(first.getByRole("button", { name: "White" }));
+  fireEvent.click(second.getByRole("button", { name: "Draw" }));
   assert.ok(first.getByText("First win"));
   assert.equal(first.queryByText("First draw"), null);
   assert.ok(second.getByText("Second draw"));

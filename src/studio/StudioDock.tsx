@@ -481,12 +481,13 @@ export function StudioDock({ visible = true }: { visible?: boolean } = {}) {
         continue;
       }
       if (isPlayerPanelId(id)) {
-        const { player } = parsePlayerPanelParams(panel.api.getParameters());
+        // Restored params are on the panel before the API sees a parameter update.
+        const { player } = parsePlayerPanelParams(panel.toJSON().params);
         panel.setTitle(player?.displayName ?? tPanels(locale, "panels.player"));
         continue;
       }
       if (id === "player-explorer") {
-        const { player } = parsePlayerPanelParams(panel.api.getParameters());
+        const { player } = parsePlayerPanelParams(panel.toJSON().params);
         const name = (state.playerProfile ?? player)?.displayName;
         if (name) {
           panel.setTitle(playerExplorerTitle(locale, name));
