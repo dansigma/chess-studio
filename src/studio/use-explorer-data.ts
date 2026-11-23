@@ -10,12 +10,13 @@ import {
   type ExplorerSource,
 } from "@/src/lib/explorer-types";
 import { lookupChesscomExplorer, lookupFilesExplorer } from "@/src/lib/files-explorer";
-import { fetchXdExplorer } from "@/src/lib/xd-database/explorer";
+import { xdExplorer } from "@/src/lib/xd-database/explorer";
 import { lookupCuratedIndex } from "@/src/lib/offline-explorer";
 
 export type ExplorerData = {
   explorer: ExplorerResponse | null;
   loading: boolean;
+  gamesLoading: boolean;
   error: string | null;
 };
 
@@ -33,8 +34,8 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
   const fen = useActiveFen();
   const xd = source === "xadrez-digital";
   const explorerFilters = useStudioStore((state) => xd ? state.settings.xdExplorerFilters : state.settings.explorerFilters);
-  const playerProfile = useStudioStore((state) => state.playerProfile);
-  const playerGames = useStudioStore((state) => state.playerGames);
+  const playerProfile = useStudioStore((state) => source === "chesscom" ? state.playerProfile : null);
+  const playerGames = useStudioStore((state) => source === "chesscom" ? state.playerGames : null);
   // SIG-857: primitive signature — the old `state.files` object re-rendered
   // the shell on every library change; this string changes only when the
   // selected database's game ids change.
@@ -49,6 +50,7 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
   });
   const [explorer, setExplorer] = useState<ExplorerResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [xdGamesLoading, setXdGamesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /* eslint-disable react-hooks/set-state-in-effect -- SIG-864/908: the
@@ -82,7 +84,7 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
       return;
     }
     if (source === "chesscom") {
-      const games = playerProfile?.source === "chesscom" ? playerGames : [];
+      const games = playerProfile?.source === "chesscom" ? playerGames ?? [] : [];
       setExplorer(lookupChesscomExplorer(games, fen, explorerFilters));
       setLoading(false);
       return;
@@ -92,6 +94,45 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
       setLoading(false);
       return;
     }
+    if (xd) {
+      const controller = new AbortController();
+      const prefetch = new AbortController();
+      const { signal } = controller;
+      const request = xdExplorer.load(fen, explorerFilters, includeGames, signal);
+      // Observe the games request immediately even if it settles before moves.
+      const games = request.games?.catch(() => null);
+      setLoading(true);
+      setXdGamesLoading(Boolean(games));
+
+      function stopHiddenPrefetch() {
+        if (document.hidden) prefetch.abort();
+      }
+      document.addEventListener("visibilitychange", stopHiddenPrefetch);
+      void request.moves.then(async (position) => {
+        if (signal.aborted) return;
+        setExplorer(position);
+        setLoading(false);
+        if (!document.hidden) void xdExplorer.prefetch(position, prefetch.signal);
+        if (games && position.total) {
+          const rows = await games;
+          if (signal.aborted) return;
+          if (rows) setExplorer({ ...position, games: rows });
+          else setError("explorer request failed");
+        }
+        setXdGamesLoading(false);
+      }, () => {
+        if (signal.aborted) return;
+        controller.abort();
+        setError("explorer request failed");
+        setLoading(false);
+        setXdGamesLoading(false);
+      });
+      return () => {
+        document.removeEventListener("visibilitychange", stopHiddenPrefetch);
+        prefetch.abort();
+        controller.abort();
+      };
+    }
     const filterQuery = studioFilterQuery(explorerFilters);
     // Choice (b): loading starts synchronously with the error clear above —
     // the 160 ms timer delays only the fetch. Otherwise the panel sits one
@@ -100,9 +141,7 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
     setLoading(true);
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
-      const request = xd
-        ? fetchXdExplorer(fen, { ...explorerFilters, includeGames, signal: controller.signal })
-        : fetch(`/api/explorer?fen=${encodeURIComponent(fen)}&source=${source}${filterQuery}`, { signal: controller.signal })
+      const request = fetch(`/api/explorer?fen=${encodeURIComponent(fen)}&source=${source}${filterQuery}`, { signal: controller.signal })
           .then(async (response) => {
             if (!response.ok) throw new Error("explorer failed");
             return (await response.json()) as ExplorerResponse;
@@ -132,5 +171,5 @@ export function useExplorerData(source: ExplorerSource, retrySignal = 0, include
   }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, retrySignal, includeGames, xd]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  return { explorer, loading, error };
+  return { explorer, loading, gamesLoading: xd ? xdGamesLoading : loading, error };
 }

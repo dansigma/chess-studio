@@ -19,6 +19,7 @@ import {
 } from "@/src/chess/setup-fen";
 import { boardCoordinateOptions, boardSquareStyles } from "@/src/chess/board-themes";
 import { piecesForSet } from "@/src/chess/piece-sets";
+import { MaterialBoardLayout } from "./MaterialBoardLayout";
 import { Button, IconButton } from "./ui/Button";
 
 type Tool = "cursor" | "trash" | SetupPiece;
@@ -61,6 +62,7 @@ export type PositionEditorProps = {
   boardTheme: Parameters<typeof boardSquareStyles>[0];
   pieceSet: Parameters<typeof piecesForSet>[0];
   showCoordinates: boolean;
+  showMaterialBalance?: boolean;
   /** Unique per instance: react-chessboard keys its internal state on it. */
   boardId: string;
   /** Adds castling-rights checkboxes and an en passant selector. */
@@ -84,6 +86,7 @@ export function PositionEditor({
   boardTheme,
   pieceSet,
   showCoordinates,
+  showMaterialBalance = false,
   boardId,
   advanced = false,
   toolbarStart,
@@ -191,58 +194,65 @@ export function PositionEditor({
         ))}
       </div>
       <div className="grid min-h-0 flex-1 place-items-center p-2 [container-type:size]">
-        <div
-          data-board-image=""
-          className="relative aspect-square overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong"
-          style={{ height: "min(100cqh, 100cqw)" }}
+        <MaterialBoardLayout
+          fen={fen}
+          orientation={orientation}
+          pieces={pieces}
+          locale={locale}
+          showMaterialBalance={showMaterialBalance}
         >
-          <Chessboard
-            options={{
-              id: `${boardId}-${pieceSet}`,
-              position: fen,
-              boardOrientation: orientation,
-              showNotation: showCoordinates,
-              ...boardCoordinateOptions(boardTheme),
-              animationDurationInMs: 0,
-              showAnimations: false,
-              allowDrawingArrows: false,
-              lightSquareStyle: theme.light,
-              darkSquareStyle: theme.dark,
-              pieces,
-              squareStyles,
-              boardStyle: { width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" },
-              canDragPiece: () => tool === "cursor",
-              onPieceDrop: ({ sourceSquare, targetSquare }) => {
-                if (!targetSquare) {
-                  commit(placeSetupPiece(position, sourceSquare, null));
+          <div
+            data-board-image=""
+            className="relative aspect-square h-full overflow-hidden rounded-lg shadow-[0_6px_20px_rgb(0_0_0/0.28)] ring-1 ring-studio-border-strong"
+          >
+            <Chessboard
+              options={{
+                id: `${boardId}-${pieceSet}`,
+                position: fen,
+                boardOrientation: orientation,
+                showNotation: showCoordinates,
+                ...boardCoordinateOptions(boardTheme),
+                animationDurationInMs: 0,
+                showAnimations: false,
+                allowDrawingArrows: false,
+                lightSquareStyle: theme.light,
+                darkSquareStyle: theme.dark,
+                pieces,
+                squareStyles,
+                boardStyle: { width: "100%", height: "100%", borderRadius: 8, overflow: "hidden" },
+                canDragPiece: () => tool === "cursor",
+                onPieceDrop: ({ sourceSquare, targetSquare }) => {
+                  if (!targetSquare) {
+                    commit(placeSetupPiece(position, sourceSquare, null));
+                    return true;
+                  }
+                  commit(moveSetupPiece(position, sourceSquare, targetSquare));
+                  setHeld(null);
                   return true;
-                }
-                commit(moveSetupPiece(position, sourceSquare, targetSquare));
-                setHeld(null);
-                return true;
-              },
-              onSquareClick: ({ square, piece }) => {
-                if (tool === "trash") {
-                  commit(placeSetupPiece(position, square, null));
-                  setHeld(null);
-                  return;
-                }
-                if (tool !== "cursor") {
-                  commit(placeSetupPiece(position, square, tool));
-                  return;
-                }
-                if (held) {
-                  commit(moveSetupPiece(position, held, square));
-                  setHeld(null);
-                  return;
-                }
-                if (piece) {
-                  setHeld(square);
-                }
-              },
-            }}
-          />
-        </div>
+                },
+                onSquareClick: ({ square, piece }) => {
+                  if (tool === "trash") {
+                    commit(placeSetupPiece(position, square, null));
+                    setHeld(null);
+                    return;
+                  }
+                  if (tool !== "cursor") {
+                    commit(placeSetupPiece(position, square, tool));
+                    return;
+                  }
+                  if (held) {
+                    commit(moveSetupPiece(position, held, square));
+                    setHeld(null);
+                    return;
+                  }
+                  if (piece) {
+                    setHeld(square);
+                  }
+                },
+              }}
+            />
+          </div>
+        </MaterialBoardLayout>
       </div>
       {advanced ? (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-studio-border px-2 py-1.5 text-caption text-studio-muted">

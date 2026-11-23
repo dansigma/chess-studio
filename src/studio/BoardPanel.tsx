@@ -18,6 +18,7 @@ import {
 } from "@/src/chess/marks";
 import { threatSquaresFromUci, useThreat } from "./useThreat";
 import { BoardEvalBar } from "./BoardEvalBar";
+import { MaterialBoardLayout } from "./MaterialBoardLayout";
 import { searchPositionInLibrary } from "./library/search-position";
 import { BoardContextMenu, type BoardMenuState } from "./BoardContextMenu";
 import { SetupBoardPanel } from "./SetupBoardPanel";
@@ -103,6 +104,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showEvalBar = useStudioStore((state) => state.settings.showEvalBar);
+  const showMaterialBalance = useStudioStore((state) => state.settings.showMaterialBalance);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
   const makeUciMove = useStudioStore((state) => state.makeUciMove);
   const flip = useStudioStore((state) => state.flip);
@@ -473,15 +475,13 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
         touchPressRef.current = null;
       }}
     >
-      <div
-        className="flex items-stretch gap-1.5"
-        style={{
-          height: showEvalBar
-            ? "min(100cqh, calc(100cqw - 1.625rem))" /* eval bar 20px + 6px gap */
-            : "min(100cqh, 100cqw)",
-        }}
-      >
-        {showEvalBar ? (
+      <MaterialBoardLayout
+        fen={fen}
+        orientation={board.orientation}
+        pieces={pieces}
+        locale={locale}
+        showMaterialBalance={showMaterialBalance}
+        evalBar={showEvalBar ? (
           <BoardEvalBar
             pawns={engineEval?.pawns ?? 0}
             label={engineEval?.label ?? "0.00"}
@@ -489,6 +489,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
             neutral={retryHere}
           />
         ) : null}
+      >
         <div
           data-board-image=""
           data-orientation={board.orientation}
@@ -641,7 +642,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
           </div>
         ) : null}
         </div>
-      </div>
+      </MaterialBoardLayout>
       {boardMenu ? (
         <BoardContextMenu
           menu={boardMenu}
