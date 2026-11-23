@@ -9,7 +9,8 @@ reads from R2 with range requests. The source collection is not named in the UI,
 - Formats and reader: `src/lib/xd-database/format.ts`, `src/lib/xd-database/reader.ts`
 - Checks and queries: `scripts/xd-database/inspect.mjs`
 - API: `app/api/xd-database/` (SIG-1450)
-- Studio source (SIG-1451), monthly runbook (SIG-1452): to follow
+- Studio source (SIG-1451): to follow
+- [Monthly update runbook](#monthly-update-runbook) (SIG-1452)
 
 ## What a build contains
 
@@ -117,3 +118,94 @@ a single game and were left out. 16,324,498 moves, 87,049 players. Files: `games
 
 Known limit: a spelling without a comma and without a FIDE id ("Carlsen Magnus") normalizes to "magnus, c" and
 stays a separate player. Most games carry a FIDE id, so this affects few games.
+
+## Monthly update (runbook)
+
+### Download and build
+
+Download the matching monthly **OTB Complete** and **Lichess Broadcast** archives from the release site
+listed in `src/lib/legal/credits.ts`. From the repository root, set the archive and PGN paths to the actual
+filenames and use the release's date. Set `previous` to the currently deployed version and `version` to a
+new, unused version number. Use Node 22.18+, 7-Zip, and a Linux build machine with 8 vCPU, 32 GB RAM, and
+about 10 GB of free disk in addition to the archives and extracted PGNs. Allow about an hour (see Measured builds).
+
+```bash
+set -euo pipefail
+previous=1
+version=2
+release=YYYY-MM-DD
+otb_archive=/path/to/otb-complete.7z
+broadcast_archive=/path/to/lichess-broadcast.7z
+otb_pgn=inputs/otb/otb-complete.pgn
+broadcast_pgn=inputs/broadcast/lichess-broadcast.pgn
+
+npm ci
+mkdir -p out
+sha256sum "$otb_archive" "$broadcast_archive" | tee "out/release-v${version}.sha256"
+# When the publisher provides SHA-256 digests, verify against them before extracting.
+# sha256sum -c /path/to/published.sha256
+
+7z x "$otb_archive" -oinputs/otb
+7z x "$broadcast_archive" -oinputs/broadcast
+NODE_OPTIONS=--max-old-space-size=12288 node scripts/xd-database/build.mjs "$otb_pgn" "$broadcast_pgn" \
+  --out-dir out --tmp-dir "tmp-v${version}" --version "$version" --workers 7 \
+  --release "$release" --min-games-read 13000000 \
+  > "out/build-v${version}.json" 2> "out/build-v${version}.log"
+```
+
+Keep the recorded SHA-256 digests with the build manifest and log. The checksummed archives can be verified
+again with `sha256sum -c "out/release-v${version}.sha256"`.
+
+### Validate and publish to R2
+
+Have the deployed build available locally as `out/v<previous>`. Run both checks and proceed only if
+`inspect` ends with `0 errors` and the comparison exits successfully.
+
+```bash
+node scripts/xd-database/inspect.mjs "out/v${version}" --check 5000
+node scripts/xd-database/compare.mjs "out/v${previous}" "out/v${version}" --sample 200
+```
+
+Upload the version to the `chess-studio-engine` bucket (binding `ENGINE`) under `xd-database/v<version>/` with
+`scripts/xd-database/upload.sh`. It uses the R2 S3 API through the AWS CLI (multipart, so files over Wrangler's
+300 MiB limit such as `games.bin` work), needs an R2 API token with Object Read & Write on the bucket, sends only
+the files listed in `manifest.json` (refusing a manifest of another version), checks each upload's size, and
+sends `manifest.json` last: a prefix that has a manifest is complete.
+
+```bash
+export XD_R2_ENDPOINT="https://<account-id>.r2.cloudflarestorage.com"
+export AWS_ACCESS_KEY_ID=<r2 access key id> AWS_SECRET_ACCESS_KEY=<r2 secret access key>
+scripts/xd-database/upload.sh "out/v${version}" "$version"
+```
+
+### Deploy and smoke test
+
+After every size matches, bump the active version in `src/lib/xd-database/manifest.ts`. Open a PR with
+the release date, archive digests, and validation results. Merge and deploy, then query production.
+
+```bash
+api=https://xadrez.digital/api/xd-database
+start='rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+curl -fsS -G "$api/tree" --data-urlencode "fen=$start"
+curl -fsS -G "$api/games" --data-urlencode "fen=$start"
+curl -fsS "$api/game/0"
+```
+
+Confirm the tree has the expected start-position total, the position games query returns a non-empty page,
+and game 0 returns headers and moves.
+
+### Rollback and retention
+
+To roll back, revert the active version in `src/lib/xd-database/manifest.ts`, deploy, and repeat the
+smoke test. Old versions stay in R2 for rollback.
+
+After a successful deploy and smoke test, retain the latest three versions. In the R2 dashboard, list the
+keys for each older version and check that the prefix is inactive. Delete each object in that prefix,
+including its manifest, then verify the prefix is empty.
+
+```bash
+stale=1  # Example only. Confirm this version is inactive and older than the three retained versions.
+aws s3 rm "s3://chess-studio-engine/xd-database/v${stale}/" --recursive --endpoint-url "$XD_R2_ENDPOINT"
+```
+
+A scheduled automatic monthly build can follow as a separate issue.
