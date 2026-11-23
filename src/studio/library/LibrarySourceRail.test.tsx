@@ -78,6 +78,7 @@ function seed(rows: Row[], user: { id: string; email: string | null } | null = n
     activity: "boards",
     settings: { ...s.settings, locale: "en" },
     databaseSource: "masters",
+    filesHydrated: true,
     files: {
       ...s.files,
       folders: [
@@ -876,4 +877,27 @@ test("the file group shows guests a sign-in link on desktop and in the Sources s
 
   act(() => { useStudioStore.setState({ user: { id: "user", email: null } }); });
   assert.equal(screen.queryByRole("link", { name: portugueseHint }), null);
+});
+
+test("the My files list shows the loading status, then includes saved databases in the default selection", async () => {
+  const { useLibrarySources } = await import("./library-sources");
+  const { EMPTY_FILES } = await import("@/src/lib/user-files");
+  function WithSources() {
+    useLibrarySources();
+    return <LibrarySourceRail sourceErrors={{}} />;
+  }
+  seed(TACTICS);
+  const { files: stored } = useStudioStore.getState();
+  clearLibrarySources();
+  useLibraryStore.setState({ filters: DEFAULT_LIBRARY_FILTERS });
+  useStudioStore.setState({ filesHydrated: false, files: EMPTY_FILES });
+  render(<WithSources />);
+  const files = within(screen.getByRole("group", { name: "My files" }));
+  assert.equal(files.getByRole("status").textContent, "Loading your Library…");
+  assert.equal(files.queryByRole("button", { name: /^Tactics/ }), null);
+
+  act(() => useStudioStore.setState({ filesHydrated: true, files: stored }));
+  assert.equal(files.queryByRole("status"), null);
+  assert.ok(files.getByRole("button", { name: /^Tactics/ }));
+  assert.ok(sources().includes("file:db1"));
 });

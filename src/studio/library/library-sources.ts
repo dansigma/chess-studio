@@ -76,9 +76,13 @@ export function fileSourcesInFolder(
  */
 export function useLibrarySources(): void {
   const databases = useStudioStore((state) => state.files.databases);
+  const filesHydrated = useStudioStore((state) => state.filesHydrated);
   const firstRun = useRef(true);
 
   useEffect(() => {
+    // Include all stored PGNs when initializing the default source selection.
+    if (!filesHydrated) return;
+
     const available = registerLibraryAdapters(databases);
     const { filters, setSources, folderId } = useLibraryStore.getState();
     const state = useStudioStore.getState();
@@ -100,7 +104,7 @@ export function useLibrarySources(): void {
     if (!sameIds(next, filters.sources)) {
       setSources(next);
     }
-  }, [databases]);
+  }, [databases, filesHydrated]);
 }
 
 /** Plain click: select only this source. */

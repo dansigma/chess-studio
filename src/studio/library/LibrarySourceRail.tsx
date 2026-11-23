@@ -2,6 +2,7 @@
 
 // SIG-1337: the Library's sources rail — public databases, My Games and the PGN
 // file tree live left of the games table; the old source bar above it is gone.
+import { LibraryLoadingStatus } from "./LibraryLoadingStatus";
 import Link from "next/link";
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
@@ -236,6 +237,7 @@ export function FileNameInput({
 /** SIG-1337: collapsible rail listing every source plus the PGN folder tree. */
 export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySourceRailProps) {
   const locale = useStudioStore((s) => s.settings.locale);
+  const filesHydrated = useStudioStore((s) => s.filesHydrated);
   const databases = useStudioStore((s) => s.files.databases);
   const folders = useStudioStore((s) => s.files.folders);
   const selected = useLibraryStore((s) => s.filters.sources);
@@ -930,7 +932,8 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
         <IconButton label={t("library.sources.rail.expand")} size="sm" aria-expanded={false} onClick={toggleCollapsed}>
           <PanelLeftOpen size={14} />
         </IconButton>
-        {ids.map((id) => {
+        {!filesHydrated ? <LibraryLoadingStatus className="sr-only" /> : null}
+        {ids.filter((id) => filesHydrated || !id.startsWith("file:")).map((id) => {
           const detail = count(id);
           const error = sourceErrors[id];
           const base = detail === null ? name(id) : `${name(id)} · ${detail}`;
@@ -1025,8 +1028,12 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
               {t("library.sources.signInHint")}
             </Link>
           ) : null}
-          {tree.rootFolders.map((node) => folderRow(node, 0))}
-          {tree.rootDatabases.map((database) => sourceRow(`file:${database.id}`, 0))}
+          {filesHydrated ? (
+            <>
+              {tree.rootFolders.map((node) => folderRow(node, 0))}
+              {tree.rootDatabases.map((database) => sourceRow(`file:${database.id}`, 0))}
+            </>
+          ) : <LibraryLoadingStatus className="px-2 py-1 text-caption text-studio-faint" />}
         </section>
       </div>
       <div className="flex shrink-0 items-center gap-1 border-t border-studio-border p-1.5">

@@ -86,6 +86,7 @@ test("a file that cannot be read shows as failed in the widget and the rest stil
 test("a file named like an existing database opens the dialog; Replace keeps the id and Esc skips only that file", async () => {
   const game = { id: "old", white: "A", black: "B", result: "1-0", event: "", date: "", pgn: PGN, title: "" };
   useStudioStore.setState((s) => ({
+    filesHydrated: true,
     files: { ...s.files, databases: [{ id: "dup", remoteId: null, name: "Dup", folderId: null, games: [game] }] },
     user: null,
   }));
@@ -111,6 +112,7 @@ test("a file named like an existing database opens the dialog; Replace keeps the
 
 test("Esc in the conflict dialog cancels that file and the next one imports", async () => {
   useStudioStore.setState((s) => ({
+    filesHydrated: true,
     files: { ...s.files, databases: [{ id: "dup", remoteId: null, name: "Dup", folderId: null, games: [] }] },
     user: null,
   }));
