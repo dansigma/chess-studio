@@ -212,6 +212,7 @@ export type StudioState = {
   user: UserInfo | null;
   explorer: ExplorerResponse | null;
   explorerLoading: boolean;
+  explorerGamesLoading: boolean;
   explorerError: string | null;
   explorerRetry: number;
   statusMessage: string | null;
@@ -401,6 +402,7 @@ export type StudioState = {
   trainDeviationLine: (event: DeviationEvent, color: BoardOrientation) => void;
   addGapToRepertoire: (event: DeviationEvent, color: BoardOrientation) => void;
   setExplorer: (data: ExplorerResponse | null) => void;
+  setExplorerGamesLoading: (loading: boolean) => void;
   setExplorerLoading: (loading: boolean) => void;
   setExplorerError: (error: string | null) => void;
   retryExplorer: () => void;

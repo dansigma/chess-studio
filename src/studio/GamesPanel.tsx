@@ -20,7 +20,9 @@ async function loadMastersPgn(id: string): Promise<string> {
 export function GamesPanel() {
   const locale = useStudioStore((state) => state.settings.locale);
   const explorer = useStudioStore((state) => state.explorer);
-  const loading = useStudioStore((state) => state.explorerLoading);
+  const loading = useStudioStore((state) => state.explorerGamesLoading);
+  const explorerError = useStudioStore((state) => state.explorerError);
+  const retryExplorer = useStudioStore((state) => state.retryExplorer);
   const openListedGame = useStudioStore((state) => state.openListedGame);
   const setStatus = useStudioStore((state) => state.setStatus);
   const source = useStudioStore((state) => state.databaseSource);
@@ -30,7 +32,10 @@ export function GamesPanel() {
 
   // SIG-1192: masters/online rows carry no event name, so the column is
   // only shown when at least one listed game has one (curated, personal).
-  const showEvent = explorer?.games.some((game) => Boolean(game.event)) ?? false;
+  const xd = source === "xadrez-digital";
+  const error = xd && explorerError;
+  const games = xd && (loading || error || explorer?.source !== source) ? [] : explorer?.games ?? [];
+  const showEvent = games.some((game) => Boolean(game.event));
   // SIG-1192: each rating lives inside its player's cell. As separate
   // right-aligned columns, White's rating sat against Black's name and read
   // as Black's.
@@ -91,9 +96,9 @@ export function GamesPanel() {
       <div className="flex items-center justify-between border-b border-studio-border-subtle px-3 py-2 text-caption text-studio-faint">
         {/* SIG-1192: name the source, not the tab ("Games · Games" before). */}
         <span>{tPanels(locale, "games.title", { name: explorerSourceTitle(source, databases, locale) })}</span>
-        <span>{(explorer?.games.length ?? 0) === 1
-          ? tPanels(locale, "games.shown.one", { count: explorer?.games.length ?? 0 })
-          : tPanels(locale, "games.shown.other", { count: explorer?.games.length ?? 0 })}</span>
+        <span>{games.length === 1
+          ? tPanels(locale, "games.shown.one", { count: games.length })
+          : tPanels(locale, "games.shown.other", { count: games.length })}</span>
       </div>
       <div className={`grid ${gridCols} gap-x-3 border-b border-studio-border-subtle px-3 py-1.5 text-[10px] uppercase tracking-wide text-studio-faint`}>
         <span>{tPanels(locale, "games.column.result")}</span>
@@ -109,7 +114,15 @@ export function GamesPanel() {
             {tPanels(locale, "games.loadingGames")}
           </div>
         ) : null}
-        {!loading && (explorer?.games.length ?? 0) === 0 ? (
+        {!loading && error ? (
+          <div className="px-3 py-4 text-studio-faint" role="alert">
+            {tPanels(locale, "explorer.error")}{" "}
+            <button type="button" className="underline" onClick={retryExplorer}>
+              {tPanels(locale, "explorer.errorRetry")}
+            </button>
+          </div>
+        ) : null}
+        {!loading && !error && games.length === 0 ? (
           <div className="flex flex-col items-start gap-2 px-3 py-4 text-studio-faint">
             <p>{tPanels(locale, "games.empty")}</p>
             {/* SIG-1385: the empty row points at the import flow — same
@@ -123,7 +136,7 @@ export function GamesPanel() {
             </button>
           </div>
         ) : null}
-        {explorer?.games.map((game) => (
+        {games.map((game) => (
           <GameOpenRow
             key={game.id}
             className={`grid w-full ${gridCols} items-center gap-x-3 px-3 py-1.5 text-left hover:bg-studio-hover`}

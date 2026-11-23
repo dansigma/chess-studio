@@ -27,12 +27,14 @@ test("browse Base Xadrez Digital moves and open a database game", async ({ page 
   await page.route("**/api/explorer?*", (route) => route.fulfill({ json: {
     source: "masters", fen: chess.fen(), opening: null, white: 0, draws: 0, black: 0, moves: [], games: [],
   } }));
-  await page.route("**/api/xd-database/games?*", (route) => {
+  const firstGames = Promise.withResolvers<void>();
+  await page.route("**/api/xd-database/games?*", async (route) => {
     const query = new URL(route.request().url()).searchParams;
     const cursor = query.get("cursor");
     if (cursor === "0" || (query.get("minRating") === "2300" && !cursor)) {
       return route.fulfill({ json: { games: [], nextCursor: 5000 } });
     }
+    if (!query.has("minRating") && query.get("fen") === new Chess().fen()) await firstGames.promise;
     return route.fulfill({ json: {
       games: [{
         id: 42, white: "Sample White", black: "Sample Black", result: "1-0",
@@ -52,6 +54,10 @@ test("browse Base Xadrez Digital moves and open a database game", async ({ page 
   const source = page.getByRole("combobox", { name: "Explorer source" });
   const explorer = page.getByRole("tabpanel").filter({ has: source });
   await source.selectOption({ label: "Base Xadrez Digital" });
+  await expect(explorer.getByRole("button", { name: /^e4\b/ })).toBeVisible();
+  await expect(page.getByText("Loading games…", { exact: true })).toBeVisible();
+  firstGames.resolve();
+  await expect(page.getByRole("button", { name: /Sample White.*Sample Black/ })).toBeVisible();
 
   await explorer.getByRole("button", { name: "Filters", exact: true }).click();
   const filters = explorer.getByRole("dialog", { name: "Filters" });
