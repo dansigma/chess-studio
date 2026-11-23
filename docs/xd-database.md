@@ -42,12 +42,12 @@ Worker. Position keys are the app's position hash (`bookKey`), so a FEN from the
 ## Build
 
 Needs Node 22.18+ (TypeScript imports), `npm ci`, 7-Zip, and for the full release about 8 cores, 32 GB of RAM and
-about 30 GB of free disk on top of the PGN (temp records are about 20 bytes per position, 4.2 GB for the
-2026-11 release, deleted at the end).
+about 10 GB of free disk on top of the PGN (temp records are about 20 bytes per position, 4.1 GB for the
+2026-11 release, deleted at the end, plus 1.1 GB of output).
 
 ```bash
 7z x LumbrasGigabase_OTB_Complete.7z          # one .pgn file (12.3 GB for 2026-11)
-node scripts/xd-database/build.mjs LumbrasGigabase_OTB_Complete.pgn \
+NODE_OPTIONS=--max-old-space-size=12288 node scripts/xd-database/build.mjs LumbrasGigabase_OTB_Complete.pgn \
   --out-dir out --tmp-dir tmp --version 1 --workers 7 --release 2026-11-11 --min-games-read 13000000 \
   > out/build-v1.json 2> out/build-v1.log
 ```
@@ -78,4 +78,14 @@ node scripts/xd-database/inspect.mjs out/v1 --player carlsen    # player search
 
 | Release | Games read | Kept | Duplicates | Positions | Files | Time | Peak RSS | Machine |
 |---|---|---|---|---|---|---|---|---|
-| 2026-11-11 (v1) | _filled by the first full build_ | | | | | | | 8 vCPU, 31 GB |
+| 2026-11-11 (v1) | 13,450,696 | 4,282,119 | 32,337 | 11,327,266 | 1.1 GB | 57 min | 5.3 GiB | 8 vCPU (QEMU), 31 GB |
+
+v1 details: rejected 5,820,944 under 2100, 3,234,119 without a rating, 81,177 online; 0 games with an illegal
+move in the first 50 plies. 207,501,315 position records (4.1 GB of temp files), of which 92,162,934 positions had
+a single game and were left out. 16,324,498 moves, 87,049 players. Files: `games.bin` 694 MB (2.04 GB raw),
+`tree.bin` 367 MB (26,728 pages; `tree.idx` 428 KB), `player-games.bin` 34 MB, `players.bin` 2.2 MB, `games.idx`
+134 KB. Phase 1 (read and replay) took 56 min with 7 workers at 100% CPU; phase 2 (tree) about 2 min.
+`--check 3000`: 145,036 positions, 0 errors.
+
+Known limit: a spelling without a comma and without a FIDE id ("Carlsen Magnus") normalizes to "magnus, c" and
+stays a separate player. Most games carry a FIDE id, so this affects few games.
