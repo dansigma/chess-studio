@@ -887,7 +887,7 @@ export type Database = {
     Views: Record<string, never>;
     Functions: {
       consume_ask_master_question: {
-        Args: { p_user_limit: number; p_site_limit: number };
+        Args: { p_user_id: string; p_user_limit: number; p_site_limit: number };
         Returns: Array<{ allowed: boolean; reason: string | null; remaining: number }>;
       };
       record_ask_master_model_request: { Args: Record<PropertyKey, never>; Returns: undefined };

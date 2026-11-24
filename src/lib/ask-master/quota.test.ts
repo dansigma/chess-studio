@@ -2,20 +2,20 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { askMasterLimits, consumeQuestion, questionsLeft } from "./quota";
 
-const limits = { userLimit: 5, siteLimit: 100 };
+const defaults = { userLimit: 5, siteLimit: 100 };
+const limits = { userId: "11111111-1111-1111-1111-111111111111", ...defaults };
 const refused = { allowed: false, reason: "error", remaining: 0 };
 const outcomes = [
   { allowed: true, reason: null, remaining: 4 },
   { allowed: false, reason: "user_limit", remaining: 0 },
   { allowed: false, reason: "site_limit", remaining: 3 },
-  { allowed: false, reason: "unauthenticated", remaining: 0 },
 ];
 
 function fakeConsumer(single: () => Promise<{ data: unknown; error: unknown }>) {
   return {
     rpc(name: string, args: unknown) {
       assert.equal(name, "consume_ask_master_question");
-      assert.deepEqual(args, { p_user_limit: 5, p_site_limit: 100 });
+      assert.deepEqual(args, { p_user_id: "11111111-1111-1111-1111-111111111111", p_user_limit: 5, p_site_limit: 100 });
       return { single };
     },
   } as unknown as Parameters<typeof consumeQuestion>[0];
@@ -74,12 +74,12 @@ test("questionsLeft reads today's own count, clamps to zero, and fails closed", 
 });
 
 test("askMasterLimits uses defaults for missing and invalid values", () => {
-  assert.deepEqual(askMasterLimits({}), limits);
+  assert.deepEqual(askMasterLimits({}), defaults);
   for (const value of ["", "0", "-1", "1.5", "1e2", "Infinity", "10 questions", "2147483648"]) {
     assert.deepEqual(askMasterLimits({
       ASK_MASTER_USER_DAILY_LIMIT: value,
       ASK_MASTER_SITE_DAILY_LIMIT: value,
-    }), limits);
+    }), defaults);
   }
   assert.deepEqual(askMasterLimits({
     ASK_MASTER_USER_DAILY_LIMIT: " 7 ",

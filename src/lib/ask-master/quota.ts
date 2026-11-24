@@ -4,6 +4,7 @@ import type { Database } from "../supabase/database.types";
 
 type QuotaClient = SupabaseClient<Database>;
 type Limits = { userLimit: number; siteLimit: number };
+type ConsumeInput = Limits & { userId: string };
 type ConsumeResult = Database["public"]["Functions"]["consume_ask_master_question"]["Returns"][number];
 
 function dailyLimit(value: string | undefined, fallback: number): number {
@@ -19,12 +20,19 @@ export function askMasterLimits(env: Record<string, string | undefined> = proces
   };
 }
 
+/**
+ * Takes one question from the user's daily quota and one request from the site
+ * cap. `supabase` must be the service-role client (`createServiceSupabase`):
+ * the RPC is not callable by signed-in users, so the caller passes the id of a
+ * user it has already verified.
+ */
 export async function consumeQuestion(
   supabase: Pick<QuotaClient, "rpc">,
-  { userLimit, siteLimit }: Limits,
+  { userId, userLimit, siteLimit }: ConsumeInput,
 ): Promise<ConsumeResult> {
   try {
     const { data, error } = await supabase.rpc("consume_ask_master_question", {
+      p_user_id: userId,
       p_user_limit: userLimit,
       p_site_limit: siteLimit,
     }).single();

@@ -22,14 +22,16 @@ revoke all on public.ask_master_usage from public, anon, authenticated;
 -- The publishable-key schema probe needs SELECT. RLS exposes no rows to anon.
 grant select on public.ask_master_usage to anon, authenticated;
 
-create or replace function public.consume_ask_master_question(p_user_limit int, p_site_limit int)
+-- Called only by the server route (service role) after it has verified the
+-- user, so a signed-in user cannot call it directly with their own limits.
+create or replace function public.consume_ask_master_question(p_user_id uuid, p_user_limit int, p_site_limit int)
 returns table (allowed boolean, reason text, remaining int)
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  caller_id uuid := (select auth.uid());
+  caller_id uuid := p_user_id;
   today date := (now() at time zone 'utc')::date;
   site_requests int;
   user_questions int;
@@ -84,9 +86,9 @@ begin
 end;
 $$;
 
-revoke all on function public.consume_ask_master_question(int, int)
+revoke all on function public.consume_ask_master_question(uuid, int, int)
   from public, anon, authenticated, service_role;
-grant execute on function public.consume_ask_master_question(int, int) to authenticated;
+grant execute on function public.consume_ask_master_question(uuid, int, int) to service_role;
 
 create or replace function public.record_ask_master_model_request()
 returns void
