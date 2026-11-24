@@ -130,7 +130,7 @@ export async function serve(
     console.error("[xd-database] read failed", cause);
     return withServerTiming(error("Database unavailable", 503), timingHeader());
   }
-  if (!response.ok) return response;
+  if (!response.ok) return withServerTiming(response, timingHeader());
   response.headers.set("Cache-Control", filtered ? FILTERED_CACHE : PUBLIC_CACHE);
   response.headers.set("X-XD-Database-Version", String(XD_DATABASE_VERSION));
   if (edge) {

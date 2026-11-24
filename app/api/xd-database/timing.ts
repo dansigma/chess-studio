@@ -18,10 +18,6 @@ export function withTiming<T>(timing: XdTiming, fn: () => Promise<T>): Promise<T
   return store.run(timing, fn);
 }
 
-export function currentTiming(): XdTiming | undefined {
-  return store.getStore();
-}
-
 export function recordCache(hit: boolean) {
   const timing = store.getStore();
   if (!timing) return;
@@ -58,7 +54,9 @@ export function serverTiming(timing: XdTiming | undefined, totalMs: number, edge
  * an execution context; awaits it otherwise (unit tests, Node). Never throws.
  */
 export async function deferCacheWrite(write: () => Promise<unknown>): Promise<void> {
-  const task = Promise.resolve().then(write).then(() => undefined, () => undefined);
+  const task = Promise.resolve().then(write).then(() => undefined, (cause) => {
+    console.warn("[xd-database] cache write failed", cause);
+  });
   const ctx = getRequestExecutionContext();
   if (ctx) ctx.waitUntil(task);
   else await task;
