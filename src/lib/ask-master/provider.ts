@@ -2,13 +2,33 @@ import "server-only";
 import { answerStatus } from "./answer-status";
 import type { ChatMessage } from "./prompt";
 
-type ProviderConfig = { baseUrl: string; apiKey: string; model: string };
+type ProviderConfig = { baseUrl: string; apiKey: string; model: string; options?: Record<string, unknown> };
+
+/**
+ * Extra request-body fields for the provider, as a JSON object in
+ * ASK_MASTER_REQUEST_OPTIONS, e.g. `{"thinking":{"type":"disabled"}}` to turn
+ * off DeepSeek reasoning (about 100 s → 8 s per answer). Invalid JSON, a
+ * non-object, or fields that would override model/messages/stream are ignored.
+ */
+export function parseRequestOptions(raw: string | undefined): Record<string, unknown> | undefined {
+  if (!raw?.trim()) return undefined;
+  try {
+    const value: unknown = JSON.parse(raw);
+    if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("not an object");
+    // The request body always sets these itself.
+    return Object.fromEntries(Object.entries(value).filter(([key]) => !["model", "messages", "stream"].includes(key)));
+  } catch {
+    console.error("ask-master: ASK_MASTER_REQUEST_OPTIONS is not a JSON object; ignored");
+    return undefined;
+  }
+}
 
 export function askMasterProviderConfig(): ProviderConfig | null {
   const baseUrl = process.env.ASK_MASTER_BASE_URL?.trim();
   const apiKey = process.env.ASK_MASTER_API_KEY?.trim();
   const model = process.env.ASK_MASTER_MODEL?.trim();
-  return baseUrl && apiKey && model ? { baseUrl, apiKey, model } : null;
+  const options = parseRequestOptions(process.env.ASK_MASTER_REQUEST_OPTIONS);
+  return baseUrl && apiKey && model ? { baseUrl, apiKey, model, ...(options ? { options } : {}) } : null;
 }
 
 async function* sseLines(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
@@ -85,7 +105,7 @@ export async function streamChat(
         "HTTP-Referer": "https://xadrez.digital",
         "X-Title": "Xadrez Digital",
       },
-      body: JSON.stringify({ model: config.model, messages, stream: true }),
+      body: JSON.stringify({ ...config.options, model: config.model, messages, stream: true }),
       signal: upstreamSignal,
       // Workers only accepts "follow" or "manual" here; "error" makes every
       // request fail before it leaves the edge (Invalid redirect value).
