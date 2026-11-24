@@ -243,8 +243,10 @@ test("skips saving without a valid FEN, on stream error, truncation, or cancella
   const body = JSON.stringify({ ...input, fen });
   stream = delta("Partial") + 'data: {"error":{"message":"failed"}}\n\n';
   await assert.rejects((await post(body)).text(), /Upstream stream failed/);
+  // A stream without a finish signal is still shown, but not saved.
+  t.mock.method(console, "error", () => {});
   stream = delta("Partial");
-  await assert.rejects((await post(body)).text(), /Upstream stream failed/);
+  assert.equal(await (await post(body)).text(), statuses + "Partial");
 
   stream = delta("Answer") + "data: [DONE]\n\n";
   await (await post(body)).body!.cancel();

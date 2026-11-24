@@ -103,10 +103,14 @@ export async function streamChat(
       async pull(controller) {
         try {
           const chunks = [first.value];
+          // Some proxies close the stream without [DONE] or finish_reason. The
+          // answer is still shown, but only a properly finished one is saved.
+          let finished = false;
           while (true) {
             const next = await deltas.next();
             if (next.done) {
-              if (!next.value) throw new Error("Upstream stream ended before completion");
+              finished = next.value;
+              if (!finished) console.error("ask-master: provider stream ended without a finish signal");
               break;
             }
             chunks.push(next.value);
@@ -119,7 +123,7 @@ export async function streamChat(
             answer = await verify(answer, requestSignal);
           }
           requestSignal.throwIfAborted();
-          if (onComplete && answer.trim()) {
+          if (finished && onComplete && answer.trim()) {
             try {
               await onComplete(answer);
             } catch {
