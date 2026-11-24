@@ -369,7 +369,33 @@ for (const allowed of [true, false]) {
   });
 }
 
-test("skips the repair request when the draft already took longer than the repair budget", async (t) => {
+test("repairs a false file claim within the repair budget", async (t) => {
+  const rpc = mock.fn(async () => ({ error: null }));
+  state.server = { auth: { getUser: auth }, rpc };
+  quotaRpc.mock.mockImplementation((name) => name === "record_ask_master_model_request"
+    ? { data: true }
+    : { single: async () => ({ data: { allowed: true, reason: null, remaining: 3 } }) });
+  t.mock.method(Date, "now", () => 1_000_000);
+
+  const requests: unknown[] = [];
+  const answer = "A coluna d está fechada.";
+  mockFetch(t, (_url, init) => {
+    const { messages } = JSON.parse(String(init?.body));
+    requests.push(messages.at(-1).content);
+    const output = requests.length === 1
+      ? 'A coluna d está aberta.<claims>[{"type":"file","file":"d","state":"open"}]</claims>'
+      : answer + '<claims>[{"type":"file","file":"d","state":"closed"}]</claims>';
+    return new Response(delta(output) + "data: [DONE]\n\n");
+  });
+
+  const response = await post(JSON.stringify({ ...input, fen }));
+  assert.equal(await response.text(), statuses + answer);
+  assert.equal(requests.length, 2);
+  assert.match(String(requests[1]), /d-file is closed \(pawns on d2 and d7\)/);
+  assert.equal(rpc.mock.callCount(), 1);
+});
+
+test("strips a false file claim when the draft already took longer than the repair budget", async (t) => {
   state.server = { auth: { getUser: auth }, rpc: async () => ({ error: null }) };
   quotaRpc.mock.resetCalls();
   let now = 1_000_000;
@@ -379,11 +405,11 @@ test("skips the repair request when the draft already took longer than the repai
     calls++;
     now += 70_000; // the slow draft
     return new Response(delta(
-      'Nb1 attacks e4.<claims>[{"type":"attacks","piece":"Nb1","target":"e4"}]</claims>',
+      'A coluna d está aberta. Controle o centro.<claims>[{"type":"file","file":"d","state":"open"}]</claims>',
     ) + "data: [DONE]\n\n");
   });
   const response = await post(JSON.stringify({ ...input, context: { fen, moves: [] } }));
-  await response.text();
+  assert.equal(await response.text(), statuses + "Controle o centro.");
   assert.equal(calls, 1);
   assert.equal(quotaRpc.mock.calls.some(({ arguments: [name] }) => name === "record_ask_master_model_request"), false);
 });

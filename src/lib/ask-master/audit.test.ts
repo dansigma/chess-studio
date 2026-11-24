@@ -28,7 +28,7 @@ test("checks the pinning piece, blocked diagonal, defense, hanging piece and thr
     { type: "threatens", piece: "d5", target: "e7" },
   ], position);
   assert.equal(audit.ok, false);
-  assert.deepEqual(audit.falseClaims.map(({ claim }) => claim.target), ["c4", "c2", "e7"]);
+  assert.deepEqual(audit.falseClaims.map(({ claim }) => "target" in claim ? claim.target : undefined), ["c4", "c2", "e7"]);
   assert.match(audit.falseClaims[0].truth, /e7/);
 });
 
@@ -53,4 +53,77 @@ test("removes whole false sentences and illegal lines while keeping nearby prose
   const body = "Try [[1.e4 e5]]. The bishop on c1 attacks h6. Develop a knight. [[1.Bh6]]";
   const audit = auditAnswer(body, [{ type: "attacks", piece: "Bc1", target: "h6" }], position);
   assert.equal(stripFalse(body, audit), "Try [[1.e4 e5]]. Develop a knight.");
+});
+
+test("rejects the production claim that the d-file is open and strips its sentence", () => {
+  const position = replayAnswerPosition("rn1qkb1r/pp2pppp/5n2/2pp1b2/3P1B2/2N1PP2/PPP3PP/R2QKBNR b KQkq - 0 5", undefined);
+  const { body, claims } = extractClaims(
+    'Os reis ainda não rocaram: o branco está em e1 e o preto em e8, ambos com a coluna d aberta na frente do rei. ' +
+    'Desenvolva as peças.<claims>[{"type":"file","file":"d","state":"open"}]</claims>',
+  );
+  const audit = auditAnswer(body, claims, position);
+  assert.equal(audit.ok, false);
+  assert.equal(audit.falseClaims[0].truth, "d-file is closed (pawns on d4 and d5).");
+  assert.equal(stripFalse(body, audit), "Desenvolva as peças.");
+});
+
+test("checks half-open files for the named side on the current board", () => {
+  const chess = new Chess();
+  const moves = "d4 d5 c4 e6 Nc3 Nf6 cxd5 exd5".split(" ");
+  for (const move of moves) chess.move(move);
+  const position = replayAnswerPosition(chess.fen(), { moves });
+  const valid = { type: "file", file: "c", state: "half-open", for: "white" } as const;
+  assert.equal(auditAnswer("", [valid], position).ok, true);
+  const body = "A coluna de c está semi-aberta para as pretas. Observe a coluna c.";
+  const audit = auditAnswer(body, [{ ...valid, for: "black" }], position);
+  assert.match(audit.falseClaims[0].truth, /half-open for White/);
+  assert.equal(stripFalse(body, audit), "Observe a coluna c.");
+});
+
+test("checks pawn traits and castling status and strips false claims in prose", () => {
+  const position = replayAnswerPosition("4k3/3p4/8/8/3P4/8/8/4K3 w - - 0 1", undefined);
+  assert.equal(auditAnswer("", [
+    { type: "pawn", square: "d4", kind: "isolated" },
+    { type: "king", side: "white", state: "uncastled" },
+  ], position).ok, true);
+  const body = "O peão de d4 está isolado. As brancas têm peões dobrados em d4. O rei branco já rocou.";
+  const audit = auditAnswer(body, [
+    { type: "pawn", square: "d4", kind: "doubled" },
+    { type: "king", side: "white", state: "castled" },
+  ], position);
+  assert.deepEqual(audit.falseClaims.map(({ truth }) => truth), [
+    "Pawn traits on d4: isolated.",
+    "The white king is uncastled on e1.",
+  ]);
+  assert.equal(stripFalse(body, audit), "O peão de d4 está isolado.");
+});
+
+test("checks a pawn break against the computed targets for its side", () => {
+  const chess = new Chess();
+  for (const move of ["e4", "e6", "d4", "d5", "e5"]) chess.move(move);
+  const position = replayAnswerPosition(chess.fen(), undefined);
+  assert.equal(auditAnswer("", [{ type: "break", side: "black", move: "c5" }], position).ok, true);
+  const body = "White can use the c5 pawn break. Build pressure on c5.";
+  const audit = auditAnswer(body, [{ type: "break", side: "white", move: "c5" }], position);
+  assert.equal(audit.ok, false);
+  assert.equal(stripFalse(body, audit), "Build pressure on c5.");
+});
+
+test("ignores malformed structural claim metadata", () => {
+  for (const claim of [
+    { type: "file", file: "i", state: "open" },
+    { type: "file", file: "c", state: "empty" },
+    { type: "file", file: "c", state: "half-open" },
+    { type: "file", file: "c", state: "half-open", for: "w" },
+    { type: "pawn", square: "d9", kind: "isolated" },
+    { type: "pawn", square: "d4", kind: "blocked" },
+    { type: "king", side: "w", state: "castled" },
+    { type: "king", side: "white", state: "can-castle" },
+    { type: "break", side: "black", move: "c7c5" },
+    { type: "break", move: "c5" },
+  ]) {
+    assert.deepEqual(extractClaims(`Draft.<claims>${JSON.stringify([claim])}</claims>`), {
+      body: "Draft.", claims: [],
+    });
+  }
 });
