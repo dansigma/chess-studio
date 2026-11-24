@@ -143,6 +143,8 @@ const NO_SOURCE = { currentFen: "", lineFens: [], lineStartPly: 0 } as const;
 
 // SIG-1480: a heading is a line of its own, "### Title" or "**Title**".
 const HEADING_LINE = /^( {0,3}(?:###[ \t]+\S.*|\*\*[^*\r\n]+\*\*)[ \t]*)$/m;
+// "Title — text", "Title – text" or "Title: text" with a short title (at most 6 words).
+const INLINE_HEADING = /^((?:\S+\s){0,5}\S+?)\s*(?:[\u2014\u2013]|\s-\s|:)\s+(\S[\s\S]*)$/;
 
 export function AskMasterAnswer({ text, source, locale }: { text: string; source?: AnswerSource; locale: SiteLocale }) {
   const sections = text.split(new RegExp(HEADING_LINE.source, "gm"));
@@ -151,8 +153,20 @@ export function AskMasterAnswer({ text, source, locale }: { text: string; source
     const line = part.trim();
     if (!line) return null;
     if (index % 2 === 0) return <AnswerBody key={index} text={line} source={source} locale={locale} />;
-    const title = line.startsWith("###") ? line.slice(3).trim() : line.slice(2, -2).trim();
-    return <h3 key={index} className="text-dense font-semibold">{title}</h3>;
+    if (!line.startsWith("###")) {
+      return <h3 key={index} className="text-dense font-semibold">{line.slice(2, -2).trim()}</h3>;
+    }
+    // Models often write the heading and its text on one line:
+    // "### Conclusão — Jogue e6…". Only the part before the dash is the title.
+    const heading = line.slice(3).trim();
+    const inline = INLINE_HEADING.exec(heading);
+    const title = inline ? inline[1] : heading;
+    return (
+      <Fragment key={index}>
+        <h3 className="text-dense font-semibold">{title}</h3>
+        {inline && <AnswerBody text={inline[2]} source={source} locale={locale} />}
+      </Fragment>
+    );
   });
 }
 
