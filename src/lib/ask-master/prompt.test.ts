@@ -31,3 +31,12 @@ test("delimits context separately and preserves history order before the questio
     { role: "user", content: "What should I try next?" },
   ]);
 });
+
+test("describes pack fields and tells the model how to use them", () => {
+  const [system] = buildMessages({ locale: "en", question: "What's the plan?" });
+  for (const field of ["fen", "moves", "opening", "facts", "threats", "engine", "lichess", "xd", "xdGames"]) {
+    assert.match(system.content, new RegExp(`\\b${field}\\b`));
+  }
+  assert.match(system.content, /Keep evaluation numbers and statistics out of the prose/);
+  assert.match(system.content, /Never mention missing sources/);
+});

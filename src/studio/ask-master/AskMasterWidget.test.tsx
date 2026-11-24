@@ -29,6 +29,7 @@ function ask(question = "Qual é o plano?") {
 function mockApi(t: TestContext, post: (init: RequestInit) => Response, remaining = 3) {
   return t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
     if (url === "/api/ask-master/quota") return Response.json({ questionsLeft: remaining });
+    if (url.startsWith("/api/explorer?") || url.startsWith("/api/xd-database/")) return new Response(null, { status: 503 });
     assert.equal(url, "/api/ask-master");
     return post(init);
   });
@@ -66,7 +67,14 @@ test("streams plain paragraphs and bold, sends the active line, and keeps the co
   assert.ok(screen.getByText("As respostas vêm de uma IA e podem conter erros. Não escreva dados pessoais."));
   ask();
   assert.ok((screen.getByRole("button", { name: "Enviar" }) as HTMLButtonElement).disabled);
-  assert.deepEqual(bodies[0].context, { fen, moves: ["d4"] });
+  assert.ok(screen.getByText("Analisando a posição…"));
+  assert.equal(bodies.length, 0);
+  await screen.findByText("O Mestre está respondendo…");
+  const pack = bodies[0].context as { fen: string; moves: string[]; opening: { name: string }; facts: unknown };
+  assert.equal(pack.fen, fen);
+  assert.deepEqual(pack.moves, ["d4"]);
+  assert.match(pack.opening.name, /Queen's Pawn/);
+  assert.ok(pack.facts);
   assert.equal(bodies[0].locale, "pt-br");
 
   const encoder = new TextEncoder();
@@ -88,6 +96,7 @@ test("streams plain paragraphs and bold, sends the active line, and keeps the co
   assert.ok(screen.getByText("Qual é o plano?"));
   await screen.findByText("3 perguntas restantes hoje");
   ask("E depois?");
+  await screen.findByText("O Mestre está respondendo…");
   assert.equal(bodies[1].conversationId, bodies[0].conversationId);
   assert.deepEqual(bodies[1].history, [
     { role: "user", text: "Qual é o plano?" },
@@ -125,6 +134,7 @@ test("new question aborts and clears the chat, and Escape aborts the next answer
   open();
   await screen.findByText("3 perguntas restantes hoje");
   ask();
+  await screen.findByText("O Mestre está respondendo…");
   const firstStream = stream;
   await act(async () => firstStream.enqueue(new TextEncoder().encode("Resposta parcial")));
   assert.ok(screen.getByText("Resposta parcial"));
@@ -139,6 +149,7 @@ test("new question aborts and clears the chat, and Escape aborts the next answer
   assert.equal(screen.queryByText("Resposta antiga"), null);
 
   ask("Outra pergunta");
+  await screen.findByText("O Mestre está respondendo…");
   assert.notEqual(requests[0].conversationId, requests[1].conversationId);
   assert.deepEqual(requests[1].history, []);
   fireEvent.keyDown(window, { key: "Escape" });

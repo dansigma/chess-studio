@@ -1,10 +1,11 @@
 import { createStore } from "zustand";
 import type { SiteLocale } from "@/src/i18n/locale";
 
+import { collectPositionPack, type PackPosition } from "./collect-pack";
+
 type Message = { role: "user" | "assistant"; text: string };
 type ChatError = "rateLimit" | "userLimit" | "siteLimit" | "unavailable" | "signInPrompt";
-type ChatStatus = "idle" | "answering" | ChatError;
-type Context = { fen: string; moves: string[] };
+type ChatStatus = "idle" | "analyzing" | "answering" | ChatError;
 
 export const MAX_QUESTION_LENGTH = 1000;
 
@@ -14,7 +15,7 @@ type ChatState = {
   status: ChatStatus;
   questionsLeft: number | null;
   refreshQuota: () => Promise<void>;
-  send: (question: string, locale: SiteLocale, context: Context) => Promise<void>;
+  send: (question: string, locale: SiteLocale, position: PackPosition) => Promise<void>;
   close: () => void;
   reset: () => void;
 };
@@ -59,7 +60,7 @@ export function createAskMasterStore() {
         if (quotaRequest === request) quotaRequest = undefined;
       }
     },
-    async send(question, locale, context) {
+    async send(question, locale, position) {
       const { messages, questionsLeft } = get();
       question = question.trim();
       if (!question || question.length > MAX_QUESTION_LENGTH || answerRequest || questionsLeft === 0) return;
@@ -74,10 +75,13 @@ export function createAskMasterStore() {
         .map(({ role, text }) => ({ role, text: text.slice(0, 4000) }));
       const submitted: Message[] = [...messages, { role: "user", text: question }];
 
-      set({ conversationId, messages: submitted, status: "answering" });
+      set({ conversationId, messages: submitted, status: "analyzing" });
       let status: ChatStatus = "idle";
       let answer = "";
       try {
+        const context = await collectPositionPack(position, request.signal);
+        if (request.signal.aborted) return;
+        set({ status: "answering" });
         const response = await fetch("/api/ask-master", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -125,14 +129,14 @@ export function createAskMasterStore() {
       answerRequest = undefined;
       quotaRequest?.abort();
       quotaRequest = undefined;
-      if (get().status === "answering") set({ status: "idle" });
+      if (get().status === "answering" || get().status === "analyzing") set({ status: "idle" });
     },
     reset() {
-      const wasAnswering = get().status === "answering";
+      const wasBusy = get().status === "answering" || get().status === "analyzing";
       answerRequest?.abort();
       answerRequest = undefined;
       set({ conversationId: crypto.randomUUID(), messages: [], status: "idle" });
-      if (wasAnswering) void get().refreshQuota();
+      if (wasBusy) void get().refreshQuota();
     },
   }));
 }
