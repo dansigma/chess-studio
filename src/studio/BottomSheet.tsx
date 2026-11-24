@@ -12,13 +12,13 @@ import { useDialogFocus } from "./ui/use-dialog-focus";
 // bottom (thumb-reachable) with a scrollable content area.
 export function BottomSheet({
   title,
+  labelledBy,
   onClose,
   children,
 }: {
-  title: ReactNode;
   onClose: () => void;
   children: ReactNode;
-}) {
+} & ({ title: ReactNode; labelledBy?: never } | { labelledBy: string; title?: never })) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const locale = useStudioStore((state) => state.settings.locale);
@@ -53,23 +53,27 @@ export function BottomSheet({
         ref={sheetRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
+        aria-labelledby={labelledBy ?? titleId}
         data-mobile-menu-sheet=""
         className="max-h-[80dvh] w-full max-w-full animate-[studio-dialog-in_160ms_ease-out] overflow-hidden rounded-t-2xl border-t border-x border-studio-border-strong bg-studio-elevated shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 px-4 pb-1 pt-3.5">
-          <h2 id={titleId} className="text-title font-semibold text-studio-fg">{title}</h2>
-          <IconButton label={tStudioChrome(locale, "chrome.dialog.close")} shortcut="Esc" onClick={onClose}>
-            <X size={14} />
-          </IconButton>
-        </div>
-        <div
-          data-mobile-menu-content=""
-          className="max-h-[calc(80dvh-64px)] min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-1"
-        >
-          {children}
-        </div>
+        {labelledBy ? children : (
+          <>
+            <div className="flex items-center justify-between gap-3 px-4 pb-1 pt-3.5">
+              <h2 id={titleId} className="text-title font-semibold text-studio-fg">{title}</h2>
+              <IconButton label={tStudioChrome(locale, "chrome.dialog.close")} shortcut="Esc" onClick={onClose}>
+                <X size={14} />
+              </IconButton>
+            </div>
+            <div
+              data-mobile-menu-content=""
+              className="max-h-[calc(80dvh-64px)] min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-1"
+            >
+              {children}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

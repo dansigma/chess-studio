@@ -49,10 +49,10 @@ export function AskMasterStarters({
   }
 
   return (
-    <ul className="space-y-2">
+    <ul className="ml-9 flex flex-wrap gap-1.5">
       {starters.map(({ intent, question }) => (
         <li key={intent}>
-          <Button size="sm" className="h-auto min-h-7 py-1 text-left" disabled={disabled} onClick={() => onAsk(question, intent)}>
+          <Button size="sm" className="h-auto min-h-7 !rounded-full border border-studio-border-subtle py-1 text-left" disabled={disabled} onClick={() => onAsk(question, intent)}>
             {question}
           </Button>
         </li>

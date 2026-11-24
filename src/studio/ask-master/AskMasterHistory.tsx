@@ -8,6 +8,7 @@ import type { getConversation, summarizeConversation } from "@/src/lib/ask-maste
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import type { AskMasterStore } from "./ask-master-store";
+import { NoticeCard } from "./ui/NoticeCard";
 import { gameHistoryKeys } from "./history-keys";
 
 type Summary = ReturnType<typeof summarizeConversation>;
@@ -81,7 +82,7 @@ export function AskMasterHistory({ tree, positionKey, ...props }: HistoryProps) 
 
   return (
     <>
-      <div className="flex shrink-0 gap-2" ref={tabs} role="tablist" aria-label={tAskMaster(props.locale, "history")}>
+      <div className="flex shrink-0 gap-2 border-b border-studio-border-subtle p-3" ref={tabs} role="tablist" aria-label={tAskMaster(props.locale, "history")}>
         {(["game", "position"] as const).map((value) => (
           <Button
             key={value}
@@ -105,7 +106,7 @@ export function AskMasterHistory({ tree, positionKey, ...props }: HistoryProps) 
         ))}
       </div>
       <div id={id + "panel"} role="tabpanel" aria-labelledby={id + tab} tabIndex={0}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-wrap:anywhere]">
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [overflow-wrap:anywhere]">
         <HistoryResults key={tab + body} body={body} {...props} />
       </div>
     </>
@@ -172,17 +173,17 @@ function HistoryResults({ body, locale, store, busyConversationId, onOpen, onDel
 
   return (
     <>
-      {error && <p role="alert" className="pb-2 text-body text-studio-warning-fg">{tAskMaster(locale, error)}</p>}
+      {error && <div className="mb-2"><NoticeCard role="alert">{tAskMaster(locale, error)}</NoticeCard></div>}
       {!rows && !error && <p role="status" className="text-body text-studio-muted">{tAskMaster(locale, "historyLoading")}</p>}
       {rows?.length === 0 && <p className="text-body text-studio-muted">{tAskMaster(locale, "historyEmpty")}</p>}
       <ul className="space-y-2">
         {rows?.map((row) => (
-          <li key={row.id} className="space-y-1 rounded-lg border border-studio-border p-2.5 text-body">
+          <li key={row.id} className="space-y-1.5 rounded-xl border border-studio-border-subtle bg-studio-elevated p-3 text-body">
             <div className="flex flex-wrap justify-between gap-x-2 text-caption text-studio-muted">
-              <span>{row.gameTitle || tAskMaster(locale, "historyUntitled")}</span>
+              <h3 className="text-dense font-semibold text-studio-fg">{row.gameTitle || tAskMaster(locale, "historyUntitled")}</h3>
               <time dateTime={row.updatedAt}>{date.format(new Date(row.updatedAt))}</time>
             </div>
-            <p className="font-medium">{row.firstQuestion}</p>
+            <p>{row.firstQuestion}</p>
             <p className="text-caption text-studio-muted">
               {tAskMaster(locale, "historyMessages", { count: row.messageCount })} · {row.model}
             </p>
