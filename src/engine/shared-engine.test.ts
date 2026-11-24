@@ -298,6 +298,42 @@ test("queued waiter starts when the active search completes naturally", async ()
   graph.release();
 });
 
+test("a lower slot starts right away when the active search already finished", async () => {
+  setup();
+  const engine = acquire("engine", "lite");
+  const graph = acquire("graph", "lite");
+  activeSearch(engine, FEN_A);
+  const w = worker();
+  completeSearch(w, COMPLETION);
+  w.sent.length = 0;
+  graph.analyze(FEN_B, 18, 3, 1);
+  assert.equal(w.sent.length, 0);
+  await Promise.resolve();
+  releaseBarrier(w);
+  assert.ok(w.sent.includes(`position fen ${FEN_B}`));
+  assert.ok(w.sent.includes("go depth 18"));
+  graph.release();
+  engine.release();
+});
+
+test("SIG-1477: ask preempts the engine panel and the panel resumes on release", () => {
+  setup();
+  const engine = acquire("engine", "lite");
+  const ask = acquire("ask", "lite");
+  activeSearch(engine, FEN_A);
+  const w = worker();
+  w.sent.length = 0;
+  ask.analyze(FEN_B, 18, 3, 1);
+  assert.deepEqual(w.sent, ["stop", "isready"]);
+  releaseBarrier(w);
+  assert.ok(w.sent.includes(`position fen ${FEN_B}`));
+  w.sent.length = 0;
+  ask.release();
+  releaseBarrier(w);
+  assert.ok(w.sent.includes(`position fen ${FEN_A}`));
+  engine.release();
+});
+
 test("stop from the active slot promotes without clobbering (reentrancy)", () => {
   setup();
   const engine = acquire("engine", "lite");
@@ -327,8 +363,8 @@ test("release from the active slot stops the orphaned search", () => {
 });
 
 test("slots typecheck as the EngineSlot union", () => {
-  const slots: EngineSlot[] = ["live", "engine", "graph", "threat"];
-  assert.deepEqual(slots.length, 4);
+  const slots: EngineSlot[] = ["live", "engine", "graph", "threat", "ask"];
+  assert.deepEqual(slots.length, 5);
 });
 
 test("SIG-950: acquire alone boots no worker; first analyze does", () => {

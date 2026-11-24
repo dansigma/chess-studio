@@ -3,7 +3,10 @@
 // The dock panels (EnginePanel, EvalGraphPanel) and Show threat previously
 // each owned a `StockfishEngine` worker (~99MB on the standard build). This
 // module owns one resident worker for the active build and arbitrates access
-// by slot priority: live (4) > threat (3) > engine (2) > graph (1).
+// by slot priority: live > threat > ask > engine > graph. `ask` (Ask the
+// Master, SIG-1477) is a short depth-18 search that pauses the Engine panel for
+// a few seconds; the panel resumes from its stashed params (the hash table
+// keeps most of its work).
 //
 // The `live` slot (SIG-1293) is for the Live view's eval bar on the focused
 // board. It outranks `engine`, so a Live search preempts a depth-40 panel
@@ -61,13 +64,14 @@ import {
  * `go` is sent as `go depth N` (clamped 8-40); there is no movetime option.
  * `lease.stop()` / `lease.release()` drop the slot's saved search.
  */
-export type EngineSlot = "live" | "engine" | "graph" | "threat";
+export type EngineSlot = "live" | "engine" | "graph" | "threat" | "ask";
 
 export type EngineSlotListener = (info: EngineInfo) => void;
 
 const SLOT_PRIORITY: Record<EngineSlot, number> = {
-  live: 4,
-  threat: 3,
+  live: 5,
+  threat: 4,
+  ask: 3,
   engine: 2,
   graph: 1,
 };
@@ -108,6 +112,7 @@ export const ENGINE_IDLE_DISPOSE_MS = 5000;
 let underlying: StockfishEngine | null = null;
 let currentBuild: EngineBuild | null = null;
 let activeSlot: EngineSlot | null = null;
+let activeSearchFinished = false;
 const pendingBySlot = new Map<EngineSlot, AnalyzeParams>();
 const lastParamsBySlot = new Map<EngineSlot, AnalyzeParams>();
 const liveLeases = new Set<LeaseImpl>();
@@ -138,7 +143,8 @@ function attachTap(): void {
   // Service tap: runs before any lease wrapper's listener (attached first),
   // never delivers to panels, only detects natural completion.
   tapUnsubscribe = underlying.subscribe((snapshot) => {
-    if (!snapshot.running && snapshot.ready && !snapshot.failed) {
+    activeSearchFinished = activeSlot !== null && !snapshot.running && snapshot.ready && !snapshot.failed;
+    if (activeSearchFinished) {
       maybeAutoPromoteOnCompletion();
     }
   });
@@ -146,12 +152,12 @@ function attachTap(): void {
 
 /** Schedule promotion when the active search completes on its own. */
 function maybeAutoPromoteOnCompletion(): void {
-  if (!underlying || activeSlot === null || pendingBySlot.size === 0) {
+  if (!underlying || activeSlot === null || !activeSearchFinished || pendingBySlot.size === 0) {
     return;
   }
   const owner = activeSlot;
   void Promise.resolve().then(() => {
-    if (!underlying || activeSlot !== owner || pendingBySlot.size === 0) {
+    if (!underlying || activeSlot !== owner || !activeSearchFinished || pendingBySlot.size === 0) {
       return;
     }
     activeSlot = null;
@@ -183,6 +189,7 @@ function forward(slot: EngineSlot, params: AnalyzeParams): void {
   }
   pendingBySlot.delete(slot);
   activeSlot = slot;
+  activeSearchFinished = false;
   underlying.analyze(
     params.fen,
     params.depth,
@@ -277,6 +284,7 @@ class LeaseImpl implements SharedEngineLease {
       return;
     }
     pendingBySlot.set(this.slot, params);
+    maybeAutoPromoteOnCompletion();
   };
 
   stop = (): void => {

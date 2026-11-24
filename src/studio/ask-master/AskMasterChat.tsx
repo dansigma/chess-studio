@@ -6,6 +6,7 @@ import { getFenAt } from "@/src/chess/tree";
 import { tAskMaster } from "@/src/i18n/ask-master-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { useActiveBoard } from "@/src/store/hooks";
+import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "../ui/Button";
 import { MAX_QUESTION_LENGTH, type AskMasterStore } from "./ask-master-store";
 
@@ -36,7 +37,7 @@ export function AskMasterChat({
   const questionId = useId();
   const disclaimerId = useId();
   const transcript = useRef<HTMLDivElement>(null);
-  const answering = status === "answering";
+  const busy = status === "analyzing" || status === "answering";
 
   useEffect(() => {
     if (signedIn) void refreshQuota();
@@ -50,17 +51,20 @@ export function AskMasterChat({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!question.trim() || answering || questionsLeft === 0) return;
+    if (!question.trim() || busy || questionsLeft === 0) return;
 
-    const moves: string[] = [];
+    const sanLine: string[] = [];
+    const lineFens = [tree.startFen];
     let children = tree.children;
     for (const index of path) {
       const node = children[index];
       if (!node) break;
-      moves.push(node.san);
+      sanLine.push(node.san);
+      lineFens.push(node.fen);
       children = node.children;
     }
-    void send(question, locale, { fen: getFenAt(tree, path), moves });
+    const { engineBuild, engineThreads } = useStudioStore.getState().settings;
+    void send(question, locale, { fen: getFenAt(tree, path), sanLine, lineFens, engineBuild, engineThreads });
     setQuestion("");
   }
 
@@ -100,11 +104,11 @@ export function AskMasterChat({
             {role === "user" ? text : <Answer text={text} />}
           </div>
         ))}
-        {answering && messages.at(-1)?.role === "user" ? (
-          <p className="text-studio-muted">{tAskMaster(locale, "answering")}</p>
+        {busy && messages.at(-1)?.role === "user" ? (
+          <p className="text-studio-muted">{tAskMaster(locale, status)}</p>
         ) : null}
       </div>
-      {status !== "idle" && !answering && status !== "userLimit" ? (
+      {status !== "idle" && !busy && status !== "userLimit" ? (
         <p role="alert" className="shrink-0 text-dense text-studio-warning-fg">{tAskMaster(locale, status)}</p>
       ) : null}
       {questionsLeft === 0 ? (
@@ -123,7 +127,7 @@ export function AskMasterChat({
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
           />
-          <Button type="submit" variant="primary" disabled={!question.trim() || answering || questionsLeft === 0}>
+          <Button type="submit" variant="primary" disabled={!question.trim() || busy || questionsLeft === 0}>
             {tAskMaster(locale, "send")}
           </Button>
         </div>
