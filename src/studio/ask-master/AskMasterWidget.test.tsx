@@ -89,6 +89,12 @@ test("streams plain paragraphs and bold, sends the active line, and keeps the co
   assert.equal(bodies[0].intent, "free");
 
   const encoder = new TextEncoder();
+  await act(async () => stream.enqueue(encoder.encode("\0status:analyzing\n\0stat")));
+  assert.ok(screen.getByText("Analisando a posição…"));
+  await act(async () => stream.enqueue(encoder.encode("us:checking\n")));
+  assert.ok(screen.getByText("Conferindo a resposta…"));
+  assert.ok((screen.getByRole("button", { name: "Enviar" }) as HTMLButtonElement).disabled);
+  assert.doesNotMatch(screen.getByRole("log").textContent ?? "", /status:/);
   const bytes = encoder.encode("Jogue **no centro**.\n\n<a>Peão</a>");
   const split = bytes.indexOf(0xc3) + 1;
   await act(async () => stream.enqueue(bytes.subarray(0, split)));

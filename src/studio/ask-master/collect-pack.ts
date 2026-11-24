@@ -120,7 +120,7 @@ export async function collectPositionPack(
   ]);
   signal.throwIfAborted();
   return buildPositionPack({
-    fen, sanLine, level, opening: opening ?? xd?.opening ?? lichess?.opening,
+    fen, sanLine, level, startFen: lineFens[0], opening: opening ?? xd?.opening ?? lichess?.opening,
     facts: computePositionFacts(fen),
     threats: [computeThreatsToMove(fen), computeThreats(fen)],
     engineLines, lichess, xd, xdGames,

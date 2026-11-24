@@ -53,7 +53,7 @@ export function AskMasterChat({
   const questionId = useId();
   const disclaimerId = useId();
   const transcript = useRef<HTMLDivElement>(null);
-  const busy = status === "analyzing" || status === "answering";
+  const busy = status === "analyzing" || status === "answering" || status === "checking";
 
   useEffect(() => {
     if (signedIn) void refreshQuota();
