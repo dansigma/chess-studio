@@ -7,6 +7,7 @@
 import process from "node:process";
 
 export const PROBES = [
+  { object: "ask_master_conversations", table: "ask_master_conversations", select: "id" },
   { object: "ask_master_usage", table: "ask_master_usage", select: "day" },
   { object: "linked_accounts", table: "linked_accounts", select: "*" },
   { object: "my_games", table: "my_games", select: "*" },

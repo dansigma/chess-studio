@@ -77,6 +77,10 @@ test("rejects invalid request bodies before auth", async () => {
       { history: [{ role: "system", text: "Hi" }] },
       { history: [{ role: "assistant", text: "x".repeat(4001) }] },
       { context: "é".repeat(8192) },
+      { fen: 1 },
+      { fen: "x".repeat(101) },
+      { gameTitle: null },
+      { gameTitle: "x".repeat(121) },
     ].map((override) => JSON.stringify({ ...input, ...override })),
   ]) {
     assert.equal((await post(body)).status, 400, body.slice(0, 100));
@@ -164,4 +168,96 @@ test("consumes quota for the verified user and streams split SSE deltas", async 
   upstream.enqueue(encoder.encode(event(" central") + "data: [DONE]\n\n" + event("ignored")));
   assert.equal(decoder.decode((await reader.read()).value), " central");
   assert.equal((await reader.read()).done, true);
+});
+
+const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const delta = (content: string) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
+
+test("awaits the session save and submits only the new turn for each answer", async (t) => {
+  const saved: unknown[] = [];
+  const gate = Promise.withResolvers<void>();
+  const saving = Promise.withResolvers<void>();
+  const rpc = mock.fn(async (name: string, args: Record<string, unknown>) => {
+    assert.equal(name, "save_ask_master_conversation_turn");
+    saved.push(args);
+    saving.resolve();
+    await gate.promise;
+    return { error: null };
+  });
+  state.server = { auth: { getUser: auth }, rpc };
+  mockFetch(t, () => new Response(delta("Peão") + delta(" central") + "data: [DONE]\n\n"));
+
+  const body = { ...input, fen, gameTitle: "Game" };
+  const response = await post(JSON.stringify(body));
+  let closed = false;
+  const reading = response.text().then((answer) => {
+    closed = true;
+    return answer;
+  });
+  await saving.promise;
+  await new Promise(setImmediate);
+  assert.equal(closed, false);
+  gate.resolve();
+  assert.equal(await reading, "Peão central");
+
+  const followUp = await post(JSON.stringify({
+    ...body,
+    question: "E depois?",
+    history: [{ role: "user", text: "Qual é o plano?" }, { role: "assistant", text: "Peão central" }],
+  }));
+  assert.equal(await followUp.text(), "Peão central");
+  const { bookKey } = await import("@/src/chess/opening-book.ts");
+  const args = {
+    p_id: input.conversationId,
+    p_position_key: bookKey(fen).toString(),
+    p_fen: fen,
+    p_game_title: "Game",
+    p_question: "Qual é o plano?",
+    p_answer: "Peão central",
+    p_model: config.ASK_MASTER_MODEL,
+  };
+  assert.deepEqual(saved, [args, { ...args, p_question: "E depois?" }]);
+});
+
+test("skips saving without a valid FEN, on stream error, truncation, or cancellation", async (t) => {
+  const rpc = mock.fn(async () => ({ error: null }));
+  state.server = { auth: { getUser: auth }, rpc };
+  let stream = delta("Answer") + "data: [DONE]\n\n";
+  mockFetch(t, () => new Response(stream));
+
+  for (const position of [undefined, "invalid"]) {
+    assert.equal(await (await post(JSON.stringify({ ...input, fen: position }))).text(), "Answer");
+  }
+
+  const body = JSON.stringify({ ...input, fen });
+  stream = delta("Partial") + 'data: {"error":{"message":"failed"}}\n\n';
+  await assert.rejects((await post(body)).text(), /Upstream stream failed/);
+  stream = delta("Partial");
+  assert.equal(await (await post(body)).text(), "Partial");
+
+  stream = delta("Answer") + "data: [DONE]\n\n";
+  await (await post(body)).body!.cancel();
+  assert.equal(rpc.mock.callCount(), 0);
+});
+
+test("logs a failed save and still returns the complete answer", async (t) => {
+  const log = t.mock.method(console, "error", () => {});
+  state.server = { auth: { getUser: auth }, rpc: async () => ({ error: { code: "42501" } }) };
+  mockFetch(t, () => new Response(delta("Answer") + "data: [DONE]\n\n"));
+  assert.equal(await (await post(JSON.stringify({ ...input, fen }))).text(), "Answer");
+  assert.equal(log.mock.callCount(), 1);
+});
+
+test("saves with the board FEN the widget sends inside context", async (t) => {
+  const saved: Array<Record<string, unknown>> = [];
+  const rpc = mock.fn(async (_name: string, args: Record<string, unknown>) => {
+    saved.push(args);
+    return { error: null };
+  });
+  state.server = { auth: { getUser: auth }, rpc };
+  mockFetch(t, () => new Response(delta("Answer") + "data: [DONE]\n\n"));
+
+  assert.equal(await (await post(JSON.stringify({ ...input, context: { fen, moves: [] } }))).text(), "Answer");
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].p_fen, fen);
 });

@@ -32,12 +32,12 @@ async function* sseLines(body: ReadableStream<Uint8Array>): AsyncGenerator<strin
   }
 }
 
-async function* textDeltas(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
-  const encoder = new TextEncoder();
+async function* textDeltas(body: ReadableStream<Uint8Array>): AsyncGenerator<string, boolean> {
+  let finished = false;
   for await (const line of sseLines(body)) {
     if (!line.startsWith("data:")) continue;
     const data = line.slice(5).trim();
-    if (data === "[DONE]") return;
+    if (data === "[DONE]") return true;
     if (!data) continue;
     let event;
     try {
@@ -46,17 +46,21 @@ async function* textDeltas(body: ReadableStream<Uint8Array>): AsyncGenerator<Uin
       continue; // A malformed event line is skipped, not fatal.
     }
     if (event?.error) throw new Error("Upstream stream failed");
-    const content = event?.choices?.[0]?.delta?.content;
-    if (typeof content === "string" && content) yield encoder.encode(content);
+    const choice = event?.choices?.[0];
+    if (typeof choice?.finish_reason === "string") finished = true;
+    const content = choice?.delta?.content;
+    if (typeof content === "string" && content) yield content;
   }
+  return finished;
 }
 
 export async function streamChat(
   config: ProviderConfig,
-  { conversationId, messages, signal }: {
+  { conversationId, messages, signal, onComplete }: {
     conversationId: string;
     messages: ChatMessage[];
     signal: AbortSignal;
+    onComplete?: (text: string) => Promise<void>;
   },
   fetchProvider: typeof fetch = fetch,
 ): Promise<Response> {
@@ -64,6 +68,7 @@ export async function streamChat(
   // 60 s for the provider to start answering, 3 min for the whole answer:
   // slow free models can stream for more than a minute.
   const firstByte = setTimeout(() => upstream.abort(), 60_000);
+  const upstreamSignal = AbortSignal.any([upstream.signal, signal, AbortSignal.timeout(180_000)]);
   try {
     const response = await fetchProvider(`${config.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
       method: "POST",
@@ -76,7 +81,7 @@ export async function streamChat(
         "X-Title": "Xadrez Digital",
       },
       body: JSON.stringify({ model: config.model, messages, stream: true }),
-      signal: AbortSignal.any([upstream.signal, signal, AbortSignal.timeout(180_000)]),
+      signal: upstreamSignal,
       redirect: "error",
     });
 
@@ -86,16 +91,29 @@ export async function streamChat(
     const first = await deltas.next();
     if (first.done) throw new Error("Upstream returned no answer");
     clearTimeout(firstByte);
+    const encoder = new TextEncoder();
+    const answer = onComplete ? [first.value] : undefined;
 
     return new Response(new ReadableStream<Uint8Array>({
       start(controller) {
-        controller.enqueue(first.value);
+        controller.enqueue(encoder.encode(first.value));
       },
       async pull(controller) {
         try {
           const next = await deltas.next();
-          if (next.done) controller.close();
-          else controller.enqueue(next.value);
+          if (next.done) {
+            if (next.value && !upstreamSignal.aborted && onComplete && answer) {
+              try {
+                await onComplete(answer.join(""));
+              } catch {
+                console.error("Ask the Master conversation save failed");
+              }
+            }
+            controller.close();
+          } else if (!upstream.signal.aborted) {
+            answer?.push(next.value);
+            controller.enqueue(encoder.encode(next.value));
+          }
         } catch {
           upstream.abort();
           controller.error(new Error("Upstream stream failed"));
@@ -103,7 +121,7 @@ export async function streamChat(
       },
       async cancel() {
         upstream.abort();
-        await deltas.return(undefined).catch(() => {});
+        await deltas.return(false).catch(() => {});
       },
     }), {
       headers: {
@@ -111,7 +129,8 @@ export async function streamChat(
         "Cache-Control": "no-store",
       },
     });
-  } catch {
+  } catch (cause) {
+    console.error("ask-master: provider request failed", cause instanceof Error ? cause.message : cause);
     clearTimeout(firstByte);
     upstream.abort();
     return Response.json({ error: "upstream" }, { status: 503 });

@@ -907,3 +907,29 @@ it("enforces the ten-database quota on all owned rows and ownership or kind chan
   assert.match(migration, /if owned >= 10 then\s+raise exception using\s+errcode = 'P0001',\s+message = 'quota_databases'/);
   assert.match(migration, /before insert or update of kind, user_id on public\.game_databases\s+for each row execute function public\.check_personal_database_quota\(\);/);
 });
+
+describe("SIG-1483 Ask the Master conversations", () => {
+  const sql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../../../supabase/migrations/20261124010000_ask_master_conversations.sql"),
+    "utf8",
+  );
+  const owner = String.raw`\(user_id = \(select auth\.uid\(\)\)\)`;
+
+  it("limits conversation operations to the owner and anonymous grants to the probe column", () => {
+    assert.match(sql, new RegExp(`for select to authenticated using ${owner}`));
+    assert.match(sql, new RegExp(`for insert to authenticated with check ${owner}`));
+    assert.match(sql, new RegExp(`for update to authenticated using ${owner}\\s+with check ${owner}`));
+    assert.match(sql, new RegExp(`for delete to authenticated using ${owner}`));
+    assert.deepEqual(sql.match(/grant [^;]* to anon;/g), [
+      "grant select (id) on public.ask_master_conversations to anon;",
+    ]);
+  });
+
+  it("appends turns atomically using the session's row policies", () => {
+    assert.match(sql, /security invoker\s+set search_path = ''/);
+    assert.match(sql, /values\s+\(p_id, \(select auth\.uid\(\)\)/);
+    assert.match(sql, /on conflict \(id\) do update\s+set messages = conversation\.messages \|\| excluded\.messages/);
+    assert.match(sql, /revoke all on function public\.save_ask_master_conversation_turn[^;]+from public, anon, authenticated, service_role;/);
+    assert.match(sql, /grant execute on function public\.save_ask_master_conversation_turn[^;]+to authenticated;/);
+  });
+});
