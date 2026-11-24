@@ -16,7 +16,7 @@ export const CUT_UNDO_MS = 5000;
  * after {@link CUT_UNDO_MS}, on Escape, or as soon as any newer tree edit lands
  * (the store drops the snapshot), so the button can never undo later work.
  */
-export function CutUndoToast() {
+export function CutUndoToast({ aboveMobileLauncher = false }: { aboveMobileLauncher?: boolean }) {
   const pending = useStudioStore((state) => state.pendingCutUndo);
   const undoCut = useStudioStore((state) => state.undoCut);
   const dismissCutUndo = useStudioStore((state) => state.dismissCutUndo);
@@ -48,7 +48,7 @@ export function CutUndoToast() {
       role="status"
       aria-live="polite"
       aria-atomic="true"
-      className="pointer-events-none fixed bottom-12 left-1/2 z-[1050] -translate-x-1/2"
+      className={`pointer-events-none fixed left-1/2 z-[1050] -translate-x-1/2 ${aboveMobileLauncher ? "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]" : "bottom-12"}`}
     >
       {pending ? (
         <span className="pointer-events-auto flex items-center gap-2 rounded-full border border-studio-border-strong bg-studio-elevated px-3 py-1.5 text-dense text-studio-muted shadow-2xl">
