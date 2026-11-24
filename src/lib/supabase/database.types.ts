@@ -938,7 +938,7 @@ export type Database = {
         Args: { p_user_id: string; p_user_limit: number; p_site_limit: number };
         Returns: Array<{ allowed: boolean; reason: string | null; remaining: number }>;
       };
-      record_ask_master_model_request: { Args: Record<PropertyKey, never>; Returns: undefined };
+      record_ask_master_model_request: { Args: { p_site_limit: number }; Returns: boolean };
       // SIG-1102: seed-stable sampling over public.puzzles (serving slice).
       puzzles_window: {
         Args: {

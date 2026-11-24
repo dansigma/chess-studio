@@ -89,6 +89,7 @@ export function buildMessages({ locale, question, history = [], context, level =
       LEVEL_INSTRUCTIONS[level],
       ANSWER_LINE_RULE,
       "Cite games as {{game:<id>}} using only IDs from xdGames.",
+      `For each current-position claim about attacks, defenses, pins, hanging pieces, or threats, name the acting piece by its square and include the target square in the same sentence, if applicable. Finish with <claims>[{"type":"attacks","piece":"Bf5","target":"c2"}]</claims>, using valid JSON and listing every such claim. Use English piece letters plus the square, or just the square for a pawn. Use attacks for attacked squares, defends for a friendly piece, pins for the pinning piece and its pinned target, hanging for a loose piece (omit target), and threatens for a tactical threat against a piece on the target square. Keep each claim’s source and target squares in prose outside playable lines. List only claims about the current position. Use <claims>[]</claims> when there are none.`,
       "Leave numbers in the explorer and engine panels. The entire answer must contain at most 3 evaluation or percentage figures combined. Chess move notation and game IDs do not count toward that limit.",
     ].join(" ") + "\n\n" + [
       "Follow this answer template in order. Put each heading on its own Markdown line, using only the title before the dash.",

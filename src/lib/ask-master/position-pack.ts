@@ -1,4 +1,4 @@
-import { Chess } from "chess.js";
+import { Chess, DEFAULT_POSITION } from "chess.js";
 import { applyNullMoveFen } from "../../chess/null-move";
 import type { PositionFacts, ThreatSet } from "../../chess/facts/types";
 import { formatScore, type EngineLine } from "../../engine/stockfish-client";
@@ -11,6 +11,7 @@ type PackInput = {
   fen: string;
   sanLine: readonly string[];
   level?: AskMasterLevel;
+  startFen?: string;
   opening?: { eco: string; name: string } | null;
   facts?: PositionFacts;
   threats?: readonly ThreatSet[];
@@ -87,6 +88,7 @@ export function buildPositionPack(input: PackInput) {
     fen,
     level,
     moves: [...input.sanLine],
+    startFen: input.startFen === DEFAULT_POSITION ? undefined : input.startFen,
     earlierMovesOmitted: undefined as number | undefined,
     opening: opening ?? undefined,
     facts: facts?.valid ? boardFacts(facts) : undefined,

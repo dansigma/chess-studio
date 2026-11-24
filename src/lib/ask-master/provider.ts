@@ -1,4 +1,5 @@
 import "server-only";
+import { answerStatus } from "./answer-status";
 import type { ChatMessage } from "./prompt";
 
 type ProviderConfig = { baseUrl: string; apiKey: string; model: string };
@@ -56,10 +57,11 @@ async function* textDeltas(body: ReadableStream<Uint8Array>): AsyncGenerator<str
 
 export async function streamChat(
   config: ProviderConfig,
-  { conversationId, messages, signal, onComplete }: {
+  { conversationId, messages, signal, verify, onComplete }: {
     conversationId: string;
     messages: ChatMessage[];
     signal: AbortSignal;
+    verify?: (text: string, signal: AbortSignal) => Promise<string>;
     onComplete?: (text: string) => Promise<void>;
   },
   fetchProvider: typeof fetch = fetch,
@@ -92,28 +94,41 @@ export async function streamChat(
     if (first.done) throw new Error("Upstream returned no answer");
     clearTimeout(firstByte);
     const encoder = new TextEncoder();
-    const answer = onComplete ? [first.value] : undefined;
+    const requestSignal = AbortSignal.any([signal, upstream.signal]);
 
     return new Response(new ReadableStream<Uint8Array>({
       start(controller) {
-        controller.enqueue(encoder.encode(first.value));
+        if (verify) controller.enqueue(encoder.encode(answerStatus.analyzing));
       },
       async pull(controller) {
         try {
-          const next = await deltas.next();
-          if (next.done) {
-            if (next.value && !upstreamSignal.aborted && onComplete && answer) {
-              try {
-                await onComplete(answer.join(""));
-              } catch {
-                console.error("Ask the Master conversation save failed");
-              }
+          const chunks = [first.value];
+          while (true) {
+            const next = await deltas.next();
+            if (next.done) {
+              if (!next.value) throw new Error("Upstream stream ended before completion");
+              break;
             }
-            controller.close();
-          } else if (!upstream.signal.aborted) {
-            answer?.push(next.value);
-            controller.enqueue(encoder.encode(next.value));
+            chunks.push(next.value);
           }
+          upstreamSignal.throwIfAborted();
+
+          let answer = chunks.join("");
+          if (verify) {
+            controller.enqueue(encoder.encode(answerStatus.checking));
+            answer = await verify(answer, requestSignal);
+          }
+          requestSignal.throwIfAborted();
+          if (onComplete && answer.trim()) {
+            try {
+              await onComplete(answer);
+            } catch {
+              console.error("Ask the Master conversation save failed");
+            }
+          }
+          requestSignal.throwIfAborted();
+          controller.enqueue(encoder.encode(answer));
+          controller.close();
         } catch {
           upstream.abort();
           controller.error(new Error("Upstream stream failed"));

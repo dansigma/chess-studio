@@ -1,3 +1,4 @@
+import { answerStatus } from "@/src/lib/ask-master/answer-status";
 import assert from "node:assert/strict";
 import test, { afterEach, beforeEach, mock } from "node:test";
 import { mockFetch, mockSupabaseModules, setCloudflareEnv, type FakeSupabaseState } from "@/src/test-utils/route-test.ts";
@@ -18,7 +19,8 @@ const input = {
 };
 type QuotaRow = { allowed: boolean; reason: string | null; remaining: number };
 const quotaRpc = mock.fn<(name: string, args: Record<string, unknown>) => {
-  single: () => Promise<{ data: QuotaRow }>;
+  single?: () => Promise<{ data: QuotaRow }>;
+  data?: boolean;
 }>();
 const auth = mock.fn<() => Promise<{ data: { user: { id: string } | null } }>>();
 const limit = mock.fn<(input: { key: string }) => Promise<{ success: boolean }>>();
@@ -144,7 +146,7 @@ test("returns 503 when fetching upstream fails", async (t) => {
   assert.deepEqual(await response.json(), { error: "upstream" });
 });
 
-test("consumes quota for the verified user and streams split SSE deltas", async (t) => {
+test("consumes quota for the verified user and buffers split SSE deltas", async (t) => {
   let upstream!: ReadableStreamDefaultController<Uint8Array>;
   const encoder = new TextEncoder();
   const event = (content: string) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\r\n\r\n`;
@@ -171,12 +173,14 @@ test("consumes quota for the verified user and streams split SSE deltas", async 
 
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
-  assert.equal(decoder.decode((await reader.read()).value), "Peão");
+  assert.equal(decoder.decode((await reader.read()).value), answerStatus.analyzing);
   upstream.enqueue(encoder.encode(event(" central") + "data: [DONE]\n\n" + event("ignored")));
-  assert.equal(decoder.decode((await reader.read()).value), " central");
+  assert.equal(decoder.decode((await reader.read()).value), answerStatus.checking);
+  assert.equal(decoder.decode((await reader.read()).value), "Peão central");
   assert.equal((await reader.read()).done, true);
 });
 
+const statuses = answerStatus.analyzing + answerStatus.checking;
 const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const delta = (content: string) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
 
@@ -205,14 +209,14 @@ test("awaits the session save and submits only the new turn for each answer", as
   await new Promise(setImmediate);
   assert.equal(closed, false);
   gate.resolve();
-  assert.equal(await reading, "Peão central");
+  assert.equal(await reading, statuses + "Peão central");
 
   const followUp = await post(JSON.stringify({
     ...body,
     question: "E depois?",
     history: [{ role: "user", text: "Qual é o plano?" }, { role: "assistant", text: "Peão central" }],
   }));
-  assert.equal(await followUp.text(), "Peão central");
+  assert.equal(await followUp.text(), statuses + "Peão central");
   const { bookKey } = await import("@/src/chess/opening-book.ts");
   const args = {
     p_id: input.conversationId,
@@ -233,14 +237,14 @@ test("skips saving without a valid FEN, on stream error, truncation, or cancella
   mockFetch(t, () => new Response(stream));
 
   for (const position of [undefined, "invalid"]) {
-    assert.equal(await (await post(JSON.stringify({ ...input, fen: position }))).text(), "Answer");
+    assert.equal(await (await post(JSON.stringify({ ...input, fen: position }))).text(), statuses + "Answer");
   }
 
   const body = JSON.stringify({ ...input, fen });
   stream = delta("Partial") + 'data: {"error":{"message":"failed"}}\n\n';
   await assert.rejects((await post(body)).text(), /Upstream stream failed/);
   stream = delta("Partial");
-  assert.equal(await (await post(body)).text(), "Partial");
+  await assert.rejects((await post(body)).text(), /Upstream stream failed/);
 
   stream = delta("Answer") + "data: [DONE]\n\n";
   await (await post(body)).body!.cancel();
@@ -251,7 +255,7 @@ test("logs a failed save and still returns the complete answer", async (t) => {
   const log = t.mock.method(console, "error", () => {});
   state.server = { auth: { getUser: auth }, rpc: async () => ({ error: { code: "42501" } }) };
   mockFetch(t, () => new Response(delta("Answer") + "data: [DONE]\n\n"));
-  assert.equal(await (await post(JSON.stringify({ ...input, fen }))).text(), "Answer");
+  assert.equal(await (await post(JSON.stringify({ ...input, fen }))).text(), statuses + "Answer");
   assert.equal(log.mock.callCount(), 1);
 });
 
@@ -264,7 +268,7 @@ test("saves with the board FEN the widget sends inside context", async (t) => {
   state.server = { auth: { getUser: auth }, rpc };
   mockFetch(t, () => new Response(delta("Answer") + "data: [DONE]\n\n"));
 
-  assert.equal(await (await post(JSON.stringify({ ...input, context: { fen, moves: [] } }))).text(), "Answer");
+  assert.equal(await (await post(JSON.stringify({ ...input, context: { fen, moves: [] } }))).text(), statuses + "Answer");
   assert.equal(saved.length, 1);
   assert.equal(saved[0].p_fen, fen);
 });
@@ -278,7 +282,7 @@ test("uses an explicit coaching level in the provider prompt", async (t) => {
   });
   const response = await post(JSON.stringify({ ...input, level: "2000+" }));
   assert.equal(response.status, 200);
-  assert.equal(await response.text(), "A central pawn.");
+  assert.equal(await response.text(), statuses + "A central pawn.");
 });
 
 for (const [intent, heading] of [
@@ -296,6 +300,69 @@ for (const [intent, heading] of [
     });
     const response = await post(JSON.stringify({ ...input, intent }));
     assert.equal(response.status, 200);
-    assert.equal(await response.text(), "Resposta");
+    assert.equal(await response.text(), statuses + "Resposta");
+  });
+}
+
+test("shows and saves an accurate answer without reserving a repair", async (t) => {
+  const rpc = mock.fn(async () => ({ error: null }));
+  state.server = { auth: { getUser: auth }, rpc };
+  let calls = 0;
+  mockFetch(t, () => {
+    calls++;
+    return new Response(delta(
+      'Nb1 attacks c3. [[1.Nc3]]<claims>[{"type":"attacks","piece":"Nb1","target":"c3"}]</claims>',
+    ) + "data: [DONE]\n\n");
+  });
+  const response = await post(JSON.stringify({ ...input, context: { fen, moves: [] } }));
+  const answer = "Nb1 attacks c3. [[1.Nc3]]";
+  assert.equal(await response.text(), statuses + answer);
+  assert.equal(quotaRpc.mock.callCount(), 1);
+  assert.equal(calls, 1);
+  assert.equal(rpc.mock.callCount(), 1);
+});
+
+for (const allowed of [true, false]) {
+  test(`filters false claims and illegal lines with repair quota allowed=${allowed}`, async (t) => {
+    const saved: unknown[] = [];
+    state.server = {
+      auth: { getUser: auth },
+      rpc: async (_name: string, args: Record<string, unknown>) => {
+        saved.push(args.p_answer);
+        return { error: null };
+      },
+    };
+    quotaRpc.mock.mockImplementation((name) => name === "record_ask_master_model_request"
+      ? { data: allowed }
+      : { single: async () => ({ data: { allowed: true, reason: null, remaining: 3 } }) });
+    const falseClaim = '<claims>[{"type":"attacks","piece":"Bc1","target":"h6"}]</claims>';
+    const draft = "Bc1 attacks h6. Develop a knight. [[1.Bh6]]" + falseClaim;
+    const repair = "The bishop on c1 attacks h6. Control the center. [[1.e4]] [[1.Bh6]]" + falseClaim;
+    const gate = Promise.withResolvers<void>();
+    let calls = 0;
+    mockFetch(t, async (_url, init) => {
+      calls++;
+      const { messages } = JSON.parse(String(init?.body));
+      if (messages.at(-1).role === "user" && messages.at(-2).role === "assistant") {
+        assert.equal(messages.at(-2).content, draft);
+        assert.match(messages.at(-1).content, /Attacked squares:/);
+        assert.match(messages.at(-1).content, /1\.Bh6/);
+        await gate.promise;
+        return new Response(delta(repair) + "data: [DONE]\n\n");
+      }
+      return new Response(delta(draft) + "data: [DONE]\n\n");
+    });
+    const reader = (await post(JSON.stringify({ ...input, fen }))).body!.getReader();
+    const decoder = new TextDecoder();
+    assert.equal(decoder.decode((await reader.read()).value), answerStatus.analyzing);
+    assert.equal(decoder.decode((await reader.read()).value), answerStatus.checking);
+    gate.resolve();
+    const expected = allowed ? "Control the center. [[1.e4]]" : "Develop a knight.";
+    assert.equal(decoder.decode((await reader.read()).value), expected);
+    assert.equal((await reader.read()).done, true);
+    assert.equal(calls, allowed ? 2 : 1);
+    assert.equal(quotaRpc.mock.callCount(), 2);
+    assert.deepEqual(quotaRpc.mock.calls[1].arguments, ["record_ask_master_model_request", { p_site_limit: 50 }]);
+    assert.deepEqual(saved, [expected]);
   });
 }

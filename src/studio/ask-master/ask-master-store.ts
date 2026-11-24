@@ -1,4 +1,5 @@
 import { createStore } from "zustand";
+import { readAnswerStatus } from "@/src/lib/ask-master/answer-status";
 import type { AnswerPosition } from "@/src/lib/ask-master/answer-lines";
 import type { SiteLocale } from "@/src/i18n/locale";
 
@@ -15,7 +16,7 @@ type Message =
   // A conversation reopened from history has no source: its lines show as text.
   | { role: "assistant"; text: string; source?: AnswerSource };
 type ChatError = "rateLimit" | "userLimit" | "siteLimit" | "unavailable" | "signInPrompt";
-type ChatStatus = "idle" | "analyzing" | "answering" | ChatError;
+type ChatStatus = "idle" | "analyzing" | "answering" | "checking" | ChatError;
 
 export const MAX_QUESTION_LENGTH = 1000;
 
@@ -113,11 +114,19 @@ export function createAskMasterStore() {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        let pending = "";
         try {
           while (!request.signal.aborted) {
             const { done, value } = await reader.read();
             if (request.signal.aborted) break;
-            answer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+            pending += done ? decoder.decode() : decoder.decode(value, { stream: true });
+            if (!answer) pending = readAnswerStatus(pending, (status) => set({ status }));
+            if (pending.startsWith("\0") && !answer) {
+              if (done) throw new Error("Incomplete answer status");
+              continue;
+            }
+            answer += pending;
+            pending = "";
             if (answer) set({ messages: [...submitted, { role: "assistant", text: answer, source: answerSource }] });
             if (done) break;
           }
@@ -144,7 +153,7 @@ export function createAskMasterStore() {
       answerRequest = undefined;
       quotaRequest?.abort();
       quotaRequest = undefined;
-      if (get().status === "answering" || get().status === "analyzing") set({ status: "idle" });
+      if (["answering", "analyzing", "checking"].includes(get().status)) set({ status: "idle" });
     },
     loadConversation(id, messages) {
       const wasBusy = get().status === "answering" || get().status === "analyzing";
@@ -154,7 +163,7 @@ export function createAskMasterStore() {
       if (wasBusy) void get().refreshQuota();
     },
     reset() {
-      const wasBusy = get().status === "answering" || get().status === "analyzing";
+      const wasBusy = ["answering", "analyzing", "checking"].includes(get().status);
       answerRequest?.abort();
       answerRequest = undefined;
       set({ conversationId: crypto.randomUUID(), messages: [], status: "idle" });

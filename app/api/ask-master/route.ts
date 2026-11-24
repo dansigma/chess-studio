@@ -1,10 +1,11 @@
+import { auditAnswer, extractClaims, replayAnswerPosition, stripFalse } from "@/src/lib/ask-master/audit";
 import { isSiteLocale } from "@/src/i18n/locale";
 import { CONVERSATION_ID, conversationPositionKey, saveConversationTurn } from "@/src/lib/ask-master/conversations";
 import { DEFAULT_ASK_MASTER_LEVEL, isAskMasterLevel } from "@/src/lib/ask-master/level";
 import { isAskMasterIntent } from "@/src/lib/ask-master/intent";
 import { buildMessages, type PromptInput } from "@/src/lib/ask-master/prompt";
 import { askMasterProviderConfig, streamChat } from "@/src/lib/ask-master/provider";
-import { askMasterLimits, consumeQuestion } from "@/src/lib/ask-master/quota";
+import { askMasterLimits, consumeQuestion, recordModelRequest } from "@/src/lib/ask-master/quota";
 import { createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 import { readCapped } from "@/src/lib/read-capped";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
@@ -74,7 +75,8 @@ export async function POST(request: Request): Promise<Response> {
 
   const service = createServiceSupabase();
   if (!service) return Response.json({ error: "unavailable" }, { status: 503 });
-  const quota = await consumeQuestion(service, { userId, ...askMasterLimits() });
+  const limits = askMasterLimits();
+  const quota = await consumeQuestion(service, { userId, ...limits });
   if (!quota.allowed) {
     if (quota.reason === "user_limit" || quota.reason === "site_limit") {
       return Response.json({ error: "quota", reason: quota.reason }, { status: 429 });
@@ -89,9 +91,44 @@ export async function POST(request: Request): Promise<Response> {
     input.context.fen.length <= 100 ? input.context.fen : undefined;
   const fen = input.fen ?? contextFen;
   const positionKey = fen ? conversationPositionKey(fen) : null;
+  const messages = buildMessages(input);
   return streamChat(config, {
     conversationId,
-    messages: buildMessages(input),
+    messages,
+    async verify(draft, signal) {
+      const position = replayAnswerPosition(fen ?? "", input.context);
+      const { body, claims } = extractClaims(draft);
+      const audit = auditAnswer(body, claims, position);
+      if (audit.ok) return body;
+
+      signal.throwIfAborted();
+      if (await recordModelRequest(service, limits.siteLimit)) {
+        signal.throwIfAborted();
+        try {
+          const response = await streamChat(config, {
+            conversationId,
+            signal,
+            messages: [
+              ...messages,
+              { role: "assistant", content: draft },
+              {
+                role: "user",
+                content: `Rewrite your full answer in the same language and format. Correct or remove these false claims and replace or omit the illegal or unverified lines. Include the complete <claims> block for the revised answer. Audit data: ${JSON.stringify({
+                  falseClaims: audit.falseClaims, illegalLines: audit.illegalLines,
+                })}`,
+              },
+            ],
+          });
+          if (response.ok) {
+            const revised = extractClaims(await response.text());
+            if (revised.body) return stripFalse(revised.body, auditAnswer(revised.body, revised.claims, position));
+          }
+        } catch {
+          // A failed correction leaves the original draft subject to filtering.
+        }
+      }
+      return stripFalse(body, audit);
+    },
     signal: request.signal,
     onComplete: fen && positionKey ? (answer) => saveConversationTurn(supabase, {
       id: conversationId, positionKey, fen, gameTitle, question, answer, model: config.model,

@@ -71,3 +71,17 @@ export async function questionsLeft(
   }
   return 0;
 }
+
+export async function recordModelRequest(
+  supabase: Pick<QuotaClient, "rpc">,
+  siteLimit: number,
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.rpc("record_ask_master_model_request", { p_site_limit: siteLimit });
+    if (!error) return data === true;
+    console.error("ask-master: repair quota RPC failed", error.message);
+  } catch (cause) {
+    console.error("ask-master: repair quota RPC failed", cause instanceof Error ? cause.message : cause);
+  }
+  return false;
+}
