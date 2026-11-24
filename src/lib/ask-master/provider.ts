@@ -109,7 +109,7 @@ export async function streamChat(
                 console.error("Ask the Master conversation save failed");
               }
             }
-            if (!upstream.signal.aborted) controller.close();
+            controller.close();
           } else if (!upstream.signal.aborted) {
             answer?.push(next.value);
             controller.enqueue(encoder.encode(next.value));

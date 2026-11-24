@@ -8,8 +8,13 @@ type ConversationRow = Database["public"]["Tables"]["ask_master_conversations"][
 
 export const CONVERSATION_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
+/** Unsigned 64-bit book key as decimal text; null for an unusable FEN. */
 export function conversationPositionKey(fen: string): string | null {
-  return validateFen(fen).ok ? bookKey(fen).toString() : null;
+  try {
+    return validateFen(fen).ok ? bookKey(fen).toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 export function isPositionKeyList(value: unknown): value is string[] {

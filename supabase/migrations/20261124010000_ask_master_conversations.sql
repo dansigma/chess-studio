@@ -53,7 +53,9 @@ as $$
   on conflict (id) do update
     set messages = conversation.messages || excluded.messages,
         model = excluded.model,
-        updated_at = pg_catalog.clock_timestamp();
+        updated_at = pg_catalog.clock_timestamp()
+    -- RLS already refuses another user's row; this keeps the intent explicit.
+    where conversation.user_id = (select auth.uid());
 $$;
 
 revoke all on function public.save_ask_master_conversation_turn(uuid, text, text, text, text, text, text)
