@@ -589,7 +589,7 @@ export function StudioShell() {
           toast and the sync state in the menubar (+24px for the dock). */}
       {isMobile ? <StatusBar message={status} /> : <StatusToast message={status} />}
       {/* SIG-1384: the cut undo toast is independent of status messages. */}
-      <CutUndoToast aboveMobileLauncher={isMobile && workspaceView === "studio"} />
+      <CutUndoToast />
 
       <input
         ref={fileRef}

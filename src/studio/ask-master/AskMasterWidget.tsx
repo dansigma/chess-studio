@@ -49,7 +49,13 @@ function Widget({ visible, isMobile, signedIn }: { visible: boolean; isMobile: b
   const chat = open ? <AskMasterChat store={store} locale={locale} signedIn={signedIn} isMobile={isMobile} /> : null;
 
   return (
-    <div className="flex h-12 shrink-0 items-center justify-end border-t border-studio-border-subtle bg-studio-chrome pr-[max(0.5rem,env(safe-area-inset-right))]">
+    // Floating in the bottom-right corner, outside the layout flow. On mobile it
+    // sits above the status bar and the tab bar.
+    <div
+      className={`fixed z-[1040] ${isMobile
+        ? "bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-[max(0.75rem,env(safe-area-inset-right))]"
+        : "bottom-4 right-4"}`}
+    >
       <Button
         ref={launcher}
         variant="primary"
@@ -57,7 +63,7 @@ function Widget({ visible, isMobile, signedIn }: { visible: boolean; isMobile: b
         title={title}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="!size-11 !rounded-full !p-0"
+        className="!size-12 !rounded-full !p-0 shadow-2xl"
         onClick={() => open ? close() : setOpen(true)}
       >
         <MessageCircle size={21} aria-hidden="true" />
@@ -70,7 +76,7 @@ function Widget({ visible, isMobile, signedIn }: { visible: boolean; isMobile: b
           role="dialog"
           aria-labelledby={titleId}
           tabIndex={-1}
-          className="fixed bottom-14 right-2 z-[1040] flex h-[560px] max-h-[calc(100dvh-4rem)] w-[380px] flex-col gap-3 rounded-xl border border-studio-border-strong bg-studio-panel p-4 shadow-2xl outline-none"
+          className="fixed bottom-20 right-4 z-[1040] flex h-[560px] max-h-[calc(100dvh-6rem)] w-[380px] flex-col gap-3 rounded-xl border border-studio-border-strong bg-studio-panel p-4 shadow-2xl outline-none"
         >
           <div className="flex shrink-0 items-center justify-between gap-3">
             <h2 id={titleId} className="text-title font-semibold">{title}</h2>
