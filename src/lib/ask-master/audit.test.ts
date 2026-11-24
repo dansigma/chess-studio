@@ -170,7 +170,12 @@ test("flags lines from the current position that leave the engine lines", () => 
   };
   const body = "Repita com [[39.Rg5+ Kh8 40.Rh5+]]. Para jogar, [[39.Kh1 Ne5 40.Rg5+ Ng6 41.Rxc5]] ganha o peão. Ou [[39.Kf1]].";
   const audit = auditAnswer(body, [], endgame, context);
-  assert.deepEqual(audit.unverifiedLines, ["39.Kh1 Ne5 40.Rg5+ Ng6 41.Rxc5"]);
+  assert.deepEqual(audit.unverifiedLines, [{ raw: "39.Kh1 Ne5 40.Rg5+ Ng6 41.Rxc5" }]);
   assert.equal(stripFalse(body, audit), "Repita com [[39.Rg5+ Kh8 40.Rh5+]]. Ou [[39.Kf1]].");
+
+  const deviates = "Repita com [[39.Rg5+ Kh7 40.Rh5]].";
+  const partial = auditAnswer(deviates, [], endgame, context);
+  assert.deepEqual(partial.unverifiedLines, [{ raw: "39.Rg5+ Kh7 40.Rh5", keep: "39.Rg5+" }]);
+  assert.equal(stripFalse(deviates, partial), "Repita com [[39.Rg5+]].");
   assert.deepEqual(offEngineLines(body, endgame, {}), []);
 });

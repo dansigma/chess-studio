@@ -171,10 +171,14 @@ const pieceWords: [RegExp, PieceLetter][] = [
 // Only definite references ("o cavalo de d3", "the rook on g1"); "um cavalo em e5" is hypothetical.
 const PIECE_ON = /\b(?:o|a|os|as|do|da|no|na|pelo|pela|ao|seu|sua|the|its|his)\s+(rei|dama|rainha|torre|bispo|cavalo|peao|king|queen|rook|bishop|knight|pawn)(?:\s+(?:branc[oa]|pret[oa]|negr[oa]|white|black))?\s+(?:de|em|da|do|na|no|on|at)\s+([a-h][1-8])\b/gi;
 // "a coluna f está meio-aberta", "as colunas g e h estão semiabertas para as pretas", "the f-file is open"
-const FILE_PT = /\bcolunas?\s+((?:[a-h](?:\s*,\s*|\s+e\s+))*[a-h])\b[^.;:\n]{0,40}?\b(meio[- ]abertas?|semi[- ]?abertas?|abertas?|fechadas?)\b(?:\s+para\s+as\s+(brancas|pretas|negras))?/gi;
+const FILE_PT = /\bcolunas?\s+((?:[a-h](?:\s*,\s*|\s+e\s+))*[a-h])\b[^.;:\n]{0,60}?\b(meio[- ]abertas?|semi[- ]?abertas?|abertas?|fechadas?)\b(?:\s+para\s+as\s+(brancas|pretas|negras))?/gi;
 const FILE_EN = /\b((?:[a-h]-?(?:\s*,\s*|\s+and\s+))*[a-h])-files?\s+(?:is|are)\s+(?:now\s+)?(half[- ]open|semi[- ]open|open|closed)\b(?:\s+for\s+(white|black))?/gi;
 // A sentence about a future position (after a line or a move sequence) may mention other squares.
 const FUTURE = /\[\[|\b\d+\.{1,3}\s*[KQRBN]?[a-h]?x?[a-h][1-8]|\b(?:apos|depois|seguido|em seguida|entao|after|then|followed)\b/i;
+
+function pieceLetter(word: string): PieceLetter | undefined {
+  return pieceWords.find(([pattern]) => pattern.test(word))?.[1];
+}
 
 function fold(text: string) {
   return text.normalize("NFD").replace(/\p{M}/gu, "");
@@ -194,8 +198,8 @@ export function proseClaims(body: string, position: AnswerPosition): Claim[] {
   for (const sentence of sentencesOf(fold(body))) {
     if (!FUTURE.test(sentence)) {
       for (const [, word, square] of sentence.matchAll(PIECE_ON)) {
-        const piece = pieceWords.find(([pattern]) => pattern.test(word))![1];
-        claims.push({ type: "on", piece, square: square.toLowerCase() });
+        const piece = pieceLetter(word);
+        if (piece) claims.push({ type: "on", piece, square: square.toLowerCase() });
       }
     }
     for (const match of [...sentence.matchAll(FILE_PT), ...sentence.matchAll(FILE_EN)]) {
@@ -208,7 +212,8 @@ export function proseClaims(body: string, position: AnswerPosition): Claim[] {
         }
         const actual = facts.files.find((fact) => fact.file === file);
         const actualSide = actual?.halfOpenFor === "w" ? "white" : actual?.halfOpenFor === "b" ? "black" : undefined;
-        // Without a named side, only the openness is checked.
+        // Without a named side, take the real side when the file is half-open, so only the
+        // openness is checked; on an open or closed file the claim is false whatever the side.
         claims.push({ type: "file", file, state, for: side ?? actualSide ?? "white" });
       }
     }
@@ -224,8 +229,22 @@ function sanKey(san: string) {
   return san.replace(/[+#!?]+$/, "");
 }
 
+function formatLine(startPly: number, sans: string[]): string {
+  return sans.map((san, i) => {
+    const ply = startPly + i;
+    const number = Math.floor(ply / 2) + 1;
+    return ply % 2 === 0 ? `${number}.${san}` : i === 0 ? `${number}...${san}` : san;
+  }).join(" ");
+}
+
+export type UnverifiedLine = {
+  raw: string;
+  /** The opening moves that do follow an engine line, kept when the answer cannot be repaired. */
+  keep?: string;
+};
+
 /** Lines from the current position that follow neither an engine line nor an explorer move. */
-export function offEngineLines(body: string, position: AnswerPosition, context: unknown): string[] {
+export function offEngineLines(body: string, position: AnswerPosition, context: unknown): UnverifiedLine[] {
   if (!context || typeof context !== "object") return [];
   const pack = context as { engine?: { san?: unknown }[]; lichess?: { san?: unknown }[]; xd?: { san?: unknown }[] };
   const engine = (pack.engine ?? []).flatMap(({ san }) =>
@@ -237,8 +256,15 @@ export function offEngineLines(body: string, position: AnswerPosition, context: 
   return parseAnswer(body, position).flatMap((segment) => {
     if (segment.type !== "line" || segment.startPly !== currentPly) return [];
     const moves = segment.moves.map(({ san }) => sanKey(san));
-    const followsEngine = engine.some((pv) => moves.every((move, i) => pv[i] === move));
-    return followsEngine || explorer.has(moves[0]) ? [] : [segment.raw];
+    if (explorer.has(moves[0])) return [];
+    const followed = Math.max(...engine.map((pv) => {
+      let n = 0;
+      while (n < moves.length && pv[n] === moves[n]) n++;
+      return n;
+    }));
+    if (followed === moves.length) return [];
+    const keep = followed > 0 ? formatLine(segment.startPly, segment.moves.slice(0, followed).map(({ san }) => san)) : undefined;
+    return [keep ? { raw: segment.raw, keep } : { raw: segment.raw }];
   });
 }
 
@@ -291,7 +317,7 @@ function mentionsClaim(sentence: string, claim: Claim): boolean {
       return mentionsSquare(prose, claim.move) && /\b(?:breaks?|rupturas?)\b/i.test(prose);
     case "on":
       return Array.from(prose.matchAll(PIECE_ON)).some(([, word, square]) =>
-        square.toLowerCase() === claim.square && pieceWords.find(([pattern]) => pattern.test(word))![1] === claim.piece);
+        square.toLowerCase() === claim.square && pieceLetter(word) === claim.piece);
     default:
       return mentionsSquare(sentence, claim.piece.slice(-2)) &&
         (!claim.target || mentionsSquare(sentence, claim.target));
@@ -300,13 +326,16 @@ function mentionsClaim(sentence: string, claim: Claim): boolean {
 
 export function stripFalse(body: string, { falseClaims, illegalLines, unverifiedLines = [] }: ReturnType<typeof auditAnswer>): string {
   const lines = /\[\[([\s\S]*?)\]\]/g;
-  const withoutIllegal = body.replace(lines, (line, raw: string) => illegalLines.includes(raw) ? "" : line);
-  if (!falseClaims.length && !unverifiedLines.length) return withoutIllegal.trim();
+  // A line that leaves the engine keeps the moves that follow it; with none, its sentence goes.
+  const kept = new Map(unverifiedLines.flatMap(({ raw, keep }) => keep ? [[raw, keep]] : []));
+  const dropped = unverifiedLines.filter(({ keep }) => !keep).map(({ raw }) => `[[${raw}]]`);
+  const withoutIllegal = body.replace(lines, (line, raw: string) =>
+    illegalLines.includes(raw) ? "" : kept.has(raw) ? `[[${kept.get(raw)}]]` : line);
+  if (!falseClaims.length && !dropped.length) return withoutIllegal.trim();
 
-  // A sentence built around an invented line or a false fact goes as a whole.
   return dropSentences(withoutIllegal, (sentence, original) =>
     falseClaims.some(({ claim }) => mentionsClaim(sentence, claim)) ||
-    unverifiedLines.some((raw) => original.includes(`[[${raw}]]`)));
+    dropped.some((line) => original.includes(line)));
 }
 
 function dropSentences(body: string, drop: (sentence: string, original: string) => boolean): string {
@@ -316,7 +345,8 @@ function dropSentences(body: string, drop: (sentence: string, original: string) 
     .filter(({ 0: sentence, index }) => !drop(sentence, body.slice(index, index + sentence.length)))
     .map(({ 0: sentence, index }) => body.slice(index, index + sentence.length))
     .join("")
-    .replace(/^[^\S\n]+/gm, "")
+    // only the single space left where a dropped sentence started a paragraph
+    .replace(/^ (?=\S)/gm, "")
     // a heading whose section lost every sentence goes too
     .replace(/^###[^\n]*\n+(?=###|\s*$)/gm, "")
     .replace(/\n{3,}/g, "\n\n")
