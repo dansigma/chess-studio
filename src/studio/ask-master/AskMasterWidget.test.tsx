@@ -175,3 +175,42 @@ test("hides the launcher and closes the window in board-covering views", async (
   rerender(<AskMasterWidget visible isMobile={false} />);
   await waitFor(() => assert.equal(screen.queryByRole("dialog"), null));
 });
+
+test("previews and plays answer variations from the question's line", async (t) => {
+  const state = useStudioStore.getState();
+  state.playUciSequence(["e2e4", "e7e5"]);
+  const original = state.active().tree.children[0];
+  const questionFen = state.fen();
+  useStudioStore.setState({ settings: { ...state.settings, moveNotation: "unicode" } });
+  mockApi(t, () => new Response("Jogue [[1...c5 2.Nf3 d6]]. Evite [[2.Bh8]]."));
+  open();
+  await screen.findByText("3 perguntas restantes hoje");
+  ask();
+
+  const knight = await screen.findByRole("button", { name: "2.♘f3" });
+  assert.match(screen.getByRole("log").textContent ?? "", /Evite 2\.Bh8\./);
+  assert.equal(screen.queryByRole("button", { name: /Bh8/ }), null);
+
+  fireEvent.mouseEnter(knight);
+  assert.equal(useStudioStore.getState().enginePreview?.fen, original.fen);
+  assert.deepEqual(useStudioStore.getState().insightMarks?.marks.arrows, [
+    { from: "c7", to: "c5", color: "G" },
+  ]);
+  assert.equal(state.fen(), questionFen);
+  fireEvent.mouseLeave(knight);
+  assert.equal(useStudioStore.getState().enginePreview, null);
+  assert.equal(useStudioStore.getState().insightMarks, null);
+
+  fireEvent.click(knight);
+  const branch = state.active().tree.children[0];
+  assert.deepEqual(branch.children[0], original.children[0]);
+  assert.equal(branch.children[1].san, "c5");
+  assert.equal(branch.children[1].children[0].children[0].san, "d6");
+  assert.deepEqual(state.active().path, [0, 1, 0]);
+  assert.ok(screen.getByRole("dialog"));
+
+  const inserted = state.active().tree;
+  fireEvent.click(screen.getByRole("button", { name: "1...c5" }));
+  assert.deepEqual(state.active().path, [0, 1]);
+  assert.equal(state.active().tree, inserted);
+});
