@@ -63,3 +63,7 @@ public/engine/full/stockfish-19.wasm
 # SIG-1221: validation-set material and outputs (course text must never be committed)
 /valset-data/
 /valset-out/
+
+# SIG-1485: private Ask the Master evaluation material and outputs
+/ask-master-eval-data/
+/ask-master-eval-out/

@@ -14,6 +14,8 @@
     "valset:truth": "node --import ./scripts/test-resolve.mjs scripts/valset/ground-truth.mjs",
     "valset:split": "node --import ./scripts/test-resolve.mjs scripts/valset/split.mjs",
     "valset:run": "node --import ./scripts/test-resolve.mjs scripts/valset/run.mjs",
+    "askmaster:eval": "node --import ./scripts/test-resolve.mjs scripts/ask-master-eval/run.mjs",
+    "askmaster:compare": "node --import ./scripts/test-resolve.mjs scripts/ask-master-eval/compare.mjs",
     "dev:vinext": "vite dev --port 3001",
     "build:vinext": "vite build",
     "start:vinext": "vite preview",
