@@ -1,38 +1,50 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import { getFenAt } from "@/src/chess/tree";
 import { fenPly } from "@/src/lib/ask-master/answer-lines";
 import { tAskMaster } from "@/src/i18n/ask-master-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
-import { ASK_MASTER_LEVELS, isAskMasterLevel } from "@/src/lib/ask-master/level";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
-import { Button } from "../ui/Button";
 import type { AskMasterIntent } from "@/src/lib/ask-master/intent";
 import { AskMasterAnswer } from "./AskMasterAnswer";
 import { AskMasterStarters } from "./AskMasterStarters";
 import { AskMasterHistory, useHistoryDot } from "./AskMasterHistory";
 import { currentHistoryKey } from "./history-keys";
-import { MAX_QUESTION_LENGTH, type AskMasterStore } from "./ask-master-store";
+import type { AskMasterStore } from "./ask-master-store";
+import { ChatHeader } from "./ui/ChatHeader";
+import { ChatComposer } from "./ui/ChatComposer";
+import { MessageBubble } from "./ui/MessageBubble";
+import { NoticeCard } from "./ui/NoticeCard";
+import { TypingIndicator } from "./ui/TypingIndicator";
 
 export function AskMasterChat({
   store,
   locale,
   signedIn,
   isMobile,
+  titleId,
+  onClose,
+  expanded,
+  onToggleExpanded,
 }: {
   store: AskMasterStore;
   locale: SiteLocale;
   signedIn: boolean;
   isMobile: boolean;
+  titleId: string;
+  onClose: () => void;
+  expanded: boolean;
+  onToggleExpanded?: () => void;
 }) {
   const { conversationId, messages, status, questionsLeft, refreshQuota, send, close, reset } = useStore(store);
   const { id, tree, path, title } = useActiveBoard();
   const [showHistory, setShowHistory] = useState(false);
   const positionKey = currentHistoryKey(tree, path);
-  const { hasHistory, refresh } = useHistoryDot(signedIn && status !== "signInPrompt" ? positionKey : null, store);
+  const needsSignIn = !signedIn || status === "signInPrompt";
+  const { hasHistory, refresh } = useHistoryDot(needsSignIn ? null : positionKey, store);
   const historyButton = useRef<HTMLButtonElement>(null);
   const { sanLine, lineFens, fen } = useMemo(() => {
     const sanLine: string[] = [];
@@ -47,11 +59,7 @@ export function AskMasterChat({
     }
     return { sanLine, lineFens, fen: getFenAt(tree, path) };
   }, [tree, path]);
-  const level = useStudioStore((state) => state.settings.askMasterLevel);
-  const setAskMasterLevel = useStudioStore((state) => state.setAskMasterLevel);
   const [question, setQuestion] = useState("");
-  const questionId = useId();
-  const disclaimerId = useId();
   const transcript = useRef<HTMLDivElement>(null);
   const busy = status === "analyzing" || status === "answering" || status === "checking";
 
@@ -62,13 +70,8 @@ export function AskMasterChat({
 
   useEffect(() => {
     const log = transcript.current;
-    if (log) log.scrollTop = log.scrollHeight;
-  }, [messages, status, showHistory]);
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    ask(question, "free");
-  }
+    if (log) log.scrollTop = messages.length || questionsLeft === 0 ? log.scrollHeight : 0;
+  }, [messages, status, showHistory, questionsLeft, expanded]);
 
   function ask(text: string, intent: AskMasterIntent) {
     if (!text.trim() || busy || questionsLeft === 0) return;
@@ -79,103 +82,64 @@ export function AskMasterChat({
     setQuestion("");
   }
 
-  if (!signedIn || status === "signInPrompt") {
-    return (
-      <div className="flex flex-col items-start gap-3 text-body">
-        <p>{tAskMaster(locale, "signInPrompt")}</p>
-        <a
-          href="/login?next=%2Fstudio"
-          className="inline-flex min-h-9 items-center rounded-lg bg-studio-accent-solid px-3.5 font-medium text-studio-accent-fg hover:bg-studio-accent-hover"
-        >
-          {tAskMaster(locale, "signIn")}
-        </a>
-      </div>
-    );
-  }
-
   return (
-    <div className={`flex min-h-0 flex-col gap-3 ${isMobile ? "h-[min(29rem,calc(80dvh-6rem))]" : "flex-1"}`}>
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <p role="status" className="text-caption text-studio-muted">
-          {questionsLeft !== null
-            ? tAskMaster(locale, questionsLeft === 1 ? "remainingOne" : "remaining", { count: questionsLeft })
-            : null}
-        </p>
-        <select
-          aria-label={tAskMaster(locale, "level")}
-          className="min-h-8 rounded-lg border border-studio-border-strong bg-studio-bg px-2 text-dense text-studio-fg"
-          value={level}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            if (isAskMasterLevel(value)) setAskMasterLevel(value);
-          }}
-        >
-          {ASK_MASTER_LEVELS.map((value) => (
-            <option key={value} value={value}>{tAskMaster(locale, value)}</option>
-          ))}
-        </select>
-        <Button ref={historyButton} size="sm" variant="ghost" onClick={() => setShowHistory(!showHistory)}>
-          {tAskMaster(locale, showHistory ? "historyBack" : "history")}
-          {hasHistory && !showHistory && (
-            <span role="img" aria-label={tAskMaster(locale, "historyHasPosition")}
-              className="size-1.5 rounded-full bg-studio-accent-solid" />
-          )}
-        </Button>
-        {!showHistory && (
-          <Button size="sm" variant="ghost" onClick={() => { reset(); setQuestion(""); }}>
-            {tAskMaster(locale, "newQuestion")}
-          </Button>
-        )}
-      </div>
-      {showHistory ? (
+    <div className={`flex min-h-0 flex-col bg-studio-panel text-studio-fg ${
+      isMobile
+        ? "h-[min(36rem,calc(80dvh-1px))] rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+        : "flex-1 rounded-[inherit]"
+    }`}>
+      <ChatHeader locale={locale} titleId={titleId} questionsLeft={needsSignIn ? null : questionsLeft}
+        historyButtonRef={historyButton}
+        history={needsSignIn ? undefined : {
+          open: showHistory, hasPosition: hasHistory,
+          onToggle: () => setShowHistory(!showHistory),
+        }}
+        onNew={needsSignIn || showHistory ? undefined : () => { reset(); setQuestion(""); }}
+        expanded={expanded} onToggleExpanded={onToggleExpanded} onClose={onClose} />
+      {needsSignIn ? (
+        <div role="log" className="min-h-0 flex-1 overflow-y-auto p-3">
+          <NoticeCard role={status === "signInPrompt" ? "alert" : undefined} action={
+            <a href="/login?next=%2Fstudio"
+              className="inline-flex min-h-9 items-center rounded-full bg-studio-accent-solid px-3.5 font-medium text-studio-accent-fg hover:bg-studio-accent-hover">
+              {tAskMaster(locale, "signIn")}
+            </a>
+          }>
+            {tAskMaster(locale, "signInPrompt")}
+          </NoticeCard>
+        </div>
+      ) : showHistory ? (
         <AskMasterHistory tree={tree} positionKey={positionKey} locale={locale} store={store}
           busyConversationId={busy ? conversationId : null}
           onOpen={() => { setQuestion(""); setShowHistory(false); historyButton.current?.focus(); }}
           onDelete={refresh} />
       ) : (
         <>
-          <div
-            ref={transcript}
-            role="log"
-            className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain [overflow-wrap:anywhere] text-body"
-          >
-            {messages.length === 0 ? (
-              <AskMasterStarters fen={fen} lineFens={lineFens} locale={locale} disabled={busy || questionsLeft === 0} onAsk={ask} />
-            ) : null}
+          <div ref={transcript} role="log"
+            className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 text-body [overflow-wrap:anywhere]">
+            {messages.length === 0 && (
+              <>
+                <MessageBubble role="assistant" locale={locale}>
+                  <p>{tAskMaster(locale, "welcome")}</p>
+                </MessageBubble>
+                <AskMasterStarters fen={fen} lineFens={lineFens} locale={locale} disabled={busy || questionsLeft === 0} onAsk={ask} />
+              </>
+            )}
             {messages.map((message, index) => (
-              <div key={index} className={message.role === "user" ? "ml-6 whitespace-pre-wrap rounded-xl bg-studio-accent-soft p-2.5" : "mr-6 space-y-2 rounded-xl bg-studio-hover p-2.5"}>
+              <MessageBubble key={index} role={message.role} locale={locale} createdAt={message.createdAt}
+                answer={message.role === "assistant" ? message.text : undefined}>
                 {message.role === "user" ? message.text : <AskMasterAnswer text={message.text} source={message.source} locale={locale} />}
-              </div>
+              </MessageBubble>
             ))}
-            {busy && messages.at(-1)?.role === "user" ? (
-              <p className="text-studio-muted">{tAskMaster(locale, status)}</p>
-            ) : null}
+            {busy && messages.at(-1)?.role === "user" && <TypingIndicator locale={locale} status={status} />}
+            {status !== "idle" && !busy && status !== "userLimit" && (
+              <NoticeCard role="alert">{tAskMaster(locale, status)}</NoticeCard>
+            )}
+            {questionsLeft === 0 && (
+              <NoticeCard role="status">{tAskMaster(locale, "userLimit")}</NoticeCard>
+            )}
           </div>
-          {status !== "idle" && !busy && status !== "userLimit" ? (
-            <p role="alert" className="shrink-0 text-dense text-studio-warning-fg">{tAskMaster(locale, status)}</p>
-          ) : null}
-          {questionsLeft === 0 ? (
-            <p role="status" className="shrink-0 text-dense text-studio-warning-fg">{tAskMaster(locale, "userLimit")}</p>
-          ) : null}
-          <form className="shrink-0 space-y-2" onSubmit={submit}>
-            <label className="sr-only" htmlFor={questionId}>{tAskMaster(locale, "question")}</label>
-            <div className="flex items-end gap-2">
-              <textarea
-                id={questionId}
-                aria-describedby={disclaimerId}
-                className="min-w-0 flex-1 resize-none rounded-lg border border-studio-border-strong bg-studio-bg px-2.5 py-2 text-base text-studio-fg"
-                placeholder={tAskMaster(locale, "question")}
-                rows={2}
-                maxLength={MAX_QUESTION_LENGTH}
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-              />
-              <Button type="submit" variant="primary" disabled={!question.trim() || busy || questionsLeft === 0}>
-                {tAskMaster(locale, "send")}
-              </Button>
-            </div>
-            <p id={disclaimerId} className="text-caption text-studio-muted">{tAskMaster(locale, "disclaimer")}</p>
-          </form>
+          <ChatComposer locale={locale} question={question} disabled={busy || questionsLeft === 0}
+            onChange={setQuestion} onSend={() => ask(question, "free")} />
         </>
       )}
     </div>

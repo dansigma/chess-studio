@@ -54,10 +54,12 @@ export function IconButton({
   size = "md",
   className = "",
   type = "button",
+  ref,
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   label: string;
+  ref?: Ref<HTMLButtonElement>;
   shortcut?: string;
   active?: boolean;
   size?: "sm" | "md";
@@ -65,6 +67,7 @@ export function IconButton({
 }) {
   return (
     <button
+      ref={ref}
       type={type}
       title={shortcut ? `${label} (${shortcut})` : label}
       aria-label={label}

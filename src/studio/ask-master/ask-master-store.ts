@@ -12,9 +12,9 @@ export type AnswerSource = AnswerPosition & {
   xdGames?: Awaited<ReturnType<typeof collectPositionPack>>["xdGames"];
 };
 type Message =
-  | { role: "user"; text: string }
+  | { role: "user"; text: string; createdAt?: number }
   // A conversation reopened from history has no source: its lines show as text.
-  | { role: "assistant"; text: string; source?: AnswerSource };
+  | { role: "assistant"; text: string; createdAt?: number; source?: AnswerSource };
 type ChatError = "rateLimit" | "userLimit" | "siteLimit" | "unavailable" | "signInPrompt";
 type ChatStatus = "idle" | "analyzing" | "answering" | "checking" | ChatError;
 
@@ -88,11 +88,12 @@ export function createAskMasterStore() {
         .filter((message) => message.text)
         .slice(-6)
         .map(({ role, text }) => ({ role, text: text.slice(0, 4000) }));
-      const submitted: Message[] = [...messages, { role: "user", text: question }];
+      const submitted: Message[] = [...messages, { role: "user", text: question, createdAt: Date.now() }];
 
       set({ conversationId, messages: submitted, status: "analyzing" });
       let status: ChatStatus = "idle";
       let answer = "";
+      let answerCreatedAt: number | undefined;
       try {
         const context = await collectPositionPack(position, request.signal);
         if (request.signal.aborted) return;
@@ -127,7 +128,12 @@ export function createAskMasterStore() {
             }
             answer += pending;
             pending = "";
-            if (answer) set({ messages: [...submitted, { role: "assistant", text: answer, source: answerSource }] });
+            if (answer) {
+              answerCreatedAt ??= Date.now();
+              set({ messages: [...submitted, {
+                role: "assistant", text: answer, source: answerSource, createdAt: answerCreatedAt,
+              }] });
+            }
             if (done) break;
           }
         } finally {

@@ -68,16 +68,21 @@ test("streams plain paragraphs and bold, sends the active line, and keeps the co
   open();
   await screen.findByText("3 perguntas restantes hoje");
   assert.ok(screen.getByText("As respostas vêm de uma IA e podem conter erros. Não escreva dados pessoais."));
-  const level = screen.getByRole<HTMLSelectElement>("combobox", { name: "Nível do jogador" });
-  assert.equal(level.value, "1600-2000");
-  assert.deepEqual([...level.options].map((option) => option.text), ["Até 1600", "1600–2000", "2000+"]);
-  fireEvent.change(level, { target: { value: "u1600" } });
+  const level = screen.getByRole("button", { name: "Nível: 1600–2000" });
+  fireEvent.click(level);
+  const menu = screen.getByRole("menu", { name: "Nível do jogador" });
+  assert.deepEqual(within(menu).getAllByRole("menuitemradio").map((option) => option.textContent),
+    ["Até 1600", "1600–2000", "2000+"]);
+  assert.ok(within(menu).getByRole("menuitemradio", { name: "1600–2000", checked: true }));
+  fireEvent.click(within(menu).getByRole("menuitemradio", { name: "Até 1600" }));
+  assert.equal(screen.queryByRole("menu"), null);
+  assert.ok(document.activeElement === level, "focus returns to the level chip");
   assert.equal(useStudioStore.getState().settings.askMasterLevel, "u1600");
   ask();
   assert.ok((screen.getByRole("button", { name: "Enviar" }) as HTMLButtonElement).disabled);
   assert.ok(screen.getByText("Analisando a posição…"));
   assert.equal(bodies.length, 0);
-  await screen.findByText("O Mestre está respondendo…");
+  await screen.findByText("Escrevendo…");
   const pack = bodies[0].context as { fen: string; moves: string[]; opening: { name: string }; facts: unknown; level: string };
   assert.equal(pack.fen, fen);
   assert.equal(bodies[0].level, "u1600");
@@ -113,7 +118,7 @@ test("streams plain paragraphs and bold, sends the active line, and keeps the co
   assert.ok(screen.getByText("Qual é o plano?"));
   await screen.findByText("3 perguntas restantes hoje");
   ask("E depois?");
-  await screen.findByText("O Mestre está respondendo…");
+  await screen.findByText("Escrevendo…");
   assert.equal(bodies[1].conversationId, bodies[0].conversationId);
   assert.deepEqual(bodies[1].history, [
     { role: "user", text: "Qual é o plano?" },
@@ -132,7 +137,9 @@ for (const [body, message] of [
     open();
     await screen.findByText("3 perguntas restantes hoje");
     ask();
-    await screen.findByText(message);
+    const notice = await screen.findByText(message);
+    assert.ok(within(screen.getByRole("log")).getByText(message));
+    assert.equal(notice.getAttribute("role"), "reason" in body && body.reason === "user_limit" ? "status" : "alert");
     if ("reason" in body && body.reason === "user_limit") {
       await screen.findByText("0 perguntas restantes hoje");
       ask("Outra pergunta");
@@ -151,7 +158,7 @@ test("new question aborts and clears the chat, and Escape aborts the next answer
   open();
   await screen.findByText("3 perguntas restantes hoje");
   ask();
-  await screen.findByText("O Mestre está respondendo…");
+  await screen.findByText("Escrevendo…");
   const firstStream = stream;
   await act(async () => firstStream.enqueue(new TextEncoder().encode("Resposta parcial")));
   assert.ok(screen.getByText("Resposta parcial"));
@@ -166,7 +173,7 @@ test("new question aborts and clears the chat, and Escape aborts the next answer
   assert.equal(screen.queryByText("Resposta antiga"), null);
 
   ask("Outra pergunta");
-  await screen.findByText("O Mestre está respondendo…");
+  await screen.findByText("Escrevendo…");
   assert.notEqual(requests[0].conversationId, requests[1].conversationId);
   assert.deepEqual(requests[1].history, []);
   fireEvent.keyDown(window, { key: "Escape" });
@@ -277,6 +284,7 @@ test("history tabs query the game and position, reopen a transcript, and continu
   const position = screen.getByRole("tabpanel", { name: "Nesta posição" });
   fireEvent.click(await within(position).findByRole("button", { name: "Abrir" }));
   await within(await screen.findByRole("log")).findByText("Para desenvolver o cavalo.");
+  assert.equal(screen.getByRole("log").querySelector("time"), null);
   assert.ok(firstSignal?.aborted);
   await act(async () => firstStream.close());
   assert.equal(screen.queryByText("Pergunta em andamento"), null);
@@ -309,7 +317,7 @@ test("deletion requires confirmation and removes the saved row without another l
   const dialogButtons = within(dialog).getAllByRole("button");
   // Happy DOM has no layout, so mark the confirmation buttons as visible to the focus trap.
   const sheet = screen.getByRole("dialog", { name: "Pergunte ao Mestre" });
-  const sheetClose = within(sheet).getAllByRole("button")[0];
+  const sheetClose = within(sheet).getByRole("button", { name: "Fechar Pergunte ao Mestre" });
   Object.defineProperty(sheetClose, "offsetParent", { value: sheet });
   for (const button of dialogButtons) Object.defineProperty(button, "offsetParent", { value: dialog });
   const last = dialogButtons.at(-1)!;
@@ -370,6 +378,7 @@ test("shows two starters at the starting position and updates them when Black is
   const board = initial.active();
   open();
   await screen.findByText("3 perguntas restantes hoje");
+  assert.ok(within(screen.getByRole("log")).getByText(/^Olá! Eu explico a posição do tabuleiro/));
   assert.ok(screen.getByRole("button", { name: "Explique esta posição e o plano das brancas" }));
   assert.ok(screen.getByRole("button", { name: "Quais são as partidas modelo desta linha?" }));
   assert.equal(screen.queryByRole("button", { name: /^Por onde começo a estudar/ }), null);
@@ -476,4 +485,96 @@ test("opens only games from the question's pack in a new board at the question F
   const gameUrls = fetch.mock.calls.map(({ arguments: [url] }) => String(url))
     .filter((url) => url.startsWith("/api/xd-database/game/"));
   assert.deepEqual(gameUrls, ["/api/xd-database/game/42"]);
+});
+
+test("expands and reduces the desktop dialog and returns focus on close", async (t) => {
+  mockApi(t, () => new Response("Answer"));
+  open();
+  await screen.findByText("3 perguntas restantes hoje");
+  const dialog = screen.getByRole("dialog", { name: "Pergunte ao Mestre" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Expandir" }));
+  assert.ok(dialog.classList.contains("w-[560px]"));
+  assert.ok(dialog.classList.contains("h-[720px]"));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Reduzir" }));
+  assert.ok(dialog.classList.contains("w-[380px]"));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Fechar Pergunte ao Mestre" }));
+  assert.equal(screen.queryByRole("dialog"), null);
+  assert.ok(document.activeElement === screen.getByRole("button", { name: "Pergunte ao Mestre" }), "focus returns to the launcher");
+});
+
+test("the mobile composer keeps Shift+Enter and IME Enter available and submits on Enter", async (t) => {
+  const post = mockApi(t, () => new Response("Resposta"));
+  open({ isMobile: true });
+  await screen.findByText("3 perguntas restantes hoje");
+  const dialog = screen.getByRole("dialog");
+  assert.equal(within(dialog).queryByRole("button", { name: "Expandir" }), null);
+  const question = within(dialog).getByRole("textbox", { name: "Sua pergunta" });
+  fireEvent.change(question, { target: { value: "Primeira linha" } });
+  assert.equal(fireEvent.keyDown(question, { key: "Enter", shiftKey: true }), true);
+  assert.equal(fireEvent.keyDown(question, { key: "Enter", isComposing: true }), true);
+  assert.equal(post.mock.calls.filter(({ arguments: [url] }) => url === "/api/ask-master").length, 0);
+  // Happy DOM does not insert the newline as a default action for keydown.
+  fireEvent.change(question, { target: { value: "Primeira linha\nSegunda linha" } });
+  assert.equal(fireEvent.keyDown(question, { key: "Enter" }), false);
+  await screen.findByText("Resposta");
+  const [, request] = post.mock.calls.find(({ arguments: [url] }) => url === "/api/ask-master")!.arguments;
+  assert.ok(request);
+  assert.equal(JSON.parse(String(request.body)).question, "Primeira linha\nSegunda linha");
+});
+
+test("shows a Master name and message times and copies the answer as plain text", async (t) => {
+  const copy = t.mock.method(navigator.clipboard, "writeText", async () => {});
+  const now = Date.now();
+  t.mock.method(Date, "now", () => now);
+  mockApi(t, () => new Response("### Plano\n**Jogue** [[1.e4 e5]]. {{game:42}}"));
+  open();
+  await screen.findByText("3 perguntas restantes hoje");
+  ask();
+  const copyButton = await screen.findByRole("button", { name: "Copiar" });
+  const log = screen.getByRole("log");
+  assert.ok(within(log).getByText("Mestre"));
+  const timestamps = [...log.querySelectorAll("time")];
+  assert.equal(timestamps.length, 2);
+  for (const time of timestamps) {
+    assert.equal(time.dateTime, new Date(now).toISOString());
+    assert.equal(time.textContent, new Intl.DateTimeFormat("pt-br", { hour: "2-digit", minute: "2-digit" }).format(now));
+  }
+  fireEvent.click(copyButton);
+  assert.ok(await screen.findByRole("button", { name: "Copiado" }));
+  assert.deepEqual(copy.mock.calls[0].arguments, ["Plano\nJogue 1.e4 e5."]);
+});
+
+for (const [status, message] of [
+  [503, "O Mestre está indisponível agora. Tente novamente mais tarde."],
+  [401, "Entre para perguntar ao Mestre"],
+] as const) {
+  test(`shows a notice for an Ask the Master response with status ${status}`, async (t) => {
+    mockApi(t, () => new Response(null, { status }));
+    open();
+    await screen.findByText("3 perguntas restantes hoje");
+    ask();
+    await screen.findByText(message);
+    const alert = screen.getByRole("alert");
+    assert.equal(alert.textContent, message);
+    assert.ok(alert.parentElement?.parentElement?.querySelector("svg"));
+    if (status === 401) assert.ok(screen.getByRole("link", { name: "Entrar" }));
+    else assert.ok(screen.getByRole("log").contains(alert));
+  });
+}
+
+test("Escape closes the level menu before the chat dialog", async (t) => {
+  mockApi(t, () => new Response("Answer"));
+  open({ isMobile: true });
+  await screen.findByText("3 perguntas restantes hoje");
+  const level = screen.getByRole("button", { name: "Nível: 1600–2000" });
+  fireEvent.click(level);
+  const option = screen.getByRole("menuitemradio", { name: "Até 1600" });
+  await waitFor(() => assert.ok(document.activeElement === option, "menu focuses the first option"));
+  fireEvent.keyDown(option, { key: "Escape" });
+  assert.equal(screen.queryByRole("menu"), null);
+  assert.ok(screen.getByRole("dialog"));
+  assert.ok(document.activeElement === level, "focus returns to the level chip");
+  fireEvent.keyDown(level, { key: "Escape" });
+  assert.equal(screen.queryByRole("dialog"), null);
+  assert.ok(document.activeElement === screen.getByRole("button", { name: "Pergunte ao Mestre" }), "focus returns to the launcher");
 });
