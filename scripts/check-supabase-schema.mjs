@@ -7,6 +7,7 @@
 import process from "node:process";
 
 export const PROBES = [
+  { object: "ask_master_usage", table: "ask_master_usage", select: "day" },
   { object: "linked_accounts", table: "linked_accounts", select: "*" },
   { object: "my_games", table: "my_games", select: "*" },
   { object: "my_game_positions", table: "my_game_positions", select: "*" },
@@ -84,7 +85,7 @@ async function main() {
     for (const failure of failures) console.error(`check:schema ${formatFailure(failure)}`);
     process.exit(1);
   }
-  console.log("check:schema ok: linked_accounts, my_games, puzzles, course_enrollments, boards.repertoire_color");
+  console.log(`check:schema ok: ${PROBES.map((probe) => probe.object).join(", ")}`);
 }
 
 const invokedAsScript =

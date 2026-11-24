@@ -50,6 +50,27 @@ export function toJson(value: unknown): Json {
 export type Database = {
   public: {
     Tables: {
+      ask_master_usage: {
+        Row: {
+          user_id: string | null;
+          day: string;
+          questions: number;
+          model_requests: number;
+        };
+        Insert: {
+          user_id?: string | null;
+          day: string;
+          questions?: number;
+          model_requests?: number;
+        };
+        Update: {
+          user_id?: string | null;
+          day?: string;
+          questions?: number;
+          model_requests?: number;
+        };
+        Relationships: [];
+      };
       boards: {
         Row: {
           id: string;
@@ -865,6 +886,11 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      consume_ask_master_question: {
+        Args: { p_user_id: string; p_user_limit: number; p_site_limit: number };
+        Returns: Array<{ allowed: boolean; reason: string | null; remaining: number }>;
+      };
+      record_ask_master_model_request: { Args: Record<PropertyKey, never>; Returns: undefined };
       // SIG-1102: seed-stable sampling over public.puzzles (serving slice).
       puzzles_window: {
         Args: {
