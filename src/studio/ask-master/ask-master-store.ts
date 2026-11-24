@@ -2,6 +2,7 @@ import { createStore } from "zustand";
 import type { AnswerPosition } from "@/src/lib/ask-master/answer-lines";
 import type { SiteLocale } from "@/src/i18n/locale";
 
+import type { AskMasterIntent } from "@/src/lib/ask-master/intent";
 import { collectPositionPack, type PackPosition } from "./collect-pack";
 
 export type AnswerSource = AnswerPosition & { boardId: string; path: readonly number[] };
@@ -20,7 +21,10 @@ type ChatState = {
   status: ChatStatus;
   questionsLeft: number | null;
   refreshQuota: () => Promise<void>;
-  send: (question: string, locale: SiteLocale, position: PackPosition, source: AnswerSource, gameTitle?: string) => Promise<void>;
+  send: (
+    question: string, locale: SiteLocale, position: PackPosition, source: AnswerSource,
+    options?: { gameTitle?: string; intent?: AskMasterIntent },
+  ) => Promise<void>;
   close: () => void;
   reset: () => void;
   loadConversation: (id: string, messages: Message[]) => void;
@@ -66,7 +70,7 @@ export function createAskMasterStore() {
         if (quotaRequest === request) quotaRequest = undefined;
       }
     },
-    async send(question, locale, position, source, gameTitle) {
+    async send(question, locale, position, source, { gameTitle, intent = "free" } = {}) {
       const { messages, questionsLeft } = get();
       question = question.trim();
       if (!question || question.length > MAX_QUESTION_LENGTH || answerRequest || questionsLeft === 0) return;
@@ -91,7 +95,7 @@ export function createAskMasterStore() {
         const response = await fetch("/api/ask-master", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ conversationId, question, locale, history, context, level: context.level, gameTitle }),
+          body: JSON.stringify({ conversationId, question, locale, history, context, level: context.level, gameTitle, intent }),
           signal: request.signal,
         });
         if (!response.ok) {

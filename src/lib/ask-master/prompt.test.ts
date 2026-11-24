@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildMessages } from "./prompt.ts";
+import { buildMessages, INTENT_TEMPLATES } from "./prompt.ts";
 
 test("selects the answer language from the site locale", () => {
   assert.match(buildMessages({ locale: "pt-br", question: "Qual é o plano?" })[0].content, /Answer in Brazilian Portuguese\./);
@@ -61,4 +61,46 @@ test("requests numbered lines enclosed in double brackets from a position in the
   const [system] = buildMessages({ locale: "en", question: "What can I play?" });
   assert.match(system.content, /\[\[4\.\.\.a6 5\.Bf4 e6\]\]/);
   assert.match(system.content, /move numbers, starting from the current position or an earlier position/);
+});
+
+function countAnswerNumbers(text: string): number {
+  return (text.match(/\d+(?:[.,]\d+)?[ \t]*%|[+-]\d+(?:[.,]\d+)?/g) ?? []).length;
+}
+
+const expectedHeadings = {
+  en: {
+    explain: ["Conclusion", "Why act now", "Main line", "What the position is about", "The plan", "In practice", "Next step"],
+    "model-games": ["Model games", "What to look for"],
+    "study-opening": ["Where to start", "The plan", "In practice"],
+    free: ["In practice", "Next step"],
+  },
+  "pt-br": {
+    explain: ["Conclusão", "Por que agir agora", "Linha principal", "Do que se trata a posição", "O plano", "Na prática", "Próximo passo"],
+    "model-games": ["Partidas modelo", "O que observar"],
+    "study-opening": ["Por onde começar", "O plano", "Na prática"],
+    free: ["Na prática", "Próximo passo"],
+  },
+} as const;
+
+for (const locale of ["en", "pt-br"] as const) {
+  for (const intent of Object.keys(INTENT_TEMPLATES) as (keyof typeof INTENT_TEMPLATES)[]) {
+    test(`includes the ${locale} template for ${intent} in heading order`, () => {
+      const [{ content }] = buildMessages({ locale, intent, question: "?" });
+      assert.match(content, /at most 3 evaluation or percentage figures combined/);
+      assert.equal(countAnswerNumbers(INTENT_TEMPLATES[intent][locale].join("\n")), 0);
+      let lastIndex = -1;
+      for (const heading of expectedHeadings[locale][intent]) {
+        const index = content.indexOf(`### ${heading}`);
+        assert.ok(index > lastIndex, heading);
+        lastIndex = index;
+      }
+      if (intent === "explain") assert.match(content, /only when the position data shows a concrete threat/);
+    });
+  }
+}
+
+test("the number checker counts percentages and signed evaluations, excluding chess notation", () => {
+  const line = "1. e4 e5 2. Nf3";
+  assert.equal(countAnswerNumbers(`${line} · +0.8 · 49% · -1,2`), 3);
+  assert.equal(countAnswerNumbers(`${line} · +0.8 · 49% · -1,2 · 11%`), 4);
 });

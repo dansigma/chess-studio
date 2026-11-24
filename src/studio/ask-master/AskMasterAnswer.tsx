@@ -115,7 +115,22 @@ function renderParagraph(parts: ReactNode[]) {
 // Without a source no line can be resolved, so every line renders as text.
 const NO_SOURCE = { currentFen: "", lineFens: [], lineStartPly: 0 } as const;
 
+// SIG-1480: a heading is a line of its own, "### Title" or "**Title**".
+const HEADING_LINE = /^( {0,3}(?:###[ \t]+\S.*|\*\*[^*\r\n]+\*\*)[ \t]*)$/m;
+
 export function AskMasterAnswer({ text, source }: { text: string; source?: AnswerSource }) {
+  const sections = text.split(new RegExp(HEADING_LINE.source, "gm"));
+  if (sections.length === 1) return <AnswerBody text={text} source={source} />;
+  return sections.map((part, index) => {
+    const line = part.trim();
+    if (!line) return null;
+    if (index % 2 === 0) return <AnswerBody key={index} text={line} source={source} />;
+    const title = line.startsWith("###") ? line.slice(3).trim() : line.slice(2, -2).trim();
+    return <h3 key={index} className="text-dense font-semibold">{title}</h3>;
+  });
+}
+
+function AnswerBody({ text, source }: { text: string; source?: AnswerSource }) {
   const segments = useMemo(() => parseAnswer(text, source ?? NO_SOURCE), [text, source]);
   const paragraphs: ReactNode[][] = [[]];
   for (const [index, segment] of segments.entries()) {

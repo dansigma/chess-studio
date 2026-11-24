@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import { useStore } from "zustand";
 import { getFenAt } from "@/src/chess/tree";
 import { fenPly } from "@/src/lib/ask-master/answer-lines";
@@ -10,7 +10,9 @@ import { ASK_MASTER_LEVELS, isAskMasterLevel } from "@/src/lib/ask-master/level"
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "../ui/Button";
+import type { AskMasterIntent } from "@/src/lib/ask-master/intent";
 import { AskMasterAnswer } from "./AskMasterAnswer";
+import { AskMasterStarters } from "./AskMasterStarters";
 import { AskMasterHistory, useHistoryDot } from "./AskMasterHistory";
 import { currentHistoryKey } from "./history-keys";
 import { MAX_QUESTION_LENGTH, type AskMasterStore } from "./ask-master-store";
@@ -32,6 +34,19 @@ export function AskMasterChat({
   const positionKey = currentHistoryKey(tree, path);
   const { hasHistory, refresh } = useHistoryDot(signedIn && status !== "signInPrompt" ? positionKey : null, store);
   const historyButton = useRef<HTMLButtonElement>(null);
+  const { sanLine, lineFens, fen } = useMemo(() => {
+    const sanLine: string[] = [];
+    const lineFens = [tree.startFen];
+    let children = tree.children;
+    for (const index of path) {
+      const node = children[index];
+      if (!node) break;
+      sanLine.push(node.san);
+      lineFens.push(node.fen);
+      children = node.children;
+    }
+    return { sanLine, lineFens, fen: getFenAt(tree, path) };
+  }, [tree, path]);
   const level = useStudioStore((state) => state.settings.askMasterLevel);
   const setAskMasterLevel = useStudioStore((state) => state.setAskMasterLevel);
   const [question, setQuestion] = useState("");
@@ -52,23 +67,15 @@ export function AskMasterChat({
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!question.trim() || busy || questionsLeft === 0) return;
+    ask(question, "free");
+  }
 
-    const sanLine: string[] = [];
-    const lineFens = [tree.startFen];
-    let children = tree.children;
-    for (const index of path) {
-      const node = children[index];
-      if (!node) break;
-      sanLine.push(node.san);
-      lineFens.push(node.fen);
-      children = node.children;
-    }
+  function ask(text: string, intent: AskMasterIntent) {
+    if (!text.trim() || busy || questionsLeft === 0) return;
     const { engineBuild, engineThreads, askMasterLevel } = useStudioStore.getState().settings;
-    const fen = getFenAt(tree, path);
-    void send(question, locale, { fen, sanLine, lineFens, engineBuild, engineThreads, level: askMasterLevel }, {
+    void send(text, locale, { fen, sanLine, lineFens, engineBuild, engineThreads, level: askMasterLevel }, {
       boardId: id, path, currentFen: fen, lineFens, lineStartPly: fenPly(tree.startFen),
-    }, title.slice(0, 120));
+    }, { gameTitle: title.slice(0, 120), intent });
     setQuestion("");
   }
 
@@ -132,6 +139,9 @@ export function AskMasterChat({
             role="log"
             className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain [overflow-wrap:anywhere] text-body"
           >
+            {messages.length === 0 ? (
+              <AskMasterStarters fen={fen} lineFens={lineFens} locale={locale} disabled={busy || questionsLeft === 0} onAsk={ask} />
+            ) : null}
             {messages.map((message, index) => (
               <div key={index} className={message.role === "user" ? "ml-6 whitespace-pre-wrap rounded-xl bg-studio-accent-soft p-2.5" : "mr-6 space-y-2 rounded-xl bg-studio-hover p-2.5"}>
                 {message.role === "user" ? message.text : <AskMasterAnswer text={message.text} source={message.source} />}
