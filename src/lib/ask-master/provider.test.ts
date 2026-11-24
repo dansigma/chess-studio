@@ -27,3 +27,15 @@ test("sends a streaming chat request to the configured provider", async () => {
   assert.equal(response.status, 200);
   assert.equal(await response.text(), "Control the center.");
 });
+
+test("skips a malformed event line instead of failing the answer", async () => {
+  const fakeFetch: typeof fetch = async () => new Response(
+    'data: {"choices":[{"delta":{"content":"Develop "}}]}\n\ndata: {not json\n\ndata: {"choices":[{"delta":{"content":"pieces."}}]}\n\ndata: [DONE]\n\n',
+  );
+  const response = await streamChat(
+    { baseUrl: "https://provider.test/v1", apiKey: "secret", model: "m" },
+    { conversationId: "be637361-9949-46af-a7ee-05aa6914da73", messages: [], signal: new AbortController().signal },
+    fakeFetch,
+  );
+  assert.equal(await response.text(), "Develop pieces.");
+});

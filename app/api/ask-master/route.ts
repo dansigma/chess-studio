@@ -3,12 +3,15 @@ import { buildMessages, type PromptInput } from "@/src/lib/ask-master/prompt";
 import { askMasterProviderConfig, streamChat } from "@/src/lib/ask-master/provider";
 import { askMasterLimits, consumeQuestion } from "@/src/lib/ask-master/quota";
 import { createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
+import { readCapped } from "@/src/lib/read-capped";
 import { createServiceSupabase } from "@/src/lib/supabase/admin";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 
 const limiter = createRouteLimiter({ limit: 10, windowMs: 60_000, bindingName: "RL_AUTH" });
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const MAX_CONTEXT_BYTES = 16 * 1024;
+// Context, question and history together stay well under this.
+const MAX_BODY_BYTES = 64 * 1024;
 
 type ChatInput = PromptInput & { conversationId: string };
 
@@ -24,7 +27,7 @@ function isHistoryTurn(value: unknown): value is NonNullable<PromptInput["histor
 
 async function readInput(request: Request): Promise<ChatInput | null> {
   try {
-    const body: unknown = await request.json();
+    const body: unknown = JSON.parse(await readCapped(request, MAX_BODY_BYTES));
     if (!isRecord(body)) return null;
 
     const { conversationId, locale, question, history, context } = body;

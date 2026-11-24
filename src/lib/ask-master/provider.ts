@@ -39,7 +39,12 @@ async function* textDeltas(body: ReadableStream<Uint8Array>): AsyncGenerator<Uin
     const data = line.slice(5).trim();
     if (data === "[DONE]") return;
     if (!data) continue;
-    const event = JSON.parse(data);
+    let event;
+    try {
+      event = JSON.parse(data);
+    } catch {
+      continue; // A malformed event line is skipped, not fatal.
+    }
     if (event?.error) throw new Error("Upstream stream failed");
     const content = event?.choices?.[0]?.delta?.content;
     if (typeof content === "string" && content) yield encoder.encode(content);
@@ -56,6 +61,9 @@ export async function streamChat(
   fetchProvider: typeof fetch = fetch,
 ): Promise<Response> {
   const upstream = new AbortController();
+  // 60 s for the provider to start answering, 3 min for the whole answer:
+  // slow free models can stream for more than a minute.
+  const firstByte = setTimeout(() => upstream.abort(), 60_000);
   try {
     const response = await fetchProvider(`${config.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
       method: "POST",
@@ -68,7 +76,7 @@ export async function streamChat(
         "X-Title": "Xadrez Digital",
       },
       body: JSON.stringify({ model: config.model, messages, stream: true }),
-      signal: AbortSignal.any([upstream.signal, signal, AbortSignal.timeout(60_000)]),
+      signal: AbortSignal.any([upstream.signal, signal, AbortSignal.timeout(180_000)]),
       redirect: "error",
     });
 
@@ -77,6 +85,7 @@ export async function streamChat(
     // Wait for the first delta so early stream failures can still return a 503.
     const first = await deltas.next();
     if (first.done) throw new Error("Upstream returned no answer");
+    clearTimeout(firstByte);
 
     return new Response(new ReadableStream<Uint8Array>({
       start(controller) {
@@ -88,6 +97,7 @@ export async function streamChat(
           if (next.done) controller.close();
           else controller.enqueue(next.value);
         } catch {
+          upstream.abort();
           controller.error(new Error("Upstream stream failed"));
         }
       },
@@ -102,6 +112,7 @@ export async function streamChat(
       },
     });
   } catch {
+    clearTimeout(firstByte);
     upstream.abort();
     return Response.json({ error: "upstream" }, { status: 503 });
   }
