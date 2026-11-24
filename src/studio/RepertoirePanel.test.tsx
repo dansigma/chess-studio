@@ -7,6 +7,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { importPgn } from "@/src/chess/pgn";
 import { getDueRepertoireMoves, type SpacedRepetitionItem } from "@/src/chess/repertoire";
 import { createEmptyTree, START_FEN } from "@/src/chess/tree";
+import { loadCatalog } from "@/src/lib/openings-catalog";
 import { DEFAULT_SETTINGS } from "@/src/store/slices/settings.ts";
 import { emptyBoard, useStudioStore } from "@/src/store/studio-store";
 import { RepertoirePanel } from "./RepertoirePanel";
@@ -324,6 +325,7 @@ for (const [locale, feedback, hint] of [
 }
 
 test("opens Add variation with the active repertoire color selected", async () => {
+  await loadCatalog();
   const [board] = useStudioStore.getState().boards;
   useStudioStore.setState({ boards: [{ ...board, repertoireColor: "black" }] });
   render(<RepertoirePanel />);
