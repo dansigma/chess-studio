@@ -144,7 +144,7 @@ export function AskMasterChat({
             ) : null}
             {messages.map((message, index) => (
               <div key={index} className={message.role === "user" ? "ml-6 whitespace-pre-wrap rounded-xl bg-studio-accent-soft p-2.5" : "mr-6 space-y-2 rounded-xl bg-studio-hover p-2.5"}>
-                {message.role === "user" ? message.text : <AskMasterAnswer text={message.text} source={message.source} />}
+                {message.role === "user" ? message.text : <AskMasterAnswer text={message.text} source={message.source} locale={locale} />}
               </div>
             ))}
             {busy && messages.at(-1)?.role === "user" ? (

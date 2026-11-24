@@ -15,6 +15,7 @@ export type AnswerLine = {
 };
 
 type AnswerSegment = AnswerLine | { type: "text"; text: string } | { type: "invalid-line"; raw: string };
+type GameCitation = { type: "game"; id: string };
 
 export function fenPly(fen: string): number {
   const fields = fen.split(/\s+/);
@@ -56,7 +57,7 @@ function parseLine(raw: string, { currentFen, lineFens, lineStartPly }: AnswerPo
   }
 }
 
-export function parseAnswer(text: string, position: AnswerPosition): AnswerSegment[] {
+function parseLines(text: string, position: AnswerPosition): AnswerSegment[] {
   const segments: AnswerSegment[] = [];
   let cursor = 0;
   for (const match of text.matchAll(/\[\[([\s\S]*?)\]\]/g)) {
@@ -66,4 +67,22 @@ export function parseAnswer(text: string, position: AnswerPosition): AnswerSegme
   }
   if (cursor < text.length) segments.push({ type: "text", text: text.slice(cursor) });
   return segments;
+}
+
+function parseGameCitations(text: string): (AnswerSegment | GameCitation)[] {
+  const segments: (AnswerSegment | GameCitation)[] = [];
+  let cursor = 0;
+  for (const match of text.matchAll(/\{\{game:([^{}\r\n]*)\}\}/g)) {
+    if (match.index > cursor) segments.push({ type: "text", text: text.slice(cursor, match.index) });
+    segments.push({ type: "game", id: match[1].trim() });
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < text.length) segments.push({ type: "text", text: text.slice(cursor) });
+  return segments;
+}
+
+export function parseAnswer(text: string, position: AnswerPosition): (AnswerSegment | GameCitation)[] {
+  return parseLines(text, position).flatMap((segment) =>
+    segment.type === "text" ? parseGameCitations(segment.text) : [segment],
+  );
 }

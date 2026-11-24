@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
+import { useStudioStore } from "@/src/store/studio-store";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { explorerSourceTitle, type ExplorerGameRow } from "@/src/lib/explorer-types";
-import { loadXdGamePgn } from "@/src/lib/xd-database/client";
 import { formatYearMonth } from "@/src/lib/game-date";
-import { openBoardPanel } from "./dock-api";
+import { openXdGame, revealActiveBoard } from "./open-xd-game";
 import { useExplorerData } from "./use-explorer-data";
 import { lockedExplorerData, useLockablePosition } from "./use-lockable-position";
 import { PositionLockButton } from "./PositionLockButton";
@@ -57,49 +56,29 @@ export function GamesPanel() {
     : "grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_56px_36px]";
 
   async function openGame(game: ExplorerGameRow, openInNewBoard = false) {
+    const gameSource = explorer?.source ?? source;
+    const board = {
+      title: `${game.whiteName} vs ${game.blackName}`,
+      atFen: explorer?.fen,
+      openInNewBoard,
+    };
+    if (!game.pgn && gameSource === "xadrez-digital") {
+      await openXdGame({ id: game.id, ...board }, locale);
+      return;
+    }
     setStatus(tPanels(locale, "games.loading"));
     try {
-      if (game.pgn) {
-        openListedGame({
-          pgn: game.pgn,
-          title: `${game.whiteName} vs ${game.blackName}`,
-          atFen: explorer?.fen,
-          openInNewBoard,
-        });
-        setStatus(null);
-        // SIG-911: the load activates a board session in the store, so reveal
-        // its `board:*` panel too — otherwise the game sits on an invisible
-        // board and notation navigation looks frozen.
-        revealActiveBoard();
-        return;
-      }
-      const gameSource = explorer?.source ?? source;
-      if (gameSource !== "masters" && gameSource !== "xadrez-digital") {
+      if (!game.pgn && gameSource !== "masters") {
         setStatus(tPanels(locale, "games.noPgn"));
         return;
       }
-      const pgn = gameSource === "xadrez-digital" ? await loadXdGamePgn(game.id) : await loadMastersPgn(game.id);
-      openListedGame({
-        pgn,
-        title: `${game.whiteName} vs ${game.blackName}`,
-        atFen: explorer?.fen,
-        openInNewBoard,
-      });
+      const pgn = game.pgn || await loadMastersPgn(game.id);
+      openListedGame({ ...board, pgn });
       setStatus(null);
-      // SIG-911: same reveal as the inline-PGN path above.
       revealActiveBoard();
     } catch {
       setStatus(tPanels(locale, "games.loadFailed"));
     }
-  }
-
-  // SIG-911: reveal the session the load just activated — the preview board in
-  // preview mode, or the independent board opened via double-click/Shift+Enter.
-  // Supersedes SIG-910's conditional openSideBySide: the load always leaves the
-  // target session active, so an unconditional reveal covers both cases.
-  function revealActiveBoard(): void {
-    const active = selectActiveBoard(useStudioStore.getState());
-    openBoardPanel(active.id, active.title);
   }
 
   if (!filesHydrated && source.startsWith("file:")) return <LibraryLoadingStatus />;
