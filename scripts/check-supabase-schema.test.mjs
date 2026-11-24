@@ -25,7 +25,7 @@ test("all-2xx probes return no failures", async () => {
   });
   assert.deepEqual(failures, []);
   assert.equal(seen.length, PROBES.length);
-  assert.ok(seen.includes("https://example.supabase.co/rest/v1/ask_master_usage?select=*&limit=1"));
+  assert.ok(seen.includes("https://example.supabase.co/rest/v1/ask_master_usage?select=day&limit=1"));
 });
 
 test("a 404 PGRST205 names the exact failing object", async () => {

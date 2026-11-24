@@ -43,19 +43,22 @@ export async function consumeQuestion(
   return { allowed: false, reason: "error", remaining: 0 };
 }
 
+/**
+ * Questions the user has left today. Takes the id of a user the caller has
+ * already verified, so it works with the session client (own-row RLS) and
+ * with the service-role client alike.
+ */
 export async function questionsLeft(
-  supabase: Pick<QuotaClient, "auth" | "from">,
+  supabase: Pick<QuotaClient, "from">,
+  userId: string,
   userLimit: number,
 ): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   try {
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) return 0;
-
     const { data, error } = await supabase
       .from("ask_master_usage")
       .select("questions")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("day", today)
       .maybeSingle();
     if (!error) return Math.max(0, userLimit - (data?.questions ?? 0));

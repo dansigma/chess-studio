@@ -56,21 +56,20 @@ test("questionsLeft reads today's own count, clamps to zero, and fails closed", 
     },
   };
   const client = {
-    auth: { getUser: async () => ({ data: { user: { id: "caller" } }, error: null }) },
     from(table: string) {
       assert.equal(table, "ask_master_usage");
       return query;
     },
   } as unknown as Parameters<typeof questionsLeft>[0];
 
-  assert.equal(await questionsLeft(client, 5), 3);
+  assert.equal(await questionsLeft(client, "caller", 5), 3);
   assert.deepEqual(filters, [["user_id", "caller"], ["day", "2026-11-24"]]);
   data = { questions: 7 };
-  assert.equal(await questionsLeft(client, 5), 0);
+  assert.equal(await questionsLeft(client, "caller", 5), 0);
   data = null;
-  assert.equal(await questionsLeft(client, 5), 5);
+  assert.equal(await questionsLeft(client, "caller", 5), 5);
   error = { message: "database error" };
-  assert.equal(await questionsLeft(client, 5), 0);
+  assert.equal(await questionsLeft(client, "caller", 5), 0);
 });
 
 test("askMasterLimits uses defaults for missing and invalid values", () => {

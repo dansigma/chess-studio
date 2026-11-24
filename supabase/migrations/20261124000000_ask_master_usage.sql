@@ -28,11 +28,11 @@ create or replace function public.consume_ask_master_question(p_user_id uuid, p_
 returns table (allowed boolean, reason text, remaining int)
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 declare
   caller_id uuid := p_user_id;
-  today date := (now() at time zone 'utc')::date;
+  today date := (pg_catalog.now() at time zone 'utc')::date;
   site_requests int;
   user_questions int;
 begin
@@ -94,10 +94,10 @@ create or replace function public.record_ask_master_model_request()
 returns void
 language sql
 security definer
-set search_path = public
+set search_path = ''
 as $$
   insert into public.ask_master_usage as usage (day, model_requests)
-    values ((now() at time zone 'utc')::date, 1)
+    values ((pg_catalog.now() at time zone 'utc')::date, 1)
     on conflict (coalesce(user_id, '00000000-0000-0000-0000-000000000000'::uuid), day)
     do update set model_requests = usage.model_requests + 1;
 $$;
