@@ -13,6 +13,7 @@ import { createServerSupabase } from "@/src/lib/supabase/server";
 
 const limiter = createRouteLimiter({ limit: 10, windowMs: 60_000, bindingName: "RL_AUTH" });
 const MAX_CONTEXT_BYTES = 16 * 1024;
+const REPAIR_BUDGET_MS = 60_000;
 // Context, question and history together stay well under this.
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -95,14 +96,16 @@ export async function POST(request: Request): Promise<Response> {
   return streamChat(config, {
     conversationId,
     messages,
-    async verify(draft, signal) {
+    async verify(draft, signal, { elapsedMs }) {
       const position = replayAnswerPosition(fen ?? "", input.context);
       const { body, claims } = extractClaims(draft);
       const audit = auditAnswer(body, claims, position);
       if (audit.ok) return body;
 
       signal.throwIfAborted();
-      if (await recordModelRequest(service, limits.siteLimit)) {
+      // A slow (reasoning) model would need another minute or more to repair the
+      // draft; past this budget, filter the false parts instead.
+      if (elapsedMs < REPAIR_BUDGET_MS && await recordModelRequest(service, limits.siteLimit)) {
         signal.throwIfAborted();
         try {
           const response = await streamChat(config, {

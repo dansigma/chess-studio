@@ -61,18 +61,19 @@ export async function streamChat(
     conversationId: string;
     messages: ChatMessage[];
     signal: AbortSignal;
-    verify?: (text: string, signal: AbortSignal) => Promise<string>;
+    verify?: (text: string, signal: AbortSignal, info: { elapsedMs: number }) => Promise<string>;
     onComplete?: (text: string) => Promise<void>;
   },
   fetchProvider: typeof fetch = fetch,
 ): Promise<Response> {
+  const startedAt = Date.now();
   const upstream = new AbortController();
-  // 60 s for the provider to accept the request (response headers), 3 min for
+  // 60 s for the provider to accept the request (response headers), 4 min for
   // the whole answer. Reasoning models stream "reasoning_content" before any
   // answer text, often for more than a minute, so the 60 s limit must not wait
   // for the first answer token.
   const firstByte = setTimeout(() => upstream.abort(), 60_000);
-  const upstreamSignal = AbortSignal.any([upstream.signal, signal, AbortSignal.timeout(180_000)]);
+  const upstreamSignal = AbortSignal.any([upstream.signal, signal, AbortSignal.timeout(240_000)]);
   try {
     const response = await fetchProvider(`${config.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
       method: "POST",
@@ -96,19 +97,35 @@ export async function streamChat(
     if (!response.ok || !response.body) throw new Error("Upstream response failed");
     clearTimeout(firstByte);
     const deltas = textDeltas(response.body);
-    // Wait for the first delta so early stream failures can still return a 503.
-    const first = await deltas.next();
-    if (first.done) throw new Error("Upstream returned no answer");
+    // Without status frames (no verify) wait for the first delta, so an early
+    // stream failure can still return a 503. With verify, answer at once: the
+    // status frames below keep the connection alive while a reasoning model
+    // thinks for a minute or more before writing.
+    const first = verify ? null : await deltas.next();
+    if (first?.done) throw new Error("Upstream returned no answer");
     const encoder = new TextEncoder();
     const requestSignal = AbortSignal.any([signal, upstream.signal]);
+    let keepAlive: ReturnType<typeof setInterval> | undefined;
+    let lastStatus = answerStatus.analyzing;
+    const stopKeepAlive = () => clearInterval(keepAlive);
 
     return new Response(new ReadableStream<Uint8Array>({
       start(controller) {
-        if (verify) controller.enqueue(encoder.encode(answerStatus.analyzing));
+        if (!verify) return;
+        controller.enqueue(encoder.encode(answerStatus.analyzing));
+        // Unknown or repeated status frames are ignored by the client; they only
+        // keep proxies and mobile browsers from dropping an idle connection.
+        keepAlive = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(lastStatus));
+          } catch {
+            stopKeepAlive();
+          }
+        }, 10_000);
       },
       async pull(controller) {
         try {
-          const chunks = [first.value];
+          const chunks = first ? [first.value as string] : [];
           // Some proxies close the stream without [DONE] or finish_reason. The
           // answer is still shown, but only a properly finished one is saved.
           let finished = false;
@@ -124,10 +141,13 @@ export async function streamChat(
           upstreamSignal.throwIfAborted();
 
           let answer = chunks.join("");
+          if (!answer.trim()) throw new Error("Upstream returned no answer");
           if (verify) {
-            controller.enqueue(encoder.encode(answerStatus.checking));
-            answer = await verify(answer, requestSignal);
+            lastStatus = answerStatus.checking;
+            controller.enqueue(encoder.encode(lastStatus));
+            answer = await verify(answer, requestSignal, { elapsedMs: Date.now() - startedAt });
           }
+          stopKeepAlive();
           requestSignal.throwIfAborted();
           if (finished && onComplete && answer.trim()) {
             try {
@@ -139,12 +159,15 @@ export async function streamChat(
           requestSignal.throwIfAborted();
           controller.enqueue(encoder.encode(answer));
           controller.close();
-        } catch {
+        } catch (cause) {
+          stopKeepAlive();
+          console.error("ask-master: provider stream failed", cause instanceof Error ? cause.message : cause);
           upstream.abort();
           controller.error(new Error("Upstream stream failed"));
         }
       },
       async cancel() {
+        stopKeepAlive();
         upstream.abort();
         await deltas.return(false).catch(() => {});
       },

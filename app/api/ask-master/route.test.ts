@@ -368,3 +368,22 @@ for (const allowed of [true, false]) {
     assert.deepEqual(saved, [expected]);
   });
 }
+
+test("skips the repair request when the draft already took longer than the repair budget", async (t) => {
+  state.server = { auth: { getUser: auth }, rpc: async () => ({ error: null }) };
+  quotaRpc.mock.resetCalls();
+  let now = 1_000_000;
+  t.mock.method(Date, "now", () => now);
+  let calls = 0;
+  mockFetch(t, () => {
+    calls++;
+    now += 70_000; // the slow draft
+    return new Response(delta(
+      'Nb1 attacks e4.<claims>[{"type":"attacks","piece":"Nb1","target":"e4"}]</claims>',
+    ) + "data: [DONE]\n\n");
+  });
+  const response = await post(JSON.stringify({ ...input, context: { fen, moves: [] } }));
+  await response.text();
+  assert.equal(calls, 1);
+  assert.equal(quotaRpc.mock.calls.some(({ arguments: [name] }) => name === "record_ask_master_model_request"), false);
+});

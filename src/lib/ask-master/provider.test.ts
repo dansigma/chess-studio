@@ -67,3 +67,30 @@ test("a reasoning model that thinks for more than 60 s before answering is not c
   assert.equal(response.status, 200);
   assert.equal(await response.text(), "Play c5.");
 });
+
+test("with verify, the response starts at once and status frames keep it alive while the model thinks", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
+  const encoder = new TextEncoder();
+  let push!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({ start(controller) { push = controller; } });
+  const response = await streamChat(
+    { baseUrl: "https://provider.test/v1", apiKey: "secret", model: "m" },
+    {
+      conversationId: "be637361-9949-46af-a7ee-05aa6914da73", messages: [], signal: new AbortController().signal,
+      verify: async (text) => text,
+    },
+    async () => new Response(body),
+  );
+  assert.equal(response.status, 200);
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  assert.equal(decoder.decode((await reader.read()).value), "\0status:analyzing\n");
+  push.enqueue(encoder.encode('data: {"choices":[{"delta":{"reasoning_content":"thinking"}}]}\n\n'));
+  t.mock.timers.tick(10_000);
+  assert.equal(decoder.decode((await reader.read()).value), "\0status:analyzing\n");
+  push.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"Play c5."},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n'));
+  push.close();
+  let rest = "";
+  for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) rest += decoder.decode(chunk.value);
+  assert.equal(rest, "\0status:checking\nPlay c5.");
+});
