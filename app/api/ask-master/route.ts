@@ -96,7 +96,7 @@ export async function POST(request: Request): Promise<Response> {
   const verifyClaims = async (draft: string, signal: AbortSignal, elapsedMs: number): Promise<string> => {
     const position = replayAnswerPosition(fen ?? "", input.context);
     const { body, claims } = extractClaims(draft);
-    const audit = auditAnswer(body, claims, position);
+    const audit = auditAnswer(body, claims, position, input.context);
     if (audit.ok) return body;
 
     signal.throwIfAborted();
@@ -113,15 +113,15 @@ export async function POST(request: Request): Promise<Response> {
             { role: "assistant", content: draft },
             {
               role: "user",
-              content: `Rewrite your full answer in the same language and format. Correct or remove these false claims and replace or omit the illegal or unverified lines. Include the complete <claims> block for the revised answer. Audit data: ${JSON.stringify({
-                falseClaims: audit.falseClaims, illegalLines: audit.illegalLines,
+              content: `Rewrite your full answer in the same language and format. Correct or remove these false claims and replace or omit the illegal or unverified lines. Unverified lines do not follow any engine line: use the engine lines from the position data instead. Include the complete <claims> block for the revised answer. Audit data: ${JSON.stringify({
+                falseClaims: audit.falseClaims, illegalLines: audit.illegalLines, unverifiedLines: audit.unverifiedLines,
               })}`,
             },
           ],
         });
         if (response.ok) {
           const revised = extractClaims(await response.text());
-          if (revised.body) return stripFalse(revised.body, auditAnswer(revised.body, revised.claims, position));
+          if (revised.body) return stripFalse(revised.body, auditAnswer(revised.body, revised.claims, position, input.context));
         }
       } catch {
         // A failed correction leaves the original draft subject to filtering.

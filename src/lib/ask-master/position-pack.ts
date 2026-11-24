@@ -97,6 +97,23 @@ function threatRows(chess: Chess | undefined, threats?: readonly ThreatSet[]) {
   });
 }
 
+const PIECE_ORDER = "kqrbnp";
+
+/** Every piece by side, so the model never has to decode the FEN itself. */
+function boardList(chess: Chess | undefined) {
+  if (!chess) return undefined;
+  const sides: Record<"w" | "b", { type: string; name: string }[]> = { w: [], b: [] };
+  for (const row of chess.board()) {
+    for (const square of row) {
+      if (square) sides[square.color].push({ type: square.type, name: `${square.type === "p" ? "" : square.type.toUpperCase()}${square.square}` });
+    }
+  }
+  const list = (pieces: { type: string; name: string }[]) => pieces
+    .sort((a, b) => PIECE_ORDER.indexOf(a.type) - PIECE_ORDER.indexOf(b.type))
+    .map(({ name }) => name).join(" ");
+  return { toMove: chess.turn() === "w" ? "white" : "black", white: list(sides.w), black: list(sides.b) };
+}
+
 export function buildPositionPack(input: PackInput) {
   const { fen, level = DEFAULT_ASK_MASTER_LEVEL, opening, facts, threats, lichess, xd, xdGames, engineLines } = input;
   let chess: Chess | undefined;
@@ -108,6 +125,7 @@ export function buildPositionPack(input: PackInput) {
 
   const pack = {
     fen,
+    board: boardList(chess),
     level,
     moves: [...input.sanLine],
     startFen: input.startFen === DEFAULT_POSITION ? undefined : input.startFen,

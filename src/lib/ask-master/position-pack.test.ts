@@ -78,7 +78,16 @@ test("trims games before explorer rows, then trims fact detail without mutating 
 
 test("serializes the level, position and history when sources are absent", () => {
   const pack = buildPositionPack({ fen: START_FEN, sanLine: [], opening: null, engineLines: [] });
-  assert.deepEqual(JSON.parse(JSON.stringify(pack)), { fen: START_FEN, level: "1600-2000", moves: [] });
+  assert.deepEqual(JSON.parse(JSON.stringify(pack)), {
+    fen: START_FEN,
+    board: {
+      toMove: "white",
+      white: "Ke1 Qd1 Ra1 Rh1 Bc1 Bf1 Nb1 Ng1 a2 b2 c2 d2 e2 f2 g2 h2",
+      black: "Ke8 Qd8 Ra8 Rh8 Bc8 Bf8 Nb8 Ng8 a7 b7 c7 d7 e7 f7 g7 h7",
+    },
+    level: "1600-2000",
+    moves: [],
+  });
 });
 
 test("packs pawn breaks, centre lock and the last structure changes within budget", () => {
