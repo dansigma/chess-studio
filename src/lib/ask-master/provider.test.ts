@@ -41,3 +41,29 @@ test("skips a malformed event line instead of failing the answer", async () => {
   );
   assert.equal(await response.text(), "Develop pieces.");
 });
+
+test("a reasoning model that thinks for more than 60 s before answering is not cut off", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const encoder = new TextEncoder();
+  let push!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({ start(controller) { push = controller; } });
+  let aborted = false;
+  const fakeFetch: typeof fetch = async (_url, init) => {
+    init?.signal?.addEventListener("abort", () => { aborted = true; });
+    return new Response(body);
+  };
+  const pending = streamChat(
+    { baseUrl: "https://provider.test/v1", apiKey: "secret", model: "m" },
+    { conversationId: "be637361-9949-46af-a7ee-05aa6914da73", messages: [], signal: new AbortController().signal },
+    fakeFetch,
+  );
+  push.enqueue(encoder.encode('data: {"choices":[{"delta":{"reasoning_content":"thinking..."}}]}\n\n'));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  t.mock.timers.tick(61_000);
+  push.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"Play c5."}}]}\n\ndata: [DONE]\n\n'));
+  push.close();
+  const response = await pending;
+  assert.equal(aborted, false);
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), "Play c5.");
+});
