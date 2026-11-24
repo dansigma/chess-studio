@@ -17,6 +17,8 @@ test("sends a streaming chat request to the configured provider", async () => {
       "X-Title": "Xadrez Digital",
     });
     assert.deepEqual(JSON.parse(String(init?.body)), { model: "configured-model", messages, stream: true });
+    // Workers rejects "error"; anything but "follow"/"manual" fails every call at runtime.
+    assert.equal(init?.redirect, "manual");
     return new Response('data: {"choices":[{"delta":{"content":"Control the center."}}]}\n\ndata: [DONE]\n\n');
   };
   const response = await streamChat(
