@@ -84,7 +84,11 @@ export async function streamChat(
       },
       body: JSON.stringify({ model: config.model, messages, stream: true }),
       signal: upstreamSignal,
-      redirect: "error",
+      // Workers only accepts "follow" or "manual" here; "error" makes every
+      // request fail before it leaves the edge (Invalid redirect value).
+      // A redirect is not expected from the provider, so "manual" keeps the
+      // response and lets the !response.ok check below turn it into a 503.
+      redirect: "manual",
     });
 
     if (!response.ok || !response.body) throw new Error("Upstream response failed");
