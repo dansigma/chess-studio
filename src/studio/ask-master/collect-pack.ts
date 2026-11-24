@@ -10,6 +10,9 @@ import { loadCatalog } from "@/src/lib/openings-catalog";
 import { fetchXdGames, fetchXdMoves } from "@/src/lib/xd-database/explorer";
 
 const SOURCE_TIMEOUT_MS = 4000;
+/** Past this, the engine answers with the deepest complete set of lines so far. */
+const ENGINE_SETTLE_MS = 3500;
+const MIN_PARTIAL_DEPTH = 10;
 const DEPTH = 18;
 const MULTI_PV = 3;
 
@@ -52,8 +55,12 @@ async function collectEngine(
   const lease = acquireEngine("ask", engineBuild);
   let unsubscribe: (() => void) | undefined;
   let abort: (() => void) | undefined;
+  let settle: ReturnType<typeof setTimeout> | undefined;
   try {
     return await new Promise<EngineLine[] | undefined>((resolve, reject) => {
+      // Lines from the last complete MultiPV set, used when depth 18 takes too long.
+      let partial: EngineLine[] | undefined;
+      settle = setTimeout(() => resolve(partial), ENGINE_SETTLE_MS);
       abort = () => resolve(undefined);
       signal.addEventListener("abort", abort, { once: true });
       let started = false;
@@ -66,6 +73,9 @@ async function collectEngine(
         if (!info.ready || info.fen !== fen) return;
         const lines = info.lines.filter((line) => line.bound === null && line.pvSan.length &&
           (line.scoreCp != null || line.mate != null));
+        if (lines.length === expectedLines && lines.every((line) => line.depth >= MIN_PARTIAL_DEPTH)) {
+          partial = lines;
+        }
         if (lines.length === expectedLines && (
           lines.every((line) => line.depth >= DEPTH) || (!info.running && lines.every((line) => line.mate != null))
         )) resolve(lines);
@@ -74,6 +84,7 @@ async function collectEngine(
       lease.analyze(fen, DEPTH, MULTI_PV, engineThreads);
     });
   } finally {
+    clearTimeout(settle);
     if (abort) signal.removeEventListener("abort", abort);
     unsubscribe?.();
     lease.release();

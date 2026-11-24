@@ -3,7 +3,10 @@
 // The dock panels (EnginePanel, EvalGraphPanel) and Show threat previously
 // each owned a `StockfishEngine` worker (~99MB on the standard build). This
 // module owns one resident worker for the active build and arbitrates access
-// by slot priority: live > threat > engine > ask > graph.
+// by slot priority: live > threat > ask > engine > graph. `ask` (Ask the
+// Master, SIG-1477) is a short depth-18 search that pauses the Engine panel for
+// a few seconds; the panel resumes from its stashed params (the hash table
+// keeps most of its work).
 //
 // The `live` slot (SIG-1293) is for the Live view's eval bar on the focused
 // board. It outranks `engine`, so a Live search preempts a depth-40 panel
@@ -68,8 +71,8 @@ export type EngineSlotListener = (info: EngineInfo) => void;
 const SLOT_PRIORITY: Record<EngineSlot, number> = {
   live: 5,
   threat: 4,
-  engine: 3,
-  ask: 2,
+  ask: 3,
+  engine: 2,
   graph: 1,
 };
 

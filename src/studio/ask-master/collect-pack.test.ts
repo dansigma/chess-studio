@@ -72,3 +72,30 @@ test("aborting collection releases the engine and aborts in-flight fetches", asy
   assert.ok(requests.every((signal) => signal.aborted));
   assert.deepEqual(engine.stats(), { released: 1, subscriptions: 0 });
 });
+
+test("uses the deepest complete engine lines when depth 18 takes too long", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.mock.method(globalThis, "fetch", () => new Promise<Response>(() => {}));
+  let listener: ((info: Parameters<Parameters<SharedEngineLease["subscribe"]>[0]>[0]) => void) | undefined;
+  const line = (multipv: number, san: string, uci: string) => ({
+    multipv, depth: 12, scoreCp: 20, mate: null, pvUci: [uci], pvSan: [san], bound: null,
+  });
+  const acquire = (slot: SharedEngineLease["slot"], build: SharedEngineLease["build"]): SharedEngineLease => ({
+    slot, build, stop() {}, restart() {}, release() {},
+    subscribe(fn) { listener = fn; return () => {}; },
+    analyze() {
+      listener?.({
+        depth: 12, running: true, ready: true, failed: false, nps: 0, nodes: 0, threaded: false, fen: position.fen,
+        lines: [line(1, "e4", "e2e4"), line(2, "d4", "d2d4"), line(3, "Nf3", "g1f3")],
+      });
+    },
+  });
+
+  const pending = collectPositionPack(position, new AbortController().signal, acquire);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  t.mock.timers.tick(3600);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  t.mock.timers.tick(400);
+  const pack = await pending;
+  assert.equal(pack.engine?.length, 3);
+});
