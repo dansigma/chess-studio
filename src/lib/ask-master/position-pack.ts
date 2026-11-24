@@ -1,5 +1,6 @@
 import { Chess, DEFAULT_POSITION } from "chess.js";
 import { applyNullMoveFen } from "../../chess/null-move";
+import { structureChanges } from "../../chess/facts/structure";
 import type { PositionFacts, ThreatSet } from "../../chess/facts/types";
 import { formatScore, type EngineLine } from "../../engine/stockfish-client";
 import type { ExplorerGameRow, ExplorerResponse } from "../explorer-types";
@@ -21,7 +22,25 @@ type PackInput = {
   xdGames?: readonly ExplorerGameRow[];
 };
 
-function boardFacts(facts: PositionFacts) {
+function lastMoveChanges(chess: Chess | undefined, { sanLine, startFen }: PackInput) {
+  if (!chess || sanLine.length === 0) return undefined;
+  try {
+    const replay = new Chess(startFen);
+    let before = replay.fen();
+    for (const san of sanLine) {
+      before = replay.move(san).before;
+    }
+    const after = replay.fen();
+    // Counters do not affect pawn structure, and may differ in imported positions.
+    if (after.split(" ", 4).join(" ") === chess.fen().split(" ", 4).join(" ")) {
+      return structureChanges(before, after);
+    }
+  } catch {
+    // The history alone cannot identify the previous position if replay fails.
+  }
+}
+
+function boardFacts(facts: PositionFacts, changes: ReturnType<typeof lastMoveChanges>) {
   const pieces = new Map(facts.pieces.map(({ square, type }) => [
     square, `${type === "p" ? "" : type.toUpperCase()}${square}`,
   ]));
@@ -37,6 +56,9 @@ function boardFacts(facts: PositionFacts) {
     })),
     files: facts.files,
     pawns: [...facts.pawns],
+    breaks: facts.breaks.map(({ side, to }) => ({ side, move: to })),
+    centre: facts.centre,
+    lastMoveChanges: changes,
     weakSquares: [...facts.weakSquares],
     outposts: facts.outposts,
     kings: facts.kings,
@@ -91,7 +113,7 @@ export function buildPositionPack(input: PackInput) {
     startFen: input.startFen === DEFAULT_POSITION ? undefined : input.startFen,
     earlierMovesOmitted: undefined as number | undefined,
     opening: opening ?? undefined,
-    facts: facts?.valid ? boardFacts(facts) : undefined,
+    facts: facts?.valid ? boardFacts(facts, lastMoveChanges(chess, input)) : undefined,
     threats: threatRows(chess, threats),
     engine: chess && engineLines?.length
       ? engineLines.slice(0, 3).map((line) => ({

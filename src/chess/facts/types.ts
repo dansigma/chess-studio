@@ -88,6 +88,20 @@ export type PawnFact = {
   with: string[];
 };
 
+export type PawnBreak = { side: Color; from: string; to: string };
+
+export type CentreLock = {
+  /** White pawn squares of directly blocked pairs on the c–f files. */
+  rams: string[];
+  asymmetricFiles: number;
+  tension: number;
+};
+
+export type StructureChange =
+  | { kind: "file-opened" | "file-closed"; file: string }
+  | { kind: "file-half-opened"; file: string; for: Color }
+  | { kind: "pawn-isolated" | "pawn-doubled" | "pawn-passed"; side: Color; file: string };
+
 export type WeakSquareFact = {
   /** Side that cannot challenge the square with a pawn. */
   side: Color;
@@ -124,6 +138,8 @@ export type PositionFacts = {
   seventhRank: SeventhRankFact[];
   diagonals: DiagonalFact[];
   pawns: PawnFact[];
+  breaks: PawnBreak[];
+  centre: CentreLock;
   weakSquares: WeakSquareFact[];
   outposts: OutpostFact[];
   kings: KingSafetyFact[];
@@ -205,5 +221,6 @@ export type MoveFacts = {
     created: Threat[];
     exposed: Threat[];
   };
+  structureChanges: StructureChange[];
   pv: PvFacts | null;
 };

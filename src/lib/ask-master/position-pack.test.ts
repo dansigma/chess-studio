@@ -80,3 +80,33 @@ test("serializes the level, position and history when sources are absent", () =>
   const pack = buildPositionPack({ fen: START_FEN, sanLine: [], opening: null, engineLines: [] });
   assert.deepEqual(JSON.parse(JSON.stringify(pack)), { fen: START_FEN, level: "1600-2000", moves: [] });
 });
+
+test("packs pawn breaks, centre lock and the last structure changes within budget", () => {
+  const sanLine = ["e4", "e6", "d4", "d5", "e5", "c5", "dxc5"];
+  const chess = new Chess();
+  for (const san of sanLine) chess.move(san);
+  const fen = chess.fen();
+  const facts = computePositionFacts(fen);
+  const weakSquares: typeof facts.weakSquares = Array.from({ length: 600 }, () => ({ square: "e4", side: "w" }));
+  const pack = buildPositionPack({ fen, sanLine, facts: { ...facts, weakSquares } });
+  assert.ok(pack.facts?.breaks.some((pawnBreak) => pawnBreak.side === "b" && pawnBreak.move === "f6"));
+  assert.deepEqual(pack.facts?.centre, { rams: ["e5"], asymmetricFiles: 2, tension: 0 });
+  assert.deepEqual(pack.facts?.lastMoveChanges, [
+    { kind: "file-half-opened", file: "c", for: "b" },
+    { kind: "file-half-opened", file: "d", for: "w" },
+    { kind: "pawn-doubled", side: "w", file: "c" },
+  ]);
+  assert.ok(new TextEncoder().encode(JSON.stringify(pack)).byteLength <= POSITION_PACK_BYTES);
+});
+
+test("replays custom positions and omits changes when history cannot be verified", () => {
+  const startFen = "4k3/4p3/8/4n3/3P4/8/8/4K3 w - - 0 1";
+  const chess = new Chess(startFen);
+  const { after: fen } = chess.move("dxe5");
+  const input = { fen, startFen, sanLine: ["dxe5"], facts: computePositionFacts(fen) };
+  assert.ok(buildPositionPack(input).facts?.lastMoveChanges?.some(
+    (change) => change.kind === "file-closed" && change.file === "e",
+  ));
+  assert.equal(buildPositionPack({ ...input, sanLine: ["d5"] }).facts?.lastMoveChanges, undefined);
+  assert.equal(buildPositionPack({ ...input, sanLine: ["e4"] }).facts?.lastMoveChanges, undefined);
+});
