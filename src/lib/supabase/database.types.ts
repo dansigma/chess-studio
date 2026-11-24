@@ -50,6 +50,42 @@ export function toJson(value: unknown): Json {
 export type Database = {
   public: {
     Tables: {
+      ask_master_conversations: {
+        Row: {
+          id: string;
+          user_id: string;
+          position_key: string;
+          fen: string;
+          game_title: string | null;
+          messages: Json;
+          model: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id: string;
+          user_id: string;
+          position_key: string;
+          fen: string;
+          game_title?: string | null;
+          messages?: Json;
+          model: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          position_key?: string;
+          fen?: string;
+          game_title?: string | null;
+          messages?: Json;
+          model?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       ask_master_usage: {
         Row: {
           user_id: string | null;
@@ -886,6 +922,18 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      save_ask_master_conversation_turn: {
+        Args: {
+          p_id: string;
+          p_position_key: string;
+          p_fen: string;
+          p_game_title: string | null;
+          p_question: string;
+          p_answer: string;
+          p_model: string;
+        };
+        Returns: undefined;
+      };
       consume_ask_master_question: {
         Args: { p_user_id: string; p_user_limit: number; p_site_limit: number };
         Returns: Array<{ allowed: boolean; reason: string | null; remaining: number }>;

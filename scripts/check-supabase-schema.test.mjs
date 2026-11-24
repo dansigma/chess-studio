@@ -9,7 +9,7 @@ function okResponse() {
 test("probes cover the required schema objects", () => {
   assert.deepEqual(
     PROBES.map((probe) => probe.object),
-    ["ask_master_usage", "linked_accounts", "my_games", "my_game_positions", "my_games.indexed_at", "puzzles", "course_enrollments", "user_settings.layouts", "boards.repertoire_color"],
+    ["ask_master_conversations", "ask_master_usage", "linked_accounts", "my_games", "my_game_positions", "my_games.indexed_at", "puzzles", "course_enrollments", "user_settings.layouts", "boards.repertoire_color"],
   );
 });
 
@@ -25,6 +25,7 @@ test("all-2xx probes return no failures", async () => {
   });
   assert.deepEqual(failures, []);
   assert.equal(seen.length, PROBES.length);
+  assert.ok(seen.includes("https://example.supabase.co/rest/v1/ask_master_conversations?select=id&limit=1"));
   assert.ok(seen.includes("https://example.supabase.co/rest/v1/ask_master_usage?select=day&limit=1"));
 });
 
