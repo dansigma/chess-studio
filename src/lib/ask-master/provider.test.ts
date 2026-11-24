@@ -94,3 +94,21 @@ test("with verify, the response starts at once and status frames keep it alive w
   for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) rest += decoder.decode(chunk.value);
   assert.equal(rest, "\0status:checking\nPlay c5.");
 });
+
+test("extra request options are merged into the body without overriding model, messages or stream", async () => {
+  const { parseRequestOptions } = await import("./provider.ts");
+  assert.deepEqual(parseRequestOptions('{"thinking":{"type":"disabled"},"model":"x","stream":false}'), { thinking: { type: "disabled" } });
+  assert.equal(parseRequestOptions(""), undefined);
+  assert.equal(parseRequestOptions("[1]"), undefined);
+  assert.equal(parseRequestOptions("{bad"), undefined);
+  let sent: Record<string, unknown> = {};
+  await streamChat(
+    { baseUrl: "https://provider.test/v1", apiKey: "secret", model: "m", options: { thinking: { type: "disabled" } } },
+    { conversationId: "be637361-9949-46af-a7ee-05aa6914da73", messages: [], signal: new AbortController().signal },
+    async (_url, init) => {
+      sent = JSON.parse(String(init?.body));
+      return new Response('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n');
+    },
+  );
+  assert.deepEqual(sent, { thinking: { type: "disabled" }, model: "m", messages: [], stream: true });
+});
