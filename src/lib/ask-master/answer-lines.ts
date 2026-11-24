@@ -24,7 +24,8 @@ export function fenPly(fen: string): number {
 
 function parseLine(raw: string, { currentFen, lineFens, lineStartPly }: AnswerPosition): AnswerSegment {
   const invalid = { type: "invalid-line", raw } as const;
-  const source = raw.trim();
+  // Models often write "5…e6" with the Unicode ellipsis; read it as "5...e6".
+  const source = raw.trim().replace(/\u2026/g, "...");
   const token = /\s*(?:(\d+)(\.{3}|\.)\s*)?(\S+)/gy;
   const first = token.exec(source);
   if (!first?.[1]) return invalid;
