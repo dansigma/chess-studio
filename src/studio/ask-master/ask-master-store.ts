@@ -85,7 +85,7 @@ export function createAskMasterStore() {
         const response = await fetch("/api/ask-master", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ conversationId, question, locale, history, context }),
+          body: JSON.stringify({ conversationId, question, locale, history, context, level: context.level }),
           signal: request.signal,
         });
         if (!response.ok) {

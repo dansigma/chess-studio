@@ -69,6 +69,8 @@ test("rejects invalid request bodies before auth", async () => {
       { conversationId: "invalid" },
       { conversationId: input.conversationId + "\n" },
       { locale: "es" },
+      { level: null },
+      { level: "expert" },
       { question: " " },
       { question: "x".repeat(1001) },
       { question: 1 },
@@ -144,7 +146,9 @@ test("consumes quota for the verified user and streams split SSE deltas", async 
   const encoder = new TextEncoder();
   const event = (content: string) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\r\n\r\n`;
   mockFetch(t, (_url, init) => {
-    assert.equal(JSON.parse(String(init?.body)).messages.at(-1).content, "Qual é o plano?");
+    const { messages } = JSON.parse(String(init?.body));
+    assert.equal(messages.at(-1).content, "Qual é o plano?");
+    assert.match(messages[0].content, /players rated 1600–2000/);
     return new Response(new ReadableStream<Uint8Array>({
       start(controller) {
         upstream = controller;
@@ -260,4 +264,16 @@ test("saves with the board FEN the widget sends inside context", async (t) => {
   assert.equal(await (await post(JSON.stringify({ ...input, context: { fen, moves: [] } }))).text(), "Answer");
   assert.equal(saved.length, 1);
   assert.equal(saved[0].p_fen, fen);
+});
+
+test("uses an explicit coaching level in the provider prompt", async (t) => {
+  mockFetch(t, (_url, init) => {
+    const { messages } = JSON.parse(String(init?.body));
+    assert.match(messages[0].content, /players rated 2000\+/);
+    const event = JSON.stringify({ choices: [{ delta: { content: "A central pawn." } }] });
+    return new Response(`data: ${event}\n\ndata: [DONE]\n\n`);
+  });
+  const response = await post(JSON.stringify({ ...input, level: "2000+" }));
+  assert.equal(response.status, 200);
+  assert.equal(await response.text(), "A central pawn.");
 });

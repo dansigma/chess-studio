@@ -23,6 +23,7 @@ import {
   XD_RATING_THRESHOLDS,
   readExplorerFilters,
 } from "@/src/lib/explorer-filters";
+import { DEFAULT_ASK_MASTER_LEVEL, isAskMasterLevel } from "@/src/lib/ask-master/level";
 import { isTextSize } from "@/src/studio/text-size";
 import type { StudioSettings, StudioState } from "./types";
 
@@ -50,6 +51,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   explorerFilters: DEFAULT_EXPLORER_FILTERS,
   xdExplorerFilters: DEFAULT_EXPLORER_FILTERS,
+  askMasterLevel: DEFAULT_ASK_MASTER_LEVEL,
   moveSound: false,
   puzzleSound: true,
   engineSparkline: true,
@@ -146,6 +148,7 @@ export function loadLocalSettings(): StudioSettings {
           : DEFAULT_SETTINGS.sidebarWidth,
       explorerFilters: readExplorerFilters(parsed.explorerFilters),
       xdExplorerFilters: readExplorerFilters(parsed.xdExplorerFilters, XD_RATING_THRESHOLDS),
+      askMasterLevel: isAskMasterLevel(parsed.askMasterLevel) ? parsed.askMasterLevel : DEFAULT_ASK_MASTER_LEVEL,
       moveSound: typeof parsed.moveSound === "boolean" ? parsed.moveSound : DEFAULT_SETTINGS.moveSound,
       puzzleSound: typeof parsed.puzzleSound === "boolean" ? parsed.puzzleSound : DEFAULT_SETTINGS.puzzleSound,
       engineSparkline:
@@ -185,6 +188,7 @@ export type SettingsSlice = Pick<
   | "toggleSidebar"
   | "setSidebarWidth"
   | "setExplorerFilters"
+  | "setAskMasterLevel"
   | "hydrateLocalSettings"
   | "hydrateSettings"
 >;
@@ -345,6 +349,9 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
         [key]: readExplorerFilters({ ...state.settings[key], ...patch }, xd ? XD_RATING_THRESHOLDS : undefined),
       },
     }));
+  },
+  setAskMasterLevel: (askMasterLevel) => {
+    set((state) => ({ settings: { ...state.settings, askMasterLevel } }));
   },
   hydrateLocalSettings: () => {
     set({ settings: loadLocalSettings() });

@@ -2,6 +2,7 @@ import { Chess } from "chess.js";
 import { computePositionFacts, computeThreats, computeThreatsToMove } from "@/src/chess/facts/index";
 import { acquire } from "@/src/engine/shared-engine";
 import type { EngineBuild, EngineLine } from "@/src/engine/stockfish-client";
+import type { AskMasterLevel } from "@/src/lib/ask-master/level";
 import { buildPositionPack } from "@/src/lib/ask-master/position-pack";
 import { DEFAULT_EXPLORER_FILTERS, studioFilterQuery } from "@/src/lib/explorer-filters";
 import { isExplorerResponse } from "@/src/lib/explorer-types";
@@ -22,6 +23,7 @@ export type PackPosition = {
   lineFens: readonly string[];
   engineBuild: EngineBuild;
   engineThreads: number;
+  level: AskMasterLevel;
 };
 
 async function withDeadline<T>(parent: AbortSignal, load: (signal: AbortSignal) => Promise<T>) {
@@ -91,9 +93,9 @@ async function collectEngine(
   }
 }
 
-async function fetchLichess(fen: string, signal: AbortSignal) {
+async function fetchLichess(fen: string, level: AskMasterLevel, signal: AbortSignal) {
   const filters = studioFilterQuery({ ...DEFAULT_EXPLORER_FILTERS, speeds: ["blitz", "rapid", "classical"] });
-  const response = await fetch(`/api/explorer?fen=${encodeURIComponent(fen)}&source=lichess${filters}`, { signal });
+  const response = await fetch(`/api/explorer?fen=${encodeURIComponent(fen)}&source=lichess&askMasterLevel=${encodeURIComponent(level)}${filters}`, { signal });
   if (!response.ok) return undefined;
   const data: unknown = await response.json();
   if (isExplorerResponse(data) && data.source === "lichess" && !data.notice) return data;
@@ -104,7 +106,7 @@ export async function collectPositionPack(
   signal: AbortSignal,
   acquireEngine = acquire,
 ) {
-  const { fen, sanLine, lineFens } = position;
+  const { fen, sanLine, lineFens, level } = position;
   const [opening, engineLines, lichess, xd, xdGames] = await Promise.all([
     withDeadline(signal, async (sourceSignal) => {
       const catalog = await loadCatalog();
@@ -112,13 +114,13 @@ export async function collectPositionPack(
       return resolveLineOpening(lineFens, indexCatalogOpenings(catalog));
     }),
     withDeadline(signal, (sourceSignal) => collectEngine(position, sourceSignal, acquireEngine)),
-    withDeadline(signal, (sourceSignal) => fetchLichess(fen, sourceSignal)),
+    withDeadline(signal, (sourceSignal) => fetchLichess(fen, level, sourceSignal)),
     withDeadline(signal, (sourceSignal) => fetchXdMoves(fen, sourceSignal)),
     withDeadline(signal, (sourceSignal) => fetchXdGames(fen, {}, sourceSignal)),
   ]);
   signal.throwIfAborted();
   return buildPositionPack({
-    fen, sanLine, opening: opening ?? xd?.opening ?? lichess?.opening,
+    fen, sanLine, level, opening: opening ?? xd?.opening ?? lichess?.opening,
     facts: computePositionFacts(fen),
     threats: [computeThreatsToMove(fen), computeThreats(fen)],
     engineLines, lichess, xd, xdGames,

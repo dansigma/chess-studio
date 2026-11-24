@@ -76,7 +76,7 @@ test("trims games before explorer rows, then trims fact detail without mutating 
   assert.ok(new TextEncoder().encode(JSON.stringify(packed)).length <= POSITION_PACK_BYTES);
 });
 
-test("serializes only the position and history when sources are absent", () => {
+test("serializes the level, position and history when sources are absent", () => {
   const pack = buildPositionPack({ fen: START_FEN, sanLine: [], opening: null, engineLines: [] });
-  assert.deepEqual(JSON.parse(JSON.stringify(pack)), { fen: START_FEN, moves: [] });
+  assert.deepEqual(JSON.parse(JSON.stringify(pack)), { fen: START_FEN, level: "1600-2000", moves: [] });
 });

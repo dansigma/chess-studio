@@ -40,3 +40,19 @@ test("describes pack fields and tells the model how to use them", () => {
   assert.match(system.content, /Keep evaluation numbers and statistics out of the prose/);
   assert.match(system.content, /Never mention missing sources/);
 });
+
+test("adjusts vocabulary and move priorities for the player's level", () => {
+  const input = { locale: "en", question: "What should I play?" } as const;
+  const [beginner] = buildMessages({ ...input, level: "u1600" });
+  const [intermediate] = buildMessages({ ...input, level: "1600-2000" });
+  const [advanced] = buildMessages({ ...input, level: "2000+" });
+
+  for (const prompt of [beginner, intermediate]) {
+    assert.match(prompt.content, /start with the most-played moves in the Lichess rating band/);
+    assert.match(prompt.content, /punish (?:a )?common mistakes?/);
+  }
+  assert.match(beginner.content, /everyday words/);
+  assert.match(intermediate.content, /plain chess vocabulary/);
+  assert.match(advanced.content, /precise chess terminology.*critical variations/);
+  assert.deepEqual(buildMessages(input)[0], intermediate);
+});

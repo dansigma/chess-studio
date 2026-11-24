@@ -5,6 +5,7 @@ import { useStore } from "zustand";
 import { getFenAt } from "@/src/chess/tree";
 import { tAskMaster } from "@/src/i18n/ask-master-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
+import { ASK_MASTER_LEVELS, isAskMasterLevel } from "@/src/lib/ask-master/level";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "../ui/Button";
@@ -33,6 +34,8 @@ export function AskMasterChat({
 }) {
   const { messages, status, questionsLeft, refreshQuota, send, close, reset } = useStore(store);
   const { tree, path } = useActiveBoard();
+  const level = useStudioStore((state) => state.settings.askMasterLevel);
+  const setAskMasterLevel = useStudioStore((state) => state.setAskMasterLevel);
   const [question, setQuestion] = useState("");
   const questionId = useId();
   const disclaimerId = useId();
@@ -63,8 +66,8 @@ export function AskMasterChat({
       lineFens.push(node.fen);
       children = node.children;
     }
-    const { engineBuild, engineThreads } = useStudioStore.getState().settings;
-    void send(question, locale, { fen: getFenAt(tree, path), sanLine, lineFens, engineBuild, engineThreads });
+    const { engineBuild, engineThreads, askMasterLevel } = useStudioStore.getState().settings;
+    void send(question, locale, { fen: getFenAt(tree, path), sanLine, lineFens, engineBuild, engineThreads, level: askMasterLevel });
     setQuestion("");
   }
 
@@ -84,12 +87,25 @@ export function AskMasterChat({
 
   return (
     <div className={`flex min-h-0 flex-col gap-3 ${isMobile ? "h-[min(29rem,calc(80dvh-6rem))]" : "flex-1"}`}>
-      <div className="flex shrink-0 items-center justify-between gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <p role="status" className="text-caption text-studio-muted">
           {questionsLeft !== null
             ? tAskMaster(locale, questionsLeft === 1 ? "remainingOne" : "remaining", { count: questionsLeft })
             : null}
         </p>
+        <select
+          aria-label={tAskMaster(locale, "level")}
+          className="min-h-8 rounded-lg border border-studio-border-strong bg-studio-bg px-2 text-dense text-studio-fg"
+          value={level}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            if (isAskMasterLevel(value)) setAskMasterLevel(value);
+          }}
+        >
+          {ASK_MASTER_LEVELS.map((value) => (
+            <option key={value} value={value}>{tAskMaster(locale, value)}</option>
+          ))}
+        </select>
         <Button size="sm" variant="ghost" onClick={() => { reset(); setQuestion(""); }}>
           {tAskMaster(locale, "newQuestion")}
         </Button>
