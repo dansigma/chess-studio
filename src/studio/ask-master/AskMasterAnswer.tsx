@@ -1,11 +1,13 @@
 "use client";
 
-import { Fragment, useEffect, useId, useMemo, useRef, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { formatSanAtPly } from "@/src/chess/move-notation";
 import { getNodeAt, pathAlongLine } from "@/src/chess/tree";
+import type { SiteLocale } from "@/src/i18n/locale";
 import { parseAnswer, type AnswerLine } from "@/src/lib/ask-master/answer-lines";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore, type BoardSession } from "@/src/store/studio-store";
+import { openXdGame } from "../open-xd-game";
 import type { AnswerSource } from "./ask-master-store";
 
 function startPath(board: BoardSession, source: AnswerSource, line: AnswerLine) {
@@ -92,6 +94,30 @@ function PlayableLine({ line, source }: { line: AnswerLine; source: AnswerSource
   );
 }
 
+function CitedGame({ id, title, atFen, locale }: { id: string; title: string; atFen: string; locale: SiteLocale }) {
+  const [loading, setLoading] = useState(false);
+
+  async function open() {
+    setLoading(true);
+    try {
+      await openXdGame({ id, title, atFen, openInNewBoard: true }, locale);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="inline rounded-full bg-studio-accent-soft px-2 py-0.5 text-studio-accent-text hover:underline disabled:opacity-60"
+      disabled={loading}
+      onClick={open}
+    >
+      {title}
+    </button>
+  );
+}
+
 function renderParagraph(parts: ReactNode[]) {
   const rendered: ReactNode[] = [];
   let opening = -1;
@@ -118,22 +144,32 @@ const NO_SOURCE = { currentFen: "", lineFens: [], lineStartPly: 0 } as const;
 // SIG-1480: a heading is a line of its own, "### Title" or "**Title**".
 const HEADING_LINE = /^( {0,3}(?:###[ \t]+\S.*|\*\*[^*\r\n]+\*\*)[ \t]*)$/m;
 
-export function AskMasterAnswer({ text, source }: { text: string; source?: AnswerSource }) {
+export function AskMasterAnswer({ text, source, locale }: { text: string; source?: AnswerSource; locale: SiteLocale }) {
   const sections = text.split(new RegExp(HEADING_LINE.source, "gm"));
-  if (sections.length === 1) return <AnswerBody text={text} source={source} />;
+  if (sections.length === 1) return <AnswerBody text={text} source={source} locale={locale} />;
   return sections.map((part, index) => {
     const line = part.trim();
     if (!line) return null;
-    if (index % 2 === 0) return <AnswerBody key={index} text={line} source={source} />;
+    if (index % 2 === 0) return <AnswerBody key={index} text={line} source={source} locale={locale} />;
     const title = line.startsWith("###") ? line.slice(3).trim() : line.slice(2, -2).trim();
     return <h3 key={index} className="text-dense font-semibold">{title}</h3>;
   });
 }
 
-function AnswerBody({ text, source }: { text: string; source?: AnswerSource }) {
+function AnswerBody({ text, source, locale }: { text: string; source?: AnswerSource; locale: SiteLocale }) {
   const segments = useMemo(() => parseAnswer(text, source ?? NO_SOURCE), [text, source]);
   const paragraphs: ReactNode[][] = [[]];
   for (const [index, segment] of segments.entries()) {
+    if (segment.type === "game") {
+      const game = source?.xdGames?.find(({ id }) => id === segment.id);
+      if (game) {
+        const title = `${game.white} – ${game.black}${game.year == null ? "" : `, ${game.year}`}`;
+        paragraphs.at(-1)!.push(
+          <CitedGame key={index} id={game.id} title={title} atFen={source!.currentFen} locale={locale} />,
+        );
+      }
+      continue;
+    }
     if (segment.type !== "text") {
       paragraphs.at(-1)!.push(segment.type === "line"
         ? source ? <PlayableLine key={`line-${index}`} line={segment} source={source} /> : segment.raw

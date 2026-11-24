@@ -39,3 +39,23 @@ test("keeps an unfinished streaming line as text", () => {
   const text = "Try [[4...a6 5.B";
   assert.deepEqual(parseAnswer(text, position), [{ type: "text", text }]);
 });
+
+test("parses citation IDs without access to the question's game list", () => {
+  assert.deepEqual(parseAnswer("{{game:42}}{{game:unknown}}", position), [
+    { type: "game", id: "42" },
+    { type: "game", id: "unknown" },
+  ]);
+});
+
+test("keeps citations, playable lines, and prose in order", () => {
+  assert.deepEqual(parseAnswer("See {{game:42}} and try [[4...a6]].", position), [
+    { type: "text", text: "See " },
+    { type: "game", id: "42" },
+    { type: "text", text: " and try " },
+    {
+      type: "line", raw: "4...a6", startFen: position.currentFen, startPly: 7,
+      moves: [{ san: "a6", uci: "a7a6" }],
+    },
+    { type: "text", text: "." },
+  ]);
+});

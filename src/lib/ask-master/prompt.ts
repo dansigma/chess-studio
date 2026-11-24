@@ -88,6 +88,7 @@ export function buildMessages({ locale, question, history = [], context, level =
       "Use general chess principles when needed and label general advice as such. Never mention missing sources.",
       LEVEL_INSTRUCTIONS[level],
       ANSWER_LINE_RULE,
+      "Cite games as {{game:<id>}} using only IDs from xdGames.",
       "Leave numbers in the explorer and engine panels. The entire answer must contain at most 3 evaluation or percentage figures combined. Chess move notation and game IDs do not count toward that limit.",
     ].join(" ") + "\n\n" + [
       "Follow this answer template in order. Put each heading on its own Markdown line, using only the title before the dash.",

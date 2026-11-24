@@ -414,3 +414,60 @@ test("each starter sends its intent and headings render safely on their own line
     await act(async () => fireEvent.click(screen.getByRole("button", { name: "Nova pergunta" })));
   }
 });
+
+test("opens only games from the question's pack in a new board at the question FEN", async (t) => {
+  const state = useStudioStore.getState();
+  t.after(() => useStudioStore.setState({
+    activeBoardId: initial.activeBoardId, boards: initial.boards, statusMessage: null,
+  }));
+  useStudioStore.setState({ settings: { ...state.settings, gamePreviewEnabled: true } });
+  state.playUciSequence(["e2e4", "e7e5"]);
+  const questionFen = state.fen();
+  const sourceBoardId = state.active().id;
+  const gameRequest = Promise.withResolvers<Response>();
+  const fetch = t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    if (url === "/api/ask-master/quota") return Response.json({ questionsLeft: 3 });
+    if (url.startsWith("/api/xd-database/games?")) {
+      return Response.json({
+        games: [{ id: 42, white: "Short", black: "Van der Wiel", date: "2002.05.04", result: "1-0" }],
+        nextCursor: null,
+      });
+    }
+    if (url === "/api/xd-database/game/42") return gameRequest.promise;
+    if (url.startsWith("/api/explorer?") || url.startsWith("/api/xd-database/tree?")) {
+      return new Response(null, { status: 503 });
+    }
+    assert.equal(url, "/api/ask-master");
+    const { context } = JSON.parse(String(init.body));
+    assert.equal(context.fen, questionFen);
+    assert.deepEqual(context.xdGames.map(({ id }: { id: string }) => id), ["42"]);
+    return new Response("Veja {{game:42}}. Outro exemplo {{game:99}}.");
+  });
+
+  open();
+  await screen.findByText("3 perguntas restantes hoje");
+  ask();
+  const chip = await screen.findByRole("button", { name: "Short – Van der Wiel, 2002" });
+  assert.match(screen.getByRole("log").textContent ?? "", /Outro exemplo \./);
+  assert.doesNotMatch(screen.getByRole("log").textContent ?? "", /\{\{game:/);
+
+  await act(async () => state.playUciSequence(["g1f3"]));
+  const laterFen = state.fen();
+  assert.notEqual(laterFen, questionFen);
+  fireEvent.click(chip);
+  assert.equal(useStudioStore.getState().statusMessage, "Carregando partida…");
+  assert.equal(state.active().id, sourceBoardId);
+  await act(async () => gameRequest.resolve(new Response("1. e4 e5 2. Nf3 Nc6 *")));
+
+  assert.notEqual(state.active().id, sourceBoardId);
+  assert.equal(state.active().preview, false);
+  assert.equal(state.active().title, "Short – Van der Wiel, 2002");
+  assert.equal(state.fen(), questionFen);
+  assert.deepEqual(state.active().path, [0, 0]);
+  assert.equal(useStudioStore.getState().boards.length, initial.boards.length + 1);
+  assert.equal(useStudioStore.getState().boards.find(({ id }) => id === sourceBoardId)?.path.length, 3);
+  assert.equal(useStudioStore.getState().statusMessage, null);
+  const gameUrls = fetch.mock.calls.map(({ arguments: [url] }) => String(url))
+    .filter((url) => url.startsWith("/api/xd-database/game/"));
+  assert.deepEqual(gameUrls, ["/api/xd-database/game/42"]);
+});

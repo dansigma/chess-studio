@@ -5,7 +5,11 @@ import type { SiteLocale } from "@/src/i18n/locale";
 import type { AskMasterIntent } from "@/src/lib/ask-master/intent";
 import { collectPositionPack, type PackPosition } from "./collect-pack";
 
-export type AnswerSource = AnswerPosition & { boardId: string; path: readonly number[] };
+export type AnswerSource = AnswerPosition & {
+  boardId: string;
+  path: readonly number[];
+  xdGames?: Awaited<ReturnType<typeof collectPositionPack>>["xdGames"];
+};
 type Message =
   | { role: "user"; text: string }
   // A conversation reopened from history has no source: its lines show as text.
@@ -91,6 +95,7 @@ export function createAskMasterStore() {
       try {
         const context = await collectPositionPack(position, request.signal);
         if (request.signal.aborted) return;
+        const answerSource = { ...source, xdGames: context.xdGames };
         set({ status: "answering" });
         const response = await fetch("/api/ask-master", {
           method: "POST",
@@ -113,7 +118,7 @@ export function createAskMasterStore() {
             const { done, value } = await reader.read();
             if (request.signal.aborted) break;
             answer += done ? decoder.decode() : decoder.decode(value, { stream: true });
-            if (answer) set({ messages: [...submitted, { role: "assistant", text: answer, source }] });
+            if (answer) set({ messages: [...submitted, { role: "assistant", text: answer, source: answerSource }] });
             if (done) break;
           }
         } finally {
