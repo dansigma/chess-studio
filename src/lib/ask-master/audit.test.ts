@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Chess, DEFAULT_POSITION } from "chess.js";
-import { auditAnswer, extractClaims, replayAnswerPosition, stripFalse, stripUnknownGames } from "./audit.ts";
+import { auditAnswer, extractClaims, replayAnswerPosition, offEngineLines, proseClaims, stripFalse, stripUnknownGames } from "./audit.ts";
 
 test("extracts claims and hides missing, malformed and truncated metadata", () => {
   const claim = { type: "pins", piece: "Re1", target: "e7" };
@@ -136,4 +136,41 @@ test("drops sentences citing games missing from the pack", () => {
   );
   assert.equal(stripUnknownGames("Play c5. Games like {{game:g1}} show it.", {}), "Play c5.");
   assert.equal(stripUnknownGames("Play [[8...O-O 9.Ne5]]. Fine.", context), "Play [[8...O-O 9.Ne5]]. Fine.");
+});
+
+// Sindarov–Gukesh, move 39: the answer invented a rook on g1 and misread the files.
+const endgameFen = "r2r2k1/1pp2p2/2n4B/2p4R/2P2P2/1PbN3P/8/3R2K1 w - - 0 39";
+const endgame = { currentFen: endgameFen, lineFens: [], lineStartPly: 0 };
+
+test("reads pieces on squares and file openness from the prose", () => {
+  const body = [
+    "O lance natural é Kh1, liberando a torre de g1 para entrar em jogo.",
+    "A coluna f está meio-aberta para as brancas e as colunas g e h estão meio-abertas para as negras.",
+    "O cavalo de d3 está cravado pela torre preta de d8.",
+  ].join(" ");
+  const audit = auditAnswer(body, [], endgame);
+  assert.deepEqual(audit.falseClaims.map(({ claim }) => claim), [
+    { type: "on", piece: "R", square: "g1" },
+    { type: "file", file: "f", state: "half-open", for: "white" },
+    { type: "file", file: "g", state: "half-open", for: "black" },
+  ]);
+  assert.match(audit.falseClaims[0].truth, /White king/);
+  assert.equal(stripFalse(body, audit), "O cavalo de d3 está cravado pela torre preta de d8.");
+});
+
+test("skips piece mentions in sentences about a later position", () => {
+  const body = "Depois de [[39.Rg5+ Kh8]], a torre em g5 controla a coluna g.";
+  assert.deepEqual(proseClaims(body, endgame).filter(({ type }) => type === "on"), []);
+});
+
+test("flags lines from the current position that leave the engine lines", () => {
+  const context = {
+    engine: [{ san: ["Rg5+", "Kh8", "Rh5+", "Kg8"] }, { san: ["Kf1", "Bb4", "Rg5+", "Kh7"] }],
+    lichess: [], xd: [],
+  };
+  const body = "Repita com [[39.Rg5+ Kh8 40.Rh5+]]. Para jogar, [[39.Kh1 Ne5 40.Rg5+ Ng6 41.Rxc5]] ganha o peão. Ou [[39.Kf1]].";
+  const audit = auditAnswer(body, [], endgame, context);
+  assert.deepEqual(audit.unverifiedLines, ["39.Kh1 Ne5 40.Rg5+ Ng6 41.Rxc5"]);
+  assert.equal(stripFalse(body, audit), "Repita com [[39.Rg5+ Kh8 40.Rh5+]]. Ou [[39.Kf1]].");
+  assert.deepEqual(offEngineLines(body, endgame, {}), []);
 });
