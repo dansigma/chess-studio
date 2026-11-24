@@ -67,8 +67,10 @@ export async function streamChat(
   fetchProvider: typeof fetch = fetch,
 ): Promise<Response> {
   const upstream = new AbortController();
-  // 60 s for the provider to start answering, 3 min for the whole answer:
-  // slow free models can stream for more than a minute.
+  // 60 s for the provider to accept the request (response headers), 3 min for
+  // the whole answer. Reasoning models stream "reasoning_content" before any
+  // answer text, often for more than a minute, so the 60 s limit must not wait
+  // for the first answer token.
   const firstByte = setTimeout(() => upstream.abort(), 60_000);
   const upstreamSignal = AbortSignal.any([upstream.signal, signal, AbortSignal.timeout(180_000)]);
   try {
@@ -92,11 +94,11 @@ export async function streamChat(
     });
 
     if (!response.ok || !response.body) throw new Error("Upstream response failed");
+    clearTimeout(firstByte);
     const deltas = textDeltas(response.body);
     // Wait for the first delta so early stream failures can still return a 503.
     const first = await deltas.next();
     if (first.done) throw new Error("Upstream returned no answer");
-    clearTimeout(firstByte);
     const encoder = new TextEncoder();
     const requestSignal = AbortSignal.any([signal, upstream.signal]);
 
