@@ -37,8 +37,10 @@ export async function consumeQuestion(
       p_site_limit: siteLimit,
     }).single();
     if (!error && data) return data;
-  } catch {
+    console.error("ask-master: quota RPC failed", error?.message ?? "no result");
+  } catch (cause) {
     // Transport failures also refuse the question.
+    console.error("ask-master: quota RPC failed", cause instanceof Error ? cause.message : cause);
   }
   return { allowed: false, reason: "error", remaining: 0 };
 }
@@ -62,8 +64,10 @@ export async function questionsLeft(
       .eq("day", today)
       .maybeSingle();
     if (!error) return Math.max(0, userLimit - (data?.questions ?? 0));
-  } catch {
+    console.error("ask-master: quota read failed", error.message);
+  } catch (cause) {
     // Treat an unavailable count as exhausted.
+    console.error("ask-master: quota read failed", cause instanceof Error ? cause.message : cause);
   }
   return 0;
 }
