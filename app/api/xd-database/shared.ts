@@ -7,6 +7,7 @@ import type { GameRecord } from "@/src/lib/xd-database/format";
 import { treeKeyOfFen, XdDatabaseReader } from "@/src/lib/xd-database/reader";
 
 import { cacheXdRanges, xdEdgeCache } from "./range-cache";
+import { deferCacheWrite, newTiming, serverTiming, timedR2, withTiming } from "./timing";
 
 type Bucket = {
   get(key: string, options?: { range: { offset: number; length: number } }):
@@ -74,19 +75,28 @@ export async function playerLines(
   return { total: player.count, games };
 }
 
+function withServerTiming(response: Response, value: string): Response {
+  // Responses from the cache may have immutable headers: build a new one.
+  const headers = new Headers(response.headers);
+  headers.set("Server-Timing", value);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 export async function serve(
   request: Request,
   load: (reader: XdDatabaseReader) => Promise<Response>,
   filtered = false,
 ): Promise<Response> {
+  const started = performance.now();
   const edge = xdEdgeCache();
+  const edgeState = edge ? "miss" : "off";
   const url = new URL(request.url);
   url.searchParams.set("__xd_version", String(XD_DATABASE_VERSION));
   url.searchParams.sort();
   const key = url.href;
   try {
     const cached = await edge?.match(key);
-    if (cached) return cached;
+    if (cached) return withServerTiming(cached, serverTiming(undefined, performance.now() - started, "hit"));
   } catch {
     // The edge cache is optional. Serve from R2 when it is unavailable.
   }
@@ -96,33 +106,38 @@ export async function serve(
   const bucket = (env as unknown as { XD_DATABASE?: Bucket }).XD_DATABASE;
   if (!bucket) return error("Database unavailable", 503);
 
+  // The reader is shared by the isolate; this request's timing reaches its source through AsyncLocalStorage.
   let entry = readers.get(bucket);
   if (entry?.origin !== url.origin) {
-    const reader = new XdDatabaseReader(cacheXdRanges(url.origin, async (file, range) => {
+    const reader = new XdDatabaseReader(cacheXdRanges(url.origin, (file, range) => timedR2(async () => {
       const object = await bucket.get(`${XD_DATABASE_PREFIX}${file}`, range && {
         range: { offset: range.start, length: range.end - range.start },
       });
       if (!object) throw new Error(`Missing database file ${file}`);
       return new Uint8Array(await object.arrayBuffer());
-    }));
+    })));
     entry = { origin: url.origin, reader };
     readers.set(bucket, entry);
   }
+  const reader = entry.reader;
+  const timing = newTiming();
+  const timingHeader = () => serverTiming(timing, performance.now() - started, edgeState);
 
   let response: Response;
   try {
-    response = await load(entry.reader);
+    response = await withTiming(timing, () => load(reader));
   } catch (cause) {
     console.error("[xd-database] read failed", cause);
-    return error("Database unavailable", 503);
+    return withServerTiming(error("Database unavailable", 503), timingHeader());
   }
   if (!response.ok) return response;
   response.headers.set("Cache-Control", filtered ? FILTERED_CACHE : PUBLIC_CACHE);
   response.headers.set("X-XD-Database-Version", String(XD_DATABASE_VERSION));
-  try {
-    await edge?.put(key, response.clone());
-  } catch {
-    // The successful response can still be returned.
+  if (edge) {
+    // Clone before Server-Timing is set: the cached copy carries no per-request header.
+    const stored = response.clone();
+    await deferCacheWrite(() => edge.put(key, stored));
   }
+  response.headers.set("Server-Timing", timingHeader());
   return response;
 }

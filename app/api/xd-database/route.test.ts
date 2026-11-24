@@ -223,3 +223,83 @@ test("edge cache keys use the manifest version and cached hits skip the limiter"
     else Reflect.deleteProperty(globalThis, "caches");
   }
 });
+
+function serverTiming(response: Response) {
+  const header = response.headers.get("Server-Timing");
+  assert.ok(header, "Server-Timing is set");
+  if (/edge;desc=hit$/.test(header ?? "")) {
+    assert.match(header ?? "", /^total;dur=\d+, edge;desc=hit$/);
+    return { reads: 0, hits: 0, misses: 0, edge: "hit" };
+  }
+  const match = /^total;dur=(\d+), r2;dur=(\d+);desc="(\d+) reads", cache;desc="(\d+) hit (\d+) miss", edge;desc=(hit|miss|off)$/.exec(header ?? "");
+  assert.ok(match, `parsable: ${header}`);
+  return { reads: Number(match[3]), hits: Number(match[4]), misses: Number(match[5]), edge: match[6] };
+}
+
+test("Server-Timing reports R2 reads, range cache and full-response cache state", async () => {
+  const store = new Map<string, Response>();
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "caches");
+  Object.defineProperty(globalThis, "caches", {
+    configurable: true,
+    value: { default: {
+      match: async (key: string) => {
+        const hit = store.get(key);
+        // Like the real cache: the returned headers are immutable.
+        return hit && new Response(hit.clone().body, { headers: hit.headers });
+      },
+      put: async (key: string, response: Response) => { store.set(key, response); },
+    } },
+  });
+  try {
+    const query = { fen: fen("e4 e5") };
+    const first = await tree(request("tree", query));
+    const firstTiming = serverTiming(first);
+    assert.equal(firstTiming.edge, "miss");
+    assert.ok(firstTiming.reads >= 1);
+    assert.ok(firstTiming.hits + firstTiming.misses >= 1);
+    const firstBody = await first.text();
+    const stored = [...store.entries()].find(([key]) => !key.includes("__range"));
+    assert.equal(stored?.[1].headers.get("Server-Timing"), null);
+
+    const second = await tree(request("tree", query));
+    assert.equal(serverTiming(second).edge, "hit");
+    assert.equal(second.headers.get("Cache-Control"), "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400");
+    assert.equal(await second.text(), firstBody);
+
+    // A different position reuses the cached index and ranges where it can: no R2 read of tree.idx.
+    const before = reads.length;
+    const other = await tree(request("tree", { fen: fen("d4") }));
+    assert.equal(serverTiming(other).edge, "miss");
+    assert.ok(!reads.slice(before).some(({ key }) => key.endsWith("tree.idx")));
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, "caches", descriptor);
+    else Reflect.deleteProperty(globalThis, "caches");
+  }
+});
+
+test("a failing edge cache write still returns the response with Server-Timing", async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "caches");
+  Object.defineProperty(globalThis, "caches", {
+    configurable: true,
+    value: { default: { match: async () => undefined, put: async () => { throw new Error("quota"); } } },
+  });
+  try {
+    const response = await tree(request("tree", { fen: fen("e4 c5") }));
+    assert.equal(response.status, 200);
+    serverTiming(response);
+    assert.ok((await response.json()).moves);
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, "caches", descriptor);
+    else Reflect.deleteProperty(globalThis, "caches");
+  }
+});
+
+test("without an edge cache every API still reports Server-Timing", async () => {
+  const responses = [
+    await tree(request("tree", { fen: start })),
+    await games(request("games", { fen: start })),
+    await game(request("game/0"), idParams("0")),
+    await players(request("players", { q: "alvar" })),
+  ];
+  for (const response of responses) assert.equal(serverTiming(response).edge, "off");
+});
