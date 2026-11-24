@@ -59,3 +59,10 @@ test("keeps citations, playable lines, and prose in order", () => {
     { type: "text", text: "." },
   ]);
 });
+
+test("reads the Unicode ellipsis as a Black move number", () => {
+  const fen = "rn1qkb1r/pp2pppp/5n2/2pp1b2/3P1B2/2N1PP2/PPP3PP/R2QKBNR b KQkq - 0 5";
+  const [segment] = parseAnswer("[[5…e6 6.g4 Bg6]]", { currentFen: fen, lineFens: [fen], lineStartPly: 9 });
+  assert.equal(segment.type, "line");
+  assert.deepEqual(segment.type === "line" && segment.moves.map(({ san }) => san), ["e6", "g4", "Bg6"]);
+});
