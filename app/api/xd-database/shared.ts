@@ -11,7 +11,7 @@ import { deferCacheWrite, newTiming, serverTiming, timedR2, withTiming } from ".
 
 type Bucket = {
   get(key: string, options?: { range: { offset: number; length: number } }):
-    Promise<{ arrayBuffer(): Promise<ArrayBuffer> } | null>;
+    Promise<{ size?: number; arrayBuffer(): Promise<ArrayBuffer> } | null>;
 };
 
 const readers = new WeakMap<Bucket, { origin: string; reader: XdDatabaseReader }>();
@@ -114,7 +114,12 @@ export async function serve(
         range: { offset: range.start, length: range.end - range.start },
       });
       if (!object) throw new Error(`Missing database file ${file}`);
-      return new Uint8Array(await object.arrayBuffer());
+      const bytes = new Uint8Array(await object.arrayBuffer());
+      // A whole file is cached as immutable: never accept a short read.
+      if (!range && object.size !== undefined && bytes.byteLength !== object.size) {
+        throw new Error(`Short read of database file ${file}`);
+      }
+      return bytes;
     })));
     entry = { origin: url.origin, reader };
     readers.set(bucket, entry);

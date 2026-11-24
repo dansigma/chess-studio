@@ -58,6 +58,13 @@ export async function deferCacheWrite(write: () => Promise<unknown>): Promise<vo
     console.warn("[xd-database] cache write failed", cause);
   });
   const ctx = getRequestExecutionContext();
-  if (ctx) ctx.waitUntil(task);
-  else await task;
+  if (ctx) {
+    try {
+      ctx.waitUntil(task);
+      return;
+    } catch {
+      // No usable context: wait for the write instead.
+    }
+  }
+  await task;
 }
