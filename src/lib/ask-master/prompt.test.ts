@@ -69,13 +69,13 @@ function countAnswerNumbers(text: string): number {
 
 const expectedHeadings = {
   en: {
-    explain: ["Conclusion", "Why act now", "Main line", "What the position is about", "The plan", "In practice", "Next step"],
+    explain: ["Why act now", "Main line", "What the position is about", "The plan", "In practice", "Next step"],
     "model-games": ["Model games", "What to look for"],
     "study-opening": ["Where to start", "The plan", "In practice"],
     free: ["In practice", "Next step"],
   },
   "pt-br": {
-    explain: ["Conclusão", "Por que agir agora", "Linha principal", "Do que se trata a posição", "O plano", "Na prática", "Próximo passo"],
+    explain: ["Por que agir agora", "Linha principal", "Do que se trata a posição", "O plano", "Na prática", "Próximo passo"],
     "model-games": ["Partidas modelo", "O que observar"],
     "study-opening": ["Por onde começar", "O plano", "Na prática"],
     free: ["Na prática", "Próximo passo"],
@@ -103,4 +103,14 @@ test("the number checker counts percentages and signed evaluations, excluding ch
   const line = "1. e4 e5 2. Nf3";
   assert.equal(countAnswerNumbers(`${line} · +0.8 · 49% · -1,2`), 3);
   assert.equal(countAnswerNumbers(`${line} · +0.8 · 49% · -1,2 · 11%`), 4);
+});
+
+test("opens without a heading, keeps engine in Portuguese, and cites games only when the pack has them", () => {
+  const [pt] = buildMessages({ locale: "pt-br", intent: "explain", question: "?" });
+  assert.doesNotMatch(pt.content, /Conclusão/);
+  assert.match(pt.content, /never translate it as "motor"/);
+  assert.match(pt.content, /There are no games to cite/);
+  const [en] = buildMessages({ locale: "en", question: "?", context: { xdGames: [{ id: "g1" }] } });
+  assert.doesNotMatch(en.content, /motor/);
+  assert.match(en.content, /\{\{game:ID\}\}/);
 });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Chess, DEFAULT_POSITION } from "chess.js";
-import { auditAnswer, extractClaims, replayAnswerPosition, stripFalse } from "./audit.ts";
+import { auditAnswer, extractClaims, replayAnswerPosition, stripFalse, stripUnknownGames } from "./audit.ts";
 
 test("extracts claims and hides missing, malformed and truncated metadata", () => {
   const claim = { type: "pins", piece: "Re1", target: "e7" };
@@ -126,4 +126,14 @@ test("ignores malformed structural claim metadata", () => {
       body: "Draft.", claims: [],
     });
   }
+});
+
+test("drops sentences citing games missing from the pack", () => {
+  const context = { xdGames: [{ id: "g1" }] };
+  assert.equal(
+    stripUnknownGames("Play c5. See {{game:g1}}. Strong games like {{game:x}} and {{game:<id>}} show it.", context),
+    "Play c5. See {{game:g1}}.",
+  );
+  assert.equal(stripUnknownGames("Play c5. Games like {{game:g1}} show it.", {}), "Play c5.");
+  assert.equal(stripUnknownGames("Play [[8...O-O 9.Ne5]]. Fine.", context), "Play [[8...O-O 9.Ne5]]. Fine.");
 });

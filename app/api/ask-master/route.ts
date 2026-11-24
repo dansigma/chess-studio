@@ -1,4 +1,4 @@
-import { auditAnswer, extractClaims, replayAnswerPosition, stripFalse } from "@/src/lib/ask-master/audit";
+import { auditAnswer, extractClaims, replayAnswerPosition, stripFalse, stripUnknownGames } from "@/src/lib/ask-master/audit";
 import { isSiteLocale } from "@/src/i18n/locale";
 import { CONVERSATION_ID, conversationPositionKey, saveConversationTurn } from "@/src/lib/ask-master/conversations";
 import { DEFAULT_ASK_MASTER_LEVEL, isAskMasterLevel } from "@/src/lib/ask-master/level";
@@ -93,44 +93,48 @@ export async function POST(request: Request): Promise<Response> {
   const fen = input.fen ?? contextFen;
   const positionKey = fen ? conversationPositionKey(fen) : null;
   const messages = buildMessages(input);
+  const verifyClaims = async (draft: string, signal: AbortSignal, elapsedMs: number): Promise<string> => {
+    const position = replayAnswerPosition(fen ?? "", input.context);
+    const { body, claims } = extractClaims(draft);
+    const audit = auditAnswer(body, claims, position);
+    if (audit.ok) return body;
+
+    signal.throwIfAborted();
+    // A slow (reasoning) model would need another minute or more to repair the
+    // draft; past this budget, filter the false parts instead.
+    if (elapsedMs < REPAIR_BUDGET_MS && await recordModelRequest(service, limits.siteLimit)) {
+      signal.throwIfAborted();
+      try {
+        const response = await streamChat(config, {
+          conversationId,
+          signal,
+          messages: [
+            ...messages,
+            { role: "assistant", content: draft },
+            {
+              role: "user",
+              content: `Rewrite your full answer in the same language and format. Correct or remove these false claims and replace or omit the illegal or unverified lines. Include the complete <claims> block for the revised answer. Audit data: ${JSON.stringify({
+                falseClaims: audit.falseClaims, illegalLines: audit.illegalLines,
+              })}`,
+            },
+          ],
+        });
+        if (response.ok) {
+          const revised = extractClaims(await response.text());
+          if (revised.body) return stripFalse(revised.body, auditAnswer(revised.body, revised.claims, position));
+        }
+      } catch {
+        // A failed correction leaves the original draft subject to filtering.
+      }
+    }
+    return stripFalse(body, audit);
+  };
+
   return streamChat(config, {
     conversationId,
     messages,
     async verify(draft, signal, { elapsedMs }) {
-      const position = replayAnswerPosition(fen ?? "", input.context);
-      const { body, claims } = extractClaims(draft);
-      const audit = auditAnswer(body, claims, position);
-      if (audit.ok) return body;
-
-      signal.throwIfAborted();
-      // A slow (reasoning) model would need another minute or more to repair the
-      // draft; past this budget, filter the false parts instead.
-      if (elapsedMs < REPAIR_BUDGET_MS && await recordModelRequest(service, limits.siteLimit)) {
-        signal.throwIfAborted();
-        try {
-          const response = await streamChat(config, {
-            conversationId,
-            signal,
-            messages: [
-              ...messages,
-              { role: "assistant", content: draft },
-              {
-                role: "user",
-                content: `Rewrite your full answer in the same language and format. Correct or remove these false claims and replace or omit the illegal or unverified lines. Include the complete <claims> block for the revised answer. Audit data: ${JSON.stringify({
-                  falseClaims: audit.falseClaims, illegalLines: audit.illegalLines,
-                })}`,
-              },
-            ],
-          });
-          if (response.ok) {
-            const revised = extractClaims(await response.text());
-            if (revised.body) return stripFalse(revised.body, auditAnswer(revised.body, revised.claims, position));
-          }
-        } catch {
-          // A failed correction leaves the original draft subject to filtering.
-        }
-      }
-      return stripFalse(body, audit);
+      return stripUnknownGames(await verifyClaims(draft, signal, elapsedMs), input.context);
     },
     signal: request.signal,
     onComplete: fen && positionKey ? (answer) => saveConversationTurn(supabase, {

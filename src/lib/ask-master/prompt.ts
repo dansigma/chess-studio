@@ -1,4 +1,5 @@
 import type { SiteLocale } from "@/src/i18n/locale";
+import { packGameIds } from "./audit";
 import { DEFAULT_ASK_MASTER_LEVEL, type AskMasterLevel } from "./level";
 
 const LEVEL_INSTRUCTIONS: Record<AskMasterLevel, string> = {
@@ -12,8 +13,8 @@ import type { AskMasterIntent } from "./intent";
 export const INTENT_TEMPLATES = {
   explain: {
     en: [
-      "### Conclusion — Lead with the recommendation for the side to move.",
-      "### Why act now — Include this section only when the position data shows a concrete threat that requires action.",
+      "Open with one or two sentences giving the recommendation for the side to move, with no heading or label before them.",
+      "### Why act now — Include this section only when the position data shows a concrete threat that requires action. Otherwise leave it out entirely; never write that there is no threat.",
       "### Main line — Show the most relevant continuation from the pack if available.",
       "### What the position is about — Describe the features that drive the position.",
       "### The plan — Explain what to aim for and how to get there.",
@@ -21,8 +22,8 @@ export const INTENT_TEMPLATES = {
       "### Next step — Give one concrete action to take or practice.",
     ],
     "pt-br": [
-      "### Conclusão — Lead with the recommendation for the side to move.",
-      "### Por que agir agora — Include this section only when the position data shows a concrete threat that requires action.",
+      "Open with one or two sentences giving the recommendation for the side to move, with no heading or label before them.",
+      "### Por que agir agora — Include this section only when the position data shows a concrete threat that requires action. Otherwise leave it out entirely; never write that there is no threat.",
       "### Linha principal — Show the most relevant continuation from the pack if available.",
       "### Do que se trata a posição — Describe the features that drive the position.",
       "### O plano — Explain what to aim for and how to get there.",
@@ -89,12 +90,16 @@ export function buildMessages({ locale, question, history = [], context, level =
       "Use general chess principles when needed and label general advice as such. Never mention missing sources.",
       LEVEL_INSTRUCTIONS[level],
       ANSWER_LINE_RULE,
-      "Cite games as {{game:<id>}} using only IDs from xdGames.",
+      packGameIds(context).size > 0
+        ? "Cite a game by writing {{game:ID}} where its name would go, with ID copied exactly from an xdGames id. The citation shows the players, so do not repeat their names."
+        : "There are no games to cite. Do not mention specific games.",
+      "Write natural, varied prose. State each fact once and do not repeat the same idea or wording in another section.",
+      ...(locale === "pt-br" ? ["Keep the English word \"engine\" for the chess engine; never translate it as \"motor\"."] : []),
       `For each current-position claim about attacks, defenses, pins, hanging pieces, or threats, name the acting piece by its square and include the target square in the same sentence, if applicable. Finish with <claims>[{"type":"attacks","piece":"Bf5","target":"c2"}]</claims>, using valid JSON and listing every such claim. Use English piece letters plus the square, or just the square for a pawn. Use attacks for attacked squares, defends for a friendly piece, pins for the pinning piece and its pinned target, hanging for a loose piece (omit target), and threatens for a tactical threat against a piece on the target square. Keep each claim’s source and target squares in prose outside playable lines. List only claims about the current position. Use <claims>[]</claims> when there are none.`,
-      `Also list current-position structural claims in that same <claims> array. For file openness use {"type":"file","file":"c","state":"half-open","for":"white"} (open, half-open, or closed; include for only for half-open, naming the side without a pawn on the file). For pawn traits use {"type":"pawn","square":"d4","kind":"isolated"} (isolated, doubled, passed, or backward). For castling status use {"type":"king","side":"black","state":"uncastled"} (castled or uncastled). For pawn breaks use {"type":"break","side":"black","move":"c5"} with the destination square. In prose, state the file and its openness, the pawn square and trait, the side and castling status, or the destination and that it is a pawn break, together in the same sentence outside playable lines.`,
+      `Also list current-position structural claims in that same <claims> array. For file openness use {"type":"file","file":"c","state":"half-open","for":"white"} (open, half-open, or closed; include for only for half-open, naming the side without a pawn on the file). For pawn traits use {"type":"pawn","square":"d4","kind":"isolated"} (isolated, doubled, passed, or backward). For castling status use {"type":"king","side":"black","state":"uncastled"} (castled or uncastled). For pawn breaks use {"type":"break","side":"black","move":"c5"} with the destination square. In prose, state the file and its openness, the pawn square and trait, the side and castling status, or the destination and that it is a pawn break, together in the same sentence outside playable lines. Phrase these briefly and naturally (for example "the c5 break" or "the half-open c-file") instead of spelling out every attribute.`,
       "Leave numbers in the explorer and engine panels. The entire answer must contain at most 3 evaluation or percentage figures combined. Chess move notation and game IDs do not count toward that limit.",
     ].join(" ") + "\n\n" + [
-      "Follow this answer template in order. Put each heading on its own Markdown line, using only the title before the dash.",
+      "Follow this answer template in order. Put each heading on its own Markdown line, using only the title before the dash, and start the section text on the next line.",
       ...INTENT_TEMPLATES[intent][locale],
     ].join("\n"),
   }];
