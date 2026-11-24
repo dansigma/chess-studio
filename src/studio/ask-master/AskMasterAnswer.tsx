@@ -1,0 +1,133 @@
+"use client";
+
+import { Fragment, useEffect, useId, useMemo, useRef, type ReactNode } from "react";
+import { formatSanAtPly } from "@/src/chess/move-notation";
+import { getNodeAt, pathAlongLine } from "@/src/chess/tree";
+import { parseAnswer, type AnswerLine } from "@/src/lib/ask-master/answer-lines";
+import { useActiveBoard } from "@/src/store/hooks";
+import { useStudioStore, type BoardSession } from "@/src/store/studio-store";
+import type { AnswerSource } from "./ask-master-store";
+
+function startPath(board: BoardSession, source: AnswerSource, line: AnswerLine) {
+  if (board.id !== source.boardId) return null;
+  const path = source.path.slice(0, line.startPly - source.lineStartPly);
+  const fen = path.length ? getNodeAt(board.tree, path)?.fen : board.tree.startFen;
+  return fen === line.startFen ? path : null;
+}
+
+function PlayableLine({ line, source }: { line: AnswerLine; source: AnswerSource }) {
+  const board = useActiveBoard();
+  const notation = useStudioStore((state) => state.settings.moveNotation);
+  const blocked = useStudioStore((state) => Boolean(state.training || state.retry.active || state.setupMode));
+  const previewKey = useId();
+  const clearHover = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => clearHover.current?.(), [board.id, board.path, blocked]);
+
+  function showArrow() {
+    clearHover.current?.();
+    const state = useStudioStore.getState();
+    if (!startPath(state.active(), source, line) || state.training || state.retry.active || state.setupMode) return;
+    if (state.enginePreview && state.enginePreview.fen !== line.startFen) return;
+
+    const uci = line.moves[0].uci;
+    const overlay = {
+      fen: line.startFen,
+      marks: { squares: [], arrows: [{ from: uci.slice(0, 2), to: uci.slice(2, 4), color: "G" as const }] },
+    };
+    const preview = state.fen() === line.startFen || state.enginePreview
+      ? null
+      : { fen: line.startFen, lastMove: "", key: previewKey };
+    if (preview) state.setEnginePreview(preview);
+    state.setInsightMarks(overlay);
+
+    clearHover.current = () => {
+      const current = useStudioStore.getState();
+      if (current.enginePreview === preview && preview) current.setEnginePreview(null);
+      if (current.insightMarks === overlay) current.setInsightMarks(null);
+      clearHover.current = null;
+    };
+  }
+
+  function play(index: number) {
+    clearHover.current?.();
+    const state = useStudioStore.getState();
+    const active = state.active();
+    const base = startPath(active, source, line);
+    if (!base || state.training || state.retry.active || state.setupMode) return;
+    const ucis = line.moves.map(({ uci }) => uci);
+    if (state.enginePreview) state.setEnginePreview(null);
+    if (!pathAlongLine(active.tree, base, ucis)) {
+      state.goPath(base);
+      state.insertEngineLines(line.startFen, [ucis]);
+    }
+    const target = pathAlongLine(state.active().tree, base, ucis.slice(0, index + 1));
+    if (target) state.goPath(target);
+  }
+
+  if (blocked || !startPath(board, source, line)) return line.raw;
+  const startSide = line.startPly % 2 ? "b" : "w";
+  return (
+    <span onMouseEnter={showArrow} onMouseLeave={() => clearHover.current?.()}>
+      {line.moves.map(({ san }, index) => {
+        const ply = line.startPly + index;
+        const number = Math.floor(ply / 2) + 1;
+        const prefix = ply % 2 === 0 ? `${number}.` : index === 0 ? `${number}...` : "";
+        return (
+          <Fragment key={index}>
+            {index > 0 ? " " : null}
+            <button
+              type="button"
+              className="inline whitespace-nowrap text-studio-accent-text underline underline-offset-2"
+              onClick={() => play(index)}
+              onFocus={showArrow}
+              onBlur={() => clearHover.current?.()}
+            >
+              {prefix}{formatSanAtPly(san, notation, startSide, index)}
+            </button>
+          </Fragment>
+        );
+      })}
+    </span>
+  );
+}
+
+function renderParagraph(parts: ReactNode[]) {
+  const rendered: ReactNode[] = [];
+  let opening = -1;
+  for (const part of parts) {
+    if (part === "**") {
+      if (opening >= 0 && opening < rendered.length - 1) {
+        const bold = rendered.splice(opening);
+        rendered.push(<strong key={opening}>{bold.slice(1)}</strong>);
+        opening = -1;
+        continue;
+      }
+      opening = rendered.length;
+    } else if (part === "\n") {
+      opening = -1;
+    }
+    rendered.push(part);
+  }
+  return rendered;
+}
+
+export function AskMasterAnswer({ text, source }: { text: string; source: AnswerSource }) {
+  const segments = useMemo(() => parseAnswer(text, source), [text, source]);
+  const paragraphs: ReactNode[][] = [[]];
+  for (const [index, segment] of segments.entries()) {
+    if (segment.type !== "text") {
+      paragraphs.at(-1)!.push(segment.type === "line"
+        ? <PlayableLine key={`line-${index}`} line={segment} source={source} />
+        : <Fragment key={`line-${index}`}>{segment.raw}</Fragment>);
+      continue;
+    }
+    for (const part of segment.text.split(/(\n(?:[^\S\n]*\n)+|\n|\*\*)/)) {
+      if (/^\n[^\S\n]*\n/.test(part)) paragraphs.push([]);
+      else if (part) paragraphs.at(-1)!.push(part);
+    }
+  }
+  return paragraphs.map((parts, index) => (
+    <p key={index} className="whitespace-pre-wrap">{renderParagraph(parts)}</p>
+  ));
+}

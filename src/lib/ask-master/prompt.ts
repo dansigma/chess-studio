@@ -19,6 +19,8 @@ export type PromptInput = {
 
 export type ChatMessage = { role: "system" | HistoryTurn["role"]; content: string };
 
+export const ANSWER_LINE_RULE = "Wrap playable lines in double brackets, for example [[4...a6 5.Bf4 e6]]. Use English SAN with move numbers, starting from the current position or an earlier position in the current line.";
+
 export function buildMessages({ locale, question, history = [], context, level = DEFAULT_ASK_MASTER_LEVEL }: PromptInput): ChatMessage[] {
   const language = locale === "pt-br" ? "Brazilian Portuguese" : "English";
   const messages: ChatMessage[] = [{
@@ -33,6 +35,7 @@ export function buildMessages({ locale, question, history = [], context, level =
       "Use engine lines and statistics to support the explanation. Keep evaluation numbers and statistics out of the prose. Never invent games, players, statistics, or evaluations. Only cite game IDs from xdGames.",
       "Use general chess principles when needed and label general advice as such. Never mention missing sources.",
       LEVEL_INSTRUCTIONS[level],
+      ANSWER_LINE_RULE,
     ].join(" "),
   }];
 

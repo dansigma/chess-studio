@@ -1,25 +1,17 @@
 "use client";
 
-import { Fragment, useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { useStore } from "zustand";
 import { getFenAt } from "@/src/chess/tree";
+import { fenPly } from "@/src/lib/ask-master/answer-lines";
 import { tAskMaster } from "@/src/i18n/ask-master-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { ASK_MASTER_LEVELS, isAskMasterLevel } from "@/src/lib/ask-master/level";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "../ui/Button";
+import { AskMasterAnswer } from "./AskMasterAnswer";
 import { MAX_QUESTION_LENGTH, type AskMasterStore } from "./ask-master-store";
-
-function Answer({ text }: { text: string }) {
-  return text.split(/\n(?:[^\S\n]*\n)+/).map((paragraph, index) => (
-    <p key={index} className="whitespace-pre-wrap">
-      {paragraph.split(/\*\*([^\n]+?)\*\*/).map((part, partIndex) =>
-        partIndex % 2 ? <strong key={partIndex}>{part}</strong> : <Fragment key={partIndex}>{part}</Fragment>,
-      )}
-    </p>
-  ));
-}
 
 export function AskMasterChat({
   store,
@@ -33,7 +25,7 @@ export function AskMasterChat({
   isMobile: boolean;
 }) {
   const { messages, status, questionsLeft, refreshQuota, send, close, reset } = useStore(store);
-  const { tree, path } = useActiveBoard();
+  const { id, tree, path } = useActiveBoard();
   const level = useStudioStore((state) => state.settings.askMasterLevel);
   const setAskMasterLevel = useStudioStore((state) => state.setAskMasterLevel);
   const [question, setQuestion] = useState("");
@@ -67,7 +59,10 @@ export function AskMasterChat({
       children = node.children;
     }
     const { engineBuild, engineThreads, askMasterLevel } = useStudioStore.getState().settings;
-    void send(question, locale, { fen: getFenAt(tree, path), sanLine, lineFens, engineBuild, engineThreads, level: askMasterLevel });
+    const fen = getFenAt(tree, path);
+    void send(question, locale, { fen, sanLine, lineFens, engineBuild, engineThreads, level: askMasterLevel }, {
+      boardId: id, path, currentFen: fen, lineFens, lineStartPly: fenPly(tree.startFen),
+    });
     setQuestion("");
   }
 
@@ -115,9 +110,9 @@ export function AskMasterChat({
         role="log"
         className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain [overflow-wrap:anywhere] text-body"
       >
-        {messages.map(({ role, text }, index) => (
-          <div key={index} className={role === "user" ? "ml-6 whitespace-pre-wrap rounded-xl bg-studio-accent-soft p-2.5" : "mr-6 space-y-2 rounded-xl bg-studio-hover p-2.5"}>
-            {role === "user" ? text : <Answer text={text} />}
+        {messages.map((message, index) => (
+          <div key={index} className={message.role === "user" ? "ml-6 whitespace-pre-wrap rounded-xl bg-studio-accent-soft p-2.5" : "mr-6 space-y-2 rounded-xl bg-studio-hover p-2.5"}>
+            {message.role === "user" ? message.text : <AskMasterAnswer text={message.text} source={message.source} />}
           </div>
         ))}
         {busy && messages.at(-1)?.role === "user" ? (

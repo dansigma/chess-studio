@@ -1,9 +1,13 @@
 import { createStore } from "zustand";
+import type { AnswerPosition } from "@/src/lib/ask-master/answer-lines";
 import type { SiteLocale } from "@/src/i18n/locale";
 
 import { collectPositionPack, type PackPosition } from "./collect-pack";
 
-type Message = { role: "user" | "assistant"; text: string };
+export type AnswerSource = AnswerPosition & { boardId: string; path: readonly number[] };
+type Message =
+  | { role: "user"; text: string }
+  | { role: "assistant"; text: string; source: AnswerSource };
 type ChatError = "rateLimit" | "userLimit" | "siteLimit" | "unavailable" | "signInPrompt";
 type ChatStatus = "idle" | "analyzing" | "answering" | ChatError;
 
@@ -15,7 +19,7 @@ type ChatState = {
   status: ChatStatus;
   questionsLeft: number | null;
   refreshQuota: () => Promise<void>;
-  send: (question: string, locale: SiteLocale, position: PackPosition) => Promise<void>;
+  send: (question: string, locale: SiteLocale, position: PackPosition, source: AnswerSource) => Promise<void>;
   close: () => void;
   reset: () => void;
 };
@@ -60,7 +64,7 @@ export function createAskMasterStore() {
         if (quotaRequest === request) quotaRequest = undefined;
       }
     },
-    async send(question, locale, position) {
+    async send(question, locale, position, source) {
       const { messages, questionsLeft } = get();
       question = question.trim();
       if (!question || question.length > MAX_QUESTION_LENGTH || answerRequest || questionsLeft === 0) return;
@@ -103,7 +107,7 @@ export function createAskMasterStore() {
             const { done, value } = await reader.read();
             if (request.signal.aborted) break;
             answer += done ? decoder.decode() : decoder.decode(value, { stream: true });
-            if (answer) set({ messages: [...submitted, { role: "assistant", text: answer }] });
+            if (answer) set({ messages: [...submitted, { role: "assistant", text: answer, source }] });
             if (done) break;
           }
         } finally {

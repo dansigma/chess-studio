@@ -56,3 +56,9 @@ test("adjusts vocabulary and move priorities for the player's level", () => {
   assert.match(advanced.content, /precise chess terminology.*critical variations/);
   assert.deepEqual(buildMessages(input)[0], intermediate);
 });
+
+test("requests numbered lines enclosed in double brackets from a position in the game", () => {
+  const [system] = buildMessages({ locale: "en", question: "What can I play?" });
+  assert.match(system.content, /\[\[4\.\.\.a6 5\.Bf4 e6\]\]/);
+  assert.match(system.content, /move numbers, starting from the current position or an earlier position/);
+});
