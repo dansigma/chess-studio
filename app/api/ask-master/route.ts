@@ -1,6 +1,7 @@
 import { isSiteLocale } from "@/src/i18n/locale";
 import { CONVERSATION_ID, conversationPositionKey, saveConversationTurn } from "@/src/lib/ask-master/conversations";
 import { DEFAULT_ASK_MASTER_LEVEL, isAskMasterLevel } from "@/src/lib/ask-master/level";
+import { isAskMasterIntent } from "@/src/lib/ask-master/intent";
 import { buildMessages, type PromptInput } from "@/src/lib/ask-master/prompt";
 import { askMasterProviderConfig, streamChat } from "@/src/lib/ask-master/provider";
 import { askMasterLimits, consumeQuestion } from "@/src/lib/ask-master/quota";
@@ -31,9 +32,9 @@ async function readInput(request: Request): Promise<ChatInput | null> {
     const body: unknown = JSON.parse(await readCapped(request, MAX_BODY_BYTES));
     if (!isRecord(body)) return null;
 
-    const { conversationId, locale, question, history, context, fen, gameTitle, level = DEFAULT_ASK_MASTER_LEVEL } = body;
+    const { conversationId, locale, question, history, context, fen, gameTitle, level = DEFAULT_ASK_MASTER_LEVEL, intent = "free" } = body;
     if (typeof conversationId !== "string" || conversationId.length !== 36 || !CONVERSATION_ID.test(conversationId)) return null;
-    if (!isSiteLocale(locale) || !isAskMasterLevel(level) || typeof question !== "string") return null;
+    if (!isSiteLocale(locale) || !isAskMasterLevel(level) || !isAskMasterIntent(intent) || typeof question !== "string") return null;
     const trimmed = question.trim();
     if (!trimmed || trimmed.length > 1000) return null;
     if (history !== undefined &&
@@ -44,7 +45,7 @@ async function readInput(request: Request): Promise<ChatInput | null> {
     if (fen !== undefined && (typeof fen !== "string" || fen.length > 100)) return null;
     if (gameTitle !== undefined && (typeof gameTitle !== "string" || gameTitle.length > 120)) return null;
 
-    return { conversationId, locale, question: trimmed, history, context, fen, gameTitle, level };
+    return { conversationId, locale, question: trimmed, history, context, fen, gameTitle, level, intent };
   } catch {
     return null;
   }

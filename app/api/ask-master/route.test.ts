@@ -74,6 +74,9 @@ test("rejects invalid request bodies before auth", async () => {
       { question: " " },
       { question: "x".repeat(1001) },
       { question: 1 },
+      { intent: null },
+      { intent: "other" },
+      { intent: ["explain"] },
       { history: null },
       { history: Array(7).fill({ role: "user", text: "Hi" }) },
       { history: [{ role: "system", text: "Hi" }] },
@@ -277,3 +280,22 @@ test("uses an explicit coaching level in the provider prompt", async (t) => {
   assert.equal(response.status, 200);
   assert.equal(await response.text(), "A central pawn.");
 });
+
+for (const [intent, heading] of [
+  [undefined, "Na prática"],
+  ["free", "Na prática"],
+  ["explain", "Conclusão"],
+  ["model-games", "Partidas modelo"],
+  ["study-opening", "Por onde começar"],
+] as const) {
+  test(`uses the template for ${intent ?? "omitted"} intent`, async (t) => {
+    mockFetch(t, (_url, init) => {
+      assert.ok(JSON.parse(String(init?.body)).messages[0].content.includes(`### ${heading}`));
+      const delta = { choices: [{ delta: { content: "Resposta" } }] };
+      return new Response(`data: ${JSON.stringify(delta)}\n\ndata: [DONE]\n\n`);
+    });
+    const response = await post(JSON.stringify({ ...input, intent }));
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), "Resposta");
+  });
+}

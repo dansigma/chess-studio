@@ -86,6 +86,7 @@ test("streams plain paragraphs and bold, sends the active line, and keeps the co
   assert.match(pack.opening.name, /Queen's Pawn/);
   assert.ok(pack.facts);
   assert.equal(bodies[0].locale, "pt-br");
+  assert.equal(bodies[0].intent, "free");
 
   const encoder = new TextEncoder();
   const bytes = encoder.encode("Jogue **no centro**.\n\n<a>Peão</a>");
@@ -355,4 +356,61 @@ test("checks the position dot only while open, debounces navigation and aborts s
   assert.equal(requests[1].signal?.aborted, true);
   await act(async () => stale.resolve(Response.json({ conversations: [{}] })));
   assert.equal(screen.queryByRole("img", { name: dot }), null);
+});
+
+test("shows two starters at the starting position and updates them when Black is to move in a known opening", async (t) => {
+  mockApi(t, () => new Response("Answer"));
+  const chess = new Chess();
+  const board = initial.active();
+  open();
+  await screen.findByText("3 perguntas restantes hoje");
+  assert.ok(screen.getByRole("button", { name: "Explique esta posição e o plano das brancas" }));
+  assert.ok(screen.getByRole("button", { name: "Quais são as partidas modelo desta linha?" }));
+  assert.equal(screen.queryByRole("button", { name: /^Por onde começo a estudar/ }), null);
+
+  const move = chess.move("d4");
+  await act(async () => {
+    useStudioStore.setState({
+      boards: [{ ...board, path: [0], tree: { ...board.tree, children: [
+        { id: "d4", san: move.san, uci: "d2d4", fen: chess.fen(), from: move.from, to: move.to, children: [] },
+      ] } }],
+    });
+  });
+  assert.ok(screen.getByRole("button", { name: "Explique esta posição e o plano das pretas" }));
+  assert.match((await screen.findByRole("button", { name: /^Por onde começo a estudar/ })).textContent ?? "", /Peão/);
+});
+
+test("each starter sends its intent and headings render safely on their own lines", async (t) => {
+  const chess = new Chess();
+  const move = chess.move("d4");
+  const board = initial.active();
+  useStudioStore.setState({
+    boards: [{ ...board, path: [0], tree: { ...board.tree, children: [
+      { id: "d4", san: move.san, uci: "d2d4", fen: chess.fen(), from: move.from, to: move.to, children: [] },
+    ] } }],
+  });
+  const bodies: { question: string; intent: string }[] = [];
+  mockApi(t, (init) => {
+    bodies.push(JSON.parse(String(init.body)));
+    return new Response("### Conclusão\r\nJogue **no centro**.\n**<a>O plano</a>**\nAvance o peão.");
+  });
+  open();
+  await screen.findByText("3 perguntas restantes hoje");
+  for (const [name, intent] of [
+    [/^Explique esta posição/, "explain"],
+    [/^Quais são as partidas modelo/, "model-games"],
+    [/^Por onde começo a estudar/, "study-opening"],
+  ] as const) {
+    const starter = await screen.findByRole("button", { name });
+    const question = starter.textContent;
+    fireEvent.click(starter);
+    await screen.findByRole("heading", { name: "Conclusão" });
+    assert.equal(screen.getByRole("heading", { name: "<a>O plano</a>" }).tagName, "H3");
+    assert.equal(screen.getByText("no centro").tagName, "STRONG");
+    assert.equal(screen.queryByRole("link"), null);
+    assert.equal(screen.queryByRole("button", { name }), null);
+    assert.equal(bodies.at(-1)?.question, question);
+    assert.equal(bodies.at(-1)?.intent, intent);
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Nova pergunta" })));
+  }
 });
