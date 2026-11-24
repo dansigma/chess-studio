@@ -60,7 +60,12 @@ function threatRows(chess: Chess | undefined, threats?: readonly ThreatSet[]) {
   if (!chess || !threats) return undefined;
   return threats.flatMap((set) => {
     if (set.status !== "ok") return [];
-    const board = set.by === chess.turn() ? chess : new Chess(applyNullMoveFen(chess.fen()));
+    let board: Chess;
+    try {
+      board = set.by === chess.turn() ? chess : new Chess(applyNullMoveFen(chess.fen()));
+    } catch {
+      return []; // No SAN for the side not to move when the null move is illegal.
+    }
     const san = new Map(board.moves({ verbose: true }).map((move) => [move.lan, move.san]));
     return set.threats.flatMap(({ uci, kind, targets }) => {
       const move = san.get(uci);
