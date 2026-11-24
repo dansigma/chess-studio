@@ -247,3 +247,17 @@ test("logs a failed save and still returns the complete answer", async (t) => {
   assert.equal(await (await post(JSON.stringify({ ...input, fen }))).text(), "Answer");
   assert.equal(log.mock.callCount(), 1);
 });
+
+test("saves with the board FEN the widget sends inside context", async (t) => {
+  const saved: Array<Record<string, unknown>> = [];
+  const rpc = mock.fn(async (_name: string, args: Record<string, unknown>) => {
+    saved.push(args);
+    return { error: null };
+  });
+  state.server = { auth: { getUser: auth }, rpc };
+  mockFetch(t, () => new Response(delta("Answer") + "data: [DONE]\n\n"));
+
+  assert.equal(await (await post(JSON.stringify({ ...input, context: { fen, moves: [] } }))).text(), "Answer");
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].p_fen, fen);
+});

@@ -80,7 +80,12 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "unavailable" }, { status: 503 });
   }
 
-  const { fen, gameTitle, conversationId, question } = input;
+  const { gameTitle, conversationId, question } = input;
+  // The widget sends the board inside `context` ({ fen, moves }); a top-level
+  // `fen` wins when both are present.
+  const contextFen = isRecord(input.context) && typeof input.context.fen === "string" &&
+    input.context.fen.length <= 100 ? input.context.fen : undefined;
+  const fen = input.fen ?? contextFen;
   const positionKey = fen ? conversationPositionKey(fen) : null;
   return streamChat(config, {
     conversationId,
