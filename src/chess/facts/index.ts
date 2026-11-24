@@ -5,11 +5,13 @@ import { computeKingSafety } from "./king";
 import { computeDiagonalFacts, computeFileFacts, computeSeventhRankFacts } from "./lines";
 import { computeOutposts, computePawnFacts, computeWeakSquares } from "./pawns";
 import { computePieceFacts } from "./pieces";
+import { computeBreaks, computeCentreLock } from "./structure";
 import type { PositionFacts } from "./types";
 
 export * from "./types";
 export { compareThreats, computeThreats, computeThreatsToMove } from "./threats";
 export { computeMoveFacts } from "./move-facts";
+export { computeBreaks, computeCentreLock, structureChanges } from "./structure";
 export { diagonalSquares } from "./lines";
 
 function emptyFacts(fen: string): PositionFacts {
@@ -23,6 +25,8 @@ function emptyFacts(fen: string): PositionFacts {
     seventhRank: [],
     diagonals: [],
     pawns: [],
+    breaks: [],
+    centre: { rams: [], asymmetricFiles: 0, tension: 0 },
     weakSquares: [],
     outposts: [],
     kings: [],
@@ -47,6 +51,8 @@ export const computePositionFacts = memoize((fen: string): PositionFacts => {
       seventhRank: computeSeventhRankFacts(analysis),
       diagonals: computeDiagonalFacts(analysis),
       pawns: computePawnFacts(analysis),
+      breaks: computeBreaks(analysis),
+      centre: computeCentreLock(analysis),
       weakSquares: computeWeakSquares(analysis),
       outposts: computeOutposts(analysis),
       kings: computeKingSafety(analysis, parsed.castling),

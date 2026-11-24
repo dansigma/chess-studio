@@ -9,6 +9,7 @@ import {
   squareName,
 } from "./board";
 import { memoize } from "./cache";
+import { compareStructure } from "./structure";
 import { compareThreats, loadChess, playUci } from "./threats";
 import type { Color, MoveFacts, PieceType, PvFacts } from "./types";
 
@@ -168,6 +169,7 @@ function compute(fenBefore: string, uci: string, pvKey: string): MoveFacts | nul
       created: comparison?.created.threats ?? [],
       exposed: comparison?.exposed ?? [],
     },
+    structureChanges: compareStructure(prior, now),
     pv,
   };
 }
