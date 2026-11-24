@@ -73,6 +73,23 @@ export async function listConversations(supabase: SessionClient, userId: string,
   return data.map(summarizeConversation);
 }
 
+export async function getConversation(supabase: SessionClient, userId: string, id: string) {
+  const { data, error } = await supabase.from("ask_master_conversations")
+    .select("id, messages, position_key, game_title")
+    .eq("user_id", userId)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+
+  const messages = (Array.isArray(data.messages) ? data.messages : []).flatMap<{ role: "user" | "assistant"; text: string }>((message) => {
+    if (!message || typeof message !== "object" || Array.isArray(message)) return [];
+    const { role, text } = message;
+    return (role === "user" || role === "assistant") && typeof text === "string" ? [{ role, text }] : [];
+  });
+  return { id: data.id, messages, positionKey: data.position_key, gameTitle: data.game_title };
+}
+
 export async function deleteConversation(supabase: SessionClient, userId: string, id: string) {
   const { data, error } = await supabase.from("ask_master_conversations")
     .delete()

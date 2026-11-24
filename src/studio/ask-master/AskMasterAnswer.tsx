@@ -112,13 +112,16 @@ function renderParagraph(parts: ReactNode[]) {
   return rendered;
 }
 
-export function AskMasterAnswer({ text, source }: { text: string; source: AnswerSource }) {
-  const segments = useMemo(() => parseAnswer(text, source), [text, source]);
+// Without a source no line can be resolved, so every line renders as text.
+const NO_SOURCE = { currentFen: "", lineFens: [], lineStartPly: 0 } as const;
+
+export function AskMasterAnswer({ text, source }: { text: string; source?: AnswerSource }) {
+  const segments = useMemo(() => parseAnswer(text, source ?? NO_SOURCE), [text, source]);
   const paragraphs: ReactNode[][] = [[]];
   for (const [index, segment] of segments.entries()) {
     if (segment.type !== "text") {
       paragraphs.at(-1)!.push(segment.type === "line"
-        ? <PlayableLine key={`line-${index}`} line={segment} source={source} />
+        ? source ? <PlayableLine key={`line-${index}`} line={segment} source={source} /> : segment.raw
         : <Fragment key={`line-${index}`}>{segment.raw}</Fragment>);
       continue;
     }

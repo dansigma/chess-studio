@@ -7,7 +7,8 @@ import { collectPositionPack, type PackPosition } from "./collect-pack";
 export type AnswerSource = AnswerPosition & { boardId: string; path: readonly number[] };
 type Message =
   | { role: "user"; text: string }
-  | { role: "assistant"; text: string; source: AnswerSource };
+  // A conversation reopened from history has no source: its lines show as text.
+  | { role: "assistant"; text: string; source?: AnswerSource };
 type ChatError = "rateLimit" | "userLimit" | "siteLimit" | "unavailable" | "signInPrompt";
 type ChatStatus = "idle" | "analyzing" | "answering" | ChatError;
 
@@ -19,9 +20,10 @@ type ChatState = {
   status: ChatStatus;
   questionsLeft: number | null;
   refreshQuota: () => Promise<void>;
-  send: (question: string, locale: SiteLocale, position: PackPosition, source: AnswerSource) => Promise<void>;
+  send: (question: string, locale: SiteLocale, position: PackPosition, source: AnswerSource, gameTitle?: string) => Promise<void>;
   close: () => void;
   reset: () => void;
+  loadConversation: (id: string, messages: Message[]) => void;
 };
 
 async function responseError(response: Response): Promise<ChatError> {
@@ -64,7 +66,7 @@ export function createAskMasterStore() {
         if (quotaRequest === request) quotaRequest = undefined;
       }
     },
-    async send(question, locale, position, source) {
+    async send(question, locale, position, source, gameTitle) {
       const { messages, questionsLeft } = get();
       question = question.trim();
       if (!question || question.length > MAX_QUESTION_LENGTH || answerRequest || questionsLeft === 0) return;
@@ -89,7 +91,7 @@ export function createAskMasterStore() {
         const response = await fetch("/api/ask-master", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ conversationId, question, locale, history, context, level: context.level }),
+          body: JSON.stringify({ conversationId, question, locale, history, context, level: context.level, gameTitle }),
           signal: request.signal,
         });
         if (!response.ok) {
@@ -134,6 +136,13 @@ export function createAskMasterStore() {
       quotaRequest?.abort();
       quotaRequest = undefined;
       if (get().status === "answering" || get().status === "analyzing") set({ status: "idle" });
+    },
+    loadConversation(id, messages) {
+      const wasBusy = get().status === "answering" || get().status === "analyzing";
+      answerRequest?.abort();
+      answerRequest = undefined;
+      set({ conversationId: id, messages, status: "idle" });
+      if (wasBusy) void get().refreshQuota();
     },
     reset() {
       const wasBusy = get().status === "answering" || get().status === "analyzing";

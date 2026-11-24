@@ -4,7 +4,7 @@ import { mockSupabaseModules, setCloudflareEnv, type FakeSupabaseState } from "@
 
 const state: FakeSupabaseState = {};
 mockSupabaseModules(state);
-const { POST, DELETE } = await import("./route.ts");
+const { POST, GET, DELETE } = await import("./route.ts");
 const url = "https://app.test/api/ask-master/conversations";
 const id = "be637361-9949-46af-a7ee-05aa6914da73";
 const userId = "bbd5c93a-16a2-4347-ad3f-26be758f6df9";
@@ -53,6 +53,9 @@ beforeEach(() => {
           calls.push(["order", column, options]);
           return query;
         },
+        maybeSingle() {
+          return { data: filtered[0] ?? null };
+        },
         limit(count: number) {
           calls.push(["limit", count]);
           return { data: filtered.slice(0, count) };
@@ -67,6 +70,10 @@ afterEach(() => setCloudflareEnv({}));
 
 function list(positionKeys: unknown) {
   return POST(new Request(url, { method: "POST", body: JSON.stringify({ positionKeys }) }));
+}
+
+function get(value: string) {
+  return GET(new Request(`${url}?id=${encodeURIComponent(value)}`));
 }
 
 function remove(value: string) {
@@ -90,6 +97,7 @@ test("validates the key list and delete UUID", async () => {
     assert.equal((await list(keys)).status, 400);
   }
   assert.equal((await remove(id + "\n")).status, 400);
+  assert.equal((await get(id + "\n")).status, 400);
   assert.deepEqual(calls, []);
   assert.equal((await list(Array(300).fill("18446744073709551615"))).status, 200);
 });
@@ -102,10 +110,24 @@ test("deletes an owned row and reports missing or unowned rows as 404", async ()
   assert.equal((await remove(crypto.randomUUID())).status, 404);
 });
 
-test("rejects signed-out list and delete requests", async () => {
+test("loads only an owned conversation and returns its transcript and metadata", async () => {
+  const response = await get(id);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.deepEqual(await response.json(), { id, messages: row.messages, positionKey: "42", gameTitle: "Game" });
+  assert.deepEqual(calls, [
+    ["select", "id, messages, position_key, game_title"], ["eq", "user_id", userId], ["eq", "id", id],
+  ]);
+  assert.equal((await get(crypto.randomUUID())).status, 404);
+  rows = rows.filter((candidate) => candidate.user_id !== userId);
+  assert.equal((await get(id)).status, 404);
+});
+
+test("rejects signed-out list, load and delete requests", async () => {
   state.server = { auth: { getUser: async () => ({ data: { user: null } }) } };
   assert.equal((await list(["42"])).status, 401);
   assert.equal((await remove(id)).status, 401);
+  assert.equal((await get(id)).status, 401);
   assert.equal(limit.mock.callCount(), 0);
 });
 

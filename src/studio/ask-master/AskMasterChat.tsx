@@ -11,6 +11,8 @@ import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "../ui/Button";
 import { AskMasterAnswer } from "./AskMasterAnswer";
+import { AskMasterHistory, useHistoryDot } from "./AskMasterHistory";
+import { currentHistoryKey } from "./history-keys";
 import { MAX_QUESTION_LENGTH, type AskMasterStore } from "./ask-master-store";
 
 export function AskMasterChat({
@@ -24,8 +26,12 @@ export function AskMasterChat({
   signedIn: boolean;
   isMobile: boolean;
 }) {
-  const { messages, status, questionsLeft, refreshQuota, send, close, reset } = useStore(store);
-  const { id, tree, path } = useActiveBoard();
+  const { conversationId, messages, status, questionsLeft, refreshQuota, send, close, reset } = useStore(store);
+  const { id, tree, path, title } = useActiveBoard();
+  const [showHistory, setShowHistory] = useState(false);
+  const positionKey = currentHistoryKey(tree, path);
+  const { hasHistory, refresh } = useHistoryDot(signedIn && status !== "signInPrompt" ? positionKey : null, store);
+  const historyButton = useRef<HTMLButtonElement>(null);
   const level = useStudioStore((state) => state.settings.askMasterLevel);
   const setAskMasterLevel = useStudioStore((state) => state.setAskMasterLevel);
   const [question, setQuestion] = useState("");
@@ -42,7 +48,7 @@ export function AskMasterChat({
   useEffect(() => {
     const log = transcript.current;
     if (log) log.scrollTop = log.scrollHeight;
-  }, [messages, status]);
+  }, [messages, status, showHistory]);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,7 +68,7 @@ export function AskMasterChat({
     const fen = getFenAt(tree, path);
     void send(question, locale, { fen, sanLine, lineFens, engineBuild, engineThreads, level: askMasterLevel }, {
       boardId: id, path, currentFen: fen, lineFens, lineStartPly: fenPly(tree.startFen),
-    });
+    }, title.slice(0, 120));
     setQuestion("");
   }
 
@@ -101,49 +107,67 @@ export function AskMasterChat({
             <option key={value} value={value}>{tAskMaster(locale, value)}</option>
           ))}
         </select>
-        <Button size="sm" variant="ghost" onClick={() => { reset(); setQuestion(""); }}>
-          {tAskMaster(locale, "newQuestion")}
+        <Button ref={historyButton} size="sm" variant="ghost" onClick={() => setShowHistory(!showHistory)}>
+          {tAskMaster(locale, showHistory ? "historyBack" : "history")}
+          {hasHistory && !showHistory && (
+            <span role="img" aria-label={tAskMaster(locale, "historyHasPosition")}
+              className="size-1.5 rounded-full bg-studio-accent-solid" />
+          )}
         </Button>
-      </div>
-      <div
-        ref={transcript}
-        role="log"
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain [overflow-wrap:anywhere] text-body"
-      >
-        {messages.map((message, index) => (
-          <div key={index} className={message.role === "user" ? "ml-6 whitespace-pre-wrap rounded-xl bg-studio-accent-soft p-2.5" : "mr-6 space-y-2 rounded-xl bg-studio-hover p-2.5"}>
-            {message.role === "user" ? message.text : <AskMasterAnswer text={message.text} source={message.source} />}
-          </div>
-        ))}
-        {busy && messages.at(-1)?.role === "user" ? (
-          <p className="text-studio-muted">{tAskMaster(locale, status)}</p>
-        ) : null}
-      </div>
-      {status !== "idle" && !busy && status !== "userLimit" ? (
-        <p role="alert" className="shrink-0 text-dense text-studio-warning-fg">{tAskMaster(locale, status)}</p>
-      ) : null}
-      {questionsLeft === 0 ? (
-        <p role="status" className="shrink-0 text-dense text-studio-warning-fg">{tAskMaster(locale, "userLimit")}</p>
-      ) : null}
-      <form className="shrink-0 space-y-2" onSubmit={submit}>
-        <label className="sr-only" htmlFor={questionId}>{tAskMaster(locale, "question")}</label>
-        <div className="flex items-end gap-2">
-          <textarea
-            id={questionId}
-            aria-describedby={disclaimerId}
-            className="min-w-0 flex-1 resize-none rounded-lg border border-studio-border-strong bg-studio-bg px-2.5 py-2 text-base text-studio-fg"
-            placeholder={tAskMaster(locale, "question")}
-            rows={2}
-            maxLength={MAX_QUESTION_LENGTH}
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-          />
-          <Button type="submit" variant="primary" disabled={!question.trim() || busy || questionsLeft === 0}>
-            {tAskMaster(locale, "send")}
+        {!showHistory && (
+          <Button size="sm" variant="ghost" onClick={() => { reset(); setQuestion(""); }}>
+            {tAskMaster(locale, "newQuestion")}
           </Button>
-        </div>
-        <p id={disclaimerId} className="text-caption text-studio-muted">{tAskMaster(locale, "disclaimer")}</p>
-      </form>
+        )}
+      </div>
+      {showHistory ? (
+        <AskMasterHistory tree={tree} positionKey={positionKey} locale={locale} store={store}
+          busyConversationId={busy ? conversationId : null}
+          onOpen={() => { setQuestion(""); setShowHistory(false); historyButton.current?.focus(); }}
+          onDelete={refresh} />
+      ) : (
+        <>
+          <div
+            ref={transcript}
+            role="log"
+            className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain [overflow-wrap:anywhere] text-body"
+          >
+            {messages.map((message, index) => (
+              <div key={index} className={message.role === "user" ? "ml-6 whitespace-pre-wrap rounded-xl bg-studio-accent-soft p-2.5" : "mr-6 space-y-2 rounded-xl bg-studio-hover p-2.5"}>
+                {message.role === "user" ? message.text : <AskMasterAnswer text={message.text} source={message.source} />}
+              </div>
+            ))}
+            {busy && messages.at(-1)?.role === "user" ? (
+              <p className="text-studio-muted">{tAskMaster(locale, status)}</p>
+            ) : null}
+          </div>
+          {status !== "idle" && !busy && status !== "userLimit" ? (
+            <p role="alert" className="shrink-0 text-dense text-studio-warning-fg">{tAskMaster(locale, status)}</p>
+          ) : null}
+          {questionsLeft === 0 ? (
+            <p role="status" className="shrink-0 text-dense text-studio-warning-fg">{tAskMaster(locale, "userLimit")}</p>
+          ) : null}
+          <form className="shrink-0 space-y-2" onSubmit={submit}>
+            <label className="sr-only" htmlFor={questionId}>{tAskMaster(locale, "question")}</label>
+            <div className="flex items-end gap-2">
+              <textarea
+                id={questionId}
+                aria-describedby={disclaimerId}
+                className="min-w-0 flex-1 resize-none rounded-lg border border-studio-border-strong bg-studio-bg px-2.5 py-2 text-base text-studio-fg"
+                placeholder={tAskMaster(locale, "question")}
+                rows={2}
+                maxLength={MAX_QUESTION_LENGTH}
+                value={question}
+                onChange={(event) => setQuestion(event.target.value)}
+              />
+              <Button type="submit" variant="primary" disabled={!question.trim() || busy || questionsLeft === 0}>
+                {tAskMaster(locale, "send")}
+              </Button>
+            </div>
+            <p id={disclaimerId} className="text-caption text-studio-muted">{tAskMaster(locale, "disclaimer")}</p>
+          </form>
+        </>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { CONVERSATION_ID, deleteConversation, isPositionKeyList, listConversations } from "@/src/lib/ask-master/conversations";
+import { CONVERSATION_ID, deleteConversation, getConversation, isPositionKeyList, listConversations } from "@/src/lib/ask-master/conversations";
 import { createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 import { createServerSupabase } from "@/src/lib/supabase/server";
 
@@ -33,6 +33,25 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const conversations = await listConversations(session.supabase, session.userId, body.positionKeys);
     return Response.json({ conversations }, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    return Response.json({ error: "unavailable" }, { status: 503 });
+  }
+}
+
+export async function GET(request: Request): Promise<Response> {
+  const session = await authorize();
+  if (session instanceof Response) return session;
+
+  const id = new URL(request.url).searchParams.get("id");
+  if (id?.length !== 36 || !CONVERSATION_ID.test(id)) {
+    return Response.json({ error: "invalid_id" }, { status: 400 });
+  }
+
+  try {
+    const conversation = await getConversation(session.supabase, session.userId, id);
+    return conversation
+      ? Response.json(conversation, { headers: { "Cache-Control": "no-store" } })
+      : Response.json({ error: "not_found" }, { status: 404 });
   } catch {
     return Response.json({ error: "unavailable" }, { status: 503 });
   }

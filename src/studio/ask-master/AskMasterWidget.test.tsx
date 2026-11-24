@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { after, afterEach, beforeEach, test, type TestContext } from "node:test";
 import { teardownDom } from "@/src/test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { Chess } from "chess.js";
 import { useStudioStore } from "@/src/store/studio-store.ts";
+import { bookKey } from "@/src/chess/opening-book";
 import { AskMasterWidget } from "./AskMasterWidget.tsx";
 
 const initial = useStudioStore.getState();
@@ -30,6 +31,7 @@ function mockApi(t: TestContext, post: (init: RequestInit) => Response, remainin
   return t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
     if (url === "/api/ask-master/quota") return Response.json({ questionsLeft: remaining });
     if (url.startsWith("/api/explorer?") || url.startsWith("/api/xd-database/")) return new Response(null, { status: 503 });
+    if (url === "/api/ask-master/conversations") return Response.json({ conversations: [] });
     assert.equal(url, "/api/ask-master");
     return post(init);
   });
@@ -41,6 +43,7 @@ test("shows a mobile sign-in prompt with a Studio return link and closes on Esca
   assert.ok(screen.getByText("Entre para perguntar ao Mestre"));
   assert.equal(screen.getByRole("link", { name: "Entrar" }).getAttribute("href"), "/login?next=%2Fstudio");
   assert.equal(screen.queryByRole("textbox"), null);
+  assert.equal(screen.queryByRole("button", { name: "Histórico" }), null);
   fireEvent.keyDown(window, { key: "Escape" });
   assert.equal(screen.queryByRole("dialog"), null);
 });
@@ -213,4 +216,143 @@ test("previews and plays answer variations from the question's line", async (t) 
   fireEvent.click(screen.getByRole("button", { name: "1...c5" }));
   assert.deepEqual(state.active().path, [0, 1]);
   assert.equal(state.active().tree, inserted);
+});
+
+test("history tabs query the game and position, reopen a transcript, and continue its ID", async (t) => {
+  const chess = new Chess();
+  const startFen = chess.fen();
+  const { from, to, san } = chess.move("Nf3");
+  const fen = chess.fen();
+  const board = initial.active();
+  useStudioStore.setState({ boards: [{
+    ...board, title: "Minha partida", path: [0],
+    tree: { startFen, children: [{ id: "move", from, to, san, uci: from + to, fen, children: [] }] },
+  }] });
+  const positionKey = bookKey(fen).toString();
+  const rows = [{
+    id: crypto.randomUUID(), positionKey, updatedAt: "2026-11-23T19:15:00Z", gameTitle: "Partida de ontem",
+    firstQuestion: "Por que Nf3?", messageCount: 2, model: "modelo",
+  }];
+  const messages = [
+    { role: "user", text: "Por que Nf3?" },
+    { role: "assistant", text: "Para desenvolver o cavalo." },
+  ];
+  const lists: string[][] = [];
+  const sends: Record<string, unknown>[] = [];
+  let firstSignal: AbortSignal | null | undefined;
+  let firstStream!: ReadableStreamDefaultController<Uint8Array>;
+  const endpoint = "/api/ask-master/conversations";
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    if (url === "/api/ask-master/quota") return Response.json({ questionsLeft: 3 });
+    if (url === endpoint) {
+      lists.push(JSON.parse(String(init.body)).positionKeys);
+      return Response.json({ conversations: rows });
+    }
+    if (url === `${endpoint}?id=${rows[0].id}`) return Response.json({ ...rows[0], messages });
+    assert.equal(url, "/api/ask-master");
+    sends.push(JSON.parse(String(init.body)));
+    if (sends.length === 1) {
+      firstSignal = init.signal;
+      return new Response(new ReadableStream<Uint8Array>({ start(controller) { firstStream = controller; } }));
+    }
+    return new Response("Centralize as peças.");
+  });
+  open({ isMobile: true });
+  await screen.findByText("3 perguntas restantes hoje");
+  ask("Pergunta em andamento");
+  fireEvent.click(screen.getByRole("button", { name: /^Histórico/ }));
+  const panel = screen.getByRole("tabpanel", { name: "Nesta partida" });
+  await within(panel).findByText("Por que Nf3?");
+  assert.ok(within(panel).getByText("Partida de ontem"));
+  assert.ok(within(panel).getByText("2 mensagens · modelo"));
+  assert.equal(panel.querySelector("time")?.dateTime, rows[0].updatedAt);
+  fireEvent.click(screen.getByRole("tab", { name: "Nesta posição" }));
+  const position = screen.getByRole("tabpanel", { name: "Nesta posição" });
+  fireEvent.click(await within(position).findByRole("button", { name: "Abrir" }));
+  await within(await screen.findByRole("log")).findByText("Para desenvolver o cavalo.");
+  assert.ok(firstSignal?.aborted);
+  await act(async () => firstStream.close());
+  assert.equal(screen.queryByText("Pergunta em andamento"), null);
+  ask("E agora?");
+  await screen.findByText("Centralize as peças.");
+  assert.deepEqual(lists.slice(0, 2), [[bookKey(startFen).toString(), positionKey], [positionKey]]);
+  assert.equal(sends[1].conversationId, rows[0].id);
+  assert.equal(sends[1].gameTitle, "Minha partida");
+  assert.deepEqual(sends[1].history, messages);
+});
+
+test("deletion requires confirmation and removes the saved row without another list request", async (t) => {
+  const row = {
+    id: crypto.randomUUID(), updatedAt: "2026-11-23T19:15:00Z", firstQuestion: "Pergunta salva",
+    messageCount: 2, model: "modelo",
+  };
+  const fetch = t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    if (url === "/api/ask-master/quota") return Response.json({ questionsLeft: 3 });
+    if (init.method === "POST") return Response.json({ conversations: [row] });
+    assert.equal(url, `/api/ask-master/conversations?id=${row.id}`);
+    assert.equal(init.method, "DELETE");
+    return new Response(null, { status: 204 });
+  });
+  const deletes = () => fetch.mock.calls.filter(({ arguments: [, init] }) => init?.method === "DELETE").length;
+  open({ isMobile: true });
+  fireEvent.click(screen.getByRole("button", { name: "Histórico" }));
+  const remove = await screen.findByRole("button", { name: "Excluir" });
+  fireEvent.click(remove);
+  let dialog = screen.getByRole("dialog", { name: "Excluir esta conversa?" });
+  const dialogButtons = within(dialog).getAllByRole("button");
+  // Happy DOM has no layout, so mark the confirmation buttons as visible to the focus trap.
+  const sheet = screen.getByRole("dialog", { name: "Pergunte ao Mestre" });
+  const sheetClose = within(sheet).getAllByRole("button")[0];
+  Object.defineProperty(sheetClose, "offsetParent", { value: sheet });
+  for (const button of dialogButtons) Object.defineProperty(button, "offsetParent", { value: dialog });
+  const last = dialogButtons.at(-1)!;
+  last.focus();
+  fireEvent.keyDown(last, { key: "Tab" });
+  assert.equal(document.activeElement, dialogButtons[0]);
+  fireEvent.keyDown(window, { key: "Escape" });
+  assert.equal(screen.queryByRole("dialog", { name: "Excluir esta conversa?" }), null);
+  assert.ok(screen.getByRole("dialog", { name: "Pergunte ao Mestre" }));
+  assert.equal(deletes(), 0);
+  fireEvent.click(remove);
+  dialog = screen.getByRole("dialog", { name: "Excluir esta conversa?" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Excluir" }));
+  await screen.findByText("Nenhuma conversa salva.");
+  assert.equal(deletes(), 1);
+  assert.equal(screen.queryByText("Pergunta salva"), null);
+  assert.equal(fetch.mock.calls.filter(({ arguments: [, init] }) => init?.method === "POST").length, 1);
+});
+
+test("checks the position dot only while open, debounces navigation and aborts stale lookups", async (t) => {
+  const board = initial.active();
+  const chess = new Chess(board.tree.startFen);
+  const { from, to, san } = chess.move("Nf3");
+  const fen = chess.fen();
+  const tree = { ...board.tree, children: [{ id: "move", from, to, san, uci: from + to, fen, children: [] }] };
+  useStudioStore.setState({ user: { id: "user", email: null, displayName: null }, boards: [{ ...board, tree }] });
+  const requests: { keys: string[]; signal: AbortSignal | null | undefined }[] = [];
+  const stale = Promise.withResolvers<Response>();
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    if (url === "/api/ask-master/quota") return Response.json({ questionsLeft: 3 });
+    assert.equal(url, "/api/ask-master/conversations");
+    const keys = JSON.parse(String(init.body)).positionKeys;
+    requests.push({ keys, signal: init.signal });
+    return requests.length === 2 ? stale.promise : Response.json({ conversations: [{}] });
+  });
+  render(<AskMasterWidget visible isMobile={false} />);
+  const launcher = screen.getByRole("button", { name: "Pergunte ao Mestre" });
+  const dot = "Conversas salvas nesta posição";
+  assert.equal(requests.length, 0);
+  fireEvent.click(launcher);
+  assert.equal(requests.length, 0);
+  await screen.findByRole("img", { name: dot }, { timeout: 2000 });
+  assert.deepEqual(requests[0].keys, [bookKey(tree.startFen).toString()]);
+  act(() => useStudioStore.setState({ boards: [{ ...board, tree, path: [0] }] }));
+  assert.equal(screen.queryByRole("img", { name: dot }), null);
+  assert.equal(requests.length, 1);
+  await waitFor(() => assert.equal(requests.length, 2), { timeout: 2000 });
+  assert.deepEqual(requests[1].keys, [bookKey(fen).toString()]);
+  fireEvent.click(launcher);
+  assert.equal(requests[1].signal?.aborted, true);
+  await act(async () => stale.resolve(Response.json({ conversations: [{}] })));
+  assert.equal(screen.queryByRole("img", { name: dot }), null);
 });
