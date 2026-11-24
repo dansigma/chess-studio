@@ -202,10 +202,27 @@ export function stripFalse(body: string, { falseClaims, illegalLines }: ReturnTy
   const withoutIllegal = body.replace(lines, (line, raw: string) => illegalLines.includes(raw) ? "" : line);
   if (!falseClaims.length) return withoutIllegal.trim();
 
+  return dropSentences(withoutIllegal, (sentence) => falseClaims.some(({ claim }) => mentionsClaim(sentence, claim)));
+}
+
+function dropSentences(body: string, drop: (sentence: string) => boolean): string {
   // Keep sentence boundaries outside SAN, including periods in move numbers.
-  const masked = withoutIllegal.replace(lines, (line) => " ".repeat(line.length));
+  const masked = body.replace(/\[\[([\s\S]*?)\]\]/g, (line) => " ".repeat(line.length));
   return Array.from(masked.matchAll(/[^\n]+?(?:[.!?]+(?=\s|$)|(?=\n|$))|\n/g))
-    .filter(({ 0: sentence }) => !falseClaims.some(({ claim }) => mentionsClaim(sentence, claim)))
-    .map(({ 0: sentence, index }) => withoutIllegal.slice(index, index + sentence.length))
+    .filter(({ 0: sentence }) => !drop(sentence))
+    .map(({ 0: sentence, index }) => body.slice(index, index + sentence.length))
     .join("").trim();
+}
+
+/** Drops sentences that cite a game missing from the pack's xdGames: the chip
+ *  would render as nothing and leave a broken sentence ("games like  and  show"). */
+export function stripUnknownGames(body: string, context: unknown): string {
+  const games = typeof context === "object" && context !== null ? (context as { xdGames?: unknown }).xdGames : undefined;
+  const known = new Set(Array.isArray(games)
+    ? games.flatMap((game) => typeof game?.id === "string" ? [game.id] : [])
+    : []);
+  const citations = /\{\{game:([^{}\r\n]*)\}\}/g;
+  if (Array.from(body.matchAll(citations)).every((match) => known.has(match[1].trim()))) return body;
+  return dropSentences(body, (sentence) =>
+    Array.from(sentence.matchAll(citations)).some((match) => !known.has(match[1].trim())));
 }

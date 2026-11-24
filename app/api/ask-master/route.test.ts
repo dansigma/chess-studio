@@ -290,7 +290,7 @@ test("uses an explicit coaching level in the provider prompt", async (t) => {
 for (const [intent, heading] of [
   [undefined, "Na prática"],
   ["free", "Na prática"],
-  ["explain", "Conclusão"],
+  ["explain", "Por que agir agora"],
   ["model-games", "Partidas modelo"],
   ["study-opening", "Por onde começar"],
 ] as const) {
