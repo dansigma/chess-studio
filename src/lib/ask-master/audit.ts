@@ -214,13 +214,18 @@ function dropSentences(body: string, drop: (sentence: string) => boolean): strin
     .join("").trim();
 }
 
+/** Game ids the position pack offers for citation (its xdGames). */
+export function packGameIds(context: unknown): Set<string> {
+  const games = typeof context === "object" && context !== null ? (context as { xdGames?: unknown }).xdGames : undefined;
+  return new Set(Array.isArray(games)
+    ? games.flatMap((game) => typeof game?.id === "string" ? [game.id] : [])
+    : []);
+}
+
 /** Drops sentences that cite a game missing from the pack's xdGames: the chip
  *  would render as nothing and leave a broken sentence ("games like  and  show"). */
 export function stripUnknownGames(body: string, context: unknown): string {
-  const games = typeof context === "object" && context !== null ? (context as { xdGames?: unknown }).xdGames : undefined;
-  const known = new Set(Array.isArray(games)
-    ? games.flatMap((game) => typeof game?.id === "string" ? [game.id] : [])
-    : []);
+  const known = packGameIds(context);
   const citations = /\{\{game:([^{}\r\n]*)\}\}/g;
   if (Array.from(body.matchAll(citations)).every((match) => known.has(match[1].trim()))) return body;
   return dropSentences(body, (sentence) =>

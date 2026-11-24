@@ -1,4 +1,5 @@
 import type { SiteLocale } from "@/src/i18n/locale";
+import { packGameIds } from "./audit";
 import { DEFAULT_ASK_MASTER_LEVEL, type AskMasterLevel } from "./level";
 
 const LEVEL_INSTRUCTIONS: Record<AskMasterLevel, string> = {
@@ -73,11 +74,6 @@ export type ChatMessage = { role: "system" | HistoryTurn["role"]; content: strin
 
 export const ANSWER_LINE_RULE = "Wrap playable lines in double brackets, for example [[4...a6 5.Bf4 e6]]. Use English SAN with move numbers, starting from the current position or an earlier position in the current line.";
 
-function hasGames(context: unknown): boolean {
-  const games = typeof context === "object" && context !== null ? (context as { xdGames?: unknown }).xdGames : undefined;
-  return Array.isArray(games) && games.length > 0;
-}
-
 export function buildMessages({ locale, question, history = [], context, level = DEFAULT_ASK_MASTER_LEVEL, intent = "free" }: PromptInput): ChatMessage[] {
   const language = locale === "pt-br" ? "Brazilian Portuguese" : "English";
   const messages: ChatMessage[] = [{
@@ -94,7 +90,7 @@ export function buildMessages({ locale, question, history = [], context, level =
       "Use general chess principles when needed and label general advice as such. Never mention missing sources.",
       LEVEL_INSTRUCTIONS[level],
       ANSWER_LINE_RULE,
-      hasGames(context)
+      packGameIds(context).size > 0
         ? "Cite a game by writing {{game:ID}} where its name would go, with ID copied exactly from an xdGames id. The citation shows the players, so do not repeat their names."
         : "There are no games to cite. Do not mention specific games.",
       "Write natural, varied prose. State each fact once and do not repeat the same idea or wording in another section.",
