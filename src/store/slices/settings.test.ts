@@ -461,3 +461,26 @@ test("textSize defaults to default, persists valid values and rejects invalid on
   storage.delete(SETTINGS_KEY);
   resetSettings();
 });
+
+test("defaults, validates and persists the Ask the Master level", async () => {
+  const { persistSettings } = await import("../studio-store.ts");
+  const store = useStudioStore.getState();
+  try {
+    assert.equal(DEFAULT_SETTINGS.askMasterLevel, "1600-2000");
+    for (const value of [{}, { askMasterLevel: "expert" }, { askMasterLevel: null }]) {
+      storage.set(SETTINGS_KEY, JSON.stringify(value));
+      store.hydrateLocalSettings();
+      assert.equal(useStudioStore.getState().settings.askMasterLevel, "1600-2000");
+    }
+    for (const level of ["u1600", "1600-2000", "2000+"] as const) {
+      store.setAskMasterLevel(level);
+      await persistSettings(useStudioStore.getState().settings);
+      resetSettings();
+      store.hydrateLocalSettings();
+      assert.equal(useStudioStore.getState().settings.askMasterLevel, level);
+    }
+  } finally {
+    storage.delete(SETTINGS_KEY);
+    resetSettings();
+  }
+});

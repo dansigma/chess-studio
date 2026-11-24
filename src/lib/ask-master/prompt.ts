@@ -1,9 +1,17 @@
 import type { SiteLocale } from "@/src/i18n/locale";
+import { DEFAULT_ASK_MASTER_LEVEL, type AskMasterLevel } from "./level";
+
+const LEVEL_INSTRUCTIONS: Record<AskMasterLevel, string> = {
+  u1600: "For players up to 1600, start with the most-played moves in the Lichess rating band when available. Use everyday words, explain chess terms, and show a short, concrete way to punish a common mistake when supported by the position data.",
+  "1600-2000": "For players rated 1600–2000, start with the most-played moves in the Lichess rating band when available. Use plain chess vocabulary to explain their plans and how to punish common mistakes supported by the position data.",
+  "2000+": "For players rated 2000+, use precise chess terminology and emphasize critical variations, candidate-move tradeoffs, and positional nuances.",
+};
 
 type HistoryTurn = { role: "user" | "assistant"; text: string };
 
 export type PromptInput = {
   locale: SiteLocale;
+  level?: AskMasterLevel;
   question: string;
   history?: HistoryTurn[];
   context?: unknown;
@@ -11,7 +19,7 @@ export type PromptInput = {
 
 export type ChatMessage = { role: "system" | HistoryTurn["role"]; content: string };
 
-export function buildMessages({ locale, question, history = [], context }: PromptInput): ChatMessage[] {
+export function buildMessages({ locale, question, history = [], context, level = DEFAULT_ASK_MASTER_LEVEL }: PromptInput): ChatMessage[] {
   const language = locale === "pt-br" ? "Brazilian Portuguese" : "English";
   const messages: ChatMessage[] = [{
     role: "system",
@@ -24,6 +32,7 @@ export function buildMessages({ locale, question, history = [], context }: Promp
       "The engine field contains SAN continuations and evaluations from White's perspective. The lichess and xd fields contain move frequencies and White, draw, and Black outcome percentages. The xdGames field lists strong Base Xadrez Digital games with IDs and game headers.",
       "Use engine lines and statistics to support the explanation. Keep evaluation numbers and statistics out of the prose. Never invent games, players, statistics, or evaluations. Only cite game IDs from xdGames.",
       "Use general chess principles when needed and label general advice as such. Never mention missing sources.",
+      LEVEL_INSTRUCTIONS[level],
     ].join(" "),
   }];
 

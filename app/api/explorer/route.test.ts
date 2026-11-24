@@ -370,3 +370,20 @@ test("a failing cache write still returns 200 and logs once", async (t) => {
   assert.match(String(errors[0][0]), /\[explorer\] cache write failed/);
 });
 
+
+test("forwards the exact Lichess coaching rating bands and caches each separately", async (t) => {
+  state.public = createFakeSupabase();
+  const requests: (string | null)[] = [];
+  mockFetch(t, (fetchUrl) => {
+    requests.push(new URL(fetchUrl).searchParams.get("ratings"));
+    return jsonResponse({ white: 1, draws: 0, black: 0, moves: [] });
+  });
+
+  for (const level of ["u1600", "1600-2000", "2000+"]) {
+    const extra = `&askMasterLevel=${encodeURIComponent(level)}`;
+    assert.equal((await get(STARTPOS, "lichess", extra)).res.status, 200);
+    assert.equal((await get(STARTPOS, "lichess", extra)).res.status, 200);
+  }
+  assert.equal((await get(STARTPOS, "lichess", "&askMasterLevel=expert")).res.status, 400);
+  assert.deepEqual(requests, ["0,1000,1200,1400", "1600,1800", "2000,2200,2500"]);
+});

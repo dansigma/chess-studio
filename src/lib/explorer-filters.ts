@@ -102,6 +102,7 @@ export function studioFilterQuery(filters: ExplorerFilters): string {
 export function lichessFilterQuery(
   source: "masters" | "lichess",
   filters: ExplorerFilters,
+  ratingBands?: readonly number[],
 ): string {
   const params = new URLSearchParams();
   if (filters.sinceYear) {
@@ -115,7 +116,9 @@ export function lichessFilterQuery(
     if (speeds.length < EXPLORER_SPEEDS.length) {
       params.set("speeds", speeds.join(","));
     }
-    if (filters.minRating > 0) {
+    if (ratingBands) {
+      params.set("ratings", ratingBands.join(","));
+    } else if (filters.minRating > 0) {
       const bands = LICHESS_RATING_BANDS.filter((band) => band >= filters.minRating);
       params.set("ratings", bands.join(","));
     }

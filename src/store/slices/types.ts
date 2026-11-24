@@ -22,6 +22,7 @@ import type {
 import type { PlayerBookmark } from "@/src/lib/player-bookmarks";
 import type { EngineBuild } from "@/src/engine/stockfish-client";
 import type { ExplorerResponse, ExplorerSource } from "@/src/lib/explorer-types";
+import type { AskMasterLevel } from "@/src/lib/ask-master/level";
 import type { ExplorerFilters } from "@/src/lib/explorer-filters";
 import type { NotationDensity } from "@/src/studio/notation-density";
 import type { TextSize } from "@/src/studio/text-size";
@@ -174,6 +175,7 @@ export type StudioSettings = {
   sidebarWidth: number;
   explorerFilters: ExplorerFilters;
   xdExplorerFilters: ExplorerFilters;
+  askMasterLevel: AskMasterLevel;
   moveSound: boolean;
   puzzleSound: boolean;
   /** SIG-1196: 40px eval sparkline under the engine control row. */
@@ -329,6 +331,7 @@ export type StudioState = {
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
   setDatabaseSource: (source: ExplorerSource) => void;
+  setAskMasterLevel: (level: AskMasterLevel) => void;
   setExplorerFilters: (patch: Partial<ExplorerFilters>, source?: ExplorerSource) => void;
   importPgnText: (pgn: string, title?: string) => void;
   openListedGame: (args: {

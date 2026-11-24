@@ -7,6 +7,7 @@ import {
   type CloudExplorerSource,
   type ExplorerResponse,
 } from "@/src/lib/explorer-types";
+import { isAskMasterLevel, type AskMasterLevel } from "@/src/lib/ask-master/level";
 import { filtersAreDefault, filtersFromSearchParams, lichessFilterQuery } from "@/src/lib/explorer-filters";
 import { emptyExplorer, lookupOpeningBook } from "@/src/lib/opening-book";
 import { lookupCuratedIndex } from "@/src/lib/offline-explorer";
@@ -20,6 +21,14 @@ import { _resetExplorerUpstreamForTest, fetchExplorerUpstream } from "@/src/lib/
 
 const memoryCache = createLruCache<string, { payload: ExplorerResponse; fetchedAt: number }>(500);
 const limiter = createRouteLimiter({ limit: 60, windowMs: 60_000, bindingName: "RL_60_MIN" });
+// The public Lichess API buckets games by the players' average rating.
+// Each bucket starts at its label, with 2500 as the highest documented bucket.
+const COACHING_RATING_BANDS: Record<AskMasterLevel, readonly number[]> = {
+  u1600: [0, 1000, 1200, 1400],
+  "1600-2000": [1600, 1800],
+  "2000+": [2000, 2200, 2500],
+};
+
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24;
 const FALLBACK_CACHE_TTL_MS = 1000 * 60 * 2;
 
@@ -71,14 +80,19 @@ export async function GET(request: NextRequest) {
   }
 
   const filters = filtersFromSearchParams(request.nextUrl.searchParams);
-  const filtered = !filtersAreDefault(filters);
+  const level = request.nextUrl.searchParams.get("askMasterLevel");
+  if (level !== null && (sourceParam !== "lichess" || !isAskMasterLevel(level))) {
+    return NextResponse.json({ error: "Invalid Lichess coaching level" }, { status: 400 });
+  }
+  const ratingBands = level === null ? undefined : COACHING_RATING_BANDS[level];
+  const filtered = ratingBands !== undefined || !filtersAreDefault(filters);
 
   if (sourceParam === "curated") {
     const payload = lookupCuratedIndex(fen, filters, lookupOpeningIndex);
     return cachedJson(payload, filtered);
   }
 
-  const filterQuery = lichessFilterQuery(sourceParam, filters);
+  const filterQuery = lichessFilterQuery(sourceParam, filters, ratingBands);
   const key = filtered ? `${cacheKey(sourceParam, fen)}|${filterQuery}` : cacheKey(sourceParam, fen);
   const memory = memoryCache.get(key);
   if (memory) {

@@ -3,12 +3,14 @@ import { applyNullMoveFen } from "../../chess/null-move";
 import type { PositionFacts, ThreatSet } from "../../chess/facts/types";
 import { formatScore, type EngineLine } from "../../engine/stockfish-client";
 import type { ExplorerGameRow, ExplorerResponse } from "../explorer-types";
+import { DEFAULT_ASK_MASTER_LEVEL, type AskMasterLevel } from "./level";
 
 export const POSITION_PACK_BYTES = 15 * 1024;
 
 type PackInput = {
   fen: string;
   sanLine: readonly string[];
+  level?: AskMasterLevel;
   opening?: { eco: string; name: string } | null;
   facts?: PositionFacts;
   threats?: readonly ThreatSet[];
@@ -68,7 +70,7 @@ function threatRows(chess: Chess | undefined, threats?: readonly ThreatSet[]) {
 }
 
 export function buildPositionPack(input: PackInput) {
-  const { fen, opening, facts, threats, lichess, xd, xdGames, engineLines } = input;
+  const { fen, level = DEFAULT_ASK_MASTER_LEVEL, opening, facts, threats, lichess, xd, xdGames, engineLines } = input;
   let chess: Chess | undefined;
   try {
     chess = new Chess(fen);
@@ -78,6 +80,7 @@ export function buildPositionPack(input: PackInput) {
 
   const pack = {
     fen,
+    level,
     moves: [...input.sanLine],
     earlierMovesOmitted: undefined as number | undefined,
     opening: opening ?? undefined,
@@ -122,7 +125,7 @@ export function buildPositionPack(input: PackInput) {
     pack.earlierMovesOmitted = input.sanLine.length - pack.moves.length;
   }
   if (overBudget()) {
-    const minimal: Partial<typeof pack> & Pick<typeof pack, "fen" | "moves"> = { fen, moves: [] };
+    const minimal: Partial<typeof pack> & Pick<typeof pack, "fen" | "moves" | "level"> = { fen, level, moves: [] };
     return minimal;
   }
   return pack;
