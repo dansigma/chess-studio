@@ -90,7 +90,7 @@ test("min games filter drops small groups and shows the empty state", async () =
 
 test("pt-BR displays the translated family and variation", async () => {
   setup("pt-br");
-  await waitFor(() => assert.ok(screen.getByText("Jogo Italiano")));
+  await waitFor(() => assert.ok(screen.getByText("Abertura Italiana")));
   assert.ok(screen.getByText("Defesa Siciliana: Variante Najdorf"));
   assert.ok(screen.getByText("Defesa Francesa"));
 });
