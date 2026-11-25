@@ -14,16 +14,16 @@ env.wasm.wasmPaths = {
 
 let session: Promise<InferenceSession> | undefined;
 
-const run: RunMaiaModel = async (tokens, batch, elo, output) => {
+const run: RunMaiaModel = async (tokens, elo) => {
   session ??= InferenceSession.create("/engine/maia/maia3-5m.onnx", { executionProviders: ["wasm"] });
   const model = await session;
-  const rating = new Tensor("int64", new BigInt64Array(batch).fill(BigInt(elo)), [batch]);
+  const rating = new Tensor("int64", BigInt64Array.of(BigInt(elo)), [1]);
   const result = await model.run({
-    tokens: new Tensor("float32", tokens, [batch, BOARD_SQUARES, TOKEN_WIDTH]),
+    tokens: new Tensor("float32", tokens, [1, BOARD_SQUARES, TOKEN_WIDTH]),
     self_elo: rating,
     oppo_elo: rating,
-  }, [output]);
-  return result[output].data as Float32Array;
+  }, ["move_logits"]);
+  return result.move_logits.data as Float32Array;
 };
 
 self.onmessage = async ({ data }: MessageEvent<MaiaPosition>) => {
