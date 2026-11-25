@@ -56,7 +56,7 @@ export function LiveStandingsTable({
                   <td className="min-w-24">
                     <div className="flex flex-wrap items-center gap-1">
                       {row.title ? <TitleBadge title={row.title} /> : null}
-                      <span>{row.name}</span>
+                      <span translate="no">{row.name}</span>
                     </div>
                     <div className="flex gap-2 text-caption text-studio-muted">
                       {row.rating !== null ? <span>{row.rating}</span> : null}

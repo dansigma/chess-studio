@@ -4,10 +4,11 @@ import { createPortal } from "react-dom";
 const OPEN_DELAY_MS = 300;
 const VIEWPORT_MARGIN = 8;
 
-export function HoverCard({ children, content, className }: {
+export function HoverCard({ children, content, className, translate }: {
   children: ReactNode;
   content: ReactNode;
   className?: string;
+  translate?: "yes" | "no";
 }) {
   const id = useId();
   const trigger = useRef<HTMLSpanElement>(null);
@@ -75,6 +76,7 @@ export function HoverCard({ children, content, className }: {
       <span
         ref={trigger}
         className={className}
+        translate={translate}
         tabIndex={0}
         title=""
         aria-describedby={open ? id : undefined}

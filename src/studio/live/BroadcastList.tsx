@@ -60,8 +60,8 @@ function BroadcastCard({
         <div className="aspect-[2/1] w-full rounded-md bg-studio-hover-subtle" aria-hidden="true" />
       )}
       <div className="mt-2 min-w-0">
-        <div className="truncate text-sm font-medium text-studio-fg">{tour.name}</div>
-        {item.group ? <div className="truncate text-caption text-studio-muted">{item.group}</div> : null}
+        <div translate="no" className="truncate text-sm font-medium text-studio-fg">{tour.name}</div>
+        {item.group ? <div translate="no" className="truncate text-caption text-studio-muted">{item.group}</div> : null}
         {meta ? <div className="truncate text-caption text-studio-muted">{meta}</div> : null}
         {round ? (
           <div className="mt-1 flex items-center gap-1.5 text-caption text-studio-fg">
