@@ -56,7 +56,8 @@ function PlayerStanding({ player, tourId, locale }: {
   locale: SiteLocale;
 }) {
   const { rows, status } = useTourStandings(tourId);
-  const candidate = status === "ready" ? findStandingRow(rows, player) : undefined;
+  // Keep showing the previous standings while a refresh is in flight.
+  const candidate = rows.length ? findStandingRow(rows, player) : undefined;
   // A fallback by name must be unique and cannot override a conflicting FIDE ID.
   const row = candidate && (
     (player.fideId != null && candidate.fideId === player.fideId) ||
@@ -101,7 +102,9 @@ function PlayerStanding({ player, tourId, locale }: {
           </dl>
         </div>
       ) : (
-        <p className="mt-2 text-caption text-studio-muted">{tLive(locale, "live.player.scoreUnavailable")}</p>
+        <p className="mt-2 text-caption text-studio-muted">
+          {tLive(locale, status === "loading" && !rows.length ? "live.standings.loading" : "live.player.scoreUnavailable")}
+        </p>
       )}
     </>
   );
