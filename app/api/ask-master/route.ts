@@ -13,7 +13,9 @@ import { createServerSupabase } from "@/src/lib/supabase/server";
 
 const limiter = createRouteLimiter({ limit: 10, windowMs: 60_000, bindingName: "RL_AUTH" });
 const MAX_CONTEXT_BYTES = 16 * 1024;
-const REPAIR_BUDGET_MS = 60_000;
+// A reasoning model takes 30–100 s per answer; a repair call would double that,
+// so past this budget the server only filters the false parts.
+const REPAIR_BUDGET_MS = 30_000;
 // Context, question and history together stay well under this.
 const MAX_BODY_BYTES = 64 * 1024;
 
