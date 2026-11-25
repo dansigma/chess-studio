@@ -32,7 +32,8 @@ function MaiaChancesBar({ chances, rating, locale }: { chances: MaiaChances; rat
   return (
     // role="img": the bar's own aria-label sits on a role-less span (colour mode), which screen readers skip.
     <div role="img" aria-label={`${title}: ${label}`} title={title} className="border-b border-studio-border-subtle px-2 pb-1.5 pt-0.5">
-      <ResultBar white={chances.white} draws={chances.draw} black={chances.black} />
+      {/* Full panel width: a 6% segment still fits "6%", unlike the narrow explorer column. */}
+      <ResultBar white={chances.white} draws={chances.draw} black={chances.black} minLabelPercent={6} />
     </div>
   );
 }
