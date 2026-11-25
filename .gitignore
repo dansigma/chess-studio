@@ -67,3 +67,8 @@ public/engine/full/stockfish-19.wasm
 # SIG-1485: private Ask the Master evaluation material and outputs
 /ask-master-eval-data/
 /ask-master-eval-out/
+
+# Maia: generated ONNX Runtime assets and local model exports
+/public/engine/maia/ort/
+*.onnx
+*.pt

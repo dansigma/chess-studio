@@ -27,6 +27,11 @@ const nextConfig: NextConfig = {
         headers: isolation,
       },
       {
+        // The Maia module worker needs COEP when created by an isolated Studio page.
+        source: "/_next/static/chunks/turbopack-worker-:hash.js",
+        headers: isolation,
+      },
+      {
         source: "/engine/:path*",
         // NB: no Cache-Control here — the route sets immutable on success and
         // no-store on errors itself; a rule-level header would apply to error

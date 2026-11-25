@@ -180,6 +180,8 @@ export type StudioSettings = {
   puzzleSound: boolean;
   /** SIG-1196: 40px eval sparkline under the engine control row. */
   engineSparkline: boolean;
+  maiaEnabled: boolean;
+  maiaElo: number;
   /** Site language; also drives Game Review explanations (SIG-971). */
   locale: SiteLocale;
 };
@@ -306,6 +308,8 @@ export type StudioState = {
   toggleMoveSound: () => void;
   togglePuzzleSound: () => void;
   toggleEngineSparkline: () => void;
+  setMaiaEnabled: (enabled: boolean) => void;
+  setMaiaElo: (elo: number) => void;
   toggleEvalBar: () => void;
   toggleMaterialBalance: () => void;
   toggleAutoQueen: () => void;

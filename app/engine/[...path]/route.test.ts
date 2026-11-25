@@ -89,3 +89,15 @@ test("defaults to octet-stream for non-wasm assets without metadata", async () =
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("Content-Type"), "application/octet-stream");
 });
+
+test("serves the Maia model as immutable binary data", async () => {
+  const key = "engine/maia/maia3-5m.onnx";
+  setCloudflareEnv({
+    ENGINE: fakeEngineBucket({ [key]: { body: "model", contentType: "text/plain" } }),
+  });
+  const res = await GET(new Request(`http://app.test/${key}`), params(["maia", "maia3-5m.onnx"]));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("Content-Type"), "application/octet-stream");
+  assert.equal(res.headers.get("Cache-Control"), "public, max-age=31536000, immutable");
+  assert.equal(res.headers.get("Cross-Origin-Resource-Policy"), "same-origin");
+});

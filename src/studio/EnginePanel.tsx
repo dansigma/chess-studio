@@ -32,6 +32,7 @@ import { IconButton } from "./ui/Button";
 import { Stepper } from "./ui/Controls";
 import { EvalSparkline } from "./EvalGraphPanel";
 import { TABLEBASE_OUTCOMES } from "@/src/lib/tablebase/lichess";
+import { MaiaLines } from "./MaiaLines";
 import { useTablebase } from "./useTablebase";
 import { ENGINE_SPARKLINE_MIN_HEIGHT, usePanelSize } from "./use-panel-size";
 
@@ -88,6 +89,8 @@ export function EnginePanel() {
   const [runId, setRunId] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const showSparkline = useStudioStore((state) => state.settings.engineSparkline);
+  const maiaEnabled = useStudioStore((state) => state.settings.maiaEnabled);
+  const setMaiaEnabled = useStudioStore((state) => state.setMaiaEnabled);
   const toggleSparkline = useStudioStore((state) => state.toggleEngineSparkline);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelSize = usePanelSize(rootRef);
@@ -429,6 +432,16 @@ export function EnginePanel() {
                     className="h-3.5 w-3.5 accent-studio-accent"
                   />
                 </label>
+                <label className="flex cursor-pointer items-center justify-between gap-2 text-dense text-studio-muted">
+                  {tPanels(locale, "maia.enabled")}
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={maiaEnabled}
+                    onChange={(event) => setMaiaEnabled(event.target.checked)}
+                    className="h-3.5 w-3.5 accent-studio-accent"
+                  />
+                </label>
                 <div>
                   <div className="mb-1.5 flex items-center justify-between text-dense text-studio-muted">
                     <span className="inline-flex items-center gap-1.5">
@@ -617,6 +630,7 @@ export function EnginePanel() {
               />
             </div>
           ))}
+          {maiaEnabled && inStudio ? <MaiaLines onPlay={playUciSequence} /> : null}
         </div>
       </div>
       {lineMenu ? (

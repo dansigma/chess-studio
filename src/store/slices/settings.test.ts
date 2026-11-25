@@ -484,3 +484,24 @@ test("defaults, validates and persists the Ask the Master level", async () => {
     resetSettings();
   }
 });
+
+test("Maia settings restore from local persistence and default for older records", async () => {
+  const { persistSettingsRecord } = await import("../../lib/studio-persistence.ts");
+  try {
+    storage.set(SETTINGS_KEY, JSON.stringify({ engineSparkline: false }));
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.maiaEnabled, false);
+    assert.equal(useStudioStore.getState().settings.maiaElo, 1500);
+
+    actions().setMaiaEnabled(true);
+    actions().setMaiaElo(1860);
+    await persistSettingsRecord(useStudioStore.getState().settings, null);
+    resetSettings();
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.maiaEnabled, true);
+    assert.equal(useStudioStore.getState().settings.maiaElo, 1900);
+  } finally {
+    storage.delete(SETTINGS_KEY);
+    resetSettings();
+  }
+});

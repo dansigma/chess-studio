@@ -19,6 +19,7 @@ export default defineConfig({
       runWorkerFirst: [
         "/engine/full/stockfish-19.wasm",
         "/engine/stockfish-19-single.wasm",
+        "/engine/maia/maia3-5m.onnx",
       ],
     },
     domains: ["xadrez.digital", "www.xadrez.digital"],
