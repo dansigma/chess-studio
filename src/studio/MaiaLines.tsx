@@ -8,6 +8,7 @@ import { MaiaClient } from "@/src/engine/maia/maia-client";
 import { MAIA_ELOS, type MaiaChances, type MaiaMove, type MaiaPosition } from "@/src/engine/maia/protocol";
 import { tPanels, type StudioPanelStringKey } from "@/src/i18n/studio-panel-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
+import { ResultBar } from "./ui/ResultBar";
 import { useActiveLineFens } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 
@@ -19,52 +20,18 @@ type Analysis =
   | { position: MaiaPosition; failed: true };
 type ShownMove = MaiaMove & { label: string };
 
-/** Whole percentages that always add up to 100 (largest-remainder rounding). */
-function roundedPercents(values: readonly number[]): number[] {
-  const scaled = values.map((value) => value * 100);
-  const result = scaled.map(Math.floor);
-  const remainder = 100 - result.reduce((sum, value) => sum + value, 0);
-  const order = values.map((_, index) => index).sort((a, b) => (scaled[b] - result[b]) - (scaled[a] - result[a]));
-  for (const index of order.slice(0, Math.max(0, remainder))) result[index]++;
-  return result;
-}
-
-const CHANCE_KEYS = ["maia.chances.white", "maia.chances.draw", "maia.chances.black"] as const;
-const CHANCE_ALIGN = ["text-left", "text-center", "text-right"] as const;
-// White, draw and Black segments: light, neutral and dark, like the pieces.
-const CHANCE_BAR = [
-  "bg-studio-win ring-1 ring-studio-border-strong",
-  "bg-studio-faint/35",
-  "bg-studio-loss ring-1 ring-studio-border-strong",
-] as const;
-
-/** The position's chances for two players of the chosen rating: White · Draw · Black. */
+/** The position's chances for two players of the chosen rating, as the explorer's result bar. */
 function MaiaChancesBar({ chances, rating, locale }: { chances: MaiaChances; rating: number; locale: SiteLocale }) {
-  const percents = roundedPercents([chances.white, chances.draw, chances.black]);
-  const top = percents.indexOf(Math.max(...percents));
+  const percent = (value: number) => Math.round(value * 100);
   const title = tPanels(locale, "maia.chances.title", { rating });
+  const label = tPanels(locale, "maia.chances.label", {
+    white: percent(chances.white),
+    draw: percent(chances.draw),
+    black: percent(chances.black),
+  });
   return (
-    <div role="group" aria-label={title} title={title} className="border-b border-studio-border-subtle px-2 pb-2 pt-0.5">
-      <div className="grid grid-cols-3 items-end">
-        {percents.map((percent, index) => (
-          <div key={CHANCE_KEYS[index]} className={CHANCE_ALIGN[index]}>
-            <div className="text-caption uppercase tracking-wide text-studio-faint">{tPanels(locale, CHANCE_KEYS[index])}</div>
-            <div className={`font-semibold tabular-nums leading-tight ${index === top ? "text-studio-fg" : "text-studio-muted"}`}>
-              <span className="text-lg">{percent}</span>
-              <span className="text-caption">%</span>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div aria-hidden="true" className="mt-1 flex h-2 gap-0.5">
-        {percents.map((percent, index) => (percent > 0 ? (
-          <span
-            key={CHANCE_KEYS[index]}
-            className={`min-w-1.5 rounded-full ${CHANCE_BAR[index]}`}
-            style={{ flexGrow: percent, flexBasis: 0 }}
-          />
-        ) : null))}
-      </div>
+    <div title={title} className="border-b border-studio-border-subtle px-2 pb-1.5 pt-0.5">
+      <ResultBar white={chances.white} draws={chances.draw} black={chances.black} label={`${title}: ${label}`} />
     </div>
   );
 }
