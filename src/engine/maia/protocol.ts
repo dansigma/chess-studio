@@ -1,5 +1,5 @@
 export type MaiaPosition = { fens: readonly string[]; elo: number; lines: number };
-export type MaiaMove = { uci: string; prob: number; wdl: [number, number, number] };
+export type MaiaMove = { uci: string; prob: number };
 export type MaiaResult = { moves: MaiaMove[] };
 export type MaiaResponse = { result: MaiaResult } | { error: string };
 

@@ -154,7 +154,7 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   act(() => t.mock.timers.tick(150));
   assert.equal(toggle.checked, false);
   assert.equal(workerCount, 0);
-  assert.equal(view.queryByText("Maia 3 · 1500"), null);
+  assert.equal(view.queryByText("human moves"), null);
 
   fireEvent.click(toggle);
   assert.ok(view.getByText("Loading Maia…"));
@@ -162,13 +162,14 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   assert.equal(workerCount, 1);
   assert.deepEqual(posted, { fens: [currentFen], elo: 1500, lines: 3 });
   await act(async () => reply?.({
-    result: { moves: [{ uci: "d2d4", prob: 0.38, wdl: [0.42, 0.31, 0.27] }] },
+    result: { moves: [{ uci: "d2d4", prob: 0.38 }] },
   }));
-  assert.ok(view.getByRole("button", { name: "d4 · 38% W 42 · D 31 · L 27" }));
+  assert.ok(view.getByRole("button", { name: "38% d4" }));
+  assert.equal(view.queryByText(/W \d+ · D/u), null);
   assert.match(view.container.querySelector(pv)?.textContent ?? "", /e4/u);
 
   fireEvent.change(view.getByRole("combobox", { name: "Player rating" }), { target: { value: "1600" } });
-  assert.equal(view.queryByText("d4 · 38%"), null);
+  assert.equal(view.queryByRole("button", { name: "38% d4" }), null);
   act(() => t.mock.timers.tick(150));
   assert.equal(posted?.elo, 1600);
   await act(async () => fail?.());
@@ -176,7 +177,7 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   assert.match(view.container.querySelector(pv)?.textContent ?? "", /e4/u);
 
   act(() => useStudioStore.setState({ workspaceView: "library" }));
-  assert.equal(view.queryByText("Maia 3 · 1600"), null);
+  assert.equal(view.queryByText("human moves"), null);
   act(() => useStudioStore.setState({ workspaceView: "studio" }));
   act(() => t.mock.timers.tick(150));
   assert.equal(workerCount, 2);
@@ -194,7 +195,7 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
     assert.equal(started, true);
   });
   assert.equal(terminated, 2);
-  assert.equal(view.queryByText("Maia 3 · 1600"), null);
+  assert.equal(view.queryByText("human moves"), null);
   assert.ok(view.getByText("Engine paused during the retry"));
   act(() => t.mock.timers.tick(150));
   assert.equal(workerCount, 2);

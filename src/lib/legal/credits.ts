@@ -7,7 +7,7 @@ import type { SiteLocale } from "@/src/i18n/locale";
 /** A piece of text, optionally a link. */
 export type CreditSegment = string | { text: string; href: string };
 
-export type CreditRow = { id: "engine" | "explorer" | "book" | "catalog" | "puzzles" | "xd-database"; label: string; segments: CreditSegment[] };
+export type CreditRow = { id: "engine" | "maia" | "explorer" | "book" | "catalog" | "puzzles" | "xd-database"; label: string; segments: CreditSegment[] };
 
 export const LICENSE_URLS = {
   cc0: "https://creativecommons.org/publicdomain/zero/1.0/",
@@ -20,6 +20,13 @@ export const LICENSE_URLS = {
 export const STOCKFISH_SOURCE_URLS = {
   wasm: "https://github.com/nmrugg/stockfish.js",
   official: "https://github.com/official-stockfish/Stockfish",
+} as const;
+
+/** SIG-1501: Maia-3 human move predictions in the Engine panel. */
+export const MAIA_URLS = {
+  source: "https://github.com/CSSLab/maia3",
+  weights: "https://huggingface.co/UofTCSSLab/Maia3-5M",
+  agpl: "https://www.gnu.org/licenses/agpl-3.0.html",
 } as const;
 
 export type KnownSourceId = "lichess-db" | "lumbra-gigabase" | "lumbra-broadcast" | "ajedrez-data" | "chess-results";
@@ -173,6 +180,9 @@ type Copy = {
   engineLicense: string;
   engineSource: string;
   and: string;
+  maia: string;
+  maiaBefore: string;
+  maiaAfter: string;
   explorerBefore: string;
   explorerAfter: string;
   bookBefore: string;
@@ -196,6 +206,9 @@ const COPY: Record<SiteLocale, Copy> = {
     engineLicense: "GPLv3",
     engineSource: ". Source code: ",
     and: " and ",
+    maia: "Human moves",
+    maiaBefore: " by CSSLab, University of Toronto (",
+    maiaAfter: "), runs locally. Code license ",
     explorerBefore: "Public ",
     explorerAfter: " explorer (masters and online database).",
     bookBefore: "Built by Xadrez Digital from ",
@@ -216,6 +229,9 @@ const COPY: Record<SiteLocale, Copy> = {
     engineLicense: "GPLv3",
     engineSource: ". Código-fonte: ",
     and: " e ",
+    maia: "Lances humanos",
+    maiaBefore: ", da CSSLab, Universidade de Toronto (",
+    maiaAfter: "), executado localmente. Licença do código ",
     explorerBefore: "Explorador público do ",
     explorerAfter: " (masters e base online).",
     bookBefore: "Construído pelo Xadrez Digital a partir de ",
@@ -288,6 +304,18 @@ export function creditRows(locale: SiteLocale, manifest: BookManifestLike = OPEN
         { text: "stockfish.js", href: STOCKFISH_SOURCE_URLS.wasm },
         copy.and,
         { text: "Stockfish", href: STOCKFISH_SOURCE_URLS.official },
+        ".",
+      ],
+    },
+    {
+      id: "maia",
+      label: copy.maia,
+      segments: [
+        { text: "Maia-3", href: MAIA_URLS.source },
+        copy.maiaBefore,
+        { text: "Maia3-5M", href: MAIA_URLS.weights },
+        copy.maiaAfter,
+        { text: "AGPLv3", href: MAIA_URLS.agpl },
         ".",
       ],
     },

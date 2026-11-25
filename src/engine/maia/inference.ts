@@ -1,13 +1,9 @@
 import { Chess } from "chess.js";
-import { BOARD_SQUARES, TOKEN_WIDTH, encodeHistory, legalMoves } from "./encode";
+import { encodeHistory, legalMoves } from "./encode";
 import type { MaiaPosition, MaiaResult } from "./protocol";
 
-export type RunMaiaModel = (
-  tokens: Float32Array,
-  batch: number,
-  elo: number,
-  output: "move_logits" | "value_logits",
-) => Promise<Float32Array>;
+/** One forward pass of the policy head on a single position: move logits over the vocabulary. */
+export type RunMaiaModel = (tokens: Float32Array, elo: number) => Promise<Float32Array>;
 
 function softmax(logits: readonly number[]): number[] {
   const peak = Math.max(...logits);
@@ -24,7 +20,7 @@ export async function analyzeMaia({ fens, elo, lines }: MaiaPosition, run: RunMa
   // still leave moves a human could play.
   const legal = legalMoves(board);
   if (legal.length === 0) return { moves: [] };
-  const logits = await run(encodeHistory(fens), 1, elo, "move_logits");
+  const logits = await run(encodeHistory(fens), elo);
   if (legal.some(({ index }) => !(index < logits.length))) {
     throw new Error("Maia move vocabulary does not match the model output");
   }
@@ -33,20 +29,6 @@ export async function analyzeMaia({ fens, elo, lines }: MaiaPosition, run: RunMa
     .sort((a, b) => b.prob - a.prob)
     .slice(0, lines);
 
-  const stride = BOARD_SQUARES * TOKEN_WIDTH;
-  const batch = new Float32Array(stride * candidates.length);
-  candidates.forEach(({ after }, index) => {
-    batch.set(encodeHistory([...fens, after]), index * stride);
-  });
-
-  // Both players use the selected Elo, so swapping the ratings is implicit.
-  const values = await run(batch, candidates.length, elo, "value_logits");
-  return {
-    moves: candidates.map(({ uci, prob }, index) => {
-      // The next position's labels are [loss, draw, win] for the opponent,
-      // which are [win, draw, loss] for the player choosing this move.
-      const [win, draw, loss] = softmax(Array.from(values.subarray(index * 3, index * 3 + 3)));
-      return { uci, prob, wdl: [win, draw, loss] };
-    }),
-  };
+  // Policy only: the value head (W/D/L) is not shown, so it is not computed.
+  return { moves: candidates.map(({ uci, prob }) => ({ uci, prob })) };
 }

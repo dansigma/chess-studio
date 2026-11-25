@@ -38,7 +38,7 @@ test("v2 manifest (no sources) credits only Lichess, CC0, no CC BY-SA claim", ()
 
 test("the deployed manifest renders", () => {
   const rows = creditRows("en");
-  assert.deepEqual(rows.map((r) => r.id), ["engine", "explorer", "book", "catalog", "puzzles", "xd-database"]);
+  assert.deepEqual(rows.map((r) => r.id), ["engine", "maia", "explorer", "book", "catalog", "puzzles", "xd-database"]);
 });
 
 test("v3-shaped manifest lists all sources and the CC BY-SA statement", () => {
@@ -78,8 +78,9 @@ test("engine row links the GPLv3 text and both source repositories", () => {
 
 test("puzzles and explorer rows", () => {
   const rows = creditRows("en");
-  assert.equal(text(rows[1].segments), "Public Lichess explorer (masters and online database).");
-  assert.equal(text(rows[4].segments), "Lichess puzzle database (CC0).");
+  const row = (id: string) => rows.find((r) => r.id === id);
+  assert.equal(text(row("explorer")!.segments), "Public Lichess explorer (masters and online database).");
+  assert.equal(text(row("puzzles")!.segments), "Lichess puzzle database (CC0).");
 });
 
 // SIG-1249: book v4 replaces the Broadcast subset with Lumbra's complete release (CC BY-NC 4.0).
@@ -133,6 +134,19 @@ test("Base Xadrez Digital credits the commercial license and broadcast material"
     assert.deepEqual(links(row.segments), {
       "Lichess Broadcast": "https://database.lichess.org/#broadcasts",
       "CC BY-SA 4.0": "https://creativecommons.org/licenses/by-sa/4.0/",
+    });
+  }
+});
+
+test("Maia-3 is credited to CSSLab with its source, weights and AGPLv3 license", () => {
+  for (const locale of ["en", "pt-br"] as const) {
+    const row = creditRows(locale).find(({ id }) => id === "maia");
+    assert.ok(row);
+    assert.match(text(row.segments), /CSSLab/);
+    assert.deepEqual(links(row.segments), {
+      "Maia-3": "https://github.com/CSSLab/maia3",
+      "Maia3-5M": "https://huggingface.co/UofTCSSLab/Maia3-5M",
+      AGPLv3: "https://www.gnu.org/licenses/agpl-3.0.html",
     });
   }
 });

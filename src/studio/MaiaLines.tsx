@@ -16,18 +16,6 @@ const DEBOUNCE_MS = 120;
 type Analysis = { position: MaiaPosition; moves: MaiaMove[] } | { position: MaiaPosition; failed: true };
 type ShownMove = MaiaMove & { label: string };
 
-/** Whole percentages that always add up to 100 (largest-remainder rounding). */
-function roundedWdl(wdl: MaiaMove["wdl"]) {
-  const scaled = wdl.map((probability) => probability * 100);
-  const percentages = scaled.map(Math.floor);
-  const remainder = 100 - percentages.reduce((sum, value) => sum + value, 0);
-  const order = [0, 1, 2].sort((a, b) =>
-    (scaled[b] - percentages[b]) - (scaled[a] - percentages[a]));
-  for (const index of order.slice(0, remainder)) percentages[index]++;
-  const [win, draw, loss] = percentages;
-  return { win, draw, loss };
-}
-
 function statusKey(current: Analysis | undefined): StudioPanelStringKey | null {
   if (!current) return "maia.loading";
   if ("failed" in current) return "maia.error";
@@ -87,32 +75,43 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
 
   return (
     <section className="border-t border-studio-border-strong">
-      <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-        <h3 className="text-dense font-semibold text-studio-fg">Maia 3 · {elo}</h3>
+      <div className="flex items-center gap-2 px-2 py-1">
+        <span className="text-dense font-semibold text-studio-fg">Maia</span>
+        <span className="min-w-0 flex-1 truncate text-caption text-studio-faint">{tPanels(locale, "maia.subtitle")}</span>
         <select
           aria-label={tPanels(locale, "maia.rating")}
+          title={tPanels(locale, "maia.rating")}
           value={elo}
           onChange={(event) => setElo(Number(event.target.value))}
-          className="rounded border border-studio-border-strong bg-studio-elevated px-1 text-dense text-studio-fg"
+          className="h-5 shrink-0 cursor-pointer rounded-[5px] border-0 bg-transparent pl-1 text-dense font-semibold tabular-nums text-studio-muted ring-1 ring-studio-border-strong hover:text-studio-fg"
         >
           {MAIA_ELOS.map((rating) => <option key={rating}>{rating}</option>)}
         </select>
       </div>
       {status ? <p role="status" className="px-2 py-1 text-dense text-studio-muted">{tPanels(locale, status)}</p> : null}
-      {shown.map(({ uci, prob, wdl, label }) => (
-        <button
-          key={uci}
-          type="button"
-          onClick={() => onPlay([uci])}
-          className="flex w-full flex-wrap items-center justify-between gap-x-2 border-b border-studio-border-subtle px-2 py-1 text-left text-dense hover:bg-studio-hover-strong"
-        >
-          <span className="font-semibold text-studio-fg">
-            {label} · {Math.round(prob * 100)}%
-          </span>
-          <span className="tabular-nums text-studio-muted">{tPanels(locale, "maia.wdl", roundedWdl(wdl))}</span>
-        </button>
-      ))}
-      <p className="px-2 py-1 text-caption text-studio-faint">Maia-3 · CSSLab, University of Toronto</p>
+      {shown.map(({ uci, prob, label }) => {
+        const percent = `${Math.round(prob * 100)}%`;
+        return (
+          <button
+            key={uci}
+            type="button"
+            onClick={() => onPlay([uci])}
+            title={tPanels(locale, "maia.moveTitle", { percent, rating: elo, move: label })}
+            className="relative flex min-h-7 w-full items-center gap-2 overflow-hidden border-b border-studio-border-subtle px-2 py-1 text-left text-dense hover:bg-studio-hover-strong"
+          >
+            {/* How often players of this rating choose the move, as a bar behind the row. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 left-0 bg-studio-accent/10"
+              style={{ width: percent }}
+            />
+            <span className="relative h-5 min-w-12 shrink-0 rounded-[5px] px-1.5 text-center font-semibold leading-5 tabular-nums text-studio-fg ring-1 ring-studio-border-strong">
+              {percent}
+            </span>
+            <span className="relative font-semibold text-studio-fg">{label}</span>
+          </button>
+        );
+      })}
     </section>
   );
 }
