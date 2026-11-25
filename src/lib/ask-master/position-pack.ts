@@ -5,6 +5,7 @@ import type { PositionFacts, ThreatSet } from "../../chess/facts/types";
 import { formatScore, type EngineLine } from "../../engine/stockfish-client";
 import type { ExplorerGameRow, ExplorerResponse } from "../explorer-types";
 import { DEFAULT_ASK_MASTER_LEVEL, type AskMasterLevel } from "./level";
+import type { OpeningCharacter } from "./opening-character";
 
 export const POSITION_PACK_BYTES = 15 * 1024;
 
@@ -14,6 +15,7 @@ type PackInput = {
   level?: AskMasterLevel;
   startFen?: string;
   opening?: { eco: string; name: string } | null;
+  character?: OpeningCharacter | null;
   facts?: PositionFacts;
   threats?: readonly ThreatSet[];
   engineLines?: readonly EngineLine[];
@@ -131,6 +133,7 @@ export function buildPositionPack(input: PackInput) {
     startFen: input.startFen === DEFAULT_POSITION ? undefined : input.startFen,
     earlierMovesOmitted: undefined as number | undefined,
     opening: opening ?? undefined,
+    ...(input.character ? { character: input.character } : {}),
     facts: facts?.valid ? boardFacts(facts, lastMoveChanges(chess, input)) : undefined,
     threats: threatRows(chess, threats),
     engine: chess && engineLines?.length
@@ -166,6 +169,7 @@ export function buildPositionPack(input: PackInput) {
   for (const detail of [pack.facts?.weakSquares, pack.facts?.skewers, pack.facts?.pawns, pack.threats]) {
     while (detail?.length && overBudget()) detail.pop();
   }
+  if (pack.character && overBudget()) delete pack.character;
   // Protect the useful position data even for unusually long imported games.
   while (pack.moves.length && overBudget()) {
     pack.moves.splice(0, Math.ceil(pack.moves.length / 4));

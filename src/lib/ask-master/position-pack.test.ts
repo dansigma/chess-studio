@@ -119,3 +119,12 @@ test("replays custom positions and omits changes when history cannot be verified
   assert.equal(buildPositionPack({ ...input, sanLine: ["d5"] }).facts?.lastMoveChanges, undefined);
   assert.equal(buildPositionPack({ ...input, sanLine: ["e4"] }).facts?.lastMoveChanges, undefined);
 });
+
+test("includes opening character only when available and within budget", () => {
+  const character = { n: 200, decisive: 80, closed: 75, breadth: 30, endgame: null };
+  const input = { fen: START_FEN, sanLine: ["e4"] };
+  assert.deepEqual(buildPositionPack({ ...input, character }).character, character);
+  assert.equal("character" in buildPositionPack({ ...input, character: null }), false);
+  const packed = buildPositionPack({ ...input, sanLine: ["e4".repeat(POSITION_PACK_BYTES)], character });
+  assert.equal("character" in packed, false);
+});

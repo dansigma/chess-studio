@@ -3,10 +3,10 @@ import { computePositionFacts, computeThreats, computeThreatsToMove } from "@/sr
 import { acquire } from "@/src/engine/shared-engine";
 import type { EngineBuild, EngineLine } from "@/src/engine/stockfish-client";
 import type { AskMasterLevel } from "@/src/lib/ask-master/level";
+import { loadLineOpeningCharacter } from "@/src/lib/ask-master/opening-character";
 import { buildPositionPack } from "@/src/lib/ask-master/position-pack";
 import { DEFAULT_EXPLORER_FILTERS, studioFilterQuery } from "@/src/lib/explorer-filters";
 import { isExplorerResponse } from "@/src/lib/explorer-types";
-import { indexCatalogOpenings, resolveLineOpening } from "@/src/lib/line-opening";
 import { loadCatalog } from "@/src/lib/openings-catalog";
 import { fetchXdGames, fetchXdMoves } from "@/src/lib/xd-database/explorer";
 
@@ -107,11 +107,11 @@ export async function collectPositionPack(
   acquireEngine = acquire,
 ) {
   const { fen, sanLine, lineFens, level } = position;
-  const [opening, engineLines, lichess, xd, xdGames] = await Promise.all([
+  const [catalogOpening, engineLines, lichess, xd, xdGames] = await Promise.all([
     withDeadline(signal, async (sourceSignal) => {
       const catalog = await loadCatalog();
       sourceSignal.throwIfAborted();
-      return resolveLineOpening(lineFens, indexCatalogOpenings(catalog));
+      return loadLineOpeningCharacter(lineFens, catalog);
     }),
     withDeadline(signal, (sourceSignal) => collectEngine(position, sourceSignal, acquireEngine)),
     withDeadline(signal, (sourceSignal) => fetchLichess(fen, level, sourceSignal)),
@@ -120,7 +120,8 @@ export async function collectPositionPack(
   ]);
   signal.throwIfAborted();
   return buildPositionPack({
-    fen, sanLine, level, startFen: lineFens[0], opening: opening ?? xd?.opening ?? lichess?.opening,
+    fen, sanLine, level, startFen: lineFens[0], opening: catalogOpening?.opening ?? xd?.opening ?? lichess?.opening,
+    character: catalogOpening?.character,
     facts: computePositionFacts(fen),
     threats: [computeThreatsToMove(fen), computeThreats(fen)],
     engineLines, lichess, xd, xdGames,

@@ -209,3 +209,39 @@ aws s3 rm "s3://chess-studio-xd/xd-database/v${stale}/" --recursive --endpoint-u
 ```
 
 A scheduled automatic monthly build can follow as a separate issue.
+
+## Opening character
+
+After building the database, run this on the build machine against the PGNs
+from the same release and commit the resulting app data file.
+
+```sh
+node --import ./scripts/test-resolve.mjs scripts/xd-database/opening-character.mjs source.pgn --out src/data/opening-character.json
+```
+
+The script accepts the same input formats and masters filter as the database
+builder. It requires both ratings to be at least 2300 and dates from 2000
+onward, and deduplicates across inputs using the builder's 40-ply game hash.
+Each game can count once at each catalog position it reaches, including by
+transposition. Position keys use piece placement, side to move, and castling
+rights. When a position has more than 200 games, the sample keeps the 200
+lowest game hashes, giving a stable shuffled sample.
+
+- **Decisiveness** is the share of games with a winner. White's score is
+  calculated alongside it for reference.
+- **Closedness** is the mean count of opposing pawns blocked head-on on the c–f
+  files, across positions observed every four plies from ply 16 through 60.
+  The measurement also tracks files with unequal pawn counts and diagonally
+  opposed pawns that can capture one another by geometry.
+- **Breadth** ranks shorter shared continuations higher. For each game, measure
+  how far its continuation from the first visit to the anchor matches at least
+  three other sampled games, then take the median across games.
+- **Endgame tendency** is the share of eligible games that became queenless by
+  ply 40. Eligible games reached ply 40 or became queenless earlier. This is a
+  measure of early queen removal and requires 20 eligible games.
+
+The JSON contains sample counts and catalog-relative percentiles for anchors
+with at least 30 sampled games. Ties use their average rank and a singleton
+ranks at 50. An axis with insufficient observations is null and is excluded
+from that axis's ranking. Ask the Master uses the deepest catalog anchor
+reached on the line and describes its profile qualitatively.
