@@ -275,10 +275,24 @@ export function fetchTour(tourId: string, signal?: AbortSignal): Promise<Broadca
   );
 }
 
+/** Same-origin proxy for `lichess.org/broadcast/{tourId}/players` (see `app/api/live/standings/route.ts`). */
+export const STANDINGS_PROXY_PATH = "/api/live/standings";
+
+/**
+ * Standings go through our own route: Lichess serves `/broadcast/{tourId}/players` outside `/api` and only
+ * sends CORS headers there for `localhost`, so a direct browser request fails in production.
+ * Errors stay plain `LiveHttpError`s, even a 429 from our route, so they never pause the Lichess queue.
+ */
 export function fetchTourPlayers(tourId: string, signal?: AbortSignal, timeControl?: FideTimeControl): Promise<BroadcastStandingRow[] | null> {
-  return once(signal, async () =>
-    mapTourPlayers(await (await get(`/broadcast/${encodeURIComponent(tourId)}/players`, "application/json", signal)).json(), timeControl),
-  );
+  return once(signal, async () => {
+    const url = `${STANDINGS_PROXY_PATH}?tour=${encodeURIComponent(tourId)}`;
+    const response = await fetch(url, { headers: { Accept: "application/json" }, signal });
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new LiveHttpError(response.status, url);
+    }
+    return mapTourPlayers(await response.json(), timeControl);
+  });
 }
 
 export function fetchRound(roundId: string, signal?: AbortSignal): Promise<BroadcastRoundSnapshot | null> {
