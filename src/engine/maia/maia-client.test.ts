@@ -21,7 +21,7 @@ function workerHarness() {
 
 test("Maia creates one worker on demand and keeps only the latest queued analysis", async () => {
   const { client, positions, worker, created, terminated } = workerHarness();
-  const position = { fens: ["current"], elo: 1500 };
+  const position = { fens: ["current"], elo: 1500, lines: 3 };
   const result = { moves: [] };
   assert.equal(created(), 0);
   const first = client.analyze(position);
@@ -44,7 +44,7 @@ test("Maia creates one worker on demand and keeps only the latest queued analysi
 
 test("Maia rejects active and queued analysis when the worker reports a failure", async () => {
   const { client, worker, terminated } = workerHarness();
-  const position = { fens: ["current"], elo: 1500 };
+  const position = { fens: ["current"], elo: 1500, lines: 3 };
   const first = assert.rejects(client.analyze(position), /model unavailable/);
   const queued = assert.rejects(client.analyze(position), /model unavailable/);
   worker.onmessage?.({ data: { error: "model unavailable" } });
@@ -54,7 +54,7 @@ test("Maia rejects active and queued analysis when the worker reports a failure"
 
 test("Maia starts a fresh worker for the next analysis after a failure", async () => {
   const { client, worker, created } = workerHarness();
-  const position = { fens: ["current"], elo: 1500 };
+  const position = { fens: ["current"], elo: 1500, lines: 3 };
   const failed = assert.rejects(client.analyze(position), /model unavailable/);
   worker.onmessage?.({ data: { error: "model unavailable" } });
   await failed;

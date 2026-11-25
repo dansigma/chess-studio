@@ -492,14 +492,17 @@ test("Maia settings restore from local persistence and default for older records
     actions().hydrateLocalSettings();
     assert.equal(useStudioStore.getState().settings.maiaEnabled, false);
     assert.equal(useStudioStore.getState().settings.maiaElo, 1500);
+    assert.equal(useStudioStore.getState().settings.maiaLines, 3);
 
     actions().setMaiaEnabled(true);
     actions().setMaiaElo(1860);
+    actions().setMaiaLines(9);
     await persistSettingsRecord(useStudioStore.getState().settings, null);
     resetSettings();
     actions().hydrateLocalSettings();
     assert.equal(useStudioStore.getState().settings.maiaEnabled, true);
     assert.equal(useStudioStore.getState().settings.maiaElo, 1900);
+    assert.equal(useStudioStore.getState().settings.maiaLines, 5);
   } finally {
     storage.delete(SETTINGS_KEY);
     resetSettings();

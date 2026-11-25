@@ -47,6 +47,7 @@ def main():
             "legalIndices": get_legal_moves_mask(boards[-1], vocabulary).nonzero().flatten().tolist(),
         })
     path = Path(__file__).resolve().parents[2] / "src/engine/maia/fixtures/encoder.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(fixtures, indent=2) + "\n")
 
 

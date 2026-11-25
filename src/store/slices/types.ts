@@ -182,6 +182,8 @@ export type StudioSettings = {
   engineSparkline: boolean;
   maiaEnabled: boolean;
   maiaElo: number;
+  /** SIG-1501: Maia moves shown (1–5, default 3). */
+  maiaLines: number;
   /** Site language; also drives Game Review explanations (SIG-971). */
   locale: SiteLocale;
 };
@@ -310,6 +312,7 @@ export type StudioState = {
   toggleEngineSparkline: () => void;
   setMaiaEnabled: (enabled: boolean) => void;
   setMaiaElo: (elo: number) => void;
+  setMaiaLines: (lines: number) => void;
   toggleEvalBar: () => void;
   toggleMaterialBalance: () => void;
   toggleAutoQueen: () => void;

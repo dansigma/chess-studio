@@ -11,6 +11,7 @@ export default defineConfig({
         server.middlewares.use((request, response, next) => {
           if (request.url?.split("?")[0].endsWith("/src/engine/maia/maia.worker.ts")) {
             response.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+            response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
           }
           next();
         });

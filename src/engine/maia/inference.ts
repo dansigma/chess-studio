@@ -16,7 +16,7 @@ function softmax(logits: readonly number[]): number[] {
   return weights.map((weight) => weight / sum);
 }
 
-export async function analyzeMaia({ fens, elo }: MaiaPosition, run: RunMaiaModel): Promise<MaiaResult> {
+export async function analyzeMaia({ fens, elo, lines }: MaiaPosition, run: RunMaiaModel): Promise<MaiaResult> {
   const fen = fens.at(-1);
   if (!fen) throw new Error("Maia requires a current position");
   const board = new Chess(fen);
@@ -24,10 +24,13 @@ export async function analyzeMaia({ fens, elo }: MaiaPosition, run: RunMaiaModel
 
   const legal = legalMoves(board);
   const logits = await run(encodeHistory(fens), 1, elo, "move_logits");
+  if (legal.some(({ index }) => !(index < logits.length))) {
+    throw new Error("Maia move vocabulary does not match the model output");
+  }
   const probabilities = softmax(legal.map(({ index }) => logits[index]));
   const candidates = legal.map((move, index) => ({ ...move, prob: probabilities[index] }))
     .sort((a, b) => b.prob - a.prob)
-    .slice(0, 5);
+    .slice(0, lines);
 
   const stride = BOARD_SQUARES * TOKEN_WIDTH;
   const batch = new Float32Array(stride * candidates.length);

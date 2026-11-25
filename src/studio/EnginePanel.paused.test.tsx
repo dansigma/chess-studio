@@ -122,7 +122,7 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   t.mock.timers.enable({ apis: ["setTimeout"] });
   let workerCount = 0;
   let terminated = 0;
-  let posted: { fens: readonly string[]; elo: number } | undefined;
+  let posted: { fens: readonly string[]; elo: number; lines: number } | undefined;
   let reply: ((data: MaiaResponse) => void) | undefined;
   let fail: (() => void) | undefined;
 
@@ -160,7 +160,7 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   assert.ok(view.getByText("Loading Maia…"));
   act(() => t.mock.timers.tick(150));
   assert.equal(workerCount, 1);
-  assert.deepEqual(posted, { fens: [currentFen], elo: 1500 });
+  assert.deepEqual(posted, { fens: [currentFen], elo: 1500, lines: 3 });
   await act(async () => reply?.({
     result: { moves: [{ uci: "d2d4", prob: 0.38, wdl: [0.42, 0.31, 0.27] }] },
   }));

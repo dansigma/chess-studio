@@ -5,21 +5,18 @@ import { Chess } from "chess.js";
 import { formatSanAtPly } from "@/src/chess/move-notation";
 import { HISTORY_LENGTH } from "@/src/engine/maia/encode";
 import { MaiaClient } from "@/src/engine/maia/maia-client";
-import {
-  MAIA_ELO_STEP, MAIA_MAX_ELO, MAIA_MIN_ELO, type MaiaMove, type MaiaPosition,
-} from "@/src/engine/maia/protocol";
-import { tPanels } from "@/src/i18n/studio-panel-strings";
+import { MAIA_ELOS, type MaiaMove, type MaiaPosition } from "@/src/engine/maia/protocol";
+import { tPanels, type StudioPanelStringKey } from "@/src/i18n/studio-panel-strings";
 import { useActiveLineFens } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 
-const RATINGS = Array.from(
-  { length: (MAIA_MAX_ELO - MAIA_MIN_ELO) / MAIA_ELO_STEP + 1 },
-  (_, index) => MAIA_MIN_ELO + index * MAIA_ELO_STEP,
-);
+/** Waits for quick navigation through a line to settle before asking the worker. */
 const DEBOUNCE_MS = 120;
 
 type Analysis = { position: MaiaPosition; moves: MaiaMove[] } | { position: MaiaPosition; failed: true };
+type ShownMove = MaiaMove & { label: string };
 
+/** Whole percentages that always add up to 100 (largest-remainder rounding). */
 function roundedWdl(wdl: MaiaMove["wdl"]) {
   const scaled = wdl.map((probability) => probability * 100);
   const percentages = scaled.map(Math.floor);
@@ -31,13 +28,21 @@ function roundedWdl(wdl: MaiaMove["wdl"]) {
   return { win, draw, loss };
 }
 
+function statusKey(current: Analysis | undefined): StudioPanelStringKey | null {
+  if (!current) return "maia.loading";
+  if ("failed" in current) return "maia.error";
+  if (current.moves.length === 0) return "maia.noMoves";
+  return null;
+}
+
 export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const elo = useStudioStore((state) => state.settings.maiaElo);
+  const lines = useStudioStore((state) => state.settings.maiaLines);
   const setElo = useStudioStore((state) => state.setMaiaElo);
   const fens = useActiveLineFens();
-  const position = useMemo(() => ({ fens: fens.slice(-HISTORY_LENGTH), elo }), [fens, elo]);
+  const position = useMemo(() => ({ fens: fens.slice(-HISTORY_LENGTH), elo, lines }), [fens, elo, lines]);
   const client = useRef<MaiaClient | null>(null);
   const [analysis, setAnalysis] = useState<Analysis>();
 
@@ -61,11 +66,24 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
     };
   }, [position]);
 
+  // Only a result for exactly this position (same FENs, rating and count) is shown.
   const current = analysis?.position === position ? analysis : undefined;
-  const board = current && "moves" in current ? new Chess(fens.at(-1)) : null;
-  const status = !current ? "maia.loading"
-    : "failed" in current ? "maia.error"
-    : current.moves.length === 0 ? "maia.noMoves" : null;
+  const status = statusKey(current);
+  const shown = useMemo<ShownMove[]>(() => {
+    const fen = position.fens.at(-1);
+    if (!current || !("moves" in current) || !fen) return [];
+    try {
+      const board = new Chess(fen);
+      const side = board.turn();
+      return current.moves.flatMap((move) => {
+        const played = board.move(move.uci);
+        board.undo();
+        return [{ ...move, label: formatSanAtPly(played.san, moveNotation, side, 0) }];
+      });
+    } catch {
+      return [];
+    }
+  }, [current, position, moveNotation]);
 
   return (
     <section className="border-t border-studio-border-strong">
@@ -77,28 +95,23 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
           onChange={(event) => setElo(Number(event.target.value))}
           className="rounded border border-studio-border-strong bg-studio-elevated px-1 text-dense text-studio-fg"
         >
-          {RATINGS.map((rating) => <option key={rating}>{rating}</option>)}
+          {MAIA_ELOS.map((rating) => <option key={rating}>{rating}</option>)}
         </select>
       </div>
       {status ? <p role="status" className="px-2 py-1 text-dense text-studio-muted">{tPanels(locale, status)}</p> : null}
-      {board && current && "moves" in current ? current.moves.map(({ uci, prob, wdl }) => {
-        const side = board.turn();
-        const move = board.move(uci);
-        board.undo();
-        return (
-          <button
-            key={uci}
-            type="button"
-            onClick={() => onPlay([uci])}
-            className="flex w-full flex-wrap items-center justify-between gap-x-2 border-b border-studio-border-subtle px-2 py-1 text-left text-dense hover:bg-studio-hover-strong"
-          >
-            <span className="font-semibold text-studio-fg">
-              {formatSanAtPly(move.san, moveNotation, side, 0)} · {Math.round(prob * 100)}%
-            </span>
-            <span className="tabular-nums text-studio-muted">{tPanels(locale, "maia.wdl", roundedWdl(wdl))}</span>
-          </button>
-        );
-      }) : null}
+      {shown.map(({ uci, prob, wdl, label }) => (
+        <button
+          key={uci}
+          type="button"
+          onClick={() => onPlay([uci])}
+          className="flex w-full flex-wrap items-center justify-between gap-x-2 border-b border-studio-border-subtle px-2 py-1 text-left text-dense hover:bg-studio-hover-strong"
+        >
+          <span className="font-semibold text-studio-fg">
+            {label} · {Math.round(prob * 100)}%
+          </span>
+          <span className="tabular-nums text-studio-muted">{tPanels(locale, "maia.wdl", roundedWdl(wdl))}</span>
+        </button>
+      ))}
       <p className="px-2 py-1 text-caption text-studio-faint">Maia-3 · CSSLab, University of Toronto</p>
     </section>
   );
