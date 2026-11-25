@@ -1,6 +1,8 @@
 export type MaiaPosition = { fens: readonly string[]; elo: number; lines: number };
 export type MaiaMove = { uci: string; prob: number };
-export type MaiaResult = { moves: MaiaMove[] };
+/** Chances of the position for two players of the chosen rating, White's and Black's view (sum 1). */
+export type MaiaChances = { white: number; draw: number; black: number };
+export type MaiaResult = { moves: MaiaMove[]; chances: MaiaChances | null };
 export type MaiaResponse = { result: MaiaResult } | { error: string };
 
 export const MAIA_MIN_ELO = 600;

@@ -1,15 +1,26 @@
 import { Chess } from "chess.js";
 import { encodeHistory, legalMoves } from "./encode";
-import type { MaiaPosition, MaiaResult } from "./protocol";
+import type { MaiaChances, MaiaPosition, MaiaResult } from "./protocol";
 
-/** One forward pass of the policy head on a single position: move logits over the vocabulary. */
-export type RunMaiaModel = (tokens: Float32Array, elo: number) => Promise<Float32Array>;
+/** One forward pass on a single position: move logits over the vocabulary, and the value head's
+ * [loss, draw, win] logits for the side to move. */
+export type RunMaiaModel = (
+  tokens: Float32Array,
+  elo: number,
+) => Promise<{ moveLogits: Float32Array; valueLogits: Float32Array }>;
 
 function softmax(logits: readonly number[]): number[] {
   const peak = Math.max(...logits);
   const weights = logits.map((logit) => Math.exp(logit - peak));
   const sum = weights.reduce((total, weight) => total + weight, 0);
   return weights.map((weight) => weight / sum);
+}
+
+/** Value labels are [loss, draw, win] for the side to move (maia3 `wdl_from_value_logits`). */
+export function chancesFromValue(valueLogits: Float32Array, sideToMove: "w" | "b"): MaiaChances | null {
+  if (valueLogits.length < 3) return null;
+  const [loss, draw, win] = softmax(Array.from(valueLogits.subarray(0, 3)));
+  return sideToMove === "w" ? { white: win, draw, black: loss } : { white: loss, draw, black: win };
 }
 
 export async function analyzeMaia({ fens, elo, lines }: MaiaPosition, run: RunMaiaModel): Promise<MaiaResult> {
@@ -19,8 +30,8 @@ export async function analyzeMaia({ fens, elo, lines }: MaiaPosition, run: RunMa
   // Only "no legal move" ends the analysis: draw rules (fifty moves, repetition)
   // still leave moves a human could play.
   const legal = legalMoves(board);
-  if (legal.length === 0) return { moves: [] };
-  const logits = await run(encodeHistory(fens), elo);
+  if (legal.length === 0) return { moves: [], chances: null };
+  const { moveLogits: logits, valueLogits } = await run(encodeHistory(fens), elo);
   if (legal.some(({ index }) => !(index < logits.length))) {
     throw new Error("Maia move vocabulary does not match the model output");
   }
@@ -29,6 +40,9 @@ export async function analyzeMaia({ fens, elo, lines }: MaiaPosition, run: RunMa
     .sort((a, b) => b.prob - a.prob)
     .slice(0, lines);
 
-  // Policy only: the value head (W/D/L) is not shown, so it is not computed.
-  return { moves: candidates.map(({ uci, prob }) => ({ uci, prob })) };
+  // The value head comes from the same pass: the position's chances cost nothing extra.
+  return {
+    moves: candidates.map(({ uci, prob }) => ({ uci, prob })),
+    chances: chancesFromValue(valueLogits, board.turn()),
+  };
 }

@@ -22,8 +22,11 @@ const run: RunMaiaModel = async (tokens, elo) => {
     tokens: new Tensor("float32", tokens, [1, BOARD_SQUARES, TOKEN_WIDTH]),
     self_elo: rating,
     oppo_elo: rating,
-  }, ["move_logits"]);
-  return result.move_logits.data as Float32Array;
+  }, ["move_logits", "value_logits"]);
+  return {
+    moveLogits: result.move_logits.data as Float32Array,
+    valueLogits: result.value_logits.data as Float32Array,
+  };
 };
 
 self.onmessage = async ({ data }: MessageEvent<MaiaPosition>) => {
