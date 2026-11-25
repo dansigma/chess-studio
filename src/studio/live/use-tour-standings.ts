@@ -56,7 +56,8 @@ export function useTourStandings(tourId: string | null): {
   const revision = useLiveStore((state) => (tourId ? state.resultRevisionByTour[tourId] ?? 0 : 0));
 
   useEffect(() => {
-    if (!tourId || entry?.status === "loading" || entry?.revision === revision) {
+    // A failed request retries after the cooldown; a successful one waits for a result change.
+    if (!tourId || entry?.status === "loading" || (entry?.status === "ready" && entry.revision === revision)) {
       return;
     }
     if (!entry) {
