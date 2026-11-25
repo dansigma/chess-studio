@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { test } from "node:test";
 import { countryName, FIDE_TO_ISO, fideToIso } from "./federation.ts";
 
@@ -12,11 +12,13 @@ test("maps FIDE codes case-insensitively, including non-ISO codes and UK federat
   }
 });
 
-test("public flags contain one SVG for each mapped region", () => {
-  const files = readdirSync(new URL("../../../public/flags/", import.meta.url));
-  const expectedFlags = [...new Set(Object.values(FIDE_TO_ISO))].map((code) => `${code}.svg`);
-  assert.deepEqual(files.filter((file) => file.endsWith(".svg")).sort(), expectedFlags.sort());
-  assert.ok(files.includes("LICENSE"));
+test("public flags contain one small WebP for each mapped region and the upstream license", () => {
+  const directory = new URL("../../../public/flags/", import.meta.url);
+  const expectedFlags = [...new Set(Object.values(FIDE_TO_ISO))].map((code) => `${code}.webp`);
+  assert.deepEqual(readdirSync(directory).sort(), ["LICENSE", ...expectedFlags].sort());
+  for (const file of expectedFlags) {
+    assert.ok(statSync(new URL(file, directory)).size < 10_000, `${file} must be under 10 KB`);
+  }
 });
 
 test("localizes country and federation names and preserves unknown codes", () => {

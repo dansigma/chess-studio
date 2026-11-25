@@ -17,9 +17,9 @@ export function FederationFlag({ fed, locale }: { fed: string; locale: SiteLocal
   }
 
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- small SVG served directly from public/flags
+    // eslint-disable-next-line @next/next/no-img-element -- pre-sized WebP served directly from public/flags
     <img
-      src={`/flags/${flag}.svg`}
+      src={`/flags/${flag}.webp`}
       alt={name}
       title={name}
       width={20}
