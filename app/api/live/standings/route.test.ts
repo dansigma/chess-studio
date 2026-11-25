@@ -21,6 +21,7 @@ test("passes the Lichess players list through and caches it per tour", async (t)
   mockFetch(t, (requested, init) => {
     calls.push(requested);
     assert.equal(new Headers(init?.headers).get("Accept"), "application/json");
+    assert.match(new Headers(init?.headers).get("User-Agent") ?? "", /XadrezDigital/);
     return jsonResponse(ROWS);
   });
   const first = await GET(makeGetRequest(url("wYvYFVtt")));
