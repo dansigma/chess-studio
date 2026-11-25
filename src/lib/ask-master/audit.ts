@@ -175,7 +175,7 @@ const FILE_PT = /\bcolunas?\s+((?:[a-h](?:\s*,\s*|\s+e\s+))*[a-h])\b[^.;:\n]{0,6
 const FILE_EN = /\b((?:[a-h]-?(?:\s*,\s*|\s+and\s+))*[a-h])-files?\s+(?:is|are)\s+(?:now\s+)?(half[- ]open|semi[- ]open|open|closed)\b(?:\s+for\s+(white|black))?/gi;
 // "the pawn on e4 is hanging to the knight on c6", "o peão de e4 está atacado pelo cavalo de f6":
 // the attacker named after the verb must attack the last square named before it.
-const ATTACKED_BY = /\b(?:hanging|loose|en prise|attacked|threatened|vulnerable|pendurad[oa]s?|solt[oa]s?|atacad[oa]s?|ameacad[oa]s?|vulnerave(?:l|is))\s+(?:(?:to|by|a|ao|para|pelo|pela|por)\s+)?(?:(?:the|o|a)\s+)?(?:(?:white|black)\s+)?(rei|dama|rainha|torre|bispo|cavalo|peao|king|queen|rook|bishop|knight|pawn)(?:\s+(?:branc|pret|negr)[oa]s?)?\s+(?:on|at|from|de|em|da|do|na|no)\s+([a-h][1-8])\b/gi;
+const ATTACKED_BY = /\b(?:hanging|loose|en prise|attacked|threatened|vulnerable|pendurad[oa]s?|solt[oa]s?|atacad[oa]s?|ameacad[oa]s?|vulnerave(?:l|is))\s+(?:to|by|a|ao|para|pelo|pela|por)\s+(?:(?:the|o|a)\s+)?(?:(?:white|black)\s+)?(rei|dama|rainha|torre|bispo|cavalo|peao|king|queen|rook|bishop|knight|pawn)(?:\s+(?:branc|pret|negr)[oa]s?)?\s+(?:on|at|from|de|em|da|do|na|no)\s+([a-h][1-8])\b/gi;
 // "the knight on f6 attacks the pawn on e4", "o cavalo de f6 ataca o peão de e4"
 const ATTACKS = /\b(?:the|o|a)\s+(rei|dama|rainha|torre|bispo|cavalo|peao|king|queen|rook|bishop|knight|pawn)(?:\s+(?:branc|pret|negr)[oa]s?)?\s+(?:on|at|de|em|da|do|na|no)\s+([a-h][1-8])\s+(?:attacks|threatens|ataca|ameaca)\s+(?:(?:the|o|a|os|as)\s+)?(?:(?:[a-z]+\s+){0,3}?(?:on|at|de|em|da|do|na|no)\s+)?([a-h][1-8])\b/gi;
 // A sentence about a future position (after a line or a move sequence) may mention other squares.
