@@ -9,7 +9,7 @@ import type { SiteLocale } from "@/src/i18n/locale";
 import { useActiveBoard } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 import type { AskMasterIntent } from "@/src/lib/ask-master/intent";
-import { AskMasterAnswer } from "./AskMasterAnswer";
+import { AskMasterAnswer, answerWithGameTitles } from "./AskMasterAnswer";
 import { AskMasterStarters } from "./AskMasterStarters";
 import { AskMasterHistory, useHistoryDot } from "./AskMasterHistory";
 import { currentHistoryKey } from "./history-keys";
@@ -126,7 +126,7 @@ export function AskMasterChat({
             )}
             {messages.map((message, index) => (
               <MessageBubble key={index} role={message.role} locale={locale} createdAt={message.createdAt}
-                answer={message.role === "assistant" ? message.text : undefined}>
+                answer={message.role === "assistant" ? answerWithGameTitles(message.text, message.source) : undefined}>
                 {message.role === "user" ? message.text : <AskMasterAnswer text={message.text} source={message.source} locale={locale} />}
               </MessageBubble>
             ))}

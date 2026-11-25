@@ -179,3 +179,21 @@ test("flags lines from the current position that leave the engine lines", () => 
   assert.equal(stripFalse(deviates, partial), "Repita com [[39.Rg5+]].");
   assert.deepEqual(offEngineLines(body, endgame, {}), []);
 });
+
+const ruyFen = "1rbq1rk1/b1p2ppp/p1np1n2/Pp2p3/3PP3/1BP1BN1P/1P3PP1/RN1Q1RK1 b - - 0 12";
+const ruy = { currentFen: ruyFen, lineFens: [], lineStartPly: 0 };
+
+test("checks the attacker the prose names for a loose or attacked piece", () => {
+  const wrong = "The pawn on e4 is hanging to the knight on c6, so Black must decide.";
+  assert.deepEqual(proseClaims(wrong, ruy).filter(({ type }) => type === "attacks"), [{ type: "attacks", piece: "Nc6", target: "e4" }]);
+  const audit = auditAnswer(wrong, [], ruy);
+  assert.equal(audit.ok, false);
+  assert.match(audit.falseClaims[0].truth, /Attacked squares/);
+  for (const right of [
+    "The pawn on e4 is hanging to the knight on f6.",
+    "O peão de e4 está atacado pelo cavalo de f6.",
+    "O cavalo de f6 ataca o peão de e4.",
+    "The knight on f6 attacks the pawn on e4.",
+  ]) assert.equal(auditAnswer(right, [], ruy).ok, true, right);
+  assert.equal(auditAnswer("O cavalo de c6 ataca o peão de e4.", [], ruy).ok, false);
+});

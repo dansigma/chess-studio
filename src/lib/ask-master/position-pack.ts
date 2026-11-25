@@ -1,4 +1,4 @@
-import { Chess, DEFAULT_POSITION } from "chess.js";
+import { Chess, DEFAULT_POSITION, type Square } from "chess.js";
 import { applyNullMoveFen } from "../../chess/null-move";
 import { structureChanges } from "../../chess/facts/structure";
 import type { PositionFacts, ThreatSet } from "../../chess/facts/types";
@@ -48,7 +48,9 @@ function boardFacts(facts: PositionFacts, changes: ReturnType<typeof lastMoveCha
   ]));
   const pieceAt = (square: string) => pieces.get(square) ?? square;
   return {
-    hanging: facts.pieces.filter((piece) => piece.hanging).map(({ square }) => pieceAt(square)),
+    hanging: facts.pieces.filter((piece) => piece.hanging).map(({ square, attackers, defenders }) => ({
+      piece: pieceAt(square), attackers: attackers.map(pieceAt), defenders: defenders.map(pieceAt),
+    })),
     pins: facts.pieces.flatMap(({ square, pinned }) => pinned
       ? [{ kind: pinned.kind, piece: pieceAt(square), by: pieceAt(pinned.by), to: pieceAt(pinned.to) }]
       : []),
@@ -61,7 +63,8 @@ function boardFacts(facts: PositionFacts, changes: ReturnType<typeof lastMoveCha
     breaks: facts.breaks.map(({ side, to }) => ({ side, move: to })),
     centre: facts.centre,
     lastMoveChanges: changes,
-    weakSquares: [...facts.weakSquares],
+    // A square held by a pawn is not a hole anyone can use.
+    weakSquares: facts.weakSquares.filter(({ square }) => !facts.pieces.some((piece) => piece.square === square && piece.type === "p")),
     outposts: facts.outposts,
     kings: facts.kings,
   };
@@ -94,7 +97,9 @@ function threatRows(chess: Chess | undefined, threats?: readonly ThreatSet[]) {
     const san = new Map(board.moves({ verbose: true }).map((move) => [move.lan, move.san]));
     return set.threats.flatMap(({ uci, kind, targets }) => {
       const move = san.get(uci);
-      return move ? [{ kind, by: set.by, san: move, targets }] : [];
+      const mover = board.get(uci.slice(0, 2) as Square);
+      const piece = mover ? `${mover.type === "p" ? "" : mover.type.toUpperCase()}${uci.slice(0, 2)}` : undefined;
+      return move ? [{ kind, by: set.by, san: move, piece, targets }] : [];
     });
   });
 }
