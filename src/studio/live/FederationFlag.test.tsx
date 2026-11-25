@@ -9,11 +9,11 @@ afterEach(cleanup);
 test("renders a local flag with the same localized tooltip and accessible name", () => {
   const { rerender } = render(<FederationFlag fed="IND" locale="pt-br" />);
   const flag = screen.getByRole("img", { name: "Índia" });
-  assert.equal(flag.getAttribute("src"), "/flags/in.svg");
+  assert.equal(flag.getAttribute("src"), "/flags/in.webp");
   assert.equal(flag.getAttribute("title"), "Índia");
 
   rerender(<FederationFlag fed="ENG" locale="en" />);
-  assert.equal(screen.getByRole("img", { name: "England" }).getAttribute("src"), "/flags/gb-eng.svg");
+  assert.equal(screen.getByRole("img", { name: "England" }).getAttribute("src"), "/flags/gb-eng.webp");
 });
 
 test("renders neutral FIDE and unknown federations as text", () => {
