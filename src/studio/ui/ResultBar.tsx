@@ -8,6 +8,7 @@ export function ResultBar({
   black,
   perspective = "color",
   label,
+  minLabelPercent = MIN_LABEL_PERCENT,
 }: {
   white: number;
   draws: number;
@@ -21,6 +22,8 @@ export function ResultBar({
    */
   perspective?: "color" | "player";
   label?: string;
+  /** Smallest segment that shows its %; wide bars (the Maia block) can label thinner segments. */
+  minLabelPercent?: number;
 }) {
   const total = Math.max(1, white + draws + black);
   const player = perspective === "player";
@@ -54,7 +57,7 @@ export function ResultBar({
             data-segment={segment.key}
             style={{ width: `${percent}%` }}
           >
-            {!player && percent >= MIN_LABEL_PERCENT ? `${Math.round(percent)}%` : ""}
+            {!player && percent >= minLabelPercent ? `${Math.round(percent)}%` : ""}
           </span>
         );
       })}

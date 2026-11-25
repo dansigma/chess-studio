@@ -17,3 +17,15 @@ test("player perspective uses the explorer classes, not green/red", () => {
   assert.match(cls("loss"), /bg-studio-result-black/);
   assert.doesNotMatch(container.innerHTML, /bg-studio-success|bg-studio-danger/);
 });
+
+test("segments under 18% stay unlabeled unless a wider bar lowers the threshold", () => {
+  const text = (key: string, minLabelPercent?: number) => {
+    const { container } = render(<ResultBar white={47} draws={17} black={36} minLabelPercent={minLabelPercent} />);
+    const value = container.querySelector(`[data-segment="${key}"]`)?.textContent;
+    cleanup();
+    return value;
+  };
+  assert.equal(text("draws"), "");
+  assert.equal(text("white"), "47%");
+  assert.equal(text("draws", 6), "17%");
+});
