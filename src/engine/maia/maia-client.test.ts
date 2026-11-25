@@ -51,3 +51,15 @@ test("Maia rejects active and queued analysis when the worker reports a failure"
   await Promise.all([first, queued]);
   assert.equal(terminated(), 1);
 });
+
+test("Maia starts a fresh worker for the next analysis after a failure", async () => {
+  const { client, worker, created } = workerHarness();
+  const position = { fens: ["current"], elo: 1500 };
+  const failed = assert.rejects(client.analyze(position), /model unavailable/);
+  worker.onmessage?.({ data: { error: "model unavailable" } });
+  await failed;
+  const retried = client.analyze(position);
+  assert.equal(created(), 2);
+  worker.onmessage?.({ data: { result: { moves: [] } } });
+  assert.deepEqual(await retried, { moves: [] });
+});

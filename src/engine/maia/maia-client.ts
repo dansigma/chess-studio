@@ -14,7 +14,6 @@ export class MaiaClient {
   private worker: Worker | undefined;
   private current: Request | undefined;
   private queued: Request | undefined;
-  private failure: Error | undefined;
 
   private readonly createWorker: () => Worker;
 
@@ -27,10 +26,8 @@ export class MaiaClient {
 
   analyze(position: MaiaPosition): Promise<MaiaResult> {
     return new Promise((resolve, reject) => {
-      if (this.failure) {
-        reject(this.failure);
-        return;
-      }
+      // A failed worker is gone; the next position starts a fresh one, so a
+      // transient error never disables Maia until the panel remounts.
       this.queued?.reject(canceled());
       this.queued = { position, resolve, reject };
       this.dispatch();
@@ -67,7 +64,6 @@ export class MaiaClient {
   }
 
   private fail(error: Error) {
-    this.failure = error;
     this.worker?.terminate();
     this.worker = undefined;
     this.current?.reject(error);
