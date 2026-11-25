@@ -22,7 +22,7 @@ function workerHarness() {
 test("Maia creates one worker on demand and keeps only the latest queued analysis", async () => {
   const { client, positions, worker, created, terminated } = workerHarness();
   const position = { fens: ["current"], elo: 1500, lines: 3 };
-  const result = { moves: [] };
+  const result = { moves: [], chances: null };
   assert.equal(created(), 0);
   const first = client.analyze(position);
   const replaced = client.analyze({ ...position, elo: 1600 });
@@ -60,6 +60,6 @@ test("Maia starts a fresh worker for the next analysis after a failure", async (
   await failed;
   const retried = client.analyze(position);
   assert.equal(created(), 2);
-  worker.onmessage?.({ data: { result: { moves: [] } } });
-  assert.deepEqual(await retried, { moves: [] });
+  worker.onmessage?.({ data: { result: { moves: [], chances: null } } });
+  assert.deepEqual(await retried, { moves: [], chances: null });
 });

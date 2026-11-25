@@ -162,9 +162,11 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   assert.equal(workerCount, 1);
   assert.deepEqual(posted, { fens: [currentFen], elo: 1500, lines: 3 });
   await act(async () => reply?.({
-    result: { moves: [{ uci: "d2d4", prob: 0.38 }] },
+    result: { moves: [{ uci: "d2d4", prob: 0.38 }], chances: { white: 0.15, draw: 0.74, black: 0.11 } },
   }));
   assert.ok(view.getByRole("button", { name: "38% d4" }));
+  const chances = view.getByRole("group", { name: "Chances of this position between two 1500 players" });
+  assert.match(chances.textContent ?? "", /White15%.*Draw74%.*Black11%/u);
   assert.equal(view.queryByText(/W \d+ · D/u), null);
   assert.match(view.container.querySelector(pv)?.textContent ?? "", /e4/u);
 

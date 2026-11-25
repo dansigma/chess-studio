@@ -5,16 +5,69 @@ import { Chess } from "chess.js";
 import { formatSanAtPly } from "@/src/chess/move-notation";
 import { HISTORY_LENGTH } from "@/src/engine/maia/encode";
 import { MaiaClient } from "@/src/engine/maia/maia-client";
-import { MAIA_ELOS, type MaiaMove, type MaiaPosition } from "@/src/engine/maia/protocol";
+import { MAIA_ELOS, type MaiaChances, type MaiaMove, type MaiaPosition } from "@/src/engine/maia/protocol";
 import { tPanels, type StudioPanelStringKey } from "@/src/i18n/studio-panel-strings";
+import type { SiteLocale } from "@/src/i18n/locale";
 import { useActiveLineFens } from "@/src/store/hooks";
 import { useStudioStore } from "@/src/store/studio-store";
 
 /** Waits for quick navigation through a line to settle before asking the worker. */
 const DEBOUNCE_MS = 120;
 
-type Analysis = { position: MaiaPosition; moves: MaiaMove[] } | { position: MaiaPosition; failed: true };
+type Analysis =
+  | { position: MaiaPosition; moves: MaiaMove[]; chances: MaiaChances | null }
+  | { position: MaiaPosition; failed: true };
 type ShownMove = MaiaMove & { label: string };
+
+/** Whole percentages that always add up to 100 (largest-remainder rounding). */
+function roundedPercents(values: readonly number[]): number[] {
+  const scaled = values.map((value) => value * 100);
+  const result = scaled.map(Math.floor);
+  const remainder = 100 - result.reduce((sum, value) => sum + value, 0);
+  const order = values.map((_, index) => index).sort((a, b) => (scaled[b] - result[b]) - (scaled[a] - result[a]));
+  for (const index of order.slice(0, Math.max(0, remainder))) result[index]++;
+  return result;
+}
+
+const CHANCE_KEYS = ["maia.chances.white", "maia.chances.draw", "maia.chances.black"] as const;
+const CHANCE_ALIGN = ["text-left", "text-center", "text-right"] as const;
+// White, draw and Black segments: light, neutral and dark, like the pieces.
+const CHANCE_BAR = [
+  "bg-studio-win ring-1 ring-studio-border-strong",
+  "bg-studio-faint/35",
+  "bg-studio-loss ring-1 ring-studio-border-strong",
+] as const;
+
+/** The position's chances for two players of the chosen rating: White · Draw · Black. */
+function MaiaChancesBar({ chances, rating, locale }: { chances: MaiaChances; rating: number; locale: SiteLocale }) {
+  const percents = roundedPercents([chances.white, chances.draw, chances.black]);
+  const top = percents.indexOf(Math.max(...percents));
+  const title = tPanels(locale, "maia.chances.title", { rating });
+  return (
+    <div role="group" aria-label={title} title={title} className="border-b border-studio-border-subtle px-2 pb-2 pt-0.5">
+      <div className="grid grid-cols-3 items-end">
+        {percents.map((percent, index) => (
+          <div key={CHANCE_KEYS[index]} className={CHANCE_ALIGN[index]}>
+            <div className="text-caption uppercase tracking-wide text-studio-faint">{tPanels(locale, CHANCE_KEYS[index])}</div>
+            <div className={`font-semibold tabular-nums leading-tight ${index === top ? "text-studio-fg" : "text-studio-muted"}`}>
+              <span className="text-lg">{percent}</span>
+              <span className="text-caption">%</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div aria-hidden="true" className="mt-1 flex h-2 gap-0.5">
+        {percents.map((percent, index) => (percent > 0 ? (
+          <span
+            key={CHANCE_KEYS[index]}
+            className={`min-w-1.5 rounded-full ${CHANCE_BAR[index]}`}
+            style={{ flexGrow: percent, flexBasis: 0 }}
+          />
+        ) : null))}
+      </div>
+    </div>
+  );
+}
 
 function statusKey(current: Analysis | undefined): StudioPanelStringKey | null {
   if (!current) return "maia.loading";
@@ -44,7 +97,7 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
     const timer = setTimeout(() => {
       client.current ??= new MaiaClient();
       client.current.analyze(position).then(
-        ({ moves }) => { if (!stale) setAnalysis({ position, moves }); },
+        ({ moves, chances }) => { if (!stale) setAnalysis({ position, moves, chances }); },
         () => { if (!stale) setAnalysis({ position, failed: true }); },
       );
     }, DEBOUNCE_MS);
@@ -88,6 +141,9 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
           {MAIA_ELOS.map((rating) => <option key={rating}>{rating}</option>)}
         </select>
       </div>
+      {current && "chances" in current && current.chances ? (
+        <MaiaChancesBar chances={current.chances} rating={elo} locale={locale} />
+      ) : null}
       {status ? <p role="status" className="px-2 py-1 text-dense text-studio-muted">{tPanels(locale, status)}</p> : null}
       {shown.map(({ uci, prob, label }) => {
         const percent = `${Math.round(prob * 100)}%`;
