@@ -39,7 +39,7 @@ describe("localizeOpeningName", () => {
   });
 
   it("uses the reviewed catalog translations and preserves established labels", () => {
-    assert.equal(localizeOpeningName("Semi-Slav Defense: Moscow Variation", "pt-br"), "Defesa Semi-Eslava: Variante Moscou");
+    assert.equal(localizeOpeningName("Semi-Slav Defense: Moscow Variation", "pt-br"), "Defesa Semieslava: Variante Moscou");
     assert.equal(localizeOpeningName("Zukertort Opening: Double Fianchetto Attack", "pt-br"), "Abertura Zukertort: Ataque Duplo Fianqueto");
     assert.equal(localizeOpeningName("Sicilian Defense: Moscow Variation, Dorfman Gambit", "pt-br"), "Defesa Siciliana: Variante Moscou, Gambito Dorfman");
     assert.equal(localizeOpeningName("Sicilian Defense", "pt-br"), "Defesa Siciliana");
@@ -54,11 +54,11 @@ describe("localizeOpeningName", () => {
     assert.equal(localizeOpeningName("King’s Gambit Accepted: Foo", "pt-br"), "Gambito do Rei Aceito: Foo");
     assert.equal(localizeOpeningName("Grunfeld Defense", "pt-br"), "Defesa Grünfeld");
     assert.equal(localizeOpeningName("Réti Opening", "pt-br"), "Abertura Réti");
-    assert.equal(localizeOpeningName("ruy lopez: Berlin Defense", "pt-br"), "Ruy López: Defesa Berlim");
+    assert.equal(localizeOpeningName("ruy lopez: Berlin Defense", "pt-br"), "Ruy López: Defesa Berlinesa");
   });
 
   it("matches a colon-less Chess.com style name by family prefix", () => {
-    assert.equal(localizeOpeningName("Italian Game Two Knights Defense", "pt-br"), "Jogo Italiano Defesa dos Dois Cavalos");
+    assert.equal(localizeOpeningName("Italian Game Two Knights Defense", "pt-br"), "Abertura Italiana Defesa dos Dois Cavalos");
     assert.equal(localizeOpeningName("  Sicilian   Defence Moscow Variation", "pt-br"), "Defesa Siciliana Variante Moscou");
     assert.equal(localizeOpeningName("French Defense O’Example,   Foo", "pt-br"), "Defesa Francesa O’Example,   Foo");
     assert.equal(localizeOpeningName("French Defense: O’Example Variation", "pt-br"), "Defesa Francesa: Variante O’Example");

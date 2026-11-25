@@ -152,5 +152,5 @@ test("localizes full opening names with or without an ECO code in PT-BR", () => 
   assert.equal(gameHeaderInfo({ Opening: "French Defense: Winawer Variation", ECO: "C11" }, "pt-br").openingName,
     "Defesa Francesa: Variante Winawer");
   assert.equal(gameHeaderInfo({ Opening: "Semi-Slav Defense Moscow Variation" }, "pt-br").openingName,
-    "Defesa Semi-Eslava Variante Moscou");
+    "Defesa Semieslava Variante Moscou");
 });
