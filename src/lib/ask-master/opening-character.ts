@@ -12,9 +12,9 @@ export type OpeningCharacter = {
 export async function loadLineOpeningCharacter(fens: readonly string[], catalog: readonly CatalogEntry[]) {
   const index = indexCatalogOpenings(catalog, true);
   const key = resolveLineOpeningKey(fens, index, true);
-  if (key === null) return { opening: null, character: null };
-  const { eco, name } = index.get(key)!;
-  const opening = { eco, name };
+  const entry = key === null ? undefined : index.get(key);
+  if (key === null || !entry) return { opening: null, character: null };
+  const opening = { eco: entry.eco, name: entry.name };
   const character = await import("../../data/opening-character.json", { with: { type: "json" } })
     .then(({ default: data }) => {
       const profiles: Record<string, OpeningCharacter | undefined> = data.profiles;

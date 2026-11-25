@@ -41,7 +41,7 @@ function replay(sans, catalog) {
 }
 
 function rejection(headers) {
-  return profileRejection("masters", headers, PARAMS)
+  return profileRejection("masters", headers, { minElo: PARAMS.minElo })
     ?? (!Object.hasOwn(WHITE_SCORE, headers.Result) ? "result" : null)
     ?? (dateNumber(headers.Date) < PARAMS.minYear * 10000 ? "year" : null);
 }

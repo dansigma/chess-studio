@@ -27,6 +27,7 @@ export function pawnStructure(boardFen) {
       if (piece === "P") {
         white += 1;
         const ahead = ranks[rank - 1];
+        // Only blocked centre pawns (c- to f-file) make a position closed.
         if (ahead?.[file] === "p" && file >= 2 && file <= 5) locked += 1;
         if (ahead?.[file - 1] === "p") tension += 1;
         if (ahead?.[file + 1] === "p") tension += 1;
