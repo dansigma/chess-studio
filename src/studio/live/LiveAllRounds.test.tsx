@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { after, afterEach, before, beforeEach, mock, test } from "node:test";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, waitForElementToBeRemoved, within } from "@testing-library/react";
 import type { BroadcastRoundSnapshot, BroadcastStandingRow, BroadcastTour, LiveGame } from "../../lib/live/types.ts";
 
 const TOUR_PGN = readFileSync(new URL("../../lib/live/fixtures/tour.pgn", import.meta.url), "utf8");
@@ -317,8 +317,9 @@ test("standings tab shows round progress, individual statistics and the Chess Re
   const table = await screen.findByRole("table", { name: "Classificação" });
   assert.ok(screen.getByText("Rodada 1 de 2"));
   assert.deepEqual(within(table).getAllByRole("cell").map((cell) => cell.textContent), [
-    "1", "WFMSun, Yunjin1883CHN", "2½", "3", "2441", "+24",
+    "1", "WFMSun, Yunjin1883", "2½", "3", "2441", "+24",
   ]);
+  assert.equal(within(table).getByRole("img", { name: "China" }).getAttribute("title"), "China");
   const link = screen.getByRole("link", { name: "Classificação completa no Chess Results" });
   assert.equal(link.getAttribute("href"), "https://s3.chess-results.com/tnr1514275.aspx?art=1");
   assert.equal(link.getAttribute("target"), "_blank");
@@ -370,13 +371,21 @@ test("player hover loads standings lazily, and a name tap still opens the game",
   const card = await screen.findByRole("tooltip");
   const details = within(card);
   await details.findByText("4½ / 6");
-  for (const text of ["Carlsen, Magnus", "3rd place", "GM", "2800", "NOR", "2820", "+12"]) {
+  for (const text of ["Carlsen, Magnus", "3rd place", "GM", "2800", "2820", "+12"]) {
     assert.ok(details.getByText(text));
   }
   assert.equal(name.getAttribute("aria-describedby"), card.id);
   assert.equal(standingsCalls, 1);
+  const flag = details.getByRole("img", { name: "Norway" });
+  assert.equal(flag.getAttribute("title"), "Norway");
   fireEvent.pointerOut(name, { pointerType: "mouse" });
-  assert.equal(screen.queryByRole("tooltip"), null);
+  fireEvent.pointerOver(flag, { pointerType: "mouse" });
+  await act(() => new Promise((resolve) => setTimeout(resolve, 250)));
+  assert.ok(screen.queryByRole("tooltip"));
+  fireEvent.click(flag);
+  assert.deepEqual(useLiveStore.getState().openBoards, []);
+  fireEvent.pointerOut(flag, { pointerType: "mouse" });
+  await waitForElementToBeRemoved(card);
 
   fireEvent.pointerOver(name, { pointerType: "touch" });
   fireEvent.click(name);

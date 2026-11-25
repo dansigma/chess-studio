@@ -17,3 +17,8 @@
 /book/*
   Cross-Origin-Resource-Policy: same-origin
   Cache-Control: public, max-age=31536000, immutable
+
+# Bandeiras das federações (SIG-1499), com nomes de arquivo sem versão.
+/flags/*
+  Cross-Origin-Resource-Policy: same-origin
+  Cache-Control: public, max-age=86400
