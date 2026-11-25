@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createLruCache } from "@/src/lib/lru";
 import { clientIp, createRouteLimiter, rateLimitKey } from "@/src/lib/rate-limit";
 import { tooManyRequests } from "@/src/lib/rate-limit-response";
+import { UA } from "@/src/lib/players/shared";
 
 /**
  * SIG-1496: same-origin proxy for Lichess broadcast standings.
@@ -32,7 +33,8 @@ export function _resetLiveStandingsForTest(): void {
 async function fetchUpstream(tourId: string): Promise<string | number> {
   try {
     const response = await fetch(LICHESS_PLAYERS_URL(tourId), {
-      headers: { Accept: "application/json" },
+      // Lichess answers 403 to requests without a User-Agent (the Workers runtime sends none).
+      headers: { Accept: "application/json", "User-Agent": UA },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     if (!response.ok) {
