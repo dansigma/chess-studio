@@ -165,7 +165,7 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
     result: { moves: [{ uci: "d2d4", prob: 0.38 }], chances: { white: 0.15, draw: 0.74, black: 0.11 } },
   }));
   assert.ok(view.getByRole("button", { name: "38% d4" }));
-  assert.ok(view.getByLabelText("Chances of this position between two 1500 players: White 15%, draw 74%, Black 11%"));
+  assert.ok(view.getByRole("img", { name: "Chances of this position between two 1500 players: White 15%, draw 74%, Black 11%" }));
   assert.ok(view.getByText("74%"));
   assert.equal(view.queryByText(/W \d+ · D/u), null);
   assert.match(view.container.querySelector(pv)?.textContent ?? "", /e4/u);
