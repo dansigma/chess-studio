@@ -2,6 +2,7 @@ import type { SiteLocale } from "@/src/i18n/locale";
 import { tLive } from "@/src/i18n/live-strings";
 import type { BroadcastRoundSummary, BroadcastStandingRow } from "@/src/lib/live/types";
 import { formatScore } from "@/src/lib/live/standings";
+import { FederationFlag } from "./FederationFlag";
 import { TitleBadge } from "./LivePlayerCell";
 
 export function LiveStandingsTable({
@@ -58,9 +59,9 @@ export function LiveStandingsTable({
                       {row.title ? <TitleBadge title={row.title} /> : null}
                       <span translate="no">{row.name}</span>
                     </div>
-                    <div className="flex gap-2 text-caption text-studio-muted">
+                    <div className="flex items-center gap-2 text-caption text-studio-muted">
                       {row.rating !== null ? <span>{row.rating}</span> : null}
-                      {row.fed ? <span>{row.fed}</span> : null}
+                      {row.fed ? <FederationFlag fed={row.fed} locale={locale} /> : null}
                     </div>
                   </td>
                   <td className="text-right font-semibold">{formatScore(row.score, locale)}</td>

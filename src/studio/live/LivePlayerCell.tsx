@@ -5,6 +5,7 @@ import { findStandingRow, formatScore } from "@/src/lib/live/standings";
 import type { LivePlayer } from "@/src/lib/live/types";
 import { HoverCard } from "../ui/HoverCard";
 import type { PlayerOutcome } from "../ui/PlayerCell";
+import { FederationFlag } from "./FederationFlag";
 import { shortPlayerName } from "./live-games-filter";
 import { useTourStandings } from "./use-tour-standings";
 
@@ -33,14 +34,6 @@ export function TitleBadge({ title }: { title: string }) {
       data-live-title={title}
     >
       {title}
-    </span>
-  );
-}
-
-function FedChip({ fed }: { fed: string }) {
-  return (
-    <span className="shrink-0 rounded border border-studio-border px-1 text-[10px] font-medium uppercase leading-[14px] tracking-wide text-studio-muted">
-      {fed}
     </span>
   );
 }
@@ -76,7 +69,7 @@ function PlayerStanding({ player, tourId, locale }: {
       {rating != null || fed ? (
         <div className="mt-1 flex items-center gap-2 text-caption text-studio-muted tabular-nums">
           {rating != null ? <span>{rating}</span> : null}
-          {fed ? <FedChip fed={fed} /> : null}
+          {fed ? <FederationFlag fed={fed} locale={locale} /> : null}
         </div>
       ) : null}
       {row ? (
@@ -164,7 +157,7 @@ export function LivePlayerCell({
         {player.title ? <TitleBadge title={player.title} /> : null}
         {name}
         {rating ? <span className="shrink-0 text-caption">{rating}</span> : null}
-        {!hideFederation && player.fed ? <FedChip fed={player.fed} /> : null}
+        {!hideFederation && player.fed ? <FederationFlag fed={player.fed} locale={locale} /> : null}
       </span>
     );
   }
@@ -177,7 +170,7 @@ export function LivePlayerCell({
       {rating || (!hideFederation && player.fed) || extra ? (
         <span className={`flex w-full min-w-0 items-center gap-1.5 text-caption leading-none ${justify}`}>
           {rating}
-          {!hideFederation && player.fed ? <FedChip fed={player.fed} /> : null}
+          {!hideFederation && player.fed ? <FederationFlag fed={player.fed} locale={locale} /> : null}
           {extra}
         </span>
       ) : null}

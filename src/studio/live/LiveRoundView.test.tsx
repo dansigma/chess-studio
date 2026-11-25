@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, beforeEach, mock, test } from "node:test";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, waitForElementToBeRemoved, within } from "@testing-library/react";
 import type { BroadcastRoundSnapshot, BroadcastTour, LiveGame } from "../../lib/live/types.ts";
 
 let roundHandler: (id: string) => Promise<BroadcastRoundSnapshot | null> = async () => null;
@@ -118,7 +118,8 @@ test("deep link: skeleton, then rows with players, results, clocks and a no-cloc
   });
   await waitFor(() => assert.ok(rowOf("a")));
   clearAutoOpened();
-  assert.match(rowOf("a").textContent!, /GM\s*Wa.*2700.*NOR.*10:00.*\*.*8:20/u);
+  assert.match(rowOf("a").textContent!, /GM\s*Wa.*2700.*10:00.*\*.*8:20/u);
+  assert.equal(within(rowOf("a")).getAllByRole("img", { name: "Norway" }).length, 2);
   assert.match(rowOf("b").textContent!, /1-0/u);
   assert.match(rowOf("b").textContent!, /no clock/u);
   assert.equal(screen.getByRole("link", { name: /Powered by Lichess/u }).getAttribute("href"), rounds[0]!.url);
@@ -474,8 +475,10 @@ test("names show as initial + surname in the table with the full name in the too
   clearAutoOpened();
   const white = within(rowOf("a")).getByText("M. Vachier-Lagrave");
   fireEvent.pointerOver(white, { pointerType: "mouse" });
-  assert.ok(within(await screen.findByRole("tooltip")).getByText("Vachier-Lagrave, Maxime"));
+  const whiteTooltip = await screen.findByRole("tooltip");
+  assert.ok(within(whiteTooltip).getByText("Vachier-Lagrave, Maxime"));
   fireEvent.pointerOut(white, { pointerType: "mouse" });
+  await waitForElementToBeRemoved(whiteTooltip);
   const black = within(rowOf("a")).getByText("Magnus");
   fireEvent.pointerOver(black, { pointerType: "mouse" });
   assert.ok(within(await screen.findByRole("tooltip")).getByText("Magnus"));

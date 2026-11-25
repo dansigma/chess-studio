@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import { createPortal } from "react-dom";
 
 const OPEN_DELAY_MS = 300;
+const CLOSE_DELAY_MS = 200;
 const VIEWPORT_MARGIN = 8;
 
 export function HoverCard({ children, content, className, translate }: {
@@ -13,11 +14,24 @@ export function HoverCard({ children, content, className, translate }: {
   const id = useId();
   const trigger = useRef<HTMLSpanElement>(null);
   const card = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [phase, setPhase] = useState<"closed" | "pending" | "open">("closed");
   const active = phase !== "closed";
   const open = phase === "open";
-  const close = () => setPhase("closed");
-  const requestOpen = () => setPhase((current) => current === "closed" ? "pending" : current);
+  const close = () => {
+    clearTimeout(closeTimer.current);
+    setPhase("closed");
+  };
+  const requestOpen = () => {
+    clearTimeout(closeTimer.current);
+    setPhase((current) => current === "closed" ? "pending" : current);
+  };
+  const onPointerLeave = () => {
+    clearTimeout(closeTimer.current);
+    // Let the pointer cross the gap between the trigger and the portal.
+    if (open) closeTimer.current = setTimeout(close, CLOSE_DELAY_MS);
+    else close();
+  };
 
   useEffect(() => {
     if (!active) {
@@ -33,6 +47,7 @@ export function HoverCard({ children, content, className, translate }: {
     document.addEventListener("keydown", onKeyDown, true);
     return () => {
       clearTimeout(timer);
+      clearTimeout(closeTimer.current);
       document.removeEventListener("keydown", onKeyDown, true);
     };
   }, [active]);
@@ -87,7 +102,7 @@ export function HoverCard({ children, content, className, translate }: {
             requestOpen();
           }
         }}
-        onPointerLeave={close}
+        onPointerLeave={onPointerLeave}
       >
         {children}
       </span>
@@ -96,7 +111,10 @@ export function HoverCard({ children, content, className, translate }: {
           ref={card}
           id={id}
           role="tooltip"
-          className="pointer-events-none fixed z-[1050] w-max max-w-[min(18rem,calc(100vw-16px))] rounded-md border border-studio-border bg-studio-panel p-2.5 text-left text-dense font-normal text-studio-fg shadow-lg"
+          className="fixed z-[1050] w-max max-w-[min(18rem,calc(100vw-16px))] rounded-md border border-studio-border bg-studio-panel p-2.5 text-left text-dense font-normal text-studio-fg shadow-lg"
+          onPointerEnter={() => clearTimeout(closeTimer.current)}
+          onPointerLeave={onPointerLeave}
+          onClick={(event) => event.stopPropagation()}
         >
           {content}
         </div>,
