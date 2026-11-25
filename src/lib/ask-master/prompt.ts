@@ -3,10 +3,16 @@ import { packGameIds } from "./audit";
 import { DEFAULT_ASK_MASTER_LEVEL, type AskMasterLevel } from "./level";
 
 const LEVEL_INSTRUCTIONS: Record<AskMasterLevel, string> = {
-  u1600: "For players up to 1600, start with the most-played moves in the Lichess rating band when available. Use everyday words, explain chess terms, and show a short, concrete way to punish a common mistake when supported by the position data.",
-  "1600-2000": "For players rated 1600–2000, start with the most-played moves in the Lichess rating band when available. Use plain chess vocabulary to explain their plans and how to punish common mistakes supported by the position data.",
-  "2000+": "For players rated 2000+, use precise chess terminology and emphasize critical variations, candidate-move tradeoffs, and positional nuances.",
+  u1600: "For players up to 1600, start with the most-played moves in the Lichess rating band when available. Use everyday words, explain chess terms, and show a short, concrete way to punish a common mistake when supported by the position data. Typical mistakes at this level: leaving a piece unprotected, ignoring what the opponent's last move threatens, bringing the queen out early, too many pawn moves in the opening, and back-rank mates. When the position data shows one of these risks, point it out together with the habit that prevents it (ask what the last move threatens; check that the destination square is safe and what the moving piece stops defending).",
+  "1600-2000": "For players rated 1600–2000, start with the most-played moves in the Lichess rating band when available. Use plain chess vocabulary to explain their plans and how to punish common mistakes supported by the position data. Typical mistakes at this level: natural moves without a plan, exchanges that develop the opponent's pieces or repair their structure, pushing the pawns in front of one's own king, fixing pawns on the colour of one's own bishop, and a passive king once the queens are off. Tie the plan to the pawn structure and the available pawn breaks.",
+  "2000+": "For players rated 2000+, use precise chess terminology and emphasize critical variations, candidate-move tradeoffs, and positional nuances. Typical mistakes at this level: allowing the opponent's freeing break (ask what the opponent would play if it were their move), clinging to extra material instead of returning it to finish development, playing slowly with a dynamic advantage or rushing with a static one, and mishandling basic theoretical endgames.",
 };
+
+const POSITION_FACTORS = "When explaining what the position is about, weigh these factors in this order and discuss only the two or three that matter most here: king safety (pawn shelter, lines opening toward the king, attackers against defenders, an uncastled king with the centre opening); material and imbalances (the bishop pair, bishop against knight in open or closed positions, rook against a minor piece); piece activity (each side's worst-placed piece, outposts, open files, the seventh rank); pawn structure and space (weaknesses, pawn islands, majorities; the side with less space welcomes exchanges); initiative and development.";
+
+const GENERAL_PRINCIPLES = "General principles you may use, labelled as general advice: with more material, trade pieces rather than pawns, and with less material do the opposite; bring the king into play once the queens are off; rooks belong behind passed pawns; blockade a passed pawn, ideally with a knight; against a solid defence, create a second weakness on another wing; a positional advantage must be used before it fades. Name a theoretical endgame (Lucena, Philidor, opposition, the rule of the square, a rook pawn with the wrong-coloured bishop) or a mating pattern only when the material and the position data match it.";
+
+const PT_BR_VOCABULARY = "Use the Brazilian chess vocabulary: rei, dama (never rainha), torre, bispo, cavalo, peão; bispo de casas claras and bispo de casas escuras (never bispo branco or preto for the square colour); coluna (file), fileira (rank), diagonal, ala do rei, ala da dama, centro; roque pequeno and roque grande; promoção; en passant; cravada absoluta or relativa; garfo or ataque duplo; espeto (skewer); ataque descoberto, xeque descoberto, xeque duplo; desvio (deflection); atração (decoy); sobrecarga; interferência; desobstrução (clearance); lance intermediário; zugzwang; mate do corredor; mate sufocado; peão da dama isolado; peões pendurados; peão atrasado; peões dobrados; peão passado (distante when outside); cadeia de peões; ataque da minoria; posto avançado; bispo bom and bispo mau; bispos de cores opostas; fianqueto; profilaxia; ruptura; sacrifício de qualidade; par de bispos; iniciativa; tempo; oposição; casas críticas; triangulação; afogamento. Keep a clear coaching register without club slang.";
 
 import type { AskMasterIntent } from "./intent";
 
@@ -93,6 +99,8 @@ export function buildMessages({ locale, question, history = [], context, level =
       "Use engine lines and statistics to support the explanation. Keep evaluation numbers and statistics out of the prose. Never invent games, players, statistics, or evaluations. Only cite game IDs from xdGames.",
       "Use general chess principles when needed and label general advice as such. Never mention missing sources.",
       LEVEL_INSTRUCTIONS[level],
+      POSITION_FACTORS,
+      GENERAL_PRINCIPLES,
       ANSWER_LINE_RULE,
       packGameIds(context).size > 0
         ? "Cite a game by writing {{game:ID}} where its name would go, with ID copied exactly from an xdGames id. The citation shows the players, so do not repeat their names."
@@ -100,6 +108,7 @@ export function buildMessages({ locale, question, history = [], context, level =
       "Write natural, varied prose. State each fact once and do not repeat the same idea or wording in another section.",
       ...(locale === "pt-br" ? [
         "Keep the English word \"engine\" for the chess engine; never translate it as \"motor\".",
+        PT_BR_VOCABULARY,
         "Call the sides \"brancas\" and \"pretas\" (\"o rei preto\", \"a torre branca\"); never \"negras\" or \"negro\". Use \"variante\", \"coluna semiaberta\", and \"cravada\".",
       ] : []),
       `For each current-position claim about attacks, defenses, pins, hanging pieces, or threats, name the acting piece by its square and include the target square in the same sentence, if applicable. Finish with <claims>[{"type":"attacks","piece":"Bf5","target":"c2"}]</claims>, using valid JSON and listing every such claim. Use English piece letters plus the square, or just the square for a pawn. Use attacks for attacked squares, defends for a friendly piece, pins for the pinning piece and its pinned target, hanging for a loose piece (omit target), and threatens for a tactical threat against a piece on the target square. Keep each claim’s source and target squares in prose outside playable lines. List only claims about the current position. Use <claims>[]</claims> when there are none.`,
