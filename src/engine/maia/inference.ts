@@ -20,9 +20,10 @@ export async function analyzeMaia({ fens, elo, lines }: MaiaPosition, run: RunMa
   const fen = fens.at(-1);
   if (!fen) throw new Error("Maia requires a current position");
   const board = new Chess(fen);
-  if (board.isGameOver()) return { moves: [] };
-
+  // Only "no legal move" ends the analysis: draw rules (fifty moves, repetition)
+  // still leave moves a human could play.
   const legal = legalMoves(board);
+  if (legal.length === 0) return { moves: [] };
   const logits = await run(encodeHistory(fens), 1, elo, "move_logits");
   if (legal.some(({ index }) => !(index < logits.length))) {
     throw new Error("Maia move vocabulary does not match the model output");

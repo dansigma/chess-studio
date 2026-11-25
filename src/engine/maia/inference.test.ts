@@ -31,3 +31,11 @@ test("Maia rejects a model whose move output is smaller than the vocabulary", as
   const run: RunMaiaModel = async () => new Float32Array(10);
   await assert.rejects(analyzeMaia({ fens: [START], elo: 1500, lines: 3 }, run), /vocabulary/);
 });
+
+test("Maia skips the model when the side to move has no legal move", async () => {
+  let calls = 0;
+  const run: RunMaiaModel = async () => { calls++; return new Float32Array(); };
+  const stalemate = "7k/5Q2/6K1/8/8/8/8/8 b - - 0 1";
+  assert.deepEqual(await analyzeMaia({ fens: [stalemate], elo: 1500, lines: 3 }, run), { moves: [] });
+  assert.equal(calls, 0);
+});
