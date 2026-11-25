@@ -8,6 +8,7 @@ import {
   type LiveConnection,
 } from "@/src/lib/live/broadcast-manager";
 import { MAX_LIVE_BOARDS } from "./live-board-model";
+import { clearStandingsCache } from "./live-standings-cache";
 import { clearTourGamesCache } from "./live-tour-cache";
 import { fetchRound, streamRound } from "@/src/lib/live/lichess-broadcast";
 import { mergeSnapshotGame, mergeStreamUpdate } from "@/src/lib/live/merge";
@@ -41,6 +42,7 @@ export type LiveState = {
   /** Derived. The one round that gets the stream: the focused board's round, else the table round, else the first board's. */
   streamRoundId: string | null;
   gamesByRound: Record<string, Record<string, LiveGame>>;
+  resultRevisionByTour: Record<string, number>;
   roundInfo: Record<string, LiveRoundInfo>;
   connection: LiveConnection;
   /** Epoch ms when Lichess' 429 pause ends; null when not rate-limited. */
@@ -159,6 +161,11 @@ function capBoards(boards: LiveGameRef[], focus: LiveGameRef | null): LiveGameRe
 
 const EMPTY: Selection = { tableRoundId: null, openBoards: [], focusedGame: null };
 
+function bumpResultRevision(state: LiveState, tourId: string): LiveState["resultRevisionByTour"] {
+  const revisions = state.resultRevisionByTour;
+  return { ...revisions, [tourId]: (revisions[tourId] ?? 0) + 1 };
+}
+
 export const useLiveStore = create<LiveState>((set, get) => ({
   ...EMPTY,
   followedRounds: [],
@@ -166,6 +173,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
   boardLimitReached: false,
   gamesByRound: {},
   roundInfo: {},
+  resultRevisionByTour: {},
   connection: "idle",
   rateLimitedUntil: null,
 
@@ -240,6 +248,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
   leaveLive: () => {
     manager?.stop();
     clearTourGamesCache();
+    clearStandingsCache();
     set({
       ...EMPTY,
       followedRounds: [],
@@ -247,6 +256,7 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       boardLimitReached: false,
       gamesByRound: {},
       roundInfo: {},
+      resultRevisionByTour: {},
       connection: "idle",
       rateLimitedUntil: null,
     });
@@ -257,11 +267,15 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       const roundId = snapshot.round.id;
       const current = s.gamesByRound[roundId] ?? {};
       const next: Record<string, LiveGame> = { ...current };
+      let changed = false;
       for (const game of snapshot.games) {
-        next[game.id] = mergeSnapshotGame(current[game.id], game);
+        const merged = mergeSnapshotGame(current[game.id], game);
+        next[game.id] = merged;
+        changed ||= (current[game.id]?.result ?? "*") !== merged.result;
       }
       return {
         gamesByRound: { ...s.gamesByRound, [roundId]: next },
+        resultRevisionByTour: changed ? bumpResultRevision(s, snapshot.tour.id) : s.resultRevisionByTour,
         roundInfo: { ...s.roundInfo, [roundId]: { tour: snapshot.tour, round: snapshot.round, group: snapshot.group } },
       };
     }),
@@ -273,6 +287,12 @@ export const useLiveStore = create<LiveState>((set, get) => ({
       if (merged === current[update.id]) {
         return s;
       }
-      return { gamesByRound: { ...s.gamesByRound, [update.roundId]: { ...current, [update.id]: merged } } };
+      const tourId = s.roundInfo[update.roundId]?.tour.id;
+      return {
+        gamesByRound: { ...s.gamesByRound, [update.roundId]: { ...current, [update.id]: merged } },
+        resultRevisionByTour: tourId && (current[update.id]?.result ?? "*") !== merged.result
+          ? bumpResultRevision(s, tourId)
+          : s.resultRevisionByTour,
+      };
     }),
 }));

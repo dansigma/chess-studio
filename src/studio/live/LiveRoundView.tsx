@@ -13,6 +13,7 @@ import { LiveConnectionIndicator } from "./LiveConnectionIndicator";
 import { LiveBoardGrid } from "./LiveBoardGrid";
 import { formatDisplayClock } from "./live-clock";
 import { LiveGamesTable, orderedGames } from "./LiveGamesTable";
+import { useStandingsCache } from "./live-standings-cache";
 import { enqueueLiveRequest, useLiveStore } from "./live-store";
 import { useLiveRound, useLiveRoundInfo } from "./use-live";
 import { pickRoundForTour, useLiveTour } from "./use-live-tour";
@@ -102,7 +103,8 @@ export function LiveRoundView({
     const ref = s.focusedGame;
     return ref ? s.gamesByRound[ref.roundId]?.[ref.gameId] : undefined;
   });
-  const tour = useLiveTour(info?.tour.id ?? null);
+  const standingsRefreshedAt = useStandingsCache((cache) => info ? cache[info.tour.id]?.refreshedAt : undefined);
+  const tour = useLiveTour(info?.tour.id ?? null, standingsRefreshedAt);
   const [switching, setSwitching] = useState(false);
   const [openedAt] = useState(() => Date.now());
 
@@ -243,10 +245,6 @@ export function LiveRoundView({
         </div>
       ) : games === undefined ? (
         <Skeleton label={tLive(locale, "live.round.loading")} />
-      ) : gameCount === 0 ? (
-        <p className="p-4 text-sm text-studio-muted">
-          {tLive(locale, notStarted ? "live.round.notStarted" : "live.round.empty")}
-        </p>
       ) : (
         // Boards sit beside the table (lg+) or above it (narrow), so a row click always works and the
         // table stays the way to add boards. Each pane scrolls on its own.
@@ -258,7 +256,13 @@ export function LiveRoundView({
           ) : null}
           {/* 27–30rem fits the six columns of the games table without sideways scrolling. */}
           <div className={`flex min-h-48 min-w-0 flex-1 flex-col ${hasBoards ? "lg:w-[27rem] lg:flex-none xl:w-[30rem]" : ""}`}>
-            <LiveGamesTable key={roundId} roundId={roundId} locale={locale} />
+            <LiveGamesTable key={info?.tour.id} roundId={roundId} locale={locale} tour={tour}
+              emptyGames={gameCount === 0 ? (
+                <p className="p-4 text-sm text-studio-muted">
+                  {tLive(locale, notStarted ? "live.round.notStarted" : "live.round.empty")}
+                </p>
+              ) : undefined}
+            />
           </div>
         </div>
       )}

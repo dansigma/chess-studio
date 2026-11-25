@@ -4,13 +4,15 @@ import { readFileSync } from "node:fs";
 import { after, afterEach, before, beforeEach, mock, test } from "node:test";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import type { BroadcastRoundSnapshot, BroadcastTour, LiveGame } from "../../lib/live/types.ts";
+import type { BroadcastRoundSnapshot, BroadcastStandingRow, BroadcastTour, LiveGame } from "../../lib/live/types.ts";
 
 const TOUR_PGN = readFileSync(new URL("../../lib/live/fixtures/tour.pgn", import.meta.url), "utf8");
 
 let tourPgnHandler: (id: string) => Promise<string | null> = async () => TOUR_PGN;
 let roundHandler: (id: string) => Promise<BroadcastRoundSnapshot | null> = async () => null;
 const tourPgnCalls: string[] = [];
+let standingRows: BroadcastStandingRow[] = [];
+let standingsCalls = 0;
 
 class FakeHttpError extends Error {
   constructor(readonly status = 500) {
@@ -25,6 +27,10 @@ class FakeRateLimited extends FakeHttpError {
 }
 mock.module("@/src/lib/live/lichess-broadcast", {
   namedExports: {
+    fetchTourPlayers: () => {
+      standingsCalls += 1;
+      return Promise.resolve(standingRows);
+    },
     fetchTopBroadcasts: () => Promise.resolve(null),
     LiveRateLimitedError: FakeRateLimited,
     LiveHttpError: FakeHttpError,
@@ -48,6 +54,7 @@ mock.module("@/src/engine/shared-engine", {
 
 const { LiveView } = await import("./LiveView.tsx");
 const { useLiveStore, setLiveManagerDeps } = await import("./live-store.ts");
+const { useStandingsCache } = await import("./live-standings-cache.ts");
 const { parseTourPgn } = await import("./live-tour-games.ts");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 const { DEFAULT_SETTINGS } = await import("@/src/store/slices/settings.ts");
@@ -66,7 +73,7 @@ const rounds = [
   { id: "RoundBBB", slug: "round-2", name: "Round 2", ongoing: true, finished: false, startsAt: 2, url: "u" },
 ];
 function tourFor(id: string): BroadcastTour {
-  return { tour: { ...tourSummary, id }, rounds, group: null, defaultRoundId: "RoundBBB" };
+  return { tour: { ...tourSummary, id, standingsUrl: "https://s3.chess-results.com/tnr1514275.aspx?art=1" }, rounds, group: null, defaultRoundId: "RoundBBB" };
 }
 function snapshot(roundId: string, games: LiveGame[]): BroadcastRoundSnapshot {
   return { tour: tourSummary, round: rounds.find((r) => r.id === roundId)!, games, group: null, defaultRoundId: null };
@@ -88,6 +95,8 @@ beforeEach(() => {
   useLiveStore.getState().leaveLive();
   setLiveManagerDeps(null); // a 429 in one test must not leave the next one paused for a minute
   tourPgnCalls.length = 0;
+  standingsCalls = 0;
+  standingRows = [];
   tourPgnHandler = async () => TOUR_PGN;
   roundHandler = async (id) => snapshot(id, id === "RoundBBB" ? OPEN_ROUND : OTHER_ROUND);
   (window as unknown as { happyDOM: { setURL(url: string): void } }).happyDOM.setURL("http://localhost/studio?view=live&live=RoundBBB");
@@ -289,4 +298,58 @@ test("pt-BR label", async () => {
   fireEvent.click(await screen.findByRole("switch", { name: "Todas as rodadas" }));
   await waitFor(() => assert.ok(rowOf("gameA1xx")));
   assert.equal(screen.queryByText("Carregando partidas de todas as rodadas…"), null);
+});
+
+
+test("standings tab shows round progress, individual statistics and the Chess Results link", async () => {
+  standingRows = [{
+    rank: 1, name: "Sun, Yunjin", title: "WFM", rating: 1883, fed: "CHN", fideId: 8688672,
+    played: 3, score: 2.5, ratingDiff: 24, performance: 2441,
+  }];
+  act(() => {
+    useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } });
+  });
+  render(<LiveView />);
+  const gamesTab = await screen.findByRole("tab", { name: "Partidas" });
+  assert.equal(gamesTab.getAttribute("aria-selected"), "true");
+  assert.equal(standingsCalls, 0);
+  fireEvent.keyDown(gamesTab, { key: "ArrowRight" });
+  const table = await screen.findByRole("table", { name: "Classificação" });
+  assert.ok(screen.getByText("Rodada 1 de 2"));
+  assert.deepEqual(within(table).getAllByRole("cell").map((cell) => cell.textContent), [
+    "1", "WFMSun, Yunjin1883CHN", "2½", "3", "2441", "+24",
+  ]);
+  const link = screen.getByRole("link", { name: "Classificação completa no Chess Results" });
+  assert.equal(link.getAttribute("href"), "https://s3.chess-results.com/tnr1514275.aspx?art=1");
+  assert.equal(link.getAttribute("target"), "_blank");
+  assert.ok((link as HTMLAnchorElement).relList.contains("noopener"));
+  fireEvent.click(gamesTab);
+  fireEvent.click(screen.getByRole("tab", { name: "Classificação" }));
+  assert.ok(screen.getByRole("table", { name: "Classificação" }));
+  assert.equal(standingsCalls, 1);
+});
+
+test("empty standings refresh after a result change and respect the cooldown", async () => {
+  await renderRound();
+  fireEvent.click(screen.getByRole("tab", { name: "Standings" }));
+  await screen.findByText("No standings yet.");
+  assert.equal(screen.queryByRole("table", { name: "Standings" }), null);
+
+  const first = useStandingsCache.getState().T1!;
+  const finishGame = (result: LiveGame["result"]) => {
+    useLiveStore.getState().ingestSnapshot(snapshot("RoundBBB", [{ ...OPEN_ROUND[0]!, result }]));
+  };
+  act(() => finishGame("1-0"));
+  assert.equal(standingsCalls, 1);
+  assert.equal(useStandingsCache.getState().T1, first);
+
+  standingRows = [{
+    rank: 1, name: "Carlsen, Magnus", title: "GM", rating: 2800, fed: "NOR", fideId: null,
+    played: 1, score: 1, ratingDiff: null, performance: null,
+  }];
+  act(() => useStandingsCache.setState({ T1: { ...first, requestedAt: Date.now() - 60_000 } }));
+  await screen.findByRole("table", { name: "Standings" });
+  assert.equal(standingsCalls, 2);
+  assert.equal(screen.queryByRole("columnheader", { name: "Performance" }), null);
+  assert.equal(screen.queryByRole("columnheader", { name: "Rating change" }), null);
 });
