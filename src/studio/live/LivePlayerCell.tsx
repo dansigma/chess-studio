@@ -71,7 +71,7 @@ function PlayerStanding({ player, tourId, locale }: {
     <>
       <div className="flex items-start gap-1.5">
         {title ? <TitleBadge title={title} /> : null}
-        <span className="min-w-0 break-words font-semibold">{player.name}</span>
+        <span translate="no" className="min-w-0 break-words font-semibold">{player.name}</span>
       </div>
       {rating != null || fed ? (
         <div className="mt-1 flex items-center gap-2 text-caption text-studio-muted tabular-nums">
@@ -146,6 +146,7 @@ export function LivePlayerCell({
   const justify = align === "end" ? "justify-end" : "";
   const name = (
     <HoverCard
+      translate="no"
       className={`min-w-0 truncate rounded-sm focus-visible:outline focus-visible:-outline-offset-1 focus-visible:outline-studio-accent ${tone} ${weight}`}
       content={<PlayerStanding player={player} tourId={tourId} locale={locale} />}
     >

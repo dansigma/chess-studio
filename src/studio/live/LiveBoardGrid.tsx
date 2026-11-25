@@ -204,6 +204,7 @@ export function LiveBoardGrid({ locale }: { locale: SiteLocale }) {
                 key={refKey(ref)}
                 type="button"
                 role="tab"
+                translate="no"
                 aria-selected={selected}
                 onClick={() => focusBoard(ref)}
                 className={`shrink-0 rounded-md px-2 py-1 text-dense ${

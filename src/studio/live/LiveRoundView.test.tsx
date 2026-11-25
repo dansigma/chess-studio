@@ -205,13 +205,40 @@ test("tournament selector comes from the group and switching opens the tour's de
   assert.ok(tourCalls.includes("T2"));
 });
 
+test("section labels update when the site language changes", async () => {
+  const data = snapshot([]);
+  data.group!.tours = [
+    { id: "T1", name: "Open", active: true, live: true },
+    { id: "T2", name: "Girls", active: true, live: false },
+    { id: "T3", name: "U18", active: true, live: false },
+  ];
+  roundHandler = async () => data;
+  act(() => {
+    useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } });
+  });
+  render(<LiveView />);
+
+  const select = await screen.findByRole<HTMLSelectElement>("combobox", { name: "Torneio" });
+  const options = () => Array.from(select.options, ({ value, text }) => [value, text]);
+  assert.equal(select.getAttribute("translate"), "no");
+  assert.deepEqual(options(), [["T1", "Absoluto"], ["T2", "Feminino"], ["T3", "U18"]]);
+  assert.equal(select.value, "T1");
+
+  act(() => {
+    useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "en" } });
+  });
+  assert.equal(screen.getByRole("combobox", { name: "Tournament" }), select);
+  assert.deepEqual(options(), [["T1", "Open"], ["T2", "Girls"], ["T3", "U18"]]);
+  assert.equal(select.value, "T1");
+});
+
 test("no group: the tournament is plain text, not a selector", async () => {
   roundHandler = async () => snapshot([game("a")], false);
   render(<LiveView />);
   await waitFor(() => assert.ok(rowOf("a")));
   clearAutoOpened();
   assert.equal(screen.queryByLabelText("Tournament"), null);
-  assert.ok(screen.getByText("Open A"));
+  assert.equal(screen.getByText("Open A").getAttribute("translate"), "no");
 });
 
 test("empty round shows the empty state; Back without history entry returns to the list", async () => {

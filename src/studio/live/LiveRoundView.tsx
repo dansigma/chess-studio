@@ -6,6 +6,7 @@ import { formatDateTime } from "@/src/i18n/format";
 import { tLive } from "@/src/i18n/live-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { fetchTour } from "@/src/lib/live/lichess-broadcast";
+import { sectionLabel } from "@/src/lib/live/section-label";
 import type { BroadcastRoundSummary, LiveGame } from "@/src/lib/live/types";
 import { Button } from "@/src/studio/ui/Button";
 import { useIsMobile } from "../use-is-mobile";
@@ -65,7 +66,7 @@ function FollowedHeader({ game, locale }: { game: LiveGame | undefined; locale: 
             {game.opening ? localizeOpeningName(game.opening, locale, game.eco) : null}
           </span>
         ) : (
-          <span className="min-w-0 truncate text-studio-fg tabular-nums" data-live-followed-summary="">
+          <span translate="no" className="min-w-0 truncate text-studio-fg tabular-nums" data-live-followed-summary="">
             {followedSummary(game, locale)}
           </span>
         )
@@ -190,20 +191,25 @@ export function LiveRoundView({
         {info && groupTours.length > 1 ? (
           <select
             aria-label={tLive(locale, "live.round.tournament")}
+            translate="no"
             className={SELECT_CLASS}
             value={info.tour.id}
             disabled={switching}
             onChange={(event) => void switchTour(event.target.value)}
           >
-            {groupTours.some((t) => t.id === info.tour.id) ? null : <option value={info.tour.id}>{info.tour.name}</option>}
+            {groupTours.some((t) => t.id === info.tour.id) ? null : (
+              <option value={info.tour.id}>{sectionLabel(info.tour.name, locale)}</option>
+            )}
             {groupTours.map((t) => (
               <option key={t.id} value={t.id}>
-                {t.name}
+                {sectionLabel(t.name, locale)}
               </option>
             ))}
           </select>
         ) : info ? (
-          <span className="min-w-0 truncate text-dense font-medium text-studio-fg">{info.tour.name}</span>
+          <span translate="no" className="min-w-0 truncate text-dense font-medium text-studio-fg">
+            {sectionLabel(info.tour.name, locale)}
+          </span>
         ) : null}
         {info ? (
           <select
