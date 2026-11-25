@@ -114,3 +114,15 @@ test("opens without a heading, keeps engine in Portuguese, and cites games only 
   assert.doesNotMatch(en.content, /motor/);
   assert.match(en.content, /\{\{game:ID\}\}/);
 });
+
+test("weighs position factors, names level mistakes, and uses Brazilian vocabulary only in pt-br", () => {
+  const [pt] = buildMessages({ locale: "pt-br", level: "u1600", question: "?" });
+  assert.match(pt.content, /king safety .* initiative and development/);
+  assert.match(pt.content, /rooks belong behind passed pawns/);
+  assert.match(pt.content, /back-rank mates/);
+  assert.match(pt.content, /bispo de casas claras/);
+  assert.match(pt.content, /espeto \(skewer\)/);
+  const [en] = buildMessages({ locale: "en", level: "2000+", question: "?" });
+  assert.match(en.content, /freeing break/);
+  assert.doesNotMatch(en.content, /bispo de casas claras/);
+});
