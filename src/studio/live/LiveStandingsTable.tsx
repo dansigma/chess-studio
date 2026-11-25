@@ -1,14 +1,8 @@
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tLive } from "@/src/i18n/live-strings";
 import type { BroadcastRoundSummary, BroadcastStandingRow } from "@/src/lib/live/types";
+import { formatScore } from "@/src/lib/live/standings";
 import { TitleBadge } from "./LivePlayerCell";
-
-function formatScore(score: number, locale: SiteLocale): string {
-  if (score % 1 === 0.5) {
-    return `${Math.floor(score) || ""}½`;
-  }
-  return score.toLocaleString(locale);
-}
 
 export function LiveStandingsTable({
   rows, status, rounds, standingsUrl, locale,

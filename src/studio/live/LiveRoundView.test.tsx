@@ -446,8 +446,13 @@ test("names show as initial + surname in the table with the full name in the too
   await waitFor(() => assert.ok(rowOf("a")));
   clearAutoOpened();
   const white = within(rowOf("a")).getByText("M. Vachier-Lagrave");
-  assert.equal(white.getAttribute("title"), "Vachier-Lagrave, Maxime");
-  assert.equal(within(rowOf("a")).getByText("Magnus").getAttribute("title"), "Magnus");
+  fireEvent.pointerOver(white, { pointerType: "mouse" });
+  assert.ok(within(await screen.findByRole("tooltip")).getByText("Vachier-Lagrave, Maxime"));
+  fireEvent.pointerOut(white, { pointerType: "mouse" });
+  const black = within(rowOf("a")).getByText("Magnus");
+  fireEvent.pointerOver(black, { pointerType: "mouse" });
+  assert.ok(within(await screen.findByRole("tooltip")).getByText("Magnus"));
+  fireEvent.pointerOut(black, { pointerType: "mouse" });
   fireEvent.click(rowOf("a"));
   const card = document.querySelector("[data-live-board]") as HTMLElement;
   assert.ok(card, "the board card is open");

@@ -131,6 +131,7 @@ function liveRowDomId(gameId: string): string {
 
 type RowProps = {
   game: LiveGame;
+  tourId: string | null;
   index: number;
   /** 1-based position in the grid when the game is open there, else null. */
   gridNumber: number | null;
@@ -147,6 +148,7 @@ type RowProps = {
 
 const LiveRow = memo(function LiveRow({
   game,
+  tourId,
   index,
   gridNumber,
   focused,
@@ -229,6 +231,8 @@ const LiveRow = memo(function LiveRow({
       <div role="cell" className="min-w-0">
         <LivePlayerCell
           player={game.white}
+          tourId={tourId}
+          locale={locale}
           outcome={outcomeFor(winner, "white")}
           emphasis={focused}
           shortName
@@ -252,6 +256,8 @@ const LiveRow = memo(function LiveRow({
       <div role="cell" className="min-w-0">
         <LivePlayerCell
           player={game.black}
+          tourId={tourId}
+          locale={locale}
           outcome={outcomeFor(winner, "black")}
           emphasis={focused}
           shortName
@@ -450,6 +456,9 @@ function LiveGamesList({ roundId, locale, tour, visible: panelVisible }: {
   const onClose = useCallback((game: LiveGame) => closeBoard({ roundId: roundOf(game), gameId: game.id }), [closeBoard, roundOf]);
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
     if (event.key === "Enter") {
       const game = rows[activeIndex];
       if (game) {
@@ -635,6 +644,7 @@ function LiveGamesList({ roundId, locale, tour, visible: panelVisible }: {
                     <LiveRow
                       key={game.id}
                       game={game}
+                      tourId={tourId}
                       index={windowing.start + offset}
                       gridNumber={position === -1 ? null : position + 1}
                       focused={sameGameRef(focusedGame, ref)}

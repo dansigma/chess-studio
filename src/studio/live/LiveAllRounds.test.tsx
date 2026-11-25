@@ -353,3 +353,65 @@ test("empty standings refresh after a result change and respect the cooldown", a
   assert.equal(screen.queryByRole("columnheader", { name: "Performance" }), null);
   assert.equal(screen.queryByRole("columnheader", { name: "Rating change" }), null);
 });
+
+test("player hover loads standings lazily, and a name tap still opens the game", async () => {
+  standingRows = [{
+    rank: 3, name: "Carlsen, Magnus", title: "GM", rating: 2800, fed: "NOR", fideId: 1503014,
+    played: 6, score: 4.5, ratingDiff: 12, performance: 2820,
+  }, {
+    rank: 5, name: "Pérez, José", title: null, rating: 2600, fed: null, fideId: 123,
+    played: 6, score: 3, ratingDiff: null, performance: null,
+  }];
+  await renderRound();
+  const name = within(rowOf("gameB1xx")!).getByText("M. Carlsen");
+  assert.equal(standingsCalls, 0);
+  fireEvent.pointerOver(name, { pointerType: "mouse" });
+  assert.equal(screen.queryByRole("tooltip"), null);
+  const card = await screen.findByRole("tooltip");
+  const details = within(card);
+  await details.findByText("4½ / 6");
+  for (const text of ["Carlsen, Magnus", "3rd place", "GM", "2800", "NOR", "2820", "+12"]) {
+    assert.ok(details.getByText(text));
+  }
+  assert.equal(name.getAttribute("aria-describedby"), card.id);
+  assert.equal(standingsCalls, 1);
+  fireEvent.pointerOut(name, { pointerType: "mouse" });
+  assert.equal(screen.queryByRole("tooltip"), null);
+
+  fireEvent.pointerOver(name, { pointerType: "touch" });
+  fireEvent.click(name);
+  const boardName = within(document.querySelector('[data-live-board="gameB1xx"]') as HTMLElement)
+    .getByText("Carlsen, Magnus");
+  act(() => boardName.focus());
+  await within(await screen.findByRole("tooltip")).findByText("4½ / 6");
+  assert.equal(standingsCalls, 1);
+  fireEvent.keyDown(boardName, { key: "Escape" });
+  assert.equal(screen.queryByRole("tooltip"), null);
+  assert.equal(document.activeElement, boardName);
+});
+
+test("keyboard focus and blur show and close the Portuguese score fallback", async () => {
+  standingRows = [{
+    rank: 1, name: "Carlsen, Magnus", title: "GM", rating: 2800, fed: "NOR", fideId: 1503014,
+    played: 6, score: 6, ratingDiff: null, performance: null,
+  }];
+  act(() => {
+    useStudioStore.setState({ settings: { ...DEFAULT_SETTINGS, locale: "pt-br" } });
+  });
+  render(<LiveView />);
+  await waitFor(() => assert.ok(rowOf("gameB1xx")));
+  const name = within(rowOf("gameB1xx")!).getByText("J. Pérez");
+  act(() => name.focus());
+  const details = within(await screen.findByRole("tooltip"));
+  assert.ok(details.getByText("Pontuação indisponível"));
+  assert.ok(details.getByText("Pérez, José"));
+  assert.ok(details.getByText("2600"));
+  await waitFor(() => assert.equal(useStandingsCache.getState().T1?.status, "ready"));
+  assert.ok(details.getByText("Pontuação indisponível"));
+  assert.equal(details.queryByText("1º lugar"), null);
+  act(() => name.blur());
+  assert.equal(screen.queryByRole("tooltip"), null);
+  const rankedName = within(rowOf("gameB1xx")!).getByText("M. Carlsen");
+  act(() => rankedName.focus());
+  assert.ok(within(await screen.findByRole("tooltip")).getByText("1º lugar"));
+});
