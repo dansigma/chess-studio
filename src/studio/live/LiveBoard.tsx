@@ -39,11 +39,13 @@ function PlayerBar({
   side,
   locale,
   historic,
+  tourId,
   dense = false,
 }: {
   game: LiveGame;
   side: Side;
   locale: SiteLocale;
+  tourId: string | null;
   /** Small cards (Compact, thumbnails): no federation chip, so the name keeps its room next to the clock. */
   dense?: boolean;
   /** Set while browsing: the clock at the viewed ply (null = none recorded). */
@@ -54,7 +56,7 @@ function PlayerBar({
   return (
     <div className="flex min-h-7 items-center justify-between gap-2" data-live-player={side}>
       <div className="min-w-0 flex-1 overflow-hidden">
-        <LivePlayerCell player={dense ? { ...player, fed: null } : player} outcome={outcomeFor(winner, side)} layout="inline" />
+        <LivePlayerCell player={player} tourId={tourId} locale={locale} hideFederation={dense} outcome={outcomeFor(winner, side)} layout="inline" />
       </div>
       <div className="shrink-0 text-dense tabular-nums" data-live-clock={side}>
         {historic ? (
@@ -344,7 +346,7 @@ export function LiveBoard({
         </IconButton>
       </header>
 
-      <PlayerBar game={game} side={topSide} locale={locale} historic={historic(topSide)} dense={dense} />
+      <PlayerBar game={game} tourId={roundInfo?.tour.id ?? null} side={topSide} locale={locale} historic={historic(topSide)} dense={dense} />
       {sized ? (
         // The cell is a size container: the board (and its eval bar) is the largest square that fits the card's
         // free height and width, so Compact cards never need a vertical scroll and the Focus card fits its pane.
@@ -362,7 +364,7 @@ export function LiveBoard({
       ) : (
         <div className="flex items-stretch gap-1.5">{boardView}</div>
       )}
-      <PlayerBar game={game} side={bottomSide} locale={locale} historic={historic(bottomSide)} dense={dense} />
+      <PlayerBar game={game} tourId={roundInfo?.tour.id ?? null} side={bottomSide} locale={locale} historic={historic(bottomSide)} dense={dense} />
 
       {/* Always rendered at a fixed height (empty + aria-hidden while ongoing) so a card never grows when its game ends. */}
       <p
