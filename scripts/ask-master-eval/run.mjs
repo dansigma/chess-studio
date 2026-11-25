@@ -69,7 +69,9 @@ export async function runEvaluation({
   const report = {
     version: 1,
     model: config.model,
+    options: config.options ?? null,
     judgeModel,
+    judgeOptions: judgeOptions ?? null,
     startedAt: new Date().toISOString(),
     datasetHash: hash(source),
     positions: [],
@@ -114,8 +116,9 @@ async function main(args) {
     outDir: values.out,
     config,
     judgeModel: process.env.ASK_MASTER_EVAL_JUDGE_MODEL?.trim() || config.model,
-    ...(process.env.ASK_MASTER_EVAL_JUDGE_MODEL?.trim()
-      ? { judgeOptions: parseRequestOptions(process.env.ASK_MASTER_EVAL_JUDGE_OPTIONS) } : {}),
+    // The judge reuses the answer options unless its own are set, even when it keeps the same model.
+    ...(process.env.ASK_MASTER_EVAL_JUDGE_OPTIONS?.trim()
+      ? { judgeOptions: parseRequestOptions(process.env.ASK_MASTER_EVAL_JUDGE_OPTIONS, "ASK_MASTER_EVAL_JUDGE_OPTIONS") } : {}),
     onPosition: (row, index, total) => console.error(`[${index}/${total}] ${row.id}${row.error ? ` (${row.error})` : ""}`),
   });
   console.log(`Relatórios em ${values.out}`);
