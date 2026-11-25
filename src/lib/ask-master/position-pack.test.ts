@@ -128,3 +128,11 @@ test("includes opening character only when available and within budget", () => {
   const packed = buildPositionPack({ ...input, sanLine: ["e4".repeat(POSITION_PACK_BYTES)], character });
   assert.equal("character" in packed, false);
 });
+
+test("lists who attacks a loose piece, names the moving piece of a threat, and skips weak squares held by pawns", () => {
+  const fen = "1rbq1rk1/b1p2ppp/p1np1n2/Pp2p3/3PP3/1BP1BN1P/1P3PP1/RN1Q1RK1 b - - 0 12";
+  const pack = buildPositionPack({ fen, sanLine: [], facts: computePositionFacts(fen), threats: [computeThreatsToMove(fen)] });
+  assert.deepEqual(pack.facts!.hanging, [{ piece: "e4", attackers: ["Nf6"], defenders: [] }]);
+  assert.deepEqual(pack.threats, [{ kind: "hanging-capture", by: "b", san: "Nxe4", piece: "Nf6", targets: ["e4"] }]);
+  assert.equal(pack.facts!.weakSquares.some(({ square }) => square === "a5"), false);
+});

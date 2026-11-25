@@ -170,6 +170,20 @@ export function AskMasterAnswer({ text, source, locale }: { text: string; source
   });
 }
 
+type CitedGameRow = NonNullable<AnswerSource["xdGames"]>[number];
+
+function citedGameTitle(game: CitedGameRow) {
+  return `${game.white} – ${game.black}${game.year == null ? "" : `, ${game.year}`}`;
+}
+
+/** The answer with each {{game:ID}} citation replaced by its players and year, for copying as text. */
+export function answerWithGameTitles(text: string, source?: AnswerSource) {
+  return text.replace(/\{\{game:([^{}\r\n]*)\}\}/g, (citation, id: string) => {
+    const game = source?.xdGames?.find((row) => row.id === id.trim());
+    return game ? citedGameTitle(game) : citation;
+  });
+}
+
 function AnswerBody({ text, source, locale }: { text: string; source?: AnswerSource; locale: SiteLocale }) {
   const segments = useMemo(() => parseAnswer(text, source ?? NO_SOURCE), [text, source]);
   const paragraphs: ReactNode[][] = [[]];
@@ -177,7 +191,7 @@ function AnswerBody({ text, source, locale }: { text: string; source?: AnswerSou
     if (segment.type === "game") {
       const game = source?.xdGames?.find(({ id }) => id === segment.id);
       if (game) {
-        const title = `${game.white} – ${game.black}${game.year == null ? "" : `, ${game.year}`}`;
+        const title = citedGameTitle(game);
         paragraphs.at(-1)!.push(
           <CitedGame key={index} id={game.id} title={title} atFen={source!.currentFen} locale={locale} />,
         );
