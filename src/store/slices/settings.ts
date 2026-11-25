@@ -1,3 +1,4 @@
+import { clampMaiaElo, clampMaiaLines, MAIA_DEFAULT_ELO, MAIA_DEFAULT_LINES } from "@/src/engine/maia/protocol";
 import { validateFen } from "chess.js";
 import { OTHER_LINES, TRAINING_DEPTHS, type Scope } from "@/src/chess/repertoire-scope";
 import { DEFAULT_SITE_LOCALE, siteLocaleFromLanguage, isSiteLocale } from "@/src/i18n/locale";
@@ -55,6 +56,9 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   moveSound: false,
   puzzleSound: true,
   engineSparkline: true,
+  maiaEnabled: false,
+  maiaElo: MAIA_DEFAULT_ELO,
+  maiaLines: MAIA_DEFAULT_LINES,
   locale: DEFAULT_SITE_LOCALE,
 };
 
@@ -153,6 +157,9 @@ export function loadLocalSettings(): StudioSettings {
       puzzleSound: typeof parsed.puzzleSound === "boolean" ? parsed.puzzleSound : DEFAULT_SETTINGS.puzzleSound,
       engineSparkline:
         typeof parsed.engineSparkline === "boolean" ? parsed.engineSparkline : DEFAULT_SETTINGS.engineSparkline,
+      maiaEnabled: typeof parsed.maiaEnabled === "boolean" ? parsed.maiaEnabled : DEFAULT_SETTINGS.maiaEnabled,
+      maiaElo: clampMaiaElo(parsed.maiaElo),
+      maiaLines: clampMaiaLines(parsed.maiaLines),
       locale: isSiteLocale(parsed.locale) ? parsed.locale : siteLocaleFromLanguage(window.navigator?.language),
     };
   } catch {
@@ -167,6 +174,9 @@ export type SettingsSlice = Pick<
   | "toggleMoveSound"
   | "togglePuzzleSound"
   | "toggleEngineSparkline"
+  | "setMaiaEnabled"
+  | "setMaiaElo"
+  | "setMaiaLines"
   | "toggleEvalBar"
   | "toggleMaterialBalance"
   | "toggleAutoQueen"
@@ -237,6 +247,15 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
         engineSparkline: !state.settings.engineSparkline,
       },
     }));
+  },
+  setMaiaEnabled: (maiaEnabled) => {
+    set((state) => ({ settings: { ...state.settings, maiaEnabled } }));
+  },
+  setMaiaElo: (elo) => {
+    set((state) => ({ settings: { ...state.settings, maiaElo: clampMaiaElo(elo) } }));
+  },
+  setMaiaLines: (lines) => {
+    set((state) => ({ settings: { ...state.settings, maiaLines: clampMaiaLines(lines) } }));
   },
   toggleMaterialBalance: () => {
     set((state) => ({

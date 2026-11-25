@@ -67,7 +67,9 @@ export async function GET(
     "Content-Type",
     key.endsWith(".wasm")
       ? "application/wasm"
-      : headers.get("Content-Type") ?? "application/octet-stream",
+      : key.endsWith(".onnx")
+        ? "application/octet-stream"
+        : headers.get("Content-Type") ?? "application/octet-stream",
   );
   headers.set("Cache-Control", IMMUTABLE);
   headers.set("Cross-Origin-Opener-Policy", "same-origin");
