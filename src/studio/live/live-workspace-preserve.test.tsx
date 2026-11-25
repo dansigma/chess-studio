@@ -12,6 +12,7 @@ mock.module("next/navigation", {
 });
 mock.module("@/src/lib/live/lichess-broadcast", {
   namedExports: {
+    fetchTourPlayers: () => Promise.resolve([]),
     BroadcastPageError: class BroadcastPageError extends Error {},
     LiveHttpError: class LiveHttpError extends Error {
       status: number;

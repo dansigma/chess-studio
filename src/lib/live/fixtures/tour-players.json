@@ -1,0 +1,56 @@
+[
+  {
+    "name": "Sun, Yunjin",
+    "rating": 1883,
+    "fideId": 8688672,
+    "fed": "CHN",
+    "played": 3,
+    "score": 3,
+    "ratingsMap": {
+      "standard": 1883
+    },
+    "ratingDiffs": {
+      "standard": 24
+    },
+    "performances": {
+      "standard": 2441
+    },
+    "rank": 1
+  },
+  {
+    "name": "Thalapaneni, Sarayu",
+    "rating": 1515,
+    "fideId": 39958477,
+    "fed": "USA",
+    "played": 3,
+    "score": 3,
+    "ratingsMap": {
+      "standard": 1515
+    },
+    "ratingDiffs": {
+      "standard": 62
+    },
+    "performances": {
+      "standard": 2330
+    },
+    "rank": 2
+  },
+  {
+    "name": "Shatsila, Miraslava",
+    "rating": 1507,
+    "fideId": 13540572,
+    "fed": "FID",
+    "played": 3,
+    "score": 2,
+    "ratingsMap": {
+      "standard": 1507
+    },
+    "ratingDiffs": {
+      "standard": 35
+    },
+    "performances": {
+      "standard": 1727
+    },
+    "rank": 3
+  }
+]

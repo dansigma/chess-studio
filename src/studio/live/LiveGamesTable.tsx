@@ -1,10 +1,10 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { Clock, X } from "lucide-react";
 import { tLive } from "@/src/i18n/live-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
-import type { LiveGame } from "@/src/lib/live/types";
+import type { BroadcastTour, LiveGame } from "@/src/lib/live/types";
 import { SearchInput } from "../ui/Controls";
 import { pgnResultToWinner, ResultMark } from "../ResultMark";
 import { outcomeFor } from "../ui/PlayerCell";
@@ -29,7 +29,8 @@ import { useLiveNow } from "./live-ticker";
 import { loadTourGames } from "./live-tour-games";
 import { cachedTourGames, type TourGameRow } from "./live-tour-cache";
 import { useLiveRound, useLiveRoundInfo } from "./use-live";
-import { useLiveTour } from "./use-live-tour";
+import { useTourStandings } from "./use-tour-standings";
+import { LiveStandingsTable } from "./LiveStandingsTable";
 
 const FILTER_LABEL = {
   all: "live.filter.all",
@@ -273,7 +274,71 @@ function tourRowGame(row: TourGameRow): LiveGame {
   return { ...row, fen: "", lastMoveUci: null, thinkTimeSec: null, pgn: null, updatedAt: 0 };
 }
 
-export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: SiteLocale }) {
+export function LiveGamesTable({
+  roundId, locale, tour, emptyGames,
+}: {
+  roundId: string;
+  locale: SiteLocale;
+  tour: BroadcastTour | null;
+  emptyGames?: ReactNode;
+}) {
+  const info = useLiveRoundInfo(roundId);
+  const roundInfo = useLiveStore((s) => s.roundInfo);
+  const [view, setView] = useState<"games" | "standings">("games");
+  const id = useId();
+  const { rows, status } = useTourStandings(view === "standings" ? info?.tour.id ?? null : null);
+  const rounds = tour?.rounds.map((round) => {
+    const latest = roundInfo[round.id]?.round;
+    return latest?.finished || (!round.finished && latest?.ongoing) ? latest : round;
+  });
+  return (
+    <>
+      <div role="tablist" aria-label={tLive(locale, "live.standings.panel")} className="flex shrink-0 gap-1 border-b border-studio-border-subtle px-2 pt-1">
+        {(["games", "standings"] as const).map((tab) => (
+          <button
+            key={tab}
+            id={`${id}-${tab}`}
+            role="tab"
+            type="button"
+            tabIndex={view === tab ? 0 : -1}
+            aria-selected={view === tab}
+            aria-controls={`${id}-panel-${tab}`}
+            onClick={() => setView(tab)}
+            onKeyDown={(event) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+                return;
+              }
+              event.preventDefault();
+              const next = event.key === "Home" ? "games" : event.key === "End" ? "standings" : tab === "games" ? "standings" : "games";
+              setView(next);
+              document.getElementById(`${id}-${next}`)?.focus();
+            }}
+            className={`rounded-t px-3 py-1.5 text-dense ${view === tab
+              ? "bg-studio-accent-soft font-medium text-studio-accent-text"
+              : "text-studio-muted hover:bg-studio-hover-strong hover:text-studio-fg"}`}
+          >
+            {tLive(locale, tab === "games" ? "live.standings.games" : "live.standings.label")}
+          </button>
+        ))}
+      </div>
+      <div id={`${id}-panel-games`} role="tabpanel" aria-labelledby={`${id}-games`} hidden={view !== "games"}
+        className={view === "games" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+        {emptyGames ?? <LiveGamesList key={roundId} roundId={roundId} locale={locale} tour={tour} visible={view === "games"} />}
+      </div>
+      <div id={`${id}-panel-standings`} role="tabpanel" aria-labelledby={`${id}-standings`} hidden={view !== "standings"}
+        className={view === "standings" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+        {view === "standings" ? (
+          <LiveStandingsTable rows={rows} status={status} rounds={rounds} locale={locale}
+            standingsUrl={tour?.tour.standingsUrl ?? info?.tour.standingsUrl} />
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+function LiveGamesList({ roundId, locale, tour, visible: panelVisible }: {
+  roundId: string; locale: SiteLocale; tour: BroadcastTour | null; visible: boolean;
+}) {
   const games = useLiveRound(roundId);
   const openBoards = useLiveStore((s) => s.openBoards);
   const focusedGame = useLiveStore((s) => s.focusedGame);
@@ -292,7 +357,6 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
   const [attempt, setAttempt] = useState(0);
   const [tourRows, setTourRows] = useState<{ tourId: string; rows: TourGameRow[] } | null>(null);
   const [tourFailed, setTourFailed] = useState(false);
-  const tour = useLiveTour(allRounds ? tourId : null);
   useEffect(() => {
     if (!allRounds || !tourId) {
       return;
@@ -348,6 +412,9 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
 
   // "/" focuses the search field from anywhere in the round view, unless the user is typing somewhere.
   useEffect(() => {
+    if (!panelVisible) {
+      return;
+    }
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "/" || event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) {
         return;
@@ -360,7 +427,7 @@ export function LiveGamesTable({ roundId, locale }: { roundId: string; locale: S
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [panelVisible]);
 
   // Opens the game in the grid and focuses it, or (Ctrl/Cmd) in the Studio in a new browser tab.
   const activate = useCallback(

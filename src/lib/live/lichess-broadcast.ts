@@ -11,8 +11,10 @@ import {
   type BroadcastPastPage,
   type BroadcastRoundSnapshot,
   type BroadcastRoundSummary,
+  type BroadcastStandingRow,
   type BroadcastTour,
   type BroadcastTourSummary,
+  type FideTimeControl,
   type LiveGame,
   type LiveGameUpdate,
   type LivePlayer,
@@ -53,17 +55,25 @@ function num(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function fideTimeControl(value: unknown): FideTimeControl | undefined {
+  return value === "standard" || value === "rapid" || value === "blitz" ? value : undefined;
+}
+
 export function mapTourSummary(raw: unknown): BroadcastTourSummary {
   const tour = rec(raw);
   const info = rec(tour.info);
   const dates = Array.isArray(tour.dates) ? tour.dates.map(num).filter((d): d is number => d !== null) : [];
   const start = dates[0];
+  const fideTC = fideTimeControl(info.fideTC);
+  const standingsUrl = str(info.standings);
   return {
     id: str(tour.id) ?? "",
     slug: str(tour.slug) ?? "",
     name: str(tour.name) ?? "",
     format: str(info.format),
     timeControl: str(info.tc),
+    ...(fideTC ? { fideTimeControl: fideTC } : {}),
+    ...(standingsUrl && /^https?:\/\//i.test(standingsUrl) ? { standingsUrl } : {}),
     location: str(info.location),
     imageUrl: str(tour.image),
     tier: num(tour.tier),
@@ -149,6 +159,38 @@ export function mapBroadcastTour(raw: unknown): BroadcastTour {
   };
 }
 
+export function mapTourPlayers(raw: unknown, timeControl?: FideTimeControl): BroadcastStandingRow[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw.flatMap((value) => {
+    const player = rec(value);
+    const name = str(player.name);
+    const rank = num(player.rank);
+    const score = num(player.score);
+    const played = num(player.played);
+    if (!name || rank === null || score === null || played === null) {
+      return [];
+    }
+    const ratings = rec(player.ratingsMap);
+    const diffs = rec(player.ratingDiffs);
+    const performances = rec(player.performances);
+    const key = timeControl ?? Object.keys({ ...ratings, ...diffs, ...performances }).find(fideTimeControl);
+    return [{
+      name,
+      rank,
+      score,
+      played,
+      fideId: num(player.fideId),
+      title: str(player.title),
+      fed: str(player.fed),
+      rating: (key ? num(ratings[key]) : null) ?? num(player.rating),
+      ratingDiff: key ? num(diffs[key]) : null,
+      performance: key ? num(performances[key]) : null,
+    }];
+  });
+}
+
 function mapPlayer(raw: unknown): LivePlayer {
   const p = rec(raw);
   const clockCs = num(p.clock);
@@ -230,6 +272,12 @@ export function fetchTopBroadcasts(page: number, signal?: AbortSignal): Promise<
 export function fetchTour(tourId: string, signal?: AbortSignal): Promise<BroadcastTour | null> {
   return once(signal, async () =>
     mapBroadcastTour(await (await get(`/api/broadcast/${encodeURIComponent(tourId)}`, "application/json", signal)).json()),
+  );
+}
+
+export function fetchTourPlayers(tourId: string, signal?: AbortSignal, timeControl?: FideTimeControl): Promise<BroadcastStandingRow[] | null> {
+  return once(signal, async () =>
+    mapTourPlayers(await (await get(`/broadcast/${encodeURIComponent(tourId)}/players`, "application/json", signal)).json(), timeControl),
   );
 }
 

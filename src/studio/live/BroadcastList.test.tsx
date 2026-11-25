@@ -28,6 +28,7 @@ class FakeRateLimited extends FakeHttpError {
 }
 mock.module("@/src/lib/live/lichess-broadcast", {
   namedExports: {
+    fetchTourPlayers: () => Promise.resolve([]),
     fetchTopBroadcasts: (page: number) => {
       calls.push(page);
       return handler(page);

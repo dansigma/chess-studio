@@ -1,12 +1,16 @@
 // SIG-1287: shared contract for Live (Lichess broadcasts). Pure data, no React.
 import type { PgnEval } from "../../chess/pgn-eval";
 
+export type FideTimeControl = "standard" | "rapid" | "blitz";
+
 export type BroadcastTourSummary = {
   id: string;
   slug: string;
   name: string;
   format: string | null; // tour.info.format
   timeControl: string | null; // tour.info.tc
+  fideTimeControl?: FideTimeControl;
+  standingsUrl?: string;
   location: string | null; // tour.info.location
   imageUrl: string | null;
   tier: number | null;
@@ -129,4 +133,12 @@ export type LiveGameUpdate = {
   /** SIG-1313: `[ECO]` and `[Opening]` headers; null when the PGN has none. */
   eco?: string | null;
   opening?: string | null;
+};
+
+export type BroadcastStandingRow = Pick<LivePlayer, "name" | "title" | "rating" | "fed" | "fideId"> & {
+  rank: number;
+  score: number;
+  played: number;
+  ratingDiff: number | null;
+  performance: number | null;
 };

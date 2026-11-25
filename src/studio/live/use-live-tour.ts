@@ -6,7 +6,7 @@ import type { BroadcastTour } from "@/src/lib/live/types";
 import { enqueueLiveRequest } from "./live-store";
 
 /** Tour (its rounds and group) for the selectors, through the shared request queue. Null until loaded. */
-export function useLiveTour(tourId: string | null): BroadcastTour | null {
+export function useLiveTour(tourId: string | null, refreshedAt?: number): BroadcastTour | null {
   const [loaded, setLoaded] = useState<BroadcastTour | null>(null);
   useEffect(() => {
     if (!tourId) {
@@ -21,7 +21,7 @@ export function useLiveTour(tourId: string | null): BroadcastTour | null {
       })
       .catch(() => undefined); // the selectors fall back to the current round only
     return () => controller.abort();
-  }, [tourId]);
+  }, [tourId, refreshedAt]);
   return loaded && loaded.tour.id === tourId ? loaded : null;
 }
 
