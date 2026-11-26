@@ -1,4 +1,4 @@
-import { clampMaiaElo, clampMaiaLines, MAIA_DEFAULT_ELO, MAIA_DEFAULT_LINES } from "@/src/engine/maia/protocol";
+import { clampMaiaElo, clampMaiaLines, isMaiaChancesMode, MAIA_DEFAULT_ELO, MAIA_DEFAULT_LINES } from "@/src/engine/maia/protocol";
 import { validateFen } from "chess.js";
 import { OTHER_LINES, TRAINING_DEPTHS, type Scope } from "@/src/chess/repertoire-scope";
 import { DEFAULT_SITE_LOCALE, siteLocaleFromLanguage, isSiteLocale } from "@/src/i18n/locale";
@@ -160,7 +160,9 @@ export function loadLocalSettings(): StudioSettings {
         typeof parsed.engineSparkline === "boolean" ? parsed.engineSparkline : DEFAULT_SETTINGS.engineSparkline,
       maiaEnabled: typeof parsed.maiaEnabled === "boolean" ? parsed.maiaEnabled : DEFAULT_SETTINGS.maiaEnabled,
       maiaElo: clampMaiaElo(parsed.maiaElo),
-      maiaChancesMode: parsed.maiaChancesMode === "online" ? "online" : DEFAULT_SETTINGS.maiaChancesMode,
+      maiaChancesMode: isMaiaChancesMode(parsed.maiaChancesMode)
+        ? parsed.maiaChancesMode
+        : DEFAULT_SETTINGS.maiaChancesMode,
       maiaLines: clampMaiaLines(parsed.maiaLines),
       locale: isSiteLocale(parsed.locale) ? parsed.locale : siteLocaleFromLanguage(window.navigator?.language),
     };
@@ -258,6 +260,7 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
     set((state) => ({ settings: { ...state.settings, maiaElo: clampMaiaElo(elo) } }));
   },
   setMaiaChancesMode: (maiaChancesMode) => {
+    if (!isMaiaChancesMode(maiaChancesMode)) return;
     set((state) => ({ settings: { ...state.settings, maiaChancesMode } }));
   },
   setMaiaLines: (lines) => {

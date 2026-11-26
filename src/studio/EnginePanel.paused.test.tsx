@@ -166,7 +166,7 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   assert.equal(workerCount, 1);
   assert.deepEqual(posted, { fens: [currentFen], elo: 2500, lines: 3 });
   await act(async () => reply?.({ result }));
-  assert.ok(view.getByRole("img", { name: "Chances of this position between two 2000 players · classical game: White 3%, draw 95%, Black 2%" }));
+  assert.ok(view.getByRole("img", { name: "Chances of this position in a classical game between two 2000 players: White 3%, draw 95%, Black 2%" }));
 
   fireEvent.change(view.getByRole("combobox", { name: "Maia chances" }), { target: { value: "online" } });
   assert.equal(view.queryByRole("img"), null);
@@ -174,7 +174,7 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   assert.deepEqual(posted, { fens: [currentFen], elo: 2000, lines: 3 });
   await act(async () => reply?.({ result }));
   assert.ok(view.getByRole("button", { name: "38% d4" }));
-  assert.ok(view.getByRole("img", { name: "Chances of this position between two 2000 players · online game: White 15%, draw 74%, Black 11%" }));
+  assert.ok(view.getByRole("img", { name: "Chances of this position in an online game between two 2000 players: White 15%, draw 74%, Black 11%" }));
   assert.ok(view.getByText("74%"));
   assert.equal(view.queryByText(/W \d+ · D/u), null);
   assert.match(view.container.querySelector(pv)?.textContent ?? "", /e4/u);
@@ -185,7 +185,7 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   assert.equal(posted?.elo, 2600);
   await act(async () => reply?.({ result }));
   assert.ok(view.getByTitle("38% of 2600+ players play d4"));
-  assert.ok(view.getByTitle("Chances of this position between two 2600+ players · online game"));
+  assert.ok(view.getByTitle("Chances of this position in an online game between two 2600+ players"));
 
   fireEvent.change(view.getByRole("combobox", { name: "Player rating" }), { target: { value: "2200" } });
   assert.equal(view.queryByRole("button", { name: "38% d4" }), null);

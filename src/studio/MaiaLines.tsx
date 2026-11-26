@@ -33,7 +33,7 @@ function MaiaChancesBar({ chances, rating, mode, locale }: {
   locale: SiteLocale;
 }) {
   const percent = (value: number) => Math.round(value * 100);
-  const title = `${tPanels(locale, "maia.chances.title", { rating })} · ${tPanels(locale, `maia.chances.suffix.${mode}`)}`;
+  const title = tPanels(locale, `maia.chances.title.${mode}`, { rating });
   const label = tPanels(locale, "maia.chances.label", {
     white: percent(chances.white),
     draw: percent(chances.draw),

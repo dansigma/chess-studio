@@ -33,7 +33,7 @@ import { Stepper } from "./ui/Controls";
 import { EvalSparkline } from "./EvalGraphPanel";
 import { TABLEBASE_OUTCOMES } from "@/src/lib/tablebase/lichess";
 import { MaiaLines } from "./MaiaLines";
-import { MAIA_MAX_LINES, MAIA_MIN_LINES } from "@/src/engine/maia/protocol";
+import { isMaiaChancesMode, MAIA_MAX_LINES, MAIA_MIN_LINES } from "@/src/engine/maia/protocol";
 import { useTablebase } from "./useTablebase";
 import { ENGINE_SPARKLINE_MIN_HEIGHT, usePanelSize } from "./use-panel-size";
 
@@ -467,7 +467,7 @@ export function EnginePanel() {
                       {tPanels(locale, "maia.chances.mode")}
                       <select
                         value={maiaChancesMode}
-                        onChange={(event) => setMaiaChancesMode(event.target.value === "online" ? "online" : "classical")}
+                        onChange={(event) => { if (isMaiaChancesMode(event.target.value)) setMaiaChancesMode(event.target.value); }}
                         className="h-6 cursor-pointer rounded-[5px] border-0 bg-studio-elevated px-1.5 text-dense text-studio-fg ring-1 ring-studio-border-strong"
                       >
                         <option value="classical">{tPanels(locale, "maia.chances.mode.classical")}</option>

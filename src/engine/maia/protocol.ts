@@ -5,7 +5,12 @@ export type MaiaChances = { white: number; draw: number; black: number };
 export type MaiaResult = { moves: MaiaMove[]; chances: MaiaChances | null };
 export type MaiaResponse = { result: MaiaResult } | { error: string };
 
-export type MaiaChancesMode = "classical" | "online";
+export const MAIA_CHANCES_MODES = ["classical", "online"] as const;
+export type MaiaChancesMode = (typeof MAIA_CHANCES_MODES)[number];
+
+export function isMaiaChancesMode(value: unknown): value is MaiaChancesMode {
+  return MAIA_CHANCES_MODES.includes(value as MaiaChancesMode);
+}
 
 export const MAIA_ELOS = [1800, 2000, 2200, 2400, 2600] as const;
 export const MAIA_DEFAULT_ELO = 2000;
