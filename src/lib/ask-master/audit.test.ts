@@ -38,6 +38,10 @@ test("drops the sentence around an illegal line instead of leaving a gap", () =>
   const audit = auditAnswer(body, [], position);
   assert.deepEqual(audit.illegalLines, ["1.e5"]);
   assert.equal(stripFalse(body, audit), "### Linha principal\nA avaliação é de igualdade.");
+  const unclosed = "O engine aponta [[1.e5]] e [[ fica solto. Desenvolva.";
+  assert.equal(stripFalse(unclosed, auditAnswer(unclosed, [], position)), "Desenvolva.");
+  const note = "O engine aponta [[1.e5]] e a nota [[aberta]]. Desenvolva.";
+  assert.equal(stripFalse(note, auditAnswer(note, [], position)), "Desenvolva.");
 });
 
 test("checks historical lines only when replay reaches the current board", () => {

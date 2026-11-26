@@ -353,7 +353,7 @@ export function stripFalse(body: string, { falseClaims, illegalLines, unverified
   return withoutIllegal(dropSentences(revised, (sentence, original) =>
     falseClaims.some(({ claim }) => mentionsClaim(sentence, claim)) ||
     dropped.some((line) => original.includes(line)) ||
-    (illegal.some((line) => original.includes(line)) && !withoutIllegal(original).includes("[["))))
+    (illegal.some((line) => original.includes(line)) && !/\[\[[\s\S]*?\]\]/.test(withoutIllegal(original)))))
     .replace(/[^\S\n]+$/gm, "").trim();
 }
 
