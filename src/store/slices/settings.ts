@@ -58,6 +58,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   engineSparkline: true,
   maiaEnabled: false,
   maiaElo: MAIA_DEFAULT_ELO,
+  maiaChancesMode: "classical",
   maiaLines: MAIA_DEFAULT_LINES,
   locale: DEFAULT_SITE_LOCALE,
 };
@@ -159,6 +160,7 @@ export function loadLocalSettings(): StudioSettings {
         typeof parsed.engineSparkline === "boolean" ? parsed.engineSparkline : DEFAULT_SETTINGS.engineSparkline,
       maiaEnabled: typeof parsed.maiaEnabled === "boolean" ? parsed.maiaEnabled : DEFAULT_SETTINGS.maiaEnabled,
       maiaElo: clampMaiaElo(parsed.maiaElo),
+      maiaChancesMode: parsed.maiaChancesMode === "online" ? "online" : DEFAULT_SETTINGS.maiaChancesMode,
       maiaLines: clampMaiaLines(parsed.maiaLines),
       locale: isSiteLocale(parsed.locale) ? parsed.locale : siteLocaleFromLanguage(window.navigator?.language),
     };
@@ -176,6 +178,7 @@ export type SettingsSlice = Pick<
   | "toggleEngineSparkline"
   | "setMaiaEnabled"
   | "setMaiaElo"
+  | "setMaiaChancesMode"
   | "setMaiaLines"
   | "toggleEvalBar"
   | "toggleMaterialBalance"
@@ -253,6 +256,9 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
   },
   setMaiaElo: (elo) => {
     set((state) => ({ settings: { ...state.settings, maiaElo: clampMaiaElo(elo) } }));
+  },
+  setMaiaChancesMode: (maiaChancesMode) => {
+    set((state) => ({ settings: { ...state.settings, maiaChancesMode } }));
   },
   setMaiaLines: (lines) => {
     set((state) => ({ settings: { ...state.settings, maiaLines: clampMaiaLines(lines) } }));
