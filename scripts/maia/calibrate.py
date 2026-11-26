@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import logging
-import math
 import os
 from pathlib import Path
 import random
@@ -26,6 +25,8 @@ import onnxruntime as ort
 
 ROOT = Path(__file__).resolve().parents[2]
 BANDS = (1800, 2000, 2200, 2400, 2600)
+DEFAULT_MODEL_ELOS = "2300,2500,2700,2900,2900"
+MATERIAL = {chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
 RATINGS = tuple(range(1500, 3001, 100))
 RESULTS = {b"1-0": 0, b"1/2-1/2": 1, b"0-1": 2}
 TAG = re.compile(rb'^\[\s*(\w+)\s+"(.*)"\s*\]\s*$')
@@ -137,6 +138,22 @@ def verify_encoder():
     print(f"Encoder verified against {len(fixtures)} fixtures", flush=True)
 
 
+def material_phase(board):
+    return sum(
+        weight * chess.popcount(board.pieces_mask(piece, color))
+        for piece, weight in MATERIAL.items()
+        for color in chess.COLORS
+    ) / 62
+
+
+def verify_phase():
+    path = ROOT / "src/engine/maia/fixtures/phase.json"
+    for fixture in json.loads(path.read_text()):
+        fen = fixture["fen"]
+        if material_phase(chess.Board(fen)) != fixture["material"] / 62:
+            raise ValueError(f"Material phase mismatch for {fen}")
+
+
 class MainlineBuilder(chess.pgn.GameBuilder):
     def begin_variation(self):
         return chess.pgn.SKIP
@@ -166,6 +183,7 @@ class ValueSample:
     turn: chess.Color
     outcome: int
     ply: int
+    phase: float
 
 
 @dataclass
@@ -195,10 +213,13 @@ def parse_samples(stream, offsets, rng):
             split.skipped["no value sample"] += 1
             continue
         move_plies = set(rng.sample(range(10, last_ply), min(3, last_ply - 10)))
-        value_ply = rng.randrange(16, last_ply) if last_ply > 16 else None
-        if value_ply is None:
+        value_plies = set(range(16, last_ply, 10))
+        if value_plies:
+            # Preserve the original RNG stream for move positions and game splits.
+            rng.randrange(16, last_ply)
+        else:
             split.skipped["no value sample"] += 1
-        selected = move_plies | ({value_ply} if value_ply is not None else set())
+        selected = move_plies | value_plies
         needed = {ply - back for ply in selected for back in range(HISTORY)}
         channels = {}
         for ply in range(max(selected) + 1):
@@ -210,8 +231,8 @@ def parse_samples(stream, offsets, rng):
                     legal = sorted(move_index(move, board.turn) for move in board.legal_moves)
                     played = legal.index(move_index(moves[ply], board.turn))
                     split.moves.append(MoveSample(tokens, legal, played))
-                if ply == value_ply:
-                    split.values.append(ValueSample(tokens, board.turn, outcome, ply))
+                if ply in value_plies:
+                    split.values.append(ValueSample(tokens, board.turn, outcome, ply, material_phase(board)))
             board.push(moves[ply])
     if not split.moves or not split.values:
         raise ValueError("A split has no usable move or value samples")
@@ -271,23 +292,6 @@ def move_metrics(session, samples, elo):
     return likelihood / len(samples), matches / len(samples)
 
 
-def monotone_ratings(raw):
-    """Equal-weight pool-adjacent-violators followed by nearest grid rounding."""
-    pools = []
-    for rating in raw:
-        pools.append((rating, 1))
-        while len(pools) > 1:
-            left, right = pools[-2:]
-            if left[0] * right[1] <= right[0] * left[1]:
-                break
-            pools[-2:] = [(left[0] + right[0], left[1] + right[1])]
-    return [
-        min(RATINGS, key=lambda rating: abs(rating * count - total))
-        for total, count in pools
-        for _ in range(count)
-    ]
-
-
 def value_predictions(session, samples, elo):
     predictions = []
     for batch, logits in session.predict(samples, elo, "value_logits"):
@@ -303,34 +307,44 @@ def calibrate_draw(probabilities, factor):
     return adjusted / adjusted.sum(axis=1, keepdims=True)
 
 
-def fit_draw_factor(probabilities, outcomes):
-    # The log-loss derivative in log(k) is mean calibrated draw minus observed draw.
-    observed = np.mean(outcomes == 1)
-    low, high = 0.0, 1.0
-    if probabilities[:, 1].mean() >= observed:
-        return 1.0
-    if observed == 1.0:
-        raise ValueError("No finite draw factor for an all-draw fit split")
-    while calibrate_draw(probabilities, math.exp(high))[:, 1].mean() < observed:
-        high *= 2
-    for _ in range(50):
-        middle = (low + high) / 2
-        if calibrate_draw(probabilities, math.exp(middle))[:, 1].mean() < observed:
-            low = middle
-        else:
-            high = middle
-    return round(math.exp((low + high) / 2), 3)
+def fit_draw(probabilities, outcomes, design):
+    # Scaling only the draw probability changes the multinomial loss by the
+    # same amount as logistic loss on the draw indicator with fixed raw log odds.
+    draw = outcomes == 1
+    log_odds = np.log(probabilities[:, 1]) - np.log(probabilities[:, [0, 2]].sum(axis=1))
+    params = np.zeros(design.shape[1])
+
+    def loss(logits):
+        return np.logaddexp(0, np.where(draw, -logits, logits)).sum()
+
+    for _ in range(100):
+        logits = log_odds + design @ params
+        predicted = np.exp(-np.logaddexp(0, -logits))
+        gradient = design.T @ (predicted - draw)
+        weights = np.exp(-np.logaddexp(0, logits) - np.logaddexp(0, -logits))
+        hessian = design.T @ (weights[:, None] * design)
+        step, *_ = np.linalg.lstsq(hessian, gradient, rcond=None)
+        if np.max(np.abs(step)) < 1e-8:
+            return params
+        current_loss = loss(logits)
+        while loss(log_odds + design @ (params - step)) > current_loss:
+            step /= 2
+        params -= step
+    raise ValueError("Draw calibration did not converge")
 
 
-def value_metrics(raw, calibrated, outcomes):
+def value_metrics(raw, calibrated, constant, outcomes, threshold):
     if not len(outcomes):
-        return "0 | — | — | — | — | —", None
+        return "0" + " | —" * 9
     observed = np.mean(outcomes == 1)
-    unadjusted, adjusted = (p[:, 1].mean() for p in (raw, calibrated))
-    losses = [-np.log(p[np.arange(len(outcomes)), outcomes]).mean() for p in (raw, calibrated)]
-    row = (f"{len(outcomes)} | {observed:.2%} | {unadjusted:.2%} | {adjusted:.2%}"
-           f" | {losses[0]:.4f} | {losses[1]:.4f}")
-    return row, abs(adjusted - observed) <= 0.03
+    predictions = (raw, calibrated, constant)
+    rates = [p[:, 1].mean() for p in predictions]
+    losses = [-np.log(p[np.arange(len(outcomes)), outcomes]).mean() for p in predictions]
+    checks = ["Yes" if abs(rate - observed) <= threshold else "No" for rate in rates[1:]]
+    return " | ".join([
+        f"{len(outcomes):,}", f"{observed:.2%}", *(f"{rate:.2%}" for rate in rates),
+        *(f"{loss:.4f}" for loss in losses), *checks,
+    ])
 
 
 def table(lines, columns):
@@ -338,29 +352,75 @@ def table(lines, columns):
     lines.append("| " + " | ".join("---" for _ in columns) + " |")
 
 
-def evaluate(session, band, rating, fit, held):
-    raw_fit = value_predictions(session, fit.values, rating)
-    factor = fit_draw_factor(raw_fit, np.array([sample.outcome for sample in fit.values]))
-    raw = value_predictions(session, held.values, rating)
-    calibrated = calibrate_draw(raw, factor)
-    outcomes = np.array([sample.outcome for sample in held.values])
-    plies = np.array([sample.ply for sample in held.values])
-    overall, within = value_metrics(raw, calibrated, outcomes)
-    buckets = []
-    for label, mask in (("16–40", plies <= 40), ("41–80", (plies > 40) & (plies <= 80)),
-                        ("81+", plies > 80)):
-        row, _ = value_metrics(raw[mask], calibrated[mask], outcomes[mask])
-        buckets.append(f"| {band} | {label} | {row} |")
+def evaluate_value(session, band, rating, fit, held):
+    raw_fit = value_predictions(session, fit, rating)
+    fit_phase = np.array([sample.phase for sample in fit])
+    fit_outcomes = np.array([sample.outcome for sample in fit])
+    intercept = np.ones((len(fit), 1))
+    bias, slope = np.round(fit_draw(raw_fit, fit_outcomes, np.column_stack((intercept, fit_phase))), 3)
+    factor = round(float(np.exp(fit_draw(raw_fit, fit_outcomes, intercept)[0])), 3)
 
-    mapped_ll, mapped_top = move_metrics(session, held.moves, rating)
-    base_ll, base_top = (mapped_ll, mapped_top) if band == rating else move_metrics(
-        session, held.moves, band
-    )
-    return (
-        factor, f"| {band} | {overall} | {'Yes' if within else 'No'} |", buckets,
-        f"| {band} | {len(held.moves)} | {base_top:.2%} | {mapped_top:.2%}"
-        f" | {base_ll:.4f} | {mapped_ll:.4f} |",
-    )
+    raw = value_predictions(session, held, rating)
+    phase = np.array([sample.phase for sample in held])
+    calibrated = calibrate_draw(raw, np.exp(bias + slope * phase))
+    constant = calibrate_draw(raw, factor)
+    outcomes = np.array([sample.outcome for sample in held])
+    plies = np.array([sample.ply for sample in held])
+
+    def bucket_rows(buckets):
+        return [
+            f"| {band} | {label} | "
+            + value_metrics(raw[mask], calibrated[mask], constant[mask], outcomes[mask], 0.05) + " |"
+            for label, mask in buckets
+        ]
+
+    overall = f"| {band} | {value_metrics(raw, calibrated, constant, outcomes, 0.03)} |"
+    by_phase = bucket_rows((
+        ("≥0.75", phase >= 0.75),
+        ("0.4–<0.75", (phase >= 0.4) & (phase < 0.75)),
+        ("<0.4", phase < 0.4),
+    ))
+    by_ply = bucket_rows((
+        ("16–40", plies <= 40),
+        ("41–80", (plies > 40) & (plies <= 80)),
+        ("81+", plies > 80),
+    ))
+    return (bias, slope, factor), overall, by_phase, by_ply
+
+
+def model_elos(value):
+    try:
+        ratings = tuple(int(rating) for rating in value.split(","))
+    except ValueError:
+        raise argparse.ArgumentTypeError("expected comma-separated integer ratings") from None
+    if len(ratings) != len(BANDS) or ratings != tuple(sorted(ratings)) or not (
+        RATINGS[0] <= ratings[0] <= ratings[-1] <= RATINGS[-1]
+    ):
+        raise argparse.ArgumentTypeError("expected five non-decreasing ratings from 1500 through 3000")
+    return ratings
+
+
+def rating_metrics(session, samples, args):
+    if not args.sweep:
+        archive = json.loads(Path(__file__).with_name("rating-sweep.json").read_text())
+        if archive["bands"] != list(BANDS):
+            raise ValueError("Archived rating sweep bands do not match")
+        same_fit = (
+            archive["pgn"] == args.pgn.name and archive["model"] == args.model.name
+            and archive["seed"] == args.seed and archive["per_band"] == args.per_band
+        )
+        return {elo: archive["metrics"][str(elo)] for elo in RATINGS}, same_fit
+
+    grid = {}
+    for elo in RATINGS:
+        grid[elo] = [move_metrics(session, fit.moves, elo) for fit, _ in samples]
+        print(f"Sweep: completed model Elo {elo}", flush=True)
+    return grid, True
+
+
+def format_move(metrics):
+    likelihood, top = metrics
+    return f"{likelihood:.4f} / {top:.2%}"
 
 
 def main():
@@ -370,6 +430,8 @@ def main():
     parser.add_argument("--model", required=True, type=Path)
     parser.add_argument("--seed", default=1503, type=int)
     parser.add_argument("--per-band", default=6000, type=int)
+    parser.add_argument("--model-elos", type=model_elos, default=DEFAULT_MODEL_ELOS)
+    parser.add_argument("--sweep", action="store_true", help="recompute fit move metrics across the rating grid")
     parser.add_argument("--out-ts", required=True, type=Path)
     parser.add_argument("--out-report", required=True, type=Path)
     args = parser.parse_args()
@@ -378,6 +440,7 @@ def main():
 
     logging.basicConfig(level=logging.WARNING)
     verify_encoder()
+    verify_phase()
     date = datetime.now(timezone.utc).date().isoformat()
     header_started = monotonic()
     eligible, sampled = sample_games(args.pgn, args.per_band, args.seed)
@@ -386,7 +449,6 @@ def main():
           flush=True)
 
     samples = []
-    grids = []
     counts = []
     rng = random.Random(args.seed)
     parse_started = monotonic()
@@ -408,21 +470,30 @@ def main():
 
     with Inference(args.model) as session:
         sweep_started = monotonic()
-        for band, (fit, _) in zip(BANDS, samples, strict=True):
-            grid = []
-            for elo in RATINGS:
-                grid.append(move_metrics(session, fit.moves, elo))
-                print(f"Band {band}, rating {elo}: log likelihood {grid[-1][0]:.5f}", flush=True)
-            grids.append(grid)
+        grid, grid_matches_fit = rating_metrics(session, samples, args)
         sweep_seconds = monotonic() - sweep_started
 
-        raw = [RATINGS[max(range(len(grid)), key=lambda i: grid[i][0])] for grid in grids]
-        ratings = monotone_ratings(raw)
-        print(f"Raw ratings: {raw}. Monotone ratings: {ratings}", flush=True)
         evaluations = []
-        for band, rating, splits in zip(BANDS, ratings, samples, strict=True):
-            evaluations.append(evaluate(session, band, rating, *splits))
-            print(f"Band {band}: draw factor {evaluations[-1][0]:.3f}", flush=True)
+        move_rows = []
+        for i, (band, rating, (fit, held)) in enumerate(zip(BANDS, args.model_elos, samples, strict=True)):
+            best = max(RATINGS, key=lambda elo: grid[elo][i][0])
+            fit_best = grid[best][i] if grid_matches_fit else move_metrics(session, fit.moves, best)
+            if rating == best:
+                fit_chosen = fit_best
+            elif grid_matches_fit and rating in grid:
+                fit_chosen = grid[rating][i]
+            else:
+                fit_chosen = move_metrics(session, fit.moves, rating)
+            held_chosen = move_metrics(session, held.moves, rating)
+            held_best = held_chosen if best == rating else move_metrics(session, held.moves, best)
+            move_rows.append(
+                f"| {band} | {rating} | {best} | {len(held.moves):,} | {format_move(fit_chosen)}"
+                f" | {format_move(fit_best)} | {format_move(held_chosen)} | {format_move(held_best)} |"
+            )
+            print(f"Band {band}: move metrics complete; evaluating {len(fit.values):,} fit "
+                  f"and {len(held.values):,} held-out value positions", flush=True)
+            evaluations.append(evaluate_value(session, band, rating, fit.values, held.values))
+            print(f"Band {band}: draw bias, slope, constant factor {evaluations[-1][0]}", flush=True)
 
     source = f"{args.pgn.name} and CSSLab {args.model.name}"
     ts = [
@@ -432,10 +503,12 @@ def main():
         "// Sampled games by band (fit / held-out): " + ", ".join(
             f"{band}: {fit} / {held}" for band, (fit, held) in zip(BANDS, counts, strict=True)
         ),
+        "// Multiply the draw probability by exp(drawBias + drawSlope * phase) and renormalise.",
+        "// See phase.ts for materialPhase(fen).",
         "export const MAIA_CLASSICAL_CALIBRATION = [",
     ]
-    for band, rating, (factor, *_) in zip(BANDS, ratings, evaluations, strict=True):
-        ts.append(f"  {{ elo: {band}, modelElo: {rating}, drawFactor: {factor:.3f} }},")
+    for band, rating, ((bias, slope, _), *_) in zip(BANDS, args.model_elos, evaluations, strict=True):
+        ts.append(f"  {{ elo: {band}, modelElo: {rating}, drawBias: {bias:.3f}, drawSlope: {slope:.3f} }},")
     ts.append("] as const;")
 
     report = [
@@ -446,8 +519,9 @@ def main():
         "Some fast games may therefore remain in the sample. The 2600 band starts at mean Elo 2500.",
         "Ply counts half-moves played before the sampled position. Fit and held-out samples "
         "come from disjoint games. Move metrics use up to three uniformly sampled positions "
-        "per game, with ply ≥ 10. Value metrics use one uniformly sampled position per game "
-        "with ply ≥ 16. Both stop before the terminal position.", "",
+        "per game, with ply ≥ 10. Value metrics use plies 16, 26, 36 and every tenth ply "
+        "thereafter. Each game contributes one equally weighted position at each of those "
+        "plies it reaches before the terminal position.", "",
         "## Sample sizes", "",
     ]
     table(report, ("Band", "Eligible games", "Games fit / held", "Move positions fit / held",
@@ -458,44 +532,58 @@ def main():
                       f"| {len(fit.values):,} / {len(held.values):,} "
                       f"| {fit.skipped['unusable PGN']} / {held.skipped['unusable PGN']} |")
 
-    report.extend(["", "## Rating and draw-factor fit", ""])
-    if ratings == raw:
-        report.append("The raw likelihood maxima were already monotone.")
-    else:
-        report.append("Equal-weight isotonic regression minimised squared changes to the raw "
-                      "rating maxima. Pooled ratings were rounded to the nearest 100-point "
-                      "grid value, with ties rounded down.")
     report.extend([
-        "Draw factors minimise fit multinomial log loss subject to k ≥ 1. "
-        "Held-out evaluation uses the factors rounded to three decimals.", "",
+        "", "## Model Elo mapping", "",
+        "The spaced model Elo mapping is a product choice. The raw argmax maximises fit "
+        "legal-move mean log likelihood on the 100 Elo grid, reaching 2900 in the top three "
+        "bands in the original sweep.",
+        ("This run recomputed the fit sweep." if args.sweep else
+         "Fit grid metrics come from the original sweep in rating-sweep.json. "
+         + ("The game splits and sampled move positions are preserved." if grid_matches_fit else
+            "The chosen and archived argmax ratings were re-evaluated on the current fit split.")),
+        "Held-out move metrics were recomputed at the chosen input and the fit argmax.",
+        "Each metric pair is mean legal-move log likelihood / top-1 accuracy.", "",
     ])
-    table(report, ("Band", "Raw best Elo", "Model Elo", "Draw factor"))
-    for band, best, rating, evaluation in zip(BANDS, raw, ratings, evaluations, strict=True):
-        report.append(f"| {band} | {best} | {rating} | {evaluation[0]:.3f} |")
+    table(report, ("Band", "Chosen Elo", "Fit argmax Elo", "Held-out moves", "Fit chosen",
+                   "Fit argmax", "Held-out chosen", "Held-out argmax"))
+    report.extend(move_rows)
     report.extend(["", "Fit legal-move mean log likelihood / top-1 accuracy by rating.", ""])
     table(report, ("Model input", *(str(band) for band in BANDS)))
-    for i, elo in enumerate(RATINGS):
-        report.append(f"| {elo} | " + " | ".join(
-            f"{grid[i][0]:.4f} / {grid[i][1]:.2%}" for grid in grids
-        ) + " |")
+    for elo in RATINGS:
+        report.append(f"| {elo} | " + " | ".join(map(format_move, grid[elo])) + " |")
+
+    report.extend([
+        "", "## Draw model fit", "",
+        "Phase is both sides’ non-pawn material divided by 62 (N and B = 3, R = 5, Q = 9). "
+        "The phase model multiplies the raw draw probability by "
+        "`exp(drawBias + drawSlope * phase)` and renormalises all three probabilities. "
+        "Both models minimise multinomial log loss on the same fit positions. "
+        "Held-out evaluation uses parameters rounded to three decimals.", "",
+    ])
+    table(report, ("Band", "Draw bias", "Draw slope", "Constant factor"))
+    for band, ((bias, slope, factor), *_) in zip(BANDS, evaluations, strict=True):
+        report.append(f"| {band} | {bias:.3f} | {slope:.3f} | {factor:.3f} |")
 
     report.extend([
         "", "## Held-out value head", "",
-        "Raw and calibrated predictions both use the fitted model Elo. Draw rates average "
-        "the predicted draw probability across positions. Log loss uses natural logarithms.", "",
+        "All predictions use the chosen model Elo. Draw rates average predicted draw "
+        "probabilities across positions. Log loss uses natural logarithms.", "",
     ])
-    metrics = ("Games", "Observed draw", "Raw draw", "Calibrated draw", "Raw loss", "Calibrated loss")
-    table(report, ("Band", *metrics, "Within 3 pp?"))
-    report.extend(evaluation[1] for evaluation in evaluations)
-    report.extend(["", "### By ply", ""])
-    table(report, ("Band", "Ply", *metrics))
-    for evaluation in evaluations:
-        report.extend(evaluation[2])
+    metrics = ("Positions", "Observed draw", "Raw draw", "Phase draw", "Constant draw",
+               "Raw loss", "Phase loss", "Constant loss")
+    for title, column, index in (("", (), 1), ("By phase", ("Phase",), 2), ("By ply", ("Ply",), 3)):
+        if title:
+            report.extend(["", f"### {title}", ""])
+        threshold = 5 if title else 3
+        table(report, ("Band", *column, *metrics, f"Phase within {threshold} pp?",
+                       f"Constant within {threshold} pp?"))
+        for evaluation in evaluations:
+            if title:
+                report.extend(evaluation[index])
+            else:
+                report.append(evaluation[index])
 
-    report.extend(["", "## Held-out move head", ""])
-    table(report, ("Band", "Positions", "Top-1 at band Elo", "Top-1 at model Elo",
-                   "Mean log likelihood at band Elo", "Mean log likelihood at model Elo"))
-    report.extend(evaluation[3] for evaluation in evaluations)
+    sweep_timing = f"rating sweep {sweep_seconds:.1f} s" if args.sweep else "rating sweep skipped"
     report.extend([
         "", "## Reproduction", "", "```sh",
         'maia_tmp="$(mktemp -d)"',
@@ -506,8 +594,7 @@ def main():
         "```", "",
         f"CPU execution provider, {session.workers} single-threaded inference workers, "
         f"batch size {BATCH}. Header pass {header_seconds:.1f} s, "
-        f"sample parsing {parse_seconds:.1f} s, rating sweep {sweep_seconds:.1f} s, "
-        f"total {monotonic() - started:.1f} s.",
+        f"sample parsing {parse_seconds:.1f} s, {sweep_timing}, total {monotonic() - started:.1f} s.",
     ])
     for path, lines in ((args.out_ts, ts), (args.out_report, report)):
         path.parent.mkdir(parents=True, exist_ok=True)

@@ -4,30 +4,32 @@ Run on 2026-11-26 UTC using LumbrasGigabase_OTB_Complete.pgn and CSSLab maia3-5m
 Seed 1503, requested 6,000 games per band.
 
 The header scan admits games with missing TimeControl if they pass the other filters. Some fast games may therefore remain in the sample. The 2600 band starts at mean Elo 2500.
-Ply counts half-moves played before the sampled position. Fit and held-out samples come from disjoint games. Move metrics use up to three uniformly sampled positions per game, with ply ≥ 10. Value metrics use one uniformly sampled position per game with ply ≥ 16. Both stop before the terminal position.
+Ply counts half-moves played before the sampled position. Fit and held-out samples come from disjoint games. Move metrics use up to three uniformly sampled positions per game, with ply ≥ 10. Value metrics use plies 16, 26, 36 and every tenth ply thereafter. Each game contributes one equally weighted position at each of those plies it reaches before the terminal position.
 
 ## Sample sizes
 
 | Band | Eligible games | Games fit / held | Move positions fit / held | Value positions fit / held | Unusable PGNs fit / held |
 | --- | --- | --- | --- | --- | --- |
-| 1800 | 408,123 | 4,800 / 1,200 | 14,395 / 3,598 | 4,779 / 1,191 | 0 / 0 |
-| 2000 | 539,771 | 4,800 / 1,200 | 14,389 / 3,598 | 4,763 / 1,194 | 0 / 0 |
-| 2200 | 634,212 | 4,800 / 1,200 | 14,385 / 3,599 | 4,766 / 1,193 | 0 / 0 |
-| 2400 | 575,899 | 4,800 / 1,200 | 14,380 / 3,598 | 4,737 / 1,191 | 0 / 0 |
-| 2600 | 220,925 | 4,800 / 1,200 | 14,386 / 3,598 | 4,767 / 1,193 | 0 / 0 |
+| 1800 | 408,123 | 4,800 / 1,200 | 14,395 / 3,598 | 32,300 / 8,043 | 0 / 0 |
+| 2000 | 539,771 | 4,800 / 1,200 | 14,389 / 3,598 | 33,206 / 8,145 | 0 / 0 |
+| 2200 | 634,212 | 4,800 / 1,200 | 14,385 / 3,599 | 33,177 / 8,472 | 0 / 0 |
+| 2400 | 575,899 | 4,800 / 1,200 | 14,380 / 3,598 | 33,103 / 8,253 | 0 / 0 |
+| 2600 | 220,925 | 4,800 / 1,200 | 14,386 / 3,598 | 36,166 / 8,734 | 0 / 0 |
 
-## Rating and draw-factor fit
+## Model Elo mapping
 
-The raw likelihood maxima were already monotone.
-Draw factors minimise fit multinomial log loss subject to k ≥ 1. Held-out evaluation uses the factors rounded to three decimals.
+The spaced model Elo mapping is a product choice. The raw argmax maximises fit legal-move mean log likelihood on the 100 Elo grid, reaching 2900 in the top three bands in the original sweep.
+Fit grid metrics come from the original sweep in rating-sweep.json. The game splits and sampled move positions are preserved.
+Held-out move metrics were recomputed at the chosen input and the fit argmax.
+Each metric pair is mean legal-move log likelihood / top-1 accuracy.
 
-| Band | Raw best Elo | Model Elo | Draw factor |
-| --- | --- | --- | --- |
-| 1800 | 2300 | 2300 | 4.917 |
-| 2000 | 2700 | 2700 | 4.109 |
-| 2200 | 2900 | 2900 | 1.505 |
-| 2400 | 2900 | 2900 | 2.098 |
-| 2600 | 2900 | 2900 | 1.868 |
+| Band | Chosen Elo | Fit argmax Elo | Held-out moves | Fit chosen | Fit argmax | Held-out chosen | Held-out argmax |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1800 | 2300 | 2300 | 3,598 | -1.4093 / 53.80% | -1.4093 / 53.80% | -1.4339 / 53.06% | -1.4339 / 53.06% |
+| 2000 | 2500 | 2700 | 3,598 | -1.3950 / 53.95% | -1.3917 / 54.03% | -1.4027 / 53.78% | -1.3934 / 54.09% |
+| 2200 | 2700 | 2900 | 3,599 | -1.4076 / 53.30% | -1.3976 / 53.46% | -1.4138 / 53.79% | -1.4045 / 53.40% |
+| 2400 | 2900 | 2900 | 3,598 | -1.3721 / 53.64% | -1.3721 / 53.64% | -1.3811 / 54.59% | -1.3811 / 54.59% |
+| 2600 | 2900 | 2900 | 3,598 | -1.3423 / 54.32% | -1.3423 / 54.32% | -1.3271 / 55.39% | -1.3271 / 55.39% |
 
 Fit legal-move mean log likelihood / top-1 accuracy by rating.
 
@@ -50,47 +52,69 @@ Fit legal-move mean log likelihood / top-1 accuracy by rating.
 | 2900 | -1.4526 / 52.97% | -1.4012 / 53.51% | -1.3976 / 53.46% | -1.3721 / 53.64% | -1.3423 / 54.32% |
 | 3000 | -1.4835 / 52.13% | -1.4273 / 52.94% | -1.4124 / 53.03% | -1.3835 / 53.23% | -1.3537 / 54.20% |
 
+## Draw model fit
+
+Phase is both sides’ non-pawn material divided by 62 (N and B = 3, R = 5, Q = 9). The phase model multiplies the raw draw probability by `exp(drawBias + drawSlope * phase)` and renormalises all three probabilities. Both models minimise multinomial log loss on the same fit positions. Held-out evaluation uses parameters rounded to three decimals.
+
+| Band | Draw bias | Draw slope | Constant factor |
+| --- | --- | --- | --- |
+| 1800 | 0.529 | 1.385 | 4.001 |
+| 2000 | 0.540 | 1.407 | 4.219 |
+| 2200 | 0.398 | 1.467 | 3.926 |
+| 2400 | -0.665 | 1.627 | 1.532 |
+| 2600 | -0.448 | 1.271 | 1.422 |
+
 ## Held-out value head
 
-Raw and calibrated predictions both use the fitted model Elo. Draw rates average the predicted draw probability across positions. Log loss uses natural logarithms.
+All predictions use the chosen model Elo. Draw rates average predicted draw probabilities across positions. Log loss uses natural logarithms.
 
-| Band | Games | Observed draw | Raw draw | Calibrated draw | Raw loss | Calibrated loss | Within 3 pp? |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1800 | 1191 | 29.39% | 8.20% | 27.53% | 1.1236 | 0.9165 | Yes |
-| 2000 | 1194 | 36.01% | 13.50% | 35.75% | 1.0882 | 0.9103 | Yes |
-| 2200 | 1193 | 43.00% | 34.85% | 43.38% | 0.9249 | 0.9088 | Yes |
-| 2400 | 1191 | 51.89% | 35.19% | 51.12% | 0.9357 | 0.8701 | Yes |
-| 2600 | 1193 | 52.31% | 38.09% | 51.51% | 0.9325 | 0.8852 | Yes |
+| Band | Positions | Observed draw | Raw draw | Phase draw | Constant draw | Raw loss | Phase loss | Constant loss | Phase within 3 pp? | Constant within 3 pp? |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1800 | 8,043 | 27.45% | 9.49% | 26.57% | 26.38% | 1.0666 | 0.8984 | 0.9195 | Yes | Yes |
+| 2000 | 8,145 | 32.95% | 11.44% | 32.11% | 31.92% | 1.1184 | 0.9207 | 0.9382 | Yes | Yes |
+| 2200 | 8,472 | 39.13% | 15.11% | 37.52% | 37.66% | 1.1351 | 0.9245 | 0.9459 | Yes | Yes |
+| 2400 | 8,253 | 48.13% | 36.25% | 45.67% | 45.18% | 0.9201 | 0.8812 | 0.8883 | Yes | Yes |
+| 2600 | 8,734 | 46.14% | 39.43% | 47.20% | 46.81% | 0.9143 | 0.8879 | 0.9035 | Yes | Yes |
+
+### By phase
+
+| Band | Phase | Positions | Observed draw | Raw draw | Phase draw | Constant draw | Raw loss | Phase loss | Constant loss | Phase within 5 pp? | Constant within 5 pp? |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1800 | ≥0.75 | 3,775 | 27.44% | 5.64% | 26.06% | 19.06% | 1.2679 | 1.0225 | 1.0428 | Yes | No |
+| 1800 | 0.4–<0.75 | 2,131 | 26.65% | 8.18% | 23.97% | 24.94% | 1.0168 | 0.8609 | 0.8602 | Yes | Yes |
+| 1800 | <0.4 | 2,137 | 28.26% | 17.60% | 30.05% | 40.74% | 0.7606 | 0.7164 | 0.7610 | Yes | No |
+| 2000 | ≥0.75 | 3,868 | 33.48% | 7.41% | 32.52% | 24.83% | 1.3257 | 1.0369 | 1.0556 | Yes | No |
+| 2000 | 0.4–<0.75 | 2,195 | 30.80% | 10.54% | 29.69% | 31.40% | 1.0509 | 0.8905 | 0.8900 | Yes | Yes |
+| 2000 | <0.4 | 2,082 | 34.25% | 19.89% | 33.89% | 45.65% | 0.8046 | 0.7364 | 0.7710 | Yes | No |
+| 2200 | ≥0.75 | 4,025 | 40.20% | 10.20% | 38.21% | 30.13% | 1.3365 | 1.0204 | 1.0442 | Yes | No |
+| 2200 | 0.4–<0.75 | 2,361 | 36.93% | 14.56% | 35.30% | 38.06% | 1.0586 | 0.8963 | 0.8972 | Yes | Yes |
+| 2200 | <0.4 | 2,086 | 39.55% | 25.23% | 38.70% | 51.71% | 0.8332 | 0.7716 | 0.8112 | Yes | No |
+| 2400 | ≥0.75 | 4,066 | 47.71% | 29.57% | 47.97% | 38.69% | 1.0733 | 0.9970 | 1.0150 | Yes | No |
+| 2400 | 0.4–<0.75 | 2,200 | 47.23% | 38.36% | 44.50% | 47.59% | 0.8676 | 0.8473 | 0.8493 | Yes | Yes |
+| 2400 | <0.4 | 1,987 | 49.97% | 47.56% | 42.24% | 55.81% | 0.6647 | 0.6818 | 0.6721 | No | No |
+| 2600 | ≥0.75 | 3,845 | 45.96% | 30.58% | 46.45% | 38.09% | 1.0671 | 1.0110 | 1.0260 | Yes | No |
+| 2600 | 0.4–<0.75 | 2,317 | 44.50% | 39.75% | 46.06% | 47.36% | 0.8663 | 0.8638 | 0.8629 | Yes | Yes |
+| 2600 | <0.4 | 2,572 | 47.90% | 52.39% | 49.34% | 59.35% | 0.7290 | 0.7256 | 0.7572 | Yes | No |
 
 ### By ply
 
-| Band | Ply | Games | Observed draw | Raw draw | Calibrated draw | Raw loss | Calibrated loss |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1800 | 16–40 | 613 | 31.00% | 6.05% | 23.37% | 1.3088 | 1.0243 |
-| 1800 | 41–80 | 462 | 27.92% | 8.55% | 28.81% | 0.9834 | 0.8125 |
-| 1800 | 81+ | 116 | 26.72% | 18.14% | 44.43% | 0.7033 | 0.7614 |
-| 2000 | 16–40 | 549 | 41.35% | 11.09% | 32.61% | 1.3022 | 1.0070 |
-| 2000 | 41–80 | 511 | 31.31% | 13.49% | 35.68% | 0.9507 | 0.8396 |
-| 2000 | 81+ | 134 | 32.09% | 23.40% | 48.93% | 0.7359 | 0.7840 |
-| 2200 | 16–40 | 555 | 47.93% | 31.22% | 40.14% | 1.0580 | 1.0076 |
-| 2200 | 41–80 | 478 | 38.91% | 35.73% | 44.09% | 0.8511 | 0.8550 |
-| 2200 | 81+ | 160 | 38.12% | 44.81% | 52.52% | 0.6838 | 0.7269 |
-| 2400 | 16–40 | 575 | 57.39% | 31.44% | 48.02% | 1.0660 | 0.9336 |
-| 2400 | 41–80 | 489 | 46.63% | 37.31% | 52.95% | 0.8554 | 0.8437 |
-| 2400 | 81+ | 127 | 47.24% | 44.07% | 58.13% | 0.6550 | 0.6838 |
-| 2600 | 16–40 | 553 | 60.22% | 32.80% | 46.83% | 1.0602 | 0.9318 |
-| 2600 | 41–80 | 478 | 45.61% | 40.01% | 53.12% | 0.8407 | 0.8465 |
-| 2600 | 81+ | 162 | 45.06% | 50.51% | 62.74% | 0.7678 | 0.8405 |
-
-## Held-out move head
-
-| Band | Positions | Top-1 at band Elo | Top-1 at model Elo | Mean log likelihood at band Elo | Mean log likelihood at model Elo |
-| --- | --- | --- | --- | --- | --- |
-| 1800 | 3598 | 49.83% | 53.06% | -1.5251 | -1.4339 |
-| 2000 | 3598 | 51.47% | 54.09% | -1.4956 | -1.3934 |
-| 2200 | 3599 | 52.32% | 53.40% | -1.4833 | -1.4045 |
-| 2400 | 3598 | 53.00% | 54.59% | -1.4281 | -1.3811 |
-| 2600 | 3598 | 55.75% | 55.39% | -1.3573 | -1.3271 |
+| Band | Ply | Positions | Observed draw | Raw draw | Phase draw | Constant draw | Raw loss | Phase loss | Constant loss | Phase within 5 pp? | Constant within 5 pp? |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1800 | 16–40 | 3,475 | 28.78% | 6.13% | 26.92% | 20.33% | 1.2835 | 1.0310 | 1.0515 | Yes | No |
+| 1800 | 41–80 | 3,221 | 26.86% | 9.18% | 24.04% | 26.41% | 0.9908 | 0.8480 | 0.8496 | Yes | Yes |
+| 1800 | 81+ | 1,347 | 25.46% | 18.92% | 31.71% | 41.90% | 0.6884 | 0.6767 | 0.7463 | No | No |
+| 2000 | 16–40 | 3,468 | 34.89% | 8.03% | 33.74% | 26.40% | 1.3424 | 1.0495 | 1.0674 | Yes | No |
+| 2000 | 41–80 | 3,252 | 31.06% | 11.26% | 29.29% | 31.96% | 1.0419 | 0.8817 | 0.8878 | Yes | Yes |
+| 2000 | 81+ | 1,425 | 32.56% | 20.16% | 34.56% | 45.27% | 0.7481 | 0.6959 | 0.7387 | Yes | No |
+| 2200 | 16–40 | 3,462 | 41.91% | 11.04% | 39.75% | 31.96% | 1.3556 | 1.0337 | 1.0582 | Yes | No |
+| 2200 | 41–80 | 3,366 | 37.55% | 14.79% | 34.81% | 37.63% | 1.0728 | 0.8987 | 0.9027 | Yes | Yes |
+| 2200 | 81+ | 1,644 | 36.50% | 24.35% | 38.36% | 49.70% | 0.7984 | 0.7478 | 0.7979 | Yes | No |
+| 2400 | 16–40 | 3,445 | 50.39% | 31.21% | 49.50% | 40.53% | 1.0818 | 1.0008 | 1.0194 | Yes | No |
+| 2400 | 41–80 | 3,287 | 45.09% | 37.02% | 43.09% | 45.95% | 0.8738 | 0.8546 | 0.8582 | Yes | Yes |
+| 2400 | 81+ | 1,521 | 49.57% | 46.00% | 42.55% | 54.05% | 0.6541 | 0.6682 | 0.6561 | No | Yes |
+| 2600 | 16–40 | 3,474 | 50.98% | 32.52% | 48.07% | 40.24% | 1.0677 | 0.9977 | 1.0161 | Yes | No |
+| 2600 | 41–80 | 3,376 | 43.96% | 40.57% | 45.85% | 47.93% | 0.8556 | 0.8599 | 0.8566 | Yes | Yes |
+| 2600 | 81+ | 1,884 | 41.14% | 50.15% | 48.01% | 56.92% | 0.7365 | 0.7357 | 0.7802 | No | No |
 
 ## Reproduction
 
@@ -101,4 +125,4 @@ python3 -m venv "$maia_tmp/venv"
 "$maia_tmp/venv/bin/python" scripts/maia/calibrate.py --pgn /home/danilo/data/xd-database/source/LumbrasGigabase_OTB_Complete.pgn --model /home/danilo/data/maia/maia3-5m.onnx --seed 1503 --per-band 6000 --out-ts src/engine/maia/classical-calibration.ts --out-report scripts/maia/calibration-report.md
 ```
 
-CPU execution provider, 8 single-threaded inference workers, batch size 128. Header pass 241.6 s, sample parsing 98.6 s, rating sweep 5696.9 s, total 6387.6 s.
+CPU execution provider, 8 single-threaded inference workers, batch size 128. Header pass 254.9 s, sample parsing 130.8 s, rating sweep skipped, total 1559.1 s.

@@ -2,10 +2,12 @@
 // Source: LumbrasGigabase_OTB_Complete.pgn and CSSLab maia3-5m.onnx
 // Date (UTC): 2026-11-26. Seed: 1503.
 // Sampled games by band (fit / held-out): 1800: 4800 / 1200, 2000: 4800 / 1200, 2200: 4800 / 1200, 2400: 4800 / 1200, 2600: 4800 / 1200
+// Multiply the draw probability by exp(drawBias + drawSlope * phase) and renormalise.
+// See phase.ts for materialPhase(fen).
 export const MAIA_CLASSICAL_CALIBRATION = [
-  { elo: 1800, modelElo: 2300, drawFactor: 4.917 },
-  { elo: 2000, modelElo: 2700, drawFactor: 4.109 },
-  { elo: 2200, modelElo: 2900, drawFactor: 1.505 },
-  { elo: 2400, modelElo: 2900, drawFactor: 2.098 },
-  { elo: 2600, modelElo: 2900, drawFactor: 1.868 },
+  { elo: 1800, modelElo: 2300, drawBias: 0.529, drawSlope: 1.385 },
+  { elo: 2000, modelElo: 2500, drawBias: 0.540, drawSlope: 1.407 },
+  { elo: 2200, modelElo: 2700, drawBias: 0.398, drawSlope: 1.467 },
+  { elo: 2400, modelElo: 2900, drawBias: -0.665, drawSlope: 1.627 },
+  { elo: 2600, modelElo: 2900, drawBias: -0.448, drawSlope: 1.271 },
 ] as const;
