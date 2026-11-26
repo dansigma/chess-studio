@@ -491,18 +491,27 @@ test("Maia settings restore from local persistence and default for older records
     storage.set(SETTINGS_KEY, JSON.stringify({ engineSparkline: false }));
     actions().hydrateLocalSettings();
     assert.equal(useStudioStore.getState().settings.maiaEnabled, false);
-    assert.equal(useStudioStore.getState().settings.maiaElo, 1500);
+    assert.equal(useStudioStore.getState().settings.maiaElo, 2000);
     assert.equal(useStudioStore.getState().settings.maiaLines, 3);
 
+    assert.equal(useStudioStore.getState().settings.maiaChancesMode, "classical");
+
+    storage.set(SETTINGS_KEY, JSON.stringify({ maiaElo: 1500, maiaChancesMode: "unknown" }));
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.maiaElo, 1800);
+    assert.equal(useStudioStore.getState().settings.maiaChancesMode, "classical");
+
     actions().setMaiaEnabled(true);
+    actions().setMaiaChancesMode("online");
     actions().setMaiaElo(1860);
     actions().setMaiaLines(9);
     await persistSettingsRecord(useStudioStore.getState().settings, null);
     resetSettings();
     actions().hydrateLocalSettings();
     assert.equal(useStudioStore.getState().settings.maiaEnabled, true);
-    assert.equal(useStudioStore.getState().settings.maiaElo, 1900);
+    assert.equal(useStudioStore.getState().settings.maiaElo, 1800);
     assert.equal(useStudioStore.getState().settings.maiaLines, 5);
+    assert.equal(useStudioStore.getState().settings.maiaChancesMode, "online");
   } finally {
     storage.delete(SETTINGS_KEY);
     resetSettings();

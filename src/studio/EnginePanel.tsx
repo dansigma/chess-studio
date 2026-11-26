@@ -33,7 +33,7 @@ import { Stepper } from "./ui/Controls";
 import { EvalSparkline } from "./EvalGraphPanel";
 import { TABLEBASE_OUTCOMES } from "@/src/lib/tablebase/lichess";
 import { MaiaLines } from "./MaiaLines";
-import { MAIA_MAX_LINES, MAIA_MIN_LINES } from "@/src/engine/maia/protocol";
+import { isMaiaChancesMode, MAIA_MAX_LINES, MAIA_MIN_LINES } from "@/src/engine/maia/protocol";
 import { useTablebase } from "./useTablebase";
 import { ENGINE_SPARKLINE_MIN_HEIGHT, usePanelSize } from "./use-panel-size";
 
@@ -94,6 +94,8 @@ export function EnginePanel() {
   const setMaiaEnabled = useStudioStore((state) => state.setMaiaEnabled);
   const maiaLines = useStudioStore((state) => state.settings.maiaLines);
   const setMaiaLines = useStudioStore((state) => state.setMaiaLines);
+  const maiaChancesMode = useStudioStore((state) => state.settings.maiaChancesMode);
+  const setMaiaChancesMode = useStudioStore((state) => state.setMaiaChancesMode);
   const toggleSparkline = useStudioStore((state) => state.toggleEngineSparkline);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelSize = usePanelSize(rootRef);
@@ -446,20 +448,33 @@ export function EnginePanel() {
                   />
                 </label>
                 {maiaEnabled ? (
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-dense text-studio-muted">{tPanels(locale, "maia.lines")}</span>
-                    <Stepper
-                      label={tPanels(locale, "maia.lines")}
-                      hideLabel
-                      decrementLabel={tPanels(locale, "maia.lines.decrease")}
-                      incrementLabel={tPanels(locale, "maia.lines.increase")}
-                      value={maiaLines}
-                      canDecrement={maiaLines > MAIA_MIN_LINES}
-                      canIncrement={maiaLines < MAIA_MAX_LINES}
-                      onDecrement={() => setMaiaLines(maiaLines - 1)}
-                      onIncrement={() => setMaiaLines(maiaLines + 1)}
-                    />
-                  </div>
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-dense text-studio-muted">{tPanels(locale, "maia.lines")}</span>
+                      <Stepper
+                        label={tPanels(locale, "maia.lines")}
+                        hideLabel
+                        decrementLabel={tPanels(locale, "maia.lines.decrease")}
+                        incrementLabel={tPanels(locale, "maia.lines.increase")}
+                        value={maiaLines}
+                        canDecrement={maiaLines > MAIA_MIN_LINES}
+                        canIncrement={maiaLines < MAIA_MAX_LINES}
+                        onDecrement={() => setMaiaLines(maiaLines - 1)}
+                        onIncrement={() => setMaiaLines(maiaLines + 1)}
+                      />
+                    </div>
+                    <label className="flex items-center justify-between gap-2 text-dense text-studio-muted">
+                      {tPanels(locale, "maia.chances.mode")}
+                      <select
+                        value={maiaChancesMode}
+                        onChange={(event) => { if (isMaiaChancesMode(event.target.value)) setMaiaChancesMode(event.target.value); }}
+                        className="h-6 cursor-pointer rounded-[5px] border-0 bg-studio-elevated px-1.5 text-dense text-studio-fg ring-1 ring-studio-border-strong"
+                      >
+                        <option value="classical">{tPanels(locale, "maia.chances.mode.classical")}</option>
+                        <option value="online">{tPanels(locale, "maia.chances.mode.online")}</option>
+                      </select>
+                    </label>
+                  </>
                 ) : null}
                 <div>
                   <div className="mb-1.5 flex items-center justify-between text-dense text-studio-muted">

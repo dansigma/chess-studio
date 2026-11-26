@@ -1,3 +1,4 @@
+import type { MaiaChancesMode } from "@/src/engine/maia/protocol";
 import type { BoardHistories } from "./board-history";
 import type { Scope } from "@/src/chess/repertoire-scope";
 import type { VariationMergeConflict, VariationMergeDecisions } from "@/src/chess/repertoire-merge";
@@ -182,6 +183,7 @@ export type StudioSettings = {
   engineSparkline: boolean;
   maiaEnabled: boolean;
   maiaElo: number;
+  maiaChancesMode: MaiaChancesMode;
   /** SIG-1501: Maia moves shown (1–5, default 3). */
   maiaLines: number;
   /** Site language; also drives Game Review explanations (SIG-971). */
@@ -312,6 +314,7 @@ export type StudioState = {
   toggleEngineSparkline: () => void;
   setMaiaEnabled: (enabled: boolean) => void;
   setMaiaElo: (elo: number) => void;
+  setMaiaChancesMode: (mode: MaiaChancesMode) => void;
   setMaiaLines: (lines: number) => void;
   toggleEvalBar: () => void;
   toggleMaterialBalance: () => void;

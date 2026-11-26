@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import { formatSanAtPly } from "@/src/chess/move-notation";
+import { calibrateChances, resolveMaiaRun } from "@/src/engine/maia/calibration";
 import { HISTORY_LENGTH } from "@/src/engine/maia/encode";
 import { MaiaClient } from "@/src/engine/maia/maia-client";
-import { MAIA_ELOS, type MaiaChances, type MaiaMove, type MaiaPosition } from "@/src/engine/maia/protocol";
+import { MAIA_ELOS, type MaiaChances, type MaiaChancesMode, type MaiaMove, type MaiaPosition } from "@/src/engine/maia/protocol";
 import { tPanels, type StudioPanelStringKey } from "@/src/i18n/studio-panel-strings";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { ResultBar } from "./ui/ResultBar";
@@ -20,10 +21,19 @@ type Analysis =
   | { position: MaiaPosition; failed: true };
 type ShownMove = MaiaMove & { label: string };
 
+function ratingLabel(elo: number): string {
+  return elo === MAIA_ELOS.at(-1) ? `${elo}+` : String(elo);
+}
+
 /** The position's chances for two players of the chosen rating, as the explorer's result bar. */
-function MaiaChancesBar({ chances, rating, locale }: { chances: MaiaChances; rating: number; locale: SiteLocale }) {
+function MaiaChancesBar({ chances, rating, mode, locale }: {
+  chances: MaiaChances;
+  rating: string;
+  mode: MaiaChancesMode;
+  locale: SiteLocale;
+}) {
   const percent = (value: number) => Math.round(value * 100);
-  const title = tPanels(locale, "maia.chances.title", { rating });
+  const title = tPanels(locale, `maia.chances.title.${mode}`, { rating });
   const label = tPanels(locale, "maia.chances.label", {
     white: percent(chances.white),
     draw: percent(chances.draw),
@@ -49,10 +59,16 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
   const locale = useStudioStore((state) => state.settings.locale);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
   const elo = useStudioStore((state) => state.settings.maiaElo);
+  const mode = useStudioStore((state) => state.settings.maiaChancesMode);
   const lines = useStudioStore((state) => state.settings.maiaLines);
   const setElo = useStudioStore((state) => state.setMaiaElo);
   const fens = useActiveLineFens();
-  const position = useMemo(() => ({ fens: fens.slice(-HISTORY_LENGTH), elo, lines }), [fens, elo, lines]);
+  const run = useMemo(() => resolveMaiaRun(elo, mode), [elo, mode]);
+  const position = useMemo<MaiaPosition>(
+    () => ({ fens: fens.slice(-HISTORY_LENGTH), elo: run.modelElo, lines }),
+    [fens, run, lines],
+  );
+  const rating = ratingLabel(elo);
   const client = useRef<MaiaClient | null>(null);
   const [analysis, setAnalysis] = useState<Analysis>();
 
@@ -66,7 +82,11 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
     const timer = setTimeout(() => {
       client.current ??= new MaiaClient();
       client.current.analyze(position).then(
-        ({ moves, chances }) => { if (!stale) setAnalysis({ position, moves, chances }); },
+        ({ moves, chances }) => {
+          if (stale) return;
+          const fen = position.fens.at(-1);
+          setAnalysis({ position, moves, chances: chances && fen ? calibrateChances(chances, fen, run) : chances });
+        },
         () => { if (!stale) setAnalysis({ position, failed: true }); },
       );
     }, DEBOUNCE_MS);
@@ -74,9 +94,9 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
       stale = true;
       clearTimeout(timer);
     };
-  }, [position]);
+  }, [position, run]);
 
-  // Only a result for exactly this position (same FENs, rating and count) is shown.
+  // Only a result for exactly this position (same FENs, rating, mode and count) is shown.
   const current = analysis?.position === position ? analysis : undefined;
   const status = statusKey(current);
   const shown = useMemo<ShownMove[]>(() => {
@@ -107,11 +127,11 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
           onChange={(event) => setElo(Number(event.target.value))}
           className="h-5 shrink-0 cursor-pointer rounded-[5px] border-0 bg-transparent pl-1 text-dense font-semibold tabular-nums text-studio-muted ring-1 ring-studio-border-strong hover:text-studio-fg"
         >
-          {MAIA_ELOS.map((rating) => <option key={rating}>{rating}</option>)}
+          {MAIA_ELOS.map((elo) => <option key={elo} value={elo}>{ratingLabel(elo)}</option>)}
         </select>
       </div>
       {current && "chances" in current && current.chances ? (
-        <MaiaChancesBar chances={current.chances} rating={elo} locale={locale} />
+        <MaiaChancesBar chances={current.chances} rating={rating} mode={mode} locale={locale} />
       ) : null}
       {status ? <p role="status" className="px-2 py-1 text-dense text-studio-muted">{tPanels(locale, status)}</p> : null}
       {shown.map(({ uci, prob, label }) => {
@@ -121,7 +141,7 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
             key={uci}
             type="button"
             onClick={() => onPlay([uci])}
-            title={tPanels(locale, "maia.moveTitle", { percent, rating: elo, move: label })}
+            title={tPanels(locale, "maia.moveTitle", { percent, rating, move: label })}
             className="relative flex min-h-7 w-full items-center gap-2 overflow-hidden border-b border-studio-border-subtle px-2 py-1 text-left text-dense hover:bg-studio-hover-strong"
           >
             {/* How often players of this rating choose the move, as a bar behind the row. */}

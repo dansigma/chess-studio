@@ -145,6 +145,10 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
     else Reflect.deleteProperty(globalThis, "Worker");
   });
 
+  const result = {
+    moves: [{ uci: "d2d4", prob: 0.38 }],
+    chances: { white: 0.15, draw: 0.74, black: 0.11 },
+  };
   const view = render(<EnginePanel />);
   fireEvent.click(view.getByRole("button", { name: "Start engine" }));
   emitLine();
@@ -160,20 +164,33 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   assert.ok(view.getByText("Loading Maia…"));
   act(() => t.mock.timers.tick(150));
   assert.equal(workerCount, 1);
-  assert.deepEqual(posted, { fens: [currentFen], elo: 1500, lines: 3 });
-  await act(async () => reply?.({
-    result: { moves: [{ uci: "d2d4", prob: 0.38 }], chances: { white: 0.15, draw: 0.74, black: 0.11 } },
-  }));
+  assert.deepEqual(posted, { fens: [currentFen], elo: 2500, lines: 3 });
+  await act(async () => reply?.({ result }));
+  assert.ok(view.getByRole("img", { name: "Chances of this position in a classical game between two 2000 players: White 3%, draw 95%, Black 2%" }));
+
+  fireEvent.change(view.getByRole("combobox", { name: "Maia chances" }), { target: { value: "online" } });
+  assert.equal(view.queryByRole("img"), null);
+  act(() => t.mock.timers.tick(150));
+  assert.deepEqual(posted, { fens: [currentFen], elo: 2000, lines: 3 });
+  await act(async () => reply?.({ result }));
   assert.ok(view.getByRole("button", { name: "38% d4" }));
-  assert.ok(view.getByRole("img", { name: "Chances of this position between two 1500 players: White 15%, draw 74%, Black 11%" }));
+  assert.ok(view.getByRole("img", { name: "Chances of this position in an online game between two 2000 players: White 15%, draw 74%, Black 11%" }));
   assert.ok(view.getByText("74%"));
   assert.equal(view.queryByText(/W \d+ · D/u), null);
   assert.match(view.container.querySelector(pv)?.textContent ?? "", /e4/u);
 
-  fireEvent.change(view.getByRole("combobox", { name: "Player rating" }), { target: { value: "1600" } });
+  assert.ok(view.getByRole("option", { name: "2600+" }));
+  fireEvent.change(view.getByRole("combobox", { name: "Player rating" }), { target: { value: "2600" } });
+  act(() => t.mock.timers.tick(150));
+  assert.equal(posted?.elo, 2600);
+  await act(async () => reply?.({ result }));
+  assert.ok(view.getByTitle("38% of 2600+ players play d4"));
+  assert.ok(view.getByTitle("Chances of this position in an online game between two 2600+ players"));
+
+  fireEvent.change(view.getByRole("combobox", { name: "Player rating" }), { target: { value: "2200" } });
   assert.equal(view.queryByRole("button", { name: "38% d4" }), null);
   act(() => t.mock.timers.tick(150));
-  assert.equal(posted?.elo, 1600);
+  assert.equal(posted?.elo, 2200);
   await act(async () => fail?.());
   assert.ok(view.getByText("Maia could not analyze this position."));
   assert.match(view.container.querySelector(pv)?.textContent ?? "", /e4/u);
