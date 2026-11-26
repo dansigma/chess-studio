@@ -118,6 +118,73 @@ test("ArrowDown then Enter selects the second option", () => {
   }
 });
 
+test("ArrowRight selects the first option", () => {
+  seedBranchChoice();
+  try {
+    render(<VariationChoiceDialog />);
+    fireEvent.keyDown(screen.getByRole("button", { name: /1\. e4/ }), {
+      key: "ArrowRight",
+    });
+    const state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, [0]);
+    assert.equal(state.variationChoice, null);
+  } finally {
+    cleanup();
+  }
+});
+
+test("ArrowDown then ArrowRight selects the second option", () => {
+  seedBranchChoice();
+  try {
+    render(<VariationChoiceDialog />);
+    fireEvent.keyDown(screen.getByRole("button", { name: /1\. e4/ }), {
+      key: "ArrowDown",
+    });
+    fireEvent.keyDown(screen.getByRole("button", { name: /1\. d4/ }), {
+      key: "ArrowRight",
+    });
+    const state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, [1]);
+    assert.equal(state.variationChoice, null);
+  } finally {
+    cleanup();
+  }
+});
+
+for (const key of ["ArrowRight", "ArrowLeft"]) {
+  test(`repeated ${key} leaves the choice open without moving`, () => {
+    seedBranchChoice();
+    try {
+      render(<VariationChoiceDialog />);
+      fireEvent.keyDown(screen.getByRole("button", { name: /1\. e4/ }), {
+        key,
+        repeat: true,
+      });
+      const state = useStudioStore.getState();
+      assert.deepEqual(state.active().path, []);
+      assert.ok(state.variationChoice);
+      assert.ok(screen.getByRole("dialog", { name: "Choose a continuation" }));
+    } finally {
+      cleanup();
+    }
+  });
+}
+
+test("ArrowLeft cancels without moving", () => {
+  seedBranchChoice();
+  try {
+    render(<VariationChoiceDialog />);
+    fireEvent.keyDown(screen.getByRole("button", { name: /1\. e4/ }), {
+      key: "ArrowLeft",
+    });
+    const state = useStudioStore.getState();
+    assert.deepEqual(state.active().path, []);
+    assert.equal(state.variationChoice, null);
+  } finally {
+    cleanup();
+  }
+});
+
 test("Tab focus then Enter selects the focused option, not the arrow cursor", () => {
   seedBranchChoice();
   try {

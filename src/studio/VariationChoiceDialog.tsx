@@ -92,8 +92,18 @@ export function VariationChoiceDialog() {
       focusOption(continuations.length - 1);
       return;
     }
-    if (event.key === "Enter") {
+    if (event.key === "ArrowLeft") {
       event.preventDefault();
+      if (!event.repeat) {
+        cancel();
+      }
+      return;
+    }
+    if (event.key === "Enter" || event.key === "ArrowRight") {
+      event.preventDefault();
+      if (event.key === "ArrowRight" && event.repeat) {
+        return;
+      }
       chooseVariation(activeIndex);
     }
   }
