@@ -75,22 +75,28 @@ All database schemas, RLS policies, and triggers are tracked sequentially under 
    ```
 
 ### Applying Migrations to Remote Supabase
-If applying migrations to a hosted Supabase project without the CLI, execute all SQL scripts in `supabase/migrations/` sequentially in chronological order via the Supabase SQL editor:
-- `20260317120000_init_studio.sql` (initial schema, user profiles, saved boards, opening databases)
-- `20260918003000_files_write_policies.sql` (file and directory write policies)
-- `20260918120000_player_bookmarks.sql` (player bookmarks)
-- `20260921120000_position_index_policies.sql` (position index RLS policies)
-- `20260928170000_courses.sql` (courses, chapters, and enrollment)
-- `20260928200000_course_media.sql` (course media attachments)
-- `20260928210000_profiles_and_admins.sql` (profile admin flags and `course_admins` table)
-- `20260928220000_course_theme.sql` (course theme styling options)
-- `20260930120000_explorer_cache_lock_writes.sql` (cache lock writes)
-- `20261002120000_game_positions_seq_pk.sql` (game position primary keys)
-- `20261005120000_puzzle_progress.sql` (puzzle solving progress and streaks)
-- `20261007120000_sig861_rls_indexes_drafts.sql` (RLS index optimizations and course drafts)
-- `20261013000000_nested_folders.sql` (hierarchical folder structure for saved games)
-- `20261013120000_repertoire_progress.sql` (opening repertoire training progress)
-- `20261021250000_puzzles.sql` (curated Lichess puzzle subset table, read-only for clients)
+Apply pending migrations with the CLI linked to the project. It applies the files in `supabase/migrations/` in filename order and records each one under its file version:
+
+```bash
+supabase link --project-ref <project-ref>
+supabase migration list --linked   # pending migrations show only in the Local column
+supabase db push --linked
+```
+
+**Without the CLI** (SQL editor, or an agent using the Supabase MCP `apply_migration`): run the pending files in filename order, then make sure each one is recorded in `supabase_migrations.schema_migrations` under the **version from its filename** (the leading 14 digits), never the time it was applied. The SQL editor records nothing, and `apply_migration` records the current time, so fix the row afterwards:
+
+```sql
+-- after running supabase/migrations/20261110000000_my_game_positions.sql by hand
+insert into supabase_migrations.schema_migrations (version, name)
+values ('20261110000000', 'my_game_positions')
+on conflict (version) do nothing;
+-- or, if a tool recorded it under the time it was applied:
+update supabase_migrations.schema_migrations
+   set version = '20261110000000'
+ where version = '<recorded version>' and name = 'my_game_positions';
+```
+
+The history must hold exactly the versions of the files in `supabase/migrations/`. A mismatch makes `supabase db push` try to apply migrations again (SIG-1275 found 33 of 38 out of line and repaired them on 2026-11-10).
 
 ## Puzzle dataset
 
