@@ -64,13 +64,32 @@ export function explorerUpstreamEndpoints(source: ExplorerUpstreamSource, fen: s
   ];
 }
 
-/** Month 1-12 from the explorer's number or "YYYY-MM" string; null otherwise. */
-export function explorerMonth(month: number | string | undefined): number | null {
-  const value = typeof month === "string" ? Number(/^\d{4}-(\d{1,2})$/.exec(month)?.[1]) : month;
-  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 12 ? value : null;
+const YEAR_MONTH = /^(\d{4})-(\d{1,2})$/;
+
+/** Year and month (1-12) from the explorer's numbers or a "YYYY-MM" month; null when missing or invalid. */
+export function explorerYearMonth(
+  year: number | undefined,
+  month: number | string | undefined,
+): { year: number | null; month: number | null } {
+  let yearValue = typeof year === "number" && Number.isInteger(year) ? year : null;
+  let monthValue: number | null = null;
+  if (typeof month === "number") {
+    monthValue = month;
+  } else if (typeof month === "string") {
+    const match = YEAR_MONTH.exec(month);
+    if (match) {
+      monthValue = Number(match[2]);
+      yearValue ??= Number(match[1]);
+    }
+  }
+  if (monthValue === null || !Number.isInteger(monthValue) || monthValue < 1 || monthValue > 12) {
+    monthValue = null;
+  }
+  return { year: yearValue, month: monthValue };
 }
 
 export function mapGame(game: LichessGame, opening: ExplorerResponse["opening"]): ExplorerGameRow {
+  const { year, month } = explorerYearMonth(game.year, game.month);
   // SIG-1214: the Lichess explorer lists only finished games and sends
   // `winner: null` (or omits it) for a draw, so anything but a win is ½-½.
   const winner = game.winner === "white" || game.winner === "black" ? game.winner : "draw";
@@ -81,8 +100,8 @@ export function mapGame(game: LichessGame, opening: ExplorerResponse["opening"])
     whiteRating: game.white?.rating ?? null,
     blackName: game.black?.name ?? "Unknown",
     blackRating: game.black?.rating ?? null,
-    year: game.year ?? null,
-    month: explorerMonth(game.month),
+    year,
+    month,
     // SIG-1192: the Lichess explorer game list carries no event name. Filling
     // it with the year made the Games table show the year twice (Event + Date).
     event: null,
