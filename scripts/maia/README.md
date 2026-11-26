@@ -23,3 +23,32 @@ npx wrangler r2 object put chess-studio-engine/engine/maia/maia3-5m.onnx \
 ```
 
 Studio serves the model same-origin with immutable caching. Use a new filename and update the worker URL when replacing the model. Dependency installation copies the versioned ONNX Runtime module and WASM binary into `public/engine/maia/ort/` and checks the 25 MiB Workers per-asset limit.
+
+## Classical calibration
+
+Run the offline fit against the Studio ONNX model and the Lumbras OTB PGN. The
+script scans PGN headers, reservoir-samples games by rating, and fits a
+material-phase draw adjustment on an 80% game split. It evaluates on the
+remaining games using equally weighted positions at plies 16, 26, 36 and
+every tenth ply before game end. The script checks the Python encoder and
+material phase against the Studio fixtures before scanning the PGN.
+
+```sh
+maia_tmp="$(mktemp -d)"
+python3 -m venv "$maia_tmp/venv"
+"$maia_tmp/venv/bin/pip" install onnxruntime==1.32.0 python-chess==1.999 numpy
+"$maia_tmp/venv/bin/python" scripts/maia/calibrate.py \
+  --pgn /path/to/LumbrasGigabase_OTB_Complete.pgn \
+  --model /path/to/maia3-5m.onnx \
+  --seed 1503 --per-band 6000 \
+  --model-elos 2300,2500,2700,2900,2900 \
+  --out-ts src/engine/maia/classical-calibration.ts \
+  --out-report scripts/maia/calibration-report.md
+```
+
+The default model Elo mapping is fixed and the report reads the original fit
+sweep from `rating-sweep.json`. Add `--sweep` to recompute the fit grid while
+keeping the configured model Elos.
+
+Keep the PGN, model, and virtual environment outside Git. The report records
+the sample sizes, rating sweep, held-out metrics, and runtime.
