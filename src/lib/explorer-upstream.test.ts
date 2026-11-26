@@ -6,6 +6,7 @@ import {
   EXPLORER_UPSTREAM_MAX_BYTES,
   fetchExplorerUpstream,
   mapGame,
+  mapResponse,
 } from "./explorer-upstream.ts";
 
 const FEN_A = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -86,4 +87,25 @@ test("SIG-1214: explorer games without a winner are draws, not unknown results",
   assert.equal(mapGame({ ...base }, null).winner, "draw");
   assert.equal(mapGame({ ...base, winner: "white" }, null).winner, "white");
   assert.equal(mapGame({ ...base, winner: "black" }, null).winner, "black");
+});
+
+function pick(row: { year: number | null; month: number | null }) {
+  return { year: row.year, month: row.month };
+}
+
+test("explorer months arrive as \"YYYY-MM\" strings and still map to a valid 1-12 month", async () => {
+  const { isExplorerResponse } = await import("./explorer-types.ts");
+  const base = { id: "g1", white: { name: "A" }, black: { name: "B" }, year: 2025 };
+  assert.equal(mapGame({ ...base, month: "2025-10" }, null).month, 10);
+  assert.equal(mapGame({ ...base, month: 3 }, null).month, 3);
+  assert.equal(mapGame({ ...base, month: "2025-13" }, null).month, null);
+  assert.equal(mapGame({ ...base, month: "October" }, null).month, null);
+  assert.equal(mapGame({ ...base }, null).month, null);
+  // The year comes from the month string when the explorer omits it; an explicit year wins.
+  const noYear = { id: base.id, white: base.white, black: base.black };
+  assert.deepEqual(pick(mapGame({ ...noYear, month: "2024-07" }, null)), { year: 2024, month: 7 });
+  assert.deepEqual(pick(mapGame({ ...base, month: "2024-07" }, null)), { year: 2025, month: 7 });
+  assert.deepEqual(pick(mapGame({ ...noYear, month: "July" }, null)), { year: null, month: null });
+  const payload = mapResponse("masters", FEN_A, { topGames: [{ ...base, month: "2025-10" }] });
+  assert.ok(isExplorerResponse(payload));
 });
