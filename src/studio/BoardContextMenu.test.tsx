@@ -9,15 +9,21 @@ after(() => teardownDom());
 afterEach(() => cleanup());
 
 const noop = () => {};
-function mount(onSearchLibrary?: () => void, onClose: () => void = noop) {
+function mount(
+  onSearchLibrary?: () => void,
+  onClose: () => void = noop,
+  moveNav?: { checked: boolean; toggle: () => void },
+) {
   render(
     <BoardContextMenu
       menu={{ x: 10, y: 10 }}
       showEvalBar={false}
+      showMoveNavBar={moveNav?.checked}
       showThreat={false}
       locale="en"
       onFlip={noop}
       onToggleEvalBar={noop}
+      onToggleMoveNavBar={moveNav?.toggle}
       onToggleThreat={noop}
       onMarkWhite={noop}
       onMarkBlack={noop}
@@ -37,6 +43,23 @@ test("menu item searches the position in the Library and closes the menu", () =>
   fireEvent.click(screen.getByText("Search this position in Library"));
   assert.equal(searched, 1);
   assert.equal(closed, 1);
+});
+
+test("move controls toggle follows the evaluation bar and reflects the setting", () => {
+  let toggled = 0;
+  let closed = 0;
+  for (const checked of [false, true]) {
+    mount(undefined, () => (closed += 1), { checked, toggle: () => (toggled += 1) });
+    const item = screen.getByRole("menuitemcheckbox", {
+      name: "Show move controls below the board",
+      checked,
+    });
+    assert.equal(item.previousElementSibling, screen.getByRole("menuitemcheckbox", { name: "Show evaluation bar" }));
+    fireEvent.click(item);
+    cleanup();
+  }
+  assert.equal(toggled, 2);
+  assert.equal(closed, 2);
 });
 
 test("item is omitted without a handler", () => {

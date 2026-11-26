@@ -33,11 +33,13 @@ function clampMenuPosition(
 export function BoardContextMenu({
   menu,
   showEvalBar,
+  showMoveNavBar,
   showThreat,
   repertoireColor = null,
   locale = "en",
   onFlip,
   onToggleEvalBar,
+  onToggleMoveNavBar,
   onToggleThreat,
   onMarkWhite,
   onMarkBlack,
@@ -49,11 +51,13 @@ export function BoardContextMenu({
 }: {
   menu: BoardMenuState;
   showEvalBar: boolean;
+  showMoveNavBar?: boolean;
   showThreat: boolean;
   repertoireColor?: "white" | "black" | null;
   locale?: SiteLocale;
   onFlip: () => void;
   onToggleEvalBar: () => void;
+  onToggleMoveNavBar?: () => void;
   onToggleThreat: () => void;
   onMarkWhite: () => void;
   onMarkBlack: () => void;
@@ -75,7 +79,7 @@ export function BoardContextMenu({
     const height = rect && rect.height > 0 ? rect.height : FALLBACK_MENU_HEIGHT;
     const next = clampMenuPosition(menu.x, menu.y, width, height);
     setPosition((prev) => (prev.left === next.left && prev.top === next.top ? prev : next));
-  }, [menu.x, menu.y, repertoireColor, onSearchLibrary]);
+  }, [menu.x, menu.y, repertoireColor, onSearchLibrary, onToggleMoveNavBar]);
 
   useEffect(() => {
     function onPointer(event: MouseEvent) {
@@ -108,6 +112,16 @@ export function BoardContextMenu({
             onClose();
           }}
         />
+        {onToggleMoveNavBar ? (
+          <MenuItem
+            label={tPanels(locale, "panels.board.showMoveNavBar")}
+            checked={showMoveNavBar ?? false}
+            onClick={() => {
+              onToggleMoveNavBar();
+              onClose();
+            }}
+          />
+        ) : null}
         <MenuItem
           label={tPanels(locale, "panels.board.showThreat")}
           checked={showThreat}

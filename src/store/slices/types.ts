@@ -158,6 +158,7 @@ export type StudioSettings = {
   trainingScope: Partial<Record<BoardOrientation, Scope>>;
   showCoordinates: boolean;
   showEvalBar: boolean;
+  showMoveNavBar: boolean;
   showMaterialBalance: boolean;
   autoQueen: boolean;
   boardTheme: BoardTheme;
@@ -317,6 +318,7 @@ export type StudioState = {
   setMaiaChancesMode: (mode: MaiaChancesMode) => void;
   setMaiaLines: (lines: number) => void;
   toggleEvalBar: () => void;
+  toggleMoveNavBar: () => void;
   toggleMaterialBalance: () => void;
   toggleAutoQueen: () => void;
   toggleGamePreview: () => void;

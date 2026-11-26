@@ -62,7 +62,7 @@ export function IconButton({
   ref?: Ref<HTMLButtonElement>;
   shortcut?: string;
   active?: boolean;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   children: ReactNode;
 }) {
   return (
@@ -73,7 +73,7 @@ export function IconButton({
       aria-label={label}
       aria-pressed={active}
       className={`flex shrink-0 items-center justify-center rounded-md text-studio-fg hover:bg-studio-hover-strong disabled:cursor-default disabled:text-studio-disabled disabled:hover:bg-transparent ${
-        size === "sm" ? "h-6 w-6" : "h-7 w-7"
+        { sm: "size-6", md: "size-7", lg: "size-8" }[size]
       } ${active ? "bg-studio-hover-strong" : ""} ${className}`}
       {...props}
     >

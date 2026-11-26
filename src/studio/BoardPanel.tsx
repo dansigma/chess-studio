@@ -19,6 +19,7 @@ import {
 } from "@/src/chess/marks";
 import { threatSquaresFromUci, useThreat } from "./useThreat";
 import { BoardEvalBar } from "./BoardEvalBar";
+import { BoardMoveNavBar } from "./BoardMoveNavBar";
 import { MaterialBoardLayout } from "./MaterialBoardLayout";
 import { searchPositionInLibrary } from "./library/search-position";
 import { BoardContextMenu, type BoardMenuState } from "./BoardContextMenu";
@@ -56,7 +57,7 @@ type PendingDraw = {
 // stored arrow on the same squares still reads as the stronger one.
 const EXPLORER_HOVER_ARROW = "rgba(59, 130, 246, 0.6)";
 
-export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) {
+export function BoardPanel({ boardId: boardIdProp, mobile = false }: { boardId?: string; mobile?: boolean } = {}) {
   const locale: SiteLocale = useStudioStore((state) => state.settings.locale);
   const activeBoardId = useActiveBoardId();
   const board = useStudioStore((state) => selectBoard(state, boardIdProp));
@@ -105,6 +106,8 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
   const boardTheme = useStudioStore((state) => state.settings.boardTheme);
   const pieceSet = useStudioStore((state) => state.settings.pieceSet);
   const showEvalBar = useStudioStore((state) => state.settings.showEvalBar);
+  const showMoveNavBar = useStudioStore((state) => state.settings.showMoveNavBar);
+  const training = useStudioStore((state) => state.training);
   const showMaterialBalance = useStudioStore((state) => state.settings.showMaterialBalance);
   const autoQueen = useStudioStore((state) => state.settings.autoQueen);
   const showCoordinates = useStudioStore((state) => state.settings.showCoordinates);
@@ -122,6 +125,11 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
     }
   }
   const toggleEvalBar = useStudioStore((state) => state.toggleEvalBar);
+  const toggleMoveNavBar = useStudioStore((state) => state.toggleMoveNavBar);
+  function navigate(action: "toStart" | "back" | "forward" | "toEnd") {
+    ensureActive();
+    useStudioStore.getState()[action]();
+  }
   const toggleBoardSquareMark = useStudioStore((state) => state.toggleBoardSquareMark);
   const toggleBoardArrowMark = useStudioStore((state) => state.toggleBoardArrowMark);
   const setupMode = useStudioStore((state) => state.setupMode);
@@ -507,6 +515,17 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
         pieces={pieces}
         locale={locale}
         showMaterialBalance={showMaterialBalance}
+        moveNavBar={!mobile && showMoveNavBar && !training ? (
+          <BoardMoveNavBar
+            tree={board.tree}
+            path={board.path}
+            locale={locale}
+            onStart={() => navigate("toStart")}
+            onBack={() => navigate("back")}
+            onForward={() => navigate("forward")}
+            onEnd={() => navigate("toEnd")}
+          />
+        ) : null}
         evalBar={showEvalBar ? (
           <BoardEvalBar
             pawns={engineEval?.pawns ?? 0}
@@ -673,6 +692,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
         <BoardContextMenu
           menu={boardMenu}
           showEvalBar={showEvalBar}
+          showMoveNavBar={showMoveNavBar}
           showThreat={showThreat}
           repertoireColor={board.repertoireColor}
           locale={locale}
@@ -681,6 +701,7 @@ export function BoardPanel({ boardId: boardIdProp }: { boardId?: string } = {}) 
             flip();
           }}
           onToggleEvalBar={toggleEvalBar}
+          onToggleMoveNavBar={mobile ? undefined : toggleMoveNavBar}
           onToggleThreat={() => setShowThreat(!showThreat)}
           onMarkWhite={() => {
             ensureActive();
