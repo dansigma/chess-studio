@@ -94,7 +94,7 @@ export function MaterialBoardLayout({
       {moveNavBar ? (
         <div
           className="flex min-w-0 items-end justify-self-center"
-          style={{ gridColumn: -2, gridRow: -2, width: "max-content", maxWidth: width }}
+          style={{ gridColumn: -2, gridRow: -2, width: "max-content", maxWidth: boardSize }}
         >
           {moveNavBar}
         </div>

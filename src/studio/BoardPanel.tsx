@@ -515,7 +515,7 @@ export function BoardPanel({ boardId: boardIdProp, mobile = false }: { boardId?:
         pieces={pieces}
         locale={locale}
         showMaterialBalance={showMaterialBalance}
-        moveNavBar={!mobile && showMoveNavBar && !training ? (
+        moveNavBar={!mobile && showMoveNavBar && !training && !retryHere ? (
           <BoardMoveNavBar
             tree={board.tree}
             path={board.path}
