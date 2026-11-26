@@ -23,3 +23,25 @@ npx wrangler r2 object put chess-studio-engine/engine/maia/maia3-5m.onnx \
 ```
 
 Studio serves the model same-origin with immutable caching. Use a new filename and update the worker URL when replacing the model. Dependency installation copies the versioned ONNX Runtime module and WASM binary into `public/engine/maia/ort/` and checks the 25 MiB Workers per-asset limit.
+
+## Classical calibration
+
+Run the offline fit against the Studio ONNX model and the Lumbras OTB PGN. The
+script scans PGN headers, reservoir-samples games by rating, and evaluates the
+rating and draw-factor fit on held-out games. It also checks the Python encoder
+against the Studio fixtures before scanning the PGN.
+
+```sh
+maia_tmp="$(mktemp -d)"
+python3 -m venv "$maia_tmp/venv"
+"$maia_tmp/venv/bin/pip" install onnxruntime python-chess numpy
+"$maia_tmp/venv/bin/python" scripts/maia/calibrate.py \
+  --pgn /path/to/LumbrasGigabase_OTB_Complete.pgn \
+  --model /path/to/maia3-5m.onnx \
+  --seed 1503 --per-band 6000 \
+  --out-ts src/engine/maia/classical-calibration.ts \
+  --out-report scripts/maia/calibration-report.md
+```
+
+Keep the PGN, model, and virtual environment outside Git. The report records
+the sample sizes, rating sweep, held-out metrics, and runtime.
