@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 import { computePositionFacts, computeThreats, computeThreatsToMove } from "../../src/chess/facts/index.ts";
 import { buildPositionPack } from "../../src/lib/ask-master/position-pack.ts";
 import { buildMessages } from "../../src/lib/ask-master/prompt.ts";
-import { askMasterProviderConfig } from "../../src/lib/ask-master/provider.ts";
+import { askMasterProviderConfig, parseRequestOptions } from "../../src/lib/ask-master/provider.ts";
 import { indexCatalogOpenings, resolveLineOpening } from "../../src/lib/line-opening.ts";
 import { loadCatalog } from "../../src/lib/openings-catalog.ts";
 import { renderReport } from "./compare.mjs";
@@ -26,7 +26,7 @@ function buildContext(item, openings) {
   });
 }
 
-async function complete({ baseUrl, apiKey }, model, messages, fetchProvider) {
+async function complete({ baseUrl, apiKey }, model, messages, fetchProvider, options) {
   const response = await fetchProvider(`${baseUrl.replace(/\/+$/, "")}/chat/completions`, {
     method: "POST",
     headers: {
@@ -37,7 +37,7 @@ async function complete({ baseUrl, apiKey }, model, messages, fetchProvider) {
       "HTTP-Referer": "https://xadrez.digital",
       "X-Title": "Xadrez Digital",
     },
-    body: JSON.stringify({ model, messages, stream: false }),
+    body: JSON.stringify({ ...options, model, messages, stream: false }),
     signal: AbortSignal.timeout(180_000),
     redirect: "error",
   });
@@ -47,10 +47,10 @@ async function complete({ baseUrl, apiKey }, model, messages, fetchProvider) {
   return text;
 }
 
-async function timedComplete(config, model, messages, fetchProvider) {
+async function timedComplete(config, model, messages, fetchProvider, options) {
   const start = performance.now();
   try {
-    return { text: await complete(config, model, messages, fetchProvider), ms: Math.round(performance.now() - start) };
+    return { text: await complete(config, model, messages, fetchProvider, options), ms: Math.round(performance.now() - start) };
   } catch (error) {
     // Keep credentials, URLs and provider response bodies out of reports.
     const message = /^HTTP \d{3}$/.test(error?.message) ? error.message : "Falha na resposta do provedor";
@@ -59,7 +59,7 @@ async function timedComplete(config, model, messages, fetchProvider) {
 }
 
 export async function runEvaluation({
-  input, outDir, config, judgeModel = config.model, fetchProvider = fetch, onPosition,
+  input, outDir, config, judgeModel = config.model, judgeOptions = config.options, fetchProvider = fetch, onPosition,
 }) {
   const source = await readFile(input, "utf8");
   const items = parseJsonl(source, input);
@@ -69,7 +69,9 @@ export async function runEvaluation({
   const report = {
     version: 1,
     model: config.model,
+    options: config.options ?? null,
     judgeModel,
+    judgeOptions: judgeOptions ?? null,
     startedAt: new Date().toISOString(),
     datasetHash: hash(source),
     positions: [],
@@ -77,10 +79,10 @@ export async function runEvaluation({
   for (const item of items) {
     const context = buildContext(item, openings);
     const messages = buildMessages({ ...item, context, history: [] });
-    const answer = await timedComplete(config, config.model, messages, fetchProvider);
+    const answer = await timedComplete(config, config.model, messages, fetchProvider, config.options);
     const score = answer.error ? null : scoreAnswer(answer.text, item.fen, context);
     const judge = score
-      ? await timedComplete(config, judgeModel, buildJudgeMessages(item, score.body), fetchProvider)
+      ? await timedComplete(config, judgeModel, buildJudgeMessages(item, score.body), fetchProvider, judgeOptions)
       : null;
     const judgement = parseJudgeReply(judge?.text, item, score?.body ?? "");
     const judgeError = judge?.error ?? (judge && judgement.mustMention[0].verdict === "unknown"
@@ -114,6 +116,9 @@ async function main(args) {
     outDir: values.out,
     config,
     judgeModel: process.env.ASK_MASTER_EVAL_JUDGE_MODEL?.trim() || config.model,
+    // The judge reuses the answer options unless its own are set, even when it keeps the same model.
+    ...(process.env.ASK_MASTER_EVAL_JUDGE_OPTIONS?.trim()
+      ? { judgeOptions: parseRequestOptions(process.env.ASK_MASTER_EVAL_JUDGE_OPTIONS, "ASK_MASTER_EVAL_JUDGE_OPTIONS") } : {}),
     onPosition: (row, index, total) => console.error(`[${index}/${total}] ${row.id}${row.error ? ` (${row.error})` : ""}`),
   });
   console.log(`Relatórios em ${values.out}`);

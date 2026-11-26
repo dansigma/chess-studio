@@ -10,7 +10,9 @@ type ProviderConfig = { baseUrl: string; apiKey: string; model: string; options?
  * off DeepSeek reasoning (about 100 s → 8 s per answer). Invalid JSON, a
  * non-object, or fields that would override model/messages/stream are ignored.
  */
-export function parseRequestOptions(raw: string | undefined): Record<string, unknown> | undefined {
+export function parseRequestOptions(
+  raw: string | undefined, name = "ASK_MASTER_REQUEST_OPTIONS",
+): Record<string, unknown> | undefined {
   if (!raw?.trim()) return undefined;
   try {
     const value: unknown = JSON.parse(raw);
@@ -18,7 +20,7 @@ export function parseRequestOptions(raw: string | undefined): Record<string, unk
     // The request body always sets these itself.
     return Object.fromEntries(Object.entries(value).filter(([key]) => !["model", "messages", "stream"].includes(key)));
   } catch {
-    console.error("ask-master: ASK_MASTER_REQUEST_OPTIONS is not a JSON object; ignored");
+    console.error(`ask-master: ${name} is not a JSON object; ignored`);
     return undefined;
   }
 }
