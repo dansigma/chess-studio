@@ -28,7 +28,8 @@ type LichessGame = {
   white?: LichessPlayer;
   black?: LichessPlayer;
   year?: number;
-  month?: number;
+  /** Was a number (1-12); the explorer now sends "YYYY-MM" (seen 2026-11). */
+  month?: number | string;
 };
 
 type LichessMove = {
@@ -63,6 +64,12 @@ export function explorerUpstreamEndpoints(source: ExplorerUpstreamSource, fen: s
   ];
 }
 
+/** Month 1-12 from the explorer's number or "YYYY-MM" string; null otherwise. */
+export function explorerMonth(month: number | string | undefined): number | null {
+  const value = typeof month === "string" ? Number(/^\d{4}-(\d{1,2})$/.exec(month)?.[1]) : month;
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 12 ? value : null;
+}
+
 export function mapGame(game: LichessGame, opening: ExplorerResponse["opening"]): ExplorerGameRow {
   // SIG-1214: the Lichess explorer lists only finished games and sends
   // `winner: null` (or omits it) for a draw, so anything but a win is ½-½.
@@ -75,7 +82,7 @@ export function mapGame(game: LichessGame, opening: ExplorerResponse["opening"])
     blackName: game.black?.name ?? "Unknown",
     blackRating: game.black?.rating ?? null,
     year: game.year ?? null,
-    month: game.month ?? null,
+    month: explorerMonth(game.month),
     // SIG-1192: the Lichess explorer game list carries no event name. Filling
     // it with the year made the Games table show the year twice (Event + Date).
     event: null,
