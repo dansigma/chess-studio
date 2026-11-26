@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
-import logging
 import os
 from pathlib import Path
 import random
@@ -438,7 +437,6 @@ def main():
     if args.per_band < 2:
         parser.error("--per-band must be at least 2")
 
-    logging.basicConfig(level=logging.WARNING)
     verify_encoder()
     verify_phase()
     date = datetime.now(timezone.utc).date().isoformat()
