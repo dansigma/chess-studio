@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 type ButtonSize = "sm" | "md";
+type IconButtonSize = ButtonSize | "lg";
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
@@ -17,6 +18,12 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
 const SIZE_CLASSES: Record<ButtonSize, string> = {
   sm: "h-7 gap-1.5 px-2.5 text-dense",
   md: "h-8 gap-1.5 px-3.5 text-body",
+};
+
+const ICON_SIZE_CLASSES: Record<IconButtonSize, string> = {
+  sm: "size-6",
+  md: "size-7",
+  lg: "size-8",
 };
 
 export function Button({
@@ -62,7 +69,7 @@ export function IconButton({
   ref?: Ref<HTMLButtonElement>;
   shortcut?: string;
   active?: boolean;
-  size?: "sm" | "md";
+  size?: IconButtonSize;
   children: ReactNode;
 }) {
   return (
@@ -73,7 +80,7 @@ export function IconButton({
       aria-label={label}
       aria-pressed={active}
       className={`flex shrink-0 items-center justify-center rounded-md text-studio-fg hover:bg-studio-hover-strong disabled:cursor-default disabled:text-studio-disabled disabled:hover:bg-transparent ${
-        size === "sm" ? "h-6 w-6" : "h-7 w-7"
+        ICON_SIZE_CLASSES[size]
       } ${active ? "bg-studio-hover-strong" : ""} ${className}`}
       {...props}
     >

@@ -34,6 +34,7 @@ export const DEFAULT_SETTINGS: StudioSettings = {
   trainingScope: {},
   showCoordinates: true,
   showEvalBar: true,
+  showMoveNavBar: false,
   showMaterialBalance: false,
   autoQueen: false,
   boardTheme: "studio",
@@ -104,6 +105,10 @@ export function loadLocalSettings(): StudioSettings {
         typeof parsed.showEvalBar === "boolean"
           ? parsed.showEvalBar
           : DEFAULT_SETTINGS.showEvalBar,
+      showMoveNavBar:
+        typeof parsed.showMoveNavBar === "boolean"
+          ? parsed.showMoveNavBar
+          : DEFAULT_SETTINGS.showMoveNavBar,
       boardTheme: isBoardTheme(parsed.boardTheme)
         ? parsed.boardTheme
         : DEFAULT_SETTINGS.boardTheme,
@@ -183,6 +188,7 @@ export type SettingsSlice = Pick<
   | "setMaiaChancesMode"
   | "setMaiaLines"
   | "toggleEvalBar"
+  | "toggleMoveNavBar"
   | "toggleMaterialBalance"
   | "toggleAutoQueen"
   | "toggleGamePreview"
@@ -282,6 +288,11 @@ export const createSettingsSlice: StateCreator<StudioState, [], [], SettingsSlic
         ...state.settings,
         showEvalBar: !state.settings.showEvalBar,
       },
+    }));
+  },
+  toggleMoveNavBar: () => {
+    set((state) => ({
+      settings: { ...state.settings, showMoveNavBar: !state.settings.showMoveNavBar },
     }));
   },
   toggleGamePreview: () => {

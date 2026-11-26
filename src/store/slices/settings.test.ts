@@ -61,6 +61,30 @@ test("toggles flip the matching settings field", () => {
   assert.equal(settings.showClockTimes, !DEFAULT_SETTINGS.showClockTimes);
 });
 
+test("move navigation controls default off and restore the persisted setting", async () => {
+  resetSettings();
+  try {
+    assert.equal(DEFAULT_SETTINGS.showMoveNavBar, false);
+    storage.set(SETTINGS_KEY, JSON.stringify({ showEvalBar: true }));
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.showMoveNavBar, false);
+
+    actions().toggleMoveNavBar();
+    assert.equal(useStudioStore.getState().settings.showMoveNavBar, true);
+    const { persistSettings } = await import("../studio-store.ts");
+    await persistSettings(useStudioStore.getState().settings);
+    resetSettings();
+    actions().hydrateLocalSettings();
+    assert.equal(useStudioStore.getState().settings.showMoveNavBar, true);
+
+    actions().toggleMoveNavBar();
+    assert.equal(useStudioStore.getState().settings.showMoveNavBar, false);
+  } finally {
+    storage.delete(SETTINGS_KEY);
+    resetSettings();
+  }
+});
+
 test("toggleNotationDensity flips compact/normal", () => {
   resetSettings();
   actions().toggleNotationDensity();

@@ -187,7 +187,7 @@ export function MobileStudio({
           className="aspect-square w-full"
           style={showMaterialBalance ? { height: `calc(100cqw + ${MATERIAL_STRIPS_HEIGHT})` } : undefined}
         >
-          <BoardPanel />
+          <BoardPanel mobile />
         </div>
       </div>
       <MobileMoveStrip />

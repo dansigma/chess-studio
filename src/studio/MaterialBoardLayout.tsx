@@ -4,6 +4,7 @@ import { materialBalance, type MaterialColor } from "@/src/chess/material";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tPanels } from "@/src/i18n/studio-panel-strings";
 
+const MOVE_NAV_ROW_HEIGHT = "2.5rem";
 const STRIP_HEIGHT = "1.375rem";
 export const MATERIAL_STRIPS_HEIGHT = `2 * ${STRIP_HEIGHT}`;
 
@@ -18,6 +19,7 @@ const pieceLabels = {
 export function MaterialBoardLayout({
   children,
   evalBar,
+  moveNavBar,
   showMaterialBalance,
   fen,
   orientation,
@@ -26,6 +28,7 @@ export function MaterialBoardLayout({
 }: {
   children: ReactNode;
   evalBar?: ReactNode;
+  moveNavBar?: ReactNode;
   showMaterialBalance: boolean;
   fen: string;
   orientation: "white" | "black";
@@ -35,9 +38,15 @@ export function MaterialBoardLayout({
   const balance = showMaterialBalance ? materialBalance(fen) : null;
   const bottom = orientation === "white" ? "w" : "b";
   const top = bottom === "w" ? "b" : "w";
-  const height = balance ? `calc(100cqh - ${MATERIAL_STRIPS_HEIGHT})` : "100cqh";
+  const boardAreaHeight = moveNavBar ? `calc(100cqh - ${MOVE_NAV_ROW_HEIGHT})` : "100cqh";
+  // At the dock's minimum height, leave room for the board as well as both strips.
+  const stripHeight = moveNavBar
+    ? `max(0px, min(${STRIP_HEIGHT}, calc(${boardAreaHeight} / 3)))`
+    : STRIP_HEIGHT;
+  const height = balance ? `calc(${boardAreaHeight} - 2 * ${stripHeight})` : boardAreaHeight;
   const width = evalBar ? "calc(100cqw - 1.625rem)" : "100cqw";
   const boardSize = `max(0px, min(${height}, ${width}))`;
+  const boardRows = balance ? `${stripHeight} ${boardSize} ${stripHeight}` : boardSize;
 
   function renderStrip(color: MaterialColor, opponent: MaterialColor, row: number) {
     if (!balance) return null;
@@ -71,7 +80,7 @@ export function MaterialBoardLayout({
       className="grid gap-x-1.5"
       style={{
         gridTemplateColumns: evalBar ? `1.25rem ${boardSize}` : boardSize,
-        gridTemplateRows: balance ? `${STRIP_HEIGHT} ${boardSize} ${STRIP_HEIGHT}` : boardSize,
+        gridTemplateRows: moveNavBar ? `${boardRows} ${MOVE_NAV_ROW_HEIGHT}` : boardRows,
       }}
     >
       {renderStrip(top, bottom, 1)}
@@ -82,6 +91,14 @@ export function MaterialBoardLayout({
         {children}
       </div>
       {renderStrip(bottom, top, 3)}
+      {moveNavBar ? (
+        <div
+          className="flex min-w-0 items-end justify-self-center"
+          style={{ gridColumn: -2, gridRow: -2, width: "max-content", maxWidth: boardSize }}
+        >
+          {moveNavBar}
+        </div>
+      ) : null}
     </div>
   );
 }
