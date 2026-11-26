@@ -343,13 +343,18 @@ export function stripFalse(body: string, { falseClaims, illegalLines, unverified
   // A line that leaves the engine keeps the moves that follow it; with none, its sentence goes.
   const kept = new Map(unverifiedLines.flatMap(({ raw, keep }) => keep ? [[raw, keep]] : []));
   const dropped = unverifiedLines.filter(({ keep }) => !keep).map(({ raw }) => `[[${raw}]]`);
-  const withoutIllegal = body.replace(lines, (line, raw: string) =>
-    illegalLines.includes(raw) ? "" : kept.has(raw) ? `[[${kept.get(raw)}]]` : line);
-  if (!falseClaims.length && !dropped.length) return withoutIllegal.trim();
+  const illegal = illegalLines.map((raw) => `[[${raw}]]`);
+  const revised = body.replace(lines, (line, raw: string) => kept.has(raw) ? `[[${kept.get(raw)}]]` : line);
+  const withoutIllegal = (text: string) => text.replace(lines, (line, raw: string) => illegalLines.includes(raw) ? "" : line);
+  if (!falseClaims.length && !dropped.length && !illegal.length) return revised.trim();
 
-  return dropSentences(withoutIllegal, (sentence, original) =>
+  // An illegal line takes its sentence too, unless a legal line is left there: removing only
+  // the line would leave "the engine gives  as best".
+  return withoutIllegal(dropSentences(revised, (sentence, original) =>
     falseClaims.some(({ claim }) => mentionsClaim(sentence, claim)) ||
-    dropped.some((line) => original.includes(line)));
+    dropped.some((line) => original.includes(line)) ||
+    (illegal.some((line) => original.includes(line)) && !withoutIllegal(original).includes("[["))))
+    .replace(/[^\S\n]+$/gm, "").trim();
 }
 
 function dropSentences(body: string, drop: (sentence: string, original: string) => boolean): string {

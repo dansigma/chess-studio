@@ -32,6 +32,14 @@ test("checks the pinning piece, blocked diagonal, defense, hanging piece and thr
   assert.match(audit.falseClaims[0].truth, /e7/);
 });
 
+test("drops the sentence around an illegal line instead of leaving a gap", () => {
+  const position = replayAnswerPosition(DEFAULT_POSITION, undefined);
+  const body = "### Linha principal\nO engine aponta [[1.e5]] como continuação principal. A avaliação é de igualdade.";
+  const audit = auditAnswer(body, [], position);
+  assert.deepEqual(audit.illegalLines, ["1.e5"]);
+  assert.equal(stripFalse(body, audit), "### Linha principal\nA avaliação é de igualdade.");
+});
+
 test("checks historical lines only when replay reaches the current board", () => {
   const chess = new Chess();
   chess.move("c4");
