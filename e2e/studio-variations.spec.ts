@@ -84,6 +84,38 @@ test("forward at a branch opens the chooser and follows the pick", async ({
   ).toBeVisible();
 });
 
+test("ArrowRight enters the highlighted continuation by exactly one half-move", async ({
+  page,
+}) => {
+  await page.goto("/studio");
+  const board = page.locator("[data-board-image]");
+  await expect(board.locator('[data-square="e2"]')).toBeVisible();
+
+  await playSquares(page, board, ["e2", "e4", "e7", "e5"]);
+  const back = page.getByRole("button", { name: "Back", exact: true }).first();
+  await back.click();
+
+  // Give c5 a child so an extra forward step would land on Nf3.
+  await playSquares(page, board, ["c7", "c5", "g1", "f3"]);
+  const activeMove = page.locator('button[aria-current="step"]').first();
+  await expect(activeMove).toHaveText(/Nf3/);
+  await back.click();
+  await back.click();
+  await expect(activeMove).toHaveText(/e4/);
+
+  await page.keyboard.press("ArrowRight");
+  const dialog = page.getByRole("dialog", { name: "Choose a continuation" });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await expect(dialog.getByRole("button", { name: /c5/ })).toHaveAttribute(
+    "data-active",
+    "true",
+  );
+  await page.keyboard.press("ArrowRight");
+  await expect(dialog).toHaveCount(0);
+  await expect(activeMove).toHaveText(/c5/);
+});
+
 test("forward with a single child advances without a dialog", async ({
   page,
 }) => {
