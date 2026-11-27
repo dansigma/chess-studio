@@ -388,56 +388,22 @@ export function importPgn(pgn: string): ImportedGame {
   return openablePgn(pgn) ?? emptyImported();
 }
 
-export function mainlinePathForPgn(tree: GameTree, pgn: string): Path {
-  const chunk = pgnGameChunks(pgn, { keepClocks: true })[0] ?? pgn.trim();
+export function openFileGamePgn(pgn: string): ImportedGame | null {
+  const chunk = pgnGameChunks(pgn, { keepClocks: true })[0];
   if (!chunk) {
-    return [];
+    return null;
   }
-  const imported = importOneGame(chunk);
-  const first = imported?.tree.children[0];
-  if (!first) {
-    return [];
+  const game = importOneGame(chunk);
+  if (!game) {
+    return null;
   }
-  const path: Path = [];
-  let siblings = tree.children;
-  let node: TreeNode | undefined = first;
-  while (node) {
-    const index = siblings.findIndex((child) => child.uci === node?.uci);
-    if (index < 0) {
-      break;
-    }
-    path.push(index);
-    siblings = siblings[index]?.children ?? [];
-    node = node.children[0];
+  const customStart = fenKey(game.tree.startFen) !== fenKey(START_FEN);
+  if (game.tree.children.length === 0 && !customStart && !hasPgnGameHeaders(chunk)) {
+    return null;
   }
-  return path;
-}
-
-export function openListedFileGame(databasePgn: string, gamePgn: string): ImportedGame | null {
-  const selected = importPgn(gamePgn);
-  if (selected.tree.children.length === 0) {
-    return hasPgnGameHeaders(gamePgn) || fenKey(selected.tree.startFen) !== fenKey(START_FEN)
-      ? selected
-      : null;
-  }
-  const merged = openablePgn(databasePgn);
-  const sameStart =
-    merged !== null && fenKey(merged.tree.startFen) === fenKey(selected.tree.startFen);
-  if (!sameStart) {
-    return {
-      ...selected,
-      path: fenKey(selected.tree.startFen) === fenKey(START_FEN) ? selected.path : [],
-    };
-  }
-  if (selected.tree.startComment) {
-    merged.tree.startComment = selected.tree.startComment;
-  }
-  return {
-    ...merged,
-    path: mainlinePathForPgn(merged.tree, gamePgn),
-    headers: selected.headers,
-    title: selected.title,
-  };
+  // A chapter that starts from its own FEN opens on that position (with its
+  // intro comment); a normal game opens at the end of its mainline.
+  return { ...game, path: customStart ? [] : mainLineEnd(game.tree) };
 }
 
 function importParsedPgn(trimmed: string): ImportedGame {

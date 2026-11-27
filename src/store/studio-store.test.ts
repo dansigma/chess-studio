@@ -6,7 +6,7 @@ import { repertoireMoveKey, scheduleReview } from "../chess/repertoire.ts";
 import { loadLocalBookmarks, saveLocalBookmarks, type PlayerBookmark } from "../lib/player-bookmarks.ts";
 import { clearGuestBoards, GUEST_BOARDS_KEY } from "../lib/guest-boards.ts";
 import type { PlayerGame, PlayerHit } from "../lib/player-types.ts";
-import { EMPTY_FILES, loadLocalFiles, saveLocalFiles, type FilesLibrary } from "../lib/user-files.ts";
+import { EMPTY_FILES, libraryFromPgn, loadLocalFiles, saveLocalFiles, type FilesLibrary } from "../lib/user-files.ts";
 import { useStudioStore, selectActiveBoard, boardPreview, emptyBoard, type BoardSession, type StudioSettings } from "./studio-store.ts";
 
 // Regression coverage for the cross-user residue fix (spec t_c7273126):
@@ -637,4 +637,74 @@ test("boardPreview shows a localized starting position for a board with no moves
   assert.equal(boardPreview(board), "starting position");
   assert.equal(boardPreview(board, "en"), "starting position");
   assert.equal(boardPreview(board, "pt-br"), "Posição inicial");
+});
+
+const PERSONAL_DATABASE_PGN = `[Event "Open Game"]
+[White "Alice"]
+[Black "Bob"]
+[Date "2024.03.07"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 1-0
+
+[Event "Sicilian Game"]
+[White "Carol"]
+[Black "David"]
+
+1. e4 c5 2. Nc3 *`;
+
+test("opening and saving a personal database game keeps its own moves and headers", () => {
+  resetStore();
+  try {
+    const database = libraryFromPgn("Two games", PERSONAL_DATABASE_PGN, null);
+    useStudioStore.setState({ files: { folders: [], databases: [database] } });
+    const game = database.games[0];
+    const expected = importPgn(game.pgn);
+    const state = useStudioStore.getState();
+
+    state.openFileGame(game);
+    const board = state.active();
+    assert.equal(board.title, game.title);
+    assert.deepEqual(board.headers, expected.headers);
+    assert.deepEqual(board.tree.children.map(({ san }) => san), ["e4"]);
+    assert.deepEqual(board.tree.children[0].children.map(({ san }) => san), ["e5"]);
+
+    assert.equal(state.addActiveGameToDatabase({ name: "Saved game" }), true);
+    const saved = useStudioStore.getState().files.databases[1].games[0];
+    assert.match(saved.pgn, /1\. e4 e5 2\. Nf3 1-0/);
+    assert.doesNotMatch(saved.pgn, /c5|Nc3/);
+    const exported = importPgn(saved.pgn);
+    for (const [tag, value] of Object.entries(expected.headers)) {
+      assert.equal(exported.headers[tag], value);
+    }
+  } finally {
+    resetStore();
+  }
+});
+
+test("opening a personal database game on a new board jumps to its matching ply", () => {
+  resetStore();
+  try {
+    const database = libraryFromPgn("Two games", PERSONAL_DATABASE_PGN, null);
+    useStudioStore.setState({ files: { folders: [], databases: [database] } });
+    const game = database.games[1];
+    const imported = importPgn(game.pgn);
+    const atFen = getFenAt(imported.tree, [0, 0]);
+    const state = useStudioStore.getState();
+    state.openFileGame(game, { atFen, openInNewBoard: true });
+
+    const opened = useStudioStore.getState();
+    assert.equal(opened.boards.length, state.boards.length + 1);
+    assert.equal(opened.boards[0], state.boards[0]);
+    assert.equal(opened.active().title, game.title);
+    assert.deepEqual(opened.active().path, [0, 0]);
+    assert.equal(getFenAt(opened.active().tree, opened.active().path), atFen);
+
+    state.openFileGame(game, { atFen: START_FEN });
+    assert.deepEqual(opened.active().path, []);
+    state.openFileGame(game, { atFen: getFenAt(importPgn(database.games[0].pgn).tree, [0, 0]) });
+    assert.deepEqual(opened.active().path, imported.path);
+  } finally {
+    resetStore();
+  }
 });
