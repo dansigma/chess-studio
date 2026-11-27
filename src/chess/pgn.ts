@@ -397,9 +397,13 @@ export function openFileGamePgn(pgn: string): ImportedGame | null {
   if (!game) {
     return null;
   }
-  const hasPosition = game.tree.children.length > 0 ||
-    fenKey(game.tree.startFen) !== fenKey(START_FEN);
-  return hasPosition || hasPgnGameHeaders(chunk) ? game : null;
+  const customStart = fenKey(game.tree.startFen) !== fenKey(START_FEN);
+  if (game.tree.children.length === 0 && !customStart && !hasPgnGameHeaders(chunk)) {
+    return null;
+  }
+  // A chapter that starts from its own FEN opens on that position (with its
+  // intro comment); a normal game opens at the end of its mainline.
+  return customStart ? { ...game, path: [] } : game;
 }
 
 function importParsedPgn(trimmed: string): ImportedGame {

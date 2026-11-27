@@ -47,7 +47,7 @@ test("choosing a chapter keeps its own position and comment", () => {
   assert.ok(opened);
   assert.equal(opened.tree.startFen, fen);
   assert.equal(opened.tree.startComment, "Chigorin is better.");
-  assert.deepEqual(opened.path, [0]);
+  assert.deepEqual(opened.path, []);
   assert.equal(opened.headers.White, "Isidor Gunsberg");
 });
 
