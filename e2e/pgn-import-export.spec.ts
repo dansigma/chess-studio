@@ -12,6 +12,16 @@ const SHORT_GAME = `[Event "Smoke"]
 
 1. e4 e5 2. Nf3 1-0`;
 
+test("opening one game from the clipboard loads the board without a games list", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/studio");
+  await page.evaluate((pgn) => navigator.clipboard.writeText(pgn), SHORT_GAME);
+  await page.getByRole("button", { name: "File", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Open from clipboard" }).click();
+  await expect(page.locator('[data-board-image] [data-square="f3"] [data-piece="wN"]')).toBeVisible();
+  await expect(page.getByRole("button", { name: "Smoke", exact: true })).toHaveCount(0);
+});
+
 test("pgn import/export round-trips a short game", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/studio");

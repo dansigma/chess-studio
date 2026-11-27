@@ -46,9 +46,7 @@ test("mobile studio: no h-scroll, board and move strip, tap jumps", async ({ pag
   expect(box!.width).toBeLessThanOrEqual(390);
   expect(box!.width).toBeGreaterThan(300);
 
-  // Load a PGN through the hidden file input (no sidebar on mobile).
-  // openPgnSource lands the game on the active board via importPgnText;
-  // openStudioPanel("fileGames") is a no-op without a registered dock.
+  // Load one game through the hidden file input without opening the Games sheet.
   await page.locator('.studio-screen input[type="file"]').setInputFiles({
     name: "smoke.pgn",
     mimeType: "text/plain",
@@ -58,6 +56,7 @@ test("mobile studio: no h-scroll, board and move strip, tap jumps", async ({ pag
   // The strip lists the moves.
   const strip = page.locator("[data-mobile-move-strip]");
   await expect(strip.getByRole("button", { name: "Nf3", exact: true })).toBeVisible();
+  await expect(page.locator("[data-mobile-file-games]")).toHaveCount(0);
 
   // Tapping a move jumps the board position: after jumping to e4 (ply 1)
   // the white pawn sits on e4, so the e4 square renders a white pawn piece
@@ -82,6 +81,20 @@ test("mobile studio: no h-scroll, board and move strip, tap jumps", async ({ pag
   const statusBox = await page.locator(".studio-screen > footer").boundingBox();
   expect(statusBox).not.toBeNull();
   expect(statusBox!.y + statusBox!.height).toBeLessThanOrEqual(844);
+});
+
+test("mobile studio: opening a multi-game PGN saves it and opens the Games sheet", async ({ page }) => {
+  await page.goto("/studio");
+  await page.locator('.studio-screen input[type="file"]').setInputFiles({
+    name: "club-match.pgn",
+    mimeType: "text/plain",
+    buffer: Buffer.from(`${SHORT_GAME}\n\n${TABS_GAME}`),
+  });
+
+  const games = page.locator("[data-mobile-file-games]");
+  await expect(games.getByRole("button", { name: "Smoke", exact: true })).toBeVisible();
+  await expect(games.getByRole("button", { name: "Mobile Tabs", exact: true })).toBeVisible();
+  await expect(page.getByText('Saved to My files as "club-match" (1/10 databases)')).toBeVisible();
 });
 
 /**

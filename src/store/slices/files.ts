@@ -668,23 +668,37 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
   },
   showFileDatabase: (id) => set({ activeFileDatabaseId: id }),
   openPgnSource: (name, pgn) => {
-    const id = get().importFileDatabase(name, pgn);
-    // importFileDatabase reports which quota (databases or games) was hit;
-    // importPgnText below clears the status, so keep that message.
-    const quotaMessage = id ? null : get().statusMessage;
+    const { games } = parsePgnCollection(pgn, 2);
+    if (games.length === 0) {
+      set({ statusMessage: "Could not open that PGN." });
+      return "failed";
+    }
     get().importPgnText(pgn, name);
     if (get().statusMessage === "Could not open that PGN.") {
-      return;
+      return "failed";
     }
-    if (!id) {
-      set({ statusMessage: quotaMessage });
-      return;
+    if (games.length === 1) {
+      return "board";
     }
-    const database = get().files.databases.find((item) => item.id === id);
-    const count = database?.games.length ?? 0;
-    if (count > 0) {
-      set({ statusMessage: `Opened ${count} game${count === 1 ? "" : "s"}` });
+
+    const { files, settings: { locale } } = get();
+    const limit = String(MAX_DATABASES);
+    if (files.databases.length >= MAX_DATABASES) {
+      set({ statusMessage: tStudioChrome(locale, "chrome.file.openPgnDatabaseLimit", { limit }) });
+      return "board";
     }
+    const databaseName = name.trim() || "Database";
+    if (!get().importFileDatabase(databaseName, pgn)) {
+      return "board";
+    }
+    set({
+      statusMessage: tStudioChrome(locale, "chrome.file.openPgnSaved", {
+        name: databaseName,
+        count: String(get().files.databases.length),
+        limit,
+      }),
+    });
+    return "database";
   },
   openFileGame: (game, options) => {
     const database = get().files.databases.find((item) =>
