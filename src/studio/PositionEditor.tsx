@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Chessboard, type PieceRenderObject } from "react-chessboard";
 import { Eraser, MousePointer2 } from "lucide-react";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
@@ -11,6 +11,7 @@ import {
   WHITE_SETUP_PIECES,
   buildSetupFen,
   enPassantCandidates,
+  moveSetupOrLegalPiece,
   moveSetupPiece,
   parseSetupFen,
   placeSetupPiece,
@@ -67,6 +68,8 @@ export type PositionEditorProps = {
   boardId: string;
   /** Adds castling-rights checkboxes and an en passant selector. */
   advanced?: boolean;
+  /** Apply legal cursor moves with chess rules before falling back to free setup. */
+  trackLegalMoves?: boolean;
   /** Extra buttons at the start / end of the tool row (Apply, Close, …). */
   toolbarStart?: ReactNode;
   toolbarEnd?: ReactNode;
@@ -89,6 +92,7 @@ export function PositionEditor({
   showMaterialBalance = false,
   boardId,
   advanced = false,
+  trackLegalMoves = false,
   toolbarStart,
   toolbarEnd,
   className = "flex h-full min-h-0 w-full flex-col overflow-hidden bg-studio-panel",
@@ -100,10 +104,17 @@ export function PositionEditor({
   const [position, setPosition] = useState<SetupPosition>(() => parse(value));
   const [tool, setTool] = useState<Tool>("cursor");
   const [held, setHeld] = useState<string | null>(null);
+  const [turnFlash, setTurnFlash] = useState(0);
   const [fenText, setFenText] = useState(() => buildSetupFen(parse(value)));
   const fen = buildSetupFen(position);
   const theme = boardSquareStyles(boardTheme);
   const pieces = piecesForSet(pieceSet);
+
+  useEffect(() => {
+    if (turnFlash === 0) return;
+    const timeout = setTimeout(() => setTurnFlash(0), 400);
+    return () => clearTimeout(timeout);
+  }, [turnFlash]);
 
   // A value that did not come from our own edits (shortcuts, a pasted FEN upstream) replaces the position.
   const [seenValue, setSeenValue] = useState(value);
@@ -133,6 +144,19 @@ export function PositionEditor({
     if (nextFen !== fen) {
       onChange(nextFen);
     }
+  }
+
+  function moveCursorPiece(from: string, to: string) {
+    if (trackLegalMoves) {
+      const next = parse(moveSetupOrLegalPiece(fen, from, to));
+      if (next.turn !== position.turn) {
+        setTurnFlash((flash) => flash + 1);
+        commit(next);
+        return;
+      }
+    }
+    // Keep the editor's setup rights when pieces are temporarily moved off their starting squares.
+    commit(moveSetupPiece(position, from, to));
   }
 
   function applyFenText() {
@@ -226,7 +250,7 @@ export function PositionEditor({
                     commit(placeSetupPiece(position, sourceSquare, null));
                     return true;
                   }
-                  commit(moveSetupPiece(position, sourceSquare, targetSquare));
+                  moveCursorPiece(sourceSquare, targetSquare);
                   setHeld(null);
                   return true;
                 },
@@ -241,7 +265,7 @@ export function PositionEditor({
                     return;
                   }
                   if (held) {
-                    commit(moveSetupPiece(position, held, square));
+                    moveCursorPiece(held, square);
                     setHeld(null);
                     return;
                   }
@@ -298,8 +322,12 @@ export function PositionEditor({
       <div className="flex items-center gap-2 border-t border-studio-border px-2 py-2">
         <Button
           size="sm"
-          className="shrink-0 gap-1.5"
-          onClick={() => commit({ ...position, turn: position.turn === "w" ? "b" : "w" })}
+          className="shrink-0 gap-1.5 data-[turn-flash]:ring-2 data-[turn-flash]:ring-studio-accent"
+          data-turn-flash={turnFlash > 0 ? "" : undefined}
+          onClick={() => {
+            setTurnFlash(0);
+            commit({ ...position, turn: position.turn === "w" ? "b" : "w" });
+          }}
         >
           <span
             aria-hidden="true"

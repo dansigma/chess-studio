@@ -220,6 +220,19 @@ export function moveSetupPiece(
   return { ...position, pieces };
 }
 
+export function moveSetupOrLegalPiece(fen: string, from: string, to: string): string {
+  if (!positionProblem(fen)) {
+    try {
+      const chess = new Chess(fen);
+      chess.move({ from, to, promotion: "q" });
+      return buildSetupFen(parseSetupFen(chess.fen()));
+    } catch {
+      // The editor also accepts moves that are only valid as board edits.
+    }
+  }
+  return buildSetupFen(moveSetupPiece(parseSetupFen(fen), from, to));
+}
+
 export type PositionProblem =
   | { code: "kings"; white: number; black: number }
   | { code: "pawnRank" }

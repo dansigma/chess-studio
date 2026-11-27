@@ -72,9 +72,14 @@ export function rangeSummary(a: number | null, b: number | null): string {
   return low !== null ? `≥ ${low}` : `≤ ${high}`;
 }
 
-function fenSummary(fen: string): string {
-  const placement = fen.split(" ")[0] ?? fen;
-  return placement.length > 14 ? `${placement.slice(0, 14)}…` : placement;
+function fenSummary(fen: string, locale: SiteLocale): string {
+  const [placement = "", turn] = fen.trim().split(/\s+/);
+  const summary = placement.length > 14 ? `${placement.slice(0, 14)}…` : placement;
+  if (turn === "w" || turn === "b") {
+    const side = tLibrary(locale, turn === "w" ? "library.chip.white" : "library.chip.black");
+    return `${summary} (${side})`;
+  }
+  return summary;
 }
 
 export function buildFilterChips(
@@ -128,7 +133,7 @@ export function buildFilterChips(
     );
   }
   if (filters.position) {
-    push("position", "library.chip.position", fenSummary(filters.position.fen));
+    push("position", "library.chip.position", fenSummary(filters.position.fen, locale));
   }
   const player = filters.player.trim();
   if (player) {

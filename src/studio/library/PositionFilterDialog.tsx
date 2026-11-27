@@ -83,6 +83,7 @@ export function PositionFilterDialog({ onClose }: { onClose: () => void }) {
         </div>
         <PositionEditor
           advanced
+          trackLegalMoves
           value={fen}
           onChange={setFen}
           error={error}
