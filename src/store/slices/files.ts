@@ -3,7 +3,7 @@ import type { StateCreator } from "zustand";
 import { fenKey, mainlinePathForFen } from "@/src/chess/tree";
 import { parsePgnCollection } from "@/src/chess/pgn-games";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
-import { openListedFileGame } from "@/src/chess/pgn";
+import { openFileGamePgn } from "@/src/chess/pgn";
 import {
   bookmarkKey,
   deleteRemoteBookmark,
@@ -704,16 +704,12 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     const database = get().files.databases.find((item) =>
       item.games.some((entry) => entry.id === game.id),
     );
-    const combined = database && database.games.length > 1;
-    const pgn = combined ? database.games.map((entry) => entry.pgn).join("\n\n") : game.pgn;
-    const imported = openListedFileGame(pgn, game.pgn);
+    const imported = openFileGamePgn(game.pgn);
     if (!imported) {
       set({ statusMessage: "Could not open that PGN." });
       return;
     }
-    // SIG-909: landing jump for the position-search panel. Walk the merged
-    // tree's mainline for atFen; fall back to the imported path when the hit
-    // game is not on that mainline so the board never blanks.
+    const title = game.title || imported.title;
     let path = imported.path;
     if (options?.atFen) {
       const jump = mainlinePathForFen(imported.tree, options.atFen);
@@ -725,8 +721,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     // append a new independent board (preview: false) and make it active.
     if (options?.openInNewBoard) {
       const board: BoardSession = {
-        ...emptyBoard(combined ? database.name : (game.title || imported.title)),
-        title: combined ? database.name : (game.title || imported.title),
+        ...emptyBoard(title),
         tree: imported.tree,
         path,
         headers: imported.headers,
@@ -762,7 +757,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       activeFileGameId: game.id,
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
-        title: combined ? database.name : (game.title || imported.title),
+        title,
         tree: imported.tree,
         path,
         headers: imported.headers,

@@ -492,15 +492,23 @@ test("remote Library paging follows the actual rows even when game_count is zero
   const ranges: number[][] = [];
   const pageError = new Error("could not read second page");
   let failSecondPage = false;
+  const datedRows = [
+    { ...makePgnGame(0), date: "2024-03-07" },
+    { ...makePgnGame(1), date: null, pgn: '[Event "Archive"] [Date "1972.??.??"]\n\n1. e4 e5 *' },
+    { ...makePgnGame(2), date: "", pgn: '[Date "1985.11.09"]\n\n1. e4 e5 *' },
+  ];
   const query = {
-    select: () => query,
+    select: (columns: string) => {
+      assert.ok(columns.split(", ").includes("date"));
+      return query;
+    },
     eq: () => query,
     order: () => query,
     range: async (start: number, end: number) => {
       ranges.push([start, end]);
       if (start && failSecondPage) return { error: pageError };
       const count = start === 0 ? 1000 : 1;
-      return { data: Array.from({ length: count }, (_, index) => makePgnGame(start + index)), error: null };
+      return { data: Array.from({ length: count }, (_, index) => datedRows[start + index] ?? makePgnGame(start + index)), error: null };
     },
   };
   (globalThis as { __sig1037Fake?: unknown }).__sig1037Fake = {
@@ -519,6 +527,9 @@ test("remote Library paging follows the actual rows even when game_count is zero
   };
   const files = await loadRemoteFiles("user-1");
   assert.equal(files.databases[0].games.length, 1001);
+  assert.deepEqual(files.databases[0].games.slice(0, 4).map(({ date }) => date), [
+    "2024.03.07", "1972.??.??", "1985.11.09", "",
+  ]);
   assert.deepEqual(ranges, [[0, 999], [1000, 1999]]);
   failSecondPage = true;
   await assert.rejects(loadRemoteFiles("user-1"), pageError);

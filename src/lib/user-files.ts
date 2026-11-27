@@ -460,6 +460,11 @@ function sqlDate(value: string | undefined): string | null {
   return `${match[1]}-${match[2]}-${match[3]}`;
 }
 
+function dateFromPgn(pgn: string): string {
+  // Avoid replaying moves on reload for undated games.
+  return /\[\s*Date\s+"/.test(pgn) ? (importPgn(pgn).headers.Date ?? "") : "";
+}
+
 function countMoves(tree: GameTree): number {
   let count = 0;
   const walk = (nodes: GameTree["children"]) => {
@@ -615,7 +620,7 @@ export async function loadRemoteFiles(userId: string): Promise<FilesLibrary> {
     for (let offset = 0; ; offset += pageSize) {
       const { data: page, error: gamesError } = await supabase
         .from("games")
-        .select("id, white, black, event, result, pgn")
+        .select("id, white, black, event, result, date, pgn")
         .eq("database_id", row.id)
         .eq("pending", false)
         .order("id")
@@ -630,7 +635,9 @@ export async function loadRemoteFiles(userId: string): Promise<FilesLibrary> {
           black: game.black,
           result: game.result ?? "*",
           event: game.event ?? "",
-          date: "",
+          date: game.date
+            ? game.date.replaceAll("-", ".")
+            : dateFromPgn(game.pgn),
           pgn: game.pgn,
           title: `${game.white} vs ${game.black}`,
         });
