@@ -56,6 +56,29 @@ test("FEN field round trip: typed FEN is normalized and applied", () => {
 test("side to move toggle updates the FEN field", () => {
   fireEvent.click(screen.getByRole("button", { name: "White to play" }));
   assert.ok(fenInput().value.split(" ")[1] === "b");
+  assert.equal(screen.getByRole("button", { name: "Black to play" }).hasAttribute("data-turn-flash"), false);
+});
+
+test("cursor moves flash the automatic turn change and allow a manual override", () => {
+  const clickSquare = (square: string) => {
+    const element = document.querySelector(`[data-square="${square}"]`);
+    assert.ok(element);
+    fireEvent.click(element);
+  };
+
+  clickSquare("e2");
+  clickSquare("e4");
+  const turn = screen.getByRole("button", { name: "Black to play" });
+  assert.equal(turn.hasAttribute("data-turn-flash"), true);
+
+  fireEvent.click(turn);
+  assert.equal(fenInput().value.split(" ")[1], "w");
+  assert.equal(screen.getByRole("button", { name: "White to play" }).hasAttribute("data-turn-flash"), false);
+
+  clickSquare("e7");
+  clickSquare("e5");
+  assert.equal(fenInput().value, "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 1");
+  assert.equal(screen.getByRole("button", { name: "White to play" }).hasAttribute("data-turn-flash"), false);
 });
 
 test("castling checkbox updates rights; unavailable rights are disabled", () => {

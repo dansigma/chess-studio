@@ -7,6 +7,7 @@ import {
   buildSetupFen,
   emptySetupPosition,
   isLegalSetupFen,
+  moveSetupOrLegalPiece,
   moveSetupPiece,
   parseSetupFen,
   placeSetupPiece,
@@ -118,4 +119,34 @@ test("moveSetupPiece moves, no-ops on same square or empty", () => {
   const moved = moveSetupPiece(base, "e2", "e4");
   assert.equal(moved.pieces.e4, "wP");
   assert.equal(moved.pieces.e2, undefined);
+});
+
+test("legal opening moves alternate turns and normalize both clocks", () => {
+  let fen = START_FEN;
+  for (const [from, to, turn] of [["d2", "d4", "b"], ["d7", "d5", "w"], ["b1", "c3", "b"]]) {
+    fen = moveSetupOrLegalPiece(fen, from, to);
+    assert.equal(parseSetupFen(fen).turn, turn);
+    assert.ok(fen.endsWith(" 0 1"));
+  }
+  assert.equal(fen, "rnbqkbnr/ppp1pppp/8/3p4/3P4/2N5/PPP1PPPP/R1BQKBNR b KQkq - 0 1");
+});
+
+test("legal castling moves the rook and clears the king's castling rights", () => {
+  const fen = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 6 20";
+  assert.equal(moveSetupOrLegalPiece(fen, "e1", "g1"), "r3k2r/8/8/8/8/8/8/R4RK1 b kq - 0 1");
+  assert.equal(moveSetupOrLegalPiece(fen, "e1", "c1"), "r3k2r/8/8/8/8/8/8/2KR3R b kq - 0 1");
+});
+
+test("a legal double push sets en passant and the next move can capture", () => {
+  const fen = moveSetupOrLegalPiece("4k3/8/8/8/3p4/8/4P3/4K3 w - - 0 1", "e2", "e4");
+  assert.equal(fen, "4k3/8/8/8/3pP3/8/8/4K3 b - e3 0 1");
+  assert.equal(moveSetupOrLegalPiece(fen, "d4", "e3"), "4k3/8/8/8/8/4p3/8/4K3 w - - 0 1");
+});
+
+test("free moves preserve the turn for same-side moves and invalid diagrams", () => {
+  const fen = moveSetupOrLegalPiece(START_FEN, "e2", "e4");
+  assert.equal(moveSetupOrLegalPiece(fen, "d2", "d4"), "rnbqkbnr/pppppppp/8/8/3PP3/8/PPP2PPP/RNBQKBNR b KQkq - 0 1");
+  assert.equal(moveSetupOrLegalPiece("8/8/8/8/8/8/4P3/8 w - - 5 10", "e2", "e4"), "8/8/8/8/4P3/8/8/8 w - - 0 1");
+  assert.equal(moveSetupOrLegalPiece("4k3/8/8/8/8/8/4R3/4K3 w - - 0 1", "e2", "e3"),
+    "4k3/8/8/8/8/4R3/8/4K3 w - - 0 1");
 });

@@ -57,6 +57,17 @@ test("removal resets only that field", () => {
   assert.deepEqual(chipRemovalPatch(f({}), src), { sources: ["masters"] });
 });
 
+test("position chips append the localized side to move when present", () => {
+  const board = "8/8/8/8/8/8/8/8";
+  const label = (suffix: string, locale: "en" | "pt-br") =>
+    buildFilterChips(f({ position: { fen: board + suffix } }), sources, locale)[0].label;
+  assert.equal(label(" w - - 0 1", "pt-br"), "Posição: 8/8/8/8/8/8/8/… (Brancas)");
+  assert.equal(label(" b - - 0 1", "pt-br"), "Posição: 8/8/8/8/8/8/8/… (Pretas)");
+  assert.equal(label(" w - - 0 1", "en"), "Position: 8/8/8/8/8/8/8/… (White)");
+  assert.equal(label(" b - - 0 1", "en"), "Position: 8/8/8/8/8/8/8/… (Black)");
+  assert.equal(label("", "en"), "Position: 8/8/8/8/8/8/8/…");
+});
+
 test("chips name sources that apply the filter only partly or not at all", () => {
   const chips = buildFilterChips(f({ opponent: "a", color: "white", result: "1-0" }), sources, "en");
   assert.deepEqual(chips[0].limitedBy, ["Masters (Lichess)"]); // partial text search
