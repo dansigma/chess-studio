@@ -26,6 +26,7 @@ export function NewDatabaseDialog({ onClose }: { onClose: () => void }) {
   const selectedFolderId = useSelectedFolderId();
   const [name, setName] = useState("");
   const [folderId, setFolderId] = useState(selectedFolderId ?? "");
+  const [error, setError] = useState<string | null>(null);
   const options = buildFolderTree(folders, [], "").folderOptions;
   const destination = options.some((option) => option.id === folderId) ? folderId : "";
   const atLimit = count >= MAX_DATABASES;
@@ -34,7 +35,11 @@ export function NewDatabaseDialog({ onClose }: { onClose: () => void }) {
   function createDatabase() {
     if (!canCreate) return;
     const id = useStudioStore.getState().createFileDatabase(name, destination || null);
-    if (!id) return;
+    if (!id) {
+      // The store reports why (e.g. the quota was reached since the dialog opened).
+      setError(useStudioStore.getState().statusMessage);
+      return;
+    }
 
     // Register the file source before selecting it so it can be resolved immediately.
     registerLibraryAdapters(useStudioStore.getState().files.databases);
@@ -46,7 +51,7 @@ export function NewDatabaseDialog({ onClose }: { onClose: () => void }) {
       const path: string[] = [];
       for (
         let folder = folders.find((item) => item.id === destination);
-        folder;
+        folder && !path.includes(folder.id);
         folder = folders.find((item) => item.id === folder?.parentId)
       ) {
         path.push(folder.id);
@@ -94,7 +99,7 @@ export function NewDatabaseDialog({ onClose }: { onClose: () => void }) {
             </select>
           </label>
           <p>{tLibrary(locale, "library.newDatabase.quota", { count, limit: MAX_DATABASES })}</p>
-          {atLimit ? <p role="alert">{tLibrary(locale, "library.quota.databases")}</p> : null}
+          {atLimit ? <p role="alert">{tLibrary(locale, "library.quota.databases")}</p> : error ? <p role="alert">{error}</p> : null}
         </form>
       )}
     </Dialog>
