@@ -128,8 +128,10 @@ def split_by_event(game_items, rng):
             fit_events.add(ek)
             fit_items.extend(group)
 
-    assert fit_events.isdisjoint(held_events), "Event leakage between fit and held-out splits"
-    assert fit_items and held_items, "Both fit and held-out splits must be non-empty"
+    if not fit_events.isdisjoint(held_events):
+        raise ValueError("Event leakage between fit and held-out splits")
+    if not (fit_items and held_items):
+        raise ValueError("Both fit and held-out splits must be non-empty")
     return fit_items, held_items, len(fit_events), len(held_events)
 
 
@@ -201,9 +203,9 @@ def load_sf_cache(path):
                 continue
             try:
                 rec = json.loads(line)
-            except json.JSONDecodeError:
+                cache[(rec["fen"], int(rec["depth"]))] = int(rec["cp"])
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
                 continue
-            cache[(rec["fen"], int(rec["depth"]))] = int(rec["cp"])
     return cache
 
 
@@ -218,9 +220,9 @@ def load_maia_cache(path):
                 continue
             try:
                 rec = json.loads(line)
-            except json.JSONDecodeError:
+                cache[(rec["key"], int(rec["elo"]))] = np.array(rec["probs"], dtype=np.float64)
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
                 continue
-            cache[(rec["key"], int(rec["elo"]))] = np.array(rec["probs"], dtype=np.float64)
     return cache
 
 
