@@ -463,7 +463,8 @@ function sqlDate(value: string | undefined): string | null {
 function dateFromPgn(pgn: string): string {
   // Read the tag directly: reloading must not replay every game's moves.
   // Only the header block at the top counts, never a "[Date ...]" in a comment.
-  return /^\s*(?:\[[A-Za-z0-9_]+\s+"[^"]*"\]\s*)*?\[Date\s+"([^"]*)"\]/.exec(pgn)?.[1] ?? "";
+  const headerBlock = /^(?:\s*\[[A-Za-z0-9_]+\s+"[^"]*"\])*/.exec(pgn)?.[0] ?? "";
+  return /\[Date\s+"([^"]*)"\]/.exec(headerBlock)?.[1] ?? "";
 }
 
 function countMoves(tree: GameTree): number {

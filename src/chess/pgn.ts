@@ -403,7 +403,7 @@ export function openFileGamePgn(pgn: string): ImportedGame | null {
   }
   // A chapter that starts from its own FEN opens on that position (with its
   // intro comment); a normal game opens at the end of its mainline.
-  return customStart ? { ...game, path: [] } : game;
+  return { ...game, path: customStart ? [] : mainLineEnd(game.tree) };
 }
 
 function importParsedPgn(trimmed: string): ImportedGame {
