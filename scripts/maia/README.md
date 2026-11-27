@@ -74,3 +74,22 @@ python3 -m venv "$maia_tmp/venv"
   --out-ts src/engine/maia/classical-combined.ts \
   --out-report scripts/maia/combined-report.md
 ```
+
+### Classical move-match evaluation
+
+`scripts/maia/move_match.py` evaluates how well Maia-3's legal-move policy
+predicts the moves actually played in the same held-out classical OTB games
+used by `calibrate_combined.py`, sweeping model ratings `1800, 2000, 2200,
+2300, 2500, 2700, 2900` against FIDE bands `1800..2600`. It reports weighted
+top-1 accuracy, top-3 accuracy, mean log-probability (with 95% event-cluster
+bootstrap CIs), material-phase breakdowns, and a comparison against the
+value-calibrated mapping in `src/engine/maia/classical-calibration.ts`.
+
+```sh
+/home/danilo/data/maia/venv-calib/bin/python scripts/maia/move_match.py \
+  --pgn /home/danilo/data/xd-database/source/LumbrasGigabase_OTB_Complete.pgn \
+  --model /home/danilo/data/maia/maia3-5m.onnx \
+  --cache-dir /home/danilo/data/maia/cache \
+  --seed 1503 --per-band 20000 \
+  --out-report scripts/maia/move-match-report.md
+```

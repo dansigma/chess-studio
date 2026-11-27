@@ -60,6 +60,7 @@ class CombinedSample:
     weight: float
     event_key: str
     token_hash: str
+    played_uci: str = ""
 
 
 def load_classical_calibration():
@@ -184,6 +185,7 @@ def parse_combined_samples(stream, game_items, rng):
                         weight=weight,
                         event_key=event_key,
                         token_hash=token_hash,
+                        played_uci=moves[ply].uci(),
                     )
                 )
             board.push(moves[ply])
