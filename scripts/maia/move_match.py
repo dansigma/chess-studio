@@ -469,7 +469,8 @@ def main():
     parser.add_argument("--cache-dir", default=DEFAULT_CACHE_DIR, type=Path)
     parser.add_argument("--seed", default=1503, type=int)
     parser.add_argument("--per-band", default=20000, type=int)
-    parser.add_argument("--test-elos", type=parse_test_elos, default=DEFAULT_TEST_ELOS)
+    parser.add_argument("--test-elos", type=parse_test_elos, default=None)
+    parser.add_argument("--elo-mode", choices=("mapped", "fide"), default="mapped")
     parser.add_argument("--bootstrap", default=1000, type=int)
     parser.add_argument(
         "--out-report",
@@ -477,6 +478,10 @@ def main():
         type=Path,
     )
     args = parser.parse_args()
+    if args.test_elos is None:
+        args.test_elos = parse_test_elos(
+            DEFAULT_TEST_ELOS if args.elo_mode == "mapped" else "1800,2000,2200,2400,2600"
+        )
     if args.per_band < 2:
         parser.error("--per-band must be at least 2")
     if args.bootstrap < 1:
@@ -526,6 +531,11 @@ def main():
             )
     parse_seconds = monotonic() - parse_started
 
+    cache_name = (
+        "maia_policy_cache.jsonl"
+        if args.model.name == "maia3-5m.onnx"
+        else f"maia_policy_cache_{args.model.stem}.jsonl"
+    )
     maia_started = monotonic()
     with calibrate.Inference(args.model) as session:
         maia_workers = session.workers
@@ -533,7 +543,7 @@ def main():
             session,
             held_by_band,
             args.test_elos,
-            args.cache_dir / "maia_policy_cache.jsonl",
+            args.cache_dir / cache_name,
         )
     maia_seconds = monotonic() - maia_started
 
@@ -541,10 +551,10 @@ def main():
     band_summaries = []
     phase_rows = []
     for band, held_samples in zip(BANDS, held_by_band, strict=True):
-        current_elo = classical[band][0]
+        current_elo = band if args.elo_mode == "fide" else classical[band][0]
         if current_elo not in args.test_elos:
             raise ValueError(
-                f"Current classical modelElo {current_elo} for band {band} "
+                f"Target {args.elo_mode} Elo {current_elo} for band {band} "
                 f"must be included in --test-elos"
             )
         weights = np.array([s.weight for s in held_samples], dtype=np.float64)
