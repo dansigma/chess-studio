@@ -75,10 +75,9 @@ async function importGame(
   const board = page.locator("[data-board-image]");
   await expect(board.locator('[data-square="e2"]')).toBeVisible();
 
-  // SIG-1325: import through the Library (+ Import PGN > Paste PGN), then open the game in the Studio.
+  // SIG-1325: import through the Library toolbar, then open the game in the Studio.
   await page.getByRole("button", { name: "Library" }).first().click();
-  await page.getByRole("button", { name: "+ Import PGN" }).click();
-  await page.getByRole("menuitem", { name: "Paste PGN" }).click();
+  await page.getByTestId("library-header").getByRole("button", { name: "Paste", exact: true }).click();
   await page.getByRole("textbox", { name: "PGN text" }).fill(pgn);
   await page.getByRole("dialog").getByRole("button", { name: "Import", exact: true }).click();
   // The finished import widget sits over the preview's bottom-right; close it first.

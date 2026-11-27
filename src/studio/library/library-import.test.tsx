@@ -1,9 +1,8 @@
-import { after, afterEach, before, test } from "node:test";
+import { after, afterEach, before, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { LibraryView } from "./LibraryView";
-import { LibrarySourceRail } from "./LibrarySourceRail";
 import { resetImportQueue, useImportQueue } from "./import-queue-store";
 import { useLibraryStore } from "./library-store";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -59,12 +58,28 @@ test("dropping files imports each without focusing Files and selects the last on
   assert.match(status, /Imported \d+ game/);
 });
 
-test("the Import PGN button opens a multiple .pgn input", async () => {
-  await act(async () => { render(<LibrarySourceRail sourceErrors={{}} />); });
-  assert.ok(screen.getByRole("button", { name: "+ Import PGN" }));
+test("the header Import button opens a multiple .pgn picker and imports into the selected folder", async () => {
+  const folderId = "picker-target";
+  useStudioStore.setState((s) => ({
+    filesHydrated: true,
+    files: { ...s.files, folders: [{ id: folderId, name: "Picker target", parentId: null }] },
+  }));
+  await act(async () => { render(<LibraryView />); });
+  fireEvent.click(screen.getByRole("button", { name: "Picker target" }));
+
   const input = screen.getByTestId("library-import-input") as HTMLInputElement;
+  const openPicker = mock.method(input, "click");
+  const header = within(screen.getByTestId("library-header"));
+  fireEvent.click(header.getByRole("button", { name: "Import" }));
+  assert.equal(openPicker.mock.callCount(), 1);
   assert.equal(input.accept, ".pgn");
   assert.equal(input.multiple, true);
+
+  await act(async () => { fireEvent.change(input, { target: { files: [pgnFile("Picked.pgn")] } }); });
+  await settle();
+  const picked = useStudioStore.getState().files.databases.find((database) => database.name === "Picked");
+  assert.equal(picked?.folderId, folderId);
+  assert.equal(picked?.games.length, 1);
 });
 
 test("a file that cannot be read shows as failed in the widget and the rest still imports", async () => {

@@ -64,7 +64,7 @@ export type MenuAnchor = { x: number; y: number; top?: number };
 /**
  * SIG-1337: `position: fixed` style for a menu at `anchor`. After the menu is
  * measured, it flips above its trigger when it would run past the bottom of
- * the window (the rail's import and Folders buttons sit at the bottom).
+ * the window.
  */
 export function useMenuPosition(anchor: MenuAnchor, ref: RefObject<HTMLElement | null>): CSSProperties {
   const [top, setTop] = useState(anchor.y);
@@ -106,7 +106,7 @@ export function PopMenu({
   }, [onClose]);
   return (
     <div ref={ref} className="fixed z-[1000]" style={style}>
-      <MenuSurface className="min-w-48" onClose={onClose} label={label}>
+      <MenuSurface style={{ minWidth: MENU_MIN_WIDTH }} onClose={onClose} label={label}>
         {children}
       </MenuSurface>
     </div>
@@ -315,7 +315,7 @@ function FolderMoveFolderDialog({ folder, onClose }: { folder: FileFolder; onClo
 }
 
 /** The Folders menu: create, rename, move and delete the selected folder; refresh from the account. */
-export function FoldersMenu() {
+export function FoldersMenu({ inSheet }: { inSheet: boolean }) {
   const locale = useStudioStore((s) => s.settings.locale);
   const files = useStudioStore((s) => s.files);
   const user = useStudioStore((s) => s.user);
@@ -330,19 +330,23 @@ export function FoldersMenu() {
     setDialog(next);
   };
   const close = () => setDialog(null);
+  const label = t("library.actions.folder");
 
   return (
     <>
       <Button
-        variant="ghost"
         size="sm"
-        className="shrink-0"
+        className={inSheet ? "shrink-0 min-h-11 min-w-11" : "shrink-0"}
+        title={label}
+        aria-label={label}
+        data-escape-defer={inSheet && anchor ? "" : undefined}
         aria-haspopup="menu"
         aria-expanded={anchor !== null}
         data-popmenu-trigger=""
         onClick={(event) => setAnchor(anchor ? null : anchorBelow(event.currentTarget))}
       >
-        {t("library.folders.menu")}
+        <Folder size={14} aria-hidden />
+        <span className={inSheet ? undefined : "hidden @min-[54rem]:inline"}>{label}</span>
       </Button>
       {anchor ? (
         <PopMenu anchor={anchor} label={t("library.folders.menu")} onClose={() => setAnchor(null)}>
