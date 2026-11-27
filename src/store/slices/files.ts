@@ -778,6 +778,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         tree: imported.tree,
         path,
         headers: imported.headers,
+        liveSource: undefined,
         sourceDatabaseId: database?.id,
         sourceGameId: database ? game.id : undefined,
         preview: false,
@@ -816,6 +817,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         tree: imported.tree,
         path,
         headers: imported.headers,
+        liveSource: undefined,
         sourceDatabaseId: database?.id,
         sourceGameId: database ? game.id : undefined,
         // SIG-968: a fresh game replaces the tree — drop any annotate undo.

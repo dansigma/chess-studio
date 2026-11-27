@@ -16,6 +16,8 @@ export type SnapshotBoardRecord = {
   headers: Record<string, string>;
   orientation: BoardOrientation;
   repertoireColor: BoardOrientation | null;
+  sourceDatabaseId?: string;
+  sourceGameId?: string;
   liveSource?: { roundId: string; gameId: string };
   dirty: boolean;
 };
@@ -80,6 +82,10 @@ export function readSnapshotBoard(value: unknown): SnapshotBoardRecord | null {
     headers: isGameHeaders(record.headers) ? record.headers : {},
     orientation: isBoardOrientation(record.orientation) ? record.orientation : "white",
     repertoireColor,
+    ...(typeof record.sourceDatabaseId === "string" && record.sourceDatabaseId &&
+      typeof record.sourceGameId === "string" && record.sourceGameId
+      ? { sourceDatabaseId: record.sourceDatabaseId, sourceGameId: record.sourceGameId }
+      : {}),
     ...(liveSource ? { liveSource } : {}),
     dirty: record.dirty === true,
   };
@@ -95,6 +101,8 @@ export function toSnapshotBoardRecord(board: BoardSession): SnapshotBoardRecord 
     headers: { ...board.headers },
     orientation: board.orientation,
     repertoireColor: board.repertoireColor,
+    sourceDatabaseId: board.sourceDatabaseId,
+    sourceGameId: board.sourceGameId,
     ...(board.liveSource ? { liveSource: { ...board.liveSource } } : {}),
     dirty: board.dirty,
   };
@@ -114,6 +122,8 @@ export function snapshotRecordToBoard(record: SnapshotBoardRecord, title: string
     headers: { ...imported.headers, ...record.headers },
     orientation: record.orientation,
     repertoireColor: record.repertoireColor,
+    sourceDatabaseId: record.sourceDatabaseId,
+    sourceGameId: record.sourceGameId,
     ...(record.liveSource ? { liveSource: { ...record.liveSource } } : {}),
     dirty: record.dirty,
     preview: false,
