@@ -292,6 +292,22 @@ test("persistRemoteDatabase: a 25,000-game first upload swaps once after the las
   );
 });
 
+test("adding the active game to a new database stores it in the selected folder", async () => {
+  const { useStudioStore } = await import("@/src/store/studio-store");
+  const folderId = "studies";
+  useStudioStore.setState({
+    files: { databases: [], folders: [{ id: folderId, name: "Studies", parentId: null }] },
+    user: null,
+  });
+  const state = useStudioStore.getState();
+  state.importPgnText("1. e4 e5 *", "Board");
+
+  assert.equal(state.addActiveGameToDatabase({ name: "Openings", folderId }), true);
+  const [database] = useStudioStore.getState().files.databases;
+  assert.equal(database.folderId, folderId);
+  assert.equal(database.games.length, 1);
+});
+
 test("append to a 1,000-game cloud database sends one game write and metadata changes send none", async () => {
   const calls: Record<string, unknown>[] = [];
   const metadata: Record<string, unknown>[] = [];

@@ -3,7 +3,8 @@
 import assert from "node:assert/strict";
 import { after, afterEach, before, test } from "node:test";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useStudioStore } from "@/src/store/studio-store";
 import { NotationToolbar } from "./NotationToolbar";
 
 before(() => setupDom());
@@ -60,4 +61,14 @@ test("the destructive buttons expose their keyboard shortcuts", () => {
     screen.getByRole("button", { name: "Delete variation" }).getAttribute("aria-keyshortcuts"),
     "Control+Delete",
   );
+});
+
+test("the Add to database button opens the dialog", () => {
+  useStudioStore.getState().setAddToDatabaseOpen(false);
+  renderToolbar();
+
+  const button = screen.getByRole("button", { name: "Add to database" });
+  assert.equal(button.title, "Add to database");
+  fireEvent.click(button);
+  assert.equal(useStudioStore.getState().addToDatabaseOpen, true);
 });

@@ -9,13 +9,16 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronsUp,
+  Database,
   MessageSquare,
   Scissors,
   Trash2,
 } from "lucide-react";
 import { canMakeMainline, canPromote, type Path } from "@/src/chess/tree";
 import type { SiteLocale } from "@/src/i18n/locale.ts";
+import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
+import { useStudioStore } from "@/src/store/studio-store";
 import { IconButton } from "./ui/Button";
 
 export function NotationToolbar({
@@ -92,6 +95,12 @@ export function NotationToolbar({
         onClick={onMakeMainline}
       >
         <ChevronsUp size={14} />
+      </IconButton>
+      <IconButton
+        label={tStudioChrome(locale, "chrome.addToDatabase.title")}
+        onClick={() => useStudioStore.getState().setAddToDatabaseOpen(true)}
+      >
+        <Database size={14} />
       </IconButton>
       {/* SIG-1384: the destructive buttons sit past their own separator so a
           misclick on the navigation cluster cannot cut a variation. */}

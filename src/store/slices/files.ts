@@ -600,6 +600,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       : undefined;
     const name = "name" in destination ? destination.name.trim() : target?.name;
     if (!name) {
+      set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.invalidDestination") });
       return false;
     }
     if (target ? target.games.length >= MAX_GAMES_PER_DATABASE : state.files.databases.length >= MAX_DATABASES) {
@@ -615,15 +616,17 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.tooLarge") });
       return false;
     }
-    const game = parsePgnCollection(pgn, 1).games[0];
+    const game = parsePgnCollection(pgn, 1, { requireMoves: true }).games[0];
     if (!game) {
+      set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.noMoves") });
       return false;
     }
     // Keep the exact export, including whitespace within comments.
     game.pgn = pgn;
+    const folderId = "name" in destination ? destination.folderId ?? null : null;
     const updated: FileDatabase = target
       ? { ...target, games: [...target.games, game] }
-      : { id: newId(), remoteId: null, name, folderId: null, games: [game] };
+      : { id: newId(), remoteId: null, name, folderId, games: [game] };
     const files = {
       ...state.files,
       databases: target
@@ -633,7 +636,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     dropFilesExplorerIndex(updated.id);
     set({ files, statusMessage: tStudioChrome(locale, "chrome.addToDatabase.added", { name }) });
     cacheFiles(set, get, files);
-    syncAndReport(set, get, updated, "Game saved locally, but the position index could not be saved.", target?.games);
+    syncAndReport(set, get, updated, tStudioChrome(locale, "chrome.addToDatabase.indexError"), target?.games);
     return true;
   },
   replaceFileDatabaseGames: (id, games) => {

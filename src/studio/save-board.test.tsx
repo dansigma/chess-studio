@@ -259,18 +259,77 @@ test("Add to database saves the active PGN to the selected Library database", as
   assert.equal(useStudioStore.getState().statusMessage, "Added to Second");
 });
 
-test("Add to database can create a named database and save a move-less board", async () => {
+test("Add to database can create a named database at the root", async () => {
   const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
   useStudioStore.setState({ files: { folders: [], databases: [] } });
-  useStudioStore.getState().newBoard();
   render(<AddToDatabaseDialog onClose={() => {}} />);
+  assert.equal((screen.getByLabelText("Destination folder") as HTMLSelectElement).value, "");
   fireEvent.change(screen.getByLabelText("Database name"), { target: { value: "  Studies  " } });
   fireEvent.click(screen.getByRole("button", { name: "Add" }));
   const [database] = useStudioStore.getState().files.databases;
   assert.equal(database.name, "Studies");
+  assert.equal(database.folderId, null);
   assert.equal(database.games.length, 1);
   useStudioStore.getState().openFileGame(database.games[0]);
   assert.equal(useStudioStore.getState().statusMessage, null);
+});
+
+test("Add to database shows the folder picker only when creating a database", async () => {
+  const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
+  const state = useStudioStore.getState();
+  useStudioStore.setState({ files: { folders: [], databases: [] } });
+  state.createFileFolder("Openings");
+  const [parent] = useStudioStore.getState().files.folders;
+  state.createFileFolder("Sicilian", parent.id);
+  const child = useStudioStore.getState().files.folders.find((folder) => folder.parentId === parent.id)!;
+  const existing = state.importFileDatabase("Existing", "1. d4 *");
+  render(<AddToDatabaseDialog onClose={() => {}} />);
+
+  const destination = screen.getByLabelText("Database");
+  assert.equal(screen.queryByLabelText("Destination folder"), null);
+  fireEvent.change(destination, { target: { value: "" } });
+  const folderSelect = screen.getByLabelText("Destination folder") as HTMLSelectElement;
+  assert.deepEqual(Array.from(folderSelect.options, (option) => option.value), ["", parent.id, child.id]);
+  assert.match(folderSelect.options[2].textContent ?? "", /^\u00a0\u00a0Sicilian$/);
+  fireEvent.change(folderSelect, { target: { value: child.id } });
+  fireEvent.change(destination, { target: { value: existing } });
+  assert.equal(screen.queryByLabelText("Destination folder"), null);
+  fireEvent.change(destination, { target: { value: "" } });
+  fireEvent.change(screen.getByLabelText("Database name"), { target: { value: "Sicilian studies" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  assert.equal(useStudioStore.getState().files.databases[1].folderId, child.id);
+});
+
+test("Add to database shows quota and disables creation at the limit", async () => {
+  const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
+  const { MAX_DATABASES } = await import("@/src/lib/user-files");
+  useStudioStore.setState({
+    files: {
+      folders: [],
+      databases: Array.from({ length: MAX_DATABASES }, (_, i) => ({
+        id: String(i), remoteId: null, name: `Database ${i}`, folderId: null, games: [],
+      })),
+    },
+  });
+  render(<AddToDatabaseDialog onClose={() => {}} />);
+
+  assert.ok(screen.getByText(`Personal databases: ${MAX_DATABASES} / ${MAX_DATABASES}`));
+  assert.ok(screen.getByText(`You can keep up to ${MAX_DATABASES} personal databases.`));
+  assert.equal((screen.getByRole("option", { name: "Create a database…" }) as HTMLOptionElement).disabled, true);
+  assert.equal((screen.getByRole("button", { name: "Add" }) as HTMLButtonElement).disabled, false);
+});
+
+test("Add to database announces the no-moves validation error inline", async () => {
+  const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
+  useStudioStore.setState({ files: { folders: [], databases: [] } });
+  useStudioStore.getState().newBoard();
+  let closed = false;
+  render(<AddToDatabaseDialog onClose={() => { closed = true; }} />);
+  fireEvent.change(screen.getByLabelText("Database name"), { target: { value: "Studies" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  assert.equal(screen.getByRole("alert").textContent, "Play at least one move before adding the game.");
+  assert.equal(useStudioStore.getState().files.databases.length, 0);
+  assert.equal(closed, false);
 });
 
 test("Cancel closes Add to database without saving", async () => {
