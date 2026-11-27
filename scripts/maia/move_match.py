@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import random
+import shlex
 import sys
 from time import monotonic
 
@@ -30,9 +31,6 @@ PHASE_BUCKETS = (
     ("0.4–<0.75", lambda phase: (phase >= 0.4) & (phase < 0.75)),
     ("<0.4", lambda phase: phase < 0.4),
 )
-REPRO_PGN = "/home/danilo/data/xd-database/source/LumbrasGigabase_OTB_Complete.pgn"
-REPRO_MODEL = "/home/danilo/data/maia/maia3-5m.onnx"
-REPRO_CACHE = "/home/danilo/data/maia/cache"
 
 
 def parse_test_elos(value):
@@ -454,12 +452,7 @@ def write_report(
         "## Reproduction",
         "",
         "```sh",
-        f"/home/danilo/data/maia/venv-calib/bin/python scripts/maia/move_match.py \\",
-        f"  --pgn {REPRO_PGN} \\",
-        f"  --model {REPRO_MODEL} \\",
-        f"  --cache-dir {REPRO_CACHE} \\",
-        f"  --seed 1503 --per-band 20000 \\",
-        f"  --out-report scripts/maia/move-match-report.md",
+        shlex.join([sys.executable, *sys.argv]),
         "```",
         "",
     ])
@@ -486,6 +479,8 @@ def main():
     args = parser.parse_args()
     if args.per_band < 2:
         parser.error("--per-band must be at least 2")
+    if args.bootstrap < 1:
+        parser.error("--bootstrap must be at least 1")
 
     calibrate.verify_encoder()
     calibrate.verify_phase()
