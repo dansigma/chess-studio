@@ -122,8 +122,10 @@ export function snapshotRecordToBoard(record: SnapshotBoardRecord, title: string
     headers: { ...imported.headers, ...record.headers },
     orientation: record.orientation,
     repertoireColor: record.repertoireColor,
-    sourceDatabaseId: record.sourceDatabaseId,
-    sourceGameId: record.sourceGameId,
+    // Restore the database link only as a complete pair.
+    ...(record.sourceDatabaseId && record.sourceGameId
+      ? { sourceDatabaseId: record.sourceDatabaseId, sourceGameId: record.sourceGameId }
+      : {}),
     ...(record.liveSource ? { liveSource: { ...record.liveSource } } : {}),
     dirty: record.dirty,
     preview: false,

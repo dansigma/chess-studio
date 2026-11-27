@@ -235,6 +235,9 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
       if (!board) return {};
       return editBoard(state, (item) => ({
         ...item,
+        // Live moves replace the tree: it is no longer the saved database game.
+        sourceDatabaseId: undefined,
+        sourceGameId: undefined,
         tree,
         path,
         headers: result && result !== item.headers.Result

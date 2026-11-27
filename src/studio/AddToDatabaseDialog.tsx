@@ -63,7 +63,16 @@ export function AddToDatabaseDialog({ onClose }: { onClose: () => void }) {
             const destination = selected ? { id: selected } : { name, folderId: selectedFolder || null };
             let saved: boolean;
             if (update && activeBoard.sourceGameId) {
-              if (selectActiveBoard(state) !== activeBoard || state.addToDatabasePgn !== null) return;
+              // Compare by id: autosave replaces the board object without changing the game.
+              const current = selectActiveBoard(state);
+              if (
+                current.id !== activeBoard.id ||
+                current.sourceGameId !== activeBoard.sourceGameId ||
+                state.addToDatabasePgn !== null
+              ) {
+                setError(tStudioChrome(locale, "chrome.addToDatabase.invalidDestination"));
+                return;
+              }
               saved = state.updateFileGame(sourceDatabase.id, activeBoard.sourceGameId, state.exportActivePgn());
             } else {
               saved = state.addToDatabasePgn === null
