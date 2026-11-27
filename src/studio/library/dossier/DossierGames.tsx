@@ -19,6 +19,7 @@ import { EcoBadge } from "../../ui/EcoBadge";
 import { outcomeFor, PlayerCell } from "../../ui/PlayerCell";
 import { Panel } from "../../ui/Panel";
 import { moveSelection } from "../library-columns";
+import { loadXdGamePgn } from "@/src/lib/xd-database/client";
 import { GamePreview } from "../LibraryPreview";
 import { useDossierStore } from "./dossier-store";
 
@@ -370,6 +371,11 @@ export function DossierGames({ games }: { games: PlayerGame[] }) {
                 pgn={preview.pgn}
                 game={preview.game}
                 orientation={selectedGame.color}
+                loadFullPgn={
+                  selectedGame.xdId !== undefined
+                    ? () => loadXdGamePgn(String(selectedGame.xdId))
+                    : undefined
+                }
               />
             </div>
           ) : null}

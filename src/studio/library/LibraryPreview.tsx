@@ -161,6 +161,8 @@ export type GamePreviewProps = {
   orientation?: "white" | "black";
   /** Position the cursor starts on (the Library's filtered position). */
   startFen?: string | null;
+  /** Full PGN for "Add to database" when `pgn` is a shortened preview (Base Xadrez Digital dossier lines). */
+  loadFullPgn?: () => Promise<string>;
 };
 
 /**
@@ -182,6 +184,7 @@ export function GamePreview({
   game,
   orientation,
   startFen,
+  loadFullPgn,
 }: GamePreviewProps) {
   const { tree, headers } = game;
   // React ids contain ":", which breaks the board's `url(#id-…)` SVG references.
@@ -377,7 +380,21 @@ export function GamePreview({
         <Button variant="secondary" size="sm" onClick={trainLine} disabled={trainDisabledReason !== undefined} title={trainDisabledReason}>
           {tLibrary(locale, "library.preview.train")}
         </Button>
-        <Button variant="secondary" size="sm" onClick={() => useStudioStore.getState().setAddToDatabaseOpen(true, pgn)}>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!pgn.trim() || tree.children.length === 0}
+          onClick={() => {
+            const open = (full: string) => useStudioStore.getState().setAddToDatabaseOpen(true, full);
+            if (!loadFullPgn) {
+              open(pgn);
+              return;
+            }
+            void loadFullPgn().then(open, () =>
+              useStudioStore.getState().setStatus(tLibrary(locale, "library.table.openFailed", { message: "PGN" })),
+            );
+          }}
+        >
           {tLibrary(locale, "library.saveToDatabase")}
         </Button>
         <Button variant="primary" size="sm" onClick={openGameInStudio}>
