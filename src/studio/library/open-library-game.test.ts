@@ -105,3 +105,19 @@ test("a failed PGN load reports the error and opens no dialog", async () => {
   assert.equal(useStudioStore.getState().addToDatabaseOpen, false);
   assert.match(useStudioStore.getState().statusMessage ?? "", /offline/);
 });
+
+test("personal Library games open with the stored game identity and database link", async () => {
+  const initial = useStudioStore.getState();
+  const id = initial.importFileDatabase("Personal", PGN);
+  const game = useStudioStore.getState().files.databases.find((database) => database.id === id)!.games[0];
+  useStudioStore.setState({ openFileGame: originalOpenFileGame });
+  try {
+    await openLibraryGame({ ...ITEM, sourceId: `file:${id}`, gameId: game.id }, "en");
+    const board = useStudioStore.getState().active();
+    assert.equal(board.sourceDatabaseId, id);
+    assert.equal(board.sourceGameId, game.id);
+    assert.equal(getLibrarySource.mock.callCount(), 0);
+  } finally {
+    useStudioStore.setState({ files: initial.files, boards: initial.boards, activeBoardId: initial.activeBoardId });
+  }
+});

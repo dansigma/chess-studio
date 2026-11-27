@@ -2,6 +2,7 @@ import { importPgn } from "@/src/chess/pgn";
 import { parsePgnCollection } from "@/src/chess/pgn-games";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tLibrary } from "@/src/i18n/library-strings";
+import { fileDatabaseId } from "@/src/lib/explorer-types";
 import { getLibrarySource } from "@/src/lib/library/sources";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
@@ -34,19 +35,26 @@ export async function saveLibraryGameToDatabase(item: LibraryGameItem, locale: S
   }
 }
 
-/** Loads the game's PGN through its source adapter and opens it in a new Studio board. */
+/** Opens the selected game in a new Studio board. */
 export async function openLibraryGame(item: LibraryGameItem, locale: SiteLocale): Promise<void> {
   try {
-    const pgn = await loadPgn(item);
-    const game = parsePgnCollection(pgn, 1).games[0];
+    const store = useStudioStore;
+    const databaseId = fileDatabaseId(item.sourceId);
+    const game = databaseId !== null
+      ? store.getState().files.databases.find((database) => database.id === databaseId)
+        ?.games.find((entry) => entry.id === item.gameId)
+      : parsePgnCollection(await loadPgn(item), 1).games[0];
     if (!game) {
       throw new Error("PGN");
     }
     // SIG-1403: honour an active position filter so the board lands on the
     // searched ply; `openFileGame` falls back to move 0 when the FEN is off-tree.
     const atFen = useLibraryStore.getState().filters.position?.fen;
-    const store = useStudioStore;
-    store.getState().openFileGame(game, atFen ? { openInNewBoard: true, atFen } : { openInNewBoard: true });
+    store.getState().openFileGame(game, {
+      openInNewBoard: true,
+      ...(atFen ? { atFen } : {}),
+      ...(databaseId !== null ? { databaseId } : {}),
+    });
     const active = selectActiveBoard(store.getState());
     openBoardPanel(active.id, active.title);
     // SIG-1403: the dock is hidden behind LibraryView, so opening a game must

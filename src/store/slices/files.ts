@@ -41,6 +41,7 @@ import {
   saveLocalFiles,
   type FileDatabase,
   type FileFolder,
+  type FileGame,
   type FilesLibrary,
 } from "@/src/lib/user-files";
 import { emptyBoard, newId, withActive } from "./board-helpers";
@@ -69,6 +70,8 @@ export type FilesSlice = Pick<
   | "createFileDatabase"
   | "addActiveGameToDatabase"
   | "addPgnGameToDatabase"
+  | "updateFileGame"
+  | "deleteFileGame"
   | "replaceFileDatabaseGames"
   | "showFileDatabase"
   | "openPgnSource"
@@ -263,6 +266,22 @@ function syncAndReport(
       set({ statusMessage: error ? localizedSaveError(error, get().settings.locale) : indexMessage });
     }
   });
+}
+
+function parseGameForSave(set: FilesSet, locale: StudioState["settings"]["locale"], pgn: string): FileGame | null {
+  if (new TextEncoder().encode(pgn).length > MAX_GAME_PGN_BYTES) {
+    set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.tooLarge") });
+    return null;
+  }
+  // A study position (custom FEN) may be saved without moves; a game from
+  // the standard start needs at least one.
+  const game = parsePgnCollection(pgn, 1, { requireMoves: !/^\s*\[FEN\s+"/m.test(pgn) }).games[0];
+  if (!game) {
+    set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.noMoves") });
+    return null;
+  }
+  // Keep the original PGN, including whitespace within comments.
+  return { ...game, pgn };
 }
 
 /** Saves a new database locally and syncs it for signed-in users. */
@@ -624,19 +643,8 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       });
       return false;
     }
-    if (new TextEncoder().encode(pgn).length > MAX_GAME_PGN_BYTES) {
-      set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.tooLarge") });
-      return false;
-    }
-    // A study position (custom FEN) may be saved without moves; a game from
-    // the standard start needs at least one.
-    const game = parsePgnCollection(pgn, 1, { requireMoves: !/^\s*\[FEN\s+"/m.test(pgn) }).games[0];
-    if (!game) {
-      set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.noMoves") });
-      return false;
-    }
-    // Keep the original PGN, including whitespace within comments.
-    game.pgn = pgn;
+    const game = parseGameForSave(set, locale, pgn);
+    if (!game) return false;
     // Ignore a folder deleted while the dialog was open.
     const folderId = "name" in destination && destination.folderId &&
       state.files.folders.some((folder) => folder.id === destination.folderId)
@@ -657,6 +665,24 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
     syncAndReport(set, get, updated, tStudioChrome(locale, "chrome.addToDatabase.indexError"), target?.games);
     return true;
   },
+  updateFileGame: (databaseId, gameId, pgn) => {
+    const { files, settings: { locale } } = get();
+    const target = files.databases.find((database) => database.id === databaseId);
+    if (!target?.games.some((game) => game.id === gameId)) {
+      set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.invalidDestination") });
+      return false;
+    }
+    const game = parseGameForSave(set, locale, pgn);
+    if (!game) return false;
+    return get().replaceFileDatabaseGames(databaseId, target.games.map((entry) =>
+      entry.id === gameId ? { ...game, id: gameId } : entry,
+    ));
+  },
+  deleteFileGame: (databaseId, gameId) => {
+    const target = get().files.databases.find((database) => database.id === databaseId);
+    if (!target?.games.some((game) => game.id === gameId)) return false;
+    return get().replaceFileDatabaseGames(databaseId, target.games.filter((game) => game.id !== gameId));
+  },
   replaceFileDatabaseGames: (id, games) => {
     const target = get().files.databases.find((item) => item.id === id);
     if (!target) {
@@ -667,6 +693,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       return false;
     }
     const updated: FileDatabase = { ...target, games };
+    const remainingIds = new Set(games.map((game) => game.id));
     dropFilesExplorerIndex(id);
     set((state) => {
       const files = {
@@ -677,8 +704,13 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       const message = `${updated.name}: ${games.length} game${games.length === 1 ? "" : "s"}`;
       return {
         files,
+        boards: state.boards.map((board) =>
+          board.sourceDatabaseId === id && board.sourceGameId && !remainingIds.has(board.sourceGameId)
+            ? { ...board, sourceDatabaseId: undefined, sourceGameId: undefined }
+            : board,
+        ),
         activeFileGameId:
-          state.activeFileDatabaseId === id && !games.some((game) => game.id === state.activeFileGameId)
+          state.activeFileDatabaseId === id && state.activeFileGameId && !remainingIds.has(state.activeFileGameId)
             ? null
             : state.activeFileGameId,
         statusMessage: message,
@@ -723,7 +755,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
   },
   openFileGame: (game, options) => {
     const database = get().files.databases.find((item) =>
-      item.games.some((entry) => entry.id === game.id),
+      (!options?.databaseId || item.id === options.databaseId) && item.games.some((entry) => entry.id === game.id),
     );
     const imported = openFileGamePgn(game.pgn);
     if (!imported) {
@@ -746,6 +778,8 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         tree: imported.tree,
         path,
         headers: imported.headers,
+        sourceDatabaseId: database?.id,
+        sourceGameId: database ? game.id : undefined,
         preview: false,
         // SIG-968: a fresh game replaces the tree — no annotate undo carries over.
         reviewAnnotateUndo: undefined,
@@ -782,6 +816,8 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         tree: imported.tree,
         path,
         headers: imported.headers,
+        sourceDatabaseId: database?.id,
+        sourceGameId: database ? game.id : undefined,
         // SIG-968: a fresh game replaces the tree — drop any annotate undo.
         reviewAnnotateUndo: undefined,
         dirty: true,
@@ -825,6 +861,9 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
         files,
         activeFileDatabaseId: state.activeFileDatabaseId === id ? null : state.activeFileDatabaseId,
         activeFileGameId: state.activeFileDatabaseId === id ? null : state.activeFileGameId,
+        boards: state.boards.map((board) =>
+          board.sourceDatabaseId === id ? { ...board, sourceDatabaseId: undefined, sourceGameId: undefined } : board,
+        ),
         databaseSource: selectedId === id ? "masters" : state.databaseSource,
       };
     });
