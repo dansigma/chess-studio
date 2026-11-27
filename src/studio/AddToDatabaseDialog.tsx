@@ -89,11 +89,22 @@ export function AddToDatabaseDialog({ onClose }: { onClose: () => void }) {
             <>
               <label className="flex flex-col gap-1 text-caption text-studio-muted">
                 {tStudioChrome(locale, "chrome.addToDatabase.name")}
-                <input required value={name} onChange={(event) => setName(event.target.value)} className={FIELD_CLASS} />
+                <input
+                  required
+                  value={name}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setError(null);
+                  }}
+                  className={FIELD_CLASS}
+                />
               </label>
               <label className="flex flex-col gap-1 text-caption text-studio-muted">
                 {tStudioChrome(locale, "chrome.addToDatabase.folder")}
-                <select value={selectedFolder} onChange={(event) => setFolderId(event.target.value)} className={FIELD_CLASS}>
+                <select value={selectedFolder} onChange={(event) => {
+                    setFolderId(event.target.value);
+                    setError(null);
+                  }} className={FIELD_CLASS}>
                   <option value="">{tLibrary(locale, "library.folders.none")}</option>
                   {folderOptions.map((folder) => (
                     <option key={folder.id} value={folder.id}>

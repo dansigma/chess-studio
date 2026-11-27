@@ -616,14 +616,20 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.tooLarge") });
       return false;
     }
-    const game = parsePgnCollection(pgn, 1, { requireMoves: true }).games[0];
+    // A study position (custom FEN) may be saved without moves; a game from
+    // the standard start needs at least one.
+    const game = parsePgnCollection(pgn, 1, { requireMoves: !/^\s*\[FEN\s+"/m.test(pgn) }).games[0];
     if (!game) {
       set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.noMoves") });
       return false;
     }
     // Keep the exact export, including whitespace within comments.
     game.pgn = pgn;
-    const folderId = "name" in destination ? destination.folderId ?? null : null;
+    // Ignore a folder deleted while the dialog was open.
+    const folderId = "name" in destination && destination.folderId &&
+      state.files.folders.some((folder) => folder.id === destination.folderId)
+      ? destination.folderId
+      : null;
     const updated: FileDatabase = target
       ? { ...target, games: [...target.games, game] }
       : { id: newId(), remoteId: null, name, folderId, games: [game] };

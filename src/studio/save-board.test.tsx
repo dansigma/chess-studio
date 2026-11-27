@@ -332,6 +332,18 @@ test("Add to database announces the no-moves validation error inline", async () 
   assert.equal(closed, false);
 });
 
+test("Add to database saves a study position without moves", async () => {
+  const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
+  useStudioStore.setState({ files: { folders: [], databases: [] } });
+  useStudioStore.getState().importPgnText('[FEN "8/8/8/8/8/8/8/K6k w - - 0 1"]\n[SetUp "1"]\n\n*', "Study");
+  render(<AddToDatabaseDialog onClose={() => {}} />);
+  fireEvent.change(screen.getByLabelText("Database name"), { target: { value: "Endgames" } });
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  const [database] = useStudioStore.getState().files.databases;
+  assert.equal(database?.games.length, 1);
+  assert.match(database.games[0].pgn, /\[FEN "8\/8\/8\/8\/8\/8\/8\/K6k w - - 0 1"\]/);
+});
+
 test("Cancel closes Add to database without saving", async () => {
   const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
   const files = { folders: [], databases: [] };
