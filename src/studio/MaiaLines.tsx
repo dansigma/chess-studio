@@ -102,9 +102,8 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
   // Only a result for exactly this position (same FENs, rating, mode and count) is shown.
   const current = analysis?.position === position ? analysis : undefined;
   const chances = useMemo(() => {
-    if (!current || !("chances" in current) || !current.chances || !currentFen) {
-      return current && "chances" in current ? current.chances : null;
-    }
+    if (!current || !("chances" in current) || !current.chances) return null;
+    if (!currentFen) return current.chances;
     return resolveMaiaChances(current.chances, currentFen, mode, elo, cachedEval, engineActive);
   }, [current, currentFen, mode, elo, cachedEval, engineActive]);
   const status = statusKey(current);

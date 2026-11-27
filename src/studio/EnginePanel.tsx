@@ -217,6 +217,7 @@ export function EnginePanel() {
         : tPanels(locale, "engine.status.lineNoNps", { depth: display.depth, target: depthTarget });
   const running = info.running && !paused;
   const live = inStudio && !info.failed && (running || (started && !paused && !info.ready));
+  // SIG-1518: MaiaLines combines Maia with the cached eval only while the engine is active.
   const engineActive = started && !paused && !info.failed && inStudio && !retryActive;
   useEffect(() => {
     setEngineActive(engineActive);

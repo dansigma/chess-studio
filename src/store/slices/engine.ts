@@ -45,8 +45,8 @@ export const createEngineSlice: StateCreator<StudioState, [], [], EngineSlice> =
   insightMarks: null,
   explorerHover: null,
   setEnginePreview: (enginePreview: EnginePreview | null) => set({ enginePreview }),
-  setEngineActive: (engineActive: boolean) => {
-    if (get().engineActive !== engineActive) set({ engineActive });
+  setEngineActive: (active: boolean) => {
+    if (get().engineActive !== active) set({ engineActive: active });
   },
   setThreat: (threat: ThreatMark | null) => set({ threat }),
   // SIG-959: transient overlay only — never touches `boards`, so no dirty flag.
