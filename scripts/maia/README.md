@@ -52,3 +52,25 @@ keeping the configured model Elos.
 
 Keep the PGN, model, and virtual environment outside Git. The report records
 the sample sizes, rating sweep, held-out metrics, and runtime.
+
+### Combined Maia + Stockfish calibration
+
+`scripts/maia/calibrate_combined.py` fits a per-band multinomial logistic
+regression (Draw as reference class) combining Maia's raw value-head log-odds,
+Stockfish depth-16 centipawn evaluation (`tanh(cp / 400)`), and material phase.
+Games are held out by tournament (`Event` + year), and Stockfish/Maia outputs
+are cached as resumable JSONL files outside the repo.
+
+```sh
+maia_tmp="$(mktemp -d)"
+python3 -m venv "$maia_tmp/venv"
+"$maia_tmp/venv/bin/pip" install onnxruntime==1.32.0 python-chess==1.999 numpy
+"$maia_tmp/venv/bin/python" scripts/maia/calibrate_combined.py \
+  --pgn /home/danilo/data/xd-database/source/LumbrasGigabase_OTB_Complete.pgn \
+  --model /home/danilo/data/maia/maia3-5m.onnx \
+  --stockfish /home/danilo/data/stockfish/stockfish-19 \
+  --cache-dir /home/danilo/data/maia/cache \
+  --seed 1503 --per-band 20000 \
+  --out-ts src/engine/maia/classical-combined.ts \
+  --out-report scripts/maia/combined-report.md
+```
