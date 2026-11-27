@@ -27,6 +27,7 @@ from encoding import board_to_uint8  # noqa: E402
 
 ELO_MIN = 1600
 ELO_MAX = 2900
+SHARD_FORMAT_VERSION = 2
 DEFAULT_TEST_SEED = 1503
 DEFAULT_TEST_PER_BAND = 20000
 DEFAULT_VAL_FRACTION = 0.02
@@ -227,6 +228,8 @@ def _process_chunk(
     oppo_elo_list: list[int] = []
     game_id_list: list[int] = []
     ply_list: list[int] = []
+    legal_idx_list: list[int] = []
+    legal_lens_list: list[int] = []
     band_pos_counts = Counter()
     band_game_counts = Counter()
     skipped = 0
@@ -260,6 +263,8 @@ def _process_chunk(
             g_self: list[int] = []
             g_oppo: list[int] = []
             g_ply: list[int] = []
+            g_legal_idx: list[int] = []
+            g_legal_lens: list[int] = []
             valid = True
 
             for ply, move in enumerate(moves):
@@ -267,9 +272,15 @@ def _process_chunk(
                     valid = False
                     break
                 turn = board.turn
+                legal = [calibrate.move_index(m, turn) for m in board.legal_moves]
+                if not legal:
+                    valid = False
+                    break
                 g_boards.append(board_to_uint8(board))
                 g_stm.append(0 if turn == chess.WHITE else 1)
                 g_move.append(calibrate.move_index(move, turn))
+                g_legal_idx.extend(legal)
+                g_legal_lens.append(len(legal))
                 if turn == chess.WHITE:
                     g_res.append(white_result)
                     g_self.append(white_elo)
@@ -298,6 +309,8 @@ def _process_chunk(
             oppo_elo_list.extend(g_oppo)
             game_id_list.extend([game_id] * n_pos)
             ply_list.extend(g_ply)
+            legal_idx_list.extend(g_legal_idx)
+            legal_lens_list.extend(g_legal_lens)
 
     if not boards_list:
         return {
@@ -320,17 +333,34 @@ def _process_chunk(
         "oppo_elo": np.asarray(oppo_elo_list, dtype=np.uint16),
         "game_id": np.asarray(game_id_list, dtype=np.uint32),
         "ply": np.asarray(ply_list, dtype=np.uint16),
+        "legal_idx": np.asarray(legal_idx_list, dtype=np.uint16),
+        "legal_lens": np.asarray(legal_lens_list, dtype=np.int32),
     }
 
 
 def _flush_shard(out_dir: Path, shard_idx: int, buf: list[dict]) -> dict:
     shard_dir = out_dir / f"shard_{shard_idx:04d}"
     shard_dir.mkdir(parents=True, exist_ok=True)
-    fields = ("boards", "stm", "move_idx", "result", "self_elo", "oppo_elo", "game_id", "ply")
+    fields = (
+        "boards",
+        "stm",
+        "move_idx",
+        "result",
+        "self_elo",
+        "oppo_elo",
+        "game_id",
+        "ply",
+        "legal_idx",
+    )
     n_pos = sum(chunk["n"] for chunk in buf)
     for field in fields:
         arr = np.concatenate([chunk[field] for chunk in buf], axis=0)
         np.save(shard_dir / f"{field}.npy", arr)
+    all_lens = np.concatenate([chunk["legal_lens"] for chunk in buf], axis=0)
+    legal_offsets = np.empty(n_pos + 1, dtype=np.int64)
+    legal_offsets[0] = 0
+    np.cumsum(all_lens, dtype=np.int64, out=legal_offsets[1:])
+    np.save(shard_dir / "legal_offsets.npy", legal_offsets)
     return {"name": shard_dir.name, "positions": int(n_pos)}
 
 
@@ -474,6 +504,7 @@ def main():
     )
 
     meta = {
+        "shard_format_version": SHARD_FORMAT_VERSION,
         "pgn": str(args.pgn),
         "elo_range": [ELO_MIN, ELO_MAX],
         "scan_stats": dict(scan_stats),

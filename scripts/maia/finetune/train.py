@@ -24,6 +24,9 @@ THIS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(THIS_DIR))
 from encoding import HISTORY, boards_to_tokens_torch  # noqa: E402
 
+MOVE_VOCAB_SIZE = 4352
+SHARD_FORMAT_VERSION = 2
+
 
 @dataclass
 class ShardHandle:
@@ -34,6 +37,8 @@ class ShardHandle:
     self_elo: np.ndarray
     oppo_elo: np.ndarray
     ply: np.ndarray
+    legal_idx: np.ndarray
+    legal_offsets: np.ndarray
     length: int
 
 
@@ -43,6 +48,13 @@ def load_shards(split_dir: Path) -> list[ShardHandle]:
         raise FileNotFoundError(f"No shard_* directories found in {split_dir}")
     shards: list[ShardHandle] = []
     for sdir in shard_dirs:
+        legal_idx_path = sdir / "legal_idx.npy"
+        legal_offsets_path = sdir / "legal_offsets.npy"
+        if not legal_idx_path.exists() or not legal_offsets_path.exists():
+            raise FileNotFoundError(
+                f"Shard {sdir} is missing legal_idx.npy/legal_offsets.npy "
+                f"(shard format v{SHARD_FORMAT_VERSION} required; re-run prepare_data.py)"
+            )
         boards = np.load(sdir / "boards.npy", mmap_mode="r")
         shards.append(
             ShardHandle(
@@ -53,6 +65,8 @@ def load_shards(split_dir: Path) -> list[ShardHandle]:
                 self_elo=np.load(sdir / "self_elo.npy", mmap_mode="r"),
                 oppo_elo=np.load(sdir / "oppo_elo.npy", mmap_mode="r"),
                 ply=np.load(sdir / "ply.npy", mmap_mode="r"),
+                legal_idx=np.load(legal_idx_path, mmap_mode="r"),
+                legal_offsets=np.load(legal_offsets_path, mmap_mode="r"),
                 length=len(boards),
             )
         )
@@ -88,6 +102,15 @@ class ShardedBoardBatchDataset(Dataset):
         move_y = np.array(shard.move_idx[idx], dtype=np.int64, copy=True)
         value_y = np.array(shard.result[idx], dtype=np.int64, copy=True)
 
+        starts = shard.legal_offsets[idx]
+        ends = shard.legal_offsets[idx + 1]
+        lengths = ends - starts
+        lmax = int(lengths.max())
+        legal_moves = np.full((len(idx), lmax), -1, dtype=np.int64)
+        legal_idx_arr = shard.legal_idx
+        for row, (s, e) in enumerate(zip(starts.tolist(), ends.tolist())):
+            legal_moves[row, : e - s] = legal_idx_arr[s:e]
+
         return (
             torch.from_numpy(hist_boards),
             torch.from_numpy(hist_stm),
@@ -95,6 +118,7 @@ class ShardedBoardBatchDataset(Dataset):
             torch.from_numpy(oppo_elo),
             torch.from_numpy(move_y),
             torch.from_numpy(value_y),
+            torch.from_numpy(legal_moves),
         )
 
 
@@ -172,6 +196,18 @@ def load_base_model(checkpoint: Path | None, device: str) -> MAIA3Model:
     return model
 
 
+def build_legal_mask(legal_moves: torch.Tensor, vocab_size: int = MOVE_VOCAB_SIZE) -> torch.Tensor:
+    """Scatter (B, Lmax) padded (-1) legal move indices into a (B, vocab_size) bool mask."""
+    mask = torch.zeros(
+        (legal_moves.shape[0], vocab_size + 1),
+        device=legal_moves.device,
+        dtype=torch.bool,
+    )
+    safe_idx = torch.where(legal_moves >= 0, legal_moves, vocab_size)
+    mask.scatter_(1, safe_idx, True)
+    return mask[:, :vocab_size]
+
+
 @torch.no_grad()
 def evaluate(
     model: MAIA3Model,
@@ -184,30 +220,39 @@ def evaluate(
     total_policy_ce = 0.0
     total_value_ce = 0.0
     total_top1 = 0
+    total_top3 = 0
     total_n = 0
 
     for b_idx, batch in enumerate(val_loader):
         if max_batches > 0 and b_idx >= max_batches:
             break
-        hist_boards, hist_stm, self_elo, oppo_elo, move_y, value_y = batch
+        hist_boards, hist_stm, self_elo, oppo_elo, move_y, value_y, legal_moves = batch
         hist_boards = hist_boards.to(device, non_blocking=True)
         hist_stm = hist_stm.to(device, non_blocking=True)
         self_elo = self_elo.to(device, non_blocking=True)
         oppo_elo = oppo_elo.to(device, non_blocking=True)
         move_y = move_y.to(device, non_blocking=True)
         value_y = value_y.to(device, non_blocking=True)
+        legal_moves = legal_moves.to(device, non_blocking=True)
 
         tokens = boards_to_tokens_torch(hist_boards, hist_stm)
         with torch.autocast("cuda", dtype=torch.bfloat16):
             logits_move, logits_value, _ = model(tokens, self_elo, oppo_elo)
-        p_ce = F.cross_entropy(logits_move.float(), move_y, reduction="sum").item()
+        legal_mask = build_legal_mask(legal_moves, logits_move.shape[-1])
+        if b_idx == 0:
+            assert legal_mask.gather(1, move_y.unsqueeze(1)).all(), "Val label move outside legal mask"
+        masked_move_logits = logits_move.float().masked_fill(~legal_mask, float("-inf"))
+        p_ce = F.cross_entropy(masked_move_logits, move_y, reduction="sum").item()
         v_ce = F.cross_entropy(logits_value.float(), value_y, reduction="sum").item()
-        top1 = (logits_move.argmax(dim=-1) == move_y).sum().item()
+        top3_idx = masked_move_logits.topk(3, dim=-1).indices
+        top1 = (top3_idx[:, 0] == move_y).sum().item()
+        top3 = (top3_idx == move_y.unsqueeze(1)).any(dim=-1).sum().item()
 
         bsz = move_y.shape[0]
         total_policy_ce += p_ce
         total_value_ce += v_ce
         total_top1 += top1
+        total_top3 += top3
         total_n += bsz
 
     model.train()
@@ -220,6 +265,7 @@ def evaluate(
         "val_value_ce": value_ce,
         "val_loss": policy_ce + lambda_value * value_ce,
         "val_top1": total_top1 / total_n,
+        "val_top3": total_top3 / total_n,
         "val_positions": total_n,
     }
 
@@ -257,8 +303,7 @@ def main():
     parser.add_argument("--batch-size", default=2048, type=int)
     parser.add_argument("--lr", default=3e-5, type=float)
     parser.add_argument("--weight-decay", default=0.01, type=float)
-    # Loss = CE(policy) + lambda_value * CE(value). Plain CE over all 4352 moves
-    # (no illegal-move masking during training, matching standard policy training).
+    # Loss = legal-masked CE(policy) + lambda_value * CE(value).
     parser.add_argument("--lambda-value", default=1.0, type=float)
     parser.add_argument("--max-steps", default=50000, type=int)
     parser.add_argument("--warmup-steps", default=500, type=int)
@@ -369,20 +414,25 @@ def main():
     while step < args.max_steps and not stop_early:
         train_sampler.set_epoch(epoch)
         for batch in train_loader:
-            hist_boards, hist_stm, self_elo, oppo_elo, move_y, value_y = batch
+            hist_boards, hist_stm, self_elo, oppo_elo, move_y, value_y, legal_moves = batch
             hist_boards = hist_boards.to(device, non_blocking=True)
             hist_stm = hist_stm.to(device, non_blocking=True)
             self_elo = self_elo.to(device, non_blocking=True)
             oppo_elo = oppo_elo.to(device, non_blocking=True)
             move_y = move_y.to(device, non_blocking=True)
             value_y = value_y.to(device, non_blocking=True)
+            legal_moves = legal_moves.to(device, non_blocking=True)
 
             tokens = boards_to_tokens_torch(hist_boards, hist_stm)
             with torch.autocast("cuda", dtype=torch.bfloat16):
                 logits_move, logits_value, _ = model(tokens, self_elo, oppo_elo)
-                p_loss = F.cross_entropy(logits_move.float(), move_y)
-                v_loss = F.cross_entropy(logits_value.float(), value_y)
-                loss = p_loss + args.lambda_value * v_loss
+            legal_mask = build_legal_mask(legal_moves, logits_move.shape[-1])
+            if step < 5:
+                assert legal_mask.gather(1, move_y.unsqueeze(1)).all(), "Train label move outside legal mask"
+            masked_move_logits = logits_move.float().masked_fill(~legal_mask, float("-inf"))
+            p_loss = F.cross_entropy(masked_move_logits, move_y)
+            v_loss = F.cross_entropy(logits_value.float(), value_y)
+            loss = p_loss + args.lambda_value * v_loss
 
             optimizer.zero_grad(set_to_none=True)
             loss.backward()

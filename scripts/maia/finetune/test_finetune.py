@@ -64,12 +64,19 @@ def test_loader_and_upstream_parity():
     move_indices = []
     ref_tokens = []
     hist_calib = []
+    legal_idx_all = []
+    legal_lens = []
+    fens = []
 
     for uci in uci_moves:
         move = chess.Move.from_uci(uci)
+        fens.append(board.fen())
         boards_u8.append(board_to_uint8(board))
         stms.append(0 if board.turn == chess.WHITE else 1)
         move_indices.append(calibrate.move_index(move, board.turn))
+        legal = [calibrate.move_index(m, board.turn) for m in board.legal_moves]
+        legal_idx_all.extend(legal)
+        legal_lens.append(len(legal))
         hist_calib.append(calibrate.board_channels(board))
         ref_tokens.append(calibrate.encode_history(hist_calib).astype(np.float32))
         board.push(move)
@@ -87,25 +94,59 @@ def test_loader_and_upstream_parity():
         np.save(shard_dir / "game_id.npy", np.zeros(n, dtype=np.uint32))
         np.save(shard_dir / "ply.npy", np.arange(n, dtype=np.uint16))
 
+        # Verify v1 shards without legal moves are refused.
         try:
-            import torch
-            from encoding import boards_to_tokens_torch
-            from train import ShardedBoardBatchDataset
+            import torch  # noqa: F401
+            from train import ShardedBoardBatchDataset, build_legal_mask
 
-            ds = ShardedBoardBatchDataset(Path(tmp) / "train")
-            idx = np.arange(n, dtype=np.int64)
-            hb, hs, _se, _oe, my, _vy = ds[(0, idx)]
-            got_tokens = boards_to_tokens_torch(hb, hs).numpy()
-            for ply in range(n):
-                assert np.array_equal(got_tokens[ply], ref_tokens[ply]), f"Loader mismatch at ply {ply}"
-                assert int(my[ply]) == move_indices[ply]
+            try:
+                ShardedBoardBatchDataset(Path(tmp) / "train")
+                raise AssertionError("Expected FileNotFoundError for v1 shard without legal moves")
+            except FileNotFoundError:
+                pass
         except ImportError:
             pass
 
-    # If upstream maia3 is installed (desktop), compare directly against get_historical_tokens.
+        legal_offsets = np.empty(n + 1, dtype=np.int64)
+        legal_offsets[0] = 0
+        np.cumsum(legal_lens, dtype=np.int64, out=legal_offsets[1:])
+        np.save(shard_dir / "legal_idx.npy", np.array(legal_idx_all, dtype=np.uint16))
+        np.save(shard_dir / "legal_offsets.npy", legal_offsets)
+
+        # Verify CSR legal moves match python-chess legal moves and contain the label.
+        for ply, fen in enumerate(fens):
+            b_chk = chess.Board(fen)
+            expected_legal = sorted(calibrate.move_index(m, b_chk.turn) for m in b_chk.legal_moves)
+            stored_legal = sorted(
+                int(x) for x in legal_idx_all[legal_offsets[ply] : legal_offsets[ply + 1]]
+            )
+            assert stored_legal == expected_legal, f"Legal move mismatch at ply {ply}"
+            assert move_indices[ply] in stored_legal, f"Label missing from legal moves at ply {ply}"
+
+        try:
+            import torch
+            from encoding import boards_to_tokens_torch
+            from train import ShardedBoardBatchDataset, build_legal_mask
+
+            ds = ShardedBoardBatchDataset(Path(tmp) / "train")
+            idx = np.arange(n, dtype=np.int64)
+            hb, hs, _se, _oe, my, _vy, lm = ds[(0, idx)]
+            got_tokens = boards_to_tokens_torch(hb, hs).numpy()
+            mask = build_legal_mask(lm)
+            assert mask.gather(1, my.unsqueeze(1)).all(), "Label not in built legal mask"
+            for ply in range(n):
+                assert np.array_equal(got_tokens[ply], ref_tokens[ply]), f"Loader mismatch at ply {ply}"
+                assert int(my[ply]) == move_indices[ply]
+                b_chk = chess.Board(fens[ply])
+                expected_legal = sorted(calibrate.move_index(m, b_chk.turn) for m in b_chk.legal_moves)
+                assert mask[ply].nonzero(as_tuple=False).squeeze(1).tolist() == expected_legal
+        except ImportError:
+            pass
+
+    # If upstream maia3 is installed (desktop), compare directly against get_historical_tokens and get_legal_moves_mask.
     try:
         from types import SimpleNamespace
-        from maia3.dataset import get_historical_tokens, tokenize_board
+        from maia3.dataset import get_historical_tokens, get_legal_moves_mask, tokenize_board
         from maia3.utils import get_all_possible_moves, mirror_move
 
         all_moves = {m: i for i, m in enumerate(get_all_possible_moves())}
@@ -116,6 +157,8 @@ def test_loader_and_upstream_parity():
             dq.append(tokenize_board(b))
             up_tok = get_historical_tokens(dq, cfg, 0, 0, 0, 0).numpy()
             assert np.array_equal(up_tok, ref_tokens[ply]), f"Upstream token mismatch at ply {ply}"
+            up_mask = get_legal_moves_mask(b, all_moves)
+            assert torch.equal(up_mask, mask[ply]), f"Upstream legal mask mismatch at ply {ply}"
             m_uci = uci if b.turn == chess.WHITE else mirror_move(uci)
             assert all_moves[m_uci] == move_indices[ply], f"Upstream move mismatch at ply {ply}"
             b.push(chess.Move.from_uci(uci))

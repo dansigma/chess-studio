@@ -4,10 +4,10 @@ Prototype pipeline for fine-tuning Maia-3 5M on classical OTB games (2010+, Elo 
 
 ## Design Choices
 
-- **Loss**: `CE(policy) + lambda_value * CE(value)` with `lambda_value = 1.0` by default.
-- **Policy loss**: plain cross-entropy over the 4352-move vocabulary without illegal-move masking during training.
+- **Loss**: `CE(masked_policy) + lambda_value * CE(value)` with `lambda_value = 1.0` by default.
+- **Policy masking**: illegal moves are masked to `-inf` (matching upstream `maia3/dataset.py` `get_legal_moves_mask` and `src/engine/maia/inference.ts`) before cross-entropy and top-1/top-3 evaluation.
 - **Value order**: `[0: loss, 1: draw, 2: win]` for the side to move, matching `maia3.uci.wdl_from_value_logits` and `src/engine/maia/inference.ts`.
-- **Shard storage**: compact uint8 boards (64 bytes, absolute orientation) + `stm`, `move_idx`, `result`, `self_elo`, `oppo_elo`, `game_id`, `ply`. History of 8 boards is reconstructed on the fly in the DataLoader and expanded to `(B, 64, 97)` on GPU.
+- **Shard storage (v2)**: compact uint8 boards (64 bytes, absolute orientation) + `stm`, `move_idx`, `result`, `self_elo`, `oppo_elo`, `game_id`, `ply`, plus CSR legal moves (`legal_idx.npy` uint16, `legal_offsets.npy` int64). History of 8 boards is reconstructed on the fly in the DataLoader and expanded to `(B, 64, 97)` on GPU.
 
 ## Desktop Setup
 
