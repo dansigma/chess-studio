@@ -204,16 +204,17 @@ test("mobile: Escape in a Sources-sheet menu or dialog closes only that layer, n
   const sheet = () => document.querySelector("[data-mobile-menu-sheet]") as HTMLElement | null;
   assert.ok(sheet());
 
-  // Import menu open: the first Escape closes the menu, the sheet stays.
-  fireEvent.click(within(sheet()!).getByRole("button", { name: "+ Import PGN" }));
-  const menu = screen.getByRole("menu", { name: "+ Import PGN" });
+  assert.ok(within(sheet()!).getByRole("button", { name: "Import" }));
+
+  // Folder menu open: the first Escape closes the menu, the sheet stays.
+  fireEvent.click(within(sheet()!).getByRole("button", { name: "Folder" }));
+  const menu = screen.getByRole("menu", { name: "Folders" });
   fireEvent.keyDown(menu, { key: "Escape" });
-  assert.equal(screen.queryByRole("menu", { name: "+ Import PGN" }), null);
+  assert.equal(screen.queryByRole("menu", { name: "Folders" }), null);
   assert.ok(sheet());
 
   // Paste PGN dialog open: Escape closes the dialog and keeps the sheet.
-  fireEvent.click(within(sheet()!).getByRole("button", { name: "+ Import PGN" }));
-  fireEvent.click(screen.getByRole("menuitem", { name: "Paste PGN" }));
+  fireEvent.click(within(sheet()!).getByRole("button", { name: "Paste" }));
   assert.equal(document.querySelectorAll('[role="dialog"][aria-modal="true"]').length, 2);
   fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
   assert.equal(document.querySelectorAll('[role="dialog"][aria-modal="true"]').length, 1);

@@ -9,10 +9,8 @@ import {
   Bookmark,
   ChevronDown,
   ChevronRight,
-  ClipboardPaste,
   Database as DatabaseIcon,
   Ellipsis,
-  FileUp,
   Folder,
   FolderOpen,
   Globe,
@@ -43,10 +41,6 @@ import {
   FolderActionsMenu,
   FolderMoveDialog,
   FolderRenameDialog,
-  FoldersMenu,
-  PastePgnDialog,
-  PopMenu,
-  anchorBelow,
   folderScope,
   useMenuPosition,
   useSelectedFolderId,
@@ -255,7 +249,6 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
   const referenceSource = useStudioStore((s) => s.databaseSource);
   const setDatabaseSource = useStudioStore((s) => s.setDatabaseSource);
   const importFiles = useLibraryImport();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(() => new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -264,8 +257,6 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
   const [folderMenu, setFolderMenu] = useState<(MenuAnchor & { folderId: string }) | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
-  const [importMenu, setImportMenu] = useState<MenuAnchor | null>(null);
-  const [pasteOpen, setPasteOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -772,41 +763,6 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
     );
   };
 
-  const fileInput = (
-    <input
-      ref={fileInputRef}
-      type="file"
-      accept=".pgn"
-      multiple
-      hidden
-      data-testid="library-import-input"
-      onChange={(event) => {
-        const files = Array.from(event.target.files ?? []);
-        event.target.value = "";
-        if (files.length > 0) {
-          void importFiles(files);
-        }
-      }}
-    />
-  );
-
-  const importControl = (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="shrink-0"
-        aria-haspopup="menu"
-        aria-expanded={importMenu !== null}
-        data-popmenu-trigger=""
-        onClick={(event) => setImportMenu(importMenu ? null : anchorBelow(event.currentTarget))}
-      >
-        {t("library.import.button")}
-      </Button>
-      {fileInput}
-    </>
-  );
-
   const menuDb = menu ? databases.find((item) => item.id === menu.databaseId) : undefined;
   const menuFolder = folderMenu ? folders.find((item) => item.id === folderMenu.folderId) : undefined;
   const renamingFolder = renamingFolderId ? folders.find((item) => item.id === renamingFolderId) : undefined;
@@ -859,27 +815,6 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
       {renamingFolder ? (
         <FolderRenameDialog folder={renamingFolder} onClose={() => setRenamingFolderId(null)} />
       ) : null}
-      {importMenu ? (
-        <PopMenu anchor={importMenu} label={t("library.import.button")} onClose={() => setImportMenu(null)}>
-          <MenuItem
-            label={t("library.import.fromFile")}
-            leading={<FileUp size={14} className="text-studio-faint" />}
-            onClick={() => {
-              setImportMenu(null);
-              fileInputRef.current?.click();
-            }}
-          />
-          <MenuItem
-            label={t("library.import.paste")}
-            leading={<ClipboardPaste size={14} className="text-studio-faint" />}
-            onClick={() => {
-              setImportMenu(null);
-              setPasteOpen(true);
-            }}
-          />
-        </PopMenu>
-      ) : null}
-      {pasteOpen ? <PastePgnDialog onImport={(file) => void importFiles([file])} onClose={() => setPasteOpen(false)} /> : null}
       {movingDb ? (
         <FolderMoveDialog
           title={t("library.folders.moveFileTitle", { name: movingDb.name })}
@@ -966,18 +901,6 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
             </button>
           );
         })}
-        <IconButton
-          label={t("library.import.button")}
-          size="sm"
-          className="mt-auto"
-          aria-haspopup="menu"
-          aria-expanded={importMenu !== null}
-          data-popmenu-trigger=""
-          onClick={(event) => setImportMenu(importMenu ? null : anchorBelow(event.currentTarget))}
-        >
-          <FileUp size={14} />
-        </IconButton>
-        {fileInput}
         {dialogs}
       </Panel>
     );
@@ -1036,14 +959,10 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
           ) : <LibraryLoadingStatus className="px-2 py-1 text-caption text-studio-faint" />}
         </section>
       </div>
-      <div className="flex shrink-0 items-center gap-1 border-t border-studio-border p-1.5">
-        <FoldersMenu />
-        {importControl}
-      </div>
       {dialogs}
       {/* Inside the mobile Sources sheet, an open rail menu takes Escape first
           (MenuSurface closes it); the sheet closes only on a second press. */}
-      {inSheet && (menu || importMenu || folderMenu) ? <span hidden data-escape-defer="" /> : null}
+      {inSheet && (menu || folderMenu) ? <span hidden data-escape-defer="" /> : null}
     </>
   );
 

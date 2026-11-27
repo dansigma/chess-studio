@@ -11,6 +11,7 @@ import { useIsMobile } from "../use-is-mobile";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { useLibraryGames, type LibraryGamesState } from "./use-library-games";
 import { LibraryFilterChips, LibraryToolbar } from "./LibraryToolbar";
+import { LibraryActions } from "./LibraryActions";
 import { LibrarySourceRail } from "./LibrarySourceRail";
 import { LibrarySummary } from "./LibrarySummary";
 import { useLibrarySources } from "./library-sources";
@@ -164,7 +165,7 @@ function LibraryGames({ toolbar, table, preview, tabs }: LibraryViewSlots & { ta
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-1.5">
       <div
-        className={`flex min-w-0 shrink-0 ${isMobile ? "flex-wrap" : "flex-nowrap"} items-center gap-2`}
+        className={`@container flex min-w-0 shrink-0 ${isMobile ? "flex-wrap" : "flex-nowrap"} items-center gap-2`}
         data-testid="library-header"
       >
         {tabs}
@@ -188,6 +189,7 @@ function LibraryGames({ toolbar, table, preview, tabs }: LibraryViewSlots & { ta
         >
           {toolbar ?? <LibraryToolbar total={games.total} />}
         </div>
+        {isMobile ? null : <LibraryActions />}
       </div>
       {toolbar ? null : <LibraryFilterChips />}
       {isMobile ? (
@@ -206,6 +208,7 @@ function LibraryGames({ toolbar, table, preview, tabs }: LibraryViewSlots & { ta
               title={tLibrary(locale, "library.sources.rail.title")}
               onClose={() => setSourcesOpen(false)}
             >
+              <LibraryActions inSheet />
               <LibrarySourceRail sourceErrors={games.sourceErrors} inSheet />
             </BottomSheet>
           ) : null}

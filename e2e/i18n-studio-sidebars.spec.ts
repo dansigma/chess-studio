@@ -19,10 +19,12 @@ test("the Library folder and import controls render Portuguese with the pt-br lo
   await expect(page.getByRole("button", { name: "Arquivos", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Bases de Dados", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Biblioteca", exact: true }).first().click();
-  await expect(page.getByRole("button", { name: "Pastas", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "+ Importar PGN" }).click();
-  await expect(page.getByRole("menuitem", { name: "Colar PGN" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Folders", exact: true })).toHaveCount(0);
+  const header = page.getByTestId("library-header");
+  await expect(header.getByRole("button", { name: "Pasta", exact: true })).toBeVisible();
+  await expect(header.getByRole("button", { name: "Importar", exact: true })).toBeVisible();
+  await header.getByRole("button", { name: "Colar", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Colar PGN" })).toBeVisible();
+  await expect(header.getByRole("button", { name: "Folder", exact: true })).toHaveCount(0);
 });
 
 test("boards sidebar renders Portuguese with the pt-br locale stored", async ({ page }) => {

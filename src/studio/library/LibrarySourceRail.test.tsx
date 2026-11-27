@@ -96,6 +96,7 @@ function seed(rows: Row[], user: { id: string; email: string | null } | null = n
     registerLibrarySource(fake(`file:${row.id}`, row.name, row.games.length));
   }
   useLibraryStore.setState({
+    mode: "games",
     folderId: null,
     filters: {
       ...DEFAULT_LIBRARY_FILTERS,
@@ -117,7 +118,9 @@ const sources = () => useLibraryStore.getState().filters.sources;
 const card = (name: RegExp) => screen.getByRole("button", { name });
 const cardNames = () => screen.queryAllByTestId("library-source-card").map((el) => el.textContent ?? "");
 const folders = () => useStudioStore.getState().files.folders;
-const openFolders = () => fireEvent.click(screen.getByRole("button", { name: "Folders" }));
+const renderLibrary = () => act(async () => { render(<LibraryView />); });
+const header = () => within(screen.getByTestId("library-header"));
+const openFolders = () => fireEvent.click(header().getByRole("button", { name: "Folder" }));
 /** The row that holds a source's selecting button and its hover actions. */
 const rowOf = (name: RegExp) => card(name).parentElement as HTMLElement;
 const folderRowOf = (name: string) => screen.getByRole("button", { name }).parentElement as HTMLElement;
@@ -562,7 +565,7 @@ test("clicking a folder selects its files and sets the folder", async () => {
 
 test("Folders menu creates a folder and a subfolder", async () => {
   seed(FILES);
-  await renderRail();
+  await renderLibrary();
   openFolders();
   assert.equal(screen.getByRole("menuitem", { name: "New subfolder…" }).hasAttribute("disabled"), true);
   fireEvent.click(screen.getByRole("menuitem", { name: "New folder…" }));
@@ -583,7 +586,7 @@ test("Folders menu creates a folder and a subfolder", async () => {
 
 test("renaming the selected folder", async () => {
   seed(FILES);
-  await renderRail();
+  await renderLibrary();
   fireEvent.click(screen.getByRole("button", { name: "Endings" }));
   openFolders();
   fireEvent.click(screen.getByRole("menuitem", { name: "Rename folder…" }));
@@ -596,7 +599,7 @@ test("renaming the selected folder", async () => {
 
 test("deleting a folder asks first, removes subfolders and keeps the files", async () => {
   seed(FILES);
-  await renderRail();
+  await renderLibrary();
   fireEvent.click(screen.getByRole("button", { name: "Openings" }));
   openFolders();
   fireEvent.click(screen.getByRole("menuitem", { name: "Delete folder…" }));
@@ -618,7 +621,7 @@ test("deleting a folder asks first, removes subfolders and keeps the files", asy
 
 test("moving a folder: cycle targets are disabled and the store refuses them", async () => {
   seed(FILES);
-  await renderRail();
+  await renderLibrary();
   fireEvent.click(screen.getByRole("button", { name: "Openings" }));
   openFolders();
   fireEvent.click(screen.getByRole("menuitem", { name: "Move folder…" }));
@@ -656,12 +659,12 @@ test("Move to folder… on a file row moves it, and No folder takes it out", asy
 
 test("Refresh from account shows only when signed in and fetches then", async () => {
   seed(FILES);
-  await renderRail();
+  await renderLibrary();
   openFolders();
   assert.equal(screen.queryByRole("menuitem", { name: "Refresh from account" }), null);
   cleanup();
   seed(FILES, { id: "u1", email: null });
-  await renderRail();
+  await renderLibrary();
   openFolders();
   const before = supabaseCalls;
   await act(async () => { fireEvent.click(screen.getByRole("menuitem", { name: "Refresh from account" })); });
@@ -670,11 +673,22 @@ test("Refresh from account shows only when signed in and fetches then", async ()
   assert.equal(useStudioStore.getState().statusMessage, "Files refreshed");
 });
 
-test("the import button offers From file… and Paste PGN", async () => {
+test("the header shows actions after the search, filters and counter, outside the rail", async () => {
   seed(FILES);
-  await renderRail();
-  fireEvent.click(screen.getByRole("button", { name: "+ Import PGN" }));
-  assert.deepEqual(screen.getAllByRole("menuitem").map((item) => item.textContent), ["From file…", "Paste PGN"]);
+  await renderLibrary();
+  const elements = [
+    header().getByRole("textbox"),
+    header().getByRole("button", { name: "Filters" }),
+    header().getByTestId("library-counter"),
+    ...["Import", "Folder", "Paste"].map((name) => header().getByRole("button", { name })),
+  ];
+  for (let i = 1; i < elements.length; i++) {
+    assert.ok(elements[i - 1].compareDocumentPosition(elements[i]) & window.Node.DOCUMENT_POSITION_FOLLOWING);
+  }
+  const rail = within(screen.getByTestId("library-source-rail"));
+  for (const name of ["Import", "Folder", "Paste"]) {
+    assert.equal(rail.queryByRole("button", { name }), null);
+  }
 });
 
 const PGN = '[Event "t"]\n[White "A"]\n[Black "B"]\n[Result "1-0"]\n\n1. e4 e5 1-0\n';
@@ -682,10 +696,9 @@ const settle = () => act(async () => { for (let i = 0; i < 20; i++) await new Pr
 
 test("Paste PGN imports through the queue into the viewed folder", async () => {
   seed([]);
-  useLibraryStore.setState({ folderId: "f3" });
-  await act(async () => { render(<LibraryView />); });
-  fireEvent.click(screen.getByRole("button", { name: "+ Import PGN" }));
-  fireEvent.click(screen.getByRole("menuitem", { name: "Paste PGN" }));
+  await renderLibrary();
+  fireEvent.click(screen.getByRole("button", { name: "Endings" }));
+  fireEvent.click(header().getByRole("button", { name: "Paste" }));
   const dialog = within(screen.getByRole("dialog"));
   assert.equal(dialog.getByRole("button", { name: "Import" }).hasAttribute("disabled"), true);
   fireEvent.change(dialog.getByRole("textbox", { name: "Database name" }), { target: { value: "My paste" } });
@@ -702,9 +715,8 @@ test("Paste PGN imports through the queue into the viewed folder", async () => {
 
 test("Paste PGN with an existing name opens the name-conflict dialog", async () => {
   seed([db("x", "Dup", null)]);
-  await act(async () => { render(<LibraryView />); });
-  fireEvent.click(screen.getByRole("button", { name: "+ Import PGN" }));
-  fireEvent.click(screen.getByRole("menuitem", { name: "Paste PGN" }));
+  await renderLibrary();
+  fireEvent.click(header().getByRole("button", { name: "Paste" }));
   const dialog = within(screen.getByRole("dialog"));
   fireEvent.change(dialog.getByRole("textbox", { name: "Database name" }), { target: { value: "Dup" } });
   fireEvent.change(dialog.getByRole("textbox", { name: "PGN text" }), { target: { value: PGN } });
@@ -786,13 +798,14 @@ test("collapsed rail markers show the kind icon; the selected one takes the acce
 test("pt-BR strings", async () => {
   seed(FILES);
   useStudioStore.setState((s) => ({ settings: { ...s.settings, locale: "pt-br" } }));
-  await renderRail();
+  await renderLibrary();
   assert.ok(screen.getByText("Bases", { exact: true }));
   assert.ok(screen.getByRole("group", { name: "Bases públicas" }));
   assert.ok(screen.getByRole("group", { name: "Minhas partidas" }));
   assert.ok(screen.getByRole("group", { name: "Meus arquivos" }));
-  assert.ok(screen.getByRole("button", { name: "Pastas" }));
-  assert.ok(screen.getByRole("button", { name: "+ Importar PGN" }));
+  for (const name of ["Importar", "Pasta", "Colar"]) {
+    assert.ok(header().getByRole("button", { name }));
+  }
   assert.ok(screen.getByRole("button", { name: "Recolher bases" }));
 });
 
@@ -847,7 +860,7 @@ test("the empty folder survives a database change (rename, import elsewhere, ref
   assert.ok(sources().length > 0);
 });
 
-test("collapsed rail: failed sources keep their mark and import stays available", async () => {
+test("collapsed rail: failed sources keep their mark", async () => {
   seed(TACTICS);
   await renderRail({ masters: "boom" });
   fireEvent.click(screen.getByRole("button", { name: "Collapse sources" }));
@@ -856,9 +869,7 @@ test("collapsed rail: failed sources keep their mark and import stays available"
   assert.match(failed[0]!.getAttribute("title") ?? "", /Failed to load: boom/);
   assert.equal(screen.getAllByTestId("library-source-marker-failed").length, 1);
 
-  fireEvent.click(screen.getByRole("button", { name: "+ Import PGN" }));
-  assert.ok(screen.getByRole("menuitem", { name: "From file…" }));
-  assert.ok(screen.getByRole("menuitem", { name: "Paste PGN" }));
+  assert.equal(screen.queryByRole("button", { name: /import/i }), null);
   fireEvent.click(screen.getByRole("button", { name: "Expand sources" }));
 });
 
