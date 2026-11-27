@@ -68,6 +68,7 @@ export type FilesSlice = Pick<
   | "importParsedDatabase"
   | "createFileDatabase"
   | "addActiveGameToDatabase"
+  | "addPgnGameToDatabase"
   | "replaceFileDatabaseGames"
   | "showFileDatabase"
   | "openPgnSource"
@@ -603,7 +604,8 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       tLibrary(get().settings.locale, "library.newDatabase.created", { name: trimmedName }),
     );
   },
-  addActiveGameToDatabase: (destination) => {
+  addActiveGameToDatabase: (destination) => get().addPgnGameToDatabase(get().exportActivePgn(), destination),
+  addPgnGameToDatabase: (pgn, destination) => {
     const state = get();
     const locale = state.settings.locale;
     const target = "id" in destination
@@ -622,7 +624,6 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       });
       return false;
     }
-    const pgn = state.exportActivePgn();
     if (new TextEncoder().encode(pgn).length > MAX_GAME_PGN_BYTES) {
       set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.tooLarge") });
       return false;
@@ -634,7 +635,7 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       set({ statusMessage: tStudioChrome(locale, "chrome.addToDatabase.noMoves") });
       return false;
     }
-    // Keep the exact export, including whitespace within comments.
+    // Keep the original PGN, including whitespace within comments.
     game.pgn = pgn;
     // Ignore a folder deleted while the dialog was open.
     const folderId = "name" in destination && destination.folderId &&

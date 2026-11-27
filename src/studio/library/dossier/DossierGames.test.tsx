@@ -3,6 +3,7 @@ import { after, afterEach, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../../test-utils/dom.ts";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { importPgn } from "@/src/chess/pgn.ts";
 import type { PlayerGame, PlayerHit } from "@/src/lib/player-types";
 import { DOSSIER_GAMES_PAGE, DossierGames } from "./DossierGames.tsx";
 import { useDossierStore } from "./dossier-store.ts";
@@ -316,4 +317,23 @@ test("an opening filter with no games also shows the empty state and keeps the c
   render(<DossierGames games={[game("italian")]} />);
   assert.equal(screen.getByTestId("dossier-games-empty").textContent, "No games with these filters");
   assert.match(screen.getByTestId("dossier-opening-chip").textContent ?? "", /nothing/);
+});
+
+test("the preview's Add to database passes a moves-only game's PGN with its game data", () => {
+  render(<DossierGames games={[game("moves-only", { pgn: undefined, blackName: 'Other "Jr"' })]} />);
+  fireEvent.click(rows()[0]!);
+  fireEvent.click(screen.getByRole("button", { name: "Add to database…" }));
+
+  const { addToDatabaseOpen, addToDatabasePgn, workspaceView } = useStudioStore.getState();
+  assert.equal(addToDatabaseOpen, true);
+  assert.equal(workspaceView, "library");
+  const { headers } = importPgn(addToDatabasePgn!);
+  assert.equal(headers.White, "Magnus");
+  assert.match(headers.Black!, /Other .*Jr/);
+  assert.equal(headers.Event, "Event moves-only");
+  assert.equal(headers.Date, "2026.01.??");
+  assert.equal(headers.WhiteElo, "2800");
+  assert.equal(headers.ECO, "C50");
+  assert.match(addToDatabasePgn!, /1\. e4 e5 2\. Nf3 Nc6 3\. Bb5 1-0/);
+  useStudioStore.getState().setAddToDatabaseOpen(false);
 });

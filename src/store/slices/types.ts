@@ -39,6 +39,8 @@ import type {
 } from "@/src/lib/user-files";
 import type { ParsedFileGame } from "@/src/chess/pgn-games";
 
+type DatabaseDestination = { id: string } | { name: string; folderId?: string | null };
+
 export type BoardOrientation = "white" | "black";
 // SIG-1273: center work area. Separate from ActivityView (sidebars only).
 export type WorkspaceView = "studio" | "library" | "live";
@@ -232,6 +234,7 @@ export type StudioState = {
   shortcutsOpen: boolean;
   saveAsOpen: boolean;
   addToDatabaseOpen: boolean;
+  addToDatabasePgn: string | null;
   settingsDialog: SettingsDialogState;
   notationEditor: "comment" | "commentBefore" | "headers" | null;
   layoutNonce: number;
@@ -433,7 +436,7 @@ export type StudioState = {
   setAboutOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
   setSaveAsOpen: (open: boolean) => void;
-  setAddToDatabaseOpen: (open: boolean) => void;
+  setAddToDatabaseOpen: (open: boolean, pgn?: string) => void;
   openSettings: (section?: SettingsDialogSection) => void;
   closeSettings: () => void;
   setNotationEditor: (editor: "comment" | "commentBefore" | "headers" | null) => void;
@@ -461,8 +464,9 @@ export type StudioState = {
   ) => string;
   /** Creates an empty database. Returns its id, or an empty string if creation fails. */
   createFileDatabase: (name: string, folderId: string | null) => string;
-  addActiveGameToDatabase: (destination: { id: string } | { name: string; folderId?: string | null }) => boolean;
   /** Replaces a database's games, keeping its id (Library import: Replace / Merge). False if the id is unknown. */
+  addActiveGameToDatabase: (destination: DatabaseDestination) => boolean;
+  addPgnGameToDatabase: (pgn: string, destination: DatabaseDestination) => boolean;
   replaceFileDatabaseGames: (id: string, games: ParsedFileGame[]) => boolean;
   showFileDatabase: (id: string) => void;
   openPgnSource: (name: string, pgn: string) => "board" | "database" | "failed";

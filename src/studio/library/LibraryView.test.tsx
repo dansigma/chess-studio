@@ -1,7 +1,8 @@
 import { after, afterEach, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { AddToDatabaseDialog } from "../AddToDatabaseDialog";
 import { LibraryView, LibraryPlaceholderList } from "./LibraryView";
 import type { LibraryGamesState } from "./use-library-games";
 import { useStudioStore } from "@/src/store/studio-store";
@@ -326,4 +327,54 @@ test("New database defaults to no folder and explains the quota when full", asyn
     useStudioStore.setState({ files });
     useLibraryStore.setState({ folderId, filters });
   }
+});
+
+test("row and preview save the selected PGN and refresh a visible database without changing boards", async () => {
+  useStudioStore.setState({
+    files: { databases: [], folders: [] },
+    filesHydrated: true,
+    workspaceView: "library",
+    user: null,
+  });
+  const state = useStudioStore.getState();
+  assert.equal(state.addPgnGameToDatabase(PGN, { name: "Study games" }), true);
+  const [database] = useStudioStore.getState().files.databases;
+  useLibraryStore.setState({
+    mode: "games",
+    selectedKey: null,
+    filters: { ...useLibraryStore.getState().filters, sources: [`file:${database.id}`] },
+  });
+
+  function LibraryWithDialog() {
+    const open = useStudioStore((s) => s.addToDatabaseOpen);
+    return (
+      <>
+        <LibraryView />
+        {open && <AddToDatabaseDialog onClose={() => state.setAddToDatabaseOpen(false)} />}
+      </>
+    );
+  }
+  const save = async (container: HTMLElement, expectedCount: number) => {
+    fireEvent.click(within(container).getByRole("button", { name: "Add to database…" }));
+    const dialog = await screen.findByRole("dialog", { name: "Add to database" });
+    assert.equal(useStudioStore.getState().addToDatabasePgn, PGN);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
+    await waitFor(() => {
+      assert.equal(screen.queryByRole("dialog", { name: "Add to database" }), null);
+      assert.equal(screen.getAllByTestId("library-row").length, expectedCount);
+      assert.match(screen.getByTestId("library-counter").textContent ?? "", new RegExp(`· ${expectedCount} games$`));
+    });
+    const current = useStudioStore.getState();
+    assert.equal(current.files.databases[0].games[expectedCount - 1].pgn, PGN);
+    assert.equal(current.addToDatabasePgn, null);
+    assert.equal(current.workspaceView, "library");
+    assert.equal(current.boards, state.boards);
+    assert.equal(current.activeBoardId, state.activeBoardId);
+  };
+
+  render(<LibraryWithDialog />);
+  await save(await screen.findByTestId("library-row"), 2);
+  assert.equal(useLibraryStore.getState().selectedKey, null);
+  fireEvent.click(screen.getAllByTestId("library-row")[0]);
+  await save(await screen.findByTestId("library-preview"), 3);
 });

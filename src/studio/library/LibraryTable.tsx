@@ -2,7 +2,7 @@
 
 import { LibraryLoadingStatus } from "./LibraryLoadingStatus";
 import { useEffect, useMemo, useRef, type KeyboardEvent, type RefObject } from "react";
-import { ArrowDown, ArrowUp, ExternalLink, GraduationCap } from "lucide-react";
+import { ArrowDown, ArrowUp, Database, ExternalLink, GraduationCap } from "lucide-react";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tLibrary } from "@/src/i18n/library-strings";
 import { itemYear } from "@/src/lib/library/filters";
@@ -17,7 +17,7 @@ import { usePanelSize } from "../use-panel-size";
 import { moveSelection, nextSort, visibleColumns, type LibraryColumn } from "./library-columns";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
 import { LibraryPartialNotice } from "./LibraryPartialNotice";
-import { openLibraryGame, trainLibraryGame } from "./open-library-game";
+import { openLibraryGame, saveLibraryGameToDatabase, trainLibraryGame } from "./open-library-game";
 import type { LibraryGamesState } from "./use-library-games";
 import { nearEnd, useVirtualRows } from "./use-virtual-rows";
 import { localizeOpeningName } from "@/src/lib/opening-names";
@@ -176,6 +176,24 @@ function RowActions({ item, locale, selected }: { item: LibraryGameItem; locale:
         }}
       >
         <GraduationCap size={12} aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={action}
+        aria-label={tLibrary(locale, "library.saveToDatabase")}
+        title={tLibrary(locale, "library.saveToDatabase")}
+        onClick={(event) => {
+          event.stopPropagation();
+          void saveLibraryGameToDatabase(item, locale);
+        }}
+        onDoubleClick={stop}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.stopPropagation();
+          }
+        }}
+      >
+        <Database size={12} aria-hidden />
       </button>
     </div>
   );

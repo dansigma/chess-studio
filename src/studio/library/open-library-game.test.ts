@@ -21,7 +21,7 @@ const openBoardPanel = mock.fn();
 mock.module("@/src/lib/library/sources", { namedExports: { getLibrarySource } });
 mock.module("@/src/studio/dock-api", { namedExports: { openBoardPanel } });
 
-const { openLibraryGame } = await import("./open-library-game.ts");
+const { openLibraryGame, saveLibraryGameToDatabase } = await import("./open-library-game.ts");
 const { useLibraryStore } = await import("./library-store.ts");
 const { useStudioStore } = await import("@/src/store/studio-store.ts");
 
@@ -86,4 +86,22 @@ test("a failed load stays in the Library and reports the error", async () => {
   assert.match(useStudioStore.getState().statusMessage ?? "", /boom/);
   assert.equal(openFileGame.mock.callCount(), 0);
   assert.equal(openBoardPanel.mock.callCount(), 0);
+});
+
+test("a PGN that loads while the dialog is open does not replace its game", async () => {
+  await saveLibraryGameToDatabase(ITEM, "en");
+  adapter = { id: "my-games", loadPgn: async () => "1. d4 *" } as unknown as LibrarySourceAdapter;
+  await saveLibraryGameToDatabase(ITEM, "en");
+
+  assert.equal(useStudioStore.getState().addToDatabasePgn, PGN);
+  assert.equal(useStudioStore.getState().workspaceView, "library");
+  useStudioStore.getState().setAddToDatabaseOpen(false);
+});
+
+test("a failed PGN load reports the error and opens no dialog", async () => {
+  adapter = { id: "my-games", loadPgn: async () => { throw new Error("offline"); } } as unknown as LibrarySourceAdapter;
+  await saveLibraryGameToDatabase(ITEM, "en");
+
+  assert.equal(useStudioStore.getState().addToDatabaseOpen, false);
+  assert.match(useStudioStore.getState().statusMessage ?? "", /offline/);
 });
