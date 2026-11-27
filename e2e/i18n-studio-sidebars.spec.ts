@@ -22,6 +22,7 @@ test("the Library folder and import controls render Portuguese with the pt-br lo
   const header = page.getByTestId("library-header");
   await expect(header.getByRole("button", { name: "Pasta", exact: true })).toBeVisible();
   await expect(header.getByRole("button", { name: "Importar", exact: true })).toBeVisible();
+  await expect(header.getByRole("button", { name: "+ Base", exact: true })).toBeVisible();
   await header.getByRole("button", { name: "Colar", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Colar PGN" })).toBeVisible();
   await expect(header.getByRole("button", { name: "Folder", exact: true })).toHaveCount(0);

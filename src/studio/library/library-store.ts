@@ -16,6 +16,8 @@ export type LibraryState = {
   mode: LibraryMode;
   /** SIG-1325: folder limiting the PGN file cards in the source bar; null = all folders. Not persisted. */
   folderId: string | null;
+  foldersToReveal: string[];
+  revealFolders: (folderIds: string[]) => void;
   setFolderId: (folderId: string | null) => void;
   setMode: (mode: LibraryMode) => void;
   setFilter: <K extends keyof LibraryFilterState>(key: K, value: LibraryFilterState[K]) => void;
@@ -43,6 +45,8 @@ export const useLibraryStore = create<LibraryState>((set) => ({
   filtersOpen: false,
   mode: "games",
   folderId: null,
+  foldersToReveal: [],
+  revealFolders: (folderIds) => set({ foldersToReveal: folderIds }),
   setFolderId: (folderId) => set({ folderId }),
   setMode: (mode) => set({ mode }),
   setFilter: (key, value) => set((s) => ({ filters: { ...s.filters, [key]: value } })),

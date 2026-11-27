@@ -66,6 +66,7 @@ export type FilesSlice = Pick<
   | "moveFileDatabase"
   | "importFileDatabase"
   | "importParsedDatabase"
+  | "createFileDatabase"
   | "addActiveGameToDatabase"
   | "replaceFileDatabaseGames"
   | "showFileDatabase"
@@ -263,11 +264,12 @@ function syncAndReport(
   });
 }
 
-/** Shared tail of the import entries: local save, status message, remote save. */
-function addImportedDatabase(
+/** Saves a new database locally and syncs it for signed-in users. */
+function addFileDatabase(
   set: FilesSet,
   get: FilesGet,
   database: FileDatabase,
+  successMessage?: string,
 ): string {
   if (get().files.databases.length >= MAX_DATABASES) {
     set({ statusMessage: tLibrary(get().settings.locale, "library.quota.databases") });
@@ -283,15 +285,14 @@ function addImportedDatabase(
       databases: [...state.files.databases, database],
     };
     cacheFiles(set, get, files);
-    const imported =
-      database.games.length === 0
-        ? "No games found in that PGN"
-        : `Imported ${database.games.length} game${database.games.length === 1 ? "" : "s"}`;
+    const imported = database.games.length === 0
+      ? "No games found in that PGN"
+      : `Imported ${database.games.length} game${database.games.length === 1 ? "" : "s"}`;
     return {
       files,
       activeFileDatabaseId: database.id,
       activeFileGameId: null,
-      statusMessage: imported,
+      statusMessage: successMessage ?? imported,
     };
   });
   syncAndReport(set, get, database, "Games imported, but the position index could not be saved.");
@@ -584,14 +585,24 @@ export const createFilesSlice: StateCreator<StudioState, [], [], FilesSlice> = (
       set({ statusMessage: tLibrary(get().settings.locale, "library.quota.databases") });
       return "";
     }
-    return addImportedDatabase(set, get, libraryFromPgn(name.trim() || "Database", pgn, folderId));
+    return addFileDatabase(set, get, libraryFromPgn(name.trim() || "Database", pgn, folderId));
   },
   importParsedDatabase: (name, games, folderId = null) =>
-    addImportedDatabase(
+    addFileDatabase(
       set,
       get,
       { id: crypto.randomUUID(), remoteId: null, name: name.trim() || "Database", folderId, games },
     ),
+  createFileDatabase: (name, folderId) => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return "";
+    return addFileDatabase(
+      set,
+      get,
+      { id: crypto.randomUUID(), remoteId: null, name: trimmedName, folderId, games: [] },
+      tLibrary(get().settings.locale, "library.newDatabase.created", { name: trimmedName }),
+    );
+  },
   addActiveGameToDatabase: (destination) => {
     const state = get();
     const locale = state.settings.locale;

@@ -459,8 +459,10 @@ export type StudioState = {
     games: ParsedFileGame[],
     folderId?: string | null,
   ) => string;
-  /** Replaces a database's games, keeping its id (Library import: Replace / Merge). False if the id is unknown. */
+  /** Creates an empty database. Returns its id, or an empty string if creation fails. */
+  createFileDatabase: (name: string, folderId: string | null) => string;
   addActiveGameToDatabase: (destination: { id: string } | { name: string; folderId?: string | null }) => boolean;
+  /** Replaces a database's games, keeping its id (Library import: Replace / Merge). False if the id is unknown. */
   replaceFileDatabaseGames: (id: string, games: ParsedFileGame[]) => boolean;
   showFileDatabase: (id: string) => void;
   openPgnSource: (name: string, pgn: string) => "board" | "database" | "failed";
