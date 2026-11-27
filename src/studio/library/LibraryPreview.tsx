@@ -325,18 +325,22 @@ export function GamePreview({
         />
       </div>
 
-      <div className="flex items-center justify-center gap-1" role="group" aria-label={tLibrary(locale, "library.preview.board")}>
-        <Button variant="ghost" size="sm" onClick={goFirst} disabled={path.length === 0} aria-label={tLibrary(locale, "library.preview.first")}>
-          <ChevronsLeft size={14} />
+      <div
+        className="mx-auto grid w-full max-w-sm grid-cols-4 gap-1 *:min-h-11 md:*:min-h-10"
+        role="group"
+        aria-label={tLibrary(locale, "library.preview.board")}
+      >
+        <Button variant="secondary" size="md" onClick={goFirst} disabled={path.length === 0} aria-label={tLibrary(locale, "library.preview.first")}>
+          <ChevronsLeft size={18} />
         </Button>
-        <Button variant="ghost" size="sm" onClick={goPrev} disabled={path.length === 0} aria-label={tLibrary(locale, "library.preview.prev")}>
-          <ChevronLeft size={14} />
+        <Button variant="secondary" size="md" onClick={goPrev} disabled={path.length === 0} aria-label={tLibrary(locale, "library.preview.prev")}>
+          <ChevronLeft size={18} />
         </Button>
-        <Button variant="ghost" size="sm" onClick={goNext} disabled={goForward(tree, path) === path} aria-label={tLibrary(locale, "library.preview.next")}>
-          <ChevronRight size={14} />
+        <Button variant="secondary" size="md" onClick={goNext} disabled={atLastMove} aria-label={tLibrary(locale, "library.preview.next")}>
+          <ChevronRight size={18} />
         </Button>
-        <Button variant="ghost" size="sm" onClick={goLast} disabled={goEnd(tree, path).length === path.length} aria-label={tLibrary(locale, "library.preview.last")}>
-          <ChevronsRight size={14} />
+        <Button variant="secondary" size="md" onClick={goLast} disabled={goEnd(tree, path).length === path.length} aria-label={tLibrary(locale, "library.preview.last")}>
+          <ChevronsRight size={18} />
         </Button>
       </div>
 

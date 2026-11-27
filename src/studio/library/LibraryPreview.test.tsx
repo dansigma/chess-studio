@@ -1,7 +1,7 @@
 import { after, afterEach, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { LibraryPreview } from "./LibraryPreview";
 import { useLibraryStore } from "./library-store";
 import { clearLibrarySources, registerLibrarySource } from "@/src/lib/library/sources";
@@ -52,15 +52,24 @@ test("loads the PGN, shows header from the PGN for Masters, and navigates moves"
   assert.ok(screen.getByText("3 moves"));
   assert.ok(screen.getByText(/C65/));
   assert.ok(screen.getByText("2850"));
+  const navigation = within(screen.getByRole("group", { name: "Game board" }));
+  const buttons = navigation.getAllByRole("button");
+  assert.deepEqual(buttons.map((button) => button.getAttribute("aria-label")), [
+    "First move", "Previous move", "Next move", "Last move",
+  ]);
+  const disabledButtons = () => buttons.map((button) => button.hasAttribute("disabled"));
+  assert.deepEqual(disabledButtons(), [true, true, false, false]);
   assert.equal(current(), "");
   fireEvent.click(screen.getByLabelText("Next move"));
   assert.equal(current(), "e4");
+  assert.deepEqual(disabledButtons(), [false, false, false, false]);
   fireEvent.keyDown(screen.getByTestId("library-preview"), { key: "ArrowRight" });
   assert.equal(current(), "e5");
   fireEvent.keyDown(screen.getByTestId("library-preview"), { key: "ArrowLeft" });
   assert.equal(current(), "e4");
   fireEvent.click(screen.getByLabelText("Last move"));
   assert.equal(current(), "a6");
+  assert.deepEqual(disabledButtons(), [false, false, true, true]);
   fireEvent.click(screen.getByLabelText("First move"));
   assert.equal(current(), "");
   fireEvent.click(screen.getByRole("button", { name: "Nf3" }));
