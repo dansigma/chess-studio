@@ -22,6 +22,9 @@ BANDS = calibrate.BANDS
 DEFAULT_TEST_ELOS = "1800,2000,2200,2300,2500,2700,2900"
 DEFAULT_CACHE_DIR = calibrate_combined.DEFAULT_CACHE_DIR
 LOG_PROB_CLIP = 1e-9
+# A switch is only worth a separate mapping when the gain is both detectable
+# (95% CI above 0) and practically relevant (mean log-prob gain >= this many nats).
+MIN_PRACTICAL_LOGP_GAIN = 0.02
 PHASE_BUCKETS = (
     ("≥0.75", lambda phase: phase >= 0.75),
     ("0.4–<0.75", lambda phase: (phase >= 0.4) & (phase < 0.75)),
@@ -270,7 +273,9 @@ def build_recommendation(band_summaries):
     lines = ["## Recommendation", ""]
     sig_better = [
         row for row in band_summaries
-        if row["best_elo"] != row["current_elo"] and row["diff_ci"][0] > 0.0
+        if row["best_elo"] != row["current_elo"]
+        and row["diff_ci"][0] > 0.0
+        and row["diff_pt"] >= MIN_PRACTICAL_LOGP_GAIN
     ]
     any_diff = [row for row in band_summaries if row["best_elo"] != row["current_elo"]]
 
@@ -284,10 +289,17 @@ def build_recommendation(band_summaries):
         mapping_str = " / ".join(str(row["best_elo"]) for row in band_summaries)
         lines.append(
             f"Keep the current classical mapping (`2300 / 2500 / 2700 / 2900 / 2900`) for move "
-            f"prediction. Although point estimates peak at `{mapping_str}`, none of the "
-            f"improvements in mean log-probability over the current mapping are statistically "
-            f"significant at the 95% event-cluster bootstrap level (all 95% CIs include 0)."
+            f"prediction. Although point estimates peak at `{mapping_str}`, no band gains at least "
+            f"{MIN_PRACTICAL_LOGP_GAIN} nats of mean log-probability with a 95% event-cluster "
+            f"bootstrap CI above 0, so a separate mapping is not worth its complexity:"
         )
+        lines.append("")
+        for row in band_summaries:
+            diff_str = calibrate_combined.fmt_ci(row["diff_pt"], row["diff_ci"], "+.4f")
+            lines.append(
+                f"- Band {row['band']}: best `{row['best_elo']}` vs current `{row['current_elo']}` "
+                f"(Δ log-prob {diff_str})"
+            )
     else:
         mapping_str = " / ".join(str(row["best_elo"]) for row in band_summaries)
         lines.append(
@@ -300,7 +312,11 @@ def build_recommendation(band_summaries):
             status = (
                 "matches current"
                 if row["best_elo"] == row["current_elo"]
-                else ("significant gain" if row["diff_ci"][0] > 0.0 else "not significant")
+                else (
+                    "relevant gain" if row in sig_better
+                    else "detectable but below the practical threshold" if row["diff_ci"][0] > 0.0
+                    else "not significant"
+                )
             )
             lines.append(
                 f"- Band {row['band']}: best `{row['best_elo']}` vs current `{row['current_elo']}` "

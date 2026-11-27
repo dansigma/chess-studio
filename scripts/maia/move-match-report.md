@@ -90,15 +90,17 @@ Move probabilities are masked to legal moves, renormalised via softmax, and clip
 
 ## Recommendation
 
-Use a separate move-match mapping (`2300 / 2700 / 2900 / 2900 / 2900`) instead of the value-calibrated mapping (`2300 / 2500 / 2700 / 2900 / 2900`) when predicting human moves:
+Keep the current classical mapping (`2300 / 2500 / 2700 / 2900 / 2900`) for move prediction. Although point estimates peak at `2300 / 2700 / 2900 / 2900 / 2900`, no band gains at least 0.02 nats of mean log-probability with a 95% event-cluster bootstrap CI above 0, so a separate mapping is not worth its complexity:
 
-- Band 1800: best `2300` vs current `2300` (Δ log-prob +0.0000 [+0.0000, +0.0000], matches current)
-- Band 2000: best `2700` vs current `2500` (Δ log-prob +0.0064 [+0.0038, +0.0089], significant gain)
-- Band 2200: best `2900` vs current `2700` (Δ log-prob +0.0088 [+0.0044, +0.0136], significant gain)
-- Band 2400: best `2900` vs current `2900` (Δ log-prob +0.0000 [+0.0000, +0.0000], matches current)
-- Band 2600: best `2900` vs current `2900` (Δ log-prob +0.0000 [+0.0000, +0.0000], matches current)
+- Band 1800: best `2300` vs current `2300` (Δ log-prob +0.0000 [+0.0000, +0.0000])
+- Band 2000: best `2700` vs current `2500` (Δ log-prob +0.0064 [+0.0038, +0.0089])
+- Band 2200: best `2900` vs current `2700` (Δ log-prob +0.0088 [+0.0044, +0.0136])
+- Band 2400: best `2900` vs current `2900` (Δ log-prob +0.0000 [+0.0000, +0.0000])
+- Band 2600: best `2900` vs current `2900` (Δ log-prob +0.0000 [+0.0000, +0.0000])
 
 ## Runtime
+
+Full run with an empty policy cache (the report was then regenerated from the cache):
 
 - Header pass: 224.6 s
 - Sample parsing: 310.6 s
