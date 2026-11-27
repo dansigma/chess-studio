@@ -157,8 +157,9 @@ export function FileMenuItems({
 
   async function openClipboard() {
     const text = await navigator.clipboard.readText();
-    openPgnSource("Clipboard", text);
-    onShowFileGames();
+    if (openPgnSource("Clipboard", text) === "database") {
+      onShowFileGames();
+    }
     close();
   }
 

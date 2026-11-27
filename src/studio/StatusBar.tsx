@@ -17,7 +17,7 @@ export function useSyncState(): { label: string; dot: string } {
 }
 
 /**
- * SIG-1197: desktop replacement for the status bar's message slot. The
+ * SIG-1197: floating replacement for the status bar's message slot. The
  * live region is always mounted so screen readers hear each new message;
  * the pill only shows while there is one (StudioShell clears it after 3s).
  */
@@ -26,10 +26,10 @@ export function StatusToast({ message }: { message: string | null }) {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed bottom-4 left-1/2 z-[1050] -translate-x-1/2"
+      className="pointer-events-none fixed bottom-4 left-1/2 z-[1150] w-max max-w-[min(32rem,90vw)] -translate-x-1/2"
     >
       {message ? (
-        <span className="block max-w-[min(32rem,90vw)] truncate rounded-full border border-studio-border-strong bg-studio-elevated px-3 py-1.5 text-dense text-studio-fg shadow-2xl">
+        <span className="block break-words rounded-2xl border border-studio-border-strong bg-studio-elevated px-3 py-1.5 text-dense text-studio-fg shadow-2xl">
           {message}
         </span>
       ) : null}
@@ -41,8 +41,8 @@ export function StatusBar({ message }: { message: string | null }) {
   const sync = useSyncState();
 
   return (
-    <footer className="flex h-[calc(1.5rem+env(safe-area-inset-bottom))] shrink-0 items-center gap-3 border-t border-studio-border bg-studio-chrome px-2.5 pb-[env(safe-area-inset-bottom)] text-caption text-studio-faint">
-      <span role="status" className="min-w-0 flex-1 truncate text-studio-muted">
+    <footer className="flex min-h-[calc(1.5rem+env(safe-area-inset-bottom))] shrink-0 items-center gap-3 border-t border-studio-border bg-studio-chrome px-2.5 pb-[env(safe-area-inset-bottom)] text-caption text-studio-faint">
+      <span role="status" className="min-w-0 flex-1 break-words text-studio-muted">
         {message}
       </span>
       <span className="ml-auto flex shrink-0 items-center gap-1.5">

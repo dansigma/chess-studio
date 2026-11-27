@@ -25,7 +25,7 @@ test("StatusBar condenses telemetry and keeps room for status messages", () => {
   assert.equal(status.textContent, "Loaded game 1 of 12 from repertoire.pgn");
   assert.ok(status.className.includes("min-w-0"));
   assert.ok(status.className.includes("flex-1"));
-  assert.ok(status.className.includes("truncate"));
+  assert.ok(status.className.includes("break-words"));
 
   // Compact sync label stays visible while desktop thread/source verbosity is omitted.
   assert.ok(screen.getByText(tStudioChrome("en", "chrome.statusBar.guest")));

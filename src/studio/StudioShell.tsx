@@ -587,7 +587,8 @@ export function StudioShell() {
       <AskMasterWidget visible={workspaceView === "studio"} isMobile={isMobile} />
       {/* SIG-1197: the status bar stays on mobile; desktop shows messages as a
           toast and the sync state in the menubar (+24px for the dock). */}
-      {isMobile ? <StatusBar message={status} /> : <StatusToast message={status} />}
+      {isMobile ? <StatusBar message={mobileFileGamesOpen ? null : status} /> : null}
+      {!isMobile || mobileFileGamesOpen ? <StatusToast message={status} /> : null}
       {/* SIG-1384: the cut undo toast is independent of status messages. */}
       <CutUndoToast />
 
@@ -602,8 +603,9 @@ export function StudioShell() {
             return;
           }
           void file.text().then((text) => {
-            openPgnSource(file.name.replace(/\.pgn$/i, "") || "PGN", text);
-            showFileGames();
+            if (openPgnSource(file.name.replace(/\.pgn$/i, "") || "PGN", text) === "database") {
+              showFileGames();
+            }
           });
           event.target.value = "";
         }}
