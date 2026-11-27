@@ -159,7 +159,7 @@ export function fileExplorerSource(databaseId: string): ExplorerSource {
   return `file:${databaseId}`;
 }
 
-export function fileDatabaseId(source: ExplorerSource): string | null {
+export function fileDatabaseId(source: string): string | null {
   return source.startsWith("file:") ? source.slice(5) : null;
 }
 

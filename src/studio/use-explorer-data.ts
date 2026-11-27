@@ -45,18 +45,10 @@ export function useExplorerData(
   const explorerFilters = useStudioStore((state) => xd ? state.settings.xdExplorerFilters : state.settings.explorerFilters);
   const playerProfile = useStudioStore((state) => source === "chesscom" ? state.playerProfile : null);
   const playerGames = useStudioStore((state) => source === "chesscom" ? state.playerGames : null);
-  // SIG-857: primitive signature — the old `state.files` object re-rendered
-  // the shell on every library change; this string changes only when the
-  // selected database's game ids change.
-  const personalSignature = useStudioStore((state) => {
-    const fileId = fileDatabaseId(source);
-    if (!fileId) {
-      return "";
-    }
-    return (
-      state.files.databases.find((item) => item.id === fileId)?.games.map((game) => game.id).join(",") ?? ""
-    );
-  });
+  const fileId = fileDatabaseId(source);
+  const personalDatabase = useStudioStore((state) =>
+    fileId ? state.files.databases.find((item) => item.id === fileId) : undefined,
+  );
   const [explorer, setExplorer] = useState<ExplorerResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [xdGamesLoading, setXdGamesLoading] = useState(false);
@@ -78,12 +70,10 @@ export function useExplorerData(
       return;
     }
     setError(null);
-    const fileId = fileDatabaseId(source);
     if (fileId) {
-      const database = useStudioStore.getState().files.databases.find((item) => item.id === fileId);
       setExplorer(
-        database
-          ? lookupFilesExplorer(database, fen, explorerFilters)
+        personalDatabase
+          ? lookupFilesExplorer(personalDatabase, fen, explorerFilters)
           : {
               source,
               fen,
@@ -183,7 +173,7 @@ export function useExplorerData(
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [fen, source, personalSignature, explorerFilters, playerProfile, playerGames, retrySignal, includeGames, xd, enabled]);
+  }, [fen, source, fileId, personalDatabase, explorerFilters, playerProfile, playerGames, retrySignal, includeGames, xd, enabled]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   return { explorer, loading, gamesLoading: xd ? xdGamesLoading : loading, error };

@@ -140,6 +140,8 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
       boards: withActive(state.boards, state.activeBoardId, (board) => ({
         ...board,
         title: title ?? imported.title,
+        sourceDatabaseId: undefined,
+        sourceGameId: undefined,
         tree: imported.tree,
         path: imported.path,
         headers: imported.headers,
@@ -158,6 +160,8 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
       const atFen = args.atFen ?? analysisFen(state);
       const content = {
         title: args.title,
+        sourceDatabaseId: undefined,
+        sourceGameId: undefined,
         tree: imported.tree,
         path: mainlinePathForFen(imported.tree, atFen),
         headers,
@@ -231,6 +235,9 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
       if (!board) return {};
       return editBoard(state, (item) => ({
         ...item,
+        // Live moves replace the tree: it is no longer the saved database game.
+        sourceDatabaseId: undefined,
+        sourceGameId: undefined,
         tree,
         path,
         headers: result && result !== item.headers.Result
@@ -572,6 +579,8 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         }
         return {
           ...board,
+          sourceDatabaseId: undefined,
+          sourceGameId: undefined,
           tree: createEmptyTree(startFen),
           path: [],
           headers,
@@ -605,6 +614,8 @@ export const createBoardEditSlice: StateCreator<StudioState, [], [], BoardEditSl
         }
         return {
           ...board,
+          sourceDatabaseId: undefined,
+          sourceGameId: undefined,
           tree: createEmptyTree(startFen),
           path: [],
           headers,

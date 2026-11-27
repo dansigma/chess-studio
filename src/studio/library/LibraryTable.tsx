@@ -1,15 +1,17 @@
 "use client";
 
 import { LibraryLoadingStatus } from "./LibraryLoadingStatus";
-import { useEffect, useMemo, useRef, type KeyboardEvent, type RefObject } from "react";
-import { ArrowDown, ArrowUp, Database, ExternalLink, GraduationCap } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import { ArrowDown, ArrowUp, Database, ExternalLink, GraduationCap, Trash2 } from "lucide-react";
 import type { SiteLocale } from "@/src/i18n/locale";
 import { tLibrary } from "@/src/i18n/library-strings";
+import { fileDatabaseId } from "@/src/lib/explorer-types";
 import { itemYear } from "@/src/lib/library/filters";
 import { MASTERS_SOURCE_ID } from "@/src/lib/library/masters-source";
 import { getLibrarySource } from "@/src/lib/library/sources";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 import { useStudioStore } from "@/src/store/studio-store";
+import { DeleteFileGameDialog, type FileGameDeleteTarget } from "../DeleteFileGameDialog";
 import { pgnResultToWinner, ResultMark } from "../ResultMark";
 import { EcoBadge } from "../ui/EcoBadge";
 import { outcomeFor, PlayerCell } from "../ui/PlayerCell";
@@ -128,7 +130,13 @@ function Cell({ item, column, locale }: { item: LibraryGameItem; column: Library
 }
 
 /** SIG-1336: per-row quick actions; they never change the selection. */
-function RowActions({ item, locale, selected }: { item: LibraryGameItem; locale: SiteLocale; selected: boolean }) {
+function RowActions({ item, locale, selected, onDelete }: {
+  item: LibraryGameItem;
+  locale: SiteLocale;
+  selected: boolean;
+  onDelete: (target: FileGameDeleteTarget) => void;
+}) {
+  const databaseId = fileDatabaseId(item.sourceId);
   const visibility = selected
     ? "pointer-events-auto opacity-100"
     : "pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100";
@@ -195,6 +203,26 @@ function RowActions({ item, locale, selected }: { item: LibraryGameItem; locale:
       >
         <Database size={12} aria-hidden />
       </button>
+      {databaseId !== null && (
+        <button
+          type="button"
+          className={action}
+          aria-label={tLibrary(locale, "library.row.delete")}
+          title={tLibrary(locale, "library.row.delete")}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete({ databaseId, gameId: item.gameId, title: `${item.white} – ${item.black}` });
+          }}
+          onDoubleClick={stop}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.stopPropagation();
+            }
+          }}
+        >
+          <Trash2 size={12} aria-hidden />
+        </button>
+      )}
     </div>
   );
 }
@@ -209,6 +237,7 @@ export function LibraryTable({ games }: { games: LibraryGamesState }) {
 }
 
 function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRef: RefObject<HTMLDivElement | null> }) {
+  const [deleting, setDeleting] = useState<FileGameDeleteTarget | null>(null);
   const filesHydrated = useStudioStore((state) => state.filesHydrated);
   const locale = useStudioStore((state) => state.settings.locale);
   const filters = useLibraryStore((s) => s.filters);
@@ -435,7 +464,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
                     {columns.map((column) => (
                       <Cell key={column.key} item={item} column={column} locale={locale} />
                     ))}
-                    <RowActions item={item} locale={locale} selected={selected} />
+                    <RowActions item={item} locale={locale} selected={selected} onDelete={setDeleting} />
                   </div>
                 );
               })}
@@ -453,6 +482,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
           </div>
         </div>
       </div>
+      {deleting && <DeleteFileGameDialog target={deleting} onClose={() => setDeleting(null)} />}
     </div>
   );
 }

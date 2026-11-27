@@ -86,6 +86,8 @@ export type CutUndo = {
 };
 
 export type BoardSession = {
+  sourceDatabaseId?: string;
+  sourceGameId?: string;
   id: string;
   remoteId: string | null;
   title: string;
@@ -467,10 +469,12 @@ export type StudioState = {
   /** Replaces a database's games, keeping its id (Library import: Replace / Merge). False if the id is unknown. */
   addActiveGameToDatabase: (destination: DatabaseDestination) => boolean;
   addPgnGameToDatabase: (pgn: string, destination: DatabaseDestination) => boolean;
+  updateFileGame: (databaseId: string, gameId: string, pgn: string) => boolean;
+  deleteFileGame: (databaseId: string, gameId: string) => boolean;
   replaceFileDatabaseGames: (id: string, games: ParsedFileGame[]) => boolean;
   showFileDatabase: (id: string) => void;
   openPgnSource: (name: string, pgn: string) => "board" | "database" | "failed";
-  openFileGame: (game: FileGame, options?: { atFen?: string; openInNewBoard?: boolean }) => void;
+  openFileGame: (game: FileGame, options?: { atFen?: string; openInNewBoard?: boolean; databaseId?: string }) => void;
   deleteFileFolder: (id: string) => void;
   deleteFileDatabase: (id: string) => void;
   mergeRemoteFiles: (remote: FilesLibrary | FileDatabase[]) => void;

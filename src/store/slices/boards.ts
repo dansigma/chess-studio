@@ -377,6 +377,8 @@ export const createBoardsSlice: StateCreator<StudioState, [], [], BoardsSlice> =
       id: newId(),
       remoteId: null,
       title: `${current.title} copy`,
+      sourceDatabaseId: undefined,
+      sourceGameId: undefined,
       tree: cloneTree(current.tree),
       path: [...current.path],
       headers: { ...current.headers },

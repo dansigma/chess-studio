@@ -4,7 +4,6 @@ import { LibraryLoadingStatus } from "./library/LibraryLoadingStatus";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { searchFilesForPosition, type FilePositionHit } from "@/src/lib/files-explorer";
-import type { FileGame } from "@/src/lib/user-files";
 import { tPanels } from "@/src/i18n/studio-panel-strings.ts";
 import { useStudioStore } from "@/src/store/studio-store";
 import { useActiveFen } from "@/src/store/hooks";
@@ -34,22 +33,9 @@ export function PositionSearchPanel() {
   const [loading, setLoading] = useState(true);
   const [retryTick, setRetryTick] = useState(0);
 
-  // SIG-909: library signature mirrors personalSignature so the search
-  // re-runs when any database id or game list changes.
-  const librarySignature = useMemo(
-    () => databases.map((database) => `${database.id}:${database.games.map((game) => game.id).join(",")}`).join("|"),
-    [databases],
-  );
-
-  const gameById = useMemo(() => {
-    const map = new Map<string, FileGame>();
-    for (const database of databases) {
-      for (const game of database.games) {
-        map.set(game.id, game);
-      }
-    }
-    return map;
-  }, [databases]);
+  const gamesByDatabase = useMemo(() => new Map(databases.map((database) => [
+    database.id, new Map(database.games.map((game) => [game.id, game])),
+  ])), [databases]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- SIG-864/909: the
      loading start is intentionally synchronous so a new position never sits
@@ -75,8 +61,7 @@ export function PositionSearchPanel() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fen, filesHydrated, librarySignature, retryTick]);
+  }, [fen, filesHydrated, databases, retryTick]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const total = hits.reduce((sum, hit) => sum + hit.games.length, 0);
@@ -123,7 +108,7 @@ export function PositionSearchPanel() {
                 <span className="shrink-0 tabular-nums">{hit.games.length}</span>
               </div>
               {hit.games.map((row) => {
-                const fileGame = gameById.get(row.id);
+                const fileGame = gamesByDatabase.get(hit.databaseId)?.get(row.id);
                 const result = resultLabel(row.winner);
                 const date = row.year ? `${row.year}${row.month ? `.${String(row.month).padStart(2, "0")}` : ""}` : null;
                 return (
@@ -133,7 +118,7 @@ export function PositionSearchPanel() {
                     className="flex w-full items-baseline justify-between gap-2 px-3 py-1.5 text-left hover:bg-studio-hover-subtle"
                     onClick={() => {
                       if (fileGame) {
-                        openFileGame(fileGame, { atFen: debouncedFen });
+                        openFileGame(fileGame, { atFen: debouncedFen, databaseId: hit.databaseId });
                       }
                     }}
                     disabled={!fileGame}

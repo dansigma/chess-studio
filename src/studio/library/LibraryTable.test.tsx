@@ -235,3 +235,32 @@ test("partial notice shows failed sources and its retry button calls retry", () 
   fireEvent.click(within(status).getByRole("button", { name: "Try again" }));
   assert.equal(retried, 1);
 });
+
+test("only personal database rows offer deletion and require confirmation", () => {
+  const store = useStudioStore.getState;
+  const initial = store();
+  const databaseId = store().importFileDatabase("Personal", PGN);
+  const database = store().files.databases.find((entry) => entry.id === databaseId)!;
+  const [{ id: gameId }] = database.games;
+  const personal: LibraryGameItem = {
+    ...item(1), sourceId: `file:${databaseId}`, gameId, key: `file:${databaseId}:${gameId}`,
+  };
+  try {
+    render(<LibraryTable games={games(2, { items: [item(0), personal] })} />);
+    const [unowned, owned] = screen.getAllByTestId("library-row");
+    assert.equal(within(unowned).queryByRole("button", { name: "Delete game" }), null);
+    const remove = within(owned).getByRole("button", { name: "Delete game" });
+    fireEvent.click(remove);
+    assert.equal(useLibraryStore.getState().selectedKey, null);
+    const confirm = () => within(screen.getByRole("dialog", { name: "Delete this game?" }));
+    fireEvent.click(confirm().getByRole("button", { name: "Cancel" }));
+    assert.equal(store().files.databases.find((entry) => entry.id === databaseId)?.games.length, 1);
+    fireEvent.click(remove);
+    fireEvent.click(confirm().getByRole("button", { name: "Delete game" }));
+    assert.equal(store().files.databases.find((entry) => entry.id === databaseId)?.games.length, 0);
+    assert.equal(screen.queryByRole("dialog"), null);
+  } finally {
+    cleanup();
+    useStudioStore.setState({ files: initial.files, activeFileDatabaseId: initial.activeFileDatabaseId });
+  }
+});

@@ -1,3 +1,4 @@
+import { exportPgn, importPgn } from "@/src/chess/pgn";
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
 import {
@@ -228,4 +229,20 @@ describe("SIG-1186 boot merge", () => {
     };
     assert.deepEqual(mergeSessionBoards(local, null), local, "a failed read never wipes the snapshot");
   });
+});
+
+it("restores a cached file game link only for matching remote board content", () => {
+  const { tree, headers } = importPgn("1. e4 *");
+  const board = seedBoard("board", {
+    tree, headers, remoteId: "remote", dirty: false, sourceDatabaseId: "db", sourceGameId: "game",
+  });
+  saveSessionBoards("user-a", [board], board.id);
+  const local = loadSessionBoards("user-a");
+  assert.equal(local?.boards[0].sourceGameId, "game");
+  const row: RemoteBoardRow = {
+    id: "remote", title: "Board", pgn: exportPgn(tree, headers), current_node_path: null,
+    orientation: "white", repertoire_color: null,
+  };
+  assert.equal(mergeSessionBoards(local, [row])?.boards[0].sourceDatabaseId, "db");
+  assert.equal(mergeSessionBoards(local, [{ ...row, pgn: "1. d4 *" }])?.boards[0].sourceGameId, undefined);
 });

@@ -1,4 +1,4 @@
-import { importPgn } from "@/src/chess/pgn";
+import { exportPgn, importPgn } from "@/src/chess/pgn";
 import type { BoardSession } from "@/src/store/slices/types";
 import {
   readSnapshotBoard,
@@ -93,6 +93,12 @@ export function mergeSessionBoards(
       merged.push(localBoard);
       seenLocalIds.add(localBoard.id);
     } else {
+      // The local link is valid only while the remote board still holds the
+      // same game. The remote row has no source database metadata.
+      if (localBoard?.sourceGameId && exportPgn(localBoard.tree, localBoard.headers) === row.pgn) {
+        session.sourceDatabaseId = localBoard.sourceDatabaseId;
+        session.sourceGameId = localBoard.sourceGameId;
+      }
       merged.push(localBoard?.liveSource ? { ...session, liveSource: localBoard.liveSource } : session);
       if (localBoard) {
         seenLocalIds.add(localBoard.id);
