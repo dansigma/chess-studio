@@ -94,6 +94,7 @@ test("mobile studio: opening a multi-game PGN saves it and opens the Games sheet
   const games = page.locator("[data-mobile-file-games]");
   await expect(games.getByRole("button", { name: "Smoke", exact: true })).toBeVisible();
   await expect(games.getByRole("button", { name: "Mobile Tabs", exact: true })).toBeVisible();
+  await expect(games.getByRole("button", { name: "Delete game", exact: true })).toHaveCount(2);
   await expect(page.getByText('Saved to My files as "club-match" (1/10 databases)')).toBeVisible();
 });
 

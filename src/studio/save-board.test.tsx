@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, mock, test } from "node:test";
 import { setupDom, teardownDom } from "../test-utils/dom.ts";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { createEmptyTree, playMove } from "@/src/chess/tree.ts";
 import type { BoardSession } from "@/src/store/slices/types.ts";
 
@@ -373,4 +373,70 @@ test("File menu leaves the Add to database dialog open after the menu closes", (
   fireEvent.click(screen.getByRole("menuitem", { name: "Add to database…" }));
   assert.equal(closed, true);
   assert.equal(useStudioStore.getState().addToDatabaseOpen, true);
+});
+
+test("Add to database updates the active linked board's original game by default", async () => {
+  const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
+  const store = useStudioStore.getState;
+  useStudioStore.setState({ files: { folders: [], databases: [] } });
+  const firstId = store().importFileDatabase("First", '[White "Alice"]\n\n1. d4 *');
+  const secondId = store().importFileDatabase("Second", '[White "Bob"]\n\n1. e4 *');
+  const [first, second] = store().files.databases;
+  store().openFileGame(first.games[0], { openInNewBoard: true });
+  const linkedBoardId = store().activeBoardId;
+  store().openFileGame(second.games[0], { openInNewBoard: true });
+  render(<AddToDatabaseDialog onClose={() => {}} />);
+  assert.equal((screen.getByRole("radio", { name: "Update game in Second" }) as HTMLInputElement).checked, true);
+
+  act(() => store().setActiveBoard(linkedBoardId));
+  assert.equal((screen.getByRole("radio", { name: "Update game in First" }) as HTMLInputElement).checked, true);
+  assert.equal(screen.queryByLabelText("Database"), null);
+  const expected = store().exportActivePgn();
+  fireEvent.click(screen.getByRole("button", { name: "Update" }));
+
+  assert.equal(store().files.databases.find((database) => database.id === firstId)?.games.length, 1);
+  assert.equal(store().files.databases[0].games[0].id, first.games[0].id);
+  assert.equal(store().files.databases[0].games[0].pgn, expected);
+  assert.equal(store().files.databases.find((database) => database.id === secondId), second);
+});
+
+test("a linked board can save a new game and Library PGN mode always adds one", async () => {
+  const { AddToDatabaseDialog } = await import("./AddToDatabaseDialog");
+  const store = useStudioStore.getState;
+  useStudioStore.setState({ files: { folders: [], databases: [] } });
+  store().importFileDatabase("Personal", "1. d4 *");
+  const original = store().files.databases[0].games[0];
+  store().openFileGame(original);
+  const dialog = render(<AddToDatabaseDialog onClose={() => {}} />);
+  fireEvent.click(screen.getByRole("radio", { name: "Save as a new game" }));
+  assert.ok(screen.getByLabelText("Database"));
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  assert.equal(store().files.databases[0].games[0], original);
+  assert.notEqual(store().files.databases[0].games[1].id, original.id);
+  dialog.unmount();
+
+  store().setAddToDatabaseOpen(true, "1. c4 *");
+  render(<AddToDatabaseDialog onClose={() => store().setAddToDatabaseOpen(false)} />);
+  assert.equal(screen.queryByRole("radio"), null);
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  assert.equal(store().files.databases[0].games[2].pgn, "1. c4 *");
+});
+
+test("FileGamesPanel deletes a row only after confirmation", async () => {
+  const { FileGamesPanel } = await import("./FileGamesPanel");
+  const store = useStudioStore.getState;
+  useStudioStore.setState({ files: { folders: [], databases: [] } });
+  store().importFileDatabase("Personal", '[White "Alice"]\n\n1. d4 *\n\n[White "Bob"]\n\n1. e4 *');
+  const games = store().files.databases[0].games;
+  const activeBoard = store().active();
+  render(<FileGamesPanel />);
+  fireEvent.click(screen.getAllByRole("button", { name: "Delete game" })[0]);
+  assert.ok(screen.getByRole("dialog", { name: "Delete this game?" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  assert.equal(store().files.databases[0].games, games);
+  fireEvent.click(screen.getAllByRole("button", { name: "Delete game" })[0]);
+  fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete game" }));
+  assert.deepEqual(store().files.databases[0].games, [games[1]]);
+  assert.equal(store().active(), activeBoard);
+  assert.equal(screen.getAllByRole("button", { name: "Delete game" }).length, 1);
 });

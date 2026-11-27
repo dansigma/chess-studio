@@ -4,7 +4,7 @@ import { useState } from "react";
 import { tLibrary } from "@/src/i18n/library-strings";
 import { tStudioChrome } from "@/src/i18n/studio-chrome-strings";
 import { MAX_DATABASES } from "@/src/lib/user-files";
-import { useStudioStore } from "@/src/store/studio-store";
+import { selectActiveBoard, useStudioStore } from "@/src/store/studio-store";
 import { buildFolderTree } from "./files-tree";
 import { LibraryLoadingStatus } from "./library/LibraryLoadingStatus";
 import { Button } from "./ui/Button";
@@ -18,6 +18,15 @@ export function AddToDatabaseDialog({ onClose }: { onClose: () => void }) {
   const filesHydrated = useStudioStore((state) => state.filesHydrated);
   const databases = useStudioStore((state) => state.files.databases);
   const folders = useStudioStore((state) => state.files.folders);
+  const activeBoard = useStudioStore(selectActiveBoard);
+  const addToDatabasePgn = useStudioStore((state) => state.addToDatabasePgn);
+  const [saveAsNew, setSaveAsNew] = useState(false);
+  const sourceDatabase = addToDatabasePgn === null
+    ? databases.find((database) =>
+      database.id === activeBoard.sourceDatabaseId && database.games.some((game) => game.id === activeBoard.sourceGameId),
+    )
+    : undefined;
+  const update = !!sourceDatabase && !saveAsNew;
   const [id, setId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [folderId, setFolderId] = useState("");
@@ -26,7 +35,7 @@ export function AddToDatabaseDialog({ onClose }: { onClose: () => void }) {
   const atLimit = databases.length >= MAX_DATABASES;
   const folderOptions = !selected ? buildFolderTree(folders, [], "").folderOptions : [];
   const selectedFolder = folders.some((folder) => folder.id === folderId) ? folderId : "";
-  const canSubmit = filesHydrated && (!!selected || (!atLimit && !!name.trim()));
+  const canSubmit = filesHydrated && (update || !!selected || (!atLimit && !!name.trim()));
 
   return (
     <Dialog
@@ -38,7 +47,7 @@ export function AddToDatabaseDialog({ onClose }: { onClose: () => void }) {
             {tStudioChrome(locale, "chrome.saveAs.cancel")}
           </Button>
           <Button type="submit" variant="primary" form="add-to-database-form" disabled={!canSubmit}>
-            {tStudioChrome(locale, "chrome.addToDatabase.add")}
+            {tStudioChrome(locale, update ? "chrome.addToDatabase.update" : "chrome.addToDatabase.add")}
           </Button>
         </>
       }
@@ -52,9 +61,15 @@ export function AddToDatabaseDialog({ onClose }: { onClose: () => void }) {
             if (!canSubmit) return;
             const state = useStudioStore.getState();
             const destination = selected ? { id: selected } : { name, folderId: selectedFolder || null };
-            const saved = state.addToDatabasePgn === null
-              ? state.addActiveGameToDatabase(destination)
-              : state.addPgnGameToDatabase(state.addToDatabasePgn, destination);
+            let saved: boolean;
+            if (update && activeBoard.sourceGameId) {
+              if (selectActiveBoard(state) !== activeBoard || state.addToDatabasePgn !== null) return;
+              saved = state.updateFileGame(sourceDatabase.id, activeBoard.sourceGameId, state.exportActivePgn());
+            } else {
+              saved = state.addToDatabasePgn === null
+                ? state.addActiveGameToDatabase(destination)
+                : state.addPgnGameToDatabase(state.addToDatabasePgn, destination);
+            }
             if (saved) {
               onClose();
             } else {
@@ -62,63 +77,85 @@ export function AddToDatabaseDialog({ onClose }: { onClose: () => void }) {
             }
           }}
         >
-          <label className="flex flex-col gap-1 text-caption text-studio-muted">
-            {tStudioChrome(locale, "chrome.addToDatabase.destination")}
-            <select
-              value={selected}
-              onChange={(event) => {
-                setId(event.target.value);
-                setError(null);
-              }}
-              className={FIELD_CLASS}
-            >
-              {databases.map((database) => (
-                <option key={database.id} value={database.id}>{database.name}</option>
-              ))}
-              <option value="" disabled={atLimit}>{tStudioChrome(locale, "chrome.addToDatabase.create")}</option>
-            </select>
-          </label>
-          <p className="text-caption text-studio-muted">
-            {tStudioChrome(locale, "chrome.addToDatabase.quota", {
-              count: String(databases.length),
-              limit: String(MAX_DATABASES),
-            })}
-          </p>
-          {atLimit ? (
-            <p className="text-caption text-studio-muted">
-              {tStudioChrome(locale, "chrome.addToDatabase.databaseLimit", { limit: String(MAX_DATABASES) })}
-            </p>
-          ) : null}
-          {!selected && !atLimit ? (
+          {sourceDatabase && (
+            <fieldset className="flex flex-col gap-2">
+              <label className="flex items-center gap-2">
+                <input type="radio" name="database-save-mode" checked={!saveAsNew} onChange={() => {
+                  setSaveAsNew(false);
+                  setError(null);
+                }} />
+                {tStudioChrome(locale, "chrome.addToDatabase.updateGame", { name: sourceDatabase.name })}
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" name="database-save-mode" checked={saveAsNew} onChange={() => {
+                  setSaveAsNew(true);
+                  setError(null);
+                }} />
+                {tStudioChrome(locale, "chrome.addToDatabase.saveAsNew")}
+              </label>
+            </fieldset>
+          )}
+          {!update && (
             <>
               <label className="flex flex-col gap-1 text-caption text-studio-muted">
-                {tStudioChrome(locale, "chrome.addToDatabase.name")}
-                <input
-                  required
-                  value={name}
+                {tStudioChrome(locale, "chrome.addToDatabase.destination")}
+                <select
+                  value={selected}
                   onChange={(event) => {
-                    setName(event.target.value);
+                    setId(event.target.value);
                     setError(null);
                   }}
                   className={FIELD_CLASS}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-caption text-studio-muted">
-                {tStudioChrome(locale, "chrome.addToDatabase.folder")}
-                <select value={selectedFolder} onChange={(event) => {
-                    setFolderId(event.target.value);
-                    setError(null);
-                  }} className={FIELD_CLASS}>
-                  <option value="">{tLibrary(locale, "library.folders.none")}</option>
-                  {folderOptions.map((folder) => (
-                    <option key={folder.id} value={folder.id}>
-                      {"\u00a0\u00a0".repeat(folder.depth)}{folder.name}
-                    </option>
+                >
+                  {databases.map((database) => (
+                    <option key={database.id} value={database.id}>{database.name}</option>
                   ))}
+                  <option value="" disabled={atLimit}>{tStudioChrome(locale, "chrome.addToDatabase.create")}</option>
                 </select>
               </label>
+              <p className="text-caption text-studio-muted">
+                {tStudioChrome(locale, "chrome.addToDatabase.quota", {
+                  count: String(databases.length),
+                  limit: String(MAX_DATABASES),
+                })}
+              </p>
+              {atLimit ? (
+                <p className="text-caption text-studio-muted">
+                  {tStudioChrome(locale, "chrome.addToDatabase.databaseLimit", { limit: String(MAX_DATABASES) })}
+                </p>
+              ) : null}
+              {!selected && !atLimit ? (
+                <>
+                  <label className="flex flex-col gap-1 text-caption text-studio-muted">
+                    {tStudioChrome(locale, "chrome.addToDatabase.name")}
+                    <input
+                      required
+                      value={name}
+                      onChange={(event) => {
+                        setName(event.target.value);
+                        setError(null);
+                      }}
+                      className={FIELD_CLASS}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-caption text-studio-muted">
+                    {tStudioChrome(locale, "chrome.addToDatabase.folder")}
+                    <select value={selectedFolder} onChange={(event) => {
+                        setFolderId(event.target.value);
+                        setError(null);
+                      }} className={FIELD_CLASS}>
+                      <option value="">{tLibrary(locale, "library.folders.none")}</option>
+                      {folderOptions.map((folder) => (
+                        <option key={folder.id} value={folder.id}>
+                          {"\u00a0\u00a0".repeat(folder.depth)}{folder.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              ) : null}
             </>
-          ) : null}
+          )}
           {error ? <p role="alert">{error}</p> : null}
         </form>
       )}
