@@ -77,6 +77,27 @@ test("loads the PGN, shows header from the PGN for Masters, and navigates moves"
   assert.ok(screen.getByText("develops"));
 });
 
+test("puts both players and their ratings on one row with the only result chip between them", async () => {
+  registerLibrarySource(adapter(async () => PGN));
+  render(<LibraryPreview item={ITEM} />);
+  const header = within(await screen.findByTestId("library-preview-header"));
+  const result = header.getByTestId("library-preview-result");
+  const row = result.parentElement!;
+  assert.ok(row.classList.contains("flex"));
+  assert.ok(row.classList.contains("items-baseline"));
+  assert.deepEqual(Array.from(row.children), [
+    header.getByTitle("Carlsen").parentElement,
+    result,
+    header.getByTitle("Caruana").parentElement,
+  ]);
+  assert.ok(within(row.children[0] as HTMLElement).getByText("2850"));
+  assert.ok(within(row.children[2] as HTMLElement).getByText("2800"));
+  assert.deepEqual(header.getAllByText("1-0"), [result]);
+  assert.deepEqual(Array.from(row.nextElementSibling!.children, (child) => child.textContent), [
+    "2020", "Candidates", "3 moves",
+  ]);
+});
+
 test("shows the same result mark as the list (½-½, not the raw PGN token)", async () => {
   registerLibrarySource(adapter(async () => PGN.replace("1-0", "1/2-1/2")));
   render(<LibraryPreview item={{ ...ITEM, result: "1/2-1/2" }} />);

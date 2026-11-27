@@ -77,6 +77,16 @@ test("wide tables show Opening and the shared neutral ECO badge", () => {
   assert.equal(screen.getByText("C20").getAttribute("data-eco-family"), "C");
 });
 
+test("both player names are bold and use the normal text colour for every result", () => {
+  render(<LibraryTable games={games(4, { items: [item(0), item(1), item(2), { ...item(3), result: "*" }] })} />);
+  for (const name of ["W0", "B0", "W1", "B1", "W2", "B2", "W3", "B3"]) {
+    const { classList } = screen.getByText(name);
+    assert.ok(classList.contains("font-semibold"), name);
+    assert.ok(classList.contains("text-studio-fg"), name);
+    assert.ok(!classList.contains("text-studio-muted"), name);
+  }
+});
+
 test("ratings are right-aligned muted figures and a missing one is a dash", () => {
   render(<LibraryTable games={games(1)} />);
   const rating = screen.getByText("2000");

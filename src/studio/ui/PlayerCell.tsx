@@ -19,29 +19,31 @@ export function outcomeFor(winner: ResultWinner, side: "white" | "black"): Playe
 export function PlayerCell({
   name,
   rating,
-  outcome,
+  outcome = "neutral",
+  bold,
   title,
   fed,
   emphasis,
 }: {
   name: string;
   rating: number | null;
-  outcome: PlayerOutcome;
+  outcome?: PlayerOutcome;
+  bold?: boolean;
   title?: string | null;
   fed?: string | null;
   emphasis?: boolean;
 }) {
   const tone =
-    outcome === "won"
+    bold || outcome === "won"
       ? "font-semibold text-studio-fg"
       : outcome === "lost"
         ? "text-studio-muted"
         : "text-studio-fg";
-  const bold = emphasis && outcome !== "won" ? "font-semibold" : "";
+  const emphasisClass = emphasis && !bold && outcome !== "won" ? "font-semibold" : "";
   return (
     <span className="flex min-w-0 items-baseline gap-1.5">
       {title ? <span className="shrink-0 text-caption font-medium text-studio-muted">{title}</span> : null}
-      <span className={`truncate ${tone} ${bold}`} title={name}>
+      <span className={`truncate ${tone} ${emphasisClass}`} title={name}>
         {name}
       </span>
       {rating != null ? (

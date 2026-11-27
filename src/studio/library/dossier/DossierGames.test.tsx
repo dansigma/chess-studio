@@ -94,9 +94,13 @@ test("lists games newest first, undated last, with both players, result, ECO, ye
   assert.match(list[0]!.textContent ?? "", /Candidates/);
   assert.match(list[1]!.textContent ?? "", /Event old/);
   assert.match(list[2]!.textContent ?? "", /Event undated/);
-  assert.match(list[0]!.textContent ?? "", /Magnus/);
+  for (const name of ["Magnus", "Other"]) {
+    const { classList } = within(list[0]!).getByTitle(name);
+    assert.ok(classList.contains("font-semibold"), name);
+    assert.ok(classList.contains("text-studio-fg"), name);
+    assert.ok(!classList.contains("text-studio-muted"), name);
+  }
   assert.match(list[0]!.textContent ?? "", /2800/);
-  assert.match(list[0]!.textContent ?? "", /Other/);
   assert.match(list[0]!.textContent ?? "", /2700/);
   assert.match(list[0]!.textContent ?? "", /1-0/);
   assert.match(list[0]!.textContent ?? "", /C50/);

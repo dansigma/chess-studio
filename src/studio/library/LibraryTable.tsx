@@ -14,7 +14,7 @@ import { useStudioStore } from "@/src/store/studio-store";
 import { DeleteFileGameDialog, type FileGameDeleteTarget } from "../DeleteFileGameDialog";
 import { pgnResultToWinner, ResultMark } from "../ResultMark";
 import { EcoBadge } from "../ui/EcoBadge";
-import { outcomeFor, PlayerCell } from "../ui/PlayerCell";
+import { PlayerCell } from "../ui/PlayerCell";
 import { usePanelSize } from "../use-panel-size";
 import { moveSelection, nextSort, visibleColumns, type LibraryColumn } from "./library-columns";
 import { hasActiveFilters, useLibraryStore } from "./library-store";
@@ -62,13 +62,13 @@ function Cell({ item, column, locale }: { item: LibraryGameItem; column: Library
     case "white":
       return (
         <div role="gridcell" className={base}>
-          <PlayerCell name={item.white} rating={null} outcome={outcomeFor(winner, "white")} />
+          <PlayerCell name={item.white} rating={null} bold />
         </div>
       );
     case "black":
       return (
         <div role="gridcell" className={base}>
-          <PlayerCell name={item.black} rating={null} outcome={outcomeFor(winner, "black")} />
+          <PlayerCell name={item.black} rating={null} bold />
         </div>
       );
     case "result":
