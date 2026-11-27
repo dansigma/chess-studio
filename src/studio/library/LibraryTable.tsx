@@ -24,7 +24,7 @@ import { localizeOpeningName } from "@/src/lib/opening-names";
 
 export { openLibraryGame, trainLibraryGame } from "./open-library-game";
 
-export const LIBRARY_ROW_HEIGHT = 28;
+export const LIBRARY_ROW_HEIGHT = 34;
 const SKELETON_ROWS = 8;
 
 function cellText(item: LibraryGameItem, column: LibraryColumn): string {
@@ -398,7 +398,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
                     aria-rowindex={index + 2}
                     aria-selected={selected}
                     data-testid="library-row"
-                    className={`group relative grid cursor-default items-center px-3 ${
+                    className={`group relative box-border grid cursor-default items-center border-b border-studio-border-subtle px-3 ${
                       selected ? "bg-studio-selected" : "hover:bg-studio-hover-subtle"
                     }`}
                     style={{ gridTemplateColumns: template, columnGap: 8, height: LIBRARY_ROW_HEIGHT }}
