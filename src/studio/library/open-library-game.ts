@@ -21,6 +21,19 @@ function reportFailure(cause: unknown, locale: SiteLocale): void {
   useStudioStore.setState({ statusMessage: tLibrary(locale, "library.table.openFailed", { message }) });
 }
 
+/** Loads the selected game's PGN for the shared destination dialog. */
+export async function saveLibraryGameToDatabase(item: LibraryGameItem, locale: SiteLocale): Promise<void> {
+  try {
+    const pgn = await loadPgn(item);
+    // A slower load must not swap the game under an already open dialog.
+    if (!useStudioStore.getState().addToDatabaseOpen) {
+      useStudioStore.getState().setAddToDatabaseOpen(true, pgn);
+    }
+  } catch (cause) {
+    reportFailure(cause, locale);
+  }
+}
+
 /** Loads the game's PGN through its source adapter and opens it in a new Studio board. */
 export async function openLibraryGame(item: LibraryGameItem, locale: SiteLocale): Promise<void> {
   try {

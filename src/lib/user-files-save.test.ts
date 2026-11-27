@@ -308,6 +308,28 @@ test("adding the active game to a new database stores it in the selected folder"
   assert.equal(database.games.length, 1);
 });
 
+test("adding an explicit PGN creates and appends to a database without touching the boards", async () => {
+  const { useStudioStore } = await import("@/src/store/studio-store");
+  const folderId = "studies";
+  useStudioStore.setState({
+    files: { databases: [], folders: [{ id: folderId, name: "Studies", parentId: null }] },
+    user: null,
+  });
+  const state = useStudioStore.getState();
+  const first = '1. d4 d5 {keep  spacing} *';
+  const second = '[White "Judit"]\n\n1. c4 e5 *';
+
+  assert.equal(state.addPgnGameToDatabase(first, { name: "Openings", folderId }), true);
+  const [created] = useStudioStore.getState().files.databases;
+  assert.equal(created.folderId, folderId);
+  assert.equal(state.addPgnGameToDatabase(second, { id: created.id }), true);
+
+  const after = useStudioStore.getState();
+  assert.deepEqual(after.files.databases[0].games.map((game) => game.pgn), [first, second]);
+  assert.equal(after.boards, state.boards);
+  assert.equal(after.activeBoardId, state.activeBoardId);
+});
+
 test("append to a 1,000-game cloud database sends one game write and metadata changes send none", async () => {
   const calls: Record<string, unknown>[] = [];
   const metadata: Record<string, unknown>[] = [];

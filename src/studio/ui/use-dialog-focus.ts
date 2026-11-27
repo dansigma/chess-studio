@@ -38,8 +38,11 @@ export function useDialogFocus(rootRef: RefObject<HTMLElement | null>, active = 
       if (event.key !== "Tab" || !rootRef.current) {
         return;
       }
-      // The nested dialog owns Tab while it is open, just as it owns Escape.
-      if (rootRef.current.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      const modalSelector = '[role="dialog"][aria-modal="true"]';
+      // A dialog opened above this one owns Tab, including sibling dialogs.
+      const modals = document.querySelectorAll(modalSelector);
+      if (rootRef.current.matches(modalSelector) && modals[modals.length - 1] !== rootRef.current) return;
+      if (rootRef.current.querySelector(modalSelector)) return;
       const items = focusablesIn(rootRef.current);
       if (items.length === 0) {
         event.preventDefault();

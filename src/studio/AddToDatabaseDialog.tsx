@@ -51,7 +51,11 @@ export function AddToDatabaseDialog({ onClose }: { onClose: () => void }) {
             event.preventDefault();
             if (!canSubmit) return;
             const state = useStudioStore.getState();
-            if (state.addActiveGameToDatabase(selected ? { id: selected } : { name, folderId: selectedFolder || null })) {
+            const destination = selected ? { id: selected } : { name, folderId: selectedFolder || null };
+            const saved = state.addToDatabasePgn === null
+              ? state.addActiveGameToDatabase(destination)
+              : state.addPgnGameToDatabase(state.addToDatabasePgn, destination);
+            if (saved) {
               onClose();
             } else {
               setError(useStudioStore.getState().statusMessage);

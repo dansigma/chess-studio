@@ -62,7 +62,23 @@ export function dossierGamePgn(game: PlayerGame): string {
     return game.pgn;
   }
   const movetext = numberSanLine(game.moves?.trim() ?? "");
-  return `${movetext}${movetext ? " " : ""}${resultToken(game.winner)}\n`;
+  const result = resultToken(game.winner);
+  // Headers keep the players and game data when the PGN is saved to a database.
+  const headers = {
+    Event: game.event,
+    Date: game.year != null ? `${game.year}.${game.month ? String(game.month).padStart(2, "0") : "??"}.??` : null,
+    White: game.whiteName,
+    Black: game.blackName,
+    Result: result,
+    WhiteElo: game.whiteRating,
+    BlackElo: game.blackRating,
+    ECO: game.eco,
+    Opening: game.opening,
+  };
+  const tags = Object.entries(headers)
+    .filter(([, value]) => value)
+    .map(([key, value]) => `[${key} "${String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"]`);
+  return `${tags.join("\n")}\n\n${movetext}${movetext ? " " : ""}${result}\n`;
 }
 
 function gameYear(game: PlayerGame): number | null {

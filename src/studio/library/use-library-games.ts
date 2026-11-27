@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
+import { fileSourceId } from "@/src/lib/library/file-source";
+import { useStudioStore } from "@/src/store/studio-store";
 import { queryLibrary } from "@/src/lib/library/query";
 import type {
   LibraryFilterState,
@@ -42,6 +45,11 @@ function isAbort(error: unknown): boolean {
  */
 export function useLibraryGames(query: Query = queryLibrary): LibraryGamesState {
   const filters = useLibraryStore((s) => s.filters);
+  const selectedDatabaseGames = useStudioStore(useShallow((state) =>
+    state.files.databases
+      .filter((database) => filters.sources.includes(fileSourceId(database.id)))
+      .map((database) => database.games),
+  ));
   const [items, setItems] = useState<LibraryGameItem[]>([]);
   const [total, setTotal] = useState<number | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -83,7 +91,7 @@ export function useLibraryGames(query: Query = queryLibrary): LibraryGamesState 
         setLoading(false);
       });
     return () => controller.abort();
-  }, [filters, reloadToken, query]);
+  }, [filters, reloadToken, query, selectedDatabaseGames]);
 
   const loadMore = useCallback(() => {
     if (!nextCursor || loading || loadingMore) {

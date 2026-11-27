@@ -377,6 +377,9 @@ export function GamePreview({
         <Button variant="secondary" size="sm" onClick={trainLine} disabled={trainDisabledReason !== undefined} title={trainDisabledReason}>
           {tLibrary(locale, "library.preview.train")}
         </Button>
+        <Button variant="secondary" size="sm" onClick={() => useStudioStore.getState().setAddToDatabaseOpen(true, pgn)}>
+          {tLibrary(locale, "library.saveToDatabase")}
+        </Button>
         <Button variant="primary" size="sm" onClick={openGameInStudio}>
           {tLibrary(locale, "library.preview.open")}
         </Button>

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { after, before, test } from "node:test";
 import { setupDom, teardownDom } from "../../test-utils/dom.ts";
 import { fireEvent, render, screen, cleanup } from "@testing-library/react";
+import { BottomSheet } from "../BottomSheet.tsx";
 import { Dialog } from "./Dialog.tsx";
 
 before(() => {
@@ -66,6 +67,27 @@ test("Dialog caps height as a flex column with pinned header/footer and scrollin
 
     const footer = screen.getByRole("button", { name: "Done" }).parentElement!;
     assert.match(footer.className, /\bshrink-0\b/);
+  } finally {
+    cleanup();
+  }
+});
+
+// SIG-1510: "Add to database" opens above the Library's mobile preview sheet.
+test("the sheet below a sibling dialog leaves Shift+Tab to the dialog", () => {
+  try {
+    render(
+      <>
+        <BottomSheet title="Preview" onClose={() => {}}>sheet</BottomSheet>
+        <Dialog title="Add to database" onClose={() => {}}>
+          <button type="button">Add</button>
+        </Dialog>
+      </>,
+    );
+    const add = screen.getByRole("button", { name: "Add" });
+    add.focus();
+    // Mid-dialog, so no trap may act: the browser moves focus by itself.
+    assert.equal(fireEvent.keyDown(add, { key: "Tab", shiftKey: true }), true);
+    assert.equal(document.activeElement, add);
   } finally {
     cleanup();
   }
