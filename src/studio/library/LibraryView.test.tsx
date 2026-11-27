@@ -327,6 +327,8 @@ test("New database defaults to no folder and explains the quota when full", asyn
     useStudioStore.setState({ files });
     useLibraryStore.setState({ folderId, filters });
   }
+});
+
 test("row and preview save the selected PGN and refresh a visible database without changing boards", async () => {
   useStudioStore.setState({
     files: { databases: [], folders: [] },
