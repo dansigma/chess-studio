@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import { formatSanAtPly } from "@/src/chess/move-notation";
-import { calibrateChances, resolveMaiaRun } from "@/src/engine/maia/calibration";
+import { fenKey } from "@/src/chess/tree";
+import { resolveMaiaChances, resolveMaiaRun } from "@/src/engine/maia/calibration";
 import { HISTORY_LENGTH } from "@/src/engine/maia/encode";
 import { MaiaClient } from "@/src/engine/maia/maia-client";
 import { MAIA_ELOS, type MaiaChances, type MaiaChancesMode, type MaiaMove, type MaiaPosition } from "@/src/engine/maia/protocol";
@@ -68,6 +69,9 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
     () => ({ fens: fens.slice(-HISTORY_LENGTH), elo: run.modelElo, lines }),
     [fens, run, lines],
   );
+  const currentFen = position.fens.at(-1);
+  const cachedEval = useStudioStore((state) => (currentFen ? state.evalByFen[fenKey(currentFen)] : undefined));
+  const engineActive = useStudioStore((state) => state.engineActive);
   const rating = ratingLabel(elo);
   const client = useRef<MaiaClient | null>(null);
   const [analysis, setAnalysis] = useState<Analysis>();
@@ -84,8 +88,7 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
       client.current.analyze(position).then(
         ({ moves, chances }) => {
           if (stale) return;
-          const fen = position.fens.at(-1);
-          setAnalysis({ position, moves, chances: chances && fen ? calibrateChances(chances, fen, run) : chances });
+          setAnalysis({ position, moves, chances });
         },
         () => { if (!stale) setAnalysis({ position, failed: true }); },
       );
@@ -94,10 +97,15 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
       stale = true;
       clearTimeout(timer);
     };
-  }, [position, run]);
+  }, [position]);
 
   // Only a result for exactly this position (same FENs, rating, mode and count) is shown.
   const current = analysis?.position === position ? analysis : undefined;
+  const chances = useMemo(() => {
+    if (!current || !("chances" in current) || !current.chances) return null;
+    if (!currentFen) return current.chances;
+    return resolveMaiaChances(current.chances, currentFen, mode, elo, cachedEval, engineActive);
+  }, [current, currentFen, mode, elo, cachedEval, engineActive]);
   const status = statusKey(current);
   const shown = useMemo<ShownMove[]>(() => {
     const fen = position.fens.at(-1);
@@ -130,8 +138,8 @@ export function MaiaLines({ onPlay }: { onPlay: (moves: string[]) => void }) {
           {MAIA_ELOS.map((elo) => <option key={elo} value={elo}>{ratingLabel(elo)}</option>)}
         </select>
       </div>
-      {current && "chances" in current && current.chances ? (
-        <MaiaChancesBar chances={current.chances} rating={rating} mode={mode} locale={locale} />
+      {chances ? (
+        <MaiaChancesBar chances={chances} rating={rating} mode={mode} locale={locale} />
       ) : null}
       {status ? <p role="status" className="px-2 py-1 text-dense text-studio-muted">{tPanels(locale, status)}</p> : null}
       {shown.map(({ uci, prob, label }) => {
