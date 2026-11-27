@@ -24,7 +24,7 @@ import { Line, NotationReadOnlyContext } from "../NotationMoves";
 import { pathKey } from "../notation-format";
 import { resultCaptionForWinner } from "../ResultMark";
 import { Button } from "../ui/Button";
-import { PlayerCell, outcomeFor } from "../ui/PlayerCell";
+import { PlayerCell } from "../ui/PlayerCell";
 import {
   mainLineMoveCount,
   previewHeaderExtras,
@@ -289,12 +289,17 @@ export function GamePreview({
         <div className="text-caption text-studio-muted">
           {displayOpening ?? tLibrary(locale, "library.preview.unknownOpening")}
         </div>
-        <div className="flex min-w-0 flex-col gap-0.5 text-body">
-          <PlayerCell name={white} rating={whiteElo} outcome={outcomeFor(winner, "white")} />
-          <PlayerCell name={black} rating={blackElo} outcome={outcomeFor(winner, "black")} />
+        <div className="flex min-w-0 items-baseline gap-1.5 text-body">
+          <PlayerCell name={white} rating={whiteElo} bold />
+          <span
+            className="shrink-0 rounded-[5px] bg-studio-hover-strong px-1.5 text-dense font-semibold tabular-nums text-studio-fg"
+            data-testid="library-preview-result"
+          >
+            {resultMark}
+          </span>
+          <PlayerCell name={black} rating={blackElo} bold />
         </div>
         <div className="flex flex-wrap gap-x-3 text-caption tabular-nums text-studio-faint">
-          <span data-testid="library-preview-result">{resultMark}</span>
           {displayDate ? <span>{displayDate}</span> : null}
           {displayEvent ? <span className="truncate">{displayEvent}</span> : null}
           {moveCount > 0 ? (

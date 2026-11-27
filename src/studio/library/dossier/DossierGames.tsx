@@ -16,7 +16,7 @@ import { openBoardPanel } from "../../dock-api";
 import { ResultMark } from "../../ResultMark";
 import { Button } from "../../ui/Button";
 import { EcoBadge } from "../../ui/EcoBadge";
-import { outcomeFor, PlayerCell } from "../../ui/PlayerCell";
+import { PlayerCell } from "../../ui/PlayerCell";
 import { Panel } from "../../ui/Panel";
 import { moveSelection } from "../library-columns";
 import { loadXdGamePgn } from "@/src/lib/xd-database/client";
@@ -142,18 +142,8 @@ const DossierGameRow = memo(function DossierGameRow({
       onDoubleClick={() => onOpen(game)}
     >
       {selected ? <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-studio-accent" /> : null}
-      <PlayerCell
-        name={game.whiteName}
-        rating={game.whiteRating}
-        outcome={outcomeFor(game.winner, "white")}
-        emphasis={game.color === "white"}
-      />
-      <PlayerCell
-        name={game.blackName}
-        rating={game.blackRating}
-        outcome={outcomeFor(game.winner, "black")}
-        emphasis={game.color === "black"}
-      />
+      <PlayerCell name={game.whiteName} rating={game.whiteRating} bold />
+      <PlayerCell name={game.blackName} rating={game.blackRating} bold />
       <ResultMark winner={game.winner} />
       <EcoBadge code={game.eco} opening={game.opening} />
       <span className="text-right tabular-nums text-studio-faint">{year ?? "—"}</span>
