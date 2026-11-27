@@ -1,11 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ClipboardPaste, FileUp, type LucideIcon } from "lucide-react";
+import { ClipboardPaste, FileUp, Plus, type LucideIcon } from "lucide-react";
 import { tLibrary } from "@/src/i18n/library-strings";
 import { useStudioStore } from "@/src/store/studio-store";
 import { Button } from "../ui/Button";
 import { FoldersMenu, PastePgnDialog } from "./LibraryFolders";
+import { NewDatabaseDialog } from "./NewDatabaseDialog";
 import { useLibraryImport } from "./use-library-import";
 
 export function LibraryActions({ inSheet = false }: { inSheet?: boolean }) {
@@ -13,6 +14,7 @@ export function LibraryActions({ inSheet = false }: { inSheet?: boolean }) {
   const importFiles = useLibraryImport();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pasteOpen, setPasteOpen] = useState(false);
+  const [newDatabaseOpen, setNewDatabaseOpen] = useState(false);
 
   return (
     <>
@@ -30,6 +32,13 @@ export function LibraryActions({ inSheet = false }: { inSheet?: boolean }) {
           inSheet={inSheet}
           onClick={() => setPasteOpen(true)}
         />
+        <LibraryActionButton
+          label={tLibrary(locale, "library.actions.newDatabase")}
+          icon={Plus}
+          inSheet={inSheet}
+          onClick={() => setNewDatabaseOpen(true)}
+          labelPrefix="+ "
+        />
       </div>
       <input
         ref={fileInputRef}
@@ -46,6 +55,7 @@ export function LibraryActions({ inSheet = false }: { inSheet?: boolean }) {
           }
         }}
       />
+      {newDatabaseOpen ? <NewDatabaseDialog onClose={() => setNewDatabaseOpen(false)} /> : null}
       {pasteOpen ? (
         <PastePgnDialog onImport={(file) => void importFiles([file])} onClose={() => setPasteOpen(false)} />
       ) : null}
@@ -58,18 +68,20 @@ function LibraryActionButton({
   icon: Icon,
   inSheet,
   onClick,
+  labelPrefix = "",
 }: {
   label: string;
   icon: LucideIcon;
   inSheet: boolean;
   onClick: () => void;
+  labelPrefix?: string;
 }) {
   return (
     <Button
       size="sm"
       className={inSheet ? "min-h-11 min-w-11" : undefined}
-      title={label}
-      aria-label={label}
+      title={labelPrefix + label}
+      aria-label={labelPrefix + label}
       onClick={onClick}
     >
       <Icon size={14} aria-hidden />

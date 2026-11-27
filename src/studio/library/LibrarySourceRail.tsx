@@ -265,6 +265,15 @@ export function LibrarySourceRail({ sourceErrors, inSheet = false }: LibrarySour
     setCollapsed(readLibraryRailCollapsed());
   }, []);
 
+  useEffect(() => useLibraryStore.subscribe((state, previous) => {
+    if (state.foldersToReveal === previous.foldersToReveal) return;
+    setCollapsedFolders((current) => {
+      const next = new Set(current);
+      for (const id of state.foldersToReveal) next.delete(id);
+      return next;
+    });
+  }), []);
+
   useEffect(() => {
     if (!menu) {
       return;

@@ -90,3 +90,36 @@ test("openPgnSource keeps the games-quota message importFileDatabase reported", 
   assert.equal(useStudioStore.getState().openPgnSource("Huge", TWO_GAMES), "board");
   assert.equal(useStudioStore.getState().statusMessage, gamesQuota);
 });
+
+test("createFileDatabase saves an empty database in the target folder and syncs it", async () => {
+  const { createFileDatabase, createFileFolder, settings } = useStudioStore.getState();
+  createFileFolder("Club");
+  useStudioStore.setState({ user: { id: "account", email: null }, settings: { ...settings, locale: "pt-br" } });
+  const folderId = useStudioStore.getState().files.folders[0].id;
+
+  const id = createFileDatabase("  Empty club database  ", folderId);
+  assert.ok(id);
+  const state = useStudioStore.getState();
+  const database = { id, remoteId: null, name: "Empty club database", folderId, games: [] };
+  assert.deepEqual(state.files.databases, [database]);
+  assert.equal(state.activeFileDatabaseId, id);
+  assert.equal(state.activeFileGameId, null);
+  assert.equal(state.statusMessage, "Base “Empty club database” criada");
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(persistRemoteDatabase.mock.callCount(), 1);
+  assert.equal(useStudioStore.getState().files.databases[0].remoteId, "uploaded");
+});
+
+test("createFileDatabase rejects blank names and enforces the personal database quota", () => {
+  const { createFileDatabase } = useStudioStore.getState();
+  assert.equal(createFileDatabase("  ", null), "");
+  for (let i = 0; i < userFiles.MAX_DATABASES; i += 1) {
+    assert.ok(createFileDatabase(`Database ${i + 1}`, null));
+  }
+  const { files } = useStudioStore.getState();
+  assert.equal(files.databases.length, userFiles.MAX_DATABASES);
+  assert.equal(createFileDatabase("Over quota", null), "");
+  assert.equal(useStudioStore.getState().files, files);
+  assert.match(useStudioStore.getState().statusMessage ?? "", /up to 10 personal databases/);
+});

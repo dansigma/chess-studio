@@ -9,6 +9,7 @@ import { useLibraryStore } from "./library-store";
 import { clampLibrarySplit } from "./library-layout";
 import { clearLibrarySources, registerLibrarySource } from "@/src/lib/library/sources";
 import { emptyOverview } from "@/src/lib/library/overview";
+import { MAX_DATABASES } from "@/src/lib/user-files";
 import type { LibraryGameItem } from "@/src/lib/library/types";
 
 before(() => {
@@ -220,6 +221,14 @@ test("mobile: Escape in a Sources-sheet menu or dialog closes only that layer, n
   assert.equal(document.querySelectorAll('[role="dialog"][aria-modal="true"]').length, 1);
   assert.ok(sheet());
 
+  const newDatabase = within(sheet()!).getByRole("button", { name: "+ Database" });
+  assert.match(newDatabase.className, /min-h-11 min-w-11/);
+  fireEvent.click(newDatabase);
+  const databaseDialog = screen.getByRole("dialog", { name: "New database" });
+  fireEvent.keyDown(databaseDialog, { key: "Escape" });
+  assert.equal(screen.queryByRole("dialog", { name: "New database" }), null);
+  assert.ok(sheet());
+
   // With nothing on top, Escape closes the sheet.
   fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
   assert.equal(sheet(), null);
@@ -232,5 +241,89 @@ test("the placeholder list shows the Library loading status, not an empty state,
     assert.match(screen.getByRole("status").textContent ?? "", /Loading your Library/i);
   } finally {
     useStudioStore.setState({ filesHydrated: true });
+  }
+});
+
+
+test("New database defaults to the rail folder and reveals and selects the database in the chosen folder", async () => {
+  const { files } = useStudioStore.getState();
+  const { folderId, filters } = useLibraryStore.getState();
+  useStudioStore.setState({
+    files: {
+      databases: [],
+      folders: [
+        { id: "club", name: "Club", parentId: null },
+        { id: "study", name: "Study", parentId: "club" },
+      ],
+    },
+  });
+  useLibraryStore.setState({ folderId: "club" });
+  try {
+    await act(async () => {
+      render(<LibraryView />);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Study" }));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Club" }));
+    const header = screen.getByTestId("library-header");
+    const button = within(header).getByRole("button", { name: "+ Database" });
+    assert.equal(button.getAttribute("title"), "+ Database");
+    fireEvent.click(button);
+
+    const dialog = within(screen.getByRole("dialog", { name: "New database" }));
+    const destination = dialog.getByRole<HTMLSelectElement>("combobox");
+    assert.equal(destination.value, "club");
+    assert.deepEqual(Array.from(destination.options, (option) => option.textContent?.trim()), ["No folder", "Club", "Study"]);
+    const confirm = dialog.getByRole<HTMLButtonElement>("button", { name: "Create" });
+    assert.ok(confirm.disabled);
+    fireEvent.change(destination, { target: { value: "study" } });
+    fireEvent.change(dialog.getByRole("textbox", { name: "Database name" }), { target: { value: "Openings" } });
+    await act(async () => {
+      fireEvent.click(confirm);
+    });
+
+    assert.equal(screen.queryByRole("dialog", { name: "New database" }), null);
+    const [database] = useStudioStore.getState().files.databases;
+    assert.equal(database.folderId, "study");
+    assert.deepEqual(database.games, []);
+    assert.deepEqual(useLibraryStore.getState().filters.sources, [`file:${database.id}`]);
+    const myFiles = within(screen.getByRole("group", { name: "My files" }));
+    assert.ok(myFiles.getByRole("button", { name: /^Openings/, pressed: true }));
+  } finally {
+    cleanup();
+    useStudioStore.setState({ files });
+    useLibraryStore.setState({ folderId, filters });
+  }
+});
+
+test("New database defaults to no folder and explains the quota when full", async () => {
+  const { files } = useStudioStore.getState();
+  const { folderId, filters } = useLibraryStore.getState();
+  useLibraryStore.setState({ folderId: null });
+  useStudioStore.setState({
+    files: {
+      folders: [],
+      databases: Array.from({ length: MAX_DATABASES }, (_, index) => ({
+        id: String(index), name: `Database ${index}`, folderId: null, remoteId: null, games: [],
+      })),
+    },
+  });
+  try {
+    await act(async () => {
+      render(<LibraryView />);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "+ Database" }));
+    const dialog = within(screen.getByRole("dialog", { name: "New database" }));
+    assert.equal(dialog.getByRole<HTMLSelectElement>("combobox").value, "");
+    assert.ok(dialog.getByText("10 / 10 personal databases"));
+    assert.match(dialog.getByRole("alert").textContent ?? "", /Delete one to add another/);
+    const name = dialog.getByRole("textbox", { name: "Database name" });
+    fireEvent.change(name, { target: { value: "Over quota" } });
+    assert.ok(dialog.getByRole<HTMLButtonElement>("button", { name: "Create" }).disabled);
+    fireEvent.submit(name.closest("form")!);
+    assert.equal(useStudioStore.getState().files.databases.length, MAX_DATABASES);
+  } finally {
+    cleanup();
+    useStudioStore.setState({ files });
+    useLibraryStore.setState({ folderId, filters });
   }
 });
