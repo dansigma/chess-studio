@@ -461,8 +461,8 @@ function sqlDate(value: string | undefined): string | null {
 }
 
 function dateFromPgn(pgn: string): string {
-  // Avoid replaying moves on reload for undated games.
-  return /\[\s*Date\s+"/.test(pgn) ? (importPgn(pgn).headers.Date ?? "") : "";
+  // Read the tag directly: reloading must not replay every game's moves.
+  return /\[\s*Date\s+"([^"]*)"\s*\]/.exec(pgn)?.[1] ?? "";
 }
 
 function countMoves(tree: GameTree): number {
