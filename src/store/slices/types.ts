@@ -247,6 +247,8 @@ export type StudioState = {
   layoutDialog: "save" | "manage" | null;
   enginePreview: EnginePreview | null;
   engineEval: EngineEval | null;
+  engineActive: boolean;
+  setEngineActive: (active: boolean) => void;
   /** SIG-1459: bumped by the E shortcut; a mounted EnginePanel toggles play/pause on change. */
   engineToggleRequest: number;
   requestEngineToggle: () => void;
@@ -516,6 +518,6 @@ export type SessionResetPayload = Pick<
   StudioState,
   Exclude<
     SessionDataKey,
-    "settings" | "user" | "layoutNonce" | "savedLayouts" | "currentLayoutKey" | "layoutDialog" | "engineToggleRequest"
+    "settings" | "user" | "layoutNonce" | "savedLayouts" | "currentLayoutKey" | "layoutDialog" | "engineToggleRequest" | "engineActive"
   >
 >;

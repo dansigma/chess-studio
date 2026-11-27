@@ -66,6 +66,7 @@ export function EnginePanel() {
   const insertEngineLines = useStudioStore((state) => state.insertEngineLines);
   const setEnginePreview = useStudioStore((state) => state.setEnginePreview);
   const setEngineEval = useStudioStore((state) => state.setEngineEval);
+  const setEngineActive = useStudioStore((state) => state.setEngineActive);
   const putEvalCache = useStudioStore((state) => state.putEvalCache);
   const previewKey = useStudioStore((state) => state.enginePreview?.key ?? null);
   const moveNotation = useStudioStore((state) => state.settings.moveNotation);
@@ -216,6 +217,11 @@ export function EnginePanel() {
         : tPanels(locale, "engine.status.lineNoNps", { depth: display.depth, target: depthTarget });
   const running = info.running && !paused;
   const live = inStudio && !info.failed && (running || (started && !paused && !info.ready));
+  const engineActive = started && !paused && !info.failed && inStudio && !retryActive;
+  useEffect(() => {
+    setEngineActive(engineActive);
+  }, [engineActive, setEngineActive]);
+  useEffect(() => () => setEngineActive(false), [setEngineActive]);
   const togglePlay = (): void => {
     if (info.running && !paused) {
       setPaused(true);

@@ -15,6 +15,7 @@ export type EngineSlice = Pick<
   StudioState,
   | "enginePreview"
   | "engineEval"
+  | "engineActive"
   | "engineToggleRequest"
   | "requestEngineToggle"
   | "evalByFen"
@@ -24,6 +25,7 @@ export type EngineSlice = Pick<
   | "explorerHover"
   | "setEnginePreview"
   | "setEngineEval"
+  | "setEngineActive"
   | "putEvalCache"
   | "setThreat"
   | "setShowThreat"
@@ -34,6 +36,7 @@ export type EngineSlice = Pick<
 export const createEngineSlice: StateCreator<StudioState, [], [], EngineSlice> = (set, get) => ({
   enginePreview: null,
   engineEval: null,
+  engineActive: false,
   engineToggleRequest: 0,
   requestEngineToggle: () => set((state) => ({ engineToggleRequest: state.engineToggleRequest + 1 })),
   evalByFen: {},
@@ -42,6 +45,9 @@ export const createEngineSlice: StateCreator<StudioState, [], [], EngineSlice> =
   insightMarks: null,
   explorerHover: null,
   setEnginePreview: (enginePreview: EnginePreview | null) => set({ enginePreview }),
+  setEngineActive: (engineActive: boolean) => {
+    if (get().engineActive !== engineActive) set({ engineActive });
+  },
   setThreat: (threat: ThreatMark | null) => set({ threat }),
   // SIG-959: transient overlay only — never touches `boards`, so no dirty flag.
   setInsightMarks: (insightMarks: InsightMarks | null) => set({ insightMarks }),

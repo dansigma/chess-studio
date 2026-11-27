@@ -166,7 +166,15 @@ test("Maia is lazy, renders human moves alongside Stockfish, and isolates failur
   assert.equal(workerCount, 1);
   assert.deepEqual(posted, { fens: [currentFen], elo: 2500, lines: 3 });
   await act(async () => reply?.({ result }));
+  // Stockfish is active at depth 20 (+0.30), so classical mode uses the combined model.
+  assert.ok(view.getByRole("img", { name: "Chances of this position in a classical game between two 2000 players: White 11%, draw 82%, Black 7%" }));
+
+  // Pausing Stockfish falls back to Maia-only classical calibration without rerunning Maia.
+  fireEvent.click(view.getByRole("button", { name: "Pause engine" }));
   assert.ok(view.getByRole("img", { name: "Chances of this position in a classical game between two 2000 players: White 3%, draw 95%, Black 2%" }));
+  fireEvent.click(view.getByRole("button", { name: "Start engine" }));
+  assert.ok(view.getByRole("img", { name: "Chances of this position in a classical game between two 2000 players: White 11%, draw 82%, Black 7%" }));
+  assert.equal(workerCount, 1);
 
   fireEvent.change(view.getByRole("combobox", { name: "Maia chances" }), { target: { value: "online" } });
   assert.equal(view.queryByRole("img"), null);
