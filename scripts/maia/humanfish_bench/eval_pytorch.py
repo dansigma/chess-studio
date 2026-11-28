@@ -116,6 +116,8 @@ def main() -> None:
     print(f"Loaded {args.model} on {device} from {cfg.checkpoint_path}", flush=True)
 
     positions = [json.loads(line) for line in args.positions.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if not positions:
+        raise SystemExit(f"No positions found in {args.positions}")
     encoded = [encode_position(p["moves_uci"]) for p in positions]
     n = len(positions)
     top1_hits = 0

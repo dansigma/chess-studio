@@ -31,7 +31,9 @@ def main() -> None:
             if not line.strip():
                 continue
             pos = json.loads(line)
-            row = toby[pos["id"]]  # KeyError if Toby skipped a position: fail loudly
+            row = toby.get(pos["id"])
+            if row is None:
+                raise KeyError(f"Toby output has no row for position {pos['id']}; rerun run_toby.py to finish")
             variants[row["variant"]] = variants.get(row["variant"], 0) + 1
             ranked = [uci for uci, _ in sorted(row["top"], key=lambda m: -m[1])]
             played = pos["played_uci"]
@@ -39,7 +41,7 @@ def main() -> None:
             p_played = row["p_played"]
             if p_played is None:
                 missing_played += 1
-                p_played = 0.0
+                p_played = LOG_PROB_CLIP
             out.write(
                 json.dumps(
                     {

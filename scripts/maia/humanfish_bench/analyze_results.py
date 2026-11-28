@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -176,6 +177,9 @@ def main() -> None:
         for idx, p in enumerate(positions):
             if tc == "overall" or p["time_control_class"] == tc:
                 rows_by_game[p["game_id"]].append(idx)
+        if not rows_by_game:
+            print(f"Warning: no positions for slice {tc!r}; skipping", file=sys.stderr)
+            continue
         results_by_slice[tc] = clustered_bootstrap(
             rows_by_game,
             arrays,
@@ -251,8 +255,10 @@ def main() -> None:
             f"(mean |Δ|: {parity['mean_abs_log_prob_diff']:.2e}, max |Δ|: {parity['max_abs_log_prob_diff']:.2e})"
         )
 
-    lines.append("\n## 4. Model Evaluation (95% Game-Clustered Bootstrap CIs, 1,000 Resamples, Seed 1503)\n")
+    lines.append(f"\n## 4. Model Evaluation (95% Game-Clustered Bootstrap CIs, {args.n_boot:,} Resamples, Seed {args.seed})\n")
     for tc in TC_CLASSES:
+        if tc not in results_by_slice:
+            continue
         sl = results_by_slice[tc]
         lines.append(f"### {tc.capitalize()} (N = {sl['n_positions']} positions, {sl['n_games']} games)\n")
         lines.append("| Model | Top-1 [95% CI] | Top-3 [95% CI] | Mean Log-Prob [95% CI] | Δ Top-1 vs (a) | Δ Log-Prob vs (a) |")
@@ -290,7 +296,7 @@ def main() -> None:
     )
     lines.append(
         f"| Maia-3 5M ONNX (Classical 2900) | — | — | {ov['5m_classical:top1'] * 100:.2f}% | {ov['5m_classical:top3'] * 100:.2f}% | "
-        f"Mover FIDE mapped via classical-calibration.ts |"
+        f"Both FIDE ratings mapped via classical-calibration.ts |"
     )
     lines.append(
         f"| Maia-3 5M ONNX (Raw FIDE) | — | — | {ov['5m_raw:top1'] * 100:.2f}% | {ov['5m_raw:top3'] * 100:.2f}% | Uncalibrated FIDE |"
@@ -303,15 +309,15 @@ def main() -> None:
     lines.append("\n## 6. Methodological Differences & Caveats\n")
     lines.append(
         "- **Tournament coverage:** All 13 tournaments from `prospective_nov2026_report.json` were found and downloaded via the Lichess broadcast API "
-        "(whereas Toby 2 reported 12/13). Our dataset has 533 games / 3,196 positions vs HumanFish's 450 games / 2,698 positions and Toby 2's 523 games / 3,136 positions.\n"
+        f"(whereas Toby 2 reported 12/13). Our dataset has {pos_summary['kept_games']:,} games / {pos_summary['total_positions']:,} positions vs HumanFish's 450 games / 2,698 positions and Toby 2's 523 games / 3,136 positions.\n"
         "- **Sampling seed:** We sampled 1 ply uniformly from each of 6 equal buckets over `[12, total_plies - 1]` with deterministic seed `1503`; "
         "HumanFish's exact random seed and exact start ply (`after move 6` = ply 12) may differ slightly in bucket boundaries.\n"
         "- **Time-control classification:** Lichess broadcast `fideTC` metadata mislabeled `Total Chess World Championship Tour Pilot 2026 | Finals` as `standard` "
         "(despite containing `180+2`, `900+10`, `600`, and `2700+30` games) and `WR Women's Chess Tour 2026 - Grand Final | Rapid` as `blitz`. "
         "We therefore inferred `time_control_class` primarily from the PGN `TimeControl` tag, falling back to the initial `%clk` timestamp when `TimeControl` is `?`, "
         "and finally to tournament name / `fideTC`.\n"
-        "- **Classical mapping for (a):** `classical-calibration.ts` maps FIDE bands `2400` and `2600+` to `2900`. We applied this mapping to `self_elo` (the mover's FIDE rating) and passed the opponent's raw FIDE rating as `oppo_elo`.\n"
-        "- **Confidence intervals:** We used game-clustered bootstrap (1,000 resamples, seed `1503`); HumanFish also noted that tournament-clustered intervals are wider than game-clustered intervals."
+        "- **Classical mapping for (a):** `classical-calibration.ts` maps FIDE bands `2400` and `2600+` to `2900`. As on the site, we applied this mapping to both players and passed the mapped rating as `self_elo` and `oppo_elo`.\n"
+        f"- **Confidence intervals:** We used game-clustered bootstrap ({args.n_boot:,} resamples, seed `{args.seed}`); HumanFish also noted that tournament-clustered intervals are wider than game-clustered intervals."
     )
     lines.append(
         "- **Toby 2:** run unmodified as a UCI engine (Linux full release 2.0, `Toby 2 Product = Accurate`, FIDE ratings, "

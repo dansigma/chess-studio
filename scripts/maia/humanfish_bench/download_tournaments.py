@@ -47,7 +47,10 @@ def fetch_url(url: str, accept: str = "application/json", delay: float = 0.4) ->
         except urllib.error.HTTPError as exc:
             if exc.code == 429 or exc.code >= 500:
                 retry_after = exc.headers.get("Retry-After")
-                wait = float(retry_after) if retry_after else backoff
+                try:
+                    wait = float(retry_after) if retry_after else backoff
+                except ValueError:  # Retry-After may be an HTTP date
+                    wait = backoff
                 print(f"HTTP {exc.code} for {url}; sleeping {wait:.1f}s (attempt {attempt + 1})", flush=True)
                 time.sleep(wait)
                 backoff = min(backoff * 2, 60.0)
@@ -122,6 +125,9 @@ def load_existing_by_query(out_dir: Path) -> dict[str, dict]:
         pgn_path = out_dir / f"{tour_id}.pgn"
         if not pgn_path.exists() or pgn_path.stat().st_size == 0:
             continue
+        game_count = count_pgn_games(pgn_path.read_text(encoding="utf-8", errors="replace"))
+        if game_count == 0:
+            continue
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         tour = meta.get("tour", {})
         name = tour.get("name", "")
@@ -130,7 +136,6 @@ def load_existing_by_query(out_dir: Path) -> dict[str, dict]:
                 continue
             if pick_best_match(target_name, [{"tour": tour}]) is not None:
                 info = tour.get("info", {})
-                game_count = count_pgn_games(pgn_path.read_text(encoding="utf-8", errors="replace"))
                 by_query[target_name] = {
                     "query_name": target_name,
                     "id": tour_id,
@@ -171,7 +176,8 @@ def main() -> None:
 
     out_dir: Path = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    by_query = {} if args.force else load_existing_by_query(out_dir)
+    # Always start from the existing manifest so a --start/--count subset keeps the other entries.
+    by_query = load_existing_by_query(out_dir)
 
     subset = TOURNAMENTS[args.start : args.start + args.count]
     for target_name, queries in subset:
@@ -235,6 +241,8 @@ def main() -> None:
             pgn_text = "\n\n".join(parts)
             game_count = count_pgn_games(pgn_text)
 
+        if game_count == 0:
+            raise RuntimeError(f"Broadcast {tour_id} ({tour_name}) returned no games")
         pgn_path.write_text(pgn_text, encoding="utf-8")
         print(f"  Saved {game_count} games -> {pgn_path.name}", flush=True)
 

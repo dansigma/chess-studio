@@ -16,6 +16,7 @@ import chess.pgn
 DEFAULT_POSITIONS = Path("/home/danilo/data/maia/humanfish-nov2026/positions.jsonl")
 DEFAULT_PGN = Path("/home/danilo/data/xd-database/source/LumbrasGigabase_OTB_Complete.pgn")
 DEFAULT_OUT = Path("/home/danilo/data/maia/humanfish-nov2026/contamination.json")
+DATE_TAG_RE = re.compile(r'\[Date "([0-9?]{4}\.[0-9?]{2}\.[0-9?]{2})"\]')
 
 TAG_RE = re.compile(rb'^\[([A-Za-z0-9_]+)\s+"(.*)"\]\s*$')
 
@@ -85,10 +86,10 @@ def scan_pgn_fast_rg(pgn_path: Path, games: dict[str, dict]) -> dict | None:
     max_date = ""
     nov_lines = 0
     for line in date_res.stdout.splitlines():
-        if len(line) < 10:
+        match = DATE_TAG_RE.match(line)
+        if match is None:
             continue
-        # [Date "YYYY.MM.DD"]
-        val = line[7:-2]
+        val = match.group(1)
         if val > max_date:
             max_date = val
         if "?" not in val and len(val) == 10 and val[4] == "." and val[7] == ".":
@@ -224,6 +225,7 @@ def main() -> None:
     result = scan_pgn_fast_rg(args.pgn, games)
     if result is None:
         result = scan_pgn_python(args.pgn, games)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print(json.dumps(result, indent=2, ensure_ascii=False))
 

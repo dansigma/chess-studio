@@ -4,6 +4,7 @@
 import argparse
 from contextlib import ExitStack
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -86,7 +87,7 @@ class TobyUCI:
         self.cur_opts = {}
 
     def start(self):
-        env = dict(**__import__("os").environ)
+        env = dict(os.environ)
         env["TOBY2_PRODUCT"] = self.product
         self.proc = subprocess.Popen(
             [self.toby_bin],
@@ -276,7 +277,7 @@ def main():
         for idx, rec in enumerate(pending, 1):
             top, path_info, sec = engine.evaluate(rec, movetime_ms=args.movetime_ms)
             reported = path_info.get("product", "") if isinstance(path_info, dict) else ""
-            if args.product == "Accurate" and str(rec.get("time_control_class") or "classical").lower() == "classical" and "Accurate" not in reported:
+            if args.product == "Accurate" and "Accurate" not in reported:
                 raise RuntimeError(
                     f"Toby reported product {reported!r} instead of Accurate (GPU not visible?); aborting"
                 )

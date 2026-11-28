@@ -106,7 +106,9 @@ def evaluate_model(
                 else:
                     s_elo, o_elo = pos["black_elo"], pos["white_elo"]
                 if use_classical_map:
+                    # The site feeds the mapped rating as both self_elo and oppo_elo.
                     s_elo = classical_map_elo(s_elo, classical_table)
+                    o_elo = classical_map_elo(o_elo, classical_table)
                 self_elos.append(s_elo)
                 oppo_elos.append(o_elo)
 
@@ -169,6 +171,8 @@ def main() -> None:
     classical_table = calibrate_combined.load_classical_calibration()
 
     positions = load_positions(args.positions)
+    if not positions:
+        raise SystemExit(f"No positions found in {args.positions}")
     print(f"Loaded {len(positions)} positions; encoding history...", flush=True)
     encoded = [encode_position(p["moves_uci"]) for p in positions]
     print("Encoding complete.", flush=True)
