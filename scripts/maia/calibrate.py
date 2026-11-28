@@ -257,7 +257,8 @@ class Inference:
     def __exit__(self, *_):
         self.pool.shutdown()
 
-    def predict(self, samples, elo, output):
+    def predict(self, samples, elo, *outputs):
+        """Yield (batch, *logits) for each requested output name, in order."""
         def run(batch):
             if not hasattr(self.local, "session"):
                 options = ort.SessionOptions()
@@ -268,9 +269,9 @@ class Inference:
             rating = np.full(len(batch), elo, dtype=np.int64)
             tokens = np.stack([sample.tokens for sample in batch]).astype(np.float32)
             logits = self.local.session.run(
-                [output], {"tokens": tokens, "self_elo": rating, "oppo_elo": rating}
-            )[0]
-            return batch, logits
+                list(outputs), {"tokens": tokens, "self_elo": rating, "oppo_elo": rating}
+            )
+            return (batch, *logits)
 
         return self.pool.map(run, batches(samples))
 

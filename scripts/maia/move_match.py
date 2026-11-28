@@ -266,9 +266,15 @@ def bootstrap_band_metrics(events, weights, vectors_by_elo, current_elo, n_boot=
     return stats, best_elo, (diff_pt, diff_ci)
 
 
-def build_recommendation(band_summaries):
+def build_recommendation(band_summaries, elo_mode="mapped"):
     """Generate a data-driven recommendation comparing best move-match Elos to current mapping."""
     lines = ["## Recommendation", ""]
+    if elo_mode == "fide":
+        reference = "the raw FIDE rating (`1800 / 2000 / 2200 / 2400 / 2600`)"
+        current_kind = "the band's own FIDE rating"
+    else:
+        reference = "the current classical mapping (`2300 / 2500 / 2700 / 2900 / 2900`)"
+        current_kind = "the current value-calibrated model rating"
     sig_better = [
         row for row in band_summaries
         if row["best_elo"] != row["current_elo"]
@@ -279,15 +285,13 @@ def build_recommendation(band_summaries):
 
     if not any_diff:
         lines.append(
-            "Keep the current classical mapping (`2300 / 2500 / 2700 / 2900 / 2900`) for move "
-            "prediction: every FIDE band already achieves its highest held-out mean log-probability "
-            "at the current value-calibrated model rating."
+            f"Keep {reference} for move prediction: every FIDE band already achieves its "
+            f"highest held-out mean log-probability at {current_kind}."
         )
     elif not sig_better:
         mapping_str = " / ".join(str(row["best_elo"]) for row in band_summaries)
         lines.append(
-            f"Keep the current classical mapping (`2300 / 2500 / 2700 / 2900 / 2900`) for move "
-            f"prediction. Although point estimates peak at `{mapping_str}`, no band gains at least "
+            f"Keep {reference} for move prediction. Although point estimates peak at `{mapping_str}`, no band gains at least "
             f"{MIN_PRACTICAL_LOGP_GAIN} nats of mean log-probability with a 95% event-cluster "
             f"bootstrap CI above 0, so a separate mapping is not worth its complexity:"
         )
@@ -301,8 +305,8 @@ def build_recommendation(band_summaries):
     else:
         mapping_str = " / ".join(str(row["best_elo"]) for row in band_summaries)
         lines.append(
-            f"Use a separate move-match mapping (`{mapping_str}`) instead of the value-calibrated "
-            f"mapping (`2300 / 2500 / 2700 / 2900 / 2900`) when predicting human moves:"
+            f"Use a separate move-match mapping (`{mapping_str}`) instead of {reference} "
+            f"when predicting human moves:"
         )
         lines.append("")
         for row in band_summaries:
@@ -437,7 +441,7 @@ def write_report(
         )
 
     lines.append("")
-    lines.extend(build_recommendation(band_summaries))
+    lines.extend(build_recommendation(band_summaries, args.elo_mode))
 
     lines.extend([
         "## Runtime",
