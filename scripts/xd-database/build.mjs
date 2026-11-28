@@ -26,6 +26,7 @@ import {
   PLAYER_BLACK_BIT,
   XD_FORMAT_VERSION,
   compareUtf8,
+  dateNumber,
   encodeGamesIndex,
   encodePlayersIndex,
   encodeTreeIndex,
@@ -39,6 +40,8 @@ import { readGames, sanTokens } from "../opening-book/pgn.mjs";
 import { normalizePlayer } from "../opening-book/players.mjs";
 import { profileRejection } from "../opening-book/profiles.mjs";
 import { partFile, positionPartFile } from "./worker.mjs";
+
+export { dateNumber };
 
 const RATING_RULE = "anyAtLeast";
 
@@ -134,17 +137,6 @@ function present(value) {
   }
   const text = value.trim();
   return text === "" || text === "?" || text === "-" || /^\?+(\.\?+)*$/.test(text) ? null : text;
-}
-
-/** "2019.03.04" -> 20190304; unknown month/day parts are 0; 0 when the year is unknown. */
-export function dateNumber(date) {
-  const match = /^(\d{4})(?:[.\-/](\d{2}|\?\?))?(?:[.\-/](\d{2}|\?\?))?/.exec(date ?? "");
-  if (!match) {
-    return 0;
-  }
-  const month = Number(match[2]) || 0;
-  const day = Number(match[3]) || 0;
-  return Number(match[1]) * 10000 + month * 100 + day;
 }
 
 /** Growable Uint32Array. */

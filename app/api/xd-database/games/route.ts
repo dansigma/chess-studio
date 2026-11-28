@@ -1,10 +1,16 @@
+import { DEFAULT_POSITION } from "chess.js";
+import { treeKeyOfFen } from "@/src/lib/xd-database/reader";
 import { GAME_RESULTS, POSITION_GAME_BYTES, averageGameRating } from "@/src/lib/xd-database/format";
 import { error, gameHeaders, pageCursor, PAGE_SIZE, positionQuery, serve, unsignedInteger } from "../shared";
 
+import { PLAYER_ID, playerOffsets, playerQueryGames } from "./player-query";
+
+const INITIAL_POSITION = treeKeyOfFen(DEFAULT_POSITION);
 const SCAN_LIMIT = Math.floor(64 * 1024 / POSITION_GAME_BYTES);
 
 function filters(query: URLSearchParams) {
   const player = query.get("player");
+  const playerQuery = query.get("playerQuery")?.trim() ?? null;
   const color = query.get("color");
   const result = query.get("result");
   const minRating = unsignedInteger(query.get("minRating") ?? "0");
@@ -12,23 +18,41 @@ function filters(query: URLSearchParams) {
   const minYear = unsignedInteger(query.get("minYear") ?? "0");
   const maxYear = unsignedInteger(query.get("maxYear") ?? "9999");
   if (!(minRating <= maxRating && maxRating <= 65535 && minYear <= maxYear && maxYear <= 9999) ||
-    (player !== null && !/^\d{1,10}-\d{1,10}$/.test(player)) ||
-    (color !== null && (!player || (color !== "white" && color !== "black"))) ||
+    (player !== null && !PLAYER_ID.test(player)) ||
+    (playerQuery !== null && (player !== null || !playerQuery || playerQuery.length > 120)) ||
+    (color !== null && ((!player && !playerQuery) || (color !== "white" && color !== "black"))) ||
     (result !== null && !GAME_RESULTS.some((value) => value === result))) {
     return null;
   }
-  return { player, color, result, minRating, maxRating, minYear, maxYear };
+  return { player, playerQuery, color, result, minRating, maxRating, minYear, maxYear };
 }
 
 export async function GET(request: Request) {
   const query = new URL(request.url).searchParams;
   const positionRequest = positionQuery(query);
   if (!positionRequest) return error("fen is not a valid position");
-  const cursor = pageCursor(query);
-  if (Number.isNaN(cursor)) return error("cursor must be a nonnegative integer");
   const filter = filters(query);
   if (!filter) return error("Invalid game filters");
-  const { player, color, result, minRating, maxRating, minYear, maxYear } = filter;
+  const { player, playerQuery, color, result, minRating, maxRating, minYear, maxYear } = filter;
+  const matches = ({ whiteElo, blackElo, result: gameResult }: {
+    whiteElo: number | null; blackElo: number | null; result: string;
+  }, year: number) => {
+    const rating = averageGameRating(whiteElo ?? 0, blackElo ?? 0);
+    return (!result || gameResult === result) &&
+      rating >= minRating && rating <= maxRating && year >= minYear && year <= maxYear;
+  };
+
+  if (playerQuery !== null) {
+    if (positionRequest.key !== INITIAL_POSITION) return error("playerQuery supports only the initial position");
+    const offsets = playerOffsets(query.get("cursor"));
+    if (!offsets) return error("Invalid playerQuery cursor");
+    return serve(request, (reader) => playerQueryGames(reader, playerQuery, offsets, color, matches), {
+      filtered: true, skipEdgeCache: true,
+    });
+  }
+
+  const cursor = pageCursor(query);
+  if (Number.isNaN(cursor)) return error("cursor must be a nonnegative integer");
   const filtered = ["player", "result", "minRating", "maxRating", "minYear", "maxYear"].some((name) => query.has(name));
 
   return serve(request, async (reader) => {
@@ -54,16 +78,12 @@ export async function GET(request: Request) {
     let next = cursor;
     for (const row of postings) {
       next += 1;
-      const rating = averageGameRating(row.whiteElo, row.blackElo);
-      if ((!playerIds || playerIds.has(row.id)) &&
-          (!result || row.result === result) &&
-          rating >= minRating && rating <= maxRating &&
-          row.year >= minYear && row.year <= maxYear) {
+      if ((!playerIds || playerIds.has(row.id)) && matches(row, row.year)) {
         ids.push(row.id);
         if (ids.length === PAGE_SIZE) break;
       }
     }
     const games = ids.length ? (await reader.gamesById(ids)).map(gameHeaders) : [];
     return Response.json({ games, nextCursor: next < position.total ? next : null });
-  }, filtered);
+  }, { filtered });
 }
