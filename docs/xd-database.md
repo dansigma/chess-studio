@@ -31,8 +31,16 @@ Worker. Position keys are the app's position hash (`bookKey`), so a FEN from the
 
 - **Filter:** at least one rating must meet `--min-elo` (1800 by default), or both ratings must be missing.
   Games must be standard chess from the initial position with a decided result (`1-0`, `0-1`, `1/2-1/2`).
-  Online games are excluded based on Site/Event or the `LichessEliteDatabase` source tag. The builder keeps OTB
-  broadcasts identified by the `LichessBroadcast` or `LichessBroadcastAPI` source tag or a lichess.org/broadcast URL.
+  The manifest counts online games under `online`. The builder uses Site/Event, the `LichessEliteDatabase` source
+  tag, and event names such as Champions Chess Tour (including CCT year codes), Titled Tuesday, Titled Arena,
+  Bullet Chess Championship, Speed Chess Championship, Online Olympiad, Banter Blitz, and Arena Kings.
+  Site/Event matching includes Chess.com and Lichess.
+  It keeps OTB broadcasts identified by the `LichessBroadcast` or `LichessBroadcastAPI` source tag or a
+  lichess.org/broadcast URL.
+  A known year in Date is required (`noYear`). The month and day may be unknown.
+  Both player names must be present and free of placeholders such as NN, Unknown, or Over-Rated
+  (`placeholderPlayer`). Each player rated 2700 or higher must have their own FIDE ID in the PGN
+  (`implausibleRating`).
 - **De-duplication:** same rule as the opening book (normalized players, Date, Round, first 40 moves).
 - **Tree:** the first 50 plies of each game (`--max-ply`). A position counts each game once, even if the game
   repeats it. Positions reached by fewer than 2 games (`--min-games`) are left out: the move that leads there is

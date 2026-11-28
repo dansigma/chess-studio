@@ -38,12 +38,15 @@ import { dedupeHash, openLines } from "../opening-book/build-book.mjs";
 import { HashSet64 } from "../opening-book/hashset.mjs";
 import { readGames, sanTokens } from "../opening-book/pgn.mjs";
 import { normalizePlayer } from "../opening-book/players.mjs";
-import { profileRejection } from "../opening-book/profiles.mjs";
+import { BROADCAST_SOURCES, BROADCAST_URL_PATTERN, profileRejection } from "../opening-book/profiles.mjs";
 import { partFile, positionPartFile } from "./worker.mjs";
 
 export { dateNumber };
 
 const RATING_RULE = "anyAtLeast";
+const ONLINE_EVENT_PATTERN =
+  /\bCCT\d{4}\b|\b(?:champions chess tour|titled tuesday|titled arena|bullet chess championship|speed chess championship|online olympiad|banter blitz|arena kings)\b/i;
+const PLACEHOLDER_PLAYER = /^(?:nn|unknown|overrated|\?*)$/i;
 
 const USAGE =
   "usage: node scripts/xd-database/build.mjs <input.pgn[.zst|.gz] | -> ... --out-dir DIR --version N\n" +
@@ -137,6 +140,29 @@ function present(value) {
   }
   const text = value.trim();
   return text === "" || text === "?" || text === "-" || /^\?+(\.\?+)*$/.test(text) ? null : text;
+}
+
+function placeholderPlayer(name) {
+  return PLACEHOLDER_PLAYER.test((name ?? "").replace(/[\s.,\p{Pd}]/gu, ""));
+}
+
+function xdRejection(headers) {
+  if (dateNumber(headers.Date) < 10000) {
+    return "noYear";
+  }
+  if (ONLINE_EVENT_PATTERN.test((headers.Event ?? "").replace(/[\s_-]+/g, " ")) &&
+      !BROADCAST_SOURCES.has(headers.Source) &&
+      !BROADCAST_URL_PATTERN.test(`${headers.Site ?? ""} ${headers.Event ?? ""}`)) {
+    return "online";
+  }
+  if (placeholderPlayer(headers.White) || placeholderPlayer(headers.Black)) {
+    return "placeholderPlayer";
+  }
+  if ((Number(headers.WhiteElo) >= 2700 && !fideId(headers.WhiteFideId)) ||
+      (Number(headers.BlackElo) >= 2700 && !fideId(headers.BlackFideId))) {
+    return "implausibleRating";
+  }
+  return null;
 }
 
 /** Growable Uint32Array. */
@@ -379,7 +405,8 @@ export async function buildDatabase(sources, options) {
   try {
     reading: for (const source of sources) {
       const report = {};
-      const classify = (headers) => profileRejection("masters", headers, { minElo: o.minElo, ratingRule: RATING_RULE });
+      const classify = (headers) =>
+        profileRejection("masters", headers, { minElo: o.minElo, ratingRule: RATING_RULE }) ?? xdRejection(headers);
       for await (const game of readGames(source, classify, report)) {
         stats.read += 1;
         if (game.rejected) {
