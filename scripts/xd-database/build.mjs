@@ -406,6 +406,8 @@ export async function buildDatabase(sources, options) {
   const stats = { read: 0, kept: 0, duplicates: 0, rejected: {}, noMoves: 0, endedMidGame: 0 };
   const seen = new HashSet64();
   const catalog = await loadCatalog();
+  // Workers replay past the tree depth only as far as the deepest catalog line, to resolve openings.
+  const replayPlies = Math.max(o.maxPly, ...catalog.map(({ uci }) => uci.length));
   const store = new GameStore(join(dir, "games.bin"));
   const players = new PlayerRegistry();
   const gameWhite = new U32List();
@@ -464,7 +466,7 @@ export async function buildDatabase(sources, options) {
                 event: present(h.Event),
                 site: present(h.Site),
                 round: present(h.Round),
-                eco: h.ECO ?? null,
+                eco: present(h.ECO),
                 whiteTitle: present(h.WhiteTitle),
                 blackTitle: present(h.BlackTitle),
                 whiteFideId: whiteFide,
@@ -476,7 +478,7 @@ export async function buildDatabase(sources, options) {
               gameDate.push(date);
               batch.push({
                 id,
-                sans,
+                sans: sans.slice(0, replayPlies),
                 result: RESULT_CODE[h.Result],
                 whiteElo: whiteElo ?? 0,
                 blackElo: blackElo ?? 0,
