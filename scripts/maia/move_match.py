@@ -21,6 +21,7 @@ import calibrate_combined  # noqa: E402
 ROOT = calibrate.ROOT
 BANDS = calibrate.BANDS
 DEFAULT_TEST_ELOS = "1800,2000,2200,2300,2500,2700,2900"
+FIDE_TEST_ELOS = ",".join(str(band) for band in BANDS)
 DEFAULT_CACHE_DIR = calibrate_combined.DEFAULT_CACHE_DIR
 LOG_PROB_CLIP = 1e-9
 # A switch is only worth a separate mapping when the gain is both detectable
@@ -270,7 +271,7 @@ def build_recommendation(band_summaries, elo_mode="mapped"):
     """Generate a data-driven recommendation comparing best move-match Elos to current mapping."""
     lines = ["## Recommendation", ""]
     if elo_mode == "fide":
-        reference = "the raw FIDE rating (`1800 / 2000 / 2200 / 2400 / 2600`)"
+        reference = f"the raw FIDE rating (`{' / '.join(str(band) for band in BANDS)}`)"
         current_kind = "the band's own FIDE rating"
     else:
         reference = "the current classical mapping (`2300 / 2500 / 2700 / 2900 / 2900`)"
@@ -484,7 +485,7 @@ def main():
     args = parser.parse_args()
     if args.test_elos is None:
         args.test_elos = parse_test_elos(
-            DEFAULT_TEST_ELOS if args.elo_mode == "mapped" else "1800,2000,2200,2400,2600"
+            DEFAULT_TEST_ELOS if args.elo_mode == "mapped" else FIDE_TEST_ELOS
         )
     if args.per_band < 2:
         parser.error("--per-band must be at least 2")

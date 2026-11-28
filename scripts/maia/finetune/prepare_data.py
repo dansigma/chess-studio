@@ -145,12 +145,10 @@ def compute_sig1518_test_events(
             fit_items, held_items, n_fit_ev, n_held_ev = calibrate_combined.split_by_event(
                 items, rng
             )
-            # Advance rng identically to calibrate_combined.py / move_match.py.
-            try:
-                calibrate_combined.parse_combined_samples(stream, fit_items, rng)
-                calibrate_combined.parse_combined_samples(stream, held_items, rng)
-            except ValueError:
-                pass
+            # Advance rng identically to calibrate_combined.py / move_match.py. Those scripts
+            # abort on a ValueError here, so let it propagate rather than drift the rng.
+            calibrate_combined.parse_combined_samples(stream, fit_items, rng)
+            calibrate_combined.parse_combined_samples(stream, held_items, rng)
             for _, ek in held_items:
                 held_events.add(ek)
             band_info[band] = {

@@ -115,7 +115,7 @@ def verify_parity(
 
     max_pt_diff = 0.0
     max_ref_diff = 0.0
-    for elo in (1800, 2200, 2600):
+    for elo in (1600, 1800, 2200, 2600, 2900):
         elo_np = np.full((n,), elo, dtype=np.int64)
         with torch.no_grad():
             pt_move, pt_val = pt_model(

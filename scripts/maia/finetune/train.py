@@ -106,6 +106,8 @@ class ShardedBoardBatchDataset(Dataset):
         ends = shard.legal_offsets[idx + 1]
         lengths = ends - starts
         lmax = int(lengths.max())
+        if int(lengths.min()) <= 0:
+            raise ValueError("Shard contains a position without legal moves")
         legal_moves = np.full((len(idx), lmax), -1, dtype=np.int64)
         legal_idx_arr = shard.legal_idx
         for row, (s, e) in enumerate(zip(starts.tolist(), ends.tolist())):
@@ -139,9 +141,11 @@ class ShardBatchSampler(Sampler):
         self.seed = seed
         self.drop_last = drop_last
         self.epoch = 0
+        self.skip_batches = 0
 
-    def set_epoch(self, epoch: int):
+    def set_epoch(self, epoch: int, skip_batches: int = 0):
         self.epoch = epoch
+        self.skip_batches = skip_batches
 
     def __iter__(self):
         rng = np.random.default_rng(self.seed + self.epoch)
@@ -157,7 +161,7 @@ class ShardBatchSampler(Sampler):
         if self.shuffle:
             py_rng = random.Random(self.seed + self.epoch)
             py_rng.shuffle(batches)
-        yield from batches
+        yield from batches[self.skip_batches:]
 
     def __len__(self) -> int:
         total = 0
@@ -385,7 +389,8 @@ def main():
     (args.out_dir / "config.json").write_text(json.dumps(args_dict, indent=2), encoding="utf-8")
 
     model.train()
-    epoch = 0
+    # On resume, continue the batch order where the checkpoint left it.
+    epoch, skip_batches = divmod(step, len(train_sampler))
     t_window = monotonic()
     pos_window = 0
     loss_window = 0.0
@@ -412,7 +417,8 @@ def main():
 
     stop_early = False
     while step < args.max_steps and not stop_early:
-        train_sampler.set_epoch(epoch)
+        train_sampler.set_epoch(epoch, skip_batches)
+        skip_batches = 0
         for batch in train_loader:
             hist_boards, hist_stm, self_elo, oppo_elo, move_y, value_y, legal_moves = batch
             hist_boards = hist_boards.to(device, non_blocking=True)

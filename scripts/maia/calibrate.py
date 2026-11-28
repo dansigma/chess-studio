@@ -259,6 +259,8 @@ class Inference:
 
     def predict(self, samples, elo, *outputs):
         """Yield (batch, *logits) for each requested output name, in order."""
+        if not outputs:
+            raise ValueError("predict() needs at least one output name")
         def run(batch):
             if not hasattr(self.local, "session"):
                 options = ort.SessionOptions()
