@@ -49,6 +49,41 @@ describe("overview helpers", () => {
     ]);
     assert.deepEqual(topEco(o, 3).map((e) => e.code), ["C65", "D00", "A00"]);
   });
+  it("labels each code with its most frequent opening in either game order", () => {
+    const games = ["Richter-Veresov Attack", "Rapport-Jobava System", " Rapport-Jobava System ", "Richter-Veresov Attack", "Rapport-Jobava System"]
+      .map((opening) => row({ eco: "D01", opening }));
+    const expected = [{ code: "D01", count: 5, opening: "Rapport-Jobava System" }];
+    assert.deepEqual(topEco(overviewFromItems(games), 3), expected);
+    assert.deepEqual(topEco(overviewFromItems([...games].reverse()), 3), expected);
+  });
+  it("breaks opening name ties by length and then alphabetically in either game order", () => {
+    const games = ["Alpha", "Zulu", "Beta"].map((opening) => row({ eco: "D01", opening }));
+    const expected = [{ code: "D01", count: 3, opening: "Beta" }];
+    assert.deepEqual(topEco(overviewFromItems(games), 3), expected);
+    assert.deepEqual(topEco(overviewFromItems([...games].reverse()), 3), expected);
+  });
+  it("counts unnamed games in the bar total and excludes them from label selection", () => {
+    const games = [null, "", "  ", "?", " ? "].flatMap((opening) => [
+      row({ eco: "D01", opening }),
+      row({ eco: "D02", opening }),
+    ]);
+    games.push(row({ eco: "D01", opening: "Rapport-Jobava System" }));
+    assert.deepEqual(topEco(overviewFromItems(games), 3), [
+      { code: "D01", count: 6, opening: "Rapport-Jobava System" },
+      { code: "D02", count: 5, opening: null },
+    ]);
+  });
+  it("merges all opening name counts, including names that did not win in either source", () => {
+    const a = overviewFromItems(["Veresov", "Veresov", "Veresov", "Jobava", "Jobava"]
+      .map((opening) => row({ eco: "D01", opening })));
+    const b = overviewFromItems(["Attack", "Attack", "Attack", "Jobava", "Jobava"]
+      .map((opening) => row({ eco: "D01", opening })));
+    const expected = [{ code: "D01", count: 10, opening: "Jobava" }];
+    assert.deepEqual(topEco(mergeOverviews([a, b]), 3), expected);
+    assert.deepEqual(topEco(mergeOverviews([b, a]), 3), expected);
+    assert.deepEqual(topEco(a, 3), [{ code: "D01", count: 5, opening: "Veresov" }]);
+    assert.deepEqual(topEco(b, 3), [{ code: "D01", count: 5, opening: "Attack" }]);
+  });
 });
 
 describe("overview results, years and players (SIG-1332)", () => {
