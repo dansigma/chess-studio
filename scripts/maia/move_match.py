@@ -21,6 +21,7 @@ import calibrate_combined  # noqa: E402
 ROOT = calibrate.ROOT
 BANDS = calibrate.BANDS
 DEFAULT_TEST_ELOS = "1800,2000,2200,2300,2500,2700,2900"
+FIDE_TEST_ELOS = ",".join(str(band) for band in sorted(set(BANDS)))
 DEFAULT_CACHE_DIR = calibrate_combined.DEFAULT_CACHE_DIR
 LOG_PROB_CLIP = 1e-9
 # A switch is only worth a separate mapping when the gain is both detectable
@@ -266,9 +267,15 @@ def bootstrap_band_metrics(events, weights, vectors_by_elo, current_elo, n_boot=
     return stats, best_elo, (diff_pt, diff_ci)
 
 
-def build_recommendation(band_summaries):
+def build_recommendation(band_summaries, elo_mode="mapped"):
     """Generate a data-driven recommendation comparing best move-match Elos to current mapping."""
     lines = ["## Recommendation", ""]
+    if elo_mode == "fide":
+        reference = f"the raw FIDE rating (`{' / '.join(str(band) for band in BANDS)}`)"
+        current_kind = "the band's own FIDE rating"
+    else:
+        reference = "the current classical mapping (`2300 / 2500 / 2700 / 2900 / 2900`)"
+        current_kind = "the current value-calibrated model rating"
     sig_better = [
         row for row in band_summaries
         if row["best_elo"] != row["current_elo"]
@@ -279,15 +286,13 @@ def build_recommendation(band_summaries):
 
     if not any_diff:
         lines.append(
-            "Keep the current classical mapping (`2300 / 2500 / 2700 / 2900 / 2900`) for move "
-            "prediction: every FIDE band already achieves its highest held-out mean log-probability "
-            "at the current value-calibrated model rating."
+            f"Keep {reference} for move prediction: every FIDE band already achieves its "
+            f"highest held-out mean log-probability at {current_kind}."
         )
     elif not sig_better:
         mapping_str = " / ".join(str(row["best_elo"]) for row in band_summaries)
         lines.append(
-            f"Keep the current classical mapping (`2300 / 2500 / 2700 / 2900 / 2900`) for move "
-            f"prediction. Although point estimates peak at `{mapping_str}`, no band gains at least "
+            f"Keep {reference} for move prediction. Although point estimates peak at `{mapping_str}`, no band gains at least "
             f"{MIN_PRACTICAL_LOGP_GAIN} nats of mean log-probability with a 95% event-cluster "
             f"bootstrap CI above 0, so a separate mapping is not worth its complexity:"
         )
@@ -301,8 +306,8 @@ def build_recommendation(band_summaries):
     else:
         mapping_str = " / ".join(str(row["best_elo"]) for row in band_summaries)
         lines.append(
-            f"Use a separate move-match mapping (`{mapping_str}`) instead of the value-calibrated "
-            f"mapping (`2300 / 2500 / 2700 / 2900 / 2900`) when predicting human moves:"
+            f"Use a separate move-match mapping (`{mapping_str}`) instead of {reference} "
+            f"when predicting human moves:"
         )
         lines.append("")
         for row in band_summaries:
@@ -437,7 +442,7 @@ def write_report(
         )
 
     lines.append("")
-    lines.extend(build_recommendation(band_summaries))
+    lines.extend(build_recommendation(band_summaries, args.elo_mode))
 
     lines.extend([
         "## Runtime",
@@ -469,7 +474,8 @@ def main():
     parser.add_argument("--cache-dir", default=DEFAULT_CACHE_DIR, type=Path)
     parser.add_argument("--seed", default=1503, type=int)
     parser.add_argument("--per-band", default=20000, type=int)
-    parser.add_argument("--test-elos", type=parse_test_elos, default=DEFAULT_TEST_ELOS)
+    parser.add_argument("--test-elos", type=parse_test_elos, default=None)
+    parser.add_argument("--elo-mode", choices=("mapped", "fide"), default="mapped")
     parser.add_argument("--bootstrap", default=1000, type=int)
     parser.add_argument(
         "--out-report",
@@ -477,6 +483,10 @@ def main():
         type=Path,
     )
     args = parser.parse_args()
+    if args.test_elos is None:
+        args.test_elos = parse_test_elos(
+            DEFAULT_TEST_ELOS if args.elo_mode == "mapped" else FIDE_TEST_ELOS
+        )
     if args.per_band < 2:
         parser.error("--per-band must be at least 2")
     if args.bootstrap < 1:
@@ -526,6 +536,11 @@ def main():
             )
     parse_seconds = monotonic() - parse_started
 
+    cache_name = (
+        "maia_policy_cache.jsonl"
+        if args.model.name == "maia3-5m.onnx"
+        else f"maia_policy_cache_{args.model.stem}.jsonl"
+    )
     maia_started = monotonic()
     with calibrate.Inference(args.model) as session:
         maia_workers = session.workers
@@ -533,7 +548,7 @@ def main():
             session,
             held_by_band,
             args.test_elos,
-            args.cache_dir / "maia_policy_cache.jsonl",
+            args.cache_dir / cache_name,
         )
     maia_seconds = monotonic() - maia_started
 
@@ -541,10 +556,10 @@ def main():
     band_summaries = []
     phase_rows = []
     for band, held_samples in zip(BANDS, held_by_band, strict=True):
-        current_elo = classical[band][0]
+        current_elo = band if args.elo_mode == "fide" else classical[band][0]
         if current_elo not in args.test_elos:
             raise ValueError(
-                f"Current classical modelElo {current_elo} for band {band} "
+                f"Target {args.elo_mode} Elo {current_elo} for band {band} "
                 f"must be included in --test-elos"
             )
         weights = np.array([s.weight for s in held_samples], dtype=np.float64)
