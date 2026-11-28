@@ -171,6 +171,8 @@ def main() -> None:
         arrays[f"{key}:top3"] = np.array([pmap[pid]["top3"] for pid in pos_ids], dtype=np.float64)
         arrays[f"{key}:log_prob"] = np.array([pmap[pid]["log_prob"] for pid in pos_ids], dtype=np.float64)
 
+    if not positions:
+        raise SystemExit(f"No positions found in {args.positions}")
     results_by_slice: dict[str, dict] = {}
     for tc in TC_CLASSES:
         rows_by_game: dict[str, list[int]] = defaultdict(list)
@@ -242,7 +244,9 @@ def main() -> None:
         f"- **Total games scanned:** {contamination['total_games_scanned']:,}\n"
         f"- **Max valid `YYYY.MM.DD` date in PGN:** `{contamination['max_valid_ymd']}` "
         f"(games with `Date >= 2026.11`: {contamination['games_date_ge_2026_11']})\n"
-        f"- **Matched test games (players + date + moves):** **{contamination['contaminated_games_count']}** / {contamination['test_games_checked']}"
+        f"- **Games with a partial date (`?`) that could fall in the test window:** "
+        f"{contamination.get('games_partial_date_maybe_in_window', 0):,}; these were checked by players and moves too\n"
+        f"- **Matched test games (players + compatible date + moves):** **{contamination['contaminated_games_count']}** / {contamination['test_games_checked']}"
     )
 
     if parity is not None:

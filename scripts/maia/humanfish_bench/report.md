@@ -42,7 +42,8 @@ Replication of HumanFish's November 2026 prospective move-prediction test set (`
 
 - **Total games scanned:** 13,450,696
 - **Max valid `YYYY.MM.DD` date in PGN:** `2026.10.27` (games with `Date >= 2026.11`: 0)
-- **Matched test games (players + date + moves):** **0** / 533
+- **Games with a partial date (`?`) that could fall in the test window:** 64,338; these were checked by players and moves too
+- **Matched test games (players + compatible date + moves):** **0** / 533
 
 ## 3. PyTorch vs ONNX Parity Check (Maia-3 5M, Raw FIDE)
 

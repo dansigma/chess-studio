@@ -21,6 +21,18 @@ DATE_TAG_RE = re.compile(r'\[Date "([0-9?]{4}\.[0-9?]{2}\.[0-9?]{2})"\]')
 TAG_RE = re.compile(rb'^\[([A-Za-z0-9_]+)\s+"(.*)"\]\s*$')
 
 
+def may_be_in_test_window(date_str: str) -> bool:
+    """True if a PGN date is in 2026-11-01..26 or too partial (`?`) to rule that out."""
+    if len(date_str) != 10:
+        return True
+    for lo, hi, part in ((0, 4, "2026"), (5, 7, "11")):
+        field = date_str[lo:hi]
+        if "?" not in field and field != part:
+            return False
+    day = date_str[8:10]
+    return "?" in day or "01" <= day <= "26"
+
+
 def norm_name(s: str) -> str:
     return re.sub(r"\s+", " ", s.strip().lower())
 
@@ -97,6 +109,8 @@ def scan_pgn_fast_rg(pgn_path: Path, games: dict[str, dict]) -> dict | None:
                 max_valid_ymd = val
             if val >= "2026.11":
                 nov_lines += 1
+        elif may_be_in_test_window(val):
+            nov_lines += 1  # partial date: only the full scan can rule it out
 
     if nov_lines == 0:
         return {
@@ -123,6 +137,7 @@ def scan_pgn_python(pgn_path: Path, games: dict[str, dict]) -> dict:
     max_date = ""
     max_valid_ymd = ""
     date_ge_2026_11 = 0
+    partial_dates_in_window = 0
     player_pair_matches = 0
     matched_game_ids: set[str] = set()
     matched_details: list[dict] = []
@@ -133,7 +148,7 @@ def scan_pgn_python(pgn_path: Path, games: dict[str, dict]) -> dict:
     is_candidate = False
 
     def process_record() -> None:
-        nonlocal total_games, max_date, max_valid_ymd, date_ge_2026_11, player_pair_matches
+        nonlocal total_games, max_date, max_valid_ymd, date_ge_2026_11, partial_dates_in_window, player_pair_matches
         if not current_headers:
             return
         total_games += 1
@@ -141,12 +156,14 @@ def scan_pgn_python(pgn_path: Path, games: dict[str, dict]) -> dict:
         if date_str and "?" not in date_str and len(date_str) == 10 and date_str[4] == "." and date_str[7] == ".":
             if date_str > max_valid_ymd:
                 max_valid_ymd = date_str
+            if date_str >= "2026.11":
+                date_ge_2026_11 += 1
+        elif may_be_in_test_window(date_str):
+            partial_dates_in_window += 1
         if date_str > max_date and len(date_str) >= 4 and date_str[:4].isdigit():
             max_date = date_str
-        if date_str >= "2026.11":
-            date_ge_2026_11 += 1
 
-        if is_candidate and "2026.11.01" <= date_str <= "2026.11.26":
+        if is_candidate and may_be_in_test_window(date_str):
             w = norm_name(current_headers.get("White", ""))
             b = norm_name(current_headers.get("Black", ""))
             candidates = by_players.get((w, b))
@@ -206,6 +223,7 @@ def scan_pgn_python(pgn_path: Path, games: dict[str, dict]) -> dict:
         "max_valid_ymd": max_valid_ymd,
         "max_date_tag": max_date,
         "games_date_ge_2026_11": date_ge_2026_11,
+        "games_partial_date_maybe_in_window": partial_dates_in_window,
         "test_games_checked": len(games),
         "player_pair_date_matches": player_pair_matches,
         "contaminated_games_count": len(matched_game_ids),

@@ -275,7 +275,10 @@ def main():
         out_f = stack.enter_context(args.output.open("a", encoding="utf-8"))
 
         for idx, rec in enumerate(pending, 1):
-            top, path_info, sec = engine.evaluate(rec, movetime_ms=args.movetime_ms)
+            try:
+                top, path_info, sec = engine.evaluate(rec, movetime_ms=args.movetime_ms)
+            except Exception as exc:
+                raise RuntimeError(f"Toby failed on position {rec['id']} ({idx}/{len(pending)})") from exc
             reported = path_info.get("product", "") if isinstance(path_info, dict) else ""
             if args.product == "Accurate" and "Accurate" not in reported:
                 raise RuntimeError(

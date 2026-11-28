@@ -26,6 +26,7 @@ def main() -> None:
 
     missing_played = 0
     variants: dict[str, int] = {}
+    args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as out:
         for line in args.positions.read_text(encoding="utf-8").splitlines():
             if not line.strip():
