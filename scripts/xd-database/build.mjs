@@ -6,12 +6,12 @@
 //   node scripts/xd-database/build.mjs source/otb.pgn [more.pgn ...] --out-dir out --version 2
 //
 // Inputs are .pgn, .pgn.zst, .pgn.gz or `-` (stdin), read in order and
-// de-duplicated together. Games pass the masters profile (profiles.mjs): both
-// players rated >= --min-elo, standard chess from the start position, no online
-// games, a decided result. The main thread reads and filters the PGN, writes the
-// game store and the player data; worker threads replay the first --max-ply
-// moves (positions keyed by the app's position hash) and then fold the
-// positions into the tree.
+// de-duplicated together. Games use the masters profile with an XD rating rule:
+// at least one player rated >= --min-elo or both ratings missing. Games must
+// be standard chess from the start position, offline, with a decided result.
+// The main thread reads and filters the PGN and writes the game store and the
+// player data. Worker threads replay the first --max-ply moves (positions keyed
+// by the app's position hash) and then fold the positions into the tree.
 import { createHash } from "node:crypto";
 import { closeSync, createReadStream, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { availableParallelism } from "node:os";
@@ -40,13 +40,15 @@ import { normalizePlayer } from "../opening-book/players.mjs";
 import { profileRejection } from "../opening-book/profiles.mjs";
 import { partFile, positionPartFile } from "./worker.mjs";
 
+const RATING_RULE = "anyAtLeast";
+
 const USAGE =
   "usage: node scripts/xd-database/build.mjs <input.pgn[.zst|.gz] | -> ... --out-dir DIR --version N\n" +
-  "  [--min-elo 2100] [--max-ply 50] [--min-games 2] [--top-games 50] [--workers N] [--tmp-dir DIR]\n" +
+  "  [--min-elo 1800] [--max-ply 50] [--min-games 2] [--top-games 50] [--workers N] [--tmp-dir DIR]\n" +
   "  [--max-games N] [--min-games-read N] [--page-bytes 16384] [--bucket-bits 7] [--build-date ISO] [--release TEXT]";
 
 export const DEFAULTS = {
-  minElo: 2100,
+  minElo: 1800,
   maxPly: 50,
   minGames: 2,
   topGames: 50,
@@ -385,7 +387,7 @@ export async function buildDatabase(sources, options) {
   try {
     reading: for (const source of sources) {
       const report = {};
-      const classify = (headers) => profileRejection("masters", headers, { minElo: o.minElo });
+      const classify = (headers) => profileRejection("masters", headers, { minElo: o.minElo, ratingRule: RATING_RULE });
       for await (const game of readGames(source, classify, report)) {
         stats.read += 1;
         if (game.rejected) {
@@ -569,7 +571,7 @@ export async function buildDatabase(sources, options) {
       formatVersion: XD_FORMAT_VERSION,
       buildDate: o.buildDate ?? new Date().toISOString(),
       release: o.release ?? null,
-      rules: { profile: "masters", minElo: o.minElo, maxPly: o.maxPly, minGames: o.minGames, topGames: o.topGames, dedupePlies: o.dedupePlies },
+      rules: { profile: "masters", ratingRule: RATING_RULE, minElo: o.minElo, maxPly: o.maxPly, minGames: o.minGames, topGames: o.topGames, dedupePlies: o.dedupePlies },
       layout: { gamesPerBlock: GAMES_PER_BLOCK, treePages: firstKeys.length, pageBytes: o.pageBytes },
       stats: {
         gamesRead: stats.read,

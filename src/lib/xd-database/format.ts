@@ -55,8 +55,9 @@ export const POSITION_GAME_BYTES = 12;
 export const PLAYER_BLACK_BIT = 0x80000000;
 export const GAME_ID_MASK = PLAYER_BLACK_BIT - 1;
 export const GAME_RESULTS = ["1-0", "1/2-1/2", "0-1"] as const;
+/** Average the available ratings. Position game entries store missing ratings as zero. */
 export function averageGameRating(whiteElo: number, blackElo: number): number {
-  return whiteElo && blackElo ? Math.round((whiteElo + blackElo) / 2) : 0;
+  return whiteElo && blackElo ? Math.round((whiteElo + blackElo) / 2) : whiteElo || blackElo;
 }
 
 export const GAMES_MAGIC = "XDGI";

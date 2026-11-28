@@ -46,8 +46,8 @@ function corpus() {
     otb(SICILIAN, { White: "Caruana, Fabiano", Black: "So, Wesley", WhiteElo: "2790", BlackElo: "2770", Result: "0-1", Date: "2021.07.07", Round: "4" }),
     otb(QGD, { White: "Ding, Liren", Black: "Nepomniachtchi, Ian", WhiteElo: "2780", BlackElo: "2790", Result: "1/2-1/2", Date: "2023.04.10", Round: "5" }),
     otb(SOLO, { White: "Larsen, Bent", Black: "Spassky, Boris", WhiteElo: "2620", BlackElo: "2690", Result: "0-1", Date: "1970.03.31", Round: "1" }),
-    // Rejected: rated under 2100, an online game, an unfinished game.
-    otb(RUY, { White: "Low, A", Black: "Low, B", WhiteElo: "2000", BlackElo: "2400", Date: "2020.01.01" }),
+    // Rejected: rated under 1800, an online game, an unfinished game.
+    otb(RUY, { White: "Low, A", Black: "Low, B", WhiteElo: "1700", BlackElo: "1600", Date: "2020.01.01" }),
     otb(RUY, { White: "Online, A", Black: "Online, B", Site: "chess.com INT", Date: "2020.01.01" }),
     otb(RUY, { White: "Open, A", Black: "Open, B", Result: "*", Date: "2020.01.01" }),
     // A relayed tournament: kept although Site names lichess.org.
@@ -83,6 +83,29 @@ describe("xd-database build", () => {
     assert.equal(manifest.stats.duplicates, 1);
     assert.deepEqual(manifest.stats.rejected, { elo: 1, online: 1, result: 1 });
     assert.equal(manifest.stats.illegalGames, 0);
+  });
+
+  it("keeps rated and unrated OTB games and ranks the fully unrated game last", async () => {
+    const pgn = [
+      otb(RUY, { WhiteElo: "2000", BlackElo: "1500", Round: "1" }),
+      otb(RUY, { WhiteElo: undefined, BlackElo: undefined, Round: "2", Date: "2025.01.01" }),
+      otb(RUY, { WhiteElo: "1700", BlackElo: "1600", Round: "3" }),
+      otb(RUY, { WhiteElo: "2400", BlackElo: undefined, Round: "4" }),
+    ].join("");
+    const outDir = join(root, "ratings");
+    const built = await buildDatabase(sources(pgn), { ...BASE, outDir, workers: 1 });
+    assert.equal(built.rules.minElo, 1800);
+    assert.equal(built.rules.ratingRule, "anyAtLeast");
+    assert.equal(built.stats.gamesKept, 3);
+    assert.deepEqual(built.stats.rejected, { elo: 1 });
+
+    const database = new XdDatabaseReader(localSource(join(outDir, "v2")));
+    const start = await database.positionByFen(new Chess().fen());
+    const top = await database.gamesById(start.gameIds);
+    assert.deepEqual(top.map(({ game }) => [game.whiteElo, game.blackElo]), [
+      [2400, null], [2000, 1500], [null, null],
+    ]);
+    assert.deepEqual((await database.positionGames(start, 0, 3)).map(({ id }) => id), start.gameIds);
   });
 
   it("counts every game at the start position with results per move", async () => {
@@ -196,7 +219,7 @@ describe("parseArgs and dateNumber", () => {
   it("parses the defaults and rejects bad values", () => {
     const args = parseArgs(["a.pgn", "--out-dir", "out", "--version", "2"]);
     assert.equal(args.maxPly, 50);
-    assert.equal(args.minElo, 2100);
+    assert.equal(args.minElo, 1800);
     assert.equal(args.minGames, 2);
     assert.equal(args.topGames, 50);
     assert.throws(() => parseArgs(["a.pgn", "--out-dir", "out"]), /usage/);

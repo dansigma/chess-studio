@@ -58,6 +58,36 @@ describe("timeControlSeconds", () => {
 
 const MASTER = { Event: "Open", Site: "Reykjavik ISL", Result: "1/2-1/2", WhiteElo: "2100", BlackElo: "2650" };
 
+describe("XD rating rule", () => {
+  const options = { minElo: 1800, ratingRule: "anyAtLeast" };
+
+  it("keeps games with any rating at the threshold or no ratings", () => {
+    for (const [white, black, rejection] of [
+      ["2000", "1500", null],
+      ["2400", undefined, null],
+      [undefined, "1800", null],
+      [undefined, undefined, null],
+      ["?", "-", null],
+      ["1700", "1600", "elo"],
+      ["1600", undefined, "elo"],
+    ]) {
+      const headers = { ...MASTER, WhiteElo: white, BlackElo: black };
+      assert.equal(profileRejection("masters", headers, options), rejection, `${white} vs ${black}`);
+    }
+    assert.equal(profileRejection("masters", MASTER, { ...options, minElo: 2700 }), "elo");
+  });
+
+  it("still checks online sources, broadcasts, start positions and results", () => {
+    const headers = { ...MASTER, WhiteElo: undefined, BlackElo: undefined };
+    assert.equal(profileRejection("masters", { ...headers, Site: "chess.com" }, options), "online");
+    assert.equal(profileRejection("masters", { ...headers, Source: "LichessEliteDatabase" }, options), "online");
+    assert.equal(profileRejection("masters", { ...headers, Site: "lichess.org", Source: "LichessBroadcastAPI" }, options), null);
+    assert.equal(profileRejection("masters", { ...headers, Variant: "Chess960" }, options), "variant");
+    assert.equal(profileRejection("masters", { ...headers, SetUp: "1" }, options), "variant");
+    assert.equal(profileRejection("masters", { ...headers, Result: "*" }, options), "result");
+  });
+});
+
 describe("masters profile", () => {
   it("passes OTB games with both Elos at the bar, no TimeControl needed", () => {
     assert.equal(profileRejection("masters", MASTER, {}), null);

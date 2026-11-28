@@ -1,9 +1,9 @@
 # Xadrez Digital database (SIG-1448)
 
-"Base Xadrez Digital" is our own game database and opening tree: over-the-board games where both players
-are rated 2100 or more, including OTB tournaments relayed by Lichess. It is built offline from the monthly
-PGN release (see `src/lib/legal/credits.ts` for the sources and licenses) into static files that the app
-reads from R2 with range requests. The source collection is not named in the UI, file names or identifiers.
+"Base Xadrez Digital" is our own game database and opening tree: over-the-board games with at least one
+player rated 1800 or higher, or with both ratings missing. This includes OTB tournaments relayed by Lichess.
+The offline builder turns the monthly PGN release into static files that the app reads from R2 with range
+requests. See `src/lib/legal/credits.ts` for the sources and licenses. The source collection is not named in the UI, file names or identifiers.
 
 - Builder: `scripts/xd-database/build.mjs` (SIG-1449)
 - Formats and reader: `src/lib/xd-database/format.ts`, `src/lib/xd-database/reader.ts`
@@ -29,15 +29,16 @@ Worker. Position keys are the app's position hash (`bookKey`), so a FEN from the
 
 ### Rules
 
-- **Filter:** the masters profile of the opening book (`scripts/opening-book/profiles.mjs`): both ratings present and
-  >= 2100 (`--min-elo`), standard chess from the initial position, no online games (Site/Event naming a server,
-  `[Source "LichessEliteDatabase"]`), a decided result (`1-0`, `0-1`, `1/2-1/2`). Lichess broadcast games are
-  kept: `[Source]` `LichessBroadcast` or `LichessBroadcastAPI`, or a lichess.org/broadcast URL.
+- **Filter:** at least one rating must meet `--min-elo` (1800 by default), or both ratings must be missing.
+  Games must be standard chess from the initial position with a decided result (`1-0`, `0-1`, `1/2-1/2`).
+  Online games are excluded based on Site/Event or the `LichessEliteDatabase` source tag. The builder keeps OTB
+  broadcasts identified by the `LichessBroadcast` or `LichessBroadcastAPI` source tag or a lichess.org/broadcast URL.
 - **De-duplication:** same rule as the opening book (normalized players, Date, Round, first 40 moves).
 - **Tree:** the first 50 plies of each game (`--max-ply`). A position counts each game once, even if the game
   repeats it. Positions reached by fewer than 2 games (`--min-games`) are left out: the move that leads there is
   still listed in its parent, with its count and result.
-- **Top games:** per position, the 50 games (`--top-games`) with the highest average rating, then the newest.
+- **Top games:** per position, the 50 games (`--top-games`) with the highest average of the available ratings, then the newest.
+  Games with neither rating sort last and are excluded by a positive `minRating`.
 - **Players:** a player is their FIDE id when the game has one, otherwise the normalized name ("surname, f").
   A name-only spelling whose normalized name belongs to exactly one FIDE id is merged into it. The newest spelling
   is the display name.
@@ -65,11 +66,11 @@ the current release. Positions absent from the tree return empty lists.
 
 ## Build
 
-Needs Node 22.18+ (TypeScript imports), `npm ci`, 7-Zip, and for the full release about 8 cores, 32 GB of RAM and
-about 10 GB of free disk on top of the PGN. Format v2 uses 24-byte temporary
-records (about 5 GB for the 2026-11 release). Expect about 115 million
-entries × 12 bytes, or 1.4 GB, for `position-games.bin` in addition to the game,
-tree and player files.
+Needs Node 22.18+ (TypeScript imports), `npm ci`, 7-Zip, and for the full release about 8 vCPU and 32 GB of RAM.
+Plan for up to about 3 hours and 20 GB of free disk beyond the extracted PGNs, including temporary files and output.
+These are planning estimates until a full build with the 1800 rule is measured. Format v2 uses 24-byte temporary
+position records. At the previous build's volume that is about 5 GB of temporary position records, with up to
+roughly three times that volume if nearly every input game is kept.
 
 ```bash
 7z x otb.7z          # one .pgn file (12.3 GB for 2026-11)
@@ -127,7 +128,7 @@ Download the matching monthly **OTB Complete** and **Lichess Broadcast** archive
 listed in `src/lib/legal/credits.ts`. From the repository root, set the archive and PGN paths to the actual
 filenames and use the release's date. Set `previous` to the currently deployed version and `version` to a
 new, unused version number. Use Node 22.18+, 7-Zip, and a Linux build machine with 8 vCPU, 32 GB RAM, and
-about 10 GB of free disk in addition to the archives and extracted PGNs. Allow about an hour (see Measured builds).
+up to about 20 GB of free disk in addition to the archives and extracted PGNs. Allow up to about 3 hours.
 
 ```bash
 set -euo pipefail
@@ -219,8 +220,8 @@ from the same release and commit the resulting app data file.
 node --import ./scripts/test-resolve.mjs scripts/xd-database/opening-character.mjs source.pgn --out src/data/opening-character.json
 ```
 
-The script accepts the same input formats and masters filter as the database
-builder. It requires both ratings to be at least 2300 and dates from 2000
+The script accepts the same input formats as the database builder. It uses the
+masters profile and requires both ratings to be at least 2300 and dates from 2000
 onward, and deduplicates across inputs using the builder's 40-ply game hash.
 Each game can count once at each catalog position it reaches, including by
 transposition. Position keys use piece placement, side to move, and castling

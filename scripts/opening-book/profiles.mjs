@@ -50,11 +50,18 @@ export const PROFILES = {
   correspondence: { minElo: 2300, dedupe: true, minDistinctPlayers: MIN_DISTINCT_PLAYERS },
 };
 
-function elosAtLeast(headers, minElo) {
-  const white = Number(headers.WhiteElo);
-  const black = Number(headers.BlackElo);
-  const present = (value) => value !== undefined && value !== "" && value !== "?" && value !== "-" && Number.isFinite(Number(value)) && Number(value) > 0;
-  if (!present(headers.WhiteElo) || !present(headers.BlackElo)) {
+function positiveElo(value) {
+  const elo = Number(value);
+  return Number.isFinite(elo) && elo > 0 ? elo : 0;
+}
+
+function elosAtLeast(headers, minElo, ratingRule) {
+  const white = positiveElo(headers.WhiteElo);
+  const black = positiveElo(headers.BlackElo);
+  if (ratingRule === "anyAtLeast") {
+    return (!white && !black) || Math.max(white, black) >= minElo ? null : "elo";
+  }
+  if (!white || !black) {
     return "noElo";
   }
   return white >= minElo && black >= minElo ? null : "elo";
@@ -83,6 +90,7 @@ const DAY = 86400;
 
 /**
  * Why a game is rejected by `profile` from its headers alone, or null.
+ * XD sets `ratingRule: "anyAtLeast"` to allow one qualifying rating or neither rating.
  * Reasons: variant, aborted/result, noElo, elo, speed (lichess), online
  * (masters), notCorrespondence (correspondence).
  */
@@ -97,7 +105,7 @@ export function profileRejection(profile, headers, options) {
   if (headers.Result === "*" || headers.Result === undefined || headers.Result === "?") {
     return "result";
   }
-  const elo = elosAtLeast(headers, minElo);
+  const elo = elosAtLeast(headers, minElo, options.ratingRule);
   if (elo) {
     return elo;
   }
