@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 from types import MethodType
 
+import chess
 import numpy as np
 import onnx
 import onnxruntime as ort
@@ -61,7 +62,6 @@ def load_pt_model(checkpoint: Path | None) -> MAIA3Model:
 
 
 def build_fixture_inputs(fixtures_path: Path) -> np.ndarray:
-    import chess
 
     fixtures = json.loads(fixtures_path.read_text(encoding="utf-8"))
     batch_boards = []

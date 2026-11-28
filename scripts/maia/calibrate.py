@@ -258,7 +258,7 @@ class Inference:
         self.pool.shutdown()
 
     def predict(self, samples, elo, *outputs):
-        """Yield (batch, *logits) for each requested output name, in order."""
+        """Return an iterator of (batch, *logits), one logits array per requested output name."""
         if not outputs:
             raise ValueError("predict() needs at least one output name")
         def run(batch):

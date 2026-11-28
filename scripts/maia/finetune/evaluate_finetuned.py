@@ -62,6 +62,8 @@ def main():
     with calibrate.Inference(args.model) as session:
         for band, samples in zip(calibrate.BANDS, held_by_band, strict=True):
             eval_elo = band if args.elo_mode == "fide" else classical[band][0]
+            if not samples:
+                raise ValueError(f"No held-out samples for band {band}")
             weights = np.array([s.weight for s in samples], dtype=np.float64)
             outcomes = np.array([s.outcome for s in samples], dtype=np.int64)
             total_w = float(np.sum(weights))

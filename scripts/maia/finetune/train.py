@@ -220,6 +220,7 @@ def evaluate(
     max_batches: int,
     device: str,
 ) -> dict[str, float]:
+    was_training = model.training
     model.eval()
     total_policy_ce = 0.0
     total_value_ce = 0.0
@@ -259,7 +260,7 @@ def evaluate(
         total_top3 += top3
         total_n += bsz
 
-    model.train()
+    model.train(was_training)
     if total_n == 0:
         raise RuntimeError("Validation loader yielded 0 positions")
     policy_ce = total_policy_ce / total_n

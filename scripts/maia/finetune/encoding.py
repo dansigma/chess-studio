@@ -58,6 +58,22 @@ def boards_to_tokens_np(hist_boards: np.ndarray, hist_stm: np.ndarray) -> np.nda
     return tokens
 
 
+_DEVICE_TABLES = {}
+
+
+def _device_tables(device):
+    """Mirror-square index and token LUT, copied to each device once."""
+    import torch
+
+    key = str(device)
+    if key not in _DEVICE_TABLES:
+        _DEVICE_TABLES[key] = (
+            torch.as_tensor(MIRROR_SQUARES, device=device, dtype=torch.long),
+            torch.as_tensor(TOKEN_LUT_NP, device=device, dtype=torch.float32),
+        )
+    return _DEVICE_TABLES[key]
+
+
 def boards_to_tokens_torch(hist_boards, hist_stm):
     """PyTorch (CPU or CUDA) version of boards_to_tokens_np.
 
@@ -67,10 +83,11 @@ def boards_to_tokens_torch(hist_boards, hist_stm):
     """
     import torch
 
+    if hist_boards.ndim != 3 or tuple(hist_boards.shape[1:]) != (HISTORY, 64):
+        raise ValueError(f"hist_boards must be (B, {HISTORY}, 64), got {tuple(hist_boards.shape)}")
     device = hist_boards.device
     bsz = hist_boards.shape[0]
-    mirror_sq = torch.as_tensor(MIRROR_SQUARES, device=device, dtype=torch.long)
-    lut = torch.as_tensor(TOKEN_LUT_NP, device=device, dtype=torch.float32)
+    mirror_sq, lut = _device_tables(device)
 
     stm_long = hist_stm.long()
     stm_mask = stm_long.bool().unsqueeze(-1)  # (B, 8, 1)
