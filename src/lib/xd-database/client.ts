@@ -2,7 +2,12 @@ import type { GameRecord, TreeMove } from "./format.ts";
 
 export const XD_DATABASE_SOURCE = "xadrez-digital" as const;
 export type XdGameHeader = Omit<GameRecord, "moves"> & { id: number };
-export type XdGamePage = { games: XdGameHeader[]; nextCursor: number | null };
+export type XdGamePage = {
+  games: XdGameHeader[];
+  nextCursor: number | string | null;
+  players?: { id: string; name: string; count: number }[];
+  playersCapped?: boolean;
+};
 export type XdTree = {
   opening: { eco: string; name: string } | null;
   total: number;

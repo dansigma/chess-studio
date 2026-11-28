@@ -22,6 +22,7 @@ export type LibraryGamesState = {
   loadingMore: boolean;
   error: string | null;
   sourceErrors: Partial<Record<LibrarySourceId, string>>;
+  xdPlayersCapped?: boolean;
   hasMore: boolean;
   loadMore: () => void;
   retry: () => void;
@@ -57,6 +58,7 @@ export function useLibraryGames(query: Query = queryLibrary): LibraryGamesState 
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sourceErrors, setSourceErrors] = useState<LibraryGamesState["sourceErrors"]>({});
+  const [xdPlayersCapped, setXdPlayersCapped] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const controllerRef = useRef<AbortController | null>(null);
 
@@ -70,6 +72,7 @@ export function useLibraryGames(query: Query = queryLibrary): LibraryGamesState 
     setLoadingMore(false);
     setError(null);
     setSourceErrors({});
+    setXdPlayersCapped(false);
     /* eslint-enable react-hooks/set-state-in-effect */
     query(filters, null, LIBRARY_PAGE_SIZE, controller.signal)
       .then((result) => {
@@ -80,6 +83,7 @@ export function useLibraryGames(query: Query = queryLibrary): LibraryGamesState 
         setTotal(result.total);
         setNextCursor(result.nextCursor);
         setSourceErrors(result.sourceErrors);
+        setXdPlayersCapped(result.xdPlayersCapped === true);
         setLoading(false);
       })
       .catch((cause: unknown) => {
@@ -113,6 +117,7 @@ export function useLibraryGames(query: Query = queryLibrary): LibraryGamesState 
         setTotal(result.total);
         setNextCursor(result.nextCursor);
         setSourceErrors(result.sourceErrors);
+        if (result.xdPlayersCapped) setXdPlayersCapped(true);
         setLoadingMore(false);
       })
       .catch((cause: unknown) => {
@@ -133,6 +138,7 @@ export function useLibraryGames(query: Query = queryLibrary): LibraryGamesState 
     loadingMore,
     error,
     sourceErrors,
+    xdPlayersCapped,
     hasMore: nextCursor !== null,
     loadMore,
     retry,

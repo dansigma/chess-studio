@@ -237,6 +237,30 @@ test("Masters with other sources and a text search (no position) shows the posit
   assert.equal(screen.queryByTestId("library-masters-text-note"), null);
 });
 
+test("Xadrez Digital explains text search and shows the localized player cap only when reached", () => {
+  const settings = useStudioStore.getState().settings;
+  useLibraryStore.setState({ filters: { ...DEFAULT_LIBRARY_FILTERS, sources: ["xadrez-digital"], query: "Leitao" } });
+  const { rerender } = render(<LibraryTable games={games(1, { xdPlayersCapped: true })} />);
+  assert.ok(screen.getByText(/the search box matches player names only/));
+  assert.ok(screen.getByText(/the 20 players with the most games/));
+
+  act(() => useStudioStore.setState({ settings: { ...settings, locale: "pt-br" } }));
+  assert.ok(screen.getByText(/partidas dos 20 jogadores/));
+
+  rerender(<LibraryTable games={games(0, { xdPlayersCapped: true })} />);
+  assert.ok(screen.getByText(/partidas dos 20 jogadores/));
+  rerender(<LibraryTable games={games(0, { xdPlayersCapped: false })} />);
+  assert.equal(screen.queryByText(/partidas dos 20 jogadores/), null);
+  act(() => useStudioStore.setState({ settings }));
+});
+
+test("Xadrez Digital name searches automatically advance through an empty page", () => {
+  useLibraryStore.setState({ filters: { ...DEFAULT_LIBRARY_FILTERS, sources: ["xadrez-digital"], player: "vescovi" } });
+  let requested = 0;
+  render(<LibraryTable games={games(0, { hasMore: true, loadMore: () => { requested++; } })} />);
+  assert.equal(requested, 1);
+});
+
 test("partial notice shows failed sources and its retry button calls retry", () => {
   let retried = 0;
   render(<LibraryTable games={games(1, { sourceErrors: { masters: "down" }, retry: () => { retried++; } })} />);

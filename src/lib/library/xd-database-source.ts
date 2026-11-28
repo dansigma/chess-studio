@@ -3,10 +3,9 @@ import { DEFAULT_SITE_LOCALE, isSiteLocale } from "../../i18n/locale.ts";
 import { tPanels } from "../../i18n/studio-panel-strings.ts";
 import { loadCatalog } from "../openings-catalog.ts";
 import {
-  fetchXdDatabase, loadXdGamePgn, searchXdPlayers, XD_DATABASE_SOURCE, xdGameDate,
+  fetchXdDatabase, loadXdGamePgn, XD_DATABASE_SOURCE, xdGameDate,
   type XdGameHeader, type XdGamePage,
 } from "../xd-database/client.ts";
-import { playerSearchKey } from "../xd-database/format.ts";
 import { compareLibraryItems } from "./sort.ts";
 import type { LibraryGameItem, LibrarySourceAdapter } from "./types.ts";
 
@@ -52,21 +51,18 @@ export function createXdDatabaseSource(fetchImpl?: typeof fetch): LibrarySourceA
       return tPanels(isSiteLocale(locale) ? locale : DEFAULT_SITE_LOCALE, "explorer.source.xadrez-digital");
     },
     capabilities: () => ({
-      textSearch: "none", color: "none", result: "full", annotations: "none",
+      textSearch: "partial", opponent: "none", color: "none", result: "full", annotations: "none",
       position: "full", player: "full", eloRange: "full", eco: "none",
       date: "full", sort: "partial", maxResults: null,
     }),
     async list(filters, cursor, limit, signal) {
       const query = new URLSearchParams({ fen: filters.position?.fen ?? DEFAULT_POSITION });
       const player = filters.player.trim();
-      if (player) {
-        const players = await searchXdPlayers(player, signal, fetchImpl);
-        const match = players.find(({ name }) => playerSearchKey(name) === playerSearchKey(player))
-          ?? (players.length === 1 ? players[0] : undefined);
-        if (!match) return { items: [], nextCursor: null, total: null };
-        query.set("player", match.id);
-        if (filters.playerColor !== "both") query.set("color", filters.playerColor);
-      }
+      // The explicit player filter takes precedence over the search box for this source.
+      const playerQuery = player || filters.query.trim();
+      if (playerQuery.length > 120) return { items: [], nextCursor: null, total: null };
+      if (playerQuery) query.set("playerQuery", playerQuery);
+      if (player && filters.playerColor !== "both") query.set("color", filters.playerColor);
       if (filters.result !== "all") query.set("result", filters.result === "draw" ? "1/2-1/2" : filters.result);
       for (const [name, value] of [
         ["minRating", filters.eloMin], ["maxRating", filters.eloMax],
@@ -76,9 +72,9 @@ export function createXdDatabaseSource(fetchImpl?: typeof fetch): LibrarySourceA
       }
 
       const [pageCursor = "0", consumed = "0"] = cursor?.split(":") ?? [];
-      query.set("cursor", pageCursor);
+      if (!playerQuery || pageCursor !== "0") query.set("cursor", pageCursor);
       const response = await fetchXdDatabase(`games?${query}`, signal, fetchImpl);
-      const { games, nextCursor }: XdGamePage = await response.json();
+      const { games, nextCursor, playersCapped }: XdGamePage = await response.json();
       const names = games.some(({ eco }) => eco) ? await loadOpeningNames() : undefined;
       const sorted = games.map((game) => mapGame(game, names)).sort((a, b) => compareLibraryItems(filters.sort, a, b));
       const offset = Number(consumed);
@@ -86,7 +82,7 @@ export function createXdDatabaseSource(fetchImpl?: typeof fetch): LibrarySourceA
       const cursorAfter = (used: number) => offset + used < sorted.length
         ? `${pageCursor}:${offset + used}`
         : nextCursor === null ? null : String(nextCursor);
-      return { items, nextCursor: cursorAfter(items.length), cursorAfter, total: null };
+      return { items, nextCursor: cursorAfter(items.length), cursorAfter, total: null, playersCapped };
     },
     loadPgn: (gameId, signal) => loadXdGamePgn(gameId, signal, fetchImpl),
   };
