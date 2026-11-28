@@ -10,8 +10,8 @@
 // at least one player rated >= --min-elo or both ratings missing. Games must
 // be standard chess from the start position, offline, with a decided result.
 // The main thread reads and filters the PGN and writes the game store and the
-// player data. Worker threads replay the first --max-ply moves (positions keyed
-// by the app's position hash) and then fold the positions into the tree.
+// player data. Workers resolve openings from the replayed moves, record tree
+// positions through --max-ply, then fold the positions into the tree.
 import { createHash } from "node:crypto";
 import { closeSync, createReadStream, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs";
 import { availableParallelism } from "node:os";
@@ -34,6 +34,7 @@ import {
   playerSearchKey,
   writePlayerEntry,
 } from "../../src/lib/xd-database/format.ts";
+import { loadCatalog } from "../../src/lib/openings-catalog.ts";
 import { dedupeHash, openLines } from "../opening-book/build-book.mjs";
 import { HashSet64 } from "../opening-book/hashset.mjs";
 import { readGames, sanTokens } from "../opening-book/pgn.mjs";
@@ -296,22 +297,32 @@ class GameStore {
 
 /** Worker pool with bounded in-flight batches (backpressure on the PGN reader). */
 class Pool {
-  constructor(size, init) {
+  constructor(size, init, writeBatch) {
     this.workers = [];
     this.waiting = [];
-    this.inflight = 0;
+    this.batches = [];
     this.maxInflight = size * 4;
     this.failure = null;
     for (let i = 0; i < size; i += 1) {
       const worker = new Worker(new URL("./worker.mjs", import.meta.url));
-      const state = { worker, pending: [] };
+      const state = { worker, pending: [], batches: [] };
       worker.on("message", (message) => {
         if (message.type === "error") {
           this.fail(new Error(`worker ${i}: ${message.message}`));
           return;
         }
         if (message.type === "ack") {
-          this.inflight -= 1;
+          if (this.failure) return;
+          try {
+            state.batches.shift().openings = message.openings;
+            // A later batch can finish first. Keep both writes and game IDs in source order.
+            while (this.batches[0]?.openings) {
+              const { headers, openings } = this.batches.shift();
+              writeBatch(headers, openings);
+            }
+          } catch (error) {
+            this.fail(error);
+          }
           this.waiting.shift()?.();
           return;
         }
@@ -327,7 +338,6 @@ class Pool {
 
   fail(error) {
     this.failure ??= error;
-    this.inflight = 0;
     for (const state of this.workers) {
       for (const pending of state.pending.splice(0)) {
         pending.reject(error);
@@ -338,8 +348,8 @@ class Pool {
     }
   }
 
-  async sendGames(games) {
-    while (this.inflight >= this.maxInflight && !this.failure) {
+  async sendGames(games, headers) {
+    while (this.batches.length >= this.maxInflight && !this.failure) {
       await new Promise((resolve) => this.waiting.push(resolve));
     }
     if (this.failure) {
@@ -347,7 +357,9 @@ class Pool {
     }
     const state = this.workers[this.next];
     this.next = (this.next + 1) % this.workers.length;
-    this.inflight += 1;
+    const batch = { headers, openings: null };
+    this.batches.push(batch);
+    state.batches.push(batch);
     state.worker.postMessage({ type: "games", games });
   }
 
@@ -393,15 +405,29 @@ export async function buildDatabase(sources, options) {
 
   const stats = { read: 0, kept: 0, duplicates: 0, rejected: {}, noMoves: 0, endedMidGame: 0 };
   const seen = new HashSet64();
+  const catalog = await loadCatalog();
+  // Workers replay past the tree depth only as far as the deepest catalog line, to resolve openings.
+  const replayPlies = Math.max(o.maxPly, ...catalog.map(({ uci }) => uci.length));
   const store = new GameStore(join(dir, "games.bin"));
   const players = new PlayerRegistry();
   const gameWhite = new U32List();
   const gameBlack = new U32List();
   const gameDate = new U32List();
-  const pool = new Pool(o.workers, { tmpDir, bucketBits: o.bucketBits, maxPly: o.maxPly });
+  let resolved = 0;
+  const pool = new Pool(o.workers, { tmpDir, bucketBits: o.bucketBits, maxPly: o.maxPly }, (headers, openings) => {
+    for (const [i, game] of headers.entries()) {
+      const opening = catalog[openings[i]];
+      if (opening) resolved += 1;
+      game.openingEco = opening?.eco ?? null;
+      game.openingName = opening?.name ?? null;
+      store.add(game);
+    }
+  });
   let batch = [];
+  let headers = [];
   let lastLog = Date.now();
 
+  let storeClosed = false;
   try {
     reading: for (const source of sources) {
       const report = {};
@@ -428,9 +454,9 @@ export async function buildDatabase(sources, options) {
               const blackElo = rating(h.BlackElo);
               const whiteFide = fideId(h.WhiteFideId);
               const blackFide = fideId(h.BlackFideId);
-              const id = store.count;
+              const id = stats.kept;
               if (id > GAME_ID_MASK) throw new Error("xd-database: too many games");
-              store.add({
+              headers.push({
                 white: h.White ?? "?",
                 black: h.Black ?? "?",
                 whiteElo,
@@ -452,15 +478,16 @@ export async function buildDatabase(sources, options) {
               gameDate.push(date);
               batch.push({
                 id,
-                sans: sans.slice(0, o.maxPly),
+                sans: sans.slice(0, replayPlies),
                 result: RESULT_CODE[h.Result],
                 whiteElo: whiteElo ?? 0,
                 blackElo: blackElo ?? 0,
                 year: Math.floor(date / 10000),
               });
               if (batch.length >= 500) {
-                await pool.sendGames(batch);
+                await pool.sendGames(batch, headers);
                 batch = [];
+                headers = [];
               }
               stats.kept += 1;
             }
@@ -481,15 +508,15 @@ export async function buildDatabase(sources, options) {
       }
     }
     if (batch.length > 0) {
-      await pool.sendGames(batch);
+      await pool.sendGames(batch, headers);
     }
+    const flushed = await Promise.all(pool.workers.map((_, i) => pool.request(i, { type: "flush" })));
+    store.close();
+    storeClosed = true;
     if (stats.read < o.minGamesRead) {
-      store.close();
       rmSync(dir, { recursive: true, force: true });
       throw new Error(`read ${stats.read} games, fewer than --min-games-read ${o.minGamesRead}: no output written`);
     }
-    store.close();
-    const flushed = await Promise.all(pool.workers.map((_, i) => pool.request(i, { type: "flush" })));
     stats.records = flushed.reduce((sum, f) => sum + f.records, 0);
     stats.illegalGames = flushed.reduce((sum, f) => sum + f.illegal, 0);
     const phase1Seconds = Math.round((Date.now() - started) / 1000);
@@ -595,6 +622,7 @@ export async function buildDatabase(sources, options) {
       stats: {
         gamesRead: stats.read,
         gamesKept: stats.kept,
+        openings: { resolved, unresolved: stats.kept - resolved },
         duplicates: stats.duplicates,
         noMoves: stats.noMoves,
         rejected: stats.rejected,
@@ -619,6 +647,7 @@ export async function buildDatabase(sources, options) {
     return manifest;
   } finally {
     await pool.close();
+    if (!storeClosed) closeSync(store.fd);
   }
 }
 

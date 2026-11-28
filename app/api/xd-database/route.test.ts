@@ -54,7 +54,7 @@ before(async () => {
     ...Array.from({ length: scanLimit }, (_, id) => {
       const moves = id === transposedCount + 1 ? `Nf3 Nf6 Ng1 Ng8 ${opening}`
         : id > 0 && id <= transposedCount ? transposedOpening : opening;
-      return otb(moves, { ...draw, Round: String(id + 1), Date: "2024.01.01" });
+      return otb(moves, { ...draw, Round: String(id + 1), Date: "2024.01.01", ECO: "A00" });
     }),
     otb(opening, {
       White: "Costa, Caio", Black: playerName, BlackFideId: "123",
@@ -147,6 +147,9 @@ test("position games page in strongest-first order and return only headers", asy
   assert.equal(first.games[0].white, playerName);
   assert.equal(first.games[0].whiteElo, 2700);
   assert.equal(first.games[0].moves, undefined);
+  assert.equal(first.games[0].eco, "A00");
+  assert.equal(first.games[0].openingEco, "C44");
+  assert.equal(first.games[0].openingName, "King's Knight Opening: Normal Variation");
   assert.equal(first.nextCursor, 20);
   const second = await (await games(request("games", { fen: start, cursor: String(first.nextCursor) }))).json();
   assert.equal(second.games[0].id, 20);
@@ -170,6 +173,8 @@ test("players search and game pages use directory ids and newest-first order", a
   const first = await (await playerGames(request(`players/${playerId}/games`), idParams(playerId))).json();
   assert.equal(first.games[0].black, playerName);
   assert.equal(first.games[0].id, scanLimit);
+  assert.equal(first.games[0].openingEco, "C44");
+  assert.equal(first.games[0].openingName, "King's Knight Opening: Normal Variation");
   assert.equal(first.nextCursor, 20);
   const last = await playerGames(request(`players/${playerId}/games`, { cursor: String(scanLimit) }), idParams(playerId));
   assert.deepEqual((await last.json()).games.map(({ id }: { id: number }) => id), [0]);
@@ -344,6 +349,8 @@ test("game returns loadable PGN and missing ids return 404", async () => {
   board.loadPgn(pgn);
   assert.equal(board.getHeaders().White, playerName);
   assert.equal(board.getHeaders().WhiteFideId, "123");
+  assert.equal(board.getHeaders().ECO, "C44");
+  assert.equal(board.getHeaders().Opening, "King's Knight Opening: Normal Variation");
   assert.deepEqual(board.history(), opening.split(" "));
   for (const id of ["8000000", "invalid"]) {
     assert.equal((await game(request(`game/${id}`), idParams(id))).status, 404);

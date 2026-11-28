@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { deflateRawSync } from "node:zlib";
-import { ByteWriter, encodePlayersIndex, playerSearchKey, writePlayerEntry } from "./format.ts";
+import { ByteWriter, encodeGamesIndex, encodePlayersIndex, playerSearchKey, writePlayerEntry } from "./format.ts";
 import { XdDatabaseReader } from "./reader.ts";
 
 test("finds players by normalized word prefixes in any order", async (t) => {
@@ -50,4 +50,19 @@ test("finds players by normalized word prefixes in any order", async (t) => {
   assert.deepEqual(await names("lei leitao raf rafael ignored"), ["Leitao, Rafael", "Leitao Dualibe, Rafael"]);
   assert.deepEqual(await names("ra rau"), ["Ramos, Raul"]);
   assert.deepEqual(await names(" , , "), []);
+});
+
+
+test("reads v2 game records without trailing opening fields", async () => {
+  const line = ["Alpha, A", "Beta, B", 2400, 2300, "1-0", "2020.03.05", "Open",
+    null, "1", "D00o", null, null, null, null, "d4 Nf6 Nc3 d5 Bf4 c5"];
+  const block = deflateRawSync(JSON.stringify(line));
+  const index = encodeGamesIndex({ gamesPerBlock: 256, gameCount: 1, offsets: [0, block.length] });
+  new DataView(index.buffer, index.byteOffset).setUint32(4, 2, true);
+  const reader = new XdDatabaseReader(async (file) => file === "games.idx" ? index : block);
+  const game = await reader.game(0);
+  assert.equal(game?.eco, "D00o");
+  assert.equal(game?.moves, line[14]);
+  assert.equal(game?.openingEco, null);
+  assert.equal(game?.openingName, null);
 });

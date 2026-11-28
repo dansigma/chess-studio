@@ -50,7 +50,7 @@
 //   varint start, varint count   slice of player-games.bin
 //   varint first year, varint last year (0: unknown)
 
-export const XD_FORMAT_VERSION = 2;
+export const XD_FORMAT_VERSION = 3;
 export const POSITION_GAME_BYTES = 12;
 export const PLAYER_BLACK_BIT = 0x80000000;
 export const GAME_ID_MASK = PLAYER_BLACK_BIT - 1;
@@ -85,6 +85,8 @@ export type GameRecord = {
   whiteFideId: number | null;
   blackFideId: number | null;
   moves: string;
+  openingEco: string | null;
+  openingName: string | null;
 };
 
 const GAME_FIELDS = [
@@ -103,6 +105,8 @@ const GAME_FIELDS = [
   "whiteFideId",
   "blackFideId",
   "moves",
+  "openingEco",
+  "openingName",
 ] as const;
 
 export function gameToLine(game: GameRecord): string {
@@ -343,8 +347,8 @@ function expectMagic(reader: ByteReader, magic: string): number {
     throw new Error(`xd-database: bad magic ${JSON.stringify(found)}, expected ${magic}`);
   }
   const version = reader.u32();
-  if (version !== XD_FORMAT_VERSION) {
-    throw new Error(`xd-database: format version ${version}, expected ${XD_FORMAT_VERSION}`);
+  if (version < 2 || version > XD_FORMAT_VERSION) {
+    throw new Error(`xd-database: format version ${version}, expected 2 through ${XD_FORMAT_VERSION}`);
   }
   return version;
 }
