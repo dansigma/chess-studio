@@ -19,7 +19,9 @@ const host = globalThis as typeof globalThis & { __CF_ENV?: Record<string, unkno
 const reads: { key: string; range?: { offset: number; length: number } }[] = [];
 const start = new Chess().fen();
 const scanLimit = Math.floor(65536 / POSITION_GAME_BYTES);
-const opening = "e4 e5 Nf3";
+const opening = "e4 e5 Nf3 Nc6";
+const transposedOpening = "Nc3 e5 e4";
+const transposedCount = 22;
 const playerName = "Álvarez, Ana";
 const leitaoDates = ["2016.03.04", undefined, "2016.??.??", ...Array<string>(20).fill("2024.08.01")];
 const leitaoStart = scanLimit + 2;
@@ -32,9 +34,9 @@ function fen(sans: string) {
   return board.fen();
 }
 
-function request(path: string, query: Record<string, string> = {}) {
+function request(path: string, query: Record<string, string> = {}, ip = "192.0.2.20") {
   return new Request(`https://app.test/api/xd-database/${path}?${new URLSearchParams(query)}`, {
-    headers: { "cf-connecting-ip": "192.0.2.20" },
+    headers: { "cf-connecting-ip": ip },
   });
 }
 
@@ -48,9 +50,11 @@ before(async () => {
     WhiteElo: "2700", BlackElo: "2500", Result: "1/2-1/2",
   };
   const fixture = [
-    ...Array.from({ length: scanLimit }, (_, id) => otb(opening, {
-      ...draw, Round: String(id + 1), Date: "2024.01.01",
-    })),
+    ...Array.from({ length: scanLimit }, (_, id) => {
+      const moves = id === transposedCount + 1 ? `Nf3 Nf6 Ng1 Ng8 ${opening}`
+        : id > 0 && id <= transposedCount ? transposedOpening : opening;
+      return otb(moves, { ...draw, Round: String(id + 1), Date: "2024.01.01" });
+    }),
     otb(opening, {
       White: "Costa, Caio", Black: playerName, BlackFideId: "123",
       WhiteElo: "2500", BlackElo: "2600", Result: "0-1", Date: "2025.03.04",
@@ -70,7 +74,7 @@ before(async () => {
     })),
   ].join("");
   const manifest = await buildDatabase([source(fixture)], {
-    outDir: root, version: XD_DATABASE_VERSION, workers: 2, bucketBits: 2, maxPly: 2, pageBytes: 128,
+    outDir: root, version: XD_DATABASE_VERSION, workers: 2, bucketBits: 2, maxPly: 3, pageBytes: 128,
   });
   assert.equal(manifest.stats.gamesKept, fixtureCount);
   const files = new Map(Object.keys(manifest.files).map((file) => [
@@ -106,7 +110,7 @@ test("tree uses range reads, caches its index and returns move statistics", asyn
   assert.equal(body.total, fixtureCount);
   assert.equal(body.opening, null);
   assert.deepEqual(body.moves[0], {
-    uci: "e2e4", white: 0, draws: scanLimit, black: 1, averageRating: 2600, lastYear: 2025,
+    uci: "e2e4", white: 0, draws: scanLimit - transposedCount - 1, black: 1, averageRating: 2600, lastYear: 2025,
   });
   const second = await tree(request("tree", { fen: fen("e4 e5") }));
   assert.ok((await second.json()).opening?.name);
@@ -223,7 +227,7 @@ test("playerQuery merges matching players, dates and ties across pages", async (
   assert.equal(cursor, null);
   const newest = leitaoDates.slice(3).map((_, i) => sharedGameId + i).reverse();
   assert.deepEqual(seen, [...newest, leitaoStart, leitaoStart + 2, leitaoStart + 1]);
-  assert.ok(!reads.slice(beforeReads).some(({ key }) => key.endsWith("/position-games.bin")));
+  assert.ok(!reads.slice(beforeReads).some(({ key }) => /\/(tree|position-games)\.bin$/.test(key)));
 });
 
 test("playerQuery filters by either matched side, result, rating and year", async () => {
@@ -258,6 +262,54 @@ test("playerQuery advances past a bounded scan of rejected games", async () => {
   assert.notEqual(second.nextCursor, first.nextCursor);
 });
 
+test("playerQuery pages through transpositions after empty scans", async () => {
+  const query = { fen: fen("e4 e5 Nc3"), playerQuery: "alvarez", result: "1/2-1/2", color: "white" };
+  const ids: number[] = [];
+  const cursors = new Set<string>();
+  let cursor: string | null = null;
+  for (const size of [...Array<number>(Math.floor((scanLimit - transposedCount + 1) / 500)).fill(0), 20, 2]) {
+    const response = await games(request("games", cursor ? { ...query, cursor } : query, "192.0.2.21"));
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.games.length, size);
+    assert.ok(body.games.every((entry: object) => !("moves" in entry)));
+    ids.push(...body.games.map(({ id }: { id: number }) => id));
+    cursor = body.nextCursor;
+    if (size !== 2) {
+      assert.ok(typeof cursor === "string");
+      assert.ok(!cursors.has(cursor));
+      cursors.add(cursor);
+    }
+  }
+  assert.equal(cursor, null);
+  assert.deepEqual(ids, Array.from({ length: transposedCount }, (_, i) => transposedCount - i));
+});
+
+test("playerQuery replays candidates at a position with many games", async () => {
+  const beforeReads = reads.length;
+  const query = { fen: fen("e4 e5 Nf3"), playerQuery: "alvarez" };
+  const response = await games(request("games", query));
+  assert.equal(response.status, 200);
+  const first = await response.json();
+  assert.deepEqual(first.games.map(({ id }: { id: number }) => id), Array.from({ length: 20 }, (_, i) => scanLimit - i));
+  const nearEnd = Buffer.from(JSON.stringify({ [first.players[0].id]: scanLimit - transposedCount - 2 })).toString("base64url");
+  const last = await (await games(request("games", { ...query, cursor: nearEnd }))).json();
+  assert.deepEqual(last.games.map(({ id }: { id: number }) => id), [transposedCount + 2, 0]);
+  assert.equal(last.nextCursor, null);
+  assert.ok(!reads.slice(beforeReads).some(({ key }) => key.endsWith("/position-games.bin")));
+});
+
+test("playerQuery returns player metadata for a position beyond the tree depth", async () => {
+  const query = { fen: start, playerQuery: "alvarez" };
+  const { players, playersCapped } = await (await games(request("games", query))).json();
+  assert.equal(players.length, 1);
+  const beforeReads = reads.length;
+  const response = await games(request("games", { ...query, fen: fen(opening) }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { games: [], nextCursor: null, players, playersCapped });
+  assert.ok(!reads.slice(beforeReads).some(({ key }) => /\/(games|player-games|position-games)\.bin$/.test(key)));
+});
+
 test("playerQuery reports capped and empty player matches", async () => {
   const response = await games(request("games", { fen: start, playerQuery: "capped" }));
   const body = await response.json();
@@ -271,9 +323,9 @@ test("playerQuery reports capped and empty player matches", async () => {
 
 test("playerQuery rejects invalid filters, positions and cursors", async () => {
   const query = { fen: start, playerQuery: "leitao" };
-  const otherPosition = await games(request("games", { ...query, fen: fen("e4") }));
+  const otherPosition = await games(request("games", { ...query, fen: "invalid" }));
   assert.equal(otherPosition.status, 400);
-  assert.deepEqual(await otherPosition.json(), { error: "playerQuery supports only the initial position" });
+  assert.deepEqual(await otherPosition.json(), { error: "fen is not a valid position" });
   const invalidQueries: Record<string, string>[] = [
     { player: "0-0" }, { playerQuery: " " }, { playerQuery: "a".repeat(121) }, { cursor: "!" },
     ...["[]", "{}", '{"0-0":-1}', '{"0-0":"1"}'].map((value) => ({ cursor: Buffer.from(value).toString("base64url") })),

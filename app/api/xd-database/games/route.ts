@@ -1,11 +1,8 @@
-import { DEFAULT_POSITION } from "chess.js";
-import { treeKeyOfFen } from "@/src/lib/xd-database/reader";
 import { GAME_RESULTS, POSITION_GAME_BYTES, averageGameRating } from "@/src/lib/xd-database/format";
 import { error, gameHeaders, pageCursor, PAGE_SIZE, positionQuery, serve, unsignedInteger } from "../shared";
 
 import { PLAYER_ID, playerOffsets, playerQueryGames } from "./player-query";
 
-const INITIAL_POSITION = treeKeyOfFen(DEFAULT_POSITION);
 const SCAN_LIMIT = Math.floor(64 * 1024 / POSITION_GAME_BYTES);
 
 function filters(query: URLSearchParams) {
@@ -43,10 +40,9 @@ export async function GET(request: Request) {
   };
 
   if (playerQuery !== null) {
-    if (positionRequest.key !== INITIAL_POSITION) return error("playerQuery supports only the initial position");
     const offsets = playerOffsets(query.get("cursor"));
     if (!offsets) return error("Invalid playerQuery cursor");
-    return serve(request, (reader) => playerQueryGames(reader, playerQuery, offsets, color, matches), {
+    return serve(request, (reader) => playerQueryGames(reader, positionRequest.key, positionRequest.fen, playerQuery, offsets, color, matches), {
       filtered: true, skipEdgeCache: true,
     });
   }

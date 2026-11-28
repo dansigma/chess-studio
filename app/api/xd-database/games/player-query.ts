@@ -1,3 +1,5 @@
+import { Chess, DEFAULT_POSITION } from "chess.js";
+import { bookKey } from "@/src/chess/opening-book";
 import { GAME_ID_MASK, dateNumber } from "@/src/lib/xd-database/format";
 import type { DirectoryPlayer, PlayerGame, XdDatabaseReader } from "@/src/lib/xd-database/reader";
 import { error, gameHeaders, PAGE_SIZE } from "../shared";
@@ -5,10 +7,12 @@ import { error, gameHeaders, PAGE_SIZE } from "../shared";
 const PLAYER_LIMIT = 20;
 const BATCH_SIZE = 16;
 const GAME_LIMIT = 500;
+const POSITION_POSTINGS_LIMIT = 4096;
+const INITIAL_POSITION = bookKey(DEFAULT_POSITION);
 export const PLAYER_ID = /^\d{1,10}-\d{1,10}$/;
 
 type Headers = ReturnType<typeof gameHeaders>;
-type Posting = PlayerGame & { date: number; headers: Headers };
+type Posting = PlayerGame & { date: number; headers: Headers; moves: string };
 type Stream = { player: DirectoryPlayer; offset: number; batch: Posting[]; index: number };
 
 // The cursor JSON is ASCII (player ids and integers), so btoa/atob suffice; no node:buffer in the Worker.
@@ -45,7 +49,7 @@ async function refill(reader: XdDatabaseReader, streams: Stream[]) {
   const postings = await Promise.all(empty.map(({ player, offset }) => reader.playerGameIds(player, offset, BATCH_SIZE)));
   const ids = new Set(postings.flatMap((batch) => batch.map(({ id }) => id)));
   const records = new Map((await reader.gamesById([...ids])).map((record) => [
-    record.id, { date: dateNumber(record.game.date), headers: gameHeaders(record) },
+    record.id, { date: dateNumber(record.game.date), headers: gameHeaders(record), moves: record.game.moves },
   ]));
   for (const [i, stream] of empty.entries()) {
     stream.batch = postings[i].map((posting) => {
@@ -57,8 +61,83 @@ async function refill(reader: XdDatabaseReader, streams: Stream[]) {
   }
 }
 
+async function positionMatcher(reader: XdDatabaseReader, key: bigint, fen: string) {
+  if (key === INITIAL_POSITION) return () => true;
+  const position = await reader.position(key);
+  if (!position) return null;
+  if (position.total <= POSITION_POSTINGS_LIMIT) {
+    const ids = new Set((await reader.positionGames(position, 0, position.total)).map(({ id }) => id));
+    return ({ id }: Posting) => ids.has(id);
+  }
+  const maxPly = await reader.maxPly();
+  const target = targetShape(fen);
+  return ({ moves }: Posting) => replayReaches(moves, maxPly, key, target);
+}
+
+/** Whether replaying `moves` (SAN, space separated) reaches the position `key` within `maxPly` plies. */
+export function replayReaches(moves: string, maxPly: number, key: bigint, target: TargetShape): boolean {
+  const board = new Chess();
+  const shape = { pawns: { w: 8, b: 8 }, pieces: { w: 16, b: 16 } };
+  for (const san of moves.split(" ", maxPly)) {
+    if (!san) break;
+    let move;
+    try {
+      move = board.move(san);
+    } catch {
+      // The builder counts the legal prefix of a game.
+      break;
+    }
+    // Captures and pawn moves are irreversible: once the game has fewer pawns or pieces than the
+    // target, or a pawn left a home square the target still occupies, it can never reach it.
+    if (move.captured) {
+      const side = move.color === "w" ? "b" : "w";
+      shape.pieces[side] -= 1;
+      if (move.captured === "p") shape.pawns[side] -= 1;
+      if (move.captured === "p" && target.homePawns.has(move.isEnPassant() ? "" : move.to)) return false;
+    }
+    if (move.piece === "p" && target.homePawns.has(move.from)) return false;
+    if (move.promotion) shape.pawns[move.color] -= 1;
+    if (shape.pawns.w < target.pawns.w || shape.pawns.b < target.pawns.b ||
+        shape.pieces.w < target.pieces.w || shape.pieces.b < target.pieces.b) return false;
+    if (shape.pawns.w === target.pawns.w && shape.pawns.b === target.pawns.b &&
+        shape.pieces.w === target.pieces.w && shape.pieces.b === target.pieces.b &&
+        bookKey(board.fen()) === key) return true;
+  }
+  return false;
+}
+
+type TargetShape = ReturnType<typeof targetShape>;
+
+/** Pawn and piece counts per side, and the pawns still on their home squares, of a FEN. */
+export function targetShape(fen: string) {
+  const shape = { pawns: { w: 0, b: 0 }, pieces: { w: 0, b: 0 }, homePawns: new Set<string>() };
+  const rows = fen.trim().split(/\s+/)[0].split("/");
+  rows.forEach((row, index) => {
+    const rank = 8 - index;
+    let file = 0;
+    for (const char of row) {
+      if (/\d/.test(char)) {
+        file += Number(char);
+        continue;
+      }
+      const side = char === char.toUpperCase() ? "w" : "b";
+      shape.pieces[side] += 1;
+      if (char.toLowerCase() === "p") {
+        shape.pawns[side] += 1;
+        if ((side === "w" && rank === 2) || (side === "b" && rank === 7)) {
+          shape.homePawns.add(`${"abcdefgh"[file]}${rank}`);
+        }
+      }
+      file += 1;
+    }
+  });
+  return shape;
+}
+
 export async function playerQueryGames(
   reader: XdDatabaseReader,
+  key: bigint,
+  fen: string,
   query: string,
   offsets: Map<string, number>,
   color: string | null,
@@ -70,7 +149,17 @@ export async function playerQueryGames(
   }));
   if (streams.some(({ player, offset }) => offset > player.count)) return error("Invalid playerQuery cursor");
 
+  const playerSummary = {
+    players: streams.map(({ player: { id, name, count } }) => ({ id, name, count })),
+    playersCapped: found.length > PLAYER_LIMIT,
+  };
   const games: Headers[] = [];
+  if (!streams.some(({ player, offset }) => offset < player.count)) {
+    return Response.json({ games, nextCursor: null, ...playerSummary });
+  }
+  const reachesPosition = await positionMatcher(reader, key, fen);
+  if (!reachesPosition) return Response.json({ games, nextCursor: null, ...playerSummary });
+
   await refill(reader, streams);
   for (let examined = 0; examined < GAME_LIMIT && games.length < PAGE_SIZE; examined += 1) {
     let newest: Posting | undefined;
@@ -100,16 +189,13 @@ export async function playerQueryGames(
       if (consumed) await refill(reader, streams);
     } while (consumed);
 
-    if (sideMatches && matches(newest.headers, Math.floor(newest.date / 10000))) games.push(newest.headers);
+    if (sideMatches && matches(newest.headers, Math.floor(newest.date / 10000)) && reachesPosition(newest)) {
+      games.push(newest.headers);
+    }
   }
 
   const nextCursor = streams.some(({ player, offset }) => offset < player.count)
     ? toBase64Url(JSON.stringify(Object.fromEntries(streams.map(({ player, offset }) => [player.id, offset]))))
     : null;
-  return Response.json({
-    games,
-    nextCursor,
-    players: streams.map(({ player: { id, name, count } }) => ({ id, name, count })),
-    playersCapped: found.length > PLAYER_LIMIT,
-  });
+  return Response.json({ games, nextCursor, ...playerSummary });
 }
