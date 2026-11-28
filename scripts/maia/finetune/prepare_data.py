@@ -373,13 +373,13 @@ def write_split_shards(
 ) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     tasks = []
+    pgn_str = str(pgn_path)
     for start in range(0, len(games), chunk_games):
         chunk = [
             (offset, white, black, start + i)
             for i, (offset, white, black, _ek) in enumerate(games[start : start + chunk_games])
         ]
-        tasks.append((str(pgn_str_val := str(pgn_path)), chunk))
-    del pgn_str_val
+        tasks.append((pgn_str, chunk))
 
     shards_meta: list[dict] = []
     buf: list[dict] = []

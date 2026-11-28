@@ -21,7 +21,7 @@ import calibrate_combined  # noqa: E402
 ROOT = calibrate.ROOT
 BANDS = calibrate.BANDS
 DEFAULT_TEST_ELOS = "1800,2000,2200,2300,2500,2700,2900"
-FIDE_TEST_ELOS = ",".join(str(band) for band in BANDS)
+FIDE_TEST_ELOS = ",".join(str(band) for band in sorted(set(BANDS)))
 DEFAULT_CACHE_DIR = calibrate_combined.DEFAULT_CACHE_DIR
 LOG_PROB_CLIP = 1e-9
 # A switch is only worth a separate mapping when the gain is both detectable
