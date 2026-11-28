@@ -125,9 +125,22 @@ export function parseArgs(argv) {
 
 const RESULT_CODE = { "1-0": 0, "1/2-1/2": 1, "0-1": 2 };
 
+// No player has reached 2900; such a tag is a placeholder and is stored as missing.
+const MAX_RATING = 2899;
+
 function rating(value) {
   const number = Number(value);
-  return Number.isInteger(number) && number > 0 && number < 4000 ? number : null;
+  return Number.isInteger(number) && number > 0 && number <= MAX_RATING ? number : null;
+}
+
+/** Headers with a 2900+ rating tag removed, so the rating rule treats it as missing. */
+function withoutPlaceholderRatings(headers) {
+  const placeholder = (value) => Number(value) > MAX_RATING;
+  if (!placeholder(headers.WhiteElo) && !placeholder(headers.BlackElo)) return headers;
+  const clean = { ...headers };
+  if (placeholder(clean.WhiteElo)) delete clean.WhiteElo;
+  if (placeholder(clean.BlackElo)) delete clean.BlackElo;
+  return clean;
 }
 
 function fideId(value) {
@@ -158,10 +171,6 @@ function xdRejection(headers) {
   }
   if (placeholderPlayer(headers.White) || placeholderPlayer(headers.Black)) {
     return "placeholderPlayer";
-  }
-  if ((Number(headers.WhiteElo) >= 2700 && !fideId(headers.WhiteFideId)) ||
-      (Number(headers.BlackElo) >= 2700 && !fideId(headers.BlackFideId))) {
-    return "implausibleRating";
   }
   return null;
 }
@@ -431,8 +440,10 @@ export async function buildDatabase(sources, options) {
   try {
     reading: for (const source of sources) {
       const report = {};
-      const classify = (headers) =>
-        profileRejection("masters", headers, { minElo: o.minElo, ratingRule: RATING_RULE }) ?? xdRejection(headers);
+      const classify = (raw) => {
+        const headers = withoutPlaceholderRatings(raw);
+        return profileRejection("masters", headers, { minElo: o.minElo, ratingRule: RATING_RULE }) ?? xdRejection(headers);
+      };
       for await (const game of readGames(source, classify, report)) {
         stats.read += 1;
         if (game.rejected) {
