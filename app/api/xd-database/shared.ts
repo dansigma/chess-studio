@@ -85,10 +85,10 @@ function withServerTiming(response: Response, value: string): Response {
 export async function serve(
   request: Request,
   load: (reader: XdDatabaseReader) => Promise<Response>,
-  filtered = false,
+  { filtered = false, skipEdgeCache = false } = {},
 ): Promise<Response> {
   const started = performance.now();
-  const edge = xdEdgeCache();
+  const edge = skipEdgeCache ? undefined : xdEdgeCache();
   const edgeState = edge ? "miss" : "off";
   const url = new URL(request.url);
   url.searchParams.set("__xd_version", String(XD_DATABASE_VERSION));

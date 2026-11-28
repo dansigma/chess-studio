@@ -597,3 +597,14 @@ export function compareUtf8(a: string, b: string): number {
   // and the reader use this same function, so the order is consistent either way.
   return a < b ? -1 : a > b ? 1 : 0;
 }
+
+/** "2019.03.04" -> 20190304; unknown month/day parts are 0; 0 when the year is unknown. */
+export function dateNumber(date?: string | null) {
+  const match = /^(\d{4})(?:[.\-/](\d{2}|\?\?))?(?:[.\-/](\d{2}|\?\?))?/.exec(date ?? "");
+  if (!match) {
+    return 0;
+  }
+  const month = Number(match[2]) || 0;
+  const day = Number(match[3]) || 0;
+  return Number(match[1]) * 10000 + month * 100 + day;
+}
