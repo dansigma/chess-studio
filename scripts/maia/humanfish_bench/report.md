@@ -1,6 +1,6 @@
 # HumanFish November 2026 Move-Prediction Benchmark (SIG-1531)
 
-Replication of HumanFish's November 2026 prospective move-prediction test set (`2026-11-01` to `2026-11-26`) and evaluation of Maia-3 models (5M ONNX, 5M OTB-v1 fine-tuned ONNX, 23M PyTorch, 79M PyTorch).
+Replication of HumanFish's November 2026 prospective move-prediction test set (`2026-11-01` to `2026-11-26`) and evaluation of Maia-3 models (5M ONNX, 5M OTB-v1 fine-tuned ONNX, 23M PyTorch, 79M PyTorch) and Toby 2 Accurate (run unmodified as a UCI engine; Toby © Yosha Iglesias, toby.tribychess.org).
 
 ## 1. Dataset & Filtering Summary
 
@@ -61,6 +61,7 @@ Replication of HumanFish's November 2026 prospective move-prediction test set (`
 | (c) Maia-3 5M Finetuned OTB-v1 ONNX (Raw FIDE) | 55.29% [53.60%, 57.10%] | 83.92% [82.52%, 85.27%] | -1.2918 [-1.3314, -1.2491] | +2.07 pp [+0.88, +3.25] | +0.0794 [+0.0652, +0.0943] |
 | (d) Maia-3 23M PyTorch GPU (Raw FIDE) | 56.35% [54.57%, 58.10%] | 84.86% [83.52%, 86.17%] | -1.2786 [-1.3260, -1.2323] | +3.13 pp [+1.91, +4.32] | +0.0925 [+0.0742, +0.1112] |
 | (e) Maia-3 79M PyTorch GPU (Raw FIDE) | 57.01% [55.22%, 58.73%] | 85.29% [84.01%, 86.60%] | -1.2273 [-1.2734, -1.1798] | +3.79 pp [+2.57, +5.07] | +0.1439 [+0.1232, +0.1637] |
+| (f) Toby 2 Accurate (unmodified, RTX 3090) | 67.46% [65.77%, 69.22%] | 92.83% [91.96%, 93.68%] | -0.9395 [-0.9940, -0.8855] | +14.24 pp [+12.62, +15.93] | +0.4316 [+0.3812, +0.4798] |
 
 ### Classical (N = 1828 positions, 305 games)
 
@@ -71,6 +72,7 @@ Replication of HumanFish's November 2026 prospective move-prediction test set (`
 | (c) Maia-3 5M Finetuned OTB-v1 ONNX (Raw FIDE) | 55.85% [53.61%, 58.15%] | 83.42% [81.62%, 85.01%] | -1.2950 [-1.3523, -1.2386] | +3.17 pp [+1.64, +4.65] | +0.0893 [+0.0718, +0.1069] |
 | (d) Maia-3 23M PyTorch GPU (Raw FIDE) | 55.36% [52.95%, 57.54%] | 83.75% [81.97%, 85.36%] | -1.3174 [-1.3866, -1.2583] | +2.68 pp [+0.99, +4.27] | +0.0669 [+0.0432, +0.0911] |
 | (e) Maia-3 79M PyTorch GPU (Raw FIDE) | 56.07% [53.66%, 58.48%] | 84.74% [82.97%, 86.34%] | -1.2676 [-1.3327, -1.2058] | +3.39 pp [+1.75, +5.03] | +0.1167 [+0.0919, +0.1440] |
+| (f) Toby 2 Accurate (unmodified, RTX 3090) | 68.44% [66.28%, 70.49%] | 93.44% [92.40%, 94.53%] | -0.9075 [-0.9788, -0.8426] | +15.75 pp [+13.58, +17.93] | +0.4767 [+0.4161, +0.5398] |
 
 ### Rapid (N = 648 positions, 108 games)
 
@@ -81,6 +83,7 @@ Replication of HumanFish's November 2026 prospective move-prediction test set (`
 | (c) Maia-3 5M Finetuned OTB-v1 ONNX (Raw FIDE) | 52.93% [48.77%, 57.25%] | 83.18% [79.78%, 86.57%] | -1.3321 [-1.4303, -1.2372] | +1.85 pp [-0.46, +4.01] | +0.0781 [+0.0483, +0.1088] |
 | (d) Maia-3 23M PyTorch GPU (Raw FIDE) | 54.17% [50.31%, 58.02%] | 85.80% [82.56%, 88.73%] | -1.2789 [-1.3837, -1.1797] | +3.09 pp [+0.46, +5.56] | +0.1313 [+0.0847, +0.1856] |
 | (e) Maia-3 79M PyTorch GPU (Raw FIDE) | 54.17% [50.00%, 58.49%] | 85.03% [81.94%, 87.81%] | -1.2386 [-1.3377, -1.1434] | +3.09 pp [+0.46, +5.71] | +0.1716 [+0.1247, +0.2207] |
+| (f) Toby 2 Accurate (unmodified, RTX 3090) | 64.35% [60.65%, 67.90%] | 92.59% [90.74%, 94.44%] | -0.9347 [-1.0305, -0.8517] | +13.27 pp [+9.26, +17.13] | +0.4755 [+0.3786, +0.5713] |
 
 ### Blitz (N = 720 positions, 120 games)
 
@@ -91,6 +94,7 @@ Replication of HumanFish's November 2026 prospective move-prediction test set (`
 | (c) Maia-3 5M Finetuned OTB-v1 ONNX (Raw FIDE) | 55.97% [51.94%, 59.58%] | 85.83% [83.33%, 88.06%] | -1.2473 [-1.3263, -1.1711] | -0.56 pp [-3.33, +2.22] | +0.0553 [+0.0233, +0.0902] |
 | (d) Maia-3 23M PyTorch GPU (Raw FIDE) | 60.83% [57.50%, 64.17%] | 86.81% [84.44%, 89.03%] | -1.1800 [-1.2660, -1.1019] | +4.31 pp [+1.52, +6.81] | +0.1226 [+0.0877, +0.1599] |
 | (e) Maia-3 79M PyTorch GPU (Raw FIDE) | 61.94% [58.61%, 65.69%] | 86.94% [84.44%, 89.17%] | -1.1147 [-1.1990, -1.0369] | +5.42 pp [+2.64, +8.33] | +0.1879 [+0.1468, +0.2311] |
+| (f) Toby 2 Accurate (unmodified, RTX 3090) | 67.78% [64.31%, 71.11%] | 91.53% [89.44%, 93.34%] | -1.0250 [-1.1513, -0.9145] | +11.25 pp [+7.91, +14.72] | +0.2776 [+0.1719, +0.3819] |
 
 ## 5. Published Numbers vs Ours
 
@@ -98,7 +102,7 @@ Replication of HumanFish's November 2026 prospective move-prediction test set (`
 | --- | ---: | ---: | ---: | ---: | --- |
 | HumanFish (Nov 2026, N=2,698) | 65.9% | — | — | — | Published on humanfish.vercel.app |
 | DSC-150M (Nov 2026, N=2,698) | 63.0% | — | — | — | Published on humanfish.vercel.app |
-| Toby 2 (Nov 2026, N=3,136) | 67.5% | 92.6% | — | — | 523 games, 12/13 tournaments |
+| Toby 2 Accurate (Nov 2026, N=3,136) | 67.5% | 92.6% | 67.46% | 92.83% | Published: 523 games, 12/13 tournaments; ours: run unmodified on the same positions |
 | Maia-3 79M (Raw FIDE) | 57.2% | — | 57.01% | 85.29% | Published: 5-fold tournament-recalibrated on N=2,698 |
 | Maia-3 23M (Raw FIDE) | 55.6% | — | 56.35% | 84.86% | Published: 5-fold tournament-recalibrated on N=2,698 |
 | Maia-3 5M ONNX (Classical 2900) | — | — | 53.22% | 82.48% | Mover FIDE mapped via classical-calibration.ts |
@@ -112,6 +116,7 @@ Replication of HumanFish's November 2026 prospective move-prediction test set (`
 - **Time-control classification:** Lichess broadcast `fideTC` metadata mislabeled `Total Chess World Championship Tour Pilot 2026 | Finals` as `standard` (despite containing `180+2`, `900+10`, `600`, and `2700+30` games) and `WR Women's Chess Tour 2026 - Grand Final | Rapid` as `blitz`. We therefore inferred `time_control_class` primarily from the PGN `TimeControl` tag, falling back to the initial `%clk` timestamp when `TimeControl` is `?`, and finally to tournament name / `fideTC`.
 - **Classical mapping for (a):** `classical-calibration.ts` maps FIDE bands `2400` and `2600+` to `2900`. We applied this mapping to `self_elo` (the mover's FIDE rating) and passed the opponent's raw FIDE rating as `oppo_elo`.
 - **Confidence intervals:** We used game-clustered bootstrap (1,000 resamples, seed `1503`); HumanFish also noted that tournament-clustered intervals are wider than game-clustered intervals.
+- **Toby 2:** run unmodified as a UCI engine (Linux full release 2.0, `Toby 2 Product = Accurate`, FIDE ratings, time control, base time/increment and game clocks from the PGN, `MultiPV 500`). Probabilities are Toby's listed moves; a played move it does not list (10 of 3,196 positions) gets the `1e-9` floor, which only affects log-prob. A first run under systemd fell back silently to `Standard` because the GPU tools were not on `PATH`; on the same positions Standard scored 67.43% top-1 / 92.68% top-3, almost the same as Accurate. The runner now aborts on that fallback.
 
 ## 7. Reproduction Commands
 
@@ -132,6 +137,11 @@ Replication of HumanFish's November 2026 prospective move-prediction test set (`
 # ~/maia-ft/.venv/bin/python ~/humanfish-nov2026/eval_pytorch.py --model maia3-5m --positions ~/humanfish-nov2026/positions.jsonl --out ~/humanfish-nov2026/preds/maia3-5m.jsonl
 # ~/maia-ft/.venv/bin/python ~/humanfish-nov2026/eval_pytorch.py --model maia3-23m --positions ~/humanfish-nov2026/positions.jsonl --out ~/humanfish-nov2026/preds/maia3-23m.jsonl
 # ~/maia-ft/.venv/bin/python ~/humanfish-nov2026/eval_pytorch.py --model maia3-79m --positions ~/humanfish-nov2026/positions.jsonl --out ~/humanfish-nov2026/preds/maia3-79m.jsonl
+
+# 5b. Toby 2 Accurate on the desktop GPU (see TOBY.md), then convert its output
+# ~/toby/bench/run_toby_systemd.sh ~/toby/bench/nov2026/positions.jsonl ~/toby/bench/nov2026/toby_predictions.jsonl
+# copy toby_predictions.jsonl to /home/danilo/data/maia/humanfish-nov2026/toby_raw.jsonl, then:
+/home/danilo/data/maia/venv-calib/bin/python scripts/maia/humanfish_bench/convert_toby.py
 
 # 6. Compute bootstrap CIs and generate report.md
 /home/danilo/data/maia/venv-calib/bin/python scripts/maia/humanfish_bench/analyze_results.py

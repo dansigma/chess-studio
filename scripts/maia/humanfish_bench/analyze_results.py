@@ -24,6 +24,7 @@ MODEL_ORDER = [
     ("5m_finetuned", "(c) Maia-3 5M Finetuned OTB-v1 ONNX (Raw FIDE)"),
     ("maia3-23m", "(d) Maia-3 23M PyTorch GPU (Raw FIDE)"),
     ("maia3-79m", "(e) Maia-3 79M PyTorch GPU (Raw FIDE)"),
+    ("toby2_accurate", "(f) Toby 2 Accurate (unmodified, RTX 3090)"),
 ]
 
 TC_CLASSES = ["overall", "classical", "rapid", "blitz"]
@@ -196,7 +197,7 @@ def main() -> None:
     lines.append("# HumanFish November 2026 Move-Prediction Benchmark (SIG-1531)\n")
     lines.append(
         "Replication of HumanFish's November 2026 prospective move-prediction test set "
-        "(`2026-11-01` to `2026-11-26`) and evaluation of Maia-3 models (5M ONNX, 5M OTB-v1 fine-tuned ONNX, 23M PyTorch, 79M PyTorch).\n"
+        "(`2026-11-01` to `2026-11-26`) and evaluation of Maia-3 models (5M ONNX, 5M OTB-v1 fine-tuned ONNX, 23M PyTorch, 79M PyTorch) and Toby 2 Accurate (run unmodified as a UCI engine; Toby © Yosha Iglesias, toby.tribychess.org).\n"
     )
 
     lines.append("## 1. Dataset & Filtering Summary\n")
@@ -275,7 +276,10 @@ def main() -> None:
     lines.append("| --- | ---: | ---: | ---: | ---: | --- |")
     lines.append("| HumanFish (Nov 2026, N=2,698) | 65.9% | — | — | — | Published on humanfish.vercel.app |")
     lines.append("| DSC-150M (Nov 2026, N=2,698) | 63.0% | — | — | — | Published on humanfish.vercel.app |")
-    lines.append("| Toby 2 (Nov 2026, N=3,136) | 67.5% | 92.6% | — | — | 523 games, 12/13 tournaments |")
+    lines.append(
+        f"| Toby 2 Accurate (Nov 2026, N=3,136) | 67.5% | 92.6% | {ov['toby2_accurate:top1'] * 100:.2f}% | "
+        f"{ov['toby2_accurate:top3'] * 100:.2f}% | Published: 523 games, 12/13 tournaments; ours: run unmodified on the same positions |"
+    )
     lines.append(
         f"| Maia-3 79M (Raw FIDE) | 57.2% | — | {ov['maia3-79m:top1'] * 100:.2f}% | {ov['maia3-79m:top3'] * 100:.2f}% | "
         f"Published: 5-fold tournament-recalibrated on N=2,698 |"
@@ -309,6 +313,13 @@ def main() -> None:
         "- **Classical mapping for (a):** `classical-calibration.ts` maps FIDE bands `2400` and `2600+` to `2900`. We applied this mapping to `self_elo` (the mover's FIDE rating) and passed the opponent's raw FIDE rating as `oppo_elo`.\n"
         "- **Confidence intervals:** We used game-clustered bootstrap (1,000 resamples, seed `1503`); HumanFish also noted that tournament-clustered intervals are wider than game-clustered intervals."
     )
+    lines.append(
+        "- **Toby 2:** run unmodified as a UCI engine (Linux full release 2.0, `Toby 2 Product = Accurate`, FIDE ratings, "
+        "time control, base time/increment and game clocks from the PGN, `MultiPV 500`). Probabilities are Toby's listed "
+        "moves; a played move it does not list (10 of 3,196 positions) gets the `1e-9` floor, which only affects log-prob. "
+        "A first run under systemd fell back silently to `Standard` because the GPU tools were not on `PATH`; on the same "
+        "positions Standard scored 67.43% top-1 / 92.68% top-3, almost the same as Accurate. The runner now aborts on that fallback."
+    )
 
     lines.append("\n## 7. Reproduction Commands\n")
     lines.append("```bash")
@@ -328,6 +339,11 @@ def main() -> None:
     lines.append("# ~/maia-ft/.venv/bin/python ~/humanfish-nov2026/eval_pytorch.py --model maia3-5m --positions ~/humanfish-nov2026/positions.jsonl --out ~/humanfish-nov2026/preds/maia3-5m.jsonl")
     lines.append("# ~/maia-ft/.venv/bin/python ~/humanfish-nov2026/eval_pytorch.py --model maia3-23m --positions ~/humanfish-nov2026/positions.jsonl --out ~/humanfish-nov2026/preds/maia3-23m.jsonl")
     lines.append("# ~/maia-ft/.venv/bin/python ~/humanfish-nov2026/eval_pytorch.py --model maia3-79m --positions ~/humanfish-nov2026/positions.jsonl --out ~/humanfish-nov2026/preds/maia3-79m.jsonl")
+    lines.append("")
+    lines.append("# 5b. Toby 2 Accurate on the desktop GPU (see TOBY.md), then convert its output")
+    lines.append("# ~/toby/bench/run_toby_systemd.sh ~/toby/bench/nov2026/positions.jsonl ~/toby/bench/nov2026/toby_predictions.jsonl")
+    lines.append("# copy toby_predictions.jsonl to /home/danilo/data/maia/humanfish-nov2026/toby_raw.jsonl, then:")
+    lines.append("/home/danilo/data/maia/venv-calib/bin/python scripts/maia/humanfish_bench/convert_toby.py")
     lines.append("")
     lines.append("# 6. Compute bootstrap CIs and generate report.md")
     lines.append("/home/danilo/data/maia/venv-calib/bin/python scripts/maia/humanfish_bench/analyze_results.py")
