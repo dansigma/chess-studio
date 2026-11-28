@@ -25,7 +25,7 @@ TIME_CONTROL_MAP = {
     "rapid": "Rapid",
     "blitz": "Blitz",
 }
-MOVE_LINE_RE = re.compile(r"^info string toby move (\S+) san \S+ prob ([0-9.]+)")
+MOVE_LINE_RE = re.compile(r"^info string toby move (\S+) san \S+ prob ([0-9.]+(?:[eE][-+]?[0-9]+)?)")
 
 
 def parse_time_control(raw):
