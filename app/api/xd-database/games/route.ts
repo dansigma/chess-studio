@@ -42,7 +42,7 @@ export async function GET(request: Request) {
   if (playerQuery !== null) {
     const offsets = playerOffsets(query.get("cursor"));
     if (!offsets) return error("Invalid playerQuery cursor");
-    return serve(request, (reader) => playerQueryGames(reader, positionRequest.key, playerQuery, offsets, color, matches), {
+    return serve(request, (reader) => playerQueryGames(reader, positionRequest.key, positionRequest.fen, playerQuery, offsets, color, matches), {
       filtered: true, skipEdgeCache: true,
     });
   }

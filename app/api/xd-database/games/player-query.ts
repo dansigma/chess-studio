@@ -61,7 +61,7 @@ async function refill(reader: XdDatabaseReader, streams: Stream[]) {
   }
 }
 
-async function positionMatcher(reader: XdDatabaseReader, key: bigint) {
+async function positionMatcher(reader: XdDatabaseReader, key: bigint, fen: string) {
   if (key === INITIAL_POSITION) return () => true;
   const position = await reader.position(key);
   if (!position) return null;
@@ -70,25 +70,74 @@ async function positionMatcher(reader: XdDatabaseReader, key: bigint) {
     return ({ id }: Posting) => ids.has(id);
   }
   const maxPly = await reader.maxPly();
-  return ({ moves }: Posting) => {
-    const board = new Chess();
-    for (const san of moves.split(" ", maxPly)) {
-      if (!san) break;
-      try {
-        board.move(san);
-      } catch {
-        // The builder counts the legal prefix of a game.
-        break;
-      }
-      if (bookKey(board.fen()) === key) return true;
+  const target = targetShape(fen);
+  return ({ moves }: Posting) => replayReaches(moves, maxPly, key, target);
+}
+
+/** Whether replaying `moves` (SAN, space separated) reaches the position `key` within `maxPly` plies. */
+export function replayReaches(moves: string, maxPly: number, key: bigint, target: TargetShape): boolean {
+  const board = new Chess();
+  const shape = { pawns: { w: 8, b: 8 }, pieces: { w: 16, b: 16 } };
+  for (const san of moves.split(" ", maxPly)) {
+    if (!san) break;
+    let move;
+    try {
+      move = board.move(san);
+    } catch {
+      // The builder counts the legal prefix of a game.
+      break;
     }
-    return false;
-  };
+    // Captures and pawn moves are irreversible: once the game has fewer pawns or pieces than the
+    // target, or a pawn left a home square the target still occupies, it can never reach it.
+    if (move.captured) {
+      const side = move.color === "w" ? "b" : "w";
+      shape.pieces[side] -= 1;
+      if (move.captured === "p") shape.pawns[side] -= 1;
+      if (move.captured === "p" && target.homePawns.has(move.isEnPassant() ? "" : move.to)) return false;
+    }
+    if (move.piece === "p" && target.homePawns.has(move.from)) return false;
+    if (move.promotion) shape.pawns[move.color] -= 1;
+    if (shape.pawns.w < target.pawns.w || shape.pawns.b < target.pawns.b ||
+        shape.pieces.w < target.pieces.w || shape.pieces.b < target.pieces.b) return false;
+    if (shape.pawns.w === target.pawns.w && shape.pawns.b === target.pawns.b &&
+        shape.pieces.w === target.pieces.w && shape.pieces.b === target.pieces.b &&
+        bookKey(board.fen()) === key) return true;
+  }
+  return false;
+}
+
+type TargetShape = ReturnType<typeof targetShape>;
+
+/** Pawn and piece counts per side, and the pawns still on their home squares, of a FEN. */
+export function targetShape(fen: string) {
+  const shape = { pawns: { w: 0, b: 0 }, pieces: { w: 0, b: 0 }, homePawns: new Set<string>() };
+  const rows = fen.trim().split(/\s+/)[0].split("/");
+  rows.forEach((row, index) => {
+    const rank = 8 - index;
+    let file = 0;
+    for (const char of row) {
+      if (/\d/.test(char)) {
+        file += Number(char);
+        continue;
+      }
+      const side = char === char.toUpperCase() ? "w" : "b";
+      shape.pieces[side] += 1;
+      if (char.toLowerCase() === "p") {
+        shape.pawns[side] += 1;
+        if ((side === "w" && rank === 2) || (side === "b" && rank === 7)) {
+          shape.homePawns.add(`${"abcdefgh"[file]}${rank}`);
+        }
+      }
+      file += 1;
+    }
+  });
+  return shape;
 }
 
 export async function playerQueryGames(
   reader: XdDatabaseReader,
   key: bigint,
+  fen: string,
   query: string,
   offsets: Map<string, number>,
   color: string | null,
@@ -108,7 +157,7 @@ export async function playerQueryGames(
   if (!streams.some(({ player, offset }) => offset < player.count)) {
     return Response.json({ games, nextCursor: null, ...playerSummary });
   }
-  const reachesPosition = await positionMatcher(reader, key);
+  const reachesPosition = await positionMatcher(reader, key, fen);
   if (!reachesPosition) return Response.json({ games, nextCursor: null, ...playerSummary });
 
   await refill(reader, streams);
