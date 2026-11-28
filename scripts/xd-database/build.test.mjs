@@ -222,7 +222,7 @@ describe("xd-database build", () => {
     assert.deepEqual(rows[0], { id: 1, whiteElo: 2750, blackElo: 2840, year: 2024, result: "1/2-1/2" });
     const ruy = await reader.positionByFen(fenAfter("e4 e5 Nf3"));
     assert.deepEqual((await reader.positionGames(ruy, 1, 10)).map(({ id }) => id), [0, 2]);
-    assert.equal(manifest.formatVersion, 2);
+    assert.equal(manifest.formatVersion, 3);
   });
 
   it("rejects indexes written in format version 1", async () => {
@@ -232,9 +232,9 @@ describe("xd-database build", () => {
       if (file.endsWith(".idx")) new DataView(bytes.buffer, bytes.byteOffset).setUint32(4, 1, true);
       return bytes;
     });
-    await assert.rejects(v1.positionByFen(new Chess().fen()), /format version 1, expected 2/);
-    await assert.rejects(v1.game(0), /format version 1, expected 2/);
-    await assert.rejects(v1.searchPlayers("carlsen"), /format version 1, expected 2/);
+    await assert.rejects(v1.positionByFen(new Chess().fen()), /format version 1, expected 2 through 3/);
+    await assert.rejects(v1.game(0), /format version 1, expected 2 through 3/);
+    await assert.rejects(v1.searchPlayers("carlsen"), /format version 1, expected 2 through 3/);
   });
 
   it("passes its own sample check", async () => {
@@ -249,6 +249,42 @@ describe("xd-database build", () => {
       assert.equal(other.files[name].sha256, file.sha256, name);
     }
     assert.deepEqual(readFileSync(join(root, "a", "v2", "tree.bin")), readFileSync(join(root, "b", "v2", "tree.bin")));
+  });
+
+  it("resolves openings by position and preserves the source ECO across worker counts", async () => {
+    const jobava = "d4 Nf6 Nc3 d5 Bf4 c5";
+    const cases = [
+      [`${jobava} e3 cxd4 exd4`, "B13", "D01", "Rapport-Jobava System"],
+      [`${jobava} e3 cxd4 exd4`, "D00o", "D01", "Rapport-Jobava System"],
+      [`${jobava} e3 cxd4 exd4`, undefined, "D01", "Rapport-Jobava System"],
+      [`${jobava} e4 cxd4`, "A00", "D01", "Rapport-Jobava System"],
+      [`${jobava} e3 e6`, "A45", "D01", "Rapport-Jobava System"],
+      ["e4 b5", undefined, "B00", "King's Pawn Game"],
+      ["e5", "A00", null, null],
+    ];
+    // Span several batches so workers can finish them out of source order.
+    const count = 1501;
+    const pgn = Array.from({ length: count }, (_, i) => {
+      const [moves, ECO] = cases[i % cases.length];
+      return otb(moves, { ECO, Round: String(i + 1) });
+    }).join("");
+    const build = (workers) => buildDatabase(sources(pgn), {
+      ...BASE, outDir: join(root, `openings-${workers}`), workers, maxPly: 3,
+    });
+    const single = await build(1);
+    const multi = await build(3);
+    assert.deepEqual(single.files, multi.files);
+    const unresolved = Math.floor(count / cases.length);
+    assert.deepEqual(multi.stats.openings, { resolved: count - unresolved, unresolved });
+
+    const database = new XdDatabaseReader(localSource(join(root, "openings-3", "v2")));
+    const games = await database.gamesById(Array.from({ length: count }, (_, id) => id));
+    assert.equal(games.length, count);
+    for (const { id, game } of games) {
+      const [moves, eco, openingEco, openingName] = cases[id % cases.length];
+      assert.deepEqual([game.moves, game.eco, game.openingEco, game.openingName, game.round],
+        [moves, eco ?? null, openingEco, openingName, String(id + 1)]);
+    }
   });
 
   it("fails without output when fewer games than --min-games-read were read", async () => {

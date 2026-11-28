@@ -1,4 +1,4 @@
-import { fenKey } from "../chess/tree";
+import { fenKey } from "../chess/tree.ts";
 import type { CatalogEntry } from "./openings-catalog";
 
 type Opening = Pick<CatalogEntry, "eco" | "name">;

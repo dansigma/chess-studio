@@ -16,7 +16,7 @@ requests. See `src/lib/legal/credits.ts` for the sources and licenses. The sourc
 
 | File | Content | Lookup |
 |---|---|---|
-| `games.bin` + `games.idx` | Every kept game: headers and SAN moves, 256 games per deflate-raw block | game id → one range read |
+| `games.bin` + `games.idx` | Every kept game: headers, SAN moves and resolved opening, 256 games per deflate-raw block | game id → one range read |
 | `tree.bin` + `tree.idx` | Every position up to ply 50 (move 25) reached by at least 2 games: total games; per next move white wins, draws, black wins, average rating and last year; the ids of the 50 strongest games | position key → one range read (pages of ~16 KB) |
 | `position-games.bin` | Every game at every kept position, in top-game order. Each 12-byte entry stores game id, both ratings, year and result | position byte offset and entry cursor → one bounded range read |
 | `players.bin` + `players.idx` | Player directory sorted by search key (lowercase, no accents): name, FIDE id, game count, years | name prefix → one or a few range reads |
@@ -26,6 +26,9 @@ requests. See `src/lib/legal/credits.ts` for the sources and licenses. The sourc
 The `.idx` files are small (the tree index is about 16 bytes per 16 KB page) and are meant to stay cached in the
 Worker. Position keys are the app's position hash (`bookKey`), so a FEN from the board finds its entry
 (`treeKeyOfFen` normalizes it through chess.js first).
+
+Format v3 appends `openingEco` and `openingName` to each game’s JSON array. The opening name is
+stored as text. Format v2 game lines omit those fields and readers return null for both.
 
 ### Rules
 
@@ -42,6 +45,11 @@ Worker. Position keys are the app's position hash (`bookKey`), so a FEN from the
   (`placeholderPlayer`). Each player rated 2700 or higher must have their own FIDE ID in the PGN
   (`implausibleRating`).
 - **De-duplication:** same rule as the opening book (normalized players, Date, Round, first 40 moves).
+- **Opening:** workers match positions from the legal mainline against the site’s opening catalog using
+  the Explorer’s FEN key, so transpositions match. The last matching position in the game supplies the
+  opening. If catalog entries share that position, the deepest catalog line wins. Both fields are null
+  when the game reaches no catalog position. The source ECO tag is stored verbatim in `eco`. The manifest
+  reports `stats.openings.resolved` and `stats.openings.unresolved`.
 - **Tree:** the first 50 plies of each game (`--max-ply`). A position counts each game once, even if the game
   repeats it. Positions reached by fewer than 2 games (`--min-games`) are left out: the move that leads there is
   still listed in its parent, with its count and result.
@@ -55,15 +63,18 @@ Worker. Position keys are the app's position hash (`bookKey`), so a FEN from the
 
 All paths below are under `/api/xd-database`. The manifest in
 `src/lib/xd-database/manifest.ts` sets the immutable R2 release prefix and the
-edge cache version. The API reads format v2.
+edge cache version. The builder writes format v3 and the API reads formats v2 and v3.
+The production release remains pinned to release 2 until the format v3 release is uploaded.
 
 | Path | Response |
 |---|---|
 | `tree?fen=` | `{ opening, total, moves }`, with UCI, white wins, draws, black wins, average rating and last year per move |
 | `games?fen=&cursor=` | `{ games, nextCursor }` in strongest-first order, 20 headers per page |
-| `game/:id` | PGN with the stored tags and numbered SAN |
+| `game/:id` | PGN with numbered SAN, resolved `ECO` and `Opening` tags when available, and source `ECO` as the fallback |
 | `players?q=` | `{ players }`, matching a case- and accent-insensitive name prefix |
 | `players/:id/games?cursor=` | `{ games, nextCursor }` in newest-first order, 20 headers per page |
+
+The two game-list responses include `eco`, `openingEco` and `openingName` in each header.
 
 For position games, use the optional `player` directory id, `color=white|black`
 (with `player`), `minRating` and `maxRating` (rounded game-average Elo),
@@ -76,9 +87,9 @@ the current release. Positions absent from the tree return empty lists.
 
 Needs Node 22.18+ (TypeScript imports), `npm ci`, 7-Zip, and for the full release about 8 vCPU and 32 GB of RAM.
 Plan for up to about 3 hours and 20 GB of free disk beyond the extracted PGNs, including temporary files and output.
-These are planning estimates until a full build with the 1800 rule is measured. Format v2 uses 24-byte temporary
-position records. At the previous build's volume that is about 5 GB of temporary position records, with up to
-roughly three times that volume if nearly every input game is kept.
+These are planning estimates until a full build with the 1800 rule and opening resolution is measured.
+The builder uses 24-byte temporary position records. At the previous build's volume that is about 5 GB,
+with up to roughly three times that volume if nearly every input game is kept.
 
 ```bash
 7z x otb.7z          # one .pgn file (12.3 GB for 2026-11)
@@ -93,7 +104,8 @@ fails without output.
 
 The main thread reads and filters the PGN and writes the game store and player data; `--workers` threads replay
 the games with chess.js (the slow part, about 130 µs per ply; a memo skips chess.js for repeated opening moves)
-and write position records into `2^--bucket-bits` bucket files by key range. Each bucket is then sorted and folded
+and return opening matches in batches. The main thread writes completed batches in source order. Workers also
+write tree position records into `2^--bucket-bits` bucket files by key range. Each bucket is then sorted and folded
 into tree pages and postings by a worker. Once the sizes of the posting parts are
 known, workers set the absolute posting offsets and compress the tree pages.
 The parts are concatenated in key order. The output does not depend on the

@@ -21,6 +21,9 @@ import { deflateRawSync } from "node:zlib";
 import { Chess } from "chess.js";
 import { encodeMove } from "../../src/chess/opening-book-format.ts";
 import { ByteReader, ByteWriter, averageGameRating, readTreePosition, writeTreePosition } from "../../src/lib/xd-database/format.ts";
+import { fenKey } from "../../src/chess/tree.ts";
+import { indexCatalogOpenings } from "../../src/lib/line-opening.ts";
+import { loadCatalog } from "../../src/lib/openings-catalog.ts";
 import { positionKeyParts } from "./position-key.mjs";
 
 const KEY_LO = 0;
@@ -106,16 +109,18 @@ export class RecordWriter {
  * loaded (from the FEN) when a move is not in the memo. Cleared when full.
  */
 export class MoveMemo {
-  constructor(limit = 1_000_000) {
+  constructor(openings, limit = 1_000_000) {
+    this.openings = openings;
     this.limit = limit;
     this.map = new Map();
     this.board = new Chess();
     this.boardFen = this.board.fen();
+    this.startOpening = openings.get(fenKey(this.boardFen)) ?? -1;
     this.hits = 0;
     this.misses = 0;
   }
 
-  /** { fen, code } after playing `san` from `fen` (its key is `keyText`), or null when illegal. */
+  /** { fen, code, opening } after playing `san` from `fen` (its key is `keyText`), or null when illegal. */
   play(fen, keyText, san) {
     const memoKey = `${keyText}|${san}`;
     const known = this.map.get(memoKey);
@@ -139,7 +144,11 @@ export class MoveMemo {
       return null;
     }
     this.boardFen = this.board.fen();
-    const result = { fen: this.boardFen, code: encodeMove(move.from + move.to + (move.promotion ?? "")) };
+    const result = {
+      fen: this.boardFen,
+      code: encodeMove(move.from + move.to + (move.promotion ?? "")),
+      opening: this.openings.get(fenKey(this.boardFen)),
+    };
     if (this.map.size >= this.limit) {
       this.map.clear();
     }
@@ -149,44 +158,27 @@ export class MoveMemo {
 }
 
 const START_FEN = new Chess().fen();
-let defaultMemo = null;
-
-/**
- * Replays one game and adds its records. Returns "ok", or "illegal" when a move
- * could not be played (the positions before it are kept, and the last legal
- * position gets a no-move record).
- */
-export function replayInto(writer, game, maxPly, memo = (defaultMemo ??= new MoveMemo())) {
+/** Replay the legal mainline for the opening, recording tree positions through maxPly. */
+function replayInto(writer, game, maxPly, memo) {
   const seen = new Set();
   const key = [0, 0];
-  const limit = Math.min(game.sans.length, maxPly);
   let fen = START_FEN;
-  let ply = 0;
-  for (;;) {
-    positionKeyParts(fen, key);
-    const keyText = `${key[0]}:${key[1]}`;
-    const fresh = !seen.has(keyText);
-    seen.add(keyText);
-    if (ply >= limit) {
-      if (fresh) {
-        writer.add(key[0], key[1], game.id, 0, game.result, ply, game.whiteElo, game.blackElo, game.year);
+  let opening = memo.startOpening;
+  for (let ply = 0; ; ply += 1) {
+    const hasMove = ply < game.sans.length;
+    const next = hasMove ? memo.play(fen, fen, game.sans[ply]) : null;
+    if (ply <= maxPly) {
+      positionKeyParts(fen, key);
+      const keyText = `${key[0]}:${key[1]}`;
+      if (!seen.has(keyText)) {
+        seen.add(keyText);
+        writer.add(key[0], key[1], game.id, ply < maxPly ? next?.code ?? 0 : 0,
+          game.result, ply, game.whiteElo, game.blackElo, game.year);
       }
-      return "ok";
     }
-    // The memo key needs the whole position, not only the hash: castling and en passant are
-    // part of the FEN core, and a 64-bit collision must never replay the wrong move.
-    const next = memo.play(fen, fen, game.sans[ply]);
-    if (!next) {
-      if (fresh) {
-        writer.add(key[0], key[1], game.id, 0, game.result, ply, game.whiteElo, game.blackElo, game.year);
-      }
-      return "illegal";
-    }
-    if (fresh) {
-      writer.add(key[0], key[1], game.id, next.code, game.result, ply, game.whiteElo, game.blackElo, game.year);
-    }
+    if (!next) return { opening, illegal: hasMove && ply < maxPly };
+    opening = next.opening ?? opening;
     fen = next.fen;
-    ply += 1;
   }
 }
 
@@ -370,21 +362,27 @@ function finalizeBucket({ tmpDir, bucket, pages, postingsBase }) {
 if (parentPort) {
   let writer = null;
   let config = null;
+  let memo = null;
+  const catalog = await loadCatalog();
+  const indices = new Map(catalog.map((entry, i) => [entry, i]));
   const counts = { games: 0, illegal: 0 };
   parentPort.on("message", (message) => {
     try {
       if (message.type === "init") {
         config = message;
+        const openings = new Map(Array.from(indexCatalogOpenings(catalog), ([key, entry]) => [key, indices.get(entry)]));
+        memo = new MoveMemo(openings);
         writer = new RecordWriter({ tmpDir: message.tmpDir, worker: message.worker, bucketBits: message.bucketBits });
         parentPort.postMessage({ type: "ready" });
       } else if (message.type === "games") {
-        for (const game of message.games) {
-          if (replayInto(writer, game, config.maxPly) === "illegal") {
-            counts.illegal += 1;
-          }
-          counts.games += 1;
+        const openings = new Int32Array(message.games.length);
+        for (const [i, game] of message.games.entries()) {
+          const { opening, illegal } = replayInto(writer, game, config.maxPly, memo);
+          openings[i] = opening;
+          if (illegal) counts.illegal += 1;
         }
-        parentPort.postMessage({ type: "ack" });
+        counts.games += message.games.length;
+        parentPort.postMessage({ type: "ack", openings }, [openings.buffer]);
       } else if (message.type === "flush") {
         writer.flushAll();
         parentPort.postMessage({ type: "flushed", records: writer.records, ...counts });
