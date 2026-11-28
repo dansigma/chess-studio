@@ -204,7 +204,8 @@ class TobyUCI:
                 if self.proc.poll() is None:
                     self._send("quit")
                     self.proc.wait(timeout=10)
-            except Exception:
+            except Exception as exc:
+                print(f"Warning: Toby did not shut down cleanly: {exc}", file=sys.stderr)
                 self.proc.kill()
             finally:
                 self.proc = None

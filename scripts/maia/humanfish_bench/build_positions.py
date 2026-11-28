@@ -243,7 +243,7 @@ def build_positions(
                     tc_class = infer_time_control_class(
                         fide_tc, manifest_tc, pgn_tc, tour_name, first_clk=first_clk
                     )
-                    tc_value = pgn_tc if pgn_tc and pgn_tc != "?" else (manifest_tc or "?")
+                    tc_value = pgn_tc if pgn_tc and pgn_tc not in ("?", "-") else (manifest_tc or "?")
                     round_str = headers.get("Round", "").strip()
                     game_id = f"{tour_id}_{game_idx}"
 

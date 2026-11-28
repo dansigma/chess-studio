@@ -183,8 +183,9 @@ def main() -> None:
     for target_name, queries in subset:
         existing = by_query.get(target_name)
         if not args.force and existing and existing.get("status") == "downloaded":
-            pgn_file = out_dir / (existing.get("pgn_file") or "")
-            if pgn_file.exists() and pgn_file.stat().st_size > 0:
+            pgn_name = existing.get("pgn_file")
+            pgn_file = out_dir / pgn_name if pgn_name else None
+            if pgn_file is not None and pgn_file.is_file() and pgn_file.stat().st_size > 0:
                 print(f"Skipping already downloaded: {target_name} ({existing['id']})", flush=True)
                 continue
 

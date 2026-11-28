@@ -59,7 +59,7 @@ def main() -> None:
                 )
                 + "\n"
             )
-    print(f"Wrote {args.out}; variants={variants}; played move not listed by Toby: {missing_played}")
+    print(f"Wrote {args.out}; variants={dict(sorted(variants.items()))}; played move not listed by Toby: {missing_played}")
 
 
 if __name__ == "__main__":
