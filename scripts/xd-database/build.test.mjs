@@ -122,8 +122,9 @@ describe("xd-database build", () => {
       ...onlineEvents.map((Event) => ({ Event, Site: "Unknown" })),
       { White: "NN", Black: "Over-Rated", WhiteElo: "2894", BlackElo: "2836", Date: "2003.??.??", Event: "Unknown", Site: "Unknown" },
       ...placeholders.map((Black) => ({ Black })),
-      { WhiteElo: "2700", BlackFideId: "24116068" },
-      { BlackElo: "2889", BlackFideId: "0" },
+      // Elite games without a FIDE ID are kept; a 2900+ tag is stored as missing.
+      { WhiteElo: "2750", BlackFideId: "24116068" },
+      { WhiteElo: "2900", BlackElo: "2724" },
       { Event: "Tata Steel Masters", White: "Nnamdi", Black: "Ann", WhiteElo: "2750", WhiteFideId: "1503014" },
       { Event: "ACCT2024 Open", Date: "1858.??.??", WhiteElo: undefined, BlackElo: undefined },
       { Event: "Tata Steel Masters", Site: "https://lichess.org/broadcast/tata-steel" },
@@ -133,17 +134,20 @@ describe("xd-database build", () => {
     const outDir = join(root, "headers");
     const built = await buildDatabase(sources(pgn), { ...BASE, outDir, workers: 1 });
     assert.equal(built.stats.gamesRead, headers.length);
-    assert.equal(built.stats.gamesKept, 4);
+    assert.equal(built.stats.gamesKept, 6);
     assert.deepEqual(built.stats.rejected, {
       noYear: 3,
       online: onlineEvents.length,
       placeholderPlayer: placeholders.length + 1,
-      implausibleRating: 2,
     });
 
     const database = new XdDatabaseReader(localSource(join(outDir, "v2")));
-    const games = await database.gamesById([0, 1, 2, 3]);
-    const [masters, historical, urlBroadcast, sourceBroadcast] = games.map(({ game }) => game);
+    const games = await database.gamesById([0, 1, 2, 3, 4, 5]);
+    const [noFideId, placeholderRating, masters, historical, urlBroadcast, sourceBroadcast] = games.map(({ game }) => game);
+    assert.equal(noFideId.whiteElo, 2750);
+    assert.equal(noFideId.whiteFideId, null);
+    assert.equal(placeholderRating.whiteElo, null);
+    assert.equal(placeholderRating.blackElo, 2724);
     assert.equal(masters.whiteElo, 2750);
     assert.equal(masters.whiteFideId, 1503014);
     assert.equal(masters.white, "Nnamdi");

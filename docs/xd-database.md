@@ -42,8 +42,8 @@ stored as text. Format v2 game lines omit those fields and readers return null f
   lichess.org/broadcast URL.
   A known year in Date is required (`noYear`). The month and day may be unknown.
   Both player names must be present and free of placeholders such as NN, Unknown, or Over-Rated
-  (`placeholderPlayer`). Each player rated 2700 or higher must have their own FIDE ID in the PGN
-  (`implausibleRating`).
+  (`placeholderPlayer`). A rating of 2900 or more is a placeholder (no player has reached it): the
+  game is kept and that rating is stored as missing.
 - **De-duplication:** same rule as the opening book (normalized players, Date, Round, first 40 moves).
 - **Opening:** workers match positions from the legal mainline against the site’s opening catalog using
   the Explorer’s FEN key, so transpositions match. The last matching position in the game supplies the

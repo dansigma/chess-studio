@@ -125,9 +125,12 @@ export function parseArgs(argv) {
 
 const RESULT_CODE = { "1-0": 0, "1/2-1/2": 1, "0-1": 2 };
 
+// No player has reached 2900; such a tag is a placeholder and is stored as missing.
+const MAX_RATING = 2899;
+
 function rating(value) {
   const number = Number(value);
-  return Number.isInteger(number) && number > 0 && number < 4000 ? number : null;
+  return Number.isInteger(number) && number > 0 && number <= MAX_RATING ? number : null;
 }
 
 function fideId(value) {
@@ -158,10 +161,6 @@ function xdRejection(headers) {
   }
   if (placeholderPlayer(headers.White) || placeholderPlayer(headers.Black)) {
     return "placeholderPlayer";
-  }
-  if ((Number(headers.WhiteElo) >= 2700 && !fideId(headers.WhiteFideId)) ||
-      (Number(headers.BlackElo) >= 2700 && !fideId(headers.BlackFideId))) {
-    return "implausibleRating";
   }
   return null;
 }
