@@ -133,6 +133,16 @@ function rating(value) {
   return Number.isInteger(number) && number > 0 && number <= MAX_RATING ? number : null;
 }
 
+/** Headers with a 2900+ rating tag removed, so the rating rule treats it as missing. */
+function withoutPlaceholderRatings(headers) {
+  const placeholder = (value) => Number(value) > MAX_RATING;
+  if (!placeholder(headers.WhiteElo) && !placeholder(headers.BlackElo)) return headers;
+  const clean = { ...headers };
+  if (placeholder(clean.WhiteElo)) delete clean.WhiteElo;
+  if (placeholder(clean.BlackElo)) delete clean.BlackElo;
+  return clean;
+}
+
 function fideId(value) {
   const number = Number(value);
   return Number.isSafeInteger(number) && number > 0 ? number : null;
@@ -430,8 +440,10 @@ export async function buildDatabase(sources, options) {
   try {
     reading: for (const source of sources) {
       const report = {};
-      const classify = (headers) =>
-        profileRejection("masters", headers, { minElo: o.minElo, ratingRule: RATING_RULE }) ?? xdRejection(headers);
+      const classify = (raw) => {
+        const headers = withoutPlaceholderRatings(raw);
+        return profileRejection("masters", headers, { minElo: o.minElo, ratingRule: RATING_RULE }) ?? xdRejection(headers);
+      };
       for await (const game of readGames(source, classify, report)) {
         stats.read += 1;
         if (game.rejected) {

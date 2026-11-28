@@ -125,6 +125,9 @@ describe("xd-database build", () => {
       // Elite games without a FIDE ID are kept; a 2900+ tag is stored as missing.
       { WhiteElo: "2750", BlackFideId: "24116068" },
       { WhiteElo: "2900", BlackElo: "2724" },
+      { WhiteElo: "2899", BlackElo: "2724" },
+      // A 2900+ tag does not satisfy the rating rule.
+      { WhiteElo: "2950", BlackElo: "1500" },
       { Event: "Tata Steel Masters", White: "Nnamdi", Black: "Ann", WhiteElo: "2750", WhiteFideId: "1503014" },
       { Event: "ACCT2024 Open", Date: "1858.??.??", WhiteElo: undefined, BlackElo: undefined },
       { Event: "Tata Steel Masters", Site: "https://lichess.org/broadcast/tata-steel" },
@@ -134,20 +137,22 @@ describe("xd-database build", () => {
     const outDir = join(root, "headers");
     const built = await buildDatabase(sources(pgn), { ...BASE, outDir, workers: 1 });
     assert.equal(built.stats.gamesRead, headers.length);
-    assert.equal(built.stats.gamesKept, 6);
+    assert.equal(built.stats.gamesKept, 7);
     assert.deepEqual(built.stats.rejected, {
       noYear: 3,
       online: onlineEvents.length,
       placeholderPlayer: placeholders.length + 1,
+      elo: 1,
     });
 
     const database = new XdDatabaseReader(localSource(join(outDir, "v2")));
-    const games = await database.gamesById([0, 1, 2, 3, 4, 5]);
-    const [noFideId, placeholderRating, masters, historical, urlBroadcast, sourceBroadcast] = games.map(({ game }) => game);
+    const games = await database.gamesById([0, 1, 2, 3, 4, 5, 6]);
+    const [noFideId, placeholderRating, highestRating, masters, historical, urlBroadcast, sourceBroadcast] = games.map(({ game }) => game);
     assert.equal(noFideId.whiteElo, 2750);
     assert.equal(noFideId.whiteFideId, null);
     assert.equal(placeholderRating.whiteElo, null);
     assert.equal(placeholderRating.blackElo, 2724);
+    assert.equal(highestRating.whiteElo, 2899);
     assert.equal(masters.whiteElo, 2750);
     assert.equal(masters.whiteFideId, 1503014);
     assert.equal(masters.white, "Nnamdi");
