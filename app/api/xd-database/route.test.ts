@@ -23,7 +23,8 @@ const opening = "e4 e5 Nf3 Nc6";
 const transposedOpening = "Nc3 e5 e4";
 const transposedCount = 22;
 const playerName = "Álvarez, Ana";
-const leitaoDates = ["2016.03.04", undefined, "2016.??.??", ...Array<string>(20).fill("2024.08.01")];
+// Builds drop games without a year (SIG-1453), so the oldest game has a partial date instead.
+const leitaoDates = ["2016.03.04", "1999.??.??", "2016.??.??", ...Array<string>(20).fill("2024.08.01")];
 const leitaoStart = scanLimit + 2;
 const sharedGameId = leitaoStart + 3;
 const fixtureCount = leitaoStart + leitaoDates.length + 21;
