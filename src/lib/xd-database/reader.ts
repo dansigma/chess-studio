@@ -56,6 +56,10 @@ export type PositionGame = {
 export type PlayerGame = { id: number; color: "white" | "black" };
 export type DirectoryPlayer = PlayerEntry & { id: string };
 
+function comparePlayers(a: DirectoryPlayer, b: DirectoryPlayer): number {
+  return b.count - a.count || compareUtf8(a.searchKey, b.searchKey);
+}
+
 export class XdDatabaseReader {
   // Cache decoded values only. Pending R2 reads belong to their originating request.
   private gamesIndex: GamesIndex | null = null;
@@ -182,7 +186,31 @@ export class XdDatabaseReader {
     if (key === "") {
       return [];
     }
+    const found = await this.playersWithPrefix(await this.players(), key);
+    return found.sort(comparePlayers).slice(0, limit);
+  }
+
+  /** Players with a name word starting with each of the query's first four words, most games first. */
+  async searchPlayersByWords(query: string, limit = 20): Promise<DirectoryPlayer[]> {
+    const words = playerSearchKey(query).split(/[ ,]+/).filter(Boolean).slice(0, 4);
+    if (!words.length) return [];
+
     const index = await this.players();
+    // Any query word may match the first word of the indexed name.
+    const candidates = await Promise.all(
+      Array.from(new Set(words), (word) => this.playersWithPrefix(index, word)),
+    );
+    const matches = new Map<string, DirectoryPlayer>();
+    for (const entry of candidates.flat()) {
+      const nameWords = entry.searchKey.split(/[ ,]+/);
+      if (words.every((word) => nameWords.some((nameWord) => nameWord.startsWith(word)))) {
+        matches.set(entry.id, entry);
+      }
+    }
+    return [...matches.values()].sort(comparePlayers).slice(0, limit);
+  }
+
+  private async playersWithPrefix(index: PlayersIndex, key: string): Promise<DirectoryPlayer[]> {
     let page = pageFor(index, key)?.page ?? 0;
     // Matching records can start in the preceding page when the prefix is a page key.
     while (page > 0 && index.firstKeys[page] === key) page -= 1;
@@ -206,7 +234,7 @@ export class XdDatabaseReader {
         break;
       }
     }
-    return found.sort((a, b) => b.count - a.count || compareUtf8(a.searchKey, b.searchKey)).slice(0, limit);
+    return found;
   }
 
   /** One page of a player's games, newest first. */
