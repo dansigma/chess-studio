@@ -83,14 +83,14 @@ def scan_pgn_fast_rg(pgn_path: Path, games: dict[str, dict]) -> dict | None:
     # 2. Max valid YYYY.MM.DD date among 2026+ (fallback to 2020+ if none); unknown years (????) are kept
     #    so a partial date that could fall in the test window forces the full scan
     date_res = subprocess.run(
-        [rg_bin, "-N", r'^\[Date "(?:202[6-9]|\?{4})\.', str(pgn_path)],
+        [rg_bin, "-N", r'^\[Date "(?:202[6-9?]|20\?\?|\?{4})\.', str(pgn_path)],
         capture_output=True,
         text=True,
         check=False,
     )
     if not date_res.stdout.strip():
         date_res = subprocess.run(
-            [rg_bin, "-N", r'^\[Date "(?:202[0-9]|\?{4})\.', str(pgn_path)],
+            [rg_bin, "-N", r'^\[Date "(?:202[0-9?]|20\?\?|\?{4})\.', str(pgn_path)],
             capture_output=True,
             text=True,
             check=False,
