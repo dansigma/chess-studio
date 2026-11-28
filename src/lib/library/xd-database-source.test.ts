@@ -10,18 +10,15 @@ import { defaultLibraryFilters } from "./types.ts";
 const filters = defaultLibraryFilters(["xadrez-digital"]);
 const signal = new AbortController().signal;
 
-test("passes position and game filters to the API, resolving a player directory ID", async () => {
+test("passes position and game filters to the API, preferring the player filter over text search", async () => {
+  const position = { fen: DEFAULT_POSITION.replace(" w ", " b ") };
   const fetchImpl: typeof fetch = async (input, init) => {
     assert.equal(init?.signal, signal);
     const url = new URL(String(input), "https://example.test");
-    if (url.pathname.endsWith("/players")) {
-      assert.equal(url.searchParams.get("q"), "Alvaro");
-      return Response.json({ players: [{ id: "10-0", name: "Álvaro" }] });
-    }
     assert.equal(url.pathname, "/api/xd-database/games");
     assert.deepEqual(Object.fromEntries(url.searchParams), {
-      fen: DEFAULT_POSITION, player: "10-0", color: "black", result: "1/2-1/2",
-      minRating: "2200", maxRating: "2600", minYear: "2020", maxYear: "2025", cursor: "0",
+      fen: position.fen, playerQuery: "Alvaro", color: "black", result: "1/2-1/2",
+      minRating: "2200", maxRating: "2600", minYear: "2020", maxYear: "2025",
     });
     return Response.json({
       games: [{
@@ -34,7 +31,7 @@ test("passes position and game filters to the API, resolving a player directory 
   const source = createXdDatabaseSource(fetchImpl);
   assert.equal(source.capabilities().maxResults, null);
   const page = await source.list({
-    ...filters, player: "Alvaro", playerColor: "black", result: "draw",
+    ...filters, position, player: " Alvaro ", query: "Nora", playerColor: "black", result: "draw",
     eloMin: 2200, eloMax: 2600, yearFrom: 2020, yearTo: 2025,
   }, null, 50, signal);
   assert.deepEqual(page.items, [{
@@ -84,6 +81,58 @@ test("Library carries server cursors across empty pages and retains unconsumed r
   } finally {
     unregisterLibrarySource(source.id);
   }
+});
+
+test("text search maps to a player query and carries opaque cursors through empty and partial pages", async () => {
+  const seen: (string | null)[] = [];
+  const source = createXdDatabaseSource(async (input) => {
+    const url = new URL(String(input), "https://example.test");
+    assert.equal(url.pathname, "/api/xd-database/games");
+    assert.equal(url.searchParams.get("playerQuery"), "Leitão");
+    assert.equal(url.searchParams.get("fen"), DEFAULT_POSITION);
+    assert.equal(url.searchParams.has("player"), false);
+    assert.equal(url.searchParams.has("color"), false);
+    const cursor = url.searchParams.get("cursor");
+    seen.push(cursor);
+    return Response.json(cursor === null ? {
+      games: [], nextCursor: "eyJwbGF5ZXIiOjIwfQ", playersCapped: true,
+    } : {
+      games: [
+        { id: 1, white: "Leitao, Rafael", date: "2025" },
+        { id: 2, white: "Leitao, Alexandre", date: "2024" },
+      ],
+      nextCursor: null, playersCapped: true,
+    });
+  });
+  registerLibrarySource(source);
+  try {
+    const search = { ...filters, query: " Leitão " };
+    const empty = await queryLibrary(search, null, 1, signal);
+    assert.deepEqual(empty.items, []);
+    assert.equal(empty.xdPlayersCapped, true);
+    assert.ok(empty.nextCursor);
+    const first = await queryLibrary(search, empty.nextCursor, 1, signal);
+    assert.deepEqual(first.items.map(({ white }) => white), ["Leitao, Rafael"]);
+    assert.ok(first.nextCursor);
+    const last = await queryLibrary(search, first.nextCursor, 1, signal);
+    assert.deepEqual(last.items.map(({ white }) => white), ["Leitao, Alexandre"]);
+    assert.equal(last.nextCursor, null);
+    assert.deepEqual(seen, [null, "eyJwbGF5ZXIiOjIwfQ", "eyJwbGF5ZXIiOjIwfQ"]);
+  } finally {
+    unregisterLibrarySource(source.id);
+  }
+});
+
+test("an unmatched text search contributes no Xadrez Digital games", async () => {
+  const source = createXdDatabaseSource(async (input) => {
+    const query = new URL(String(input), "https://example.test").searchParams;
+    assert.deepEqual(Object.fromEntries(query), { fen: DEFAULT_POSITION, playerQuery: "nobody" });
+    return Response.json({ games: [], nextCursor: null, players: [], playersCapped: false });
+  });
+  const page = await source.list({ ...filters, query: "nobody" }, null, 50, signal);
+  assert.deepEqual(page.items, []);
+  assert.equal(page.nextCursor, null);
+  assert.equal(page.playersCapped, false);
 });
 
 test("loads a game as PGN", async () => {

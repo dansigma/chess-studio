@@ -32,7 +32,7 @@ export type FilterChip = {
 
 const CAPABILITY_KEY: Partial<Record<ChipField, keyof LibrarySourceCapabilities>> = {
   query: "textSearch",
-  opponent: "textSearch",
+  opponent: "opponent",
   color: "color",
   result: "result",
   annotations: "annotations",

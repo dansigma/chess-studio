@@ -10,6 +10,7 @@ import { itemYear } from "@/src/lib/library/filters";
 import { MASTERS_SOURCE_ID } from "@/src/lib/library/masters-source";
 import { getLibrarySource } from "@/src/lib/library/sources";
 import type { LibraryGameItem } from "@/src/lib/library/types";
+import { XD_DATABASE_SOURCE } from "@/src/lib/xd-database/client";
 import { useStudioStore } from "@/src/store/studio-store";
 import { DeleteFileGameDialog, type FileGameDeleteTarget } from "../DeleteFileGameDialog";
 import { pgnResultToWinner, ResultMark } from "../ResultMark";
@@ -266,8 +267,27 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
     (id) => getLibrarySource(id)?.capabilities().sort === "partial",
   );
 
+  const xdSelected = filters.sources.includes(XD_DATABASE_SOURCE);
+  const xdTextSearch = xdSelected && filters.query.trim() !== "";
+  const xdNameSearch = xdTextSearch || (xdSelected && filters.player.trim() !== "");
+  const xdNotes = (
+    <>
+      {xdTextSearch && (
+        <div role="note" className="shrink-0 px-3 py-1 text-caption text-studio-faint">
+          {tLibrary(locale, "library.xd.textSearchNote")}
+        </div>
+      )}
+      {xdSelected && games.xdPlayersCapped && (
+        <div role="note" className="shrink-0 px-3 py-1 text-caption text-studio-faint">
+          {tLibrary(locale, "library.xd.playersCapped")}
+        </div>
+      )}
+    </>
+  );
+
   // Infinite load: the rendered window reached the end of the loaded rows.
-  const wantsMore = hasMore && !loading && !loadingMore && nearEnd(rows.end, items.length);
+  const wantsMore = hasMore && !loading && !loadingMore && !error &&
+    (nearEnd(rows.end, items.length) || (xdNameSearch && items.length === 0));
   useEffect(() => {
     if (wantsMore) {
       loadMore();
@@ -329,6 +349,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
   if (!loading && items.length === 0 && hasMore) {
     return (
       <div className="p-2">
+        {xdNotes}
         <button type="button" className="text-studio-accent" onClick={loadMore} disabled={loadingMore}>
           {tLibrary(locale, loadingMore ? "library.loadingMore" : "library.loadMore")}
         </button>
@@ -340,6 +361,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
     return (
       <div className="flex flex-col items-start gap-2 p-4 text-dense text-studio-muted">
         {failed.length > 0 && <LibraryPartialNotice failed={failed} onRetry={games.retry} />}
+        {xdNotes}
         <p>
           {tLibrary(
             locale,
@@ -419,6 +441,7 @@ function LibraryTableBody({ games, rootRef }: { games: LibraryGamesState; rootRe
             })}
           </div>
         )}
+        {xdNotes}
         {partialSources.length > 0 && (
           <div role="note" className="shrink-0 px-3 py-1 text-caption text-studio-faint">
             {tLibrary(locale, "library.sort.partial", {

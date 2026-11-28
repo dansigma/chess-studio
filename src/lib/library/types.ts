@@ -82,7 +82,8 @@ export const DEFAULT_LIBRARY_FILTERS: LibraryFilterState = {
 export type LibrarySupport = "full" | "partial" | "none";
 
 export type LibrarySourceCapabilities = {
-  textSearch: LibrarySupport; // query and opponent
+  textSearch: LibrarySupport; // query and default for opponent
+  opponent?: LibrarySupport;
   color: LibrarySupport;
   result: LibrarySupport;
   annotations: LibrarySupport;
@@ -100,6 +101,7 @@ export type LibraryPage = {
   nextCursor: string | null;
   /** Resume after the prefix selected by the multi-source merge. */
   cursorAfter?: (used: number) => string | null;
+  playersCapped?: boolean;
   total: number | null; // null when unknown
 };
 
@@ -123,6 +125,7 @@ export type LibraryQueryResult = {
   nextCursor: string | null;
   total: number | null;
   sourceErrors: Partial<Record<LibrarySourceId, string>>;
+  xdPlayersCapped?: boolean;
 };
 
 /** Default filters with an explicit source selection. */

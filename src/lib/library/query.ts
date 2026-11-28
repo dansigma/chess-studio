@@ -111,5 +111,6 @@ export async function queryLibrary(
     nextCursor: hasMore ? encodeLibraryCursor(next) : null,
     total,
     sourceErrors,
+    xdPlayersCapped: pages.some(({ id, page }) => id === "xadrez-digital" && page.playersCapped),
   };
 }
