@@ -1,4 +1,3 @@
-import { Buffer } from "node:buffer";
 import { GAME_ID_MASK, dateNumber } from "@/src/lib/xd-database/format";
 import type { DirectoryPlayer, PlayerGame, XdDatabaseReader } from "@/src/lib/xd-database/reader";
 import { error, gameHeaders, PAGE_SIZE } from "../shared";
@@ -12,13 +11,22 @@ type Headers = ReturnType<typeof gameHeaders>;
 type Posting = PlayerGame & { date: number; headers: Headers };
 type Stream = { player: DirectoryPlayer; offset: number; batch: Posting[]; index: number };
 
+// The cursor JSON is ASCII (player ids and integers), so btoa/atob suffice; no node:buffer in the Worker.
+function toBase64Url(text: string): string {
+  return btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromBase64Url(cursor: string): string {
+  return atob(cursor.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (cursor.length % 4)) % 4));
+}
+
 export function playerOffsets(cursor: string | null): Map<string, number> | null {
   if (cursor === null) return new Map();
   if (cursor.length > 1024 || !/^[A-Za-z0-9_-]+$/.test(cursor)) return null;
   try {
-    const bytes = Buffer.from(cursor, "base64url");
-    if (bytes.toString("base64url") !== cursor) return null;
-    const parsed: unknown = JSON.parse(bytes.toString());
+    const text = fromBase64Url(cursor);
+    if (toBase64Url(text) !== cursor) return null;
+    const parsed: unknown = JSON.parse(text);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
     const entries = Object.entries(parsed);
     if (entries.length === 0 || entries.length > PLAYER_LIMIT || entries.some(([id, offset]) =>
@@ -96,7 +104,7 @@ export async function playerQueryGames(
   }
 
   const nextCursor = streams.some(({ player, offset }) => offset < player.count)
-    ? Buffer.from(JSON.stringify(Object.fromEntries(streams.map(({ player, offset }) => [player.id, offset])))).toString("base64url")
+    ? toBase64Url(JSON.stringify(Object.fromEntries(streams.map(({ player, offset }) => [player.id, offset]))))
     : null;
   return Response.json({
     games,
