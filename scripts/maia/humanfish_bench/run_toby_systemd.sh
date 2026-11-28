@@ -17,12 +17,17 @@ LOG_FILE="${OUTPUT_JSONL%.jsonl}.log"
 
 mkdir -p "$(dirname "$OUTPUT_JSONL")"
 
+# The user systemd manager's PATH lacks /usr/lib/wsl/lib, where WSL exposes the NVIDIA tools.
+# Without it Toby can't see the GPU and silently falls back from Accurate to Standard.
+
 echo "Starting systemd-run unit: $UNIT_NAME"
 echo "Log file: $LOG_FILE"
 
 systemd-run --user \
     --unit="$UNIT_NAME" \
     --description="Toby 2 move-prediction benchmark" \
+    --setenv=PATH="$PATH" \
+    ${LD_LIBRARY_PATH:+--setenv=LD_LIBRARY_PATH="$LD_LIBRARY_PATH"} \
     --property="StandardOutput=append:$LOG_FILE" \
     --property="StandardError=append:$LOG_FILE" \
     "$PYTHON_BIN" "$SCRIPT_DIR/run_toby.py" \
