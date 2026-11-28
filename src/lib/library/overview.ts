@@ -8,7 +8,7 @@ export type LibraryOverview = {
   players: Set<string>; // normalized names (trimmed, case-folded)
   eloSum: number;
   eloCount: number;
-  eco: Map<string, { count: number; opening: string | null }>;
+  eco: Map<string, { count: number; openingCounts: Map<string, number> }>;
   // SIG-1332: results from White's point of view; `other` = unfinished games.
   results: { white: number; draws: number; black: number; other: number };
   years: Map<number, number>; // games per year; undated games are skipped
@@ -79,14 +79,13 @@ export function addToOverview(overview: LibraryOverview, row: OverviewRow): void
   }
   const code = ecoCode(row.eco);
   if (code) {
-    const opening = row.opening?.trim() || null;
-    const hit = overview.eco.get(code);
-    if (hit) {
-      hit.count += 1;
-      hit.opening ??= opening;
-    } else {
-      overview.eco.set(code, { count: 1, opening });
+    const entry = overview.eco.get(code) ?? { count: 0, openingCounts: new Map<string, number>() };
+    entry.count += 1;
+    const opening = row.opening?.trim();
+    if (opening && opening !== "?") {
+      entry.openingCounts.set(opening, (entry.openingCounts.get(opening) ?? 0) + 1);
     }
+    overview.eco.set(code, entry);
   }
 }
 
@@ -123,16 +122,31 @@ export function mergeOverviews(list: LibraryOverview[]): LibraryOverview {
       }
     }
     for (const [code, entry] of o.eco) {
-      const hit = out.eco.get(code);
-      if (hit) {
-        hit.count += entry.count;
-        hit.opening ??= entry.opening;
-      } else {
-        out.eco.set(code, { ...entry });
+      const hit = out.eco.get(code) ?? { count: 0, openingCounts: new Map<string, number>() };
+      hit.count += entry.count;
+      for (const [opening, count] of entry.openingCounts) {
+        hit.openingCounts.set(opening, (hit.openingCounts.get(opening) ?? 0) + count);
       }
+      out.eco.set(code, hit);
     }
   }
   return out;
+}
+
+function mostFrequentOpening(openingCounts: Map<string, number>): string | null {
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [name, count] of openingCounts) {
+    if (count < bestCount) continue;
+    if (count === bestCount && best !== null) {
+      const order = name.length - best.length || name.localeCompare(best, "en");
+      // Distinct strings can collate equally (for example, equivalent Unicode spellings).
+      if (order > 0 || (order === 0 && name >= best)) continue;
+    }
+    best = name;
+    bestCount = count;
+  }
+  return best;
 }
 
 /** The `n` most frequent ECO codes; ties by code ascending. */
@@ -141,9 +155,9 @@ export function topEco(
   n: number,
 ): { code: string; count: number; opening: string | null }[] {
   return [...overview.eco]
-    .map(([code, entry]) => ({ code, ...entry }))
-    .sort((a, b) => b.count - a.count || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0))
-    .slice(0, n);
+    .sort(([a, left], [b, right]) => right.count - left.count || (a < b ? -1 : a > b ? 1 : 0))
+    .slice(0, n)
+    .map(([code, { count, openingCounts }]) => ({ code, count, opening: mostFrequentOpening(openingCounts) }));
 }
 
 /** The `n` players with most games; ties by display name ascending (then key). */
