@@ -39,24 +39,24 @@ function code(fenBefore, san) {
 function corpus() {
   return [
     otb(RUY, { White: "Carlsen, Magnus", WhiteFideId: "1503014", Black: "Giri, Anish", BlackFideId: "24116068", WhiteElo: "2830", BlackElo: "2760", Result: "1-0", Date: "2023.01.20", Round: "1" }),
-    otb(RUY, { White: "Giri, Anish", BlackFideId: "1503014", Black: "Carlsen, M", WhiteElo: "2750", BlackElo: "2840", Result: "1/2-1/2", Date: "2024.05.02", Round: "2" }),
+    otb(RUY, { White: "Giri, Anish", WhiteFideId: "24116068", BlackFideId: "1503014", Black: "Carlsen, M", WhiteElo: "2750", BlackElo: "2840", Result: "1/2-1/2", Date: "2024.05.02", Round: "2" }),
     // Name only: merged into the FIDE identity of Carlsen, Magnus.
-    otb(RUY, { White: "Carlsen, Magnus", Black: "Nakamura, Hikaru", WhiteElo: "2850", BlackElo: "2780", Result: "0-1", Date: "2025.03.03", Round: "3" }),
-    otb(SICILIAN, { White: "Caruana, Fabiano", Black: "Nakamura, Hikaru", WhiteElo: "2800", BlackElo: "2790", Result: "1-0", Date: "2022.07.07", Round: "1" }),
-    otb(SICILIAN, { White: "Caruana, Fabiano", Black: "So, Wesley", WhiteElo: "2790", BlackElo: "2770", Result: "0-1", Date: "2021.07.07", Round: "4" }),
-    otb(QGD, { White: "Ding, Liren", Black: "Nepomniachtchi, Ian", WhiteElo: "2780", BlackElo: "2790", Result: "1/2-1/2", Date: "2023.04.10", Round: "5" }),
+    otb(RUY, { White: "Carlsen, Magnus", Black: "Nakamura, Hikaru", BlackFideId: "2016192", WhiteElo: "2699", BlackElo: "2780", Result: "0-1", Date: "2025.03.03", Round: "3" }),
+    otb(SICILIAN, { White: "Caruana, Fabiano", WhiteFideId: "2020009", Black: "Nakamura, Hikaru", BlackFideId: "2016192", WhiteElo: "2800", BlackElo: "2790", Result: "1-0", Date: "2022.07.07", Round: "1" }),
+    otb(SICILIAN, { White: "Caruana, Fabiano", WhiteFideId: "2020009", Black: "So, Wesley", BlackFideId: "5202213", WhiteElo: "2790", BlackElo: "2770", Result: "0-1", Date: "2021.07.07", Round: "4" }),
+    otb(QGD, { White: "Ding, Liren", WhiteFideId: "8603677", Black: "Nepomniachtchi, Ian", BlackFideId: "4168119", WhiteElo: "2780", BlackElo: "2790", Result: "1/2-1/2", Date: "2023.04.10", Round: "5" }),
     otb(SOLO, { White: "Larsen, Bent", Black: "Spassky, Boris", WhiteElo: "2620", BlackElo: "2690", Result: "0-1", Date: "1970.03.31", Round: "1" }),
     // Rejected: rated under 1800, an online game, an unfinished game.
     otb(RUY, { White: "Low, A", Black: "Low, B", WhiteElo: "1700", BlackElo: "1600", Date: "2020.01.01" }),
     otb(RUY, { White: "Online, A", Black: "Online, B", Site: "chess.com INT", Date: "2020.01.01" }),
     otb(RUY, { White: "Open, A", Black: "Open, B", Result: "*", Date: "2020.01.01" }),
     // A relayed tournament: kept although Site names lichess.org.
-    otb(QGD, { White: "Gukesh, D", Black: "Firouzja, Alireza", WhiteElo: "2790", BlackElo: "2760", Result: "1-0", Date: "2024.04.20", Round: "9", Site: "lichess.org", Source: "LichessBroadcastAPI" }),
+    otb(QGD, { White: "Gukesh, D", WhiteFideId: "46616543", Black: "Firouzja, Alireza", BlackFideId: "12573981", WhiteElo: "2790", BlackElo: "2760", Result: "1-0", Date: "2024.04.20", Round: "9", Site: "lichess.org", Source: "LichessBroadcastAPI" }),
   ].join("");
 }
 
 // The first Ruy Lopez game again, from a second collection: a duplicate.
-const DUPLICATE = otb(RUY, { White: "Carlsen,M.", Black: "Giri, A", WhiteElo: "2830", BlackElo: "2760", Result: "1-0", Date: "2023.01.20", Round: "1" });
+const DUPLICATE = otb(RUY, { White: "Carlsen,M.", WhiteFideId: "1503014", Black: "Giri, A", BlackFideId: "24116068", WhiteElo: "2830", BlackElo: "2760", Result: "1-0", Date: "2023.01.20", Round: "1" });
 
 function sources(...texts) {
   return texts.map((text) => linesOf(Readable.from([text])));
@@ -108,6 +108,53 @@ describe("xd-database build", () => {
     assert.deepEqual((await database.positionGames(start, 0, 3)).map(({ id }) => id), start.gameIds);
   });
 
+  it("counts XD header rejections and keeps legitimate games", async () => {
+    const onlineEvents = [
+      "CCT2024-Event1-Div1-KO", "Champions Chess Tour", "Titled Tuesday", "Titled Arena",
+      "Bullet Chess Championship", "Speed Chess Championship", "Chess.com Global Championship",
+      "Lichess Marathon", "Online Olympiad", "Banter Blitz", "Arena Kings",
+    ];
+    const placeholders = ["NN", "N.N.", "N N", "?", "-", "Unknown", " Over Rated ", "", undefined];
+    const headers = [
+      { Event: "TRE 2026 TC G09", Date: "????.??.??", WhiteElo: "2867", BlackElo: "2889" },
+      { Date: undefined },
+      { Date: "0000.01.01" },
+      ...onlineEvents.map((Event) => ({ Event, Site: "Unknown" })),
+      { White: "NN", Black: "Over-Rated", WhiteElo: "2894", BlackElo: "2836", Date: "2003.??.??", Event: "Unknown", Site: "Unknown" },
+      ...placeholders.map((Black) => ({ Black })),
+      { WhiteElo: "2700", BlackFideId: "24116068" },
+      { BlackElo: "2889", BlackFideId: "0" },
+      { Event: "Tata Steel Masters", White: "Nnamdi", Black: "Ann", WhiteElo: "2750", WhiteFideId: "1503014" },
+      { Event: "ACCT2024 Open", Date: "1858.??.??", WhiteElo: undefined, BlackElo: undefined },
+      { Event: "Tata Steel Masters", Site: "https://lichess.org/broadcast/tata-steel" },
+      { Event: "Titled Tuesday Invitational", Site: "lichess.org", Source: "LichessBroadcast" },
+    ];
+    const pgn = headers.map((tags, i) => otb(RUY, { Round: String(i + 1), ...tags })).join("");
+    const outDir = join(root, "headers");
+    const built = await buildDatabase(sources(pgn), { ...BASE, outDir, workers: 1 });
+    assert.equal(built.stats.gamesRead, headers.length);
+    assert.equal(built.stats.gamesKept, 4);
+    assert.deepEqual(built.stats.rejected, {
+      noYear: 3,
+      online: onlineEvents.length,
+      placeholderPlayer: placeholders.length + 1,
+      implausibleRating: 2,
+    });
+
+    const database = new XdDatabaseReader(localSource(join(outDir, "v2")));
+    const games = await database.gamesById([0, 1, 2, 3]);
+    const [masters, historical, urlBroadcast, sourceBroadcast] = games.map(({ game }) => game);
+    assert.equal(masters.whiteElo, 2750);
+    assert.equal(masters.whiteFideId, 1503014);
+    assert.equal(masters.white, "Nnamdi");
+    assert.equal(masters.black, "Ann");
+    assert.equal(historical.date, "1858.??.??");
+    assert.equal(historical.whiteElo, null);
+    assert.equal(historical.blackElo, null);
+    assert.equal(urlBroadcast.site, "https://lichess.org/broadcast/tata-steel");
+    assert.equal(sourceBroadcast.event, "Titled Tuesday Invitational");
+  });
+
   it("counts every game at the start position with results per move", async () => {
     const start = await reader.position(bookKey(new Chess().fen()));
     assert.equal(start.total, 8);
@@ -115,7 +162,7 @@ describe("xd-database build", () => {
     const e4 = start.moves.find((m) => m.code === code(startFen, "e4"));
     assert.deepEqual({ white: e4.white, draws: e4.draws, black: e4.black }, { white: 2, draws: 1, black: 2 });
     assert.equal(e4.lastYear, 2025);
-    assert.equal(e4.averageRating, Math.round((2795 + 2795 + 2815 + 2795 + 2780) / 5));
+    assert.equal(e4.averageRating, Math.round((2795 + 2795 + 2740 + 2795 + 2780) / 5));
     // Moves are sorted by games played; b3 (one game) comes last.
     assert.deepEqual(start.moves.map((m) => m.white + m.draws + m.black), [5, 2, 1]);
     assert.equal(start.gameIds.length, 8);
@@ -172,9 +219,9 @@ describe("xd-database build", () => {
     const rows = await reader.positionGames(start, 0, start.total + 1);
     assert.equal(rows.length, 8);
     assert.deepEqual(rows.map(({ id }) => id), start.gameIds);
-    assert.deepEqual(rows[0], { id: 2, whiteElo: 2850, blackElo: 2780, year: 2025, result: "0-1" });
+    assert.deepEqual(rows[0], { id: 1, whiteElo: 2750, blackElo: 2840, year: 2024, result: "1/2-1/2" });
     const ruy = await reader.positionByFen(fenAfter("e4 e5 Nf3"));
-    assert.deepEqual((await reader.positionGames(ruy, 1, 10)).map(({ id }) => id), [1, 0]);
+    assert.deepEqual((await reader.positionGames(ruy, 1, 10)).map(({ id }) => id), [0, 2]);
     assert.equal(manifest.formatVersion, 2);
   });
 
