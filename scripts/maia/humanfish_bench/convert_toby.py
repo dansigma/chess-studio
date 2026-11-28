@@ -40,7 +40,7 @@ def main() -> None:
             played = pos["played_uci"]
             # Toby lists only moves it considers playable; an unlisted played move gets the clip floor.
             p_played = row["p_played"]
-            if p_played is None:
+            if p_played is None or p_played <= 0:
                 missing_played += 1
                 p_played = LOG_PROB_CLIP
             out.write(

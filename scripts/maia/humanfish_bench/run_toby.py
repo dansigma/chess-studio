@@ -193,6 +193,8 @@ class TobyUCI:
                 if m:
                     top.append([m.group(1), float(m.group(2))])
 
+        if not top:
+            raise RuntimeError(f"Toby printed no final move block for position {rec['id']}")
         top.sort(key=lambda item: -item[1])
         return top, path_info, elapsed
 

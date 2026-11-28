@@ -121,6 +121,7 @@ def scan_pgn_fast_rg(pgn_path: Path, games: dict[str, dict]) -> dict | None:
             "max_date_tag": max_date,
             "games_date_ge_2026_11": 0,
             "test_games_checked": len(games),
+            "games_partial_date_maybe_in_window": 0,
             "player_pair_date_matches": 0,
             "contaminated_games_count": 0,
             "contaminated_games": [],

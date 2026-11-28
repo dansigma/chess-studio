@@ -196,6 +196,8 @@ def main() -> None:
         "positions_summary": pos_summary,
         "contamination": contamination,
     }
+    args.metrics_json.parent.mkdir(parents=True, exist_ok=True)
+    args.report.parent.mkdir(parents=True, exist_ok=True)
     args.metrics_json.write_text(json.dumps(metrics_out, indent=2), encoding="utf-8")
 
     # Build Markdown report
@@ -315,7 +317,8 @@ def main() -> None:
         "- **Tournament coverage:** All 13 tournaments from `prospective_nov2026_report.json` were found and downloaded via the Lichess broadcast API "
         f"(whereas Toby 2 reported 12/13). Our dataset has {pos_summary['kept_games']:,} games / {pos_summary['total_positions']:,} positions vs HumanFish's 450 games / 2,698 positions and Toby 2's 523 games / 3,136 positions.\n"
         "- **Sampling seed:** We sampled 1 ply uniformly from each of 6 equal buckets over `[12, total_plies - 1]` with deterministic seed `1503`; "
-        "HumanFish's exact random seed and exact start ply (`after move 6` = ply 12) may differ slightly in bucket boundaries.\n"
+        "HumanFish's exact random seed and exact start ply (`after move 6` = ply 12) may differ slightly in bucket boundaries. "
+        "A game shorter than 18 plies has fewer than 6 plies to sample, so it contributes fewer positions (one game here gives 4).\n"
         "- **Time-control classification:** Lichess broadcast `fideTC` metadata mislabeled `Total Chess World Championship Tour Pilot 2026 | Finals` as `standard` "
         "(despite containing `180+2`, `900+10`, `600`, and `2700+30` games) and `WR Women's Chess Tour 2026 - Grand Final | Rapid` as `blitz`. "
         "We therefore inferred `time_control_class` primarily from the PGN `TimeControl` tag, falling back to the initial `%clk` timestamp when `TimeControl` is `?`, "
