@@ -84,7 +84,7 @@ test("browse Base Xadrez Digital moves and open a database game", async ({ page 
   await expect(page.getByText("Summary not available for public databases", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Load more", exact: true }).click();
   const row = page.getByTestId("library-row").filter({ hasText: "Sample White" });
-  await expect(row.getByRole("gridcell", { name: "Center Game", exact: true })).toBeVisible();
+  await expect(row.getByRole("gridcell", { name: "King's Pawn Game", exact: true })).toBeVisible();
   const pgnResponse = page.waitForResponse("**/api/xd-database/game/42");
   await row.dblclick();
   expect((await pgnResponse).ok()).toBe(true);

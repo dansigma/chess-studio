@@ -5,6 +5,7 @@
 // active it summarizes the filtered set instead ("Filter summary").
 import { tLibrary } from "@/src/i18n/library-strings";
 import { averageElo, topEco, topPlayers, yearBuckets } from "@/src/lib/library/overview";
+import { localizeOpeningName } from "@/src/lib/opening-names";
 import { useStudioStore } from "@/src/store/studio-store";
 import { EcoBadge } from "../ui/EcoBadge";
 import { ResultBar } from "../ui/ResultBar";
@@ -190,6 +191,7 @@ export function LibrarySummary() {
           <ul className="flex flex-col gap-0.5">
             {openings.map(({ code, opening, count }) => {
               const active = ecoFilter === code;
+              const name = opening ? localizeOpeningName(opening, locale, code) : null;
               return (
                 <li key={code}>
                   <button
@@ -200,8 +202,8 @@ export function LibrarySummary() {
                     className={`flex flex-col gap-1 ${itemClass(active)}`}
                   >
                     <span className="flex min-w-0 items-baseline gap-2 text-dense">
-                      <EcoBadge code={code} opening={opening} />
-                      <span className="min-w-0 flex-1 truncate">{opening ?? ""}</span>
+                      <EcoBadge code={code} opening={name} />
+                      <span className="min-w-0 flex-1 truncate">{name}</span>
                       <span className="shrink-0 text-caption tabular-nums">{number(count)}</span>
                     </span>
                     <Bar percent={percentOf(count, overview.games)} />

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DEFAULT_POSITION } from "chess.js";
 import { localizeOpeningName } from "../opening-names.ts";
+import { overviewFromItems, topEco } from "./overview.ts";
 import { createXdDatabaseSource } from "./xd-database-source.ts";
 import { queryLibrary } from "./query.ts";
 import { registerLibrarySource, unregisterLibrarySource } from "./sources.ts";
@@ -42,18 +43,49 @@ test("passes position and game filters to the API, preferring the player filter 
   assert.equal(page.nextCursor, null);
 });
 
-test("uses the shortest catalog name for an ECO code and leaves missing or unknown codes unnamed", async () => {
+test("uses the API opening and groups it by the resolved ECO", async () => {
   const source = createXdDatabaseSource(async () => Response.json({
     games: [
-      { id: 1, date: "2025", eco: " b90 " },
-      { id: 2, date: "2024", eco: null },
-      { id: 3, date: "2023", eco: "Z99" },
+      { id: 1, date: "2025", eco: "D00o", openingEco: "D01", openingName: "Rapport-Jobava System, with e6" },
+      { id: 2, date: "2024", eco: "D00", openingEco: "D01", openingName: null },
     ],
     nextCursor: null,
   }));
   const { items } = await source.list(filters, null, 50, signal);
-  assert.deepEqual(items.map(({ opening }) => opening), ["Sicilian Defense: Najdorf Variation", null, null]);
-  assert.equal(localizeOpeningName(items[0].opening!, "pt-br", items[0].eco), "Defesa Siciliana: Variante Najdorf");
+  assert.deepEqual(items.map(({ eco, opening }) => [eco, opening]), [
+    ["D01", "Rapport-Jobava System, with e6"],
+    ["D01", "Rapport-Jobava System"],
+  ]);
+  assert.deepEqual(topEco(overviewFromItems(items), 5), [
+    { code: "D01", count: 2, opening: "Rapport-Jobava System" },
+  ]);
+});
+
+test("normalizes legacy ECO codes and uses the catalog root line", async () => {
+  const source = createXdDatabaseSource(async () => Response.json({
+    games: ["D00", " d00o ", "D00c", "D00n", "B12c1", "A45", " b90 ", null, "", " ? ", " z99 "]
+      .map((eco, id) => ({ id, date: String(2025 - id), eco, openingEco: null, openingName: null })),
+    nextCursor: null,
+  }));
+  const { items } = await source.list(filters, null, 50, signal);
+  assert.deepEqual(items.map(({ eco, opening }) => [eco, opening]), [
+    ["D00", "Queen's Pawn Game"],
+    ["D00", "Queen's Pawn Game"],
+    ["D00", "Queen's Pawn Game"],
+    ["D00", "Queen's Pawn Game"],
+    ["B12", "Caro-Kann Defense"],
+    ["A45", "Indian Defense"],
+    ["B90", "Sicilian Defense: Najdorf Variation"],
+    [null, null],
+    [null, null],
+    [null, null],
+    ["Z99", null],
+  ]);
+  assert.equal(localizeOpeningName(items[1].opening!, "pt-br", items[1].eco), "Abertura do Peão da Dama");
+  assert.equal(localizeOpeningName(items[6].opening!, "pt-br", items[6].eco), "Defesa Siciliana: Variante Najdorf");
+  assert.deepEqual(topEco(overviewFromItems(items.slice(0, 4)), 5), [
+    { code: "D00", count: 4, opening: "Queen's Pawn Game" },
+  ]);
 });
 
 test("Library carries server cursors across empty pages and retains unconsumed rows", async () => {
