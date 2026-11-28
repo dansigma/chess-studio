@@ -140,6 +140,11 @@ test("players search and game pages use directory ids and newest-first order", a
   assert.equal(entry.name, playerName);
   assert.equal(entry.fideId, 123);
   assert.equal(entry.count, scanLimit + 1);
+  for (const q of ["Ana Alvarez", "Álvarez,Ana"]) {
+    const byWords = await players(request("players", { q }));
+    assert.equal(byWords.status, 200);
+    assert.deepEqual(await byWords.json(), body);
+  }
   const playerId = entry.id;
   const first = await (await playerGames(request(`players/${playerId}/games`), idParams(playerId))).json();
   assert.equal(first.games[0].black, playerName);
