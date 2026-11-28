@@ -1,7 +1,7 @@
 import { DEFAULT_POSITION } from "chess.js";
 import { DEFAULT_SITE_LOCALE, isSiteLocale } from "../../i18n/locale.ts";
 import { tPanels } from "../../i18n/studio-panel-strings.ts";
-import { loadCatalog } from "../openings-catalog.ts";
+import { loadCatalog, type CatalogLine } from "../openings-catalog.ts";
 import {
   fetchXdDatabase, loadXdGamePgn, XD_DATABASE_SOURCE, xdGameDate,
   type XdGameHeader, type XdGamePage,
@@ -9,24 +9,37 @@ import {
 import { compareLibraryItems } from "./sort.ts";
 import type { LibraryGameItem, LibrarySourceAdapter } from "./types.ts";
 
-let openingNames: Promise<ReadonlyMap<string, string> | undefined> | undefined;
+let openingRoots: Promise<ReadonlyMap<string, CatalogLine> | undefined> | undefined;
 
-function loadOpeningNames() {
-  return (openingNames ??= loadCatalog().then((entries) => {
-    const names = new Map<string, string>();
-    for (const { eco, name } of entries) {
-      const current = names.get(eco);
-      if (current === undefined || name.length < current.length) names.set(eco, name);
+function loadOpeningRoots() {
+  return (openingRoots ??= loadCatalog().then((entries) => {
+    const roots = new Map<string, CatalogLine>();
+    for (const entry of entries) {
+      const current = roots.get(entry.eco);
+      const order = current
+        ? entry.uci.length - current.uci.length
+          || entry.name.length - current.name.length
+          || entry.name.localeCompare(current.name, "en")
+        : -1;
+      if (order < 0) roots.set(entry.eco, entry);
     }
-    return names;
+    return roots;
   }).catch(() => {
     // Keep the game list usable if the catalog chunk fails to load.
-    openingNames = undefined;
+    openingRoots = undefined;
     return undefined;
   }));
 }
 
-function mapGame(game: XdGameHeader, names: ReadonlyMap<string, string> | undefined): LibraryGameItem {
+function gameEco(game: XdGameHeader): string | null {
+  if (game.openingEco) return game.openingEco;
+  const raw = game.eco?.trim().toUpperCase();
+  if (!raw || raw === "?") return null;
+  return raw.match(/^([A-E]\d{2})[A-Z]?\d?$/)?.[1] ?? raw;
+}
+
+function mapGame(game: XdGameHeader, roots: ReadonlyMap<string, CatalogLine> | undefined): LibraryGameItem {
+  const eco = gameEco(game);
   return {
     key: `${XD_DATABASE_SOURCE}:${game.id}`,
     sourceId: XD_DATABASE_SOURCE,
@@ -36,8 +49,8 @@ function mapGame(game: XdGameHeader, names: ReadonlyMap<string, string> | undefi
     black: game.black,
     blackElo: game.blackElo,
     result: game.result,
-    eco: game.eco,
-    opening: names?.get(game.eco?.trim().toUpperCase() ?? "") ?? null,
+    eco,
+    opening: game.openingName || roots?.get(eco ?? "")?.name || null,
     plyCount: null,
     event: game.event,
     date: xdGameDate(game.date),
@@ -75,8 +88,10 @@ export function createXdDatabaseSource(fetchImpl?: typeof fetch): LibrarySourceA
       if (!playerQuery || pageCursor !== "0") query.set("cursor", pageCursor);
       const response = await fetchXdDatabase(`games?${query}`, signal, fetchImpl);
       const { games, nextCursor, playersCapped }: XdGamePage = await response.json();
-      const names = games.some(({ eco }) => eco) ? await loadOpeningNames() : undefined;
-      const sorted = games.map((game) => mapGame(game, names)).sort((a, b) => compareLibraryItems(filters.sort, a, b));
+      const roots = games.some((game) => !game.openingName && gameEco(game))
+        ? await loadOpeningRoots()
+        : undefined;
+      const sorted = games.map((game) => mapGame(game, roots)).sort((a, b) => compareLibraryItems(filters.sort, a, b));
       const offset = Number(consumed);
       const items = sorted.slice(offset, offset + limit);
       const cursorAfter = (used: number) => offset + used < sorted.length

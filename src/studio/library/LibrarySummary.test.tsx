@@ -9,6 +9,7 @@ import { overviewFromItems, type LibraryOverview, type OverviewRow } from "@/src
 import { DEFAULT_LIBRARY_FILTERS, type LibrarySourceAdapter } from "@/src/lib/library/types";
 import { clearLibrarySources, registerLibrarySource } from "@/src/lib/library/sources";
 import { syncFileSources } from "@/src/lib/library/file-source";
+import { createXdDatabaseSource } from "@/src/lib/library/xd-database-source";
 
 before(() => setupDom());
 after(() => teardownDom());
@@ -202,6 +203,26 @@ test("with a search or filters it summarizes the filtered set, and goes back wit
   await flush();
   assert.match(text("library-summary"), /Resumo do filtro/);
   assert.match(text("library-summary"), /Partidas\s*1/);
+});
+
+test("the Xadrez Digital filter summary localizes resolved and grouped legacy openings", async () => {
+  registerLibrarySource(createXdDatabaseSource(async () => Response.json({
+    games: [
+      { id: 1, eco: "D00o", openingEco: "D01", openingName: "Rapport-Jobava System" },
+      { id: 2, eco: "D00c", openingEco: null, openingName: null },
+      { id: 3, eco: "D00", openingEco: null, openingName: null },
+    ],
+    nextCursor: null,
+  })));
+  useStudioStore.setState((s) => ({ settings: { ...s.settings, locale: "pt-br" } }));
+  select(["xadrez-digital"]);
+  useLibraryStore.setState((s) => ({ filters: { ...s.filters, query: "Magnus" } }));
+  render(<LibrarySummary />);
+  const openings = within(await screen.findByTestId("library-summary-openings")).getAllByRole("button");
+  assert.deepEqual(openings.map((button) => button.textContent), [
+    "D00Abertura do Peão da Dama2",
+    "D01Sistema Rapport-Jobava1",
+  ]);
 });
 
 test("public databases are excluded from a file summary", () => {
